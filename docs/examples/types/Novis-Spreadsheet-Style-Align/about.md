@@ -6,7 +6,9 @@ You set it with the style field `align` of `Style::of`. `Style::of` turns the st
 - `'left'` is `Left`, and `'right'` is `Right`.
 - `'center'` is `Center`. It is common for a header row.
 - `'fill'` is `Fill`. Excel repeats the text until the cell is full.
-- `'justify'` is `Justify`. Excel makes each line of wrapped text as wide as the cell.
+- `'justify'` is `Justify`. Excel spreads the words of a text with several lines across the full
+  width of the cell.
 
 Any other string throws a `LogicError`. Without `align`, Excel puts text on the left and numbers on
-the right. The style field `valign` sets the place from top to bottom.
+the right. The style field `valign` sets whether the text is at the top, the middle or the bottom of
+the cell.

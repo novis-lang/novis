@@ -2457,7 +2457,7 @@
     "Core\\Response::redirect": "cefae461dd3dfd93"
   },
   "docs/examples/core/Response/sendFile/about.md": {
-    "Core\\Response::sendFile": "688804f0eee642d7"
+    "Core\\Response::sendFile": "d9e33b07f570274f"
   },
   "docs/examples/core/Response/setHeader/about.md": {
     "Core\\Response::setHeader": "5d3b8542231bc490"
@@ -4380,10 +4380,10 @@
     "Novis\\Rest\\Token": "23c0c7aa4aaee024"
   },
   "docs/examples/tools/agents/a-worked-session/about.md": {
-    "tools:agents/a-worked-session": "7090d6f277628861"
+    "tools:agents/a-worked-session": "e3eb5d77345f8b00"
   },
   "docs/examples/tools/agents/nvs-agent/about.md": {
-    "tools:agents/nvs-agent": "d9ed82024f244bd4"
+    "tools:agents/nvs-agent": "db376e15ee242312"
   },
   "docs/examples/tools/agents/nvs-agent-changes/about.md": {
     "tools:agents/nvs-agent-changes": "8611a6fd729be0d4"
@@ -4779,97 +4779,97 @@
     "Core\\Mime::Type": "6f7bc51c4a4df43e"
   },
   "docs/examples/types/Novis-Image-Barcode-Symbology/about.md": {
-    "Novis\\Image\\Barcode::Symbology": "0f2e7a74a9d9626f"
+    "Novis\\Image\\Barcode::Symbology": "b234fd1b922217fc"
   },
   "docs/examples/types/Novis-Image-Format/about.md": {
-    "Novis\\Image\\Format": "737dd050b0d1bcd9"
+    "Novis\\Image\\Format": "c110726c4c1cd9d3"
   },
   "docs/examples/types/Novis-Image-Image-Align/about.md": {
-    "Novis\\Image\\Image::Align": "26df8adfde73980a"
+    "Novis\\Image\\Image::Align": "951f64744ec696d8"
   },
   "docs/examples/types/Novis-Image-Image-Axis/about.md": {
-    "Novis\\Image\\Image::Axis": "04242bf8e79a3ef8"
+    "Novis\\Image\\Image::Axis": "2e90698c7f30ac6c"
   },
   "docs/examples/types/Novis-Image-Image-Blend/about.md": {
-    "Novis\\Image\\Image::Blend": "7cd789f54181a829"
+    "Novis\\Image\\Image::Blend": "c1161a4b691f2b04"
   },
   "docs/examples/types/Novis-Image-Image-Filter/about.md": {
-    "Novis\\Image\\Image::Filter": "ef313bc24104daad"
+    "Novis\\Image\\Image::Filter": "2900b22e8db97c18"
   },
   "docs/examples/types/Novis-Image-Image-Fit/about.md": {
-    "Novis\\Image\\Image::Fit": "bc6aaef679b84986"
+    "Novis\\Image\\Image::Fit": "b8a0709a8dbf91ae"
   },
   "docs/examples/types/Novis-Image-Image-Gravity/about.md": {
-    "Novis\\Image\\Image::Gravity": "22434fda756ff0e8"
+    "Novis\\Image\\Image::Gravity": "2b469bed9b44b4b3"
   },
   "docs/examples/types/Novis-Image-Image-HashKind/about.md": {
-    "Novis\\Image\\Image::HashKind": "107328f56b9becac"
+    "Novis\\Image\\Image::HashKind": "0e60b3308522448f"
   },
   "docs/examples/types/Novis-Image-Image-PlaceholderKind/about.md": {
-    "Novis\\Image\\Image::PlaceholderKind": "eb834a19920c496f"
+    "Novis\\Image\\Image::PlaceholderKind": "a2509996595673ae"
   },
   "docs/examples/types/Novis-Image-QrCode-Level/about.md": {
-    "Novis\\Image\\QrCode::Level": "98d2369cc0c0be68"
+    "Novis\\Image\\QrCode::Level": "5597d5681b8ed5c2"
   },
   "docs/examples/types/Novis-Intl-Collator-CaseFirst/about.md": {
-    "Novis\\Intl\\Collator::CaseFirst": "534c33b471cbb2ed"
+    "Novis\\Intl\\Collator::CaseFirst": "fcc7d4cd81a24d59"
   },
   "docs/examples/types/Novis-Intl-Collator-Strength/about.md": {
-    "Novis\\Intl\\Collator::Strength": "0d79b25ebbceecf4"
+    "Novis\\Intl\\Collator::Strength": "c6a623d209b2e5d1"
   },
   "docs/examples/types/Novis-Intl-DateFormat-Length/about.md": {
-    "Novis\\Intl\\DateFormat::Length": "9a574787583236c2"
+    "Novis\\Intl\\DateFormat::Length": "9507a80f89aec4cf"
   },
   "docs/examples/types/Novis-Intl-DateFormat-ZoneStyle/about.md": {
-    "Novis\\Intl\\DateFormat::ZoneStyle": "debcb126807a90ad"
+    "Novis\\Intl\\DateFormat::ZoneStyle": "920500465f4382ac"
   },
   "docs/examples/types/Novis-Intl-ListFormat-Type/about.md": {
-    "Novis\\Intl\\ListFormat::Type": "eecd40cb8370cd51"
+    "Novis\\Intl\\ListFormat::Type": "bcbec55ced864cc2"
   },
   "docs/examples/types/Novis-Intl-Locale-Service/about.md": {
-    "Novis\\Intl\\Locale::Service": "924ba6a630a86e39"
+    "Novis\\Intl\\Locale::Service": "499cc5fbdcef2f5c"
   },
   "docs/examples/types/Novis-Intl-NumberFormat-CompactDisplay/about.md": {
-    "Novis\\Intl\\NumberFormat::CompactDisplay": "04a97a28a3e46e5b"
+    "Novis\\Intl\\NumberFormat::CompactDisplay": "d25ff8d2341a9b28"
   },
   "docs/examples/types/Novis-Intl-NumberFormat-CurrencyDisplay/about.md": {
-    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "23274531896f2291"
+    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "f85644e5b17d9954"
   },
   "docs/examples/types/Novis-Intl-RelativeTime-Numeric/about.md": {
-    "Novis\\Intl\\RelativeTime::Numeric": "d1b35b1fd7c8e7e1"
+    "Novis\\Intl\\RelativeTime::Numeric": "8e71373fa6595f58"
   },
   "docs/examples/types/Novis-Intl-RelativeTime-Unit/about.md": {
-    "Novis\\Intl\\RelativeTime::Unit": "1b31d9ee0bafc9f0"
+    "Novis\\Intl\\RelativeTime::Unit": "6b6832a2673779d7"
   },
   "docs/examples/types/Novis-Intl-Width/about.md": {
-    "Novis\\Intl\\Width": "734b5d6b49ace933"
+    "Novis\\Intl\\Width": "54f0b9b19b750531"
   },
   "docs/examples/types/Novis-Pdf-Document-Standard/about.md": {
-    "Novis\\Pdf\\Document::Standard": "1a1e98c4f275304e"
+    "Novis\\Pdf\\Document::Standard": "4bf389f15bbc2f37"
   },
   "docs/examples/types/Novis-Spreadsheet-Chart-Kind/about.md": {
-    "Novis\\Spreadsheet\\Chart::Kind": "60a99168b500a9a0"
+    "Novis\\Spreadsheet\\Chart::Kind": "d0dc77174cade718"
   },
   "docs/examples/types/Novis-Spreadsheet-Chart-Legend/about.md": {
-    "Novis\\Spreadsheet\\Chart::Legend": "eacfdaad4f6cbb1b"
+    "Novis\\Spreadsheet\\Chart::Legend": "d473b944e6fd0b0f"
   },
   "docs/examples/types/Novis-Spreadsheet-Reader-SheetKind/about.md": {
-    "Novis\\Spreadsheet\\Reader::SheetKind": "5142a16faad28bac"
+    "Novis\\Spreadsheet\\Reader::SheetKind": "af007e95af2031ec"
   },
   "docs/examples/types/Novis-Spreadsheet-Reader-Visibility/about.md": {
-    "Novis\\Spreadsheet\\Reader::Visibility": "db65b9fa3a755c70"
+    "Novis\\Spreadsheet\\Reader::Visibility": "b0660de349a5df91"
   },
   "docs/examples/types/Novis-Spreadsheet-Style-Align/about.md": {
-    "Novis\\Spreadsheet\\Style::Align": "77b584d7d1c1f9ef"
+    "Novis\\Spreadsheet\\Style::Align": "60b053b544c5c69e"
   },
   "docs/examples/types/Novis-Spreadsheet-Style-Line/about.md": {
-    "Novis\\Spreadsheet\\Style::Line": "08bdf965382e2975"
+    "Novis\\Spreadsheet\\Style::Line": "982e15f4826b2f6e"
   },
   "docs/examples/types/Novis-Spreadsheet-Style-Underline/about.md": {
-    "Novis\\Spreadsheet\\Style::Underline": "790631283ece95d3"
+    "Novis\\Spreadsheet\\Style::Underline": "9eb06be4ce8b6da8"
   },
   "docs/examples/types/Novis-Spreadsheet-Style-Valign/about.md": {
-    "Novis\\Spreadsheet\\Style::Valign": "16d62c169f1d5bcb"
+    "Novis\\Spreadsheet\\Style::Valign": "bf62333638dd868a"
   },
   "docs/examples/types/ParseError/about.md": {
     "ParseError": "06ea1a73d966ae48"
@@ -7350,7 +7350,7 @@
     "Core\\Response::SameSite": "d93f08ce5d8f6415"
   },
   "help:Core\\Response::sendFile": {
-    "Core\\Response::sendFile": "6e68ccecb1921404"
+    "Core\\Response::sendFile": "25ea96d8e855153b"
   },
   "help:Core\\Response::setHeader": {
     "Core\\Response::setHeader": "026ba72c7340ea59"
@@ -8667,7 +8667,7 @@
     "Novis\\Image\\Barcode::svg": "7d8a19c0314376d0"
   },
   "help:Novis\\Image\\Barcode::Symbology": {
-    "Novis\\Image\\Barcode::Symbology": "5c88401227cae4f7"
+    "Novis\\Image\\Barcode::Symbology": "0de9913d9934ca6f"
   },
   "help:Novis\\Image\\Color::hex": {
     "Novis\\Image\\Color::hex": "9fc65387aa5fa900"
@@ -8682,7 +8682,7 @@
     "Novis\\Image\\Font::fromBytes": "cfc174782a9371eb"
   },
   "help:Novis\\Image\\Format": {
-    "Novis\\Image\\Format": "dc49c620b0a76426"
+    "Novis\\Image\\Format": "b34fd6859c8f9f19"
   },
   "help:Novis\\Image\\Image::Align": {
     "Novis\\Image\\Image::Align": "cd7b7f218a5b5376"
@@ -8691,7 +8691,7 @@
     "Novis\\Image\\Image::Axis": "327a808c31859d38"
   },
   "help:Novis\\Image\\Image::Blend": {
-    "Novis\\Image\\Image::Blend": "db99dd4f8cd6d41d"
+    "Novis\\Image\\Image::Blend": "4e4e8850b6f98530"
   },
   "help:Novis\\Image\\Image::blur": {
     "Novis\\Image\\Image::blur": "375e864e563fef22"
@@ -8742,7 +8742,7 @@
     "Novis\\Image\\Image::gamma": "8f6cff7607fa25de"
   },
   "help:Novis\\Image\\Image::Gravity": {
-    "Novis\\Image\\Image::Gravity": "532d2907e4da2806"
+    "Novis\\Image\\Image::Gravity": "981658c7485f61b0"
   },
   "help:Novis\\Image\\Image::grayscale": {
     "Novis\\Image\\Image::grayscale": "168ece223810af23"
@@ -8808,7 +8808,7 @@
     "Novis\\Image\\QrCode::giroCode": "5003662883935133"
   },
   "help:Novis\\Image\\QrCode::Level": {
-    "Novis\\Image\\QrCode::Level": "c30fde2418462a97"
+    "Novis\\Image\\QrCode::Level": "f98e1126dc9a2724"
   },
   "help:Novis\\Image\\QrCode::render": {
     "Novis\\Image\\QrCode::render": "4546dbcb67e5ff19"
@@ -8817,7 +8817,7 @@
     "Novis\\Image\\QrCode::svg": "b7f594850c7985a6"
   },
   "help:Novis\\Intl\\Collator::CaseFirst": {
-    "Novis\\Intl\\Collator::CaseFirst": "9298cbd92bb8d935"
+    "Novis\\Intl\\Collator::CaseFirst": "0d45817c1579942e"
   },
   "help:Novis\\Intl\\Collator::sort": {
     "Novis\\Intl\\Collator::sort": "a80a61b02590679e"
@@ -8826,7 +8826,7 @@
     "Novis\\Intl\\Collator::sortKeys": "85549f7d2df65550"
   },
   "help:Novis\\Intl\\Collator::Strength": {
-    "Novis\\Intl\\Collator::Strength": "ace8042ae7c62ab2"
+    "Novis\\Intl\\Collator::Strength": "90a355bf68d1e789"
   },
   "help:Novis\\Intl\\DateFormat::dates": {
     "Novis\\Intl\\DateFormat::dates": "632cfd34ae4c981b"
@@ -8841,7 +8841,7 @@
     "Novis\\Intl\\DateFormat::times": "a5cc1db15ed6b1c4"
   },
   "help:Novis\\Intl\\DateFormat::ZoneStyle": {
-    "Novis\\Intl\\DateFormat::ZoneStyle": "0582d5f2c5c56eaa"
+    "Novis\\Intl\\DateFormat::ZoneStyle": "6ee2f738d980b8ed"
   },
   "help:Novis\\Intl\\ListFormat::join": {
     "Novis\\Intl\\ListFormat::join": "c373fa2bf8776877"
@@ -8856,7 +8856,7 @@
     "Novis\\Intl\\Locale::resolve": "dafaf1f6e0a17a71"
   },
   "help:Novis\\Intl\\Locale::Service": {
-    "Novis\\Intl\\Locale::Service": "c26f3d1a6205ca7c"
+    "Novis\\Intl\\Locale::Service": "fa179ac108016074"
   },
   "help:Novis\\Intl\\NumberFormat::compact": {
     "Novis\\Intl\\NumberFormat::compact": "ed475f6092f32b67"
@@ -8868,7 +8868,7 @@
     "Novis\\Intl\\NumberFormat::currency": "7063d428b3d53585"
   },
   "help:Novis\\Intl\\NumberFormat::CurrencyDisplay": {
-    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "06d5669aa1056121"
+    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "72a5d8fcf1746c0c"
   },
   "help:Novis\\Intl\\NumberFormat::decimal": {
     "Novis\\Intl\\NumberFormat::decimal": "a51bcf7f45543448"
@@ -8898,7 +8898,7 @@
     "Novis\\Intl\\Segmenter::words": "e86cb686f5933cf4"
   },
   "help:Novis\\Intl\\Width": {
-    "Novis\\Intl\\Width": "f8b5f8435239ca3b"
+    "Novis\\Intl\\Width": "c0ab5a69411467c9"
   },
   "help:Novis\\Pdf\\Document::asset": {
     "Novis\\Pdf\\Document::asset": "97c55f3f06d3c843"
@@ -8931,7 +8931,7 @@
     "Novis\\Pdf\\Document::standard": "03a253ff535215ae"
   },
   "help:Novis\\Pdf\\Document::Standard": {
-    "Novis\\Pdf\\Document::Standard": "67935d1c02dd42b1"
+    "Novis\\Pdf\\Document::Standard": "aa32b2c278faecba"
   },
   "help:Novis\\Pdf\\Page::constructor": {
     "Novis\\Pdf\\Page::constructor": "d262fcd6ec66adbf"
@@ -9153,7 +9153,7 @@
     "Novis\\Spreadsheet\\Sheet::validate": "9edfdfcc3fe0589b"
   },
   "help:Novis\\Spreadsheet\\Style::Align": {
-    "Novis\\Spreadsheet\\Style::Align": "8be3b02186ad7340"
+    "Novis\\Spreadsheet\\Style::Align": "2ed6cf27cd01f129"
   },
   "help:Novis\\Spreadsheet\\Style::constructor": {
     "Novis\\Spreadsheet\\Style::constructor": "dc0f0adfa74865d3"
@@ -9243,7 +9243,7 @@
     "tools:agents/a-worked-session": "e31695857b7a7a35"
   },
   "help:tools:agents/nvs-agent": {
-    "tools:agents/nvs-agent": "adb80ce5f9396503"
+    "tools:agents/nvs-agent": "82da5883031b29d8"
   },
   "help:tools:agents/nvs-agent-changes": {
     "tools:agents/nvs-agent-changes": "e21977ed01940ac6"
@@ -9814,37 +9814,37 @@
     "lang:enums/from-an-integer-back-to-a-case": "93fa43fd89189064",
     "lang:enums/match-and-switch-over-an-enum": "b1b08136e24c2f3c",
     "lang:enums/what-an-enum-does-not-have": "66c326760d04130e",
-    "Novis\\Image\\Barcode::Symbology": "587538600c54fcf7",
-    "Novis\\Image\\Format": "47e56e298b92235a",
-    "Novis\\Image\\Image::Align": "d6d31af66c62325d",
-    "Novis\\Image\\Image::Axis": "be818bde9ee6f870",
-    "Novis\\Image\\Image::Blend": "2b388092cd5ee5d7",
-    "Novis\\Image\\Image::Filter": "3bcc32b213640124",
-    "Novis\\Image\\Image::Fit": "23e2065121a73d88",
-    "Novis\\Image\\Image::Gravity": "19fe46cab60fc529",
-    "Novis\\Image\\Image::HashKind": "ef59992b332937c1",
-    "Novis\\Image\\Image::PlaceholderKind": "6064f5c5bb057e87",
-    "Novis\\Image\\QrCode::Level": "39f1c80d3733cbb2",
-    "Novis\\Intl\\Collator::CaseFirst": "d9e5c1580c355100",
-    "Novis\\Intl\\Collator::Strength": "bb9d7d5edf993a20",
-    "Novis\\Intl\\DateFormat::Length": "b681f81256c20370",
-    "Novis\\Intl\\DateFormat::ZoneStyle": "e844f03655e22e5f",
-    "Novis\\Intl\\ListFormat::Type": "8a4acb81ef6324a5",
-    "Novis\\Intl\\Locale::Service": "bbc5c55b06dce9d5",
-    "Novis\\Intl\\NumberFormat::CompactDisplay": "f1119712d7d81fc5",
-    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "af95b2b9924c0658",
-    "Novis\\Intl\\RelativeTime::Numeric": "cec0cb55ce35fb11",
-    "Novis\\Intl\\RelativeTime::Unit": "1cd0508bd8c396d6",
-    "Novis\\Intl\\Width": "683b2dbe7ea21ac4",
-    "Novis\\Pdf\\Document::Standard": "3afa84205aebe6df",
-    "Novis\\Spreadsheet\\Chart::Kind": "429dd91e5c88e343",
-    "Novis\\Spreadsheet\\Chart::Legend": "0406677131321502",
-    "Novis\\Spreadsheet\\Reader::SheetKind": "54176f3bc2caf232",
-    "Novis\\Spreadsheet\\Reader::Visibility": "2a5b1e8f1af50786",
-    "Novis\\Spreadsheet\\Style::Align": "f4e718a12fc83036",
-    "Novis\\Spreadsheet\\Style::Line": "19fa562d6f19382e",
-    "Novis\\Spreadsheet\\Style::Underline": "030b41680fd846cb",
-    "Novis\\Spreadsheet\\Style::Valign": "387aef8ce96d0d36"
+    "Novis\\Image\\Barcode::Symbology": "1f49c8b546a9610b",
+    "Novis\\Image\\Format": "2298a2007b71073e",
+    "Novis\\Image\\Image::Align": "7b0f63c95edac81c",
+    "Novis\\Image\\Image::Axis": "eaa505bd61ac2fc2",
+    "Novis\\Image\\Image::Blend": "fcdf48334cd56f73",
+    "Novis\\Image\\Image::Filter": "19d65943bd910106",
+    "Novis\\Image\\Image::Fit": "2f9d7adbae8d08c1",
+    "Novis\\Image\\Image::Gravity": "f92ad4faedf15d5a",
+    "Novis\\Image\\Image::HashKind": "fe09d1bc5529b9ba",
+    "Novis\\Image\\Image::PlaceholderKind": "c3106ebf5eeaba48",
+    "Novis\\Image\\QrCode::Level": "ee1857df36425732",
+    "Novis\\Intl\\Collator::CaseFirst": "875bb62beea906ff",
+    "Novis\\Intl\\Collator::Strength": "f1c4080deaca800b",
+    "Novis\\Intl\\DateFormat::Length": "780a512f37fd2506",
+    "Novis\\Intl\\DateFormat::ZoneStyle": "fd6815e70c223b59",
+    "Novis\\Intl\\ListFormat::Type": "619e845bbdcd86b3",
+    "Novis\\Intl\\Locale::Service": "239c3c4d55fedeb9",
+    "Novis\\Intl\\NumberFormat::CompactDisplay": "c05fdf1a50621e38",
+    "Novis\\Intl\\NumberFormat::CurrencyDisplay": "304a50bbd0bcc762",
+    "Novis\\Intl\\RelativeTime::Numeric": "6644f2f7177c7e3c",
+    "Novis\\Intl\\RelativeTime::Unit": "4944a20d92a0eb30",
+    "Novis\\Intl\\Width": "73be3af130b76a11",
+    "Novis\\Pdf\\Document::Standard": "97f2b20fc6118f0f",
+    "Novis\\Spreadsheet\\Chart::Kind": "400469fecc644592",
+    "Novis\\Spreadsheet\\Chart::Legend": "2f92492d6b12326f",
+    "Novis\\Spreadsheet\\Reader::SheetKind": "9ffff1a77f3b11f5",
+    "Novis\\Spreadsheet\\Reader::Visibility": "0f78f4d6386c73b5",
+    "Novis\\Spreadsheet\\Style::Align": "eec110ff03088422",
+    "Novis\\Spreadsheet\\Style::Line": "ee108c4e85b4eda3",
+    "Novis\\Spreadsheet\\Style::Underline": "f8488226d53c5c8a",
+    "Novis\\Spreadsheet\\Style::Valign": "7e4ee56caa8605d6"
   },
   "syntax/values/is.mdx": {
     "lang:types/narrowing": "d01af4ffcc75d5ac"

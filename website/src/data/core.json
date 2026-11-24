@@ -27259,7 +27259,7 @@
           ],
           "raw": "Symbology { Code128, Gs1128, Ean13, Ean8, UpcA, Code39, Itf14, DataMatrix }",
           "doc": {
-            "shortHtml": "The type of barcode <code>Barcode::render</code> and <code>Barcode::svg</code> draw. <code>DataMatrix</code> is a square code. The others are lines of bars."
+            "shortHtml": "The barcode format that <code>Barcode::render</code> and <code>Barcode::svg</code> draw. A barcode format is also called a symbology. <code>Ean13</code> and <code>UpcA</code> are the barcodes on products in shops. <code>UpcA</code> is used in North America. <code>Ean8</code> is the short form for small products. <code>Itf14</code> is the barcode on a shipping box. <code>Code128</code> and <code>Code39</code> contain text, such as a tracking number. <code>Gs1128</code> contains standard fields, such as a product number and a batch number. <code>DataMatrix</code> is a square code. The others are lines of bars."
           }
         }
       ],
@@ -27688,7 +27688,7 @@
           ],
           "raw": "Gravity { Center, North, NorthEast, East, SouthEast, South, SouthWest, West, NorthWest }",
           "doc": {
-            "shortHtml": "A position in an image, as a direction from the center. <code>resize</code> uses it to choose which part of the image it keeps."
+            "shortHtml": "A position in an image, written as a direction from the center. Image programs call this position the gravity. <code>North</code> is the top, <code>East</code> is the right, <code>South</code> is the bottom and <code>West</code> is the left. <code>resize</code>, <code>composite</code> and <code>text</code> use it to place the image or the text. When <code>resize</code> cuts off part of the image, it keeps the part at this position. The default is <code>Center</code>."
           }
         },
         {
@@ -27702,7 +27702,7 @@
           ],
           "raw": "Fit { Cover, Contain, Fill, Inside, Outside }",
           "doc": {
-            "shortHtml": "How <code>resize</code> fits an image into the width and height you give."
+            "shortHtml": "How <code>resize</code> fits an image into a box of the width and height you give. <code>Cover</code> fills the whole box and cuts off what does not fit. It is the default. <code>Contain</code> shows the whole image in the box, and the empty part is transparent. <code>Fill</code> stretches the image to the size of the box, so its shape changes. <code>Inside</code> keeps the whole image and its shape, and the result is no larger than the box. <code>Outside</code> keeps the whole image and its shape, and the result is no smaller than the box."
           }
         },
         {
@@ -27716,7 +27716,7 @@
           ],
           "raw": "Filter { Nearest, Bilinear, CatmullRom, Mitchell, Lanczos3 }",
           "doc": {
-            "shortHtml": "The filter <code>resize</code> uses to calculate the new pixels. The default is <code>Lanczos3</code>."
+            "shortHtml": "The filter <code>resize</code> uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. <code>Nearest</code> is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. <code>Bilinear</code> is fast, and the result is a little soft. <code>CatmullRom</code> and <code>Mitchell</code> are slower and sharper than <code>Bilinear</code>. <code>Lanczos3</code> is the slowest and keeps the most detail. It is the default."
           }
         },
         {
@@ -27742,7 +27742,7 @@
           ],
           "raw": "Blend { Normal, Multiply, Screen, Overlay, Darken, Lighten }",
           "doc": {
-            "shortHtml": "How the pixels of one image are mixed with the pixels of the image below it."
+            "shortHtml": "How <code>composite</code> mixes the colours of the image on top with the colours of the image below it. <code>Normal</code> puts the top image over the lower one. It is the default. <code>Multiply</code> makes the result darker. White on top changes nothing. <code>Screen</code> makes the result lighter. Black on top changes nothing. <code>Overlay</code> makes dark parts darker and light parts lighter, so the contrast is higher. <code>Darken</code> keeps the darker of the two values for each of red, green and blue. <code>Lighten</code> keeps the lighter of the two values for each of red, green and blue."
           }
         },
         {
@@ -27766,7 +27766,7 @@
           ],
           "raw": "HashKind { Perceptual, Difference, Average }",
           "doc": {
-            "shortHtml": "The kind of hash <code>Image::hash</code> returns. A <code>Perceptual</code> hash is 8 bytes, a <code>Difference</code> hash is 16 bytes and an <code>Average</code> hash is 32 bytes."
+            "shortHtml": "The kind of hash <code>Image::hash</code> returns. An image hash is a short value that describes what an image looks like. Two similar images have almost the same hash. A <code>Perceptual</code> hash is 8 bytes and is based on the large shapes of the image. A <code>Difference</code> hash is 16 bytes and is based on where the image gets brighter or darker. An <code>Average</code> hash is 32 bytes and is based on which parts are brighter than the image as a whole."
           }
         },
         {
@@ -27777,7 +27777,7 @@
           ],
           "raw": "PlaceholderKind { BlurHash, ThumbHash }",
           "doc": {
-            "shortHtml": "The kind of placeholder <code>Image::placeholder</code> returns. A <code>BlurHash</code> is 28 characters. A <code>ThumbHash</code> is base64 text and also keeps transparency."
+            "shortHtml": "The kind of placeholder <code>Image::placeholder</code> returns. A placeholder is a short text that a web page draws as a blurred preview while the real image loads. <code>BlurHash</code> and <code>ThumbHash</code> are two formats for this text. The browser decodes each format with a small script made for it. A <code>BlurHash</code> is 28 characters and has no transparency. A <code>ThumbHash</code> is base64 text and also keeps transparency."
           }
         }
       ],
@@ -28777,7 +28777,7 @@
           ],
           "raw": "Level { Low, Medium, Quartile, High }",
           "doc": {
-            "shortHtml": "How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data."
+            "shortHtml": "How much of a QR code can be damaged and still be read. A QR code stores extra data to repair the parts that a scanner cannot read. This is called error correction. <code>Low</code> repairs about 7 percent of the code, and <code>Medium</code> about 15 percent. <code>Quartile</code> repairs about 25 percent, which is a quarter of the code. <code>High</code> repairs about 30 percent. The default is <code>Medium</code>. A higher level makes a bigger code for the same data."
           }
         }
       ],
@@ -28905,7 +28905,7 @@
           ],
           "raw": "Strength { Primary, Secondary, Tertiary, Quaternary, Identical }",
           "doc": {
-            "shortHtml": "Which differences between two strings change their order. <code>Primary</code> compares letters only. <code>Secondary</code> also compares accents, and <code>Tertiary</code>, the default, also compares upper and lower case."
+            "shortHtml": "Which differences between two strings count when <code>Collator</code> sorts them. <code>Collator</code> sorts strings by the rules of a language. <code>Primary</code> compares the letters only, so &quot;resume&quot; and &quot;Résumé&quot; are equal. <code>Secondary</code> also compares accents. <code>Tertiary</code> also compares upper and lower case. This is the default. <code>ignorePunctuation</code> is another option of <code>Collator</code>. When it is <code>true</code>, <code>Primary</code>, <code>Secondary</code> and <code>Tertiary</code> do not compare punctuation. <code>Quaternary</code> also compares that punctuation. <code>Identical</code> also compares the characters themselves when everything else is equal."
           }
         },
         {
@@ -28917,7 +28917,7 @@
           ],
           "raw": "CaseFirst { Off, Upper, Lower }",
           "doc": {
-            "shortHtml": "Whether uppercase or lowercase letters sort first. <code>Off</code>, the default, uses the order of the locale."
+            "shortHtml": "Whether uppercase or lowercase letters come first when <code>Collator</code> sorts words that differ only in case. <code>Collator</code> sorts strings by the rules of a language. <code>Off</code> is the default. It follows the rules of the language. In English, it puts &quot;apple&quot; before &quot;Apple&quot;. <code>Upper</code> puts &quot;Apple&quot; first. <code>Lower</code> puts &quot;apple&quot; first."
           }
         }
       ],
@@ -29052,7 +29052,7 @@
           ],
           "raw": "ZoneStyle { None, Offset, Location, Generic }",
           "doc": {
-            "shortHtml": "How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is <code>None</code>."
+            "shortHtml": "How <code>DateFormat::dateTimes</code> shows the time zone of a date and time. <code>None</code> shows no time zone. This is the default. <code>Offset</code> shows the difference from UTC, such as &quot;GMT+2&quot;. <code>Location</code> shows the country or city of the zone. For the zone <code>Europe/Vienna</code>, this is &quot;Austria Time&quot;. <code>Generic</code> shows the general name of the zone, such as &quot;Central European Time&quot;. It does not say whether it is summer time, so the name is the same in summer and in winter."
           }
         }
       ],
@@ -29210,7 +29210,7 @@
           ],
           "raw": "Type { And, Or, Unit }",
           "doc": {
-            "shortHtml": "The words that join a list: &quot;a, b and c&quot; is <code>And</code>, the default, &quot;a, b or c&quot; is <code>Or</code>, and <code>Unit</code> joins amounts such as &quot;3 feet, 7 inches&quot;."
+            "shortHtml": "The words that <code>ListFormat::join</code> uses to join the items of a list. <code>And</code> writes &quot;tea, coffee, and water&quot; in English. This is the default. <code>Or</code> writes &quot;tea, coffee, or water&quot;. <code>Unit</code> joins the parts of one amount, such as &quot;5 feet, 11 inches&quot;."
           }
         }
       ],
@@ -29288,7 +29288,7 @@
           ],
           "raw": "Service { Collation, Numbers, Plurals, Dates, RelativeTime, Lists, Segmentation }",
           "doc": {
-            "shortHtml": "The data <code>Icu::resolveLocales</code> checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text."
+            "shortHtml": "The kind of data that <code>Locale::resolve</code> checks. For each locale tag, such as <code>de-AT</code> for German in Austria, it returns the locale whose data is used. <code>Collation</code> is the data for sorting text. <code>Numbers</code> is the data for writing numbers. <code>Plurals</code> is the data for plural forms. <code>Dates</code> is the data for writing dates. <code>RelativeTime</code> is the data for times such as &quot;in 3 days&quot;. <code>Lists</code> is the data for joining lists. <code>Segmentation</code> is the data for splitting text into words."
           }
         }
       ],
@@ -29396,7 +29396,7 @@
           ],
           "raw": "CurrencyDisplay { Symbol, Narrow, Name }",
           "doc": {
-            "shortHtml": "How a currency is written: as its symbol, such as &quot;US$&quot;, as its short symbol, such as &quot;$&quot;, or as its name. The default is <code>Symbol</code>."
+            "shortHtml": "How <code>NumberFormat::currency</code> writes the currency of an amount. <code>Symbol</code> writes the usual symbol of the language and region. This is the default. In Canada, &quot;$&quot; means Canadian dollars. So in English for Canada, 19.90 US dollars are written &quot;US$19.90&quot;. <code>Narrow</code> writes the shortest symbol, such as &quot;$19.90&quot;. A reader may not know which dollar it is. <code>Name</code> writes the name of the currency, such as &quot;19.90 US dollars&quot;."
           }
         },
         {
@@ -29407,7 +29407,7 @@
           ],
           "raw": "CompactDisplay { Short, Long }",
           "doc": {
-            "shortHtml": "How a compact number is written: &quot;1.2K&quot; is <code>Short</code>, the default, and &quot;1.2 thousand&quot; is <code>Long</code>."
+            "shortHtml": "How a compact number is written. A compact number is a large number written short, such as &quot;1.2K&quot; for 1,200. <code>Short</code> writes &quot;1.2K&quot; and is the default. <code>Long</code> writes &quot;1.2 thousand&quot;."
           }
         }
       ],
@@ -29713,7 +29713,7 @@
           ],
           "raw": "Unit { Second, Minute, Hour, Day, Week, Month, Quarter, Year }",
           "doc": {
-            "shortHtml": "The unit of an amount of time in <code>RelativeTime::format</code>."
+            "shortHtml": "The unit of time that <code>RelativeTime::format</code> writes. <code>RelativeTime::format</code> writes a count of a unit as a time before or after now. A count of -2 with <code>Week</code> gives &quot;2 weeks ago&quot;. A positive count is in the future. <code>Quarter</code> is three months."
           }
         },
         {
@@ -29724,7 +29724,7 @@
           ],
           "raw": "Numeric { Always, Auto }",
           "doc": {
-            "shortHtml": "Whether a relative time is always written with a number. <code>Always</code>, the default, writes &quot;in 1 day&quot;. <code>Auto</code> writes &quot;tomorrow&quot;."
+            "shortHtml": "Whether <code>RelativeTime::format</code> always writes a number. <code>RelativeTime::format</code> writes a time before or after now, such as &quot;in 1 day&quot;. <code>Always</code> writes the counts -1, 0 and 1 of <code>Day</code> as &quot;1 day ago&quot;, &quot;in 0 days&quot; and &quot;in 1 day&quot;. This is the default. <code>Auto</code> writes the same counts as &quot;yesterday&quot;, &quot;today&quot; and &quot;tomorrow&quot;. Most counts have no word like these, such as the count 5. For such a count, <code>Auto</code> also writes the number: &quot;in 5 days&quot;."
           }
         }
       ],
@@ -29885,7 +29885,7 @@
           ],
           "raw": "Standard { PdfA2b, PdfA3b, PdfUa1 }",
           "doc": {
-            "shortHtml": "A PDF standard the file follows. <code>PdfA2b</code> and <code>PdfA3b</code> are for archiving, and <code>PdfUa1</code> is for screen readers."
+            "shortHtml": "The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. <code>PdfA2b</code> and <code>PdfA3b</code> are PDF/A, and <code>PdfUa1</code> is PDF/UA. Only <code>PdfA3b</code> can contain an electronic invoice. This is an invoice as an XML file that a program can read. <code>Document::invoiceXml</code> attaches this XML file to the document."
           }
         }
       ],
@@ -30959,7 +30959,7 @@
           ],
           "raw": "Kind { Column, Bar, Line, Area, Pie, Doughnut, Scatter }",
           "doc": {
-            "shortHtml": "The type of a chart."
+            "shortHtml": "The type of a chart. <code>Column</code> is a chart with vertical bars, and <code>Bar</code> is a chart with horizontal bars. <code>Doughnut</code> is a pie chart with a hole in the middle."
           }
         },
         {
@@ -31733,7 +31733,7 @@
           ],
           "raw": "SheetKind { Worksheet, Chartsheet }",
           "doc": {
-            "shortHtml": "Whether a sheet has cells or only a chart."
+            "shortHtml": "Whether a sheet has cells or only a chart. A <code>Worksheet</code> has rows and cells. A <code>Chartsheet</code> is a sheet with only one chart and no cells."
           }
         }
       ],
@@ -32834,7 +32834,7 @@
           ],
           "raw": "Align { Left, Center, Right, Fill, Justify }",
           "doc": {
-            "shortHtml": "Where the text sits from left to right in its cell."
+            "shortHtml": "Where the text of a cell is placed from left to right. With <code>Fill</code>, Excel repeats the text until the cell is full. With <code>Justify</code>, Excel spreads the words of a text with several lines across the full width of the cell."
           }
         },
         {

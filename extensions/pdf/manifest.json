@@ -60,7 +60,7 @@
     }
   ],
   "enums": [
-    {"name": "Standard", "owner": "Document", "cases": ["PdfA2b", "PdfA3b", "PdfUa1"], "help": "A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers."}
+    {"name": "Standard", "owner": "Document", "cases": ["PdfA2b", "PdfA3b", "PdfUa1"], "help": "The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. `PdfA2b` and `PdfA3b` are PDF/A, and `PdfUa1` is PDF/UA. Only `PdfA3b` can contain an electronic invoice. This is an invoice as an XML file that a program can read. `Document::invoiceXml` attaches this XML file to the document."}
   ],
   "resources": [{"name": "Kept"}, {"name": "Reading"}]
 }

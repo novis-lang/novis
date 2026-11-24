@@ -1144,13 +1144,14 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "f19d487e94a1fb5f",
+    "hash": "eab41e0e19918332",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",
       "What happens when I search for a function name that does not exist?",
       "How do I find the method that counts characters in a string?",
-      "Walkthrough of looking up a keyword in the reference from the terminal"
+      "Walkthrough of looking up a keyword in the reference from the terminal",
+      "Which kinds of entries does the agent search index contain?"
     ]
   },
   "/reference/cli/files-extensions-and-tags/": {
@@ -13169,10 +13170,10 @@
   },
   "/reference/core/response/sendfile/": {
     "feature": "Core\\Response::sendFile",
-    "hash": "56e8718a919bb23a",
+    "hash": "73e8f95c34d7e74a",
     "questions": [
       "How do I send a file from disk to the browser?",
-      "Offer a file for download",
+      "What happens when one request sends two files?",
       "Serve a large file without loading it into memory",
       "Give a downloaded file its own name",
       "Let a browser resume a download or jump inside a video",
@@ -17869,165 +17870,180 @@
   },
   "/reference/types/novis-image-barcode-symbology/": {
     "feature": "Novis\\Image\\Barcode::Symbology",
-    "hash": "4e9f6dd45564139e",
+    "hash": "c9b6387db516ad6f",
     "questions": [
       "Which barcode types can I draw?",
       "How do I make an EAN-13 barcode for a product?",
-      "Draw a Data Matrix code",
+      "Which characters can a Code 39 barcode contain?",
       "Does the barcode data need a check digit?",
       "Make a Code 128 barcode for a tracking number",
-      "Barcode for a shipping box with 14 digits"
+      "Barcode with a product number and batch number in GS1 format"
     ]
   },
   "/reference/types/novis-image-format/": {
     "feature": "Novis\\Image\\Format",
-    "hash": "cfd75177330a9796",
+    "hash": "723243955a6ea2a8",
     "questions": [
       "Which image formats can I save an image as?",
       "How do I convert an image to WebP?",
       "Get the MIME type for an image format",
       "Get the file extension for an image format",
-      "Can I encode an image as SVG or PDF?"
+      "Can I encode an image as SVG or PDF?",
+      "Can I read AVIF and JPEG XL images?"
     ]
   },
   "/reference/types/novis-image-image-align/": {
     "feature": "Novis\\Image\\Image::Align",
-    "hash": "fdc2fcdfe1ad49bd",
+    "hash": "9a30ccf8180c155b",
     "questions": [
       "How do I center multi-line text drawn on an image?",
       "Right align text lines on an image",
       "Does text alignment change the size measured for the text?",
-      "Align wrapped text when drawing on a picture"
+      "Align wrapped text when drawing on a picture",
+      "What is the default alignment of text drawn on an image?"
     ]
   },
   "/reference/types/novis-image-image-axis/": {
     "feature": "Novis\\Image\\Image::Axis",
-    "hash": "94d24160b5de2107",
+    "hash": "7f02be55ddbd29f3",
     "questions": [
       "How do I mirror an image horizontally?",
       "Flip an image upside down",
       "Difference between flipping and rotating an image",
-      "Mirror a picture left to right"
+      "Mirror a picture left to right",
+      "Does flipping an image change its size?"
     ]
   },
   "/reference/types/novis-image-image-blend/": {
     "feature": "Novis\\Image\\Image::Blend",
-    "hash": "1a3c928f4b5d5065",
+    "hash": "e95ca8a4e924a419",
     "questions": [
       "Which blend modes are there for images?",
       "What does the multiply blend mode do?",
       "Difference between screen and overlay blending",
-      "Keep the darker or lighter pixel when mixing two images"
+      "Keep the darker or lighter pixel when mixing two images",
+      "What is the default blend mode when placing one image on another?"
     ]
   },
   "/reference/types/novis-image-image-filter/": {
     "feature": "Novis\\Image\\Image::Filter",
-    "hash": "b0663ba796e433d4",
+    "hash": "cd9a02bb87e87cff",
     "questions": [
       "Which filter should I use to resize a photo?",
       "Resize pixel art without blurring the edges",
       "What is the fastest way to resize an image?",
       "Resize an image with Lanczos or bilinear filtering",
-      "Why does my enlarged icon look blurry?"
+      "Why does my enlarged icon look blurry?",
+      "Difference between Catmull-Rom and Mitchell resize filters"
     ]
   },
   "/reference/types/novis-image-image-fit/": {
     "feature": "Novis\\Image\\Image::Fit",
-    "hash": "4c3de1b05687cc81",
+    "hash": "5dfd8ba2df9b36ef",
     "questions": [
       "How do I resize an image to fill a box and crop the rest?",
       "Resize an image to fit inside a box without cropping",
       "Stretch an image to an exact width and height",
       "Make a thumbnail that keeps the whole picture",
-      "Resize options cover, contain, fill, inside and outside"
+      "Resize options cover, contain, fill, inside and outside",
+      "Resize so the image covers the box without cutting anything off"
     ]
   },
   "/reference/types/novis-image-image-gravity/": {
     "feature": "Novis\\Image\\Image::Gravity",
-    "hash": "8de5e804c7721cfe",
+    "hash": "bfd93a4f9f474c51",
     "questions": [
       "Which part of the image is kept when a resize crops it?",
       "Crop a thumbnail from the top of a portrait photo",
       "Keep a corner of an image when cropping",
-      "Change the crop position of a cover resize"
+      "Change the crop position of a cover resize",
+      "Which compass directions can I use to position something in an image?"
     ]
   },
   "/reference/types/novis-image-image-hashkind/": {
     "feature": "Novis\\Image\\Image::HashKind",
-    "hash": "c02127e74d05edd2",
+    "hash": "430ac9d6054a7d4d",
     "questions": [
       "How do I find images that look the same?",
       "Detect duplicate images with different sizes or formats",
       "Difference between perceptual, difference and average image hashes",
       "Compare two image fingerprints",
-      "Why does comparing two image hashes throw an error?"
+      "Why does comparing two image hashes throw an error?",
+      "How long is a perceptual image hash in bytes?"
     ]
   },
   "/reference/types/novis-image-image-placeholderkind/": {
     "feature": "Novis\\Image\\Image::PlaceholderKind",
-    "hash": "79349329e9d8eb97",
+    "hash": "28f6f511124a7c94",
     "questions": [
       "Which kinds of image placeholder can I choose?",
       "Generate a BlurHash for an image",
       "BlurHash or ThumbHash: which one keeps transparency?",
-      "Make a small placeholder text for lazy loaded images"
+      "Make a small placeholder text for lazy loaded images",
+      "How long is a BlurHash placeholder string?"
     ]
   },
   "/reference/types/novis-image-qrcode-level/": {
     "feature": "Novis\\Image\\QrCode::Level",
-    "hash": "8749064d38a8ef23",
+    "hash": "68138b53c7bdaa19",
     "questions": [
       "How do I make a QR code that still works with a logo on it?",
       "Set the error correction level of a QR code",
       "Why is my QR code so big?",
       "What happens when the text is too long for a QR code?",
-      "How much damage can a QR code survive?"
+      "How much damage can a QR code survive?",
+      "What is the default QR code error correction level?"
     ]
   },
   "/reference/types/novis-intl-collator-casefirst/": {
     "feature": "Novis\\Intl\\Collator::CaseFirst",
-    "hash": "21eeaaa3ac051e35",
+    "hash": "e794a0196a79eb73",
     "questions": [
       "How do I sort uppercase words before lowercase ones?",
       "Sort Apple before apple in a list",
       "Does upper or lower case come first when sorting words?",
-      "Why does the case order setting have no effect?"
+      "Why does the case order setting have no effect?",
+      "What is the default case order when sorting words?"
     ]
   },
   "/reference/types/novis-intl-collator-strength/": {
     "feature": "Novis\\Intl\\Collator::Strength",
-    "hash": "57c293534584d45c",
+    "hash": "5eff70718f50684f",
     "questions": [
       "How do I sort strings ignoring case and accents?",
       "Compare strings so that accents count but case does not",
       "Search text that ignores accents like é",
       "Which differences between strings change the sort order?",
-      "Do equal strings keep their order when sorting?"
+      "Do equal strings keep their order when sorting?",
+      "Do Hiragana and Katakana count as different when sorting Japanese text?"
     ]
   },
   "/reference/types/novis-intl-dateformat-length/": {
     "feature": "Novis\\Intl\\DateFormat::Length",
-    "hash": "37ac630b04e3215c",
+    "hash": "3d8aa8af1b6b4a04",
     "questions": [
       "How do I show a date with the full month name?",
       "Format a date as short digits like 3/1/26",
       "Short, medium or long date format for a locale",
-      "Which date length is safe for readers from other countries?"
+      "Which date length is safe for readers from other countries?",
+      "Does the order of day, month and year depend on the locale?"
     ]
   },
   "/reference/types/novis-intl-dateformat-zonestyle/": {
     "feature": "Novis\\Intl\\DateFormat::ZoneStyle",
-    "hash": "77a3dec9ba3c0f32",
+    "hash": "32a13be42cef96a6",
     "questions": [
       "How do I show the time zone in a formatted date and time?",
       "Show the UTC offset like GMT+2 next to a time",
       "Display the time zone name such as Central European Time",
-      "Add a time zone label for an online meeting time"
+      "Add a time zone label for an online meeting time",
+      "Show the country of a time zone like Austria Time",
+      "Does the time zone name change in summer?"
     ]
   },
   "/reference/types/novis-intl-listformat-type/": {
     "feature": "Novis\\Intl\\ListFormat::Type",
-    "hash": "367d9244cc3dd5b9",
+    "hash": "ad15a38d174cb5a5",
     "questions": [
       "How do I join a list with and or or in the user's language?",
       "Write a list like tea, coffee, or water",
@@ -18037,38 +18053,41 @@
   },
   "/reference/types/novis-intl-locale-service/": {
     "feature": "Novis\\Intl\\Locale::Service",
-    "hash": "97ea89715a57753e",
+    "hash": "484e7ec65715a481",
     "questions": [
       "Which locale is really used for numbers or dates?",
       "How do I tell the user which language my page is shown in?",
       "What does und mean as a locale?",
       "Check which locale data is used for sorting or plurals",
-      "Does a regional locale fall back to its main language?"
+      "Does a regional locale fall back to its main language?",
+      "Why does de-AT use German data for dates but its own for numbers?"
     ]
   },
   "/reference/types/novis-intl-numberformat-compactdisplay/": {
     "feature": "Novis\\Intl\\NumberFormat::CompactDisplay",
-    "hash": "ff8e6413a7f12427",
+    "hash": "f81874b65499e295",
     "questions": [
       "How do I write 1200 as 1.2K?",
       "Show a large number as 3.4 million",
       "Format follower or view counts in a short form",
-      "Compact number format in German"
+      "Compact number format in German",
+      "Write 1.2 thousand instead of 1.2K"
     ]
   },
   "/reference/types/novis-intl-numberformat-currencydisplay/": {
     "feature": "Novis\\Intl\\NumberFormat::CurrencyDisplay",
-    "hash": "63f6d7c76a062f2a",
+    "hash": "0ad1824f55e968a1",
     "questions": [
       "How do I show a price with the currency name instead of a symbol?",
       "Show US$ or only $ for a dollar amount",
       "Write an amount as US dollars in words",
-      "Which currency symbol style should I use for several currencies?"
+      "Which currency symbol style should I use for several currencies?",
+      "Why is my dollar amount written as US$ in Canada?"
     ]
   },
   "/reference/types/novis-intl-relativetime-numeric/": {
     "feature": "Novis\\Intl\\RelativeTime::Numeric",
-    "hash": "49669b1aa6d3f767",
+    "hash": "5c2b0be4ca308545",
     "questions": [
       "How do I show yesterday or tomorrow instead of 1 day ago?",
       "Always write relative times with a number",
@@ -18078,59 +18097,64 @@
   },
   "/reference/types/novis-intl-relativetime-unit/": {
     "feature": "Novis\\Intl\\RelativeTime::Unit",
-    "hash": "cb8809dbe98ca5b0",
+    "hash": "0bf6b0dabd1b1ba0",
     "questions": [
       "How do I write 5 minutes ago?",
       "Show a time like in 2 weeks",
       "Which units can a relative time use?",
-      "Does relative time formatting choose hours or minutes for me?"
+      "Does relative time formatting choose hours or minutes for me?",
+      "Write a relative time in quarters of a year"
     ]
   },
   "/reference/types/novis-intl-width/": {
     "feature": "Novis\\Intl\\Width",
-    "hash": "b6f321e8b730c098",
+    "hash": "c58c6fd41943485f",
     "questions": [
       "How do I write 3 mo. ago instead of 3 months ago?",
       "Shorter text for lists and relative times on a phone screen",
       "Use & instead of and when joining a short list",
-      "Wide, short and narrow text width"
+      "Wide, short and narrow text width",
+      "Shortest relative time like 3mo ago"
     ]
   },
   "/reference/types/novis-pdf-document-standard/": {
     "feature": "Novis\\Pdf\\Document::Standard",
-    "hash": "5fca13d6f33e3f90",
+    "hash": "b6db748a5b9c909e",
     "questions": [
       "How do I make a PDF/A file for archiving?",
       "Create a PDF for an electronic invoice with XML",
       "Make an accessible PDF for screen readers",
       "Why does rendering my PDF/A throw an error?",
-      "Can a PDF/A file have a password?"
+      "Can a PDF/A file have a password?",
+      "What does a PDF/UA file need, like a title and alt text?"
     ]
   },
   "/reference/types/novis-spreadsheet-chart-kind/": {
     "feature": "Novis\\Spreadsheet\\Chart::Kind",
-    "hash": "7484304f0b37c223",
+    "hash": "bc44415e48b6b1af",
     "questions": [
       "Which chart types can I add to a spreadsheet?",
       "Make a pie or doughnut chart in Excel",
       "List of chart types for a spreadsheet chart",
       "Bar chart versus column chart in a workbook",
-      "Create a scatter chart with x and y values"
+      "Create a scatter chart with x and y values",
+      "Which chart types can I combine in one chart?"
     ]
   },
   "/reference/types/novis-spreadsheet-chart-legend/": {
     "feature": "Novis\\Spreadsheet\\Chart::Legend",
-    "hash": "a49b49459196d8eb",
+    "hash": "f663fa99c494346b",
     "questions": [
       "How do I hide the legend of a chart?",
       "Put the chart legend at the bottom",
       "Where is a chart legend shown by default?",
-      "Move the series names list of an Excel chart"
+      "Move the series names list of an Excel chart",
+      "Which values does the chart legend option accept?"
     ]
   },
   "/reference/types/novis-spreadsheet-reader-sheetkind/": {
     "feature": "Novis\\Spreadsheet\\Reader::SheetKind",
-    "hash": "79005bd1bb04b544",
+    "hash": "936a9f77c80e14ea",
     "questions": [
       "How do I tell a chart sheet from a normal worksheet?",
       "Why does reading rows of a sheet throw an error?",
@@ -18140,38 +18164,41 @@
   },
   "/reference/types/novis-spreadsheet-reader-visibility/": {
     "feature": "Novis\\Spreadsheet\\Reader::Visibility",
-    "hash": "7a8fa80b28e249a5",
+    "hash": "6cfc169523971e0c",
     "questions": [
       "How do I hide a sheet in an Excel workbook?",
       "Make a sheet that a user cannot unhide in Excel",
       "Is a hidden sheet secret?",
-      "Check if a sheet in an uploaded file is hidden"
+      "Check if a sheet in an uploaded file is hidden",
+      "Difference between hidden and very hidden sheets in Excel"
     ]
   },
   "/reference/types/novis-spreadsheet-style-align/": {
     "feature": "Novis\\Spreadsheet\\Style::Align",
-    "hash": "9ae932b52a76753d",
+    "hash": "ad2afc750d756e62",
     "questions": [
       "How do I center text in a spreadsheet cell?",
       "Right align a column in an Excel file",
       "Justify wrapped text in a spreadsheet cell",
-      "Which values does the align style accept?"
+      "Which values does the align style accept?",
+      "Repeat text until the spreadsheet cell is full"
     ]
   },
   "/reference/types/novis-spreadsheet-style-line/": {
     "feature": "Novis\\Spreadsheet\\Style::Line",
-    "hash": "6a57d06b4e0e3870",
+    "hash": "3fff6fba71b8fff2",
     "questions": [
       "How do I add a border to a spreadsheet cell?",
       "Double line border above a total row",
       "Set a different border on the top and bottom of a cell",
       "Dashed or dotted cell borders in Excel",
-      "Change the border color of a cell"
+      "Change the border color of a cell",
+      "Which border line styles can a spreadsheet cell have?"
     ]
   },
   "/reference/types/novis-spreadsheet-style-underline/": {
     "feature": "Novis\\Spreadsheet\\Style::Underline",
-    "hash": "1a57596ccdb426e9",
+    "hash": "7934b235dff9edb3",
     "questions": [
       "How do I underline text in a spreadsheet cell?",
       "Double underline text in Excel",
@@ -18181,7 +18208,7 @@
   },
   "/reference/types/novis-spreadsheet-style-valign/": {
     "feature": "Novis\\Spreadsheet\\Style::Valign",
-    "hash": "bbec2f28ca52ff5d",
+    "hash": "f2051212f8008cb4",
     "questions": [
       "How do I align cell text to the top?",
       "Vertically center text in a spreadsheet cell",

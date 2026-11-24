@@ -1,8 +1,9 @@
-The type of barcode that `Barcode::render` and `Barcode::svg` draw.
+The barcode format that `Barcode::render` and `Barcode::svg` draw. A barcode format is also called a
+symbology.
 
 `Barcode::Symbology` is declared in the class `Novis\Image\Barcode`.
 
-Each type takes different data. The data must already contain its check digit.
+Each format takes different data. The data must already contain its check digit.
 
 - `Code128` takes any plain ASCII text, such as a tracking number.
 - `Gs1128` takes GS1 element strings. Each one starts with its identifier in brackets, as in
@@ -14,4 +15,4 @@ Each type takes different data. The data must already contain its check digit.
 - `Itf14` takes the 14 digits printed on a shipping box.
 - `DataMatrix` takes any text and draws a square code.
 
-The others draw lines of bars. Data that the type cannot hold throws a `LogicError`.
+The others draw lines of bars. Data that the format cannot contain throws a `LogicError`.

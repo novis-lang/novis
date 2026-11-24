@@ -5,7 +5,7 @@
       "features": [
         "Core\\Response::sendFile"
       ],
-      "text": "A request that calls `Core\\Response::sendFile` more than once sends only the last file. The `max_output` limit under `[limits]` now counts only that file. Before, it counted the size of every file the request named."
+      "text": "A request can call `Core\\Response::sendFile` more than once. Each call replaces the file of the call before it, so the request sends only the last file. The earlier files are not sent, and the `max_output` limit under `[limits]` does not count them. Before, this limit counted the size of every file the request named."
     },
     {
       "kind": "new",

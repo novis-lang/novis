@@ -59851,7 +59851,7 @@ The state of a background job, as `Core\Queue::status` returns it. There are fiv
 <a id="enum-novis-image-format"></a>
 #### `Novis\Image\Format`
 
-An image file format. `Image::format` sets the format that `encode` writes.
+An image file format. `Avif` is the AVIF format, and `Jxl` is the JPEG XL format. `Image::format` sets the format of the file that `encode` returns. `encode` runs every step you added to the image and returns the finished file. `Image::open` reads all eight formats. `encode` writes only `Jpeg`, `Png`, `Webp`, `Gif` and `Avif`.
 
 | Case | Meaning |
 |---|---|
@@ -59867,7 +59867,7 @@ An image file format. `Image::format` sets the format that `encode` writes.
 <a id="enum-novis-image-image-gravity"></a>
 #### `Novis\Image\Image::Gravity`
 
-A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps.
+A position in an image, written as a direction from the center. Image programs call this position the gravity. `North` is the top, `East` is the right, `South` is the bottom and `West` is the left. `resize`, `composite` and `text` use it to place the image or the text. When `resize` cuts off part of the image, it keeps the part at this position. The default is `Center`.
 
 | Case | Meaning |
 |---|---|
@@ -59884,7 +59884,7 @@ A position in an image, as a direction from the center. `resize` uses it to choo
 <a id="enum-novis-image-image-fit"></a>
 #### `Novis\Image\Image::Fit`
 
-How `resize` fits an image into the width and height you give.
+How `resize` fits an image into a box of the width and height you give. `Cover` fills the whole box and cuts off what does not fit. It is the default. `Contain` shows the whole image in the box, and the empty part is transparent. `Fill` stretches the image to the size of the box, so its shape changes. `Inside` keeps the whole image and its shape, and the result is no larger than the box. `Outside` keeps the whole image and its shape, and the result is no smaller than the box.
 
 | Case | Meaning |
 |---|---|
@@ -59897,7 +59897,7 @@ How `resize` fits an image into the width and height you give.
 <a id="enum-novis-image-image-filter"></a>
 #### `Novis\Image\Image::Filter`
 
-The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`.
+The filter `resize` uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. `Nearest` is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. `Bilinear` is fast, and the result is a little soft. `CatmullRom` and `Mitchell` are slower and sharper than `Bilinear`. `Lanczos3` is the slowest and keeps the most detail. It is the default.
 
 | Case | Meaning |
 |---|---|
@@ -59920,7 +59920,7 @@ The direction `flip` mirrors an image in.
 <a id="enum-novis-image-image-blend"></a>
 #### `Novis\Image\Image::Blend`
 
-How the pixels of one image are mixed with the pixels of the image below it.
+How `composite` mixes the colours of the image on top with the colours of the image below it. `Normal` puts the top image over the lower one. It is the default. `Multiply` makes the result darker. White on top changes nothing. `Screen` makes the result lighter. Black on top changes nothing. `Overlay` makes dark parts darker and light parts lighter, so the contrast is higher. `Darken` keeps the darker of the two values for each of red, green and blue. `Lighten` keeps the lighter of the two values for each of red, green and blue.
 
 | Case | Meaning |
 |---|---|
@@ -59956,7 +59956,7 @@ What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone
 <a id="enum-novis-image-image-hashkind"></a>
 #### `Novis\Image\Image::HashKind`
 
-The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes.
+The kind of hash `Image::hash` returns. An image hash is a short value that describes what an image looks like. Two similar images have almost the same hash. A `Perceptual` hash is 8 bytes and is based on the large shapes of the image. A `Difference` hash is 16 bytes and is based on where the image gets brighter or darker. An `Average` hash is 32 bytes and is based on which parts are brighter than the image as a whole.
 
 | Case | Meaning |
 |---|---|
@@ -59967,7 +59967,7 @@ The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Diffe
 <a id="enum-novis-image-image-placeholderkind"></a>
 #### `Novis\Image\Image::PlaceholderKind`
 
-The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency.
+The kind of placeholder `Image::placeholder` returns. A placeholder is a short text that a web page draws as a blurred preview while the real image loads. `BlurHash` and `ThumbHash` are two formats for this text. The browser decodes each format with a small script made for it. A `BlurHash` is 28 characters and has no transparency. A `ThumbHash` is base64 text and also keeps transparency.
 
 | Case | Meaning |
 |---|---|
@@ -59977,7 +59977,7 @@ The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 charact
 <a id="enum-novis-image-qrcode-level"></a>
 #### `Novis\Image\QrCode::Level`
 
-How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data.
+How much of a QR code can be damaged and still be read. A QR code stores extra data to repair the parts that a scanner cannot read. This is called error correction. `Low` repairs about 7 percent of the code, and `Medium` about 15 percent. `Quartile` repairs about 25 percent, which is a quarter of the code. `High` repairs about 30 percent. The default is `Medium`. A higher level makes a bigger code for the same data.
 
 | Case | Meaning |
 |---|---|
@@ -59989,7 +59989,7 @@ How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 pe
 <a id="enum-novis-image-barcode-symbology"></a>
 #### `Novis\Image\Barcode::Symbology`
 
-The type of barcode `Barcode::render` and `Barcode::svg` draw. `DataMatrix` is a square code. The others are lines of bars.
+The barcode format that `Barcode::render` and `Barcode::svg` draw. A barcode format is also called a symbology. `Ean13` and `UpcA` are the barcodes on products in shops. `UpcA` is used in North America. `Ean8` is the short form for small products. `Itf14` is the barcode on a shipping box. `Code128` and `Code39` contain text, such as a tracking number. `Gs1128` contains standard fields, such as a product number and a batch number. `DataMatrix` is a square code. The others are lines of bars.
 
 | Case | Meaning |
 |---|---|
@@ -60005,7 +60005,7 @@ The type of barcode `Barcode::render` and `Barcode::svg` draw. `DataMatrix` is a
 <a id="enum-novis-intl-collator-strength"></a>
 #### `Novis\Intl\Collator::Strength`
 
-Which differences between two strings change their order. `Primary` compares letters only. `Secondary` also compares accents, and `Tertiary`, the default, also compares upper and lower case.
+Which differences between two strings count when `Collator` sorts them. `Collator` sorts strings by the rules of a language. `Primary` compares the letters only, so "resume" and "Résumé" are equal. `Secondary` also compares accents. `Tertiary` also compares upper and lower case. This is the default. `ignorePunctuation` is another option of `Collator`. When it is `true`, `Primary`, `Secondary` and `Tertiary` do not compare punctuation. `Quaternary` also compares that punctuation. `Identical` also compares the characters themselves when everything else is equal.
 
 | Case | Meaning |
 |---|---|
@@ -60018,7 +60018,7 @@ Which differences between two strings change their order. `Primary` compares let
 <a id="enum-novis-intl-collator-casefirst"></a>
 #### `Novis\Intl\Collator::CaseFirst`
 
-Whether uppercase or lowercase letters sort first. `Off`, the default, uses the order of the locale.
+Whether uppercase or lowercase letters come first when `Collator` sorts words that differ only in case. `Collator` sorts strings by the rules of a language. `Off` is the default. It follows the rules of the language. In English, it puts "apple" before "Apple". `Upper` puts "Apple" first. `Lower` puts "apple" first.
 
 | Case | Meaning |
 |---|---|
@@ -60041,7 +60041,7 @@ How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one st
 <a id="enum-novis-intl-numberformat-currencydisplay"></a>
 #### `Novis\Intl\NumberFormat::CurrencyDisplay`
 
-How a currency is written: as its symbol, such as "US$", as its short symbol, such as "$", or as its name. The default is `Symbol`.
+How `NumberFormat::currency` writes the currency of an amount. `Symbol` writes the usual symbol of the language and region. This is the default. In Canada, "$" means Canadian dollars. So in English for Canada, 19.90 US dollars are written "US$19.90". `Narrow` writes the shortest symbol, such as "$19.90". A reader may not know which dollar it is. `Name` writes the name of the currency, such as "19.90 US dollars".
 
 | Case | Meaning |
 |---|---|
@@ -60052,7 +60052,7 @@ How a currency is written: as its symbol, such as "US$", as its short symbol, su
 <a id="enum-novis-intl-numberformat-compactdisplay"></a>
 #### `Novis\Intl\NumberFormat::CompactDisplay`
 
-How a compact number is written: "1.2K" is `Short`, the default, and "1.2 thousand" is `Long`.
+How a compact number is written. A compact number is a large number written short, such as "1.2K" for 1,200. `Short` writes "1.2K" and is the default. `Long` writes "1.2 thousand".
 
 | Case | Meaning |
 |---|---|
@@ -60097,7 +60097,7 @@ How long a formatted date is. The default is `Medium`.
 <a id="enum-novis-intl-dateformat-zonestyle"></a>
 #### `Novis\Intl\DateFormat::ZoneStyle`
 
-How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is `None`.
+How `DateFormat::dateTimes` shows the time zone of a date and time. `None` shows no time zone. This is the default. `Offset` shows the difference from UTC, such as "GMT+2". `Location` shows the country or city of the zone. For the zone `Europe/Vienna`, this is "Austria Time". `Generic` shows the general name of the zone, such as "Central European Time". It does not say whether it is summer time, so the name is the same in summer and in winter.
 
 | Case | Meaning |
 |---|---|
@@ -60109,7 +60109,7 @@ How a formatted date and time shows its time zone: not at all, as its UTC offset
 <a id="enum-novis-intl-relativetime-unit"></a>
 #### `Novis\Intl\RelativeTime::Unit`
 
-The unit of an amount of time in `RelativeTime::format`.
+The unit of time that `RelativeTime::format` writes. `RelativeTime::format` writes a count of a unit as a time before or after now. A count of -2 with `Week` gives "2 weeks ago". A positive count is in the future. `Quarter` is three months.
 
 | Case | Meaning |
 |---|---|
@@ -60125,7 +60125,7 @@ The unit of an amount of time in `RelativeTime::format`.
 <a id="enum-novis-intl-width"></a>
 #### `Novis\Intl\Width`
 
-How many words a formatted text uses. `Wide`, the default, writes words in full.
+How short `RelativeTime::format` and `ListFormat::join` make their text. `Wide` writes every word in full: "3 months ago" and "Shop, Blog, and Wiki". This is the default. `Short` uses short forms: "3 mo. ago" and "Shop, Blog, & Wiki". `Narrow` uses the shortest forms: "3mo ago" and "Shop, Blog, Wiki".
 
 | Case | Meaning |
 |---|---|
@@ -60136,7 +60136,7 @@ How many words a formatted text uses. `Wide`, the default, writes words in full.
 <a id="enum-novis-intl-relativetime-numeric"></a>
 #### `Novis\Intl\RelativeTime::Numeric`
 
-Whether a relative time is always written with a number. `Always`, the default, writes "in 1 day". `Auto` writes "tomorrow".
+Whether `RelativeTime::format` always writes a number. `RelativeTime::format` writes a time before or after now, such as "in 1 day". `Always` writes the counts -1, 0 and 1 of `Day` as "1 day ago", "in 0 days" and "in 1 day". This is the default. `Auto` writes the same counts as "yesterday", "today" and "tomorrow". Most counts have no word like these, such as the count 5. For such a count, `Auto` also writes the number: "in 5 days".
 
 | Case | Meaning |
 |---|---|
@@ -60146,7 +60146,7 @@ Whether a relative time is always written with a number. `Always`, the default, 
 <a id="enum-novis-intl-listformat-type"></a>
 #### `Novis\Intl\ListFormat::Type`
 
-The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `Or`, and `Unit` joins amounts such as "3 feet, 7 inches".
+The words that `ListFormat::join` uses to join the items of a list. `And` writes "tea, coffee, and water" in English. This is the default. `Or` writes "tea, coffee, or water". `Unit` joins the parts of one amount, such as "5 feet, 11 inches".
 
 | Case | Meaning |
 |---|---|
@@ -60157,7 +60157,7 @@ The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `
 <a id="enum-novis-intl-locale-service"></a>
 #### `Novis\Intl\Locale::Service`
 
-The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text.
+The kind of data that `Locale::resolve` checks. For each locale tag, such as `de-AT` for German in Austria, it returns the locale whose data is used. `Collation` is the data for sorting text. `Numbers` is the data for writing numbers. `Plurals` is the data for plural forms. `Dates` is the data for writing dates. `RelativeTime` is the data for times such as "in 3 days". `Lists` is the data for joining lists. `Segmentation` is the data for splitting text into words.
 
 | Case | Meaning |
 |---|---|
@@ -60172,7 +60172,7 @@ The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, 
 <a id="enum-novis-pdf-document-standard"></a>
 #### `Novis\Pdf\Document::Standard`
 
-A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers.
+The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. `PdfA2b` and `PdfA3b` are PDF/A, and `PdfUa1` is PDF/UA. Only `PdfA3b` can contain an electronic invoice. This is an invoice as an XML file that a program can read. `Document::invoiceXml` attaches this XML file to the document.
 
 | Case | Meaning |
 |---|---|
@@ -60207,7 +60207,7 @@ One or two lines under the text.
 <a id="enum-novis-spreadsheet-style-align"></a>
 #### `Novis\Spreadsheet\Style::Align`
 
-Where the text sits from left to right in its cell.
+Where the text of a cell is placed from left to right. With `Fill`, Excel repeats the text until the cell is full. With `Justify`, Excel spreads the words of a text with several lines across the full width of the cell.
 
 | Case | Meaning |
 |---|---|
@@ -60302,7 +60302,7 @@ The kind of a conditional format rule.
 <a id="enum-novis-spreadsheet-chart-kind"></a>
 #### `Novis\Spreadsheet\Chart::Kind`
 
-The type of a chart.
+The type of a chart. `Column` is a chart with vertical bars, and `Bar` is a chart with horizontal bars. `Doughnut` is a pie chart with a hole in the middle.
 
 | Case | Meaning |
 |---|---|
@@ -60340,7 +60340,7 @@ Whether a printed page is tall or wide.
 <a id="enum-novis-spreadsheet-reader-sheetkind"></a>
 #### `Novis\Spreadsheet\Reader::SheetKind`
 
-Whether a sheet has cells or only a chart.
+Whether a sheet has cells or only a chart. A `Worksheet` has rows and cells. A `Chartsheet` is a sheet with only one chart and no cells.
 
 | Case | Meaning |
 |---|---|
@@ -65875,16 +65875,21 @@ added hook to .cursor/hooks.json
 
 ### A worked session
 
-An agent that holds nothing but this binary, asked to print how long a name is. It reads the primer
-once, then looks for the member by a name it knows from another language:
+This example follows a coding agent, which is an AI assistant that writes code. The agent has no
+documentation except the `nvs` program. The `nvs agent` commands let it look up the language in that
+program. Its task is to print the length of a name. First it runs `nvs agent primer` once. This
+command prints a short guide to the language. Then the agent searches for a function by the name it
+knows from another language:
 
 ```text
 $ nvs agent find strlen
 $
 ```
 
-Nothing on standard output, and the exit status is `0`: the index is complete, so no `Core` symbol
-and no heading has that name. It searches for the operation instead of the spelling:
+The command prints nothing, and the exit status is `0`. `nvs agent find` searches the index. The
+index is a list of everything built in, such as each `Core` method and enum, each command and
+setting, and each heading of this reference. Nothing in the index is called `strlen`. So the agent searches for
+the word `length` instead:
 
 ```text
 $ nvs agent find length
@@ -65894,7 +65899,8 @@ Core\Response\Stream::length(): int
 Novis\Intl\DateFormat::Length  enum {Short, Medium, Long}
 ```
 
-Two functions and an enum, and the card says which function is meant:
+The result has three methods and an enum. `nvs agent show` prints the documentation of one method.
+For `Core\Str::length`, it shows that this method counts the characters in a string:
 
 ```text
 $ nvs agent show 'Core\Str::length'
@@ -65909,8 +65915,11 @@ returns:
   The number of graphemes. The empty string gives `0`.
 ```
 
-Had it written the program first, `nvs check` would have stopped at the call. The free function
-does not exist, and the help says the built-in methods are on `Core` classes:
+A combining accent is an accent stored as a separate Unicode code point after its letter. The two
+dots on `ë` can be stored this way.
+
+If the agent had written the program first, `nvs check` would have reported an error at the call.
+Novis has no function called `strlen`. The error message says where the built-in functions are:
 
 ```nvs error
 <?nvs
@@ -65922,7 +65931,7 @@ echo strlen($name), "\n";
 The built-in functions are in the `Core` namespace
 ```
 
-Either way it arrives at one program, and `nvs check` accepts it:
+In both cases, the agent ends with the same program, and `nvs check` finds no error in it:
 
 ```nvs
 <?nvs
@@ -65934,10 +65943,16 @@ echo Core\Str::length($name), "\n";
 3
 ```
 
-Asked next whether classes load themselves, it looks for the word it already knows. Here the word
-is a keyword, and no member has that name. The first two lines have the word in their name: a
-heading, and a flag of `nvs check`. The lines after them are sections that write the keyword as code
-in their text. The heading is the one it wants, and the same `show` prints the section:
+Next, the agent needs to know whether Novis can load class files automatically. It searches for the
+word it knows for this, `autoload`. In Novis, `autoload` is a statement. It is not a method or a
+function, so no method in the index has this name. The result lists the matches in two groups:
+
+- First come the lines whose own name contains `autoload`. The first line is a heading of this
+  reference. The second line is the flag `--autoload-map` of `nvs check`.
+- After them come the sections of this reference that contain `autoload` only in their text.
+
+The agent needs the heading on the first line. It passes the first word of that line to
+`nvs agent show`, which prints the section:
 
 ```text
 $ nvs agent find autoload

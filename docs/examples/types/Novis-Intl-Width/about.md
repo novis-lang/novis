@@ -1,4 +1,4 @@
-How many words `RelativeTime::format` and `ListFormat::join` use.
+How short `RelativeTime::format` and `ListFormat::join` make their text.
 
 You pass a `Width` as `width`:
 

@@ -319,16 +319,21 @@ added hook to .cursor/hooks.json
 
 # A worked session
 
-An agent that holds nothing but this binary, asked to print how long a name is. It reads the primer
-once, then looks for the member by a name it knows from another language:
+This example follows a coding agent, which is an AI assistant that writes code. The agent has no
+documentation except the `nvs` program. The `nvs agent` commands let it look up the language in that
+program. Its task is to print the length of a name. First it runs `nvs agent primer` once. This
+command prints a short guide to the language. Then the agent searches for a function by the name it
+knows from another language:
 
 ```text
 $ nvs agent find strlen
 $
 ```
 
-Nothing on standard output, and the exit status is `0`: the index is complete, so no `Core` symbol
-and no heading has that name. It searches for the operation instead of the spelling:
+The command prints nothing, and the exit status is `0`. `nvs agent find` searches the index. The
+index is a list of everything built in, such as each `Core` method and enum, each command and
+setting, and each heading of this reference. Nothing in the index is called `strlen`. So the agent searches for
+the word `length` instead:
 
 ```text
 $ nvs agent find length
@@ -338,7 +343,8 @@ Core\Response\Stream::length(): int
 Novis\Intl\DateFormat::Length  enum {Short, Medium, Long}
 ```
 
-Two functions and an enum, and the card says which function is meant:
+The result has three methods and an enum. `nvs agent show` prints the documentation of one method.
+For `Core\Str::length`, it shows that this method counts the characters in a string:
 
 ```text
 $ nvs agent show 'Core\Str::length'
@@ -353,8 +359,11 @@ returns:
   The number of graphemes. The empty string gives `0`.
 ```
 
-Had it written the program first, `nvs check` would have stopped at the call. The free function
-does not exist, and the help says the built-in methods are on `Core` classes:
+A combining accent is an accent stored as a separate Unicode code point after its letter. The two
+dots on `ë` can be stored this way.
+
+If the agent had written the program first, `nvs check` would have reported an error at the call.
+Novis has no function called `strlen`. The error message says where the built-in functions are:
 
 ```nvs error
 <?nvs
@@ -366,7 +375,7 @@ echo strlen($name), "\n";
 The built-in functions are in the `Core` namespace
 ```
 
-Either way it arrives at one program, and `nvs check` accepts it:
+In both cases, the agent ends with the same program, and `nvs check` finds no error in it:
 
 ```nvs
 <?nvs
@@ -378,10 +387,16 @@ echo Core\Str::length($name), "\n";
 3
 ```
 
-Asked next whether classes load themselves, it looks for the word it already knows. Here the word
-is a keyword, and no member has that name. The first two lines have the word in their name: a
-heading, and a flag of `nvs check`. The lines after them are sections that write the keyword as code
-in their text. The heading is the one it wants, and the same `show` prints the section:
+Next, the agent needs to know whether Novis can load class files automatically. It searches for the
+word it knows for this, `autoload`. In Novis, `autoload` is a statement. It is not a method or a
+function, so no method in the index has this name. The result lists the matches in two groups:
+
+- First come the lines whose own name contains `autoload`. The first line is a heading of this
+  reference. The second line is the flag `--autoload-map` of `nvs check`.
+- After them come the sections of this reference that contain `autoload` only in their text.
+
+The agent needs the heading on the first line. It passes the first word of that line to
+`nvs agent show`, which prints the section:
 
 ```text
 $ nvs agent find autoload

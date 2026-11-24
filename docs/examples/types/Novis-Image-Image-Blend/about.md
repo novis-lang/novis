@@ -1,4 +1,4 @@
-How the pixels of one image are mixed with the pixels of the image below it.
+How `composite` mixes the colours of the image on top with the colours of the image below it.
 
 `Image::Blend` is declared in the class `Novis\Image\Image`.
 
@@ -9,8 +9,8 @@ An `Image::Blend` is how a pixel on top mixes with the pixel under it:
 - `Multiply` makes the result darker. White on top changes nothing.
 - `Screen` makes the result lighter. Black on top changes nothing.
 - `Overlay` makes dark parts darker and light parts lighter, so the contrast is higher.
-- `Darken` keeps the darker of the two values for each channel.
-- `Lighten` keeps the lighter of the two values for each channel.
+- `Darken` keeps the darker of the two values for each of red, green and blue.
+- `Lighten` keeps the lighter of the two values for each of red, green and blue.
 
-**Good to know:** no method of `Image` takes an `Image::Blend`. You can store an `Image::Blend` and compare it, as
-the example shows.
+You pass an `Image::Blend` to `composite` as `blend`. The default is `Normal`. You can also store an
+`Image::Blend` and compare it, as the example shows.
