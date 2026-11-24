@@ -5659,15 +5659,17 @@ mod tests {
                 } else {
                     &way.body[..way.body.len() - way.late]
                 };
+                let path = way.path;
                 let sent = if way.body.is_empty() {
-                    format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n")
+                    format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n")
                 } else {
                     // The head and the body in one write, so the body has
                     // arrived by the time the head is read. A late part and
                     // a body behind an `Expect` are not in it.
                     format!(
-                        "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\
+                        "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: {}\r\n\
                          Content-Length: {}\r\n{}{closing}\r\n{early}",
+                        way.content_type,
                         way.body.len(),
                         if way.expect {
                             "Expect: 100-continue\r\n"
@@ -5900,6 +5902,10 @@ mod tests {
     #[cfg(debug_assertions)]
     #[derive(Clone, Copy)]
     struct Way {
+        /// The request's path and query.
+        path: &'static str,
+        /// The `Content-Type` a request with a body sends.
+        content_type: &'static str,
         /// The request's body, sent with its head in one write; empty for a
         /// `GET` with no body.
         body: &'static str,
@@ -5922,6 +5928,8 @@ mod tests {
     impl Way {
         /// A `GET` to an isolate nothing watches.
         const BARE: Self = Self {
+            path: "/",
+            content_type: "text/plain",
             body: "",
             served: false,
             late: 0,
@@ -5932,6 +5940,8 @@ mod tests {
         /// A request run as `nvs serve` runs it, carrying `body`.
         const fn served(body: &'static str) -> Self {
             Self {
+                path: "/",
+                content_type: "text/plain",
                 body,
                 served: true,
                 late: 0,
@@ -6152,6 +6162,94 @@ mod tests {
             "{HELLO_COUNTED} served hello requests made {over} allocations, and each is held to \
              {HELLO_ALLOCATIONS}"
         );
+    }
+
+    /// A case of `benches/compare/cases/`: its program, the request it is
+    /// served, the start of its response's body, and how many allocations one
+    /// served request makes on its core in a debug build.
+    #[cfg(debug_assertions)]
+    struct CompareCase {
+        name: &'static str,
+        source: &'static str,
+        way: Way,
+        starts: &'static str,
+        allocations: usize,
+    }
+
+    /// The `json-api` and `html-page` cases, sent what
+    /// `tools/nv/cmd/bench-compare.ts` times them with. Their counts record a
+    /// cost; unlike [`HELLO_ROWS`], no table accounts for each allocation.
+    #[cfg(debug_assertions)]
+    const COMPARE_CASES: &[CompareCase] = &[
+        CompareCase {
+            name: "json-api",
+            source: include_str!("../../../benches/compare/cases/json-api/main.nvs"),
+            way: Way {
+                path: "/orders",
+                content_type: "application/json",
+                ..Way::served(include_str!(
+                    "../../../benches/compare/cases/json-api/order.json"
+                ))
+            },
+            starts: "{",
+            allocations: 163,
+        },
+        CompareCase {
+            name: "html-page",
+            source: include_str!("../../../benches/compare/cases/html-page/main.nvs"),
+            way: Way {
+                path: "/products?q=%3Cb%3E%22Tea%22%20%26%20'Cups'%3C%2Fb%3E",
+                ..Way::served("")
+            },
+            starts: "<!DOCTYPE html>",
+            allocations: 664,
+        },
+    ];
+
+    /// One `json-api` and one `html-page` request, each served on one
+    /// keep-alive connection as `nvs serve` serves it, make their case's
+    /// recorded number of allocations on the core.
+    ///
+    /// [`HELLO_WARM`] requests go first and [`HELLO_COUNTED`] are counted, as
+    /// in [`a_served_request_allocates_its_recorded_count`], so a count that
+    /// grows with the requests served does not divide evenly.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_served_compare_case_allocates_its_recorded_count() {
+        let compiler = Arc::new(Compiler::default());
+        let mut failed = Vec::new();
+        for case in COMPARE_CASES {
+            let (_dir, entry) = a_compiled_program(
+                &format!("serve-{}-allocations", case.name),
+                case.source,
+                &compiler,
+            );
+            let asked = HELLO_WARM + HELLO_COUNTED + 1;
+            let (readings, bodies) =
+                one_connection_through_the_slot(&entry, &compiler, asked, case.way, |_| {});
+            assert!(
+                bodies.iter().all(|body| body.starts_with(case.starts)),
+                "{}: {:?}",
+                case.name,
+                bodies.first()
+            );
+            let over =
+                readings[HELLO_WARM + HELLO_COUNTED].allocations - readings[HELLO_WARM].allocations;
+            println!(
+                "allocations per served {} request: {} (and {} over)",
+                case.name,
+                over / HELLO_COUNTED,
+                over % HELLO_COUNTED
+            );
+            if over != case.allocations * HELLO_COUNTED {
+                failed.push(format!(
+                    "{HELLO_COUNTED} served {} requests made {over} allocations, and each is \
+                     held to {}",
+                    case.name, case.allocations
+                ));
+            }
+        }
+        assert!(failed.is_empty(), "{failed:#?}");
     }
 
     /// Every allocation of one warm served `hello` request has a row.

@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/alloc.rs, docs/rules/programs/memory-priority.m
 stages:
   - id: 1
     title: one served json-api and html-page request each make a recorded number of allocations
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, benches/compare/cases/json-api/main.nvs, benches/compare/cases/html-page/main.nvs]
   - id: 2
     title: the cache and the counters share one thread-local, looked up once per allocation
@@ -112,14 +112,17 @@ needs stage 1's counts, so it is taken after stage 1 ends.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-cli/src/serve.rs:6098`: beside the `hello` case, constants for the `json-api` and
+- [x] `crates/nvs-cli/src/serve.rs:6098`: beside the `hello` case, constants for the `json-api` and
   `html-page` programs read from `benches/compare/cases/json-api/main.nvs:1` and
   `benches/compare/cases/html-page/main.nvs:1` (with `order.json` as `json-api`'s body, sent through
   `Way::served`), and one debug test `a_served_compare_case_allocates_its_recorded_count` that serves
   each case on one keep-alive connection as `a_served_request_allocates_its_recorded_count` does (50
   warm, 200 counted), prints the count per request, and asserts it equals a recorded constant per
   case. No row table: these counts record a cost, they do not account for each allocation.
-- [ ] Run the test once by name: `cargo test --bins a_served_compare_case_allocates_its_recorded_count -- --nocapture`,
+  - [x] `Way` gains `path` and `content_type`, so a case is sent the request `bench-compare.ts` times.
+  - [x] `COMPARE_CASES` reads each program and `order.json` with `include_str!`.
+  - [x] The test asserts each body's start and each case's count, and names every case that differs.
+- [x] Run the test once by name: `cargo test --bins a_served_compare_case_allocates_its_recorded_count -- --nocapture`,
   and write both counts in the handoff.
 
 ### 2. the cache and the counters share one thread-local, looked up once per allocation
@@ -149,12 +152,19 @@ needs stage 1's counts, so it is taken after stage 1 ends.
 
 ### State
 
-Written by the session that found the cost while fixing the memory-mark guard (commit 9b2aacda5f).
-Nothing is built. The per-allocation figures above are measured, and the per-request counts are not.
+Stage 1 is done. `a_served_compare_case_allocates_its_recorded_count` (`crates/nvs-cli/src/serve.rs:6218`,
+cases at `:6183`) is green on Windows in a debug build: one served `json-api` request makes **163**
+allocations and one `html-page` request **664**, both dividing evenly over 200 counted requests.
+`Way` (`serve.rs:5906`) now carries the request's path and `Content-Type`, so `json-api` is a `POST
+/orders` of `application/json` and `html-page` a `GET /products?q=` with the bench's search term.
+Stage 2 is not started: nothing in `alloc.rs` or `budget.rs` has changed.
 
 ### Next
 
-Stage 1 from its first item, or stage 2's first four items beside it. The check `compare-counts`
-fails until stage 1's test exists.
+Stage 2 from its first item: the `#[ignore]`d timing probe in `crates/nvs-runtime/src/alloc.rs:376`'s
+test module and five WSL runs before any edit, then the merged `thread_local!`
+(`alloc.rs:99`, `budget.rs:355`). Its last item writes the counts above, and `hello`'s
+`HELLO_ALLOCATIONS`, into `budget.rs:191`'s § *What it spends*. No test is expected to go red; the
+merge must keep both served-count tests at their recorded numbers.
 
 ### Backlog
