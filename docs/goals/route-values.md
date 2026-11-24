@@ -17,26 +17,30 @@ stages:
     status: open
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/conformance.rs, crates/nvs-types/src/signatures.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 4
+    title: "Core\\Router\\Match holds each converted query value, so allows checks a record a query value's parse loaded"
+    status: open
+    context: [crates/nvs-stdlib/src/router.rs, crates/nvs-types/src/routes.rs, docs/rules/routing/a-bad-query-value-is-a-400.md, docs/rules/routing/matched-once-before-the-handler.md]
+  - id: 5
     title: "the ISO readers move into nvs-runtime, and the matcher converts Date, TimeOfDay and Instant captures and query values and DateTime query values"
     status: open
     context: [crates/nvs-runtime/src/uuid.rs, crates/nvs-stdlib/src/time.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-types/src/routes.rs, crates/nvs-types/src/commands.rs, crates/nvs-types/src/crossing.rs, crates/nvs-stdlib/src/router.rs, docs/rules/errors/http-message-defects.md]
-  - id: 5
+  - id: 6
     title: "Core\\Router::url, Core\\Uri::buildQuery, the API document and a command's arguments take the time values"
     status: open
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-runtime/src/commands.rs, crates/nvs-types/src/commands.rs, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/tooling/commands-are-compiled.md]
-  - id: 6
+  - id: 7
     title: "Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid cross JSON as text"
     status: open
     context: [crates/nvs-types/src/derive.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/object.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-classes/derive-property-list.md, docs/rules/core-classes/db-column-types.md]
-  - id: 7
-    title: "stages 1 to 3 have their feature proofs, and the query example shows the string fallback"
+  - id: 8
+    title: "stages 1 to 4 have their feature proofs, and the query example shows the string fallback"
     status: open
     context: [docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/examples/lang/classes/parses/about.md]
-  - id: 8
-    title: "stages 4 to 6 have their feature proofs, and the website says what changed"
+  - id: 9
+    title: "stages 5 to 7 have their feature proofs, and the website says what changed"
     status: open
     context: [website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/syntax/attributes/json.mdx, website/src/data/changes.json]
-  - id: 9
+  - id: 10
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -74,46 +78,51 @@ checks:
     name: "a final class may return any object of its class where it declares static and may write its own name where its parent writes static, a non-final class still may not, and allows reads the object a capture's parse loaded"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/class/a-final-class-may-return-any-object-of-itself-where-it-declares-static.nvst, --case, tests/conformance/class/a-final-class-may-declare-its-own-name-where-its-parent-declares-static.nvst, --case, tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst, --case, tests/conformance/class/a-static-return-must-be-the-called-class.nvst]
     timeout: 1800
-  - id: time-captures
+  - id: query-in-match
     stage: 4
+    name: "Core\\Router\\Match holds each converted query value under its parameter's name, allows reads a record a query value's parse loaded, Core\\Request::route() reads null for a query value, and a parameter both captured and marked #[Core\\Query] does not compile"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-query-value-parsed-to-a-stored-object-reaches-allows.nvst, --case, tests/conformance/core/a-match-reads-a-query-value-by-its-name-only-inside-dispatch.nvst, --case, tests/conformance/reject/a-parameter-filled-by-a-capture-cannot-also-be-a-query-value.nvst]
+    timeout: 1800
+  - id: time-captures
+    stage: 5
     name: "the matcher converts Date, TimeOfDay, Instant and DateTime text with the readers fromIso uses, on the segment as it arrived"
     run: [cargo, test, --lib, time_capture_]
     tests: [time_capture_date_converts_and_refuses_what_is_not_one, time_capture_time_of_day_converts_and_refuses_what_is_not_one, time_capture_instant_converts_and_refuses_what_is_not_one, time_capture_datetime_reads_its_offset_and_zone, time_capture_reads_the_segment_as_it_arrived, time_capture_agrees_with_from_iso_over_one_table]
     timeout: 1800
   - id: time-routes
-    stage: 4
+    stage: 5
     name: "a time capture that does not convert is a 404, a time query value that does not convert is a 400, and a DateTime path capture does not compile"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-time-capture-that-does-not-convert-is-a-404-and-a-time-query-value-a-400.nvst, --case, tests/conformance/reject/a-datetime-path-capture-does-not-compile.nvst]
     timeout: 1800
   - id: time-links
-    stage: 5
+    stage: 6
     name: "Core\\Router::url and Core\\Uri::buildQuery write a time value as its ISO text, the route matches the link it built, and a command argument takes a time value"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-link-writes-a-time-value-as-its-iso-text-and-its-route-matches-it.nvst, --case, tests/conformance/core/a-command-argument-takes-a-time-value.nvst]
     timeout: 1800
   - id: time-document
-    stage: 5
+    stage: 6
     name: "the API document gives each time parameter the JSON Schema format that fits its text, and none where none fits"
     run: [cargo, test, --test, openapi, a_time_parameter_]
     tests: [a_time_parameter_has_the_format_json_schema_defines_for_it]
     timeout: 1800
   - id: json-text
-    stage: 6
+    stage: 7
     name: "every Core value type on the JSON list round-trips as text, and a bad text is a ParseError naming its path"
     run: [cargo, test, --lib, value_text_]
     tests: [value_text_round_trips_every_core_value_type, value_text_refuses_a_bad_text_with_its_path, value_text_duration_writes_what_parse_reads, value_text_datetime_keeps_its_zone]
     timeout: 1800
   - id: json-cases
-    stage: 6
+    stage: 7
     name: "a derived codec, decodeAs and shapeAs carry Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid as text, and a Core class with no JSON form is still E0756"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-derived-codec-carries-dates-durations-zones-and-uuids-as-text.nvst, --case, tests/conformance/core/decode-as-and-shape-as-read-the-value-types-from-text.nvst, --case, tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst]
     timeout: 1800
   - id: proofs
-    stage: 8
+    stage: 9
     name: "every feature the goal's work reached has its feature proofs"
     run: [bun, nv, proofs, --gate, --goal, route-values]
     timeout: 1800
   - id: close
-    stage: 9
+    stage: 10
     name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
     run: [bun, nv, close, --goal, route-values]
     timeout: 900
@@ -178,6 +187,13 @@ not yet show the string fallback that rule names.
   and a `bool` path capture stays declined.
 - **The query example shows the fallback for the declined lenient mode**:
   `#[Core\Query] string $page = ''` and `($page as ?uint) ?? 1`.
+- **`Core\Router\Match` holds each converted `#[Core\Query]` value**, so `Gate::allows` checks a record
+  loaded through `#[Core\Query] Order $order` exactly as it checks one from a path capture. `dispatch`
+  already converts the query values before `allows` (`crates/nvs-stdlib/src/router.rs:3052`), but after
+  the match is built (`router.rs:3043`); the match now carries them. `Core\Router\Match::parameter`
+  (`router.rs:2840`) and `parameters` (`router.rs:2687`) read a query value by its parameter's name.
+  `Core\Request::route()` outside `dispatch` converts no query value, so it reads `null` for one, and
+  the rule and the card say so.
 
 **Calls the authoring session made (2026-11-24), each with its fallback.** The user has not confirmed
 these; a session builds on them and files a `looper decision ask --built-on <n>` only if the code
@@ -193,15 +209,26 @@ forces the opposite.
   The door is not relaxed: it stops a proxy and this server from reading one path two ways, which is
   request isolation. `Zone` is not a route conversion at all, for the same reason and because nobody
   asked for one.
-- **`Gate::allows` reads the captures, not the query values.** `Core\Router\Match::parameter`
-  (`crates/nvs-stdlib/src/router.rs:2840`) reads the path captures only, and the query values are
-  converted after the match is built (`router.rs:3052`). So `allows` can check read access on a
-  record that a **path capture**'s `parse` loaded, and the example for the `final` class uses
-  `/orders/{order}` with `Order $order`. A `#[Core\Query] Order $order` also loads before `allows` runs,
-  but only the route method can read it, and the example's `about.md` says so in one sentence. Fallback,
-  if the user wants `allows` to read query values: a later goal makes `Match` carry them. This goal
-  does not, because `Core\Request::route()` returns the same `Match` outside `dispatch`, where no query
-  value is converted.
+- **How the match carries the query values.** `dispatch` builds the match with its captures
+  (`match_value`, `crates/nvs-stdlib/src/router.rs:3043`), converts the query values
+  (`query_values`, `router.rs:3086`), then writes each into the match's parameters slot under its
+  parameter's name before it calls `allows` (`router.rs:3189`). A query value that does not convert
+  is still the `400`, and `refused` gets the match with its captures only, as today (`router.rs:3061`).
+  An absent `?T $x = null` key is absent from `parameters()`, as an absent optional capture is, so
+  `parameter()` reads `null`; an absent key with another default holds that default. The `CAPTURE`
+  union (`router.rs:695`) gains the types a query value adds (`bool`, and `DateTime` in stage 5).
+  What it spends: one array entry per query value per matched request, which the bound value already
+  is, so no copy. Fallback, if writing into the built match's slot fights its layout: build the match
+  once, after the query values, and give `refused` a match built from the captures alone.
+- **A capture and a query parameter never share a name.** The route table does not refuse it today:
+  a path `/orders/{id}` with `#[Core\Query] uint $id` compiles with no error (checked on 2026-11-24
+  with the debug `nvs`), because `check_captures` finds the parameter by name
+  (`crates/nvs-types/src/routes.rs:2810`) and `query_params` (`routes.rs:3192`) takes every
+  `#[Core\Query]` parameter, so one parameter is claimed twice. Stage 4 makes that a compile error at
+  the parameter, with a new code after the last `E07xx` in
+  `crates/nvs-diagnostics/src/code/types_e07.rs`, whose help says to remove `#[Core\Query]` or the
+  capture. A method's parameter names are unique, so with this check every key of `parameters()`
+  names exactly one capture or one query value, and no order between the two is needed.
 - **The optional key's representation.** `nvs_runtime::routes::QueryParam::default`
   (`crates/nvs-runtime/src/routes.rs:286`) becomes `QueryDefault { Required, Null, Given(Param) }`,
   and no `Param::Null` arm is added, because a capture is never `null`. The checker records the type
@@ -257,9 +284,9 @@ forces the opposite.
   may return any expression whose type the declared type accepts, with `static` read as the class.
   A non-`final` class keeps the list at `crates/nvs-types/src/check.rs:1627`. An override in a `final`
   class may write the class's own name or `self` wherever the parent or the interface writes `static`.
-- **Gate:** the goal `time-values` is reached (`docs/goals/time-values.md` is gone) before stage 4,
-  because stages 4 to 6 read and write the `toIso` and `fromIso` text that goal builds, `DateTime`'s
-  zone included. Stages 1 to 3 do not wait for it.
+- **Gate:** the goal `time-values` is reached (`docs/goals/time-values.md` is gone) before stage 5,
+  because stages 5 to 7 read and write the `toIso` and `fromIso` text that goal builds, `DateTime`'s
+  zone included. Stages 1 to 4 do not wait for it.
 
 **Declined, each written into the rule the table names in the stage that changes that rule.**
 
@@ -291,7 +318,10 @@ forces the opposite.
   matches the route, before `allows`, signed in or not. That is a read of the program's own store per
   matched request, chosen by the program when it declares the type. The time the lookup takes is not
   hidden, so a program that must not show whether an id exists even by timing declares the capture
-  `string` and loads the record in the route method after `allows`. The rule fragment says so.
+  `string` and loads the record in the route method after `allows`. The rule fragment says so. The
+  same holds for a query value of such a class, which now reaches `allows` too.
+- *Query values on the match*: one array entry per bound query value per matched request, the value
+  `dispatch` already holds. Buys security: `allows` sees every input the route method will see.
 
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is recorded in the handoff with what failed, and the stage goes on. A count, never a timing,
@@ -301,9 +331,11 @@ decides whether a cost changed. Every behaviour change starts with its failing t
 `crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/router.rs` and
 `crates/nvs-cli/src/openapi.rs`, so stage 2 follows stage 1. Stage 3 touches only `check.rs`,
 `conformance.rs` and `signatures.rs` in `crates/nvs-types/` and the diagnostic cards, and may run
-beside stages 1 and 2. Stage 4 waits on the gate above and on stage 2, whose files it shares. Stage 5
-follows stage 4. Stage 6 waits on the gate and on stage 4, because both change
-`crates/nvs-stdlib/src/time.rs`. Stage 7 needs stages 1 to 3, and stage 8 needs everything.
+beside stages 1 and 2. Stage 4 changes `crates/nvs-stdlib/src/router.rs` and
+`crates/nvs-types/src/routes.rs`, so it follows stage 2, and its test of a `final` class's `parse`
+needs stage 3. Stage 5 waits on the gate above and on stage 4, whose files it shares. Stage 6
+follows stage 5. Stage 7 waits on the gate and on stage 5, because both change
+`crates/nvs-stdlib/src/time.rs`. Stage 8 needs stages 1 to 4, and stage 9 needs everything.
 
 ## Stages
 
@@ -392,7 +424,36 @@ follows stage 4. Stage 6 waits on the gate and on stage 4, because both change
   `parse` loads a record runs that lookup for every request matching the route, before `allows`,
   signed in or not, and the timing paragraph of § *Standing decisions*.
 
-### 4. the ISO readers move into nvs-runtime, and the matcher converts Date, TimeOfDay and Instant captures and query values and DateTime query values
+### 4. Core\Router\Match holds each converted query value, so allows checks a record a query value's parse loaded
+
+**Split:** none, one session.
+
+- [ ] The failing cases first, at the paths the check `query-in-match` names:
+  `tests/conformance/core/a-query-value-parsed-to-a-stored-object-reaches-allows.nvst:1` (the
+  stage 3 `Order` as `#[Core\Query] Order $order`, `allows` reading it with
+  `$route->parameter('order')`, and `refused` setting `404` for `BadCapture` and `Denied`),
+  `tests/conformance/core/a-match-reads-a-query-value-by-its-name-only-inside-dispatch.nvst:1` (a
+  query value inside `dispatch`, an absent `?T $x = null` key, a default, and `null` from
+  `Core\Request::route()`) and
+  `tests/conformance/reject/a-parameter-filled-by-a-capture-cannot-also-be-a-query-value.nvst:1`. Each
+  run once by name and red.
+- [ ] `crates/nvs-stdlib/src/router.rs:3043` to `:3061` (`dispatch`) and `:3086` (`query_values`):
+  each bound query value is written into the match's parameters slot under its parameter's name
+  before `dispatch_matched` (`router.rs:3182`) calls `allows`; a bad value is refused with the match
+  as today. `router.rs:695` (`CAPTURE`) gains `bool`.
+- [ ] `crates/nvs-stdlib/src/router.rs:2687` and `:2840`: the doc lines and the cards of `parameters`
+  and `parameter` say they read query values inside `dispatch`, and `null` for one from
+  `Core\Request::route()`.
+- [ ] `crates/nvs-types/src/routes.rs:2810` (`check_captures`) or `:3192` (`query_params`): a
+  `#[Core\Query]` parameter that a path capture names is a compile error at the parameter, with the
+  new code and card in `crates/nvs-diagnostics/src/code/types_e07.rs`.
+- [ ] `docs/rules/routing/a-bad-query-value-is-a-400.md:1`: the query values are bound into the match
+  before `allows`, and `Core\Request::route()` reads `null` for them.
+  `docs/rules/routing/matched-once-before-the-handler.md:1`: what the match holds.
+  `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`: a parameter is filled by a
+  capture or by the query string, never both.
+
+### 5. the ISO readers move into nvs-runtime, and the matcher converts Date, TimeOfDay and Instant captures and query values and DateTime query values
 
 **Gate:** `docs/goals/time-values.md` is gone. **Split:** one `Explore` subagent lists every caller of
 the `fromIso` grammar functions in `crates/nvs-stdlib/src/time.rs:3802`'s section (`iso_instant`,
@@ -415,16 +476,17 @@ each, before the first edit.
   `crates/nvs-stdlib/src/router.rs:1342` (`native_conv`) and `crates/nvs-types/src/crossing.rs:129`
   (`capture_conv`) map the four names.
 - [ ] `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`): each new `Param` builds its object
-  through `time.rs`'s own builders; `router.rs:695` (`CAPTURE`) gains `Date`, `TimeOfDay` and
-  `Instant`, and the doc lines at `router.rs:2687` and `:2840` follow.
+  through `time.rs`'s own builders; `router.rs:695` (`CAPTURE`) gains `Date`, `TimeOfDay`,
+  `Instant` and `DateTime` (the last as a query value, which a match holds since stage 4), and the
+  doc lines at `router.rs:2687` and `:2840` follow.
 - [ ] `docs/rules/security/route-capture-is-laundered-by-its-type.md:12`: the native conversions are
   `int`, `uint`, `decimal`, `Core\Uuid`, `Date`, `TimeOfDay` and `Instant`, and `DateTime` for a
-  query value, with the door's `%2F` reason; the union the captures cross as gains the three classes;
+  query value, with the door's `%2F` reason; the union the parameters cross as gains the four classes;
   the last four Declined rows of § *Standing decisions* that name this rule join it.
   `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`: the type list gains the
   four classes and `bool`.
 
-### 5. Core\Router::url, Core\Uri::buildQuery, the API document and a command's arguments take the time values
+### 6. Core\Router::url, Core\Uri::buildQuery, the API document and a command's arguments take the time values
 
 **Split:** none, one session.
 
@@ -446,9 +508,9 @@ each, before the first edit.
   is its ISO text. `docs/rules/tooling/commands-are-compiled.md:1`: an argument takes the time values
   through the shared roster.
 
-### 6. Date, TimeOfDay, DateTime, Duration, Zone and Core\Uuid cross JSON as text
+### 7. Date, TimeOfDay, DateTime, Duration, Zone and Core\Uuid cross JSON as text
 
-**Gate:** `docs/goals/time-values.md` is gone, and stage 4 is done. **Split:** none, one session.
+**Gate:** `docs/goals/time-values.md` is gone, and stage 5 is done. **Split:** none, one session.
 
 - [ ] The failing cases first: the tests the check `json-text` names, beside `crates/nvs-stdlib/src/json.rs:9385`'s
   `Instant` test, and the cases the check `json-cases` names. Each run once by name and red.
@@ -471,7 +533,7 @@ each, before the first edit.
   are reachable. `docs/rules/core-classes/db-column-types.md:1` does not change, and its list stays the
   row door's.
 
-### 7. stages 1 to 3 have their feature proofs, and the query example shows the string fallback
+### 8. stages 1 to 4 have their feature proofs, and the query example shows the string fallback
 
 **Split:** after the session lists the owed proofs, two writing subagents in disjoint folders: one for
 `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/` and
@@ -487,18 +549,21 @@ each file against AGENTS.md § *Text an end user reads* and runs `bun nv proofs 
   (`?uint $page = null` and a `?` `Parses` class) and `09-a-yes-or-no-query-value.nvs:1` (`bool`, `1`
   and `0`, and a checkbox with `value="1"`); `about.md` says both in one paragraph each.
 - [ ] `docs/examples/lang/classes/parses/06-a-final-class-loads-a-stored-record.nvs:1`: a `final`
-  `Order` whose `parse` loads a record, a path capture, `allows` checking it, and `refused` setting
-  `404` for `BadCapture` and `Denied`. That folder's `about.md:1` says when the lookup runs and that a
-  query value of that class is read by the route method only.
+  `Order` whose `parse` loads a record, read once as a path capture and once as
+  `#[Core\Query] Order $order`, `allows` checking it through `$route->parameter('order')` in both,
+  and `refused` setting `404` for `BadCapture` and `Denied`. That folder's `about.md:1` says when the
+  lookup runs, and that `allows` checks a query value as it checks a capture.
 - [ ] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/03-query-values-written-another-way.nvs:1`
   (`true`, `on`, an empty value and a bare key for a `bool`, and `page[]=1` for an optional value) and
   `tests/hostile/lang/classes/parses/02-a-visitor-guesses-ids.nvs:1` (a missing id and a forbidden id
   get the same `404`).
-- [ ] The rest of what `bun nv proofs --owed --goal route-values` names for stages 1 to 3, at the
+- [ ] `docs/examples/core/Router-Match/parameter/` and `parameters/` each gain an example of a query
+  value read in `allows`, and `null` from `Core\Request::route()`.
+- [ ] The rest of what `bun nv proofs --owed --goal route-values` names for stages 1 to 4, at the
   paths it prints, such as `lang:classes/methods-self-static-and-parent`'s example of `static` in a
   `final` class.
 
-### 8. stages 4 to 6 have their feature proofs, and the website says what changed
+### 9. stages 5 to 7 have their feature proofs, and the website says what changed
 
 **Split:** three writing subagents in disjoint folders: one for the route-table folder,
 `docs/examples/core/Router/url/` and `docs/examples/core/Uri/buildQuery/` with the route-table hostile
@@ -532,13 +597,14 @@ website.
   value, time values), `Core\Router::url`, `Core\Uri::buildQuery`,
   `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec`,
   `Core\Json::encode`, `Core\Json::decodeAs`, `Core\Arr::shapeAs`, `lang:classes/parses`,
+  `Core\Router\Match::parameter` and `Core\Router\Match::parameters` (they read query values),
   `lang:attributes/core-api-and-the-openapi-document` and
   `lang:attributes/core-command-and-core-option-the-command-table`.
 - [ ] `bun nv proofs --owed --goal route-values` names nothing.
 
-### 9. the goal is verified once, and every failure is fixed
+### 10. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 7 and 8 touched.
+- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 8 and 9 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -549,13 +615,14 @@ website.
 Written by the interactive session that wrote the goal on 2026-11-24, from the user's decisions of
 that day. Nothing is built. Every anchor above was read on that day. Expected red once built:
 `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 6 moves it to `Core\Uri`).
+(stage 7 moves it to `Core\Uri`).
 
 ### Next
 
 Stage 1, files `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/crossing.rs`,
 `crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/router.rs` and
-`crates/nvs-cli/src/openapi.rs`; no gate. Stage 3 may run beside it.
+`crates/nvs-cli/src/openapi.rs`; no gate. Stage 3 may run beside it, and stage 4 follows stages 2
+and 3.
 
 - [ ] `tests/conformance/core/an-optional-query-value-is-null-when-its-key-is-absent.nvst:1`,
   `tests/conformance/reject/a-nullable-query-value-needs-a-null-default.nvst:1` and
