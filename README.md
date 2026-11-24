@@ -130,10 +130,11 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Documentation links.** *Working on it now.* A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.
-2. **Faster reflection.** `Core\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.
-3. **Dates and times.** `==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.
-4. **Extending classes you do not own.** An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.
+1. **Clearer method names.** *Working on it now.* Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. When you use an old name, the compiler tells you the new one.
+2. **Documentation links.** A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.
+3. **Faster reflection.** `Core\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.
+4. **Dates and times.** `==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.
+5. **Extending classes you do not own.** An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.
 <!-- roadmap:end -->
 
 ## Contributing

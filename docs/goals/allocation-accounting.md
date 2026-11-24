@@ -180,6 +180,11 @@ Stage 3 closed the goal: build and clippy green, `a_served_compare_case_allocate
 green by name, and `bun nv close --goal allocation-accounting` red only on rustfmt over `alloc.rs`
 and `budget.rs`, which `cargo fmt --all` fixed. No test is expected to go red.
 
+The first `DONE` was refused: `close`'s website stale guard was red on `site --check roadmap`,
+because `clear-member-names`, newly on the chain, was in no theme of `website/src/data/roadmap.json`.
+It now has the theme "Clearer method names", README.md's roadmap is rewritten from it, and
+`bun nv close --goal allocation-accounting` is green.
+
 ### Next
 
 Nothing: the goal is reached. Its `DONE` runs `compare-counts` and `close`.
