@@ -27,6 +27,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A goal check over a crate under `extensions/` needs `cwd: extensions/<name>`.** The workspace
+  excludes `extensions`, so `cargo test --lib <filter>` at the root runs green with none of the
+  check's tests, and `looper check` finds none of the names it needs. ICU4X's baked `Baked` providers do
+  not list their locales either: a test that walks every locale invokes the data crate's
+  `impl_*!(Probe, ITER)` macro on a probe type of its own. See `extensions/intl/src/dates.rs`
+  `every_dates_locale` and `tools/looper/src/verify/accept.ts` `cwdOf`.
 - **`site --check questions` owes a new member's page only once `render --website` has written
   `core.json`.** In `reflect-once`'s close, the render and the questions were red together, and the
   questions named only the stale class page. After the render, two owed member pages appeared and
