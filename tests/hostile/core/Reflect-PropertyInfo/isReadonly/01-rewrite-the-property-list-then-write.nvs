@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program replaces the `readonly` property in the list that `properties()` returns.
+// Then it tries to write that property, many times. Every write should throw an error,
+// the value should not change, and a new call to `properties()` should return the first list.
+
+class Ticket
+{
+    public string $status = 'open';
+
+    public function constructor(public readonly int $id)
+    {}
+}
+
+class Loose
+{
+    public int $id = 0;
+    public string $status = 'open';
+}
+
+class Writer
+{
+    public static function write(Core\Reflect\ClassInfo $info, Ticket $ticket, Core\Reflect\PropertyInfo $property): uint
+    {
+        if ($property->isReadonly()) {
+            return 0;
+        }
+        try {
+            $info->set($ticket, $property->name(), 999);
+            return 1;
+        } catch (RuntimeError $closed) {
+            return 0;
+        } catch (LogicError $wrong) {
+            return 0;
+        }
+    }
+}
+
+var $ticket = new Ticket(7);
+var $info = Core\Reflect::forObject($ticket);
+array<Core\Reflect\PropertyInfo> $loose = Core\Reflect::forClass('Loose')?->properties() ?? [];
+
+// 1. Replace `id` in the list with the `id` of a class where it is not `readonly`.
+// Then write `id` through that item 50000 times. Every write throws, so this prints 0 and 7.
+array<Core\Reflect\PropertyInfo> $list = $info->properties();
+uint $written = 0;
+uint $i = 0;
+while ($i < 50000) {
+    $list[1] = $loose[0];
+    $written = $written + Writer::write($info, $ticket, $list[1]);
+    $i = $i + 1;
+}
+echo $written, "\n";
+echo $ticket->id, "\n";
+
+// 2. Describe `Ticket` again. Only `id` is `readonly`, so this prints `status: no` and `id: yes`.
+foreach (Core\Reflect::forObject(new Ticket(8))->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ': ', $property->isReadonly() ? 'yes' : 'no', "\n";
+}

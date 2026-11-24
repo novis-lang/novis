@@ -1,0 +1,15 @@
+<?nvs
+// Shows which properties of a class are declared `readonly`.
+
+class Invoice
+{
+    public string $status = 'open';
+
+    public function constructor(public readonly int $number, public readonly int $cents)
+    {}
+}
+
+// This prints `status: no`, `number: yes` and `cents: yes`.
+foreach (Core\Reflect::forObject(new Invoice(1001, 4500))->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ': ', $property->isReadonly() ? 'yes' : 'no', "\n";
+}

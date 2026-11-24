@@ -1,0 +1,14 @@
+<?nvs
+// Shows which properties of a class are declared `lateinit`.
+
+class Order
+{
+    public int $id = 42;
+    public lateinit string $invoiceNumber;
+    public lateinit string $trackingCode;
+}
+
+// This prints `id: no`, `invoiceNumber: yes` and `trackingCode: yes`.
+foreach (Core\Reflect::forObject(new Order())->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ': ', $property->isLateInit() ? 'yes' : 'no', "\n";
+}

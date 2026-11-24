@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `isLateInit` also returns `true` for a `lateinit` property that a child class inherits.
+
+class Page
+{
+    public string $title = 'Home';
+    public lateinit string $html;
+}
+
+class BlogPage extends Page
+{
+    public string $author = 'Ada';
+}
+
+// `BlogPage` has the properties of `Page` too.
+// This prints `title: no`, `html: yes` and `author: no`.
+foreach (Core\Reflect::forObject(new BlogPage())->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ': ', $property->isLateInit() ? 'yes' : 'no', "\n";
+}

@@ -1,0 +1,32 @@
+<?nvs
+// Shows a function that writes new values into an object and skips each `readonly` property.
+
+class Product
+{
+    public string $name = 'Lamp';
+    public int $price = 30;
+
+    public function constructor(public readonly int $id)
+    {}
+}
+
+class Patch
+{
+    public static function apply(mixed $object, array<string|int> $changes): void
+    {
+        var $info = Core\Reflect::forObject($object);
+        foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+            // `set` throws a `RuntimeError` for a `readonly` property, so the loop skips it.
+            if ($property->isReadonly() || !Core\Arr::hasKey($changes, $property->name())) {
+                continue;
+            }
+            $info->set($object, $property->name(), $changes[$property->name()]);
+        }
+    }
+}
+
+Product $lamp = new Product(12);
+Patch::apply($lamp, ['id' => 99, 'price' => 25]);
+
+// The price changes and the id stays the same. This prints `12 Lamp 25`.
+echo $lamp->id, ' ', $lamp->name, ' ', $lamp->price, "\n";

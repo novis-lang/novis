@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program writes into the list that `properties()` returns, many times. It tries to
+// change what `isLateInit` returns for the class. Every write should change only the
+// program's own copy, and a new call to `properties()` should return the first list.
+
+class Order
+{
+    public int $id = 42;
+    public lateinit string $invoiceNumber;
+    public string $note = 'none';
+}
+
+class Other
+{
+    public lateinit string $a;
+    public lateinit string $b;
+    public lateinit string $c;
+}
+
+class Count
+{
+    public static function lateInit(array<Core\Reflect\PropertyInfo> $list): uint
+    {
+        uint $found = 0;
+        foreach ($list as Core\Reflect\PropertyInfo $property) {
+            if ($property->isLateInit()) {
+                $found = $found + 1;
+            }
+        }
+        return $found;
+    }
+}
+
+array<Core\Reflect\PropertyInfo> $others = Core\Reflect::forClass('Other')?->properties() ?? [];
+
+// 1. Replace each item of the list with a `lateinit` property of another class, 50000 times.
+// The program's own copy changes, so this prints 3.
+array<Core\Reflect\PropertyInfo> $list = Core\Reflect::forObject(new Order())->properties();
+uint $i = 0;
+while ($i < 50000) {
+    $list[($i % 3) as int] = $others[($i % 3) as int];
+    $i = $i + 1;
+}
+echo Count::lateInit($list), "\n";
+
+// 2. Describe `Order` again. Only `invoiceNumber` is `lateinit`, so this prints 1.
+echo Count::lateInit(Core\Reflect::forObject(new Order())->properties()), "\n";
+
+// 3. Add 50000 items to a new copy of the list. A new call still returns
+// three properties, so this prints 50003, then 3 and 1.
+array<Core\Reflect\PropertyInfo> $grown = Core\Reflect::forObject(new Order())->properties();
+$i = 0;
+while ($i < 50000) {
+    $grown[] = $others[0];
+    $i = $i + 1;
+}
+echo Core\Arr::count($grown), "\n";
+array<Core\Reflect\PropertyInfo> $fresh = Core\Reflect::forObject(new Order())->properties();
+echo Core\Arr::count($fresh), "\n";
+echo Count::lateInit($fresh), "\n";

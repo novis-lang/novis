@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `isReadonly` also returns `true` for a `readonly` property that a child class inherits.
+
+class Entity
+{
+    public function constructor(public readonly int $id)
+    {}
+}
+
+class Customer extends Entity
+{
+    public string $name = 'Ada';
+}
+
+// `Customer` has the `id` property of `Entity` too.
+// This prints `id: yes` and `name: no`.
+foreach (Core\Reflect::forObject(new Customer(7))->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ': ', $property->isReadonly() ? 'yes' : 'no', "\n";
+}

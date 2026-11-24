@@ -1,0 +1,29 @@
+<?nvs
+// Shows a function that saves the properties of an object as text and skips each `lateinit` property.
+
+class Cart
+{
+    public int $items = 3;
+    public string $currency = 'EUR';
+    public lateinit int $shippingCost;
+}
+
+class Saver
+{
+    public static function save(mixed $object): tainted string
+    {
+        var $info = Core\Reflect::forObject($object);
+        tainted string $text = '';
+        foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+            // A `lateinit` property may have no value yet. Reading it then throws a `LogicError`.
+            if ($property->isLateInit()) {
+                continue;
+            }
+            $text = $text . $property->name() . '=' . $info->get($object, $property->name()) as string . "\n";
+        }
+        return $text;
+    }
+}
+
+// The cart has no shipping cost yet. This prints `items=3` and `currency=EUR`.
+echo Saver::save(new Cart());
