@@ -1,12 +1,14 @@
-//! `Core\ObjectSet<T>`, the identity-keyed set, which replaces `SplObjectStorage` used as a set.
+//! `Core\ObjectSet<T>`, the set that finds a member with `==`, which replaces `SplObjectStorage`
+//! used as a set.
 //!
 //! One store slot, holding the store [`crate::identity_store`] describes: a
 //! member is an entry under its own key, so `has` is a lookup, `count` is the
 //! store's own count, and nothing here decides anything about identity that
 //! `nvs_runtime::identity` has not already decided. The key is the chain key,
 //! the member itself for a set of exactly `string` or `int`, or the member's
-//! identity key for a set of a type whose every value is an object; the
-//! `keying` slot says which.
+//! identity key for a set of a type whose every value is an object and none a
+//! value class; the `keying` slot says which. Every keying finds a member with
+//! `==`, so an equal `Core\Time` value is the same member.
 
 use nvs_runtime::revoke::{self, MembershipKind};
 use nvs_runtime::{Fault, NvsArray, ObjHeader, Value};
@@ -164,14 +166,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\ObjectSet`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "A set of objects or other values of any type, each one at most once. A value is \
-            matched by identity: the same object, not an equal one. Build one with `new \
+            matched with `==`. For most objects, only the same object matches. A `Core\\Time` \
+            value, such as a `Date`, matches an equal value. Build one with `new \
             Core\\ObjectSet<T>()`. A `foreach` over the set gives its values in insertion order.",
 };
 
 /// `new Core\ObjectSet`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Builds an empty `Core\\ObjectSet<T>`. Two entries are the same only when they are the \
-            same object.",
+    short: "Builds an empty `Core\\ObjectSet<T>`. Two entries are the same when they are \
+            `==`.",
     params: &[],
     ret: "A new empty set. A `foreach` over it gives its values in insertion order.",
     errors: &[],
@@ -182,7 +185,7 @@ const ADD_DOC: MethodDoc = MethodDoc {
     short: "Adds `$value` to the set, unless the set already contains that same value.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to add, matched by identity.",
+        desc: "The value to add, matched with `==`.",
         shape: &[],
     }],
     ret: "Nothing. If the set already contains the value, the set does not change. Use `has` \
@@ -192,10 +195,10 @@ const ADD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectSet::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether the set contains `$value`, matched by identity.",
+    short: "Checks whether the set contains a value that is `==` to `$value`.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to look for, matched by identity.",
+        desc: "The value to look for, matched with `==`.",
         shape: &[],
     }],
     ret: "`true` when the value is in the set, `false` otherwise.",
@@ -207,7 +210,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Removes `$value` from the set.",
     params: &[ParamDoc {
         name: "value",
-        desc: "The value to remove, matched by identity.",
+        desc: "The value to remove, matched with `==`.",
         shape: &[],
     }],
     ret: "Nothing. If the set does not contain the value, the set does not change.",

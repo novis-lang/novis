@@ -10,13 +10,14 @@ Nothing converts. Each type has one row, and every row is a strict comparison:
 | `bytes` | the same bytes |
 | `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
 | class instance | the same object (`rule:expressions/object-identity-equality`) |
+| `Core\Time` value: `Date`, `TimeOfDay`, `Instant`, `Duration`, `Zone`, `DateTime` | the same class and the same value; a `DateTime` by its moment alone, so one moment in two zones is equal (`rule:expressions/object-identity-equality`) |
 | enum case | the underlying integers are equal |
 | `callable` | the same callable — two anonymous functions with identical bodies are two callables |
 | `mixed`, a union | resolved at run time (`rule:expressions/mixed-equality`) |
 
 The array recursion terminates: an array is a copy-on-write value rather than a reference, so it
-cannot contain itself. An array holding objects compares those by identity, which bounds that walk
-too.
+cannot contain itself. An array holding objects compares those by identity, or a `Core\Time` value by
+its one to four value slots, which bounds that walk too.
 
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.

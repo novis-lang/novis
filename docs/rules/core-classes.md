@@ -4852,8 +4852,9 @@ The editor completes a string at a `Zone` parameter from the same database, one 
 compiled unit's data section, the mechanism a written duration and a fixed `` html`…` `` use. Its one
 slot, the zone id, is an immortal string, and no `Zone` member writes a slot, which is what makes the
 instance safe to share across requests and cores. `Zone::UTC`, and `Zone::of` or `Zone::fixed` called
-with a literal, fold to the same kind of instance. Each written zone is its own instance, so `==` stays
-identity ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)).
+with a literal, fold to the same kind of instance. Each written zone is its own instance, and `==` compares
+a zone by its id ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), so two written zones with one id are
+`==`, and so is the zone `Zone::of` returns for that id.
 
 **What it spends.** A written zone costs a header, one slot and its id's bytes once, charged to the
 compiled unit and freed with it, and nothing per use; `Zone::of` costs an object per call. A literal
@@ -4884,8 +4885,9 @@ unknown name ([`core-api/no-deprecation-window-before-a-release`](core-api.md#co
   ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)).
 - **A `string` zone parameter in place of `Zone`.** Every member would check the name again and gain an
   error path, and tainted text would reach a zone without passing `Zone::of`.
-- **One shared instance per zone name across written zones.** It makes `==` true for two written zones
-  and false for one `Zone::of` returns, for no saving a request sees.
+- **One shared instance per zone name across written zones.** `==` already compares a zone by its id,
+  so sharing changes no result, and it saves one small object per written zone, charged to the
+  compiled unit, for no saving a request sees.
 - **A cache from a zone's id to its `TimeZone`.** Every conversion looks the id up again, and it was
   measured before anything changed: one lookup of a name already loaded is about 21 ns and allocates
   nothing, so the two an `->in($zone)` makes are about 2% of its recorded 1,823 ns. A cache would be

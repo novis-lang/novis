@@ -9,7 +9,7 @@ rather than two. Member access on a value that has no members is refused where i
 
 `array<T>` is list, stack, queue and dictionary at once, so the collection classes that restate it are
 absent. Only three structures exist beside it, each expressing what an ordered `int|string`-keyed hash
-cannot: `Core\ObjectMap<K, V>` and `Core\ObjectSet<T>`, keyed by object identity, and `Core\Heap<T>`,
+cannot: `Core\ObjectMap<K, V>` and `Core\ObjectSet<T>`, keyed by any value and finding a key with `==`, and `Core\Heap<T>`,
 ordered by priority through a comparator or `Comparable` (`rule:classes/comparable`).
 
 **Declined:**

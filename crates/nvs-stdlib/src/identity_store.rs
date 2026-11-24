@@ -9,8 +9,13 @@
 //! |---|---|---|---|
 //! | [`Keying::Str`] | exactly `string` | the string's bytes | one lookup |
 //! | [`Keying::Int`] | exactly `int` | the `int`, as an array subscript | one lookup |
-//! | [`Keying::Object`] | a type whose every value is an object | [`IdentityKey`] | one lookup |
+//! | [`Keying::Object`] | a type whose every value is an object, and none a value class | [`IdentityKey`] | one lookup |
 //! | [`Keying::Chain`] | every other type | the chain key | a chain walk |
+//!
+//! Every keying finds a key with `==`. A value class's instance
+//! (`nvs_runtime::ClassDesc::value_slots`: the six `Core\Time` values) is
+//! `==` to another instance with the same value, so a key type that may hold
+//! one takes the chain, whose hash and comparison read those slots.
 //!
 //! # Decision: the store is an `NvsArray`
 //!
@@ -81,7 +86,11 @@
 //!
 //! A key type whose every value is an object (the checker's
 //! `is_always_an_object`: a class, an interface, `object`, a shape, a
-//! callable, and an intersection of these) is [`Keying::Object`]. An object is identical only to itself
+//! callable, and an intersection of these) is [`Keying::Object`], unless it
+//! may hold a value class (the checker's `may_hold_a_value_object`: one of the
+//! six `Core\Time` values, `object`, `Comparable`, `Stringable` or `Parses`).
+//! Two distinct `Date`s with one value are one key, which an address cannot
+//! say, so such a type takes the chain. Every other object is identical only to itself
 //! (`rule:expressions/equality-semantics`), never moves, and its identity is
 //! its address, so the store key is [`IdentityKey`]: `@` and the pointer's
 //! sixteen hex digits, written on the stack. The `@` keeps it from reading as

@@ -1,4 +1,4 @@
-//! `Core\ObjectMap<K, V>`, the identity-keyed map, which replaces `SplObjectStorage` used as a
+//! `Core\ObjectMap<K, V>`, the map that finds a key with `==`, which replaces `SplObjectStorage` used as a
 //! map and every `spl_object_id` side table.
 //!
 //! # Decision: two stores when the key bytes give no key back, one otherwise
@@ -39,7 +39,8 @@
 //! back from the value store. [`crate::identity_store`]'s docs § *A `string`
 //! or `int` key is stored as it is* own that choice.
 //!
-//! A map keyed by a type whose every value is an object keeps both stores,
+//! A map keyed by a type whose every value is an object, and none a value
+//! class, keeps both stores,
 //! under each key's identity key in place of the chain key, so the alignment
 //! above holds for it too. `get` and `has` read the value store alone.
 //! [`crate::identity_store`]'s docs § *An object key is its identity* own it.
@@ -225,15 +226,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\ObjectMap`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "A map whose keys are objects or other values of any type. A key is found by \
-            identity: the same object, not an equal one. Build one with `new \
-            Core\\ObjectMap<K, V>()`. A `foreach` over the map gives its keys in insertion order.",
+    short: "A map whose keys are objects or other values of any type. A key is found with \
+            `==`. For most objects, only the same object matches. A `Core\\Time` value, such \
+            as a `Date`, matches an equal value. Build one with `new Core\\ObjectMap<K, V>()`. A `foreach` over the map gives its keys in insertion order.",
 };
 
 /// `new Core\ObjectMap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
-    short: "Creates an empty `Core\\ObjectMap<K, V>`. Its keys are objects. Two keys are the \
-            same only when they are the same object.",
+    short: "Creates an empty `Core\\ObjectMap<K, V>`. Two keys are the same when they are \
+            `==`.",
     params: &[],
     ret: "A new, empty map. A loop over it gives the keys in the order they were added.",
     errors: &[],
@@ -242,11 +243,11 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
 /// `Core\ObjectMap::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Stores `$value` under `$key`. If `$key` already has a value, the new value replaces \
-            it. A key matches only the same object, not an equal one.",
+            it. A key matches a key that is `==` to it.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The key. It matches a key in the map only if it is the same object.",
+            desc: "The key. It matches a key in the map that is `==` to it.",
             shape: &[],
         },
         ParamDoc {
@@ -265,7 +266,7 @@ const GET_DOC: MethodDoc = MethodDoc {
             key. This map has no `$map[$key]` syntax, so `get` is the way to read a value.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to look up. It matches only the same object.",
+        desc: "The key to look up. It matches a key that is `==` to it.",
         shape: &[],
     }],
     ret: "The value stored under `$key`, or `null` if the map has no such key. A stored `null` \
@@ -275,10 +276,10 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectMap::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether the map has `$key`. Only the same object matches.",
+    short: "Checks whether the map has a key that is `==` to `$key`.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to look for. It matches only the same object.",
+        desc: "The key to look for. It matches a key that is `==` to it.",
         shape: &[],
     }],
     ret: "`true` if the key is in the map, also when its value is `null`. Otherwise `false`.",
@@ -290,7 +291,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Deletes `$key` and its value from the map.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to delete. It matches only the same object.",
+        desc: "The key to delete. It matches a key that is `==` to it.",
         shape: &[],
     }],
     ret: "Nothing. If the map does not have the key, the call does nothing and does not throw.",
@@ -635,7 +636,10 @@ fn each_pair(receiver: *mut ObjHeader, member: &str, mut visit: impl FnMut(Value
 }
 
 /// Whether `a` and `b` are the same value: the same object, or equal bits for
-/// anything else.
+/// anything else. It is identity and not `==`, even for a `Core\Time` value,
+/// because both callers ask whether the stored value is the object a write or
+/// a revoke holds, whose membership is linked to that one object. Finding a
+/// key reads `==` through [`store::locate`].
 fn same(a: Value, b: Value) -> bool {
     match (a.obj_ptr(), b.obj_ptr()) {
         (Some(a), Some(b)) => std::ptr::eq(a, b),

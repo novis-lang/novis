@@ -17,8 +17,9 @@ code states, once, reviewably.
 
 `Comparable` lives in the global namespace beside `Stringable` and `Parses`, not under `Core`, because
 it is a contract an ordinary class implements rather than a domain class holding `static` members. Equality
-is a separate question and is unaffected: a `Comparable` class still compares by identity under `==`
-(`rule:expressions/object-identity-equality`), and asking the content question explicitly is
+is a separate question and is unaffected: a `Comparable` class of a program still compares by identity
+under `==`, and only the six `Core\Time` values compare by value
+(`rule:expressions/object-identity-equality`). Asking the content question explicitly is
 `$a->compareTo($b) == 0`.
 
 The common `compareTo` is one line that delegates to a field's own `<=>`, which every numeric type

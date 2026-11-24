@@ -243,9 +243,10 @@ const TRUSTED_TEXT: &str =
 const CHECKED_ONCE: &str =
     "Its parts are checked when it is made, and bytes cannot show that they were.";
 
-/// The reason of a class that finds the objects it holds by their identity.
-const BY_IDENTITY: &str =
-    "It finds its objects by their identity, and a copy contains new objects.";
+/// The reason of a class that finds a key with `==`, which is an object's
+/// identity for every class but the six `Core\Time` values.
+const BY_IDENTITY: &str = "It finds a key with `==`, which for most objects means the same object. \
+                           A copy contains new objects.";
 
 /// Every `Core` class that says what its slots hold — the roster behind
 /// [`ClassDesc::states_slot_types`], which `rule:classes/serialize-is-a-closed-format`'s

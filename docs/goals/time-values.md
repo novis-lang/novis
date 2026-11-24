@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/time.rs, docs/rules/core-classes/a-time-class-bu
 stages:
   - id: 1
     title: "== compares the Core\\Time values by value, a DateTime orders by its moment, and ObjectMap and ObjectSet key them by value"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/identity_store.rs, crates/nvs-ir/src/lower/operator.rs, crates/nvs-types/src/expr/operators.rs, docs/rules/expressions/object-identity-equality.md, docs/rules/expressions/equality-semantics.md]
   - id: 2
     title: "Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns"
@@ -286,28 +286,28 @@ the first edit, as `file.rs:NN` and one line each.
   (`crates/nvs-types/src/expr/operators.rs:1014`) loses its `DateTime` branch naming `toInstant()` or
   `date()`, and `tests/conformance/reject/ordering-two-built-in-values-with-no-order-names-what-to-compare.nvst:1`
   moves to a built-in class that still has no order.
-- [ ] `crates/nvs-stdlib/src/objmap.rs:639` and `crates/nvs-stdlib/src/identity_store.rs:184`: `same`
+- [x] `crates/nvs-stdlib/src/objmap.rs:639` and `crates/nvs-stdlib/src/identity_store.rs:184`: `same`
   and the hash read the equality row; `ObjectMap`'s and `ObjectSet`'s cards and module docs say "a key
   is found with `==`" (`crates/nvs-stdlib/src/instance.rs:247`'s `BY_IDENTITY` reason rewritten).
   - [x] A map or set whose key type may hold a value class takes the chain keying, which already
     reads `value_identical` and `value_hash` (`crates/nvs-types/src/expr/calls.rs` `keying_of`).
-  - [ ] `crates/nvs-stdlib/src/identity_store.rs:1`'s *An object key is its identity* section and its
+  - [x] `crates/nvs-stdlib/src/identity_store.rs:1`'s *An object key is its identity* section and its
     keying table say a value-class key takes the chain.
-  - [ ] `ObjectMap`'s and `ObjectSet`'s cards and module docs (`objmap.rs:1`, `objset.rs:1`) say a key
+  - [x] `ObjectMap`'s and `ObjectSet`'s cards and module docs (`objmap.rs:1`, `objset.rs:1`) say a key
     is found with `==`, and `instance.rs:247`'s `BY_IDENTITY` reason is rewritten.
 - [x] The tests the checks `value-equality`, `datetime-order` and `map-by-value` name, beside the code
   they test, each run once by name.
-- [ ] `docs/rules/expressions/object-identity-equality.md:1` and
+- [x] `docs/rules/expressions/object-identity-equality.md:1` and
   `docs/rules/expressions/equality-semantics.md:12`: the class-instance row gains the six value classes,
   with the reason the old decline does not reach them and the cost.
   `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the written-zone paragraph's "so
   `==` stays identity" and the Declined item "One shared instance per zone name" rewritten, because two
   written zones with one id are now `==`.
-  - [ ] `equality-semantics.md`'s class-instance row and its closing paragraph.
-  - [ ] `object-identity-equality.md`: the six classes, why the decline of a property walk does not
+  - [x] `equality-semantics.md`'s class-instance row and its closing paragraph.
+  - [x] `object-identity-equality.md`: the six classes, why the decline of a property walk does not
     reach them, and the cost.
-  - [ ] `a-time-class-builds-its-own-values.md`: the written-zone paragraph and the Declined item.
-  - [ ] `bun nv brief --where equality` and `--where compareTo`: every other rule that says `==` on an
+  - [x] `a-time-class-builds-its-own-values.md`: the written-zone paragraph and the Declined item.
+  - [x] `bun nv brief --where equality` and `--where compareTo`: every other rule that says `==` on an
     object is identity, or that a `DateTime` has no order, is rewritten.
 
 ### 2. Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns
