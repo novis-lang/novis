@@ -30,7 +30,7 @@ stages:
     context: [docs/reference/lang/10-programs.md, docs/examples/lang/programs/doc-comments/about.md, docs/examples/lang/programs/doc-comments/details.md, website/src/content/docs/tools/editor/index.mdx]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: checker
@@ -377,40 +377,27 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
-- [ ] Once the review's words are settled: `bun nv relink --build`, then `bun nv proofs --record-perf --nvs target/release/nvs.exe --only <id>` for each `lang:programs/*` feature `bun nv proofs --gate --goal see-files` names stale, then `bun nv site --review --stamp` each reviewed file, and `bun nv proofs --owed --goal see-files` names nothing.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
+- [x] Once the review's words are settled: `bun nv relink --build`, then `bun nv proofs --record-perf --nvs target/release/nvs.exe --only <id>` for each `lang:programs/*` feature `bun nv proofs --gate --goal see-files` names stale, then `bun nv site --review --stamp` each reviewed file, and `bun nv proofs --owed --goal see-files` names nothing.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done; `checker`, `pack`, `editor-read`, `editor-edit`, `handshake`, `meta` and
-`doc` are green, and `site --check stale changes` is green.
-
-- Stage 6 rewrote `doc-comment-tags-are-closed-and-checked` (the file form, the project bound, the
-  slug rule, E0323 and its suggestion, packing, memory, the Declined items) and
-  `the-request-set-is-closed` (doc-tag targets in hover, definition, completion, semantic tokens,
-  documentLink and willRenameFiles; the editor's three Declined items). `bun nv rules --render` also
-  rendered stage 2's packaging fragment, which was never rendered.
-- The example is `06-point-at-a-document-with-see.nvs` with `notes/refunds.md` beside it; the attack
-  is `tests/hostile/lang/programs/doc-comments/03-see-paths-that-leave-the-project.nvs` (five E0323);
-  the bench's tags point at `benches/members/lang/programs/doc-comments/meter.md`, because that folder
-  has its own `nvs.toml`.
-- `details.md`, `about.md`, `nvs-lsp/about.md` (now under its 200 words), the editor page's
-  *Links in doc comments* section and two `changes.json` entries are written and stamped. The LSP
-  tests `see_targets` and `see_edits` carry `// covers: tools:editor/nvs-lsp`.
-- `bun nv proofs --gate --goal see-files` is red on two things only, both stage 7's: the
-  `lang:programs/*` perf records are stale because the chapter re-rendered, and eight files owe the
-  newcomer review (`bun nv site --check review` lists them).
+Every stage is done. The newcomer review ran over the eight texts stage 6 touched, in two reader
+batches, and every finding was fixed: the bench's top comment, the example's heading note (now a `//`
+comment above the `///` run, out of the method's documentation), the attack's steps 1 and 4, the
+doc-comments `about.md` (188 words) and `details.md`, `nvs-lsp/about.md` (names `@throws`, defines a
+quick fix, drops the HTML-template sentence), the editor page and the two `changes.json` entries.
+All eight are stamped, the chapter and the website are re-rendered, the ten `lang:programs/*` perf
+records are recorded after the last render, and the two stale question sets are rewritten and
+stamped. `proofs --gate`, `site --check stale changes review questions` and `cargo build` are green.
 
 ### Next
 
-Stage 7 from its first item: the newcomer review over the files `bun nv site --check review` names,
-fixing every finding, then re-render (`bun nv render`, `bun nv render --website`), restamp, record
-perf last (playbook: every render makes the chapter's perf stale again), then the close.
-
-No test is expected to go red.
+Nothing: the goal's DONE runs its checks. A red one comes back with its reasons; rerun that check
+alone with `looper check --name <id>`. No test is expected to go red.
 
 ### Backlog
