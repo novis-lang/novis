@@ -2604,7 +2604,7 @@ nvs_runtime::nvs_helper! {
     /// **One member for all five prompts, and it names none of them.** The
     /// queue is drained in `nvs_stdlib::cli`'s `ask_terminal`, which every
     /// prompt already goes through, so `ask`, `confirm`, `select`,
-    /// `multiSelect` and `askSecret` gain this at once and a sixth prompt would
+    /// `selectMany` and `askSecret` gain this at once and a sixth prompt would
     /// gain it by construction. A per-member spelling — `answerAsk`,
     /// `answerSelect` — would make the test say which member asked, which is
     /// exactly the coupling to the subject's internals a test should not have.

@@ -1,6 +1,6 @@
 //! The Novis-source members of `Novis\Image` that call no export —
 //! `Image::hashDistance`, `Image::mime`, `Image::extension`, `Font::fromBytes`
-//! and `new Diff` — run through the built binary with no `nvs.toml`, as
+//! and `new Comparison` — run through the built binary with no `nvs.toml`, as
 //! `rule:core-classes/image-pipeline` places them.
 
 use std::fs;
@@ -119,18 +119,18 @@ foreach ($formats as Format $format) {
     );
 }
 
-/// `new Diff` keeps the five values it is given, so a program can build the
+/// `new Comparison` keeps the five values it is given, so a program can build the
 /// result `Image::compare` returns, for example in a test of its own.
-// covers: Novis\Image\Diff::constructor
+// covers: Novis\Image\Comparison::constructor
 #[test]
-fn a_diff_keeps_the_five_values_it_is_made_from() {
+fn a_comparison_keeps_the_five_values_it_is_made_from() {
     let out = run(
-        "diff-constructor",
+        "comparison-constructor",
         r##"
-use Novis\Image\Diff;
+use Novis\Image\Comparison;
 
-Diff $diff = new Diff(false, 3, 40, 0.75, null);
-echo $diff->identical ? "same" : "differ", " ", $diff->differingPixels, " ", $diff->maxDelta, " ", $diff->ssim, " ", $diff->diff == null ? "no diff" : "a diff", "\n";
+Comparison $result = new Comparison(false, 3, 40, 0.75, null);
+echo $result->identical ? "same" : "differ", " ", $result->differingPixels, " ", $result->maxDelta, " ", $result->ssim, " ", $result->differenceImage == null ? "no diff" : "a diff", "\n";
 "##,
     );
     assert_eq!(out, "differ 3 40 0.75 no diff\n");

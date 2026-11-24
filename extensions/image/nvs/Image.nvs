@@ -332,9 +332,9 @@ final class Image
         return Codec::variants($this->source, $plans);
     }
 
-    /// `Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
+    /// `Image::compare` compares two images of the same size and returns a `Comparison`. Other sizes throw a `LogicError`.
     /// Each image is an `Image`, its bytes, an open file or an uploaded file. A pixel differs when its delta is above `tolerance`, which is 0 by default.
-    public static function compare(Core\Bytes::Source|Image $a, Core\Bytes::Source|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff
+    public static function compare(Core\Bytes::Source|Image $a, Core\Bytes::Source|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Comparison
     {
         ?uint $tolerance = $options?->tolerance ?? null;
         bool $render = $options?->render ?? false;
@@ -344,7 +344,7 @@ final class Image
         if ($drawn != null) {
             $diff = Core\Taint::assertTrustedBytes($drawn, 'the component drew this PNG file itself');
         }
-        return new Diff($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $diff);
+        return new Comparison($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $diff);
     }
 
     /// `Image::hash` returns a short hash of an encoded image: its bytes, an open file or an uploaded file.

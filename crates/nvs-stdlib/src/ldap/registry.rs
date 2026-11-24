@@ -1651,7 +1651,11 @@ pub(crate) const FILTER: CoreClass = CoreClass {
             "nvs_core_ldap_filter_at_most",
             &FILTER_AT_MOST_DOC,
         ),
-        filter_compare("approx", "nvs_core_ldap_filter_approx", &FILTER_APPROX_DOC),
+        filter_compare(
+            "approximately",
+            "nvs_core_ldap_filter_approximately",
+            &FILTER_APPROXIMATELY_DOC,
+        ),
         CoreMethod {
             name: "all",
             names: &["filters"],
@@ -1817,8 +1821,8 @@ const FILTER_AT_MOST_DOC: MethodDoc = MethodDoc {
     errors: FILTER_NAME_ERRORS,
 };
 
-/// `Ldap\Filter::approx`' reference card — `rule:core-api/reference-card`.
-const FILTER_APPROX_DOC: MethodDoc = MethodDoc {
+/// `Ldap\Filter::approximately`' reference card — `rule:core-api/reference-card`.
+const FILTER_APPROXIMATELY_DOC: MethodDoc = MethodDoc {
     short: "Matches the entries where a value of an attribute is close to this value, such as a \
             name that sounds the same. Each server has its own rules for what is close.",
     params: &[

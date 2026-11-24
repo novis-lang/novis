@@ -448,6 +448,7 @@
     "Core\\Ldap\\Entry::string",
     "Core\\Ldap\\Entry::strings",
     "Core\\Ldap\\Entry::uuid",
+    "Core\\Ldap\\Filter::approximately",
     "Core\\Ldap\\Filter::atLeast",
     "Core\\Ldap\\Filter::atMost",
     "Core\\Markdown::live",

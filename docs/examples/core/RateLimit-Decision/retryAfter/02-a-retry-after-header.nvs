@@ -6,7 +6,7 @@ class Api
     public static function answer(string $client): string
     {
         // Each client may make 10 calls per hour.
-        var $decision = Core\RateLimit::shed('api:' . $client, 10, 1h);
+        var $decision = Core\RateLimit::consumeLocally('api:' . $client, 10, 1h);
         var $wait = $decision->retryAfter();
         if ($wait == null) {
             return '200 OK';

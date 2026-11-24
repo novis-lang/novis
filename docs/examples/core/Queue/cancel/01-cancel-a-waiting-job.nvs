@@ -23,7 +23,7 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $job = Queue::push('jobs/resize-photo.nvs', { queue: 'images', args: ['photo' => 17] });
+var $job = Queue::push('jobs/resize-photo.nvs', { queue: 'images', arguments: ['photo' => 17] });
 
 // The job is still waiting, so `cancel` returns `true`. This prints `cancelled: yes`.
 echo 'cancelled: ', Queue::cancel($job) ? 'yes' : 'no', "\n";

@@ -1,12 +1,12 @@
 <?nvs
-// Shows how to make a `Diff` from its five values and read them back.
-use Novis\Image\Diff;
+// Shows how to make a `Comparison` from its five values and read them back.
+use Novis\Image\Comparison;
 
-// 12 pixels differ, and no picture of the changes is stored, so `diff` is `null`.
-Diff $result = new Diff(false, 12, 40, 0.98, null);
+// 12 pixels differ, and no picture of the changes is stored, so `differenceImage` is `null`.
+Comparison $result = new Comparison(false, 12, 40, 0.98, null);
 
 echo 'identical: ', $result->identical ? 'yes' : 'no', "\n";
 echo 'differing pixels: ', $result->differingPixels, "\n";
 echo 'largest delta: ', $result->maxDelta, "\n";
 echo 'similarity: ', $result->ssim, "\n";
-echo 'has a picture: ', $result->diff == null ? 'no' : 'yes', "\n";
+echo 'has a picture: ', $result->differenceImage == null ? 'no' : 'yes', "\n";

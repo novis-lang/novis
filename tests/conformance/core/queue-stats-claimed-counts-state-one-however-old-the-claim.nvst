@@ -30,7 +30,7 @@ echo "empty: ", Queue::stats("q")->claimed(), "\n";
 // visibility timeout, and two claimed rows on another queue.
 int $n = 0;
 while ($n < 8) {
-    Queue::push("jobs/a.nvs", {queue: $n < 6 ? "q" : "other", args: ["n" => $n]});
+    Queue::push("jobs/a.nvs", {queue: $n < 6 ? "q" : "other", arguments: ["n" => $n]});
     $n = $n + 1;
 }
 echo "pushed: ", Queue::stats("q")->claimed(), "\n";

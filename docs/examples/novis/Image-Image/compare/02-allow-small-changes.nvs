@@ -11,8 +11,8 @@ Image $after = $before->withOverlay(Image::create(8, 8, Color::hex('#2865ee')), 
 var $exact = Image::compare($before, $after, { render: true });
 echo $exact->differingPixels, ' pixels differ, largest delta ', $exact->maxDelta, "\n";
 
-// `diff` is a PNG file that shows those pixels in red.
-echo 'diff image: ', Image::info($exact->diff ?? '' as bytes)->width, " pixels wide\n";
+// `differenceImage` is a PNG file that shows those pixels in red.
+echo 'diff image: ', Image::info($exact->differenceImage ?? '' as bytes)->width, " pixels wide\n";
 
 // A tolerance of 5 is larger than every delta, so no pixel counts as different.
 echo Image::compare($before, $after, { tolerance: 5 })->differingPixels, " pixels differ\n";

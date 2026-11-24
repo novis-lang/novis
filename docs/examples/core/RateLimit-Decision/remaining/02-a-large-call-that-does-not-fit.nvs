@@ -6,7 +6,7 @@ class Report
     public static function run(uint $pages): void
     {
         // Each user may print 10 pages per hour.
-        var $decision = Core\RateLimit::shed('print:user:2', 10, 1h, { cost: $pages });
+        var $decision = Core\RateLimit::consumeLocally('print:user:2', 10, 1h, { cost: $pages });
         echo $pages, ' pages: ', $decision->isAllowed() ? 'printed' : 'refused';
         echo ', ', $decision->remaining(), " pages left\n";
     }

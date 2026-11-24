@@ -25,8 +25,8 @@ $db->execute($jobs, []);
 $db->execute($dead, []);
 
 // Two reminders are added. The user then cancels the first one.
-var $monday = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', args: ['day' => 'monday'] });
-var $friday = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', args: ['day' => 'friday'] });
+var $monday = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', arguments: ['day' => 'monday'] });
+var $friday = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', arguments: ['day' => 'friday'] });
 Queue::cancel($monday);
 
 class Reminder

@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::shed throws for a limit that can never be enforced, and charges nothing — `rule:core-classes/ratelimit-unreachable-store-throws`
+Core\RateLimit::consumeLocally throws for a limit that can never be enforced, and charges nothing — `rule:core-classes/ratelimit-unreachable-store-throws`
 --FILE--
 <?nvs
 // `rule:core-classes/ratelimit-unreachable-store-throws`'s direction, in the tier that has no store to blame: a limiter
@@ -12,7 +12,7 @@ var $refusals = 0;
 
 // A limit of nothing per anything: there is no rate to enforce.
 try {
-    Core\RateLimit::shed("k", 0, 1h);
+    Core\RateLimit::consumeLocally("k", 0, 1h);
     echo "a limit of zero was accepted", "\n";
 } catch (RuntimeError $e) {
     $refusals = $refusals + 1;
@@ -20,7 +20,7 @@ try {
 
 // A burst of nothing: every arrival would be refused however long it waited.
 try {
-    Core\RateLimit::shed("k", 5, 1h, {burst: 0});
+    Core\RateLimit::consumeLocally("k", 5, 1h, {burst: 0});
     echo "a burst of zero was accepted", "\n";
 } catch (RuntimeError $e) {
     $refusals = $refusals + 1;
@@ -29,7 +29,7 @@ try {
 // And a period too short to divide into `$limit` units — two thousand of them
 // in a millisecond is half a microsecond each, finer than this limiter counts.
 try {
-    Core\RateLimit::shed("k", 2000, 1ms);
+    Core\RateLimit::consumeLocally("k", 2000, 1ms);
     echo "an unmeasurable rate was accepted", "\n";
 } catch (RuntimeError $e) {
     $refusals = $refusals + 1;
@@ -39,7 +39,7 @@ echo "refusals=", $refusals, "\n";
 
 // The refusals happen before any arrival is recorded, so the key they named is
 // untouched: a burst's worth still arrives afterwards.
-var $after = Core\RateLimit::shed("k", 2, 1h);
+var $after = Core\RateLimit::consumeLocally("k", 2, 1h);
 if ($after->isAllowed()) {
     echo "nothing was charged", "\n";
 } else {

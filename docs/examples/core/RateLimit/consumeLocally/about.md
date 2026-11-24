@@ -5,9 +5,9 @@ use in a period, such as 2 per minute. Each call uses one unit, or the number yo
 result is a `Core\RateLimit\Decision`. It says if the call was allowed, how many units are left, and how
 long to wait.
 
-The count is in the memory of this server process, so `shed` is fast and needs no network store. Two
+The count is in the memory of this server process, so `consumeLocally` is fast and needs no network store. Two
 server processes with a limit of 100 allow up to 200. The count can also be forgotten when the server
-needs the memory for other values. Use `shed` to protect a server from too much load. For a limit you
+needs the memory for other values. Use `consumeLocally` to protect a server from too much load. For a limit you
 promised to a customer, use `Core\RateLimit::consume`.
 
 **The examples below** show a fourth call that is not allowed, then a call that costs several units,

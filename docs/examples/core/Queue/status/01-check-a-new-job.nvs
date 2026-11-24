@@ -24,7 +24,7 @@ $db->execute($jobs, []);
 $db->execute($dead, []);
 
 // `Queue::push` returns the id of the new job.
-var $job = Queue::push('jobs/resize-photo.nvs', { queue: 'images', args: ['photo' => 7] });
+var $job = Queue::push('jobs/resize-photo.nvs', { queue: 'images', arguments: ['photo' => 7] });
 
 // `Queue::status` returns a `Core\Queue::State` case. No worker has started
 // the job yet, so the state is `Queue::State::Pending` and this prints `waiting`.

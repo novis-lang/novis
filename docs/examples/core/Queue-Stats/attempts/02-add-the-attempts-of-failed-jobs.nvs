@@ -23,8 +23,8 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['to' => 'ana@example.com'] });
-Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['to' => 'ben@example.com'] });
+Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['to' => 'ana@example.com'] });
+Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['to' => 'ben@example.com'] });
 
 // On a real server, workers run the jobs and move a job that failed 5 times
 // to the dead-letter table. No worker runs here, so SQL changes the rows.

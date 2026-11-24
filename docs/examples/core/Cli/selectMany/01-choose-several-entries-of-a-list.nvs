@@ -8,7 +8,7 @@ array<string> $features = ['dark mode', 'e-mail digest', 'beta pages'];
 // The answer is choice 3 and choice 1. A space works in place of the comma.
 Core\Test::answerCli(['3,1']);
 
-array<string> $on = Core\Cli::multiSelect('Which features should be on?', $features);
+array<string> $on = Core\Cli::selectMany('Which features should be on?', $features);
 
 // The answer keeps the order of the list above, so this prints
 // "on: dark mode, beta pages".

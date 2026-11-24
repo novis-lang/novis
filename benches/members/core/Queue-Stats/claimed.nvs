@@ -43,8 +43,8 @@ class Bench
 // Workers run 3 jobs of `mail` and 2 jobs of `exports`.
 int $n = 0;
 while ($n < 3) {
-    Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['n' => $n] });
-    Queue::push('jobs/export.nvs', { queue: 'exports', args: ['n' => $n] });
+    Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['n' => $n] });
+    Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['n' => $n] });
     $n = $n + 1;
 }
 $db->execute('update nvs_jobs set state = 1, attempts = 1, claimed_at = 1', []);

@@ -19,6 +19,6 @@ class Headers
 // The remaining count goes down by one each time.
 uint $call = 0;
 while ($call < 3) {
-    echo Headers::of(Core\RateLimit::shed('key:alpha', 3, 1m));
+    echo Headers::of(Core\RateLimit::consumeLocally('key:alpha', 3, 1m));
     $call = $call + 1;
 }

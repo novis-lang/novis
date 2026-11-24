@@ -23,9 +23,9 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $first = Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['to' => 'ana@example.com'] });
-var $second = Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['to' => 'ben@example.com'] });
-Queue::push('jobs/send-mail.nvs', { queue: 'mail', args: ['to' => 'eva@example.com'] });
+var $first = Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['to' => 'ana@example.com'] });
+var $second = Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['to' => 'ben@example.com'] });
+Queue::push('jobs/send-mail.nvs', { queue: 'mail', arguments: ['to' => 'eva@example.com'] });
 Queue::cancel($first);
 Queue::cancel($second);
 

@@ -61,11 +61,11 @@ create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
     errors text not null, token text, primary key (id))
 SQL, []);
 
-Core\Queue\Id $first = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });
+Core\Queue\Id $first = Queue::push('jobs/send-invoice.nvs', { arguments: ['order' => 7], key: 'invoice-7' });
 echo Queue::status($first) == Queue::State::Pending ? 'pending' : 'not pending', "\n";
 
 // The key is the same, so this returns an `Id` for the first job.
-Core\Queue\Id $again = Queue::push('jobs/send-invoice.nvs', { args: ['order' => 7], key: 'invoice-7' });
+Core\Queue\Id $again = Queue::push('jobs/send-invoice.nvs', { arguments: ['order' => 7], key: 'invoice-7' });
 echo Queue::cancel($again) ? 'cancelled' : 'not cancelled', "\n";
 echo Queue::status($first) == Queue::State::Cancelled ? 'cancelled' : 'not cancelled', "\n";
 

@@ -1,12 +1,12 @@
 --TEST--
-Core\RateLimit::shed's $cost weighs one call and its $burst bounds one instant — `rule:core-classes/ratelimit-gcra`
+Core\RateLimit::consumeLocally's $cost weighs one call and its $burst bounds one instant — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
 // `rule:core-classes/ratelimit-gcra`: `cost` weights one call, so an expensive endpoint may charge
 // several units of the same quota — four per hour, taken two at a time.
-var $first = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
-var $second = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
-var $third = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
+var $first = Core\RateLimit::consumeLocally("export", 4, 1h, {cost: 2});
+var $second = Core\RateLimit::consumeLocally("export", 4, 1h, {cost: 2});
+var $third = Core\RateLimit::consumeLocally("export", 4, 1h, {cost: 2});
 
 // The decision carries the limit it was made against, so a `RateLimit` header
 // can be written from the decision alone rather than from the call site.
@@ -24,8 +24,8 @@ if ($third->isAllowed()) {
 
 // `burst` is the other option, and it bounds an *instant* rather than a rate:
 // the same four per hour, but only one may arrive at a time.
-var $one = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
-var $two = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
+var $one = Core\RateLimit::consumeLocally("narrow", 4, 1h, {burst: 1});
+var $two = Core\RateLimit::consumeLocally("narrow", 4, 1h, {burst: 1});
 if ($one->isAllowed() && !$two->isAllowed()) {
     echo "one at a time", "\n";
 } else {

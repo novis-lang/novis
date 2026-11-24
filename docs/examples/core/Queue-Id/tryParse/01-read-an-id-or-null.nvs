@@ -17,7 +17,7 @@ SQL;
 $db->execute($jobs, []);
 
 // `toString` writes the id of a new job as a string.
-var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', args: ['invoice' => 1042] });
+var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', arguments: ['invoice' => 1042] });
 string $text = $job->toString();
 
 // The string came from `toString`, so `Id::tryParse` returns an id.

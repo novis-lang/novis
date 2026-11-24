@@ -12,7 +12,7 @@ var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::any(
     Core\Ldap\Filter::contains("cn", $typed),
     Core\Ldap\Filter::atLeast("cn", $typed),
     Core\Ldap\Filter::atMost("cn", $typed),
-    Core\Ldap\Filter::approx("cn", $typed),
+    Core\Ldap\Filter::approximately("cn", $typed),
 ));
 var $both = Core\Ldap\Filter::all($filter, Core\Ldap\Filter::not($filter));
 

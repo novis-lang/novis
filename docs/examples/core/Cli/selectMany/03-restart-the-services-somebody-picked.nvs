@@ -8,7 +8,7 @@ array<string> $services = ['web', 'worker', 'scheduler'];
 array<string> $restart = [];
 
 try {
-    $restart = Core\Cli::multiSelect('Which services should be restarted?', $services);
+    $restart = Core\Cli::selectMany('Which services should be restarted?', $services);
 } catch (Core\Cli\NotInteractive $nobody) {
     // Nobody can choose here, so this script restarts nothing.
     $restart = [];

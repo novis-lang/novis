@@ -6,7 +6,7 @@ array<string> $queue = ['ana@example.com', 'ben@example.com', 'chen@example.com'
 array<string> $later = [];
 
 foreach ($queue as string $address) {
-    var $decision = Core\RateLimit::shed('mail:outgoing', 3, 1s);
+    var $decision = Core\RateLimit::consumeLocally('mail:outgoing', 3, 1s);
     if ($decision->isAllowed()) {
         echo 'sent to ', $address, "\n";
     } else {

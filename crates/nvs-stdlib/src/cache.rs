@@ -149,7 +149,7 @@
 //! That is O(working set), and it is deliberately not O(requests served): a key
 //! rewritten on every request costs what it cost the first time. Beside it,
 //! [`SHARDS`] locks and their empty queues, which is a fixed cost paid once and
-//! not a per-entry one. `Core\RateLimit::shed`'s arrivals are entries of this
+//! not a per-entry one. `Core\RateLimit::consumeLocally`'s arrivals are entries of this
 //! tier too, under the same cap.
 //! On the shared tier, one socket per core and nothing per entry: the bytes are
 //! the store's. A store spelled `rediss://` adds one `rustls` connection state
@@ -1277,7 +1277,7 @@ fn shard_cap(cap: Option<usize>) -> Option<usize> {
 /// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
 /// name the file and the line.
 ///
-/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// Crate-visible because [`crate::ratelimit`]'s `consumeLocally` keeps its arrivals in
 /// this tier under the same cap.
 pub(crate) fn memory_cap(ctx: &Ctx) -> Option<usize> {
     let Some(written) = configured(ctx, MAX_SIZE) else {
@@ -1392,7 +1392,7 @@ fn memory_forget(key: &[u8]) {
 /// answers what the caller wants back beside the payload to store, if any. The
 /// whole of it runs under the shard's write lock, so two cores stepping the
 /// same key take turns: the second reads what the first wrote. That is what
-/// [`crate::ratelimit`]'s `shed` needs from a read followed by a write, and a
+/// [`crate::ratelimit`]'s `consumeLocally` needs from a read followed by a write, and a
 /// separate [`memory_get`] and [`memory_put`] would let two cores read the same
 /// arrival and both be admitted against it.
 ///
@@ -1400,7 +1400,7 @@ fn memory_forget(key: &[u8]) {
 /// bracket and freed inside it too, after [`Entries::put`] has copied it, so
 /// the request is charged for none of it. The answer `T` is built under the
 /// same bracket and handed to the request, so it is meant to hold no heap of
-/// its own: `shed`'s is three integers. What the lock costs is that a step
+/// its own: `consumeLocally`'s is three integers. What the lock costs is that a step
 /// which stores nothing still takes the write lock, on one shard of
 /// [`SHARDS`].
 pub(crate) fn memory_update<T>(
@@ -1642,7 +1642,7 @@ fn waited<T>(
 /// own key — a key that spells another application's prefix is still the third
 /// part and still inside the application that wrote it.
 ///
-/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// Crate-visible because [`crate::ratelimit`]'s `consumeLocally` keeps its arrivals in
 /// this tier, under keys scoped the same way.
 pub(crate) fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
     let snapshot = ctx.config().map(nvs_config::Request::snapshot);
@@ -3488,7 +3488,7 @@ pub(crate) mod tests {
     /// `AGENTS.md`'s O(in-flight) rule, which is what makes the cap a bound at
     /// all: one key rewritten forever costs what it cost the first time. The
     /// eviction order holds one slot per live key rather than one per write —
-    /// `Core\RateLimit::shed` rewrites a single key on every request, so the
+    /// `Core\RateLimit::consumeLocally` rewrites a single key on every request, so the
     /// other spelling would grow with the traffic served.
     // covers: Core\Cache\Store::put
     #[test]
@@ -3712,7 +3712,7 @@ pub(crate) mod tests {
     /// Several threads each add one to the same counter many times. A read and
     /// a write taken as two operations would let two threads read the same
     /// count and both write the next one, and the total would come out short.
-    /// That is the race `Core\RateLimit::shed` would lose an arrival to.
+    /// That is the race `Core\RateLimit::consumeLocally` would lose an arrival to.
     #[test]
     fn an_update_is_one_step_no_other_core_comes_between() {
         /// How many threads step the counter at once.
@@ -4475,7 +4475,7 @@ pub(crate) mod tests {
         );
         assert_eq!(
             asked(super::NAME, "memory"),
-            asked(crate::ratelimit::NAME, "shed"),
+            asked(crate::ratelimit::NAME, "consumeLocally"),
             "and the two in-process halves ask nothing, for the reason the rows state"
         );
         assert_eq!(asked(super::NAME, "memory"), None);

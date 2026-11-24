@@ -289,7 +289,7 @@ fn every_capability_entry_names_a_member() {
 ///
 /// **The allowlist that used to sit here is gone rather than frozen.** The rule forbids growing one
 /// to make a run go green — a member that is hard to classify is a member whose capability has not
-/// been thought about — and `Core\RateLimit::shed` was the sibling that had no other spelling: it reaches
+/// been thought about — and `Core\RateLimit::consumeLocally` was the sibling that had no other spelling: it reaches
 /// nothing, and its class is a door because `consume` is. A list of two would have been a set claim
 /// with a growable hole in it; a `None` row costs the would-be exemption exactly what a declaration
 /// costs and leaves the claim below total. What the two rows say is in the table beside them, which

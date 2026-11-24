@@ -4468,7 +4468,7 @@ pub fn zone_offset_text_now(id: &str) -> Option<String> {
 static MONOTONIC_ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
 
 /// Microseconds on [`MONOTONIC_ORIGIN`]'s timeline, for a native member that
-/// measures rather than dates — `Core\RateLimit::shed` in [`crate::ratelimit`]
+/// measures rather than dates — `Core\RateLimit::consumeLocally` in [`crate::ratelimit`]
 /// is its one caller, outside a test's fixed clock.
 ///
 /// The wall clock is deliberately not offered here: a limiter reading one would

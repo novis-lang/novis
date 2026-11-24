@@ -30,7 +30,7 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 try {
-    Queue::push('jobs/a.nvs', { queue: 'big', args: ['values' => $values] });
+    Queue::push('jobs/a.nvs', { queue: 'big', arguments: ['values' => $values] });
 } catch (Throwable $e) {
     echo "2: error\n";
 }

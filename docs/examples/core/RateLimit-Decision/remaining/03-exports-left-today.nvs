@@ -6,7 +6,7 @@ class Export
     public static function message(string $user): string
     {
         // Each user may export 3 files per day.
-        var $decision = Core\RateLimit::shed('export:' . $user, 3, 24h);
+        var $decision = Core\RateLimit::consumeLocally('export:' . $user, 3, 24h);
         if (!$decision->isAllowed()) {
             return 'You have no exports left today.';
         }

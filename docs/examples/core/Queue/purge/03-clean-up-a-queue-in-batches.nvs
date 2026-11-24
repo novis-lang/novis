@@ -27,7 +27,7 @@ $db->execute($dead, []);
 // Five export jobs are added and then cancelled.
 int $n = 0;
 while ($n < 5) {
-    Id $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['report' => $n] });
+    Id $job = Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['report' => $n] });
     Queue::cancel($job);
     $n = $n + 1;
 }

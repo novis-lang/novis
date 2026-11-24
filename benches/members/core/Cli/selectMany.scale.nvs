@@ -1,5 +1,5 @@
 <?nvs
-// Measures `Core\Cli::multiSelect` with a scripted answer, at growing numbers of choices.
+// Measures `Core\Cli::selectMany` with a scripted answer, at growing numbers of choices.
 // bench: start 64
 // bench: max 1024
 
@@ -13,7 +13,7 @@ class Bench
         uint $i = 0;
         while ($i < 64) {
             Core\Test::answerCli([$lines[$total % 3]]);
-            array<int> $chosen = Core\Cli::multiSelect('how many days?', $sizes);
+            array<int> $chosen = Core\Cli::selectMany('how many days?', $sizes);
             $total = $total + $chosen[0];
             $i = $i + 1;
         }

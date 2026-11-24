@@ -5,7 +5,7 @@ A value pushed `tainted` comes back `tainted`: `Core\Script::arguments()` answer
 // The enqueue half: a `tainted` payload is accepted. Only `secret` is refused
 // at the push, by tests/conformance/core/queue-a-secret-payload-value-does-not-compile.nvst.
 tainted string $name = "Robert'); drop table users; --";
-Core\Queue::push("greet.nvs", {args: ["name" => $name]});
+Core\Queue::push("greet.nvs", {arguments: ["name" => $name]});
 
 // The job half, written the way a job reads its payload. The qualifier is
 // decided while checking and nothing of it is in the row, so what carries it

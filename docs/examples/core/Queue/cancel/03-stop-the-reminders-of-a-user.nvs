@@ -28,7 +28,7 @@ $db->execute($dead, []);
 array<string> $days = ['day 1', 'day 3', 'day 7'];
 array<Id> $reminders = [];
 foreach ($days as string $day) {
-    $reminders[] = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', args: ['day' => $day] });
+    $reminders[] = Queue::push('jobs/send-reminder.nvs', { queue: 'mail', arguments: ['day' => $day] });
 }
 
 // Earlier, the user turned off the first reminder, so it is already cancelled.

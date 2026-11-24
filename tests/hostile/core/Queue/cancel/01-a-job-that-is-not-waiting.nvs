@@ -52,7 +52,7 @@ try {
 int $cancelled = 0;
 int $i = 0;
 while ($i < 5000) {
-    var $next = Queue::push('jobs/a.nvs', { queue: 'q', args: ['n' => $i] });
+    var $next = Queue::push('jobs/a.nvs', { queue: 'q', arguments: ['n' => $i] });
     if (Queue::cancel($next)) {
         $cancelled = $cancelled + 1;
     }

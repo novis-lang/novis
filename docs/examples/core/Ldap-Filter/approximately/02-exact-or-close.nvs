@@ -4,7 +4,7 @@
 string $typed = 'Meyer';
 var $filter = Core\Ldap\Filter::any(
     Core\Ldap\Filter::equals('sn', $typed),
-    Core\Ldap\Filter::approx('sn', $typed),
+    Core\Ldap\Filter::approximately('sn', $typed),
 );
 // This prints (|(sn=Meyer)(sn~=Meyer)).
 echo $filter->toString(), "\n";

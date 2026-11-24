@@ -15,7 +15,7 @@ create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) 
 SQL;
 $db->execute($jobs, []);
 
-var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['table' => 'orders'] });
 
 // `toString` returns the id with a random token in it. This prints it as `1.<token>.ZXhwb3J0cw`.
 // The last part is the queue name `exports`, in an encoded form.

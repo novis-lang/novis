@@ -28,7 +28,7 @@ uint $errors = 0;
 uint $i = 0;
 while ($i < 300) {
     try {
-        Queue::push('jobs/missing.nvs', { queue: 'fail', maxAttempts: 1, args: ['n' => $i] });
+        Queue::push('jobs/missing.nvs', { queue: 'fail', maxAttempts: 1, arguments: ['n' => $i] });
         $added = $added + 1;
     } catch (Throwable $e) {
         $errors = $errors + 1;

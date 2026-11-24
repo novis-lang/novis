@@ -30,7 +30,7 @@ stages:
     context: [extensions/image/nvs/Image.nvs, extensions/pdf/nvs/Document.nvs, extensions/spreadsheet/nvs/Sheet.nvs]
   - id: 7
     title: "every further name the check lists is fixed, and no old name is left in the tree"
-    status: open
+    status: done
   - id: 8
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
     status: open
@@ -259,6 +259,12 @@ keeps it. The command:
 | `Sheet->link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart` | `addLink`, `addNote`, `addValidation`, `addOutlineGroup`, `addTable`, `addConditionalFormat`, `addImage`, `addChart` | in place |
 | `Sheet->print($options)` | `setPrintOptions($options)` | in place; `print` reads like "print now" |
 | `Novis\Spreadsheet\Workbook->sheet`, `define` | `addSheet`, `defineName` | in place |
+| `Cli::multiSelect` | `selectMany` | effect: it prompts; matches `select` |
+| `RateLimit::shed` | `consumeLocally` | effect: it charges the key; the same call as `consume`, counted in this process |
+| `Ldap\Filter::approx` | `approximately` | truncation; a static factory beside `atLeast` and `atMost`, so a `reads` row |
+| `Process::run` and `spawn`'s option `cwd` | `workingDirectory` | truncation; an option field, so not in the block |
+| `Queue::push`'s option `args` | `arguments` | truncation; an option field. The queue table's `args` column keeps its name, because a stored row is not API |
+| the class `Novis\Image\Diff`, and its property `diff` | `Novis\Image\Comparison`, `differenceImage` | truncation; it is what `Image::compare` returns. `Codec::compare`'s shape and the WIT field keep `diff`, as stage 6 kept every WIT name |
 
 **The `renames` block** is the table above, one fully qualified `Old New` pair per line, which
 `bun nv api-rename --goal clear-member-names` reads. `Class::member` is a static member and
@@ -415,6 +421,9 @@ Novis\Spreadsheet\Sheet->chart Novis\Spreadsheet\Sheet->addChart
 Novis\Spreadsheet\Sheet->print Novis\Spreadsheet\Sheet->setPrintOptions
 Novis\Spreadsheet\Workbook->sheet Novis\Spreadsheet\Workbook->addSheet
 Novis\Spreadsheet\Workbook->define Novis\Spreadsheet\Workbook->defineName
+Core\Cli::multiSelect Core\Cli::selectMany
+Core\RateLimit::shed Core\RateLimit::consumeLocally
+Core\Ldap\Filter::approx Core\Ldap\Filter::approximately
 ```
 
 Unchanged on purpose: zero-argument reads (`Request::path()`), keyed reads (`Db\Row->int`,
@@ -485,6 +494,18 @@ same four parts, and recorded in this table and the `renames` block.
 - **A rule id and a file name that hold an old word keep it until stage 8:** `rule:core-classes/script-args`,
   the `script-args-*.nvst` cases, `05-give-the-child-a-value-with-args.nvs`. A rule id is cited across
   the tree, so one pass renames them all.
+
+**What stage 7 settled.**
+- **An option field that sets a value keeps an adjective.** Part 4 is about a member that reads a
+  `bool`. `Test::tlsSession`'s option `verified` sets what `TlsInfo->isVerified()` returns, the way
+  `render: true` sets a behaviour, so it keeps its name.
+- **A stored column is not API.** The queue table's `args` column keeps its name when `Queue::push`'s
+  option becomes `arguments`, because renaming it is a migration of every deployed queue table for a
+  name no program writes.
+- **A WIT field and a `Codec` shape keep their word**, as stage 6 kept every `Step` key and WIT name:
+  `Codec::compare` still returns `diff`, and `Image::compare` copies it into `differenceImage`.
+- **`api-rename --check` reads the data files** (`.json`, `.toml`, `.out`) and skips the generated
+  `core.json`, `core-changelog.json`, `data/proofs/released.json` and the loop's `.looper/` state.
 
 **Lanes.** Stages 1 and 2 land first: 3 to 6 need the check and the sweep. Stages 3 to
 6 change disjoint `crates/nvs-stdlib/src/` files but share callers across `docs/examples/`,
@@ -607,9 +628,14 @@ session runs the sweep and hands the leftovers out as stage 3 does.
 
 **Split:** none, one session.
 
-- [ ] `bun nv names --check`: each name it lists is renamed by the four parts, added to the renames table
+- [x] `bun nv names --check`: each name it lists is renamed by the four parts, added to the renames table
   and the `renames` block above; a genuine read goes on the `reads` list.
-- [ ] `bun nv names --check` and `bun nv api-rename --check --goal clear-member-names` both exit 0.
+  - [x] Decide the eight names and record them in the table and the block.
+  - [x] Rename the `Core` rows, options and symbols, and the `Novis\Image\Diff` class.
+  - [x] Sweep the callers, move the example, hostile and bench paths, and check every caller with `nvs check`.
+- [x] `bun nv names --check` and `bun nv api-rename --check --goal clear-member-names` both exit 0.
+  - [x] `api-rename` lists `->old<T>(`, reads `.json`, `.toml` and `.out`, and skips `.looper/`.
+  - [x] The stale `.out` files and `default.toml` name the new members.
 
 ### 8. the rules, the reference, the examples, the feature proofs and the website say so
 
@@ -636,52 +662,42 @@ changes entries.
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 renamed every `Image`, `Document`, `Chart`, `Sheet` and `Workbook`
-row: the declarations, their doc comments, every code call (found by `nvs check`, not by the
-sweep's list), the example, hostile and bench directories, the feature ids, the runtime messages
-that named a member (`extensions/image/src/ops.rs`, `pdf/src/write.rs:761`, `spreadsheet/src/chart.rs`,
-`writer.rs`, `ods/mod.rs`, `tail.rs:813`) and the `.out` files that print them, `meta.rs`'s and
-`ext_world.rs`'s name lists, and the prose. `keepingMetadata()` takes no argument; the plan step
-keeps its `metadata: { keep: true }` shape, and every `Step` key and WIT name keeps its old word.
-`questions.json`'s keys match stages 3 to 6. Build, clippy, `cargo fmt`, `rules --check`, the
-filtered `api-rename --check` are green, and `names --check` names no package member but
-`Novis\Image\Diff`. No test ran.
+Stages 1 to 7 are done. Stage 7 renamed the eight names `names --check` listed outside the table:
+`Cli::multiSelect` → `selectMany`, `RateLimit::shed` → `consumeLocally`, `Ldap\Filter::approx` →
+`approximately` (a `reads` row), `Process::run`/`spawn`'s option `cwd` → `workingDirectory`,
+`Queue::push`'s option `args` → `arguments`, and the class `Novis\Image\Diff` → `Comparison` with
+its property `diff` → `differenceImage`. Their registry rows, symbols, messages, Rust tests,
+examples, hostile and bench paths, feature ids and callers moved with them, and each caller was
+checked with `nvs check`. `api-rename` now lists `->old<T>(`, reads `.json`, `.toml` and `.out`,
+and skips `.looper/`, so its `--check` found four stale `.out` files (stage 3's
+`Response::sendJson`/`sendBytes`, `Request::queryParameters`, `Sse::startStream`) and
+`default.toml`'s `Task::runAfterResponse`, all fixed. `bun nv names --check` and the unfiltered
+`bun nv api-rename --check --goal clear-member-names` exit 0. Build, clippy, `cargo fmt` and
+`rules --check` are green. Only `api-rename.test.ts` ran (6 pass).
 
 Expect red at stage 9 if anything was missed: `.lspt` completion cases and `nvs-test`'s
-`TOP_LEVEL_ONLY` cases. `echo` labels such as `powMod`, `trim ` and `flatten ` kept their
-`--EXPECT--` lines. The `crates/nvs-cli/tests/meta.rs` name lists and
-`crates/nvs-stdlib/tests/ext_world.rs` `IMAGE_MEMBERS` were edited by hand and have not run.
-`core.json`, `core-changelog.json`, `llms-full.txt` and `site.lock.json`'s stamps are stale until
-stage 8, and `questions.json`'s hashes of the moved pages may be stale.
-
-Red until stage 7: `bun nv names --check`, the unfiltered `api-rename --check`, so `ci --check`, the
-floor's `ci-check` and `ci --push`. Stage 7's names outside the table: `CoreProcess::run`, `spawn`'s
-`cwd`, `Queue::push`'s `args`, `NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect` and
-`LdapFilter::approx`.
+`TOP_LEVEL_ONLY` cases. The `crates/nvs-cli/tests/meta.rs` name lists and
+`crates/nvs-stdlib/tests/ext_world.rs` `IMAGE_MEMBERS` were edited by hand in stage 6 and have not
+run. `every-prompt-with-nobody-to-ask-throws-not-interactive.nvst` renamed its own `multiSelect`
+method and `--EXPECT--` label together. `core.json`, `core-changelog.json`, `llms-full.txt` and
+`site.lock.json`'s stamps are stale until stage 8, and `questions.json`'s hashes of the moved pages
+may be stale.
 
 ### Next
 
-Stage 7, from its first item: run `bun nv names --check` into `.agent-tmp/` and rename each name it
-lists by the four parts. The known ones: `CoreProcess::run`, `spawn`'s `cwd`, `Queue::push`'s `args`,
-`NovisImageDiff` (`extensions/image/nvs/Diff.nvs:1`), `RateLimit::shed`, `Cli::multiSelect` and
-`LdapFilter::approx`. Add each to the renames table and the `renames` block, then:
-1. Decide each name, record it in the table, and rename its declaration (registry row and symbol for
-   `Core`, the `.nvs` for a package).
-2. Find the code calls with `nvs check` over every `.nvs` that uses the class, as stage 6 did:
-   `.agent-tmp/stage6_fix.py` (`.nvs`) and `stage6_nvst.py` (the `--FILE--` part of a `.nvst`) rename
-   each unknown-member error at its call; edit their map `M`. Rust strings and `.md` code take
-   `stage6_lines.py` over the sweep's list.
-3. Do the backlog's two `api-rename` items (`->old<T>(`, and `.json`/`.toml`/`.out` in
-   `TEXT_EXTENSIONS`), then run the unfiltered `bun nv api-rename --check --goal clear-member-names`
-   and fix what it names.
-4. Run `bun nv rules --render`, `cargo fmt`, build and clippy.
+Stage 8, from its first item, by its split: writing subagents by directory rewrite the moved
+`about.md` files and example comments; the session writes the rules and the changes entries.
+1. Reread every rule fragment the sweep touched (`git log --name-only` over this goal's commits,
+   `docs/rules/**`), including the rate limit trio (`ratelimit-two-members.md`, `ratelimit-gcra.md`,
+   `ratelimit-unreachable-store-throws.md`), whose bare "shed" prose now meets `consumeLocally`.
+   Then `bun nv rules --render` and `--check`.
+2. The backlog's file-name and rule-id pass, in one go.
+3. `website/src/data/changes.json`: one `changed` entry per class family of the renames table.
+   Regenerate `core.json` and `llms-full.txt`, reread and `bun nv site --stamp` each page touched.
+4. `bun nv proofs --owed --goal clear-member-names` names nothing.
 
 ### Backlog
 
-- `bun nv api-rename` lists `->old(` but not `->old<T>(`. Stage 7 adds the generic form to its
-  listing and to `--check` (`tools/nv/cmd/api-rename.ts`).
-- `crates/nvs-stdlib/src/test.rs:481`: the `Test::tlsSession` option `verified` sets what
-  `TlsInfo->isVerified()` returns. Stage 7 decides whether it becomes `isVerified` by part 4.
 - Stage 3 prose left behind: `docs/examples/core/Response/startStream/01-…nvs:5` and its `about.md`
   (lines 1, 7, 8) still say `stream`. `docs/examples/core/Sse/startStream/01-…nvs:4` and its
   `about.md` (lines 6, 10) still say `stream()`. Stage 8 rewrites them.
@@ -701,14 +717,11 @@ lists by the four parts. The known ones: `CoreProcess::run`, `spawn`'s `cwd`, `Q
   `bigint-div-and-mod-…`, `decimal-div-round-…`, `db-stream-*`, `db-transaction-stream-*`,
   `ldap-compare-*`, `ldap-changes-*`, `uri-sign-*`, `uri-resolve-*`, `uri-with-and-resolve`,
   `time-from-epoch-…-its-nanos-…`, and the playbook file
-  `core-objectsets-union-intersect-and-diff-…md`.
-- `bun nv api-rename`'s `TEXT_EXTENSIONS` lacks `.json`, `.toml` and `.out`. Stage 7 adds them, so
-  its `--check` sees the data files (the generated `core.json`, `llms-full.txt` and the history files
-  stay excluded).
+  `core-objectsets-union-intersect-and-diff-…md`. From stage 7: `cli-multiselect-answers-…nvst`,
+  the six `ratelimit-shed-*.nvst` cases, the Rust tests `consume_locally_*` keep their wording, and
+  `rule:core-classes/ratelimit-two-members`'s title still says "`consume` and `shed`".
 - `crates/nvs-stdlib/src/request.rs:1872` says "which used to have its own", which is history in a
   comment. Rewrite it when the file is next open.
-- `docs/rules/config/an-entry-runs-on-a-server-event.md:79` says "the args map". Check whether it means
-  `Queue::push`'s `args`, which stage 7 renames.
 - From stage 6, for stage 8's file-name pass: example and hostile files under the moved
   `novis/Image-Image/`, `Pdf-Document/` and `Spreadsheet-*/` directories that keep an old word
   (`01-resize-…`), and the conformance cases `image-composite-draws-…`, `pdf-a-header-…`,
@@ -717,3 +730,5 @@ lists by the four parts. The known ones: `CoreProcess::run`, `spawn`'s `cwd`, `Q
   It is not the `Image` method; stage 8 decides whether it reads as one.
 - `extensions/image/src/text.rs:212,218`: one message serves `withText` and `measureText`, so it
   names neither. Stage 8 rereads it.
+- `docs/examples/novis/Image-Comparison/constructor/about.md` has lines past the width after the
+  rename. Stage 8 rewraps it with its rewrite.

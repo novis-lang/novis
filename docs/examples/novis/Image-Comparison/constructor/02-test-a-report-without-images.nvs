@@ -1,10 +1,10 @@
 <?nvs
-// Shows how to check your own report code with a `Diff` you make yourself, without any images.
-use Novis\Image\Diff;
+// Shows how to check your own report code with a `Comparison` you make yourself, without any images.
+use Novis\Image\Comparison;
 
 class VisualReport
 {
-    public static function line(string $page, Diff $d): string
+    public static function line(string $page, Comparison $d): string
     {
         if ($d->identical) {
             return $page . ': unchanged';
@@ -14,5 +14,5 @@ class VisualReport
 }
 
 // One result for each case the report handles.
-echo VisualReport::line('home', new Diff(true, 0, 0, 1.0, null)), "\n";
-echo VisualReport::line('cart', new Diff(false, 340, 255, 0.91, null)), "\n";
+echo VisualReport::line('home', new Comparison(true, 0, 0, 1.0, null)), "\n";
+echo VisualReport::line('cart', new Comparison(false, 340, 255, 0.91, null)), "\n";

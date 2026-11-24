@@ -6,7 +6,7 @@ class Quota
 {
     public static function check(string $user, uint $perHour): Core\RateLimit\Decision
     {
-        return Core\RateLimit::shed('api:' . $user, $perHour, 1h);
+        return Core\RateLimit::consumeLocally('api:' . $user, $perHour, 1h);
     }
 
     public static function report(Core\RateLimit\Decision $decision): void

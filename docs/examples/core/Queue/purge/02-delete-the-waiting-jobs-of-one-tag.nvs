@@ -25,9 +25,9 @@ $db->execute($dead, []);
 
 array<string> $readers = ['ana@example.com', 'ben@example.com', 'eva@example.com'];
 foreach ($readers as string $to) {
-    Queue::push('jobs/newsletter.nvs', { queue: 'mail', tag: 'newsletter-june', args: ['to' => $to] });
+    Queue::push('jobs/newsletter.nvs', { queue: 'mail', tag: 'newsletter-june', arguments: ['to' => $to] });
 }
-Queue::push('jobs/send-invoice.nvs', { queue: 'mail', tag: 'invoice', args: ['to' => 'ana@example.com'] });
+Queue::push('jobs/send-invoice.nvs', { queue: 'mail', tag: 'invoice', arguments: ['to' => 'ana@example.com'] });
 
 // `Queue::State::Pending` deletes jobs that have not run yet, and `tag` keeps the invoice.
 // This prints `deleted: 3` and `waiting: 1`.

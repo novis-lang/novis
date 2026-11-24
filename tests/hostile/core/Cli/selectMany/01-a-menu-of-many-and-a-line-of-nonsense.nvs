@@ -20,7 +20,7 @@ array<string> $choices = ['keep', 'archive', 'delete'];
 //    with a `LogicError`, with or without a terminal.
 array<string> $nothing = [];
 try {
-    Core\Cli::multiSelect('what should happen?', $nothing);
+    Core\Cli::selectMany('what should happen?', $nothing);
     echo "step 1 chose something\n";
 } catch (LogicError $empty) {
     echo "step 1 stopped at once\n";
@@ -29,7 +29,7 @@ try {
 // 2. There is no terminal here, and this member has no default. The call must stop
 //    with an error instead of waiting for an answer nobody can give.
 try {
-    Core\Cli::multiSelect('what should happen?', $choices);
+    Core\Cli::selectMany('what should happen?', $choices);
     echo "step 2 was answered\n";
 } catch (Core\Cli\NotInteractive $nobody) {
     echo "step 2 stopped at once\n";
@@ -38,7 +38,7 @@ try {
 // 3. The `labels` function throws. It must not be called, so the error that comes
 //    out is still the one from step 2.
 try {
-    Core\Cli::multiSelect('what should happen?', $choices, {
+    Core\Cli::selectMany('what should happen?', $choices, {
         labels: fn(string $choice): string => Menu::never($choice),
     });
     echo "step 3 was answered\n";
@@ -50,7 +50,7 @@ try {
 //    commands.
 string $sneaky = Core\Str::fromCodePoint(27) . "]0;rm -rf /\u{7}what should happen?";
 try {
-    Core\Cli::multiSelect($sneaky, $choices);
+    Core\Cli::selectMany($sneaky, $choices);
     echo "step 4 was answered\n";
 } catch (Core\Cli\NotInteractive $nobody) {
     echo "step 4 stopped at once\n";
@@ -65,7 +65,7 @@ while ($at < 200000) {
     $at = $at + 1;
 }
 try {
-    Core\Cli::multiSelect('which ones?', $many);
+    Core\Cli::selectMany('which ones?', $many);
     echo "step 5 was answered\n";
 } catch (Core\Cli\NotInteractive $nobody) {
     echo "step 5 stopped at once\n";
@@ -74,14 +74,14 @@ try {
 // 6. An answer of a million separators and nothing else. Every part of it is
 //    empty, so the answer is the empty set.
 Core\Test::answerCli([Core\Str::repeat(',', 1000000)]);
-array<string> $none = Core\Cli::multiSelect('what should happen?', $choices);
+array<string> $none = Core\Cli::selectMany('what should happen?', $choices);
 echo 'step 6 chose ', Core\Arr::count($none), "\n";
 
 // 7. An answer of a million digits. It is not a number on the menu, so the
 //    question is asked again, and there is nobody left to ask.
 Core\Test::answerCli([Core\Str::repeat('9', 1000000)]);
 try {
-    Core\Cli::multiSelect('what should happen?', $choices);
+    Core\Cli::selectMany('what should happen?', $choices);
     echo "step 7 was answered\n";
 } catch (Core\Cli\NotInteractive $nobody) {
     echo "step 7 stopped at once\n";
@@ -93,7 +93,7 @@ uint $i = 0;
 uint $stopped = 0;
 while ($i < 100000) {
     try {
-        Core\Cli::multiSelect('what should happen?', $choices);
+        Core\Cli::selectMany('what should happen?', $choices);
     } catch (Core\Cli\NotInteractive $nobody) {
         $stopped = $stopped + 1;
     }

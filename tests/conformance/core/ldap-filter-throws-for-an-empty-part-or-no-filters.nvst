@@ -35,7 +35,7 @@ foreach ($bad as var $name) {
     try { Core\Ldap\Filter::contains($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
     try { Core\Ldap\Filter::atLeast($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
     try { Core\Ldap\Filter::atMost($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
-    try { Core\Ldap\Filter::approx($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::approximately($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
 }
 echo "bad names thrown: ", $thrown, " of ", Core\Arr::count($bad) * 6, "\n";
 --EXPECT--

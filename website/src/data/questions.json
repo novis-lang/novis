@@ -3404,7 +3404,7 @@
     ]
   },
   "/reference/core/cli/multiselect/": {
-    "feature": "Core\\Cli::multiSelect",
+    "feature": "Core\\Cli::selectMany",
     "hash": "ee19d182349dabdc",
     "questions": [
       "How do I let the user pick several options from a list?",
@@ -7895,7 +7895,7 @@
     ]
   },
   "/reference/core/ldap-filter/approx/": {
-    "feature": "Core\\Ldap\\Filter::approx",
+    "feature": "Core\\Ldap\\Filter::approximately",
     "hash": "dc04b160b17863da",
     "questions": [
       "Find names that sound similar in LDAP",
@@ -9028,7 +9028,7 @@
     ]
   },
   "/reference/core/novis-image-diff/": {
-    "feature": "Novis\\Image\\Diff",
+    "feature": "Novis\\Image\\Comparison",
     "hash": "8dd0800878240de1",
     "questions": [
       "What does an image comparison return?",
@@ -9039,7 +9039,7 @@
     ]
   },
   "/reference/core/novis-image-diff/constructor/": {
-    "feature": "Novis\\Image\\Diff::constructor",
+    "feature": "Novis\\Image\\Comparison::constructor",
     "hash": "4a9b31b3b04c880a",
     "questions": [
       "How do I create an image comparison result by hand?",
@@ -11969,7 +11969,7 @@
     ]
   },
   "/reference/core/ratelimit/shed/": {
-    "feature": "Core\\RateLimit::shed",
+    "feature": "Core\\RateLimit::consumeLocally",
     "hash": "b79f7e391c6093c4",
     "questions": [
       "Shed load quickly when a server gets too many requests",

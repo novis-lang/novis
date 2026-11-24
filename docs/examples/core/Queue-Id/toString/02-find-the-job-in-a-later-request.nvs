@@ -42,7 +42,7 @@ class Exports
 }
 
 // User 7 starts an export. `toString` gives the string that the program saves.
-var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['table' => 'orders'] });
 string $text = $job->toString();
 $db->execute('insert into exports (job, user_id) values (?, ?)', [$text, 7]);
 

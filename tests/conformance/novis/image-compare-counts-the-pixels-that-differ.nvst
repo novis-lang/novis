@@ -2,7 +2,7 @@
 `Novis\Image\Image::compare` takes bytes or an `Image`, counts the pixels that differ above `tolerance`, renders a diff, and throws a `LogicError` for two sizes — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::compare, Novis\Image\Diff::constructor
+// covers: Novis\Image\Image::compare, Novis\Image\Comparison::constructor
 use Novis\Image\Image;
 use Novis\Image\Color;
 
@@ -16,12 +16,12 @@ var $a = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff
 var $b = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff0000ff0000f0ff")});
 var $diff = Image::compare($a, $b, {render: true});
 echo $diff->identical ? "identical" : "different", " ", $diff->differingPixels, " ", $diff->maxDelta, "\n";
-var $info = Image::info($diff->diff as bytes);
+var $info = Image::info($diff->differenceImage as bytes);
 echo $info->width, "x", $info->height, " ", Image::mime($info->format), "\n";
 
 // With a tolerance of 15, a delta of 15 does not count.
 echo Image::compare($a, $b, {tolerance: 15})->differingPixels, "\n";
-echo Image::compare($a, $b)->diff == null ? "no diff" : "a diff", "\n";
+echo Image::compare($a, $b)->differenceImage == null ? "no diff" : "a diff", "\n";
 
 try {
     Image::compare($canvas, $a);

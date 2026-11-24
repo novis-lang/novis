@@ -32,7 +32,7 @@ class Rows
     }
 }
 
-var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', args: ['order' => 1042] });
+var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', arguments: ['order' => 1042] });
 
 // `cancel` stops the job, but the row stays. This prints `after cancel: 1 row`.
 Queue::cancel($job);

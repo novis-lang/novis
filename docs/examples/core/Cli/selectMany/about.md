@@ -1,6 +1,6 @@
 Shows a numbered list of choices at the terminal and returns every choice that was chosen.
 
-`Core\Cli::multiSelect` writes one line per choice, numbered from `1`, and then the question. The person
+`Core\Cli::selectMany` writes one line per choice, numbered from `1`, and then the question. The person
 types the numbers they want, separated by commas or spaces. The call returns those choices themselves, not
 their numbers.
 

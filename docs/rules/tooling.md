@@ -506,7 +506,7 @@ most the terminal's width times its height, for as long as its `showLive` or `sh
 
 `rule:tooling/a-prompt-is-a-core-member`
 
-`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::multiSelect<T>` and `Cli::askSecret` are `Core`
+`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::selectMany<T>` and `Cli::askSecret` are `Core`
 members, because raw mode is unreachable from userland with the FFI door shut
 ([`security/no-ffi`](security.md#security-no-ffi)) and an extension runs in a sandbox with no tty: if `Core` does not ship the
 interactive half, Novis does not have it at any tier. A question takes its options as one trailing
@@ -3089,12 +3089,12 @@ sees.
 No sender's address is written to disk, by the program, the Novis server or the TLS proxy in front of
 it. The address lives in memory for one request, and once more as a keyed hash in the rate limit.
 
-- **The rate limit.** Each report calls `Core\RateLimit::shed` with ten reports per hour per address,
+- **The rate limit.** Each report calls `Core\RateLimit::consumeLocally` with ten reports per hour per address,
   before the report is read (`apps/telemetry/src/Limit.nvs`). The key is a SHA-256 of a 32-byte salt
   from `Core\Random` followed by the address. The salt is kept in `Core\Cache::memory()` under the
   UTC date and expires at the end of that day, so a key cannot be linked across days and nothing
   reverses it. Two cores that start a day at the same moment can each make a salt, and the later one
-  stays: a sender's first reports of that day may then count under two keys. `shed` keeps its count in the serving process's memory
+  stays: a sender's first reports of that day may then count under two keys. `consumeLocally` keeps its count in the serving process's memory
   ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)). A refused report gets `429` with `Retry-After`.
 - **The server's log.** The application's `nvs.toml` sets `[log] client_ip = false`
   ([`http-server/a-log-line-can-leave-out-the-client-address`](http-server.md#http-server-a-log-line-can-leave-out-the-client-address)), so not even a `5xx` line carries

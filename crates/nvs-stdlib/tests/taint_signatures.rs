@@ -238,7 +238,7 @@ const KEYS_FROM: &[(&str, &str, KeysFrom)] = {
         (r"Core\Csv", "parse", Text),
         (r"Core\Task", "map", Subject),
         (r"Core\Program", "implementingWith", Positions),
-        (r"Core\Cli", "multiSelect", Positions),
+        (r"Core\Cli", "selectMany", Positions),
         (r"Core\Config", "setting", Text),
         (r"Core\Request", "queryParameters", Text),
         (r"Core\Request", "formFields", Text),

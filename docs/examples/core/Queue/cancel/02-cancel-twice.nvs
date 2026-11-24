@@ -23,7 +23,7 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', args: ['order' => 1042] });
+var $job = Queue::push('jobs/send-invoice.nvs', { queue: 'mail', arguments: ['order' => 1042] });
 
 // A user clicks the Cancel button twice. Only the first click cancels the job.
 // This prints `first click: true` and `second click: false`.

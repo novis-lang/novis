@@ -5622,7 +5622,7 @@
           },
           "slug": "multiselect",
           "url": "/reference/core/cli/multiselect/",
-          "examples": "core/Cli/multiSelect"
+          "examples": "core/Cli/selectMany"
         },
         {
           "id": "Cli.secret",
@@ -23304,7 +23304,7 @@
           },
           "slug": "approx",
           "url": "/reference/core/ldap-filter/approx/",
-          "examples": "core/Ldap-Filter/approx"
+          "examples": "core/Ldap-Filter/approximately"
         },
         {
           "id": "Ldap.Filter.all",
@@ -37479,7 +37479,7 @@
           },
           "slug": "shed",
           "url": "/reference/core/ratelimit/shed/",
-          "examples": "core/RateLimit/shed"
+          "examples": "core/RateLimit/consumeLocally"
         }
       ],
       "slug": "ratelimit",

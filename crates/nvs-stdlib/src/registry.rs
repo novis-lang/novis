@@ -2510,12 +2510,12 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::CacheShared),
     ),
     // `rule:core-classes/ratelimit-two-members`'s other member, and the same asymmetry one class over:
-    // `shed`'s state is the serving process's own memory, so it is
+    // `consumeLocally`'s state is the serving process's own memory, so it is
     // `Core\Cache`'s memory tier by construction — the row above it is
     // `cache.shared` because a coherent limiter is a store on the network, and
     // this one is `None` because an approximate one is a map in this process. It
     // is bounded by the same cap for the same reason, since it is the same store.
-    (crate::ratelimit::NAME, "shed", None),
+    (crate::ratelimit::NAME, "consumeLocally", None),
     // `rule:errors/log-write`'s writer, and the third `None` here — declared rather than
     // left off because "writing a log" is exactly the kind of effect a reader
     // expects a door on, and the answer has to be somewhere they will look.

@@ -7,7 +7,7 @@ class Attempt
     public static function run(string $key, uint $limit, Core\Time\Duration $per, uint $burst, uint $cost): string
     {
         try {
-            var $decision = Core\RateLimit::shed($key, $limit, $per, { burst: $burst, cost: $cost });
+            var $decision = Core\RateLimit::consumeLocally($key, $limit, $per, { burst: $burst, cost: $cost });
             return $decision->isAllowed() ? 'allowed' : 'refused';
         } catch (RuntimeError $error) {
             return 'error';

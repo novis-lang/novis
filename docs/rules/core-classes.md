@@ -3673,16 +3673,16 @@ presented identifier the store does not hold is still never used for a write.
 
 `rule:core-classes/ratelimit-two-members`
 
-`Core\RateLimit::consume` and `::shed` are two jobs with two verbs, and the verb says which one you
+`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two verbs, and the verb says which one you
 are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
 limit — over the shared store, coherently, because a policy only approximately enforced is not
-enforced. `shed` drops load to keep a host up, from the serving process's own memory, and an
+enforced. `consumeLocally` drops load to keep a host up, from the serving process's own memory, and an
 approximate answer is entirely adequate for that because the goal is "less than the amount that
-hurts", not a number. `shed`'s contract states its arithmetic out loud: its count is per server
+hurts", not a number. `consumeLocally`'s contract states its arithmetic out loud: its count is per server
 process, so a limit of 100 on each of four processes admits up to 400 across the deployment, and an
 arrival the cache's cap forgets admits a burst again.
 
-`shed` keeps its count in the memory tier ([`concurrency/the-memory-tier-is-one-store-per-process`](concurrency.md#concurrency-the-memory-tier-is-one-store-per-process)),
+`consumeLocally` keeps its count in the memory tier ([`concurrency/the-memory-tier-is-one-store-per-process`](concurrency.md#concurrency-the-memory-tier-is-one-store-per-process)),
 scoped by app and configuration generation like any key there and bounded by the same
 `[cache.memory] max_size`. The read and the write of one arrival are one step under the shard's write
 lock, so every core of a process charges the same count and two cores never both admit the last unit.
@@ -3696,7 +3696,7 @@ the victim has one account — and no proxy knows which account a request authen
 without a class, an application writes one of two wrong limiters: a counter kept with `get` and `put`
 in the memory tier, which two cores race and every process counts on its own, or an insert-and-count
 against the database, which puts a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
-round trip on that path, the same floor the shared cache tier accepts, and it is why `shed` exists
+round trip on that path, the same floor the shared cache tier accepts, and it is why `consumeLocally` exists
 for the cases that do not need it.
 
 Four things are deliberately absent. **Edge and flood limiting** — no per-IP, per-path or connection
@@ -3745,7 +3745,7 @@ and `null` exactly when `isAllowed` is true — absence is `?T`, not a sentinel 
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). `shed`'s
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). `consumeLocally`'s
 half is one step over a timestamp in the memory tier; `consume`'s is a small script of our own in
 the shared store, an algorithm over our own state.
 
@@ -3770,7 +3770,7 @@ fail open rather than take the product down. Throwing puts the decision where th
 an application that chooses to fail open does so in a `catch` that a reader can see and a reviewer
 can question.
 
-`shed` cannot fail this way, its state being in the serving process's own memory, which is one more reason the
+`consumeLocally` cannot fail this way, its state being in the serving process's own memory, which is one more reason the
 two are different members rather than one with a flag.
 
 **Declined:**

@@ -853,10 +853,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Ldap\Filter::approx(string $attribute, tainted string $value): Filter`
+    /// `Ldap\Filter::approximately(string $attribute, tainted string $value): Filter`
     /// — RFC 4511's `approxMatch`, which the server defines.
-    fn nvs_core_ldap_filter_approx(_ctx, args: [2]) {
-        compared(args,r"Core\Ldap\Filter::approx", nvs_ldap::Filter::Approx)
+    fn nvs_core_ldap_filter_approximately(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::approximately", nvs_ldap::Filter::Approx)
     }
 }
 
@@ -1054,7 +1054,9 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_ldap_filter_contains" => (nvs_core_ldap_filter_contains as *const ()).cast(),
         "nvs_core_ldap_filter_at_least" => (nvs_core_ldap_filter_at_least as *const ()).cast(),
         "nvs_core_ldap_filter_at_most" => (nvs_core_ldap_filter_at_most as *const ()).cast(),
-        "nvs_core_ldap_filter_approx" => (nvs_core_ldap_filter_approx as *const ()).cast(),
+        "nvs_core_ldap_filter_approximately" => {
+            (nvs_core_ldap_filter_approximately as *const ()).cast()
+        }
         "nvs_core_ldap_filter_all" => (nvs_core_ldap_filter_all as *const ()).cast(),
         "nvs_core_ldap_filter_any" => (nvs_core_ldap_filter_any as *const ()).cast(),
         "nvs_core_ldap_filter_not" => (nvs_core_ldap_filter_not as *const ()).cast(),

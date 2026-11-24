@@ -8,7 +8,7 @@ array<int> $hours = [1, 6, 24];
 // The answer is choice 1 and choice 3, typed with a space between them.
 Core\Test::answerCli(['1 3']);
 
-array<int> $chosen = Core\Cli::multiSelect('Which reports should run?', $hours, {
+array<int> $chosen = Core\Cli::selectMany('Which reports should run?', $hours, {
     labels: fn(int $hour): string => Core\Str::format('every %d hour(s)', $hour),
 });
 

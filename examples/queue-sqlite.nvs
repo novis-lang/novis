@@ -73,7 +73,7 @@ class Poll
 // rows it finds are the ones the last run left.
 var $queue = Core\Uuid::v4()->toString();
 
-var $receipt = Queue::push('queue/receipt.nvs', { args: { order: 7 }, queue: $queue });
+var $receipt = Queue::push('queue/receipt.nvs', { arguments: { order: 7 }, queue: $queue });
 echo 'enqueued', "\n";
 
 // One job and two workers, and the count is `1` rather than a race: the claim

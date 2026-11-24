@@ -2770,7 +2770,8 @@ under `nvs run` is logged and runs no `failed` entry.
 - **`cron = "@start"`.** The cron dialect is closed ([`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more)),
   and a shorthand that is not a time would be a second dialect inside it.
 - **A scheduler-specific accessor such as `Core\Schedule::event()`.**
-  [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate) already declines one; the args map carries the event.
+  [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate) already declines one, and
+  `Core\Script::arguments()` carries the event.
 - **A start entry that holds readiness.** A broken webhook would then stop a deployment from serving,
   which spends availability for a notification. Warm-up that must finish before traffic belongs in
   the program's own first request path or a health check.

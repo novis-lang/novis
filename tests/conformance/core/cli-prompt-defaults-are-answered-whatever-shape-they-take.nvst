@@ -19,12 +19,12 @@ echo Core\Cli::select(
     }
 ), "\n";
 
-// `multiSelect` carries `labels` and nothing else, so the callback is still
+// `selectMany` carries `labels` and nothing else, so the callback is still
 // not called — and this time there is no default to hand back afterwards. That
 // order is the assertion: the terminal is checked before the menu is built, so
 // no run renders a list it would then throw away.
 try {
-    Core\Cli::multiSelect(
+    Core\Cli::selectMany(
         "Pick some",
         ["alpha", "beta"],
         {labels: fn(string $choice): string => "seen: " . $choice}

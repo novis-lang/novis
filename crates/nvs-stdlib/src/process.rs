@@ -211,7 +211,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `{ cwd?: string, env?: array<string>, timeout?: Duration }` —
+/// `{ workingDirectory?: string, env?: array<string>, timeout?: Duration }` —
 /// `rule:core-classes/process-options`' bag, one constant for both rows so `run`
 /// and `spawn` cannot take different ones.
 ///
@@ -221,7 +221,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `env` is `array<string>` keyed by name, and a given one is the child's whole
 /// environment, so `{ env: [] }` is a child with no variables and is told apart
 /// from an omitted `env` by that null.
-/// `cwd` is a path position, so a relative path given as a string literal is
+/// `workingDirectory` is a path position, so a relative path given as a string literal is
 /// joined to the folder of the file that wrote it, and a sink, so a `tainted`
 /// folder does not compile.
 ///
@@ -231,7 +231,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// nothing extra for a wait, whose two reader threads are already there.
 const OPTIONS: &[CoreOption] = &[
     CoreOption {
-        name: "cwd",
+        name: "workingDirectory",
         ty: CoreTy::Path(Qual::Sink),
         default: Const::Null,
     },
@@ -252,15 +252,15 @@ const OPTIONS: &[CoreOption] = &[
 const OPTIONS_AT: usize = 2;
 
 /// [`OPTIONS`]' three reference-card entries, which `run` and `spawn` share.
-const CWD_DOC: ParamDoc = ParamDoc {
-    name: "cwd",
+const WORKING_DIRECTORY_DOC: ParamDoc = ParamDoc {
+    name: "workingDirectory",
     desc: "The folder the program starts in, as an absolute path. A relative path must be \
            written directly in the code, and is joined to the folder of this file. Without \
            it, the program starts in the same folder as this program.",
     shape: &[],
 };
 
-/// See [`CWD_DOC`].
+/// See [`WORKING_DIRECTORY_DOC`].
 const ENV_DOC: ParamDoc = ParamDoc {
     name: "env",
     desc: "The environment variables of the program, as name => value. This replaces all of \
@@ -271,7 +271,7 @@ const ENV_DOC: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// See [`CWD_DOC`].
+/// See [`WORKING_DIRECTORY_DOC`].
 const TIMEOUT_DOC: ParamDoc = ParamDoc {
     name: "timeout",
     desc: "The longest time the program may run, counted from the start. When it passes, the \
@@ -307,7 +307,7 @@ const RUN_DOC: MethodDoc = MethodDoc {
                    a space, a quote or a `;` in it is still one argument, on every platform.",
             shape: &[],
         },
-        CWD_DOC,
+        WORKING_DIRECTORY_DOC,
         ENV_DOC,
         TIMEOUT_DOC,
     ],
@@ -321,7 +321,7 @@ const RUN_DOC: MethodDoc = MethodDoc {
                    `.ps1` file. Those are not allowed on any platform, because Windows starts \
                    them through a shell. The error is also thrown when the program writes more \
                    than `[limits] max_output` in total. Then the program is stopped and nothing \
-                   is returned. It is also thrown when `cwd` is a relative path, or when \
+                   is returned. It is also thrown when `workingDirectory` is a relative path, or when \
                    `timeout` is zero or shorter. An `env` name that is empty or has a `=` in it \
                    throws it too.",
         },
@@ -333,7 +333,7 @@ const RUN_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The program could not be started or waited for. For example, nothing is at \
-                   the path, the file is not a program, or the `cwd` folder does not exist.",
+                   the path, the file is not a program, or the `workingDirectory` folder does not exist.",
         },
     ],
 };
@@ -357,7 +357,7 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
                    in it is still one argument, on every platform.",
             shape: &[],
         },
-        CWD_DOC,
+        WORKING_DIRECTORY_DOC,
         ENV_DOC,
         TIMEOUT_DOC,
     ],
@@ -369,14 +369,14 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "`process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` \
                    file. Those are not allowed on any platform, because Windows starts them \
-                   through a shell. It is also thrown when `cwd` is a relative path, or when \
+                   through a shell. It is also thrown when `workingDirectory` is a relative path, or when \
                    `timeout` is zero or shorter. An `env` name that is empty or has a `=` in it \
                    throws it too.",
         },
         ErrorDoc {
             error: "IOError",
             desc: "The program could not be started. For example, nothing is at the path, the \
-                   file is not a program, or the `cwd` folder does not exist.",
+                   file is not a program, or the `workingDirectory` folder does not exist.",
         },
     ],
 };
@@ -784,7 +784,7 @@ fn argv_of(value: &Value) -> Result<Vec<String>, Fault> {
 /// [`OPTIONS`] read out of a call's flattened arguments — what the door is
 /// handed and the length of the timeout.
 struct Options {
-    /// `cwd`, or `None` for the parent's folder.
+    /// `workingDirectory`, or `None` for the parent's folder.
     dir: Option<String>,
     /// `env` as name and value, or `None` for the door's base set.
     env: Option<Vec<(String, String)>>,
@@ -803,7 +803,7 @@ impl Options {
     fn of(args: &[Value], member: &str) -> Result<Self, Fault> {
         let given = |at: usize| !matches!(args[at].tag(), Some(Tag::Null));
         let dir = if given(OPTIONS_AT) {
-            Some(text(&args[OPTIONS_AT], "its `cwd`")?.to_owned())
+            Some(text(&args[OPTIONS_AT], "its `workingDirectory`")?.to_owned())
         } else {
             None
         };
@@ -897,7 +897,7 @@ fn env_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Process::run(string $path, array<string> $argv, {cwd?, env?,
+    /// `Core\Process::run(string $path, array<string> $argv, {workingDirectory?, env?,
     /// timeout?}): Core\Process\Result` — replacing `exec`, `system`,
     /// `shell_exec`, `passthru` and the backtick operator, each in one call.
     ///
@@ -1401,7 +1401,7 @@ fn captured(receiver: Value, index: usize, member: &str) -> Result<Value, Fault>
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Process::spawn(string $path, array<string> $argv, {cwd?, env?,
+    /// `Core\Process::spawn(string $path, array<string> $argv, {workingDirectory?, env?,
     /// timeout?}): Core\Process\Handle` — replacing `proc_open` and `passthru`.
     ///
     /// [`nvs_core_process_run`]'s first lines exactly, and then the
@@ -1974,7 +1974,7 @@ mod tests {
             .expect("`exec = true` admits this suite's own binary")
     }
 
-    /// [`spawn_on`] with the three option arguments `cwd`, `env` and `timeout` as given, answering
+    /// [`spawn_on`] with the three option arguments `workingDirectory`, `env` and `timeout` as given, answering
     /// the handle or the message of what the member threw. The options are released with the rest.
     fn spawn_with(ctx: &mut Ctx, argv: &[&str], options: [Value; 3]) -> Result<Value, String> {
         let me = std::env::current_exe().expect("a test binary knows its own path");
@@ -2857,7 +2857,7 @@ mod tests {
         Value::array(array)
     }
 
-    /// `rule:core-classes/process-options`' `cwd` and `env`, each **on both sides**: the same
+    /// `rule:core-classes/process-options`' `workingDirectory` and `env`, each **on both sides**: the same
     /// child reports this process's folder and the base variables alone when the options are left
     /// out, and the folder and the one variable it was given when they are not. `PATH` is the tell
     /// for replacement: it is set in every test run, so a child that still sees it got a merge.
@@ -2905,7 +2905,7 @@ mod tests {
         .expect("a child with a folder and an environment starts");
         assert!(
             given.contains("folder=[src]"),
-            "the child did not start in `cwd`: {given}"
+            "the child did not start in `workingDirectory`: {given}"
         );
         assert!(
             given.contains("probe=[given]"),
@@ -2918,7 +2918,7 @@ mod tests {
     }
 
     /// The three options a call can get wrong are refused **before anything starts**, each with
-    /// the class every bad argument of this member gets: a relative `cwd`, a variable name the
+    /// the class every bad argument of this member gets: a relative `workingDirectory`, a variable name the
     /// operating system cannot carry, and a `timeout` that is not longer than zero are each a
     /// `RuntimeError` naming the member.
     // covers: Core\Process::run

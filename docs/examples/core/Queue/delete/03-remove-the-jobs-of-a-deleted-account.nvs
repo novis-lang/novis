@@ -27,9 +27,9 @@ $db->execute($dead, []);
 // The program kept the id of every job it added for this user.
 // Each job has the email address of the user in its arguments.
 array<Id> $userJobs = [
-    Queue::push('jobs/send-invoice.nvs', { queue: 'mail', args: ['to' => 'ana@example.com'] }),
-    Queue::push('jobs/send-newsletter.nvs', { queue: 'mail', args: ['to' => 'ana@example.com'] }),
-    Queue::push('jobs/export.nvs', { queue: 'exports', args: ['email' => 'ana@example.com'] }),
+    Queue::push('jobs/send-invoice.nvs', { queue: 'mail', arguments: ['to' => 'ana@example.com'] }),
+    Queue::push('jobs/send-newsletter.nvs', { queue: 'mail', arguments: ['to' => 'ana@example.com'] }),
+    Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['email' => 'ana@example.com'] }),
 ];
 
 // The user deletes their account. The program deletes every job of the user.

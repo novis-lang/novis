@@ -148,7 +148,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Cli::height` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4fc2594c8ec2 |
 | `Core\Cli::isTty` | 6.67 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4fc2594c8ec2 |
 | `Core\Cli::showLive` | 5.00 | 4.00 | 10.00 | 646.0 | -1.000 | -64.000 | complexity constant, calls 4, allocations 10 | 4fc2594c8ec2 |
-| `Core\Cli::multiSelect` | 6.00 | 2.00 | 29.00 | 884.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\Cli::selectMany` | 6.00 | 2.00 | 29.00 | 884.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
 | `Core\Cli::showProgress` | 5.00 | 3.00 | 9.00 | 324.0 |  |  | complexity constant, calls 3, allocations 9 | 4fc2594c8ec2 |
 | `Core\Cli::askSecret` | 6.00 | 4.00 | 6.00 | 317.0 |  |  | complexity linear, calls 4, allocations 6 | 4fc2594c8ec2 |
 | `Core\Cli::select` | 4.00 | 1.00 | 2.00 | 78.0 |  |  | complexity linear, calls 1, allocations 2 | 4fc2594c8ec2 |
@@ -498,7 +498,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Ldap\Entry::uuid` | 5.00 | 0.00 | 3.00 | 71.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Filter::all` | 4.00 | 0.00 | 12.00 | 709.9 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Filter::any` | 5.00 | 0.00 | 12.00 | 732.5 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Filter::approx` | 4.00 | 0.00 | 8.00 | 131.7 |  |  | complexity constant, calls 0 | 329656a00615 |
+| `Core\Ldap\Filter::approximately` | 4.00 | 0.00 | 8.00 | 131.7 |  |  | complexity constant, calls 0 | 329656a00615 |
 | `Core\Ldap\Filter::atLeast` | 4.00 | 0.00 | 9.00 | 181.0 |  |  | complexity constant, calls 0 | 329656a00615 |
 | `Core\Ldap\Filter::atMost` | 4.00 | 0.00 | 9.00 | 175.7 |  |  | complexity constant, calls 0 | 329656a00615 |
 | `Core\Ldap\Filter::contains` | 4.00 | 0.00 | 12.00 | 217.4 |  |  | complexity constant, calls 0 | 329656a00615 |
@@ -676,7 +676,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Random\Seeded::sample` | 4.00 | 1.00 | 4.00 | 236.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Random\Seeded::shuffle` | 4.00 | 1.00 | 5.00 | 384.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Random\Seeded::token` | 5.00 | 1.00 | 1.00 | 52.0 |  |  | complexity linear, calls 1, allocations 1 | 4fc2594c8ec2 |
-| `Core\RateLimit::shed` | 4.00 | 2.00 | 10.00 | 247.1 |  | +0.375 | complexity constant | 3d6e1ab929ed |
+| `Core\RateLimit::consumeLocally` | 4.00 | 2.00 | 10.00 | 247.1 |  | +0.375 | complexity constant | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::isAllowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
@@ -1658,7 +1658,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Queue\Stats::deadLettered` | Core\Queue\Stats | 1481.2 units against a `constant` ceiling of 100 |
 | `Core\Queue\Stats::nonTransactional` | Core\Queue\Stats | 1403.1 units against a `constant` ceiling of 100 |
 | `Core\Queue\Stats::pending` | Core\Queue\Stats | 1884.0 units against a `constant` ceiling of 100 |
-| `Core\RateLimit::shed` | Core\RateLimit | 1351.5 units against a `constant` ceiling of 100 |
+| `Core\RateLimit::consumeLocally` | Core\RateLimit | 1351.5 units against a `constant` ceiling of 100 |
 | `Core\RateLimit\Decision::isAllowed` | Core\RateLimit\Decision | 705.1 units against a `constant` ceiling of 100 |
 | `Core\RateLimit\Decision::retryAfter` | Core\RateLimit\Decision | 565.6 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forClass` | Core\Reflect | 2333.6 units against a `constant` ceiling of 100 |
@@ -2114,7 +2114,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Cli::height` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::isTty` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::showLive` | 10900.8 | 14243.8 | 2811.907 | +39.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
-| `Core\Cli::multiSelect` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
+| `Core\Cli::selectMany` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::showProgress` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::askSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::select` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
@@ -2464,7 +2464,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Entry::uuid` | 5272.6 | 5322.0 | 1782.041 | +0.3% ~ | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Filter::all` | 286.6 | 369.3 | 96.861 | -33.8% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Filter::any` | 333.9 | 388.1 | 80.592 | -22.7% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Filter::approx` | 254.0 | 264.6 | 73.071 |  | flat | 329656a00615 |  |
+| `Core\Ldap\Filter::approximately` | 254.0 | 264.6 | 73.071 |  | flat | 329656a00615 |  |
 | `Core\Ldap\Filter::atLeast` | 243.2 | 291.3 | 69.975 |  | flat | 329656a00615 |  |
 | `Core\Ldap\Filter::atMost` | 307.8 | 377.7 | 88.555 |  | flat | 329656a00615 |  |
 | `Core\Ldap\Filter::contains` | 283.2 | 370.8 | 81.488 |  | flat | 329656a00615 |  |
@@ -2642,7 +2642,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::sample` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3be6c56b6bcc29e1e7f7d4653b40fb79 |
 | `Core\Random\Seeded::shuffle` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3be6c56b6bcc29e1e7f7d4653b40fb79 |
 | `Core\Random\Seeded::token` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3be6c56b6bcc29e1e7f7d4653b40fb79 |
-| `Core\RateLimit::shed` | 4718.0 | 9536.3 | 1351.466 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
+| `Core\RateLimit::consumeLocally` | 4718.0 | 9536.3 | 1351.466 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::isAllowed` | 2461.4 | 4987.1 | 705.078 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::remaining` | 0.0 | 715.7 | 0.000 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |

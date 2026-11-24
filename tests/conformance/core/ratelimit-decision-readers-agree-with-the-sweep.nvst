@@ -45,7 +45,7 @@ foreach (Core\Arr::range(0, 1) as int $w) {
     int $zeroSeen = 0;
 
     foreach (Core\Arr::range(1, $arrivals[$w]) as int $n) {
-        var $decision = Core\RateLimit::shed($key, $limit, 1h);
+        var $decision = Core\RateLimit::consumeLocally($key, $limit, 1h);
         $decisions = $decisions + 1;
 
         if (($decision->limit() as int) == $limits[$w]) {

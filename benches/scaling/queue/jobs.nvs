@@ -30,7 +30,7 @@ class Bench
     {
         int $i = 0;
         while ($i < $size) {
-            Queue::push('jobs/send.nvs', { queue: 'mail', args: ['n' => $i] });
+            Queue::push('jobs/send.nvs', { queue: 'mail', arguments: ['n' => $i] });
             $i = $i + 1;
         }
         return Queue::stats('mail')->pending();

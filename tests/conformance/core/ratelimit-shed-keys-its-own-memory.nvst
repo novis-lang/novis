@@ -1,9 +1,9 @@
 --TEST--
-Core\RateLimit::shed keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — `rule:core-classes/ratelimit-two-members` and `rule:core-api/two-cache-tiers`
+Core\RateLimit::consumeLocally keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — `rule:core-classes/ratelimit-two-members` and `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
-// `shed` keeps its arrivals in the memory tier, asked as behaviour rather than
-// as structure: `shed` holds one arrival time *per key*, so the
+// `consumeLocally` keeps its arrivals in the memory tier, asked as behaviour rather than
+// as structure: `consumeLocally` holds one arrival time *per key*, so the
 // `$key` argument is what separates one account's budget from another's. A
 // limiter that kept a single arrival time — the shape a first implementation
 // reaches for, and the shape a namespacing bug degenerates to — admits four of
@@ -17,8 +17,8 @@ int $stepped = 0;
 int $paired = 0;
 
 foreach (Core\Arr::range(1, 4) as int $n) {
-    var $a = Core\RateLimit::shed("tenant:a", 4, 1h);
-    var $b = Core\RateLimit::shed("tenant:b", 4, 1h);
+    var $a = Core\RateLimit::consumeLocally("tenant:a", 4, 1h);
+    var $b = Core\RateLimit::consumeLocally("tenant:b", 4, 1h);
     int $leftA = $a->remaining() as int;
     int $leftB = $b->remaining() as int;
 
@@ -51,8 +51,8 @@ echo "each key counted its own four down ", $stepped, " of 8", "\n";
 // which is what says the four above were one key's budget and not two halves of
 // one shared one.
 int $shedBoth = 0;
-var $fifthA = Core\RateLimit::shed("tenant:a", 4, 1h);
-var $fifthB = Core\RateLimit::shed("tenant:b", 4, 1h);
+var $fifthA = Core\RateLimit::consumeLocally("tenant:a", 4, 1h);
+var $fifthB = Core\RateLimit::consumeLocally("tenant:b", 4, 1h);
 if (!$fifthA->isAllowed()) {
     $shedBoth = $shedBoth + 1;
 }
@@ -64,7 +64,7 @@ echo "each key spent its own budget and no more ", $shedBoth, " of 2", "\n";
 // And a key neither of them touched still has its whole window: an absent entry
 // is an unspent budget, not a shared one.
 int $untouched = 0;
-var $third = Core\RateLimit::shed("tenant:c", 4, 1h);
+var $third = Core\RateLimit::consumeLocally("tenant:c", 4, 1h);
 if ($third->isAllowed()) {
     $untouched = $untouched + 1;
 }

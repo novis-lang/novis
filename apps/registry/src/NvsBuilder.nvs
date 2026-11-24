@@ -27,7 +27,7 @@ final class NvsBuilder implements Builder
             $command[] = $this->site->gitCaFile;
         }
         try {
-            return Process::run($this->site->nvs, $command, { cwd: '..' })->stdout() as string;
+            return Process::run($this->site->nvs, $command, { workingDirectory: '..' })->stdout() as string;
         } catch (RuntimeError $error) {
             return '';
         }

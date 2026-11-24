@@ -1,13 +1,13 @@
-`Core\RateLimit::consume` and `::shed` are two jobs with two verbs, and the verb says which one you
+`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two verbs, and the verb says which one you
 are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
 limit — over the shared store, coherently, because a policy only approximately enforced is not
-enforced. `shed` drops load to keep a host up, from the serving process's own memory, and an
+enforced. `consumeLocally` drops load to keep a host up, from the serving process's own memory, and an
 approximate answer is entirely adequate for that because the goal is "less than the amount that
-hurts", not a number. `shed`'s contract states its arithmetic out loud: its count is per server
+hurts", not a number. `consumeLocally`'s contract states its arithmetic out loud: its count is per server
 process, so a limit of 100 on each of four processes admits up to 400 across the deployment, and an
 arrival the cache's cap forgets admits a burst again.
 
-`shed` keeps its count in the memory tier (`rule:concurrency/the-memory-tier-is-one-store-per-process`),
+`consumeLocally` keeps its count in the memory tier (`rule:concurrency/the-memory-tier-is-one-store-per-process`),
 scoped by app and configuration generation like any key there and bounded by the same
 `[cache.memory] max_size`. The read and the write of one arrival are one step under the shard's write
 lock, so every core of a process charges the same count and two cores never both admit the last unit.
@@ -21,7 +21,7 @@ the victim has one account — and no proxy knows which account a request authen
 without a class, an application writes one of two wrong limiters: a counter kept with `get` and `put`
 in the memory tier, which two cores race and every process counts on its own, or an insert-and-count
 against the database, which puts a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
-round trip on that path, the same floor the shared cache tier accepts, and it is why `shed` exists
+round trip on that path, the same floor the shared cache tier accepts, and it is why `consumeLocally` exists
 for the cases that do not need it.
 
 Four things are deliberately absent. **Edge and flood limiting** — no per-IP, per-path or connection

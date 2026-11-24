@@ -6,7 +6,7 @@ class SlowPage
 {
     public static function handle(string $ip): void
     {
-        var $decision = Core\RateLimit::shed('search:' . $ip, 2, 1m);
+        var $decision = Core\RateLimit::consumeLocally('search:' . $ip, 2, 1m);
         var $wait = $decision->retryAfter();
         if ($wait == null) {
             echo '200 for ', $ip, "\n";

@@ -3,7 +3,7 @@
 
 uint $call = 1;
 while ($call <= 4) {
-    var $decision = Core\RateLimit::shed('report:daily', 3, 1m);
+    var $decision = Core\RateLimit::consumeLocally('report:daily', 3, 1m);
     // `isAllowed` returns `true` for the first three calls and `false` for the fourth.
     // `remaining` is how many calls are left, so this prints 2, 1, 0 and 0.
     echo 'call ', $call, ': ', $decision->isAllowed() ? 'allowed' : 'refused';

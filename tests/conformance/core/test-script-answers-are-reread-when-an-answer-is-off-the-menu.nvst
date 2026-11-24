@@ -1,5 +1,5 @@
 --TEST--
-A scripted answer off the menu is asked again from the queue, and multiSelect reads one scripted line as a whole set — `rule:tooling/a-prompt-is-a-core-member`
+A scripted answer off the menu is asked again from the queue, and selectMany reads one scripted line as a whole set — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 array<string> $choices = ["alpha", "beta", "gamma"];
@@ -14,7 +14,7 @@ echo $one, "\n";
 // One line of numbers is the whole set: a choice named twice is chosen once,
 // and the answer comes back in the menu's order rather than the typing's.
 Core\Test::answerCli(["3,1,1"]);
-array<string> $some = Core\Cli::multiSelect("Pick some", $choices);
+array<string> $some = Core\Cli::selectMany("Pick some", $choices);
 foreach ($some as string $chosen) {
     echo $chosen, "\n";
 }
@@ -22,7 +22,7 @@ foreach ($some as string $chosen) {
 // An empty line is the empty set, which is why
 // `rule:tooling/a-prompt-is-a-core-member` gives this member no `default` — and a queued empty line is a person pressing Enter at the menu.
 Core\Test::answerCli([""]);
-array<string> $none = Core\Cli::multiSelect("Pick some", $choices);
+array<string> $none = Core\Cli::selectMany("Pick some", $choices);
 echo Core\Arr::count($none), "\n";
 --EXPECT--
 beta

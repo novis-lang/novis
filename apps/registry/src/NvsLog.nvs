@@ -41,7 +41,7 @@ final class NvsLog implements Log, LogCheck
             var $child = Process::spawn(
                 $this->site->nvs,
                 ['registry', 'log', 'append', $this->folder . '/log', '--key', $this->site->logKey, '--origin', $this->site->logName],
-                { cwd: '..' },
+                { workingDirectory: '..' },
             );
             $child->writeStdin(Encoding::encodeText($lines, Charset::Utf8));
             var $done = $child->wait();
@@ -83,7 +83,7 @@ final class NvsLog implements Log, LogCheck
     private function lines(array<string> $arguments): ?array<tainted string>
     {
         try {
-            var $done = Process::run($this->site->nvs, $arguments, { cwd: '..' });
+            var $done = Process::run($this->site->nvs, $arguments, { workingDirectory: '..' });
             if ($done->exitCode() != 0) {
                 return null;
             }
@@ -105,7 +105,7 @@ final class NvsLog implements Log, LogCheck
             var $done = Process::run(
                 $this->site->nvs,
                 ['registry', 'index', 'sign', $this->folder, '--key', $this->site->logKey, '--at', $at . ''],
-                { cwd: '..' },
+                { workingDirectory: '..' },
             );
             return $done->exitCode() == 0;
         } catch (RuntimeError $error) {

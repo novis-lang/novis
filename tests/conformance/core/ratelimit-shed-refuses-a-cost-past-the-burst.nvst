@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::shed throws for a cost larger than the burst, admits a cost equal to it, and charges nothing when it throws — `rule:core-classes/ratelimit-gcra`
+Core\RateLimit::consumeLocally throws for a cost larger than the burst, admits a cost equal to it, and charges nothing when it throws — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
 // `rule:core-classes/ratelimit-gcra`: a cost past the burst is past the
@@ -11,7 +11,7 @@ Core\RateLimit::shed throws for a cost larger than the burst, admits a cost equa
 // of 5 throws, and a cost of 5 is admitted in one arrival.
 var $thrown = 0;
 try {
-    Core\RateLimit::shed("wide", 1, 1h, {burst: 5, cost: 6});
+    Core\RateLimit::consumeLocally("wide", 1, 1h, {burst: 5, cost: 6});
     echo "a cost past the burst was decided", "\n";
 } catch (RuntimeError $e) {
     $thrown = $thrown + 1;
@@ -19,19 +19,19 @@ try {
 
 // The default burst is the limit, so the same bound holds with no `burst` given.
 try {
-    Core\RateLimit::shed("default", 3, 1m, {cost: 4});
+    Core\RateLimit::consumeLocally("default", 3, 1m, {cost: 4});
     echo "a cost past the default burst was decided", "\n";
 } catch (RuntimeError $e) {
     $thrown = $thrown + 1;
 }
 echo "thrown=", $thrown, "\n";
 
-var $whole = Core\RateLimit::shed("whole", 1, 1h, {burst: 5, cost: 5});
+var $whole = Core\RateLimit::consumeLocally("whole", 1, 1h, {burst: 5, cost: 5});
 echo "whole=", $whole->isAllowed() ? "allowed" : "refused", " remaining=", $whole->remaining(), "\n";
 
 // The throw came before any arrival was recorded, so the key it named still
 // admits its whole burst afterwards.
-var $after = Core\RateLimit::shed("wide", 1, 1h, {burst: 5, cost: 5});
+var $after = Core\RateLimit::consumeLocally("wide", 1, 1h, {burst: 5, cost: 5});
 echo "after=", $after->isAllowed() ? "allowed" : "refused", "\n";
 --EXPECT--
 thrown=2

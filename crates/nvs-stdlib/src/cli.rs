@@ -123,7 +123,7 @@
 //! the request's own context, and a prompt takes its oldest line ahead of both
 //! questions above. Ahead of them, because a flow whose answers depended on
 //! whether the suite ran from a developer's shell or from CI is exactly what a
-//! scripted queue exists to remove. `select` and `multiSelect` decide whether
+//! scripted queue exists to remove. `select` and `selectMany` decide whether
 //! there is anyone to ask *before* they ask — they render a menu first — so
 //! those two read [`answerable`] rather than [`watched`], and that is the whole
 //! of what the queue costs this module.
@@ -171,7 +171,7 @@ const CARD: ClassDoc = ClassDoc {
 /// the effect before the launderer that performs the same table
 /// as a value, and [`nvs_core_cli_escape`] owns why that launderer could land
 /// ahead of it. `rule:tooling/a-prompt-is-a-core-member`'s five
-/// prompts are all here now — `multiSelect` is the one whose answer is a set
+/// prompts are all here now — `selectMany` is the one whose answer is a set
 /// rather than a value, so it is `select`'s menu under a second reading loop
 /// rather than another row of the shape below. `showLive` and `showProgress` are last
 /// because `rule:tooling/in-place-output-is-a-scoped-live-region` follows the prompts, and they are one region with
@@ -308,7 +308,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SELECT_DOC),
         },
         CoreMethod {
-            name: "multiSelect",
+            name: "selectMany",
             names: &["question", "choices"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
@@ -318,7 +318,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_cli_multi_select",
+            symbol: "nvs_core_cli_select_many",
             doc: Some(&MULTI_SELECT_DOC),
         },
         CoreMethod {
@@ -586,7 +586,7 @@ const SELECT_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Cli::multiSelect`'s bag — [`SELECT_OPTIONS`] without the `default`,
+/// `Core\Cli::selectMany`'s bag — [`SELECT_OPTIONS`] without the `default`,
 /// which `rule:tooling/a-prompt-is-a-core-member`'s table omits and which this member has nothing to do
 /// with: an empty line already names the empty set, so the one thing a
 /// `default` would be for is already spelled.
@@ -704,7 +704,7 @@ const SELECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cli::multiSelect`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Cli::selectMany`'s reference card — `rule:core-api/reference-card`.
 const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
     short: "Shows `$choices` as a numbered list and returns every value the user chooses. It \
             works like `select`, but the user can choose several values. The numbers are typed \
@@ -1119,7 +1119,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_cli_ask" => return Some(nvs_core_cli_ask::entry()),
         "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
         "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
-        "nvs_core_cli_multi_select" => (nvs_core_cli_multi_select as *const ()).cast(),
+        "nvs_core_cli_select_many" => (nvs_core_cli_select_many as *const ()).cast(),
         "nvs_core_cli_ask_secret" => return Some(nvs_core_cli_ask_secret::entry()),
         _ => return None,
     }))
@@ -1504,7 +1504,7 @@ fn ask_terminal(ctx: &mut nvs_runtime::Ctx, question: &str, echo: Echo) -> Answe
 /// Whether this call has anyone to ask *or* an answer already written down —
 /// [`watched`] for the members that decide before they ask.
 ///
-/// `select` and `multiSelect` build a menu, which runs the caller's `labels`
+/// `select` and `selectMany` build a menu, which runs the caller's `labels`
 /// callback, so they ask this first rather than rendering lines nobody will
 /// read. Asking [`watched`] alone there would put those two members' scripted
 /// answers out of reach while the other three drained the same queue.
@@ -1770,7 +1770,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The menu `select` and `multiSelect` write above their question: one
+/// The menu `select` and `selectMany` write above their question: one
 /// `1) label` per line, in the options' own order.
 ///
 /// One builder for both, because the numbering a caller types against is the
@@ -1789,7 +1789,7 @@ fn menu_of(ctx: &mut nvs_runtime::Ctx, options: &[Value], labels: Value) -> Resu
 }
 
 /// Which options `answer` names, as one flag per option — or `None` where a
-/// token was not a number on the menu, which [`nvs_core_cli_multi_select`] asks
+/// token was not a number on the menu, which [`nvs_core_cli_select_many`] asks
 /// again rather than guessing at.
 ///
 /// A flag per option rather than the numbers as typed, because that is what
@@ -1812,7 +1812,7 @@ fn chosen_of(answer: &str, offered: usize) -> Option<Vec<bool>> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::multiSelect<T>(string $question, array<T> $choices, { labels?: callable }): array<T>`
+    /// `Core\Cli::selectMany<T>(string $question, array<T> $choices, { labels?: callable }): array<T>`
     /// — `rule:tooling/a-prompt-is-a-core-member`'s fourth prompt, and the only one whose answer is a set.
     ///
     /// It is [`nvs_core_cli_select`] with a second reading loop and nothing
@@ -1838,14 +1838,14 @@ nvs_runtime::nvs_helper! {
     /// The accepted range and separator are appended to the question, which is
     /// `confirm`'s `[y/n]` rather than a new idea: the shape of the answer
     /// belongs to the member, so the member is what can state it.
-    fn nvs_core_cli_multi_select(ctx, args: [3]) {
-        let question = question_of(&args[0], "multiSelect")?;
+    fn nvs_core_cli_select_many(ctx, args: [3]) {
+        let question = question_of(&args[0], "selectMany")?;
         let labels = args[2];
-        let options = options_of(args[1], "multiSelect")?;
+        let options = options_of(args[1], "selectMany")?;
         if options.is_empty() {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
-                "Core\\Cli::multiSelect was given nothing to choose between",
+                "Core\\Cli::selectMany was given nothing to choose between",
             ));
         }
 
@@ -1853,7 +1853,7 @@ nvs_runtime::nvs_helper! {
         // menu is only built where it can be read or answered, so an unattended
         // run calls no `labels` callback.
         if !answerable(ctx) {
-            return Err(not_interactive("multiSelect"));
+            return Err(not_interactive("selectMany"));
         }
 
         let mut menu = menu_of(ctx, &options, labels)?;
@@ -1865,7 +1865,7 @@ nvs_runtime::nvs_helper! {
                 Answer::Line(line) => line,
                 // No `default` in `rule:tooling/a-prompt-is-a-core-member`'s row, so the shared helper is reached
                 // with a `null` and always throws.
-                ref quiet => return unanswered(quiet, "multiSelect", Value::null()),
+                ref quiet => return unanswered(quiet, "selectMany", Value::null()),
             };
             let Some(chosen) = chosen_of(answer.trim(), options.len()) else {
                 continue;
@@ -3804,7 +3804,7 @@ mod tests {
         }
     }
 
-    /// What a `Core\Cli::multiSelect` line is allowed to be, over the parse
+    /// What a `Core\Cli::selectMany` line is allowed to be, over the parse
     /// itself: the separators are the comma, the space and the tab, so `1-3` is
     /// asked again rather than read as a range that would drop choice 2. A token
     /// off the menu refuses the whole line, an empty token is forgiven, and a
@@ -3815,9 +3815,9 @@ mod tests {
     /// The member is driven once beside the table, because the parse alone cannot
     /// show the two things a caller sees: the answer is a set of the **values**,
     /// and its order is the menu's rather than the typing's.
-    // covers: Core\Cli::multiSelect
+    // covers: Core\Cli::selectMany
     #[test]
-    fn a_multi_select_line_is_a_set_of_values_and_a_range_is_not_a_spelling() {
+    fn a_select_many_line_is_a_set_of_values_and_a_range_is_not_a_spelling() {
         assert_eq!(chosen_of("3,1,1", 3), Some(vec![true, false, true]));
         assert_eq!(chosen_of("2 3", 3), Some(vec![false, true, true]));
         assert_eq!(chosen_of("2,\t3,", 3), Some(vec![false, true, true]));
@@ -3840,11 +3840,11 @@ mod tests {
 
         ctx.script_answers(["3,1,3".to_owned()]);
         let chosen = nvs_runtime::call(
-            nvs_core_cli_multi_select,
+            nvs_core_cli_select_many,
             &mut ctx,
             &[question, choices, Value::null()],
         )
-        .expect("multiSelect answered");
+        .expect("selectMany answered");
         assert_eq!(
             words_of(chosen),
             vec!["eu-west".to_owned(), "ap-south".to_owned()],
@@ -4763,7 +4763,7 @@ mod tests {
             ANSWER_DEADLINE > Duration::ZERO && ANSWER_DEADLINE <= Duration::from_secs(600),
             "a prompt's deadline is finite and scaled to a person answering a question"
         );
-        for prompt in ["ask", "confirm", "select", "multiSelect", "askSecret"] {
+        for prompt in ["ask", "confirm", "select", "selectMany", "askSecret"] {
             let row = CLASS
                 .methods
                 .iter()
@@ -4779,7 +4779,7 @@ mod tests {
         }
     }
 
-    /// `rule:tooling/a-prompt-is-a-core-member`: `multiSelect`'s answer is a **set**, which is the whole of
+    /// `rule:tooling/a-prompt-is-a-core-member`: `selectMany`'s answer is a **set**, which is the whole of
     /// what it adds to `select` — and the only part of it a conformance case
     /// cannot reach, since the parse runs after a line has been read from a
     /// terminal a piped case does not have.
@@ -4794,7 +4794,7 @@ mod tests {
     /// `1-3` in particular, where reading a range would silently drop the
     /// option between its ends, and `0`, where the menu starts at one.
     #[test]
-    fn multi_select_reads_a_set_and_refuses_what_it_cannot_read() {
+    fn select_many_reads_a_set_and_refuses_what_it_cannot_read() {
         let chosen = |answer: &str| {
             chosen_of(answer, 3).map(|flags| {
                 flags

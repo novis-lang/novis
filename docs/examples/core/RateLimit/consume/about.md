@@ -9,7 +9,7 @@ The count is kept in the shared store that the person who runs the server sets u
 process and every machine counts together. When that store cannot be reached, `consume` throws an
 error. Your program then decides what that means: refuse, for a login limit, or allow, for a plan quota.
 
-**Good to know:** `Core\RateLimit::shed` takes the same arguments and counts in one server process only.
+**Good to know:** `Core\RateLimit::consumeLocally` takes the same arguments and counts in one server process only.
 It needs no store, and its limit is less exact.
 
 **The examples below** show the settings `consume` needs, then a login limit that refuses when the

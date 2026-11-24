@@ -7,7 +7,7 @@ class Attempt
     public static function run(string $key, uint $burst, uint $cost): string
     {
         try {
-            var $decision = Core\RateLimit::shed($key, 1000000, 1s, { burst: $burst, cost: $cost });
+            var $decision = Core\RateLimit::consumeLocally($key, 1000000, 1s, { burst: $burst, cost: $cost });
             return 'remaining ' . $decision->remaining();
         } catch (RuntimeError $error) {
             return 'error';

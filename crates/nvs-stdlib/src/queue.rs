@@ -51,7 +51,7 @@
 //! later is `rule:security/secret-sinks-refuse`'s serialiser sink arriving one member further on —
 //! and it is refused where the call is written, by
 //! `nvs_types::expr::quals::reject_secret_enqueued_argument`, which reports that sink's own code. A
-//! declared type could not have done it: `args` is `mixed`, which admits every qualifier there is,
+//! declared type could not have done it: `arguments` is `mixed`, which admits every qualifier there is,
 //! and the bag reaches the checker as the shape the registry declared rather than the one the call
 //! wrote.
 //!
@@ -2046,7 +2046,7 @@ const STATS_NON_TRANSACTIONAL_AT: usize = 5;
 /// `$script`'s argument slot.
 const SCRIPT_ARG: usize = 0;
 
-/// `{ args: … }`'s. Every option below is flattened to one slot in the order [`CLASS`] declares them.
+/// `{ arguments: … }`'s. Every option below is flattened to one slot in the order [`CLASS`] declares them.
 const ARGS_ARG: usize = 1;
 
 /// `{ queue: … }`'s. See [`ARGS_ARG`].
@@ -2143,7 +2143,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 CoreTy::Path(Qual::Sink),
                 CoreTy::Options(&[
                     CoreOption {
-                        name: "args",
+                        name: "arguments",
                         ty: CoreTy::Mixed,
                         // `mixed` admits a written `null` without spelling it, so the omission
                         // fill is the never-written marker rather than a null — otherwise the
@@ -2404,7 +2404,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "args",
+            name: "arguments",
             desc: "The data the job receives. It is copied into the row and decoded into the types \
                    the job declares. It is never passed by reference, because the worker usually \
                    runs in another process.",
@@ -3434,11 +3434,11 @@ pub fn narrowing(
     })
 }
 
-/// `{ args: … }` as the JSON the row holds, or `None` for a payload that was not given.
+/// `{ arguments: … }` as the JSON the row holds, or `None` for a payload that was not given.
 ///
 /// Two tags mean `None` and they are two different requests that arrive at the same place: an
-/// omitted `args` is the never-written marker
-/// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`) and a written `{ args: null }`
+/// omitted `arguments` is the never-written marker
+/// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`) and a written `{ arguments: null }`
 /// is `rule:core-api/a-written-null-removes`'s removal, which for this option is the payload
 /// itself. The distinction the marker buys is spent by `Core\Uri::with`, not here; what it buys
 /// here is that the row can be declared `mixed` at all.
@@ -3456,7 +3456,7 @@ fn payload_of(ctx: &mut nvs_runtime::Ctx, args: &[Value]) -> Result<Option<Strin
         return Ok(None);
     }
     crate::json::document(ctx, args[ARGS_ARG], |refused| {
-        Fault::thrown(format!("{PUSH}: `args` cannot be stored: {refused}"))
+        Fault::thrown(format!("{PUSH}: `arguments` cannot be stored: {refused}"))
     })
     .map(Some)
 }

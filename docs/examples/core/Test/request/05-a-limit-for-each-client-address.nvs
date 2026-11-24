@@ -8,7 +8,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The limit counts the requests of each
     // client address. The third request in one minute gets the status `429`.
     var $address = Core\Request::clientIp() ?? 'unknown';
-    var $decision = Core\RateLimit::shed('search:' . $address, 2, 1m);
+    var $decision = Core\RateLimit::consumeLocally('search:' . $address, 2, 1m);
     if (!$decision->isAllowed()) {
         Core\Response::setStatus(429);
     }

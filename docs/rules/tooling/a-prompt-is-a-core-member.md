@@ -1,4 +1,4 @@
-`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::multiSelect<T>` and `Cli::askSecret` are `Core`
+`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::selectMany<T>` and `Cli::askSecret` are `Core`
 members, because raw mode is unreachable from userland with the FFI door shut
 (`rule:security/no-ffi`) and an extension runs in a sandbox with no tty: if `Core` does not ship the
 interactive half, Novis does not have it at any tier. A question takes its options as one trailing

@@ -589,7 +589,7 @@ fn a_tainted_value_cannot_change_a_filters_structure() {
 }
 
 // covers: Core\Ldap\Filter::endsWith, Core\Ldap\Filter::contains, Core\Ldap\Filter::present
-// covers: Core\Ldap\Filter::atLeast, Core\Ldap\Filter::atMost, Core\Ldap\Filter::approx
+// covers: Core\Ldap\Filter::atLeast, Core\Ldap\Filter::atMost, Core\Ldap\Filter::approximately
 // covers: Core\Ldap\Filter::any, Core\Ldap\Filter::parse
 #[test]
 fn every_filter_kind_reads_back_from_the_text_it_writes() {

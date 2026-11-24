@@ -19,7 +19,7 @@ $db->execute($jobs, []);
 $db->execute('create table exports (job text primary key, user_id integer not null)', []);
 
 // An earlier request started an export for user 7 and saved its id.
-var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['table' => 'orders'] });
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['table' => 'orders'] });
 $db->execute('insert into exports (job, user_id) values (?, ?)', [$job->toString(), 7]);
 
 // In a real program, the session gives the signed-in user.

@@ -15,7 +15,7 @@ and `null` exactly when `isAllowed` is true — absence is `?T`, not a sentinel 
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). `shed`'s
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). `consumeLocally`'s
 half is one step over a timestamp in the memory tier; `consume`'s is a small script of our own in
 the shared store, an algorithm over our own state.
 

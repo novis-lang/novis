@@ -318,11 +318,11 @@ fn a_secret_in_a_literal_argument_is_refused_once_by_its_sink() {
             code::E_SECRET_LOGGED,
         ),
         (
-            "Core\\Queue::push(\"a.nvs\", {args: [\"k\" => \"a\" . $x]});",
+            "Core\\Queue::push(\"a.nvs\", {arguments: [\"k\" => \"a\" . $x]});",
             code::E_SECRET_ENCODED,
         ),
         (
-            "Core\\Queue::push(\"a.nvs\", {args: $x});",
+            "Core\\Queue::push(\"a.nvs\", {arguments: $x});",
             code::E_SECRET_ENCODED,
         ),
     ];

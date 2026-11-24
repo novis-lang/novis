@@ -18,7 +18,7 @@ $db->execute($jobs, []);
 
 // `Queue::push` saves the job and returns at once. A worker runs the file
 // `jobs/send-welcome.nvs` in the folder of this file later, with this data.
-Queue::push('jobs/send-welcome.nvs', { queue: 'mail', args: ['user' => 42] });
+Queue::push('jobs/send-welcome.nvs', { queue: 'mail', arguments: ['user' => 42] });
 
 // The job is a row in the `nvs_jobs` table, with the full path of the file.
 // This prints the last folder and name of that file, and the data the worker receives.

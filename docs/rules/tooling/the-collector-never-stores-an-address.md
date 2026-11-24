@@ -1,12 +1,12 @@
 No sender's address is written to disk, by the program, the Novis server or the TLS proxy in front of
 it. The address lives in memory for one request, and once more as a keyed hash in the rate limit.
 
-- **The rate limit.** Each report calls `Core\RateLimit::shed` with ten reports per hour per address,
+- **The rate limit.** Each report calls `Core\RateLimit::consumeLocally` with ten reports per hour per address,
   before the report is read (`apps/telemetry/src/Limit.nvs`). The key is a SHA-256 of a 32-byte salt
   from `Core\Random` followed by the address. The salt is kept in `Core\Cache::memory()` under the
   UTC date and expires at the end of that day, so a key cannot be linked across days and nothing
   reverses it. Two cores that start a day at the same moment can each make a salt, and the later one
-  stays: a sender's first reports of that day may then count under two keys. `shed` keeps its count in the serving process's memory
+  stays: a sender's first reports of that day may then count under two keys. `consumeLocally` keeps its count in the serving process's memory
   (`rule:core-classes/ratelimit-two-members`). A refused report gets `429` with `Retry-After`.
 - **The server's log.** The application's `nvs.toml` sets `[log] client_ip = false`
   (`rule:http-server/a-log-line-can-leave-out-the-client-address`), so not even a `5xx` line carries

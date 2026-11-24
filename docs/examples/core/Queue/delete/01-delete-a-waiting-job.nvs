@@ -23,7 +23,7 @@ SQL;
 $db->execute($jobs, []);
 $db->execute($dead, []);
 
-var $job = Queue::push('jobs/export.nvs', { queue: 'exports', args: ['report' => 'sales'] });
+var $job = Queue::push('jobs/export.nvs', { queue: 'exports', arguments: ['report' => 'sales'] });
 
 // The job is waiting, so `delete` removes its row. This prints `deleted: yes`.
 echo 'deleted: ', Queue::delete($job) ? 'yes' : 'no', "\n";

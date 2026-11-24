@@ -6,7 +6,7 @@
 array<Core\RateLimit\Decision> $kept = [];
 uint $i = 0;
 while ($i < 200000) {
-    $kept[] = Core\RateLimit::shed('hot', 1, 1h);
+    $kept[] = Core\RateLimit::consumeLocally('hot', 1, 1h);
     $i = $i + 1;
 }
 

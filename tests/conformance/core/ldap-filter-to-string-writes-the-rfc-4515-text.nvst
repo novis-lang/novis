@@ -9,7 +9,7 @@ echo Core\Ldap\Filter::contains("cn", "n")->toString(), "\n";
 echo Core\Ldap\Filter::present("mail")->toString(), "\n";
 echo Core\Ldap\Filter::atLeast("uSNChanged", "100")->toString(), "\n";
 echo Core\Ldap\Filter::atMost("uSNChanged", "200")->toString(), "\n";
-echo Core\Ldap\Filter::approx("sn", "Smith")->toString(), "\n";
+echo Core\Ldap\Filter::approximately("sn", "Smith")->toString(), "\n";
 echo Core\Ldap\Filter::all(Core\Ldap\Filter::present("mail"))->toString(), "\n";
 echo Core\Ldap\Filter::any(Core\Ldap\Filter::equals("cn", "Ann"), Core\Ldap\Filter::equals("cn", "Bob"))->toString(), "\n";
 echo Core\Ldap\Filter::not(Core\Ldap\Filter::present("mail"))->toString(), "\n";

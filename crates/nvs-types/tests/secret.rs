@@ -238,7 +238,7 @@ fn a_secret_argument_to_push_is_refused_where_the_call_is_written() {
     // which is why no declared type below the call site can tell.
     let named = check_in_method(
         "secret string $token = \"literal\";\n\
-         Core\\Queue::push(\"send-mail.nvs\", {args: $token});\n",
+         Core\\Queue::push(\"send-mail.nvs\", {arguments: $token});\n",
     );
     assert!(
         named.iter().any(|d| d.code == Some(code::E_SECRET_ENCODED)),
@@ -250,7 +250,7 @@ fn a_secret_argument_to_push_is_refused_where_the_call_is_written() {
     for payload in [r#"["to" => "a@b", "token" => $token]"#, "{token: $token}"] {
         let inline = check_in_method(&format!(
             "secret string $token = \"literal\";\n\
-             Core\\Queue::push(\"send-mail.nvs\", {{args: {payload}}});\n"
+             Core\\Queue::push(\"send-mail.nvs\", {{arguments: {payload}}});\n"
         ));
         assert!(
             inline
@@ -266,7 +266,7 @@ fn a_secret_argument_to_push_is_refused_where_the_call_is_written() {
     // report of this one.
     let allowed = check_in_method(
         "string $to = \"a@b\";\n\
-         Core\\Queue::push(\"send-mail.nvs\", {args: [\"to\" => $to], queue: \"mail\"});\n",
+         Core\\Queue::push(\"send-mail.nvs\", {arguments: [\"to\" => $to], queue: \"mail\"});\n",
     );
     assert!(!allowed.has_errors(), "{allowed:?}");
 }

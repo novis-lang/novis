@@ -7,7 +7,7 @@ class Login
     public static function failed(string $user): string
     {
         // Each user may fail 5 times per 15 minutes.
-        var $decision = Core\RateLimit::shed('login:' . $user, 5, 15m);
+        var $decision = Core\RateLimit::consumeLocally('login:' . $user, 5, 15m);
         var $wait = $decision->retryAfter();
         if ($wait == null) {
             return 'Wrong password.';

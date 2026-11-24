@@ -5,7 +5,7 @@
 
 // 1. The request pushes a file path that a user wrote.
 tainted string $path = '../../etc/passwd';
-Core\Queue::push('export.nvs', { args: ['path' => $path] });
+Core\Queue::push('export.nvs', { arguments: ['path' => $path] });
 
 // 2. The job reads the path from its payload and opens that file.
 var $args = Core\Script::arguments() as array<string>;

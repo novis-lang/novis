@@ -3,8 +3,8 @@
 // decisions and reads each wait many times. Memory should stay bounded, and nothing should crash.
 
 // 1. 1 call per 100000 hours. The second call must wait almost 100000 hours.
-Core\RateLimit::shed('slow', 1, 100000h);
-var $longest = Core\RateLimit::shed('slow', 1, 100000h)->retryAfter();
+Core\RateLimit::consumeLocally('slow', 1, 100000h);
+var $longest = Core\RateLimit::consumeLocally('slow', 1, 100000h)->retryAfter();
 echo $longest?->toSeconds() ?? 0, "\n";
 
 // 2. 200000 decisions for one key, all kept. Only the first is allowed,
@@ -12,7 +12,7 @@ echo $longest?->toSeconds() ?? 0, "\n";
 array<Core\RateLimit\Decision> $kept = [];
 uint $i = 0;
 while ($i < 200000) {
-    $kept[] = Core\RateLimit::shed('hot', 1, 1h);
+    $kept[] = Core\RateLimit::consumeLocally('hot', 1, 1h);
     $i = $i + 1;
 }
 

@@ -29,7 +29,7 @@ echo "empty: ", Queue::stats("q")->deadLettered(), "\n";
 // One live row of `q` in each of the five states, none of them buried.
 int $n = 0;
 while ($n < 5) {
-    Queue::push("jobs/a.nvs", {queue: "q", args: ["n" => $n]});
+    Queue::push("jobs/a.nvs", {queue: "q", arguments: ["n" => $n]});
     $n = $n + 1;
 }
 $db->execute("update nvs_jobs set state = 1, attempts = 5, claimed_at = 0 where id = 2", []);

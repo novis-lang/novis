@@ -22,7 +22,7 @@ final class Limit
     // Otherwise it returns how long the sender must wait.
     public static function wait(?tainted string $address): ?Duration
     {
-        return RateLimit::shed(Limit::key($address), Limit::PER_HOUR, 1h)->retryAfter();
+        return RateLimit::consumeLocally(Limit::key($address), Limit::PER_HOUR, 1h)->retryAfter();
     }
 
     // The key for the address: a SHA-256 hash of today's salt, followed by the address.

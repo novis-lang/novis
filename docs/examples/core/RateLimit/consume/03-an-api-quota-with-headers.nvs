@@ -9,9 +9,9 @@ class Quota
         try {
             return Core\RateLimit::consume('api:' . $apiKey, 1000, 1h, { cost: $cost });
         } catch (Throwable $away) {
-            // `shed` counts in this server process only, so the limit is less exact.
+            // `consumeLocally` counts in this server process only, so the limit is less exact.
             // The API keeps working while the shared store cannot be reached.
-            return Core\RateLimit::shed('api:' . $apiKey, 1000, 1h, { cost: $cost });
+            return Core\RateLimit::consumeLocally('api:' . $apiKey, 1000, 1h, { cost: $cost });
         }
     }
 }

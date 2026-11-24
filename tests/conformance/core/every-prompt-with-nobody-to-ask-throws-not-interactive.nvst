@@ -36,10 +36,10 @@ final class Prompt {
         }
     }
 
-    public static function multiSelect(): string {
+    public static function selectMany(): string {
         array<string> $rooms = ["staging", "production"];
         try {
-            array<string> $picked = Core\Cli::multiSelect("which ones?", $rooms);
+            array<string> $picked = Core\Cli::selectMany("which ones?", $rooms);
             return "answered";
         } catch (Core\Cli\NotInteractive $none) {
             return "refused";
@@ -59,7 +59,7 @@ final class Prompt {
 echo "ask: ", Prompt::ask(), "\n";
 echo "confirm: ", Prompt::confirm(), "\n";
 echo "select: ", Prompt::select(), "\n";
-echo "multiSelect: ", Prompt::multiSelect(), "\n";
+echo "selectMany: ", Prompt::selectMany(), "\n";
 echo "secret: ", Prompt::secret(), "\n";
 
 // Its place in the tree, asserted on both sides: the parent a program writes to
@@ -95,7 +95,7 @@ echo "with a default: ", $who, "\n";
 ask: refused
 confirm: refused
 select: refused
-multiSelect: refused
+selectMany: refused
 secret: refused
 a RuntimeError clause catches it
 a LogicError clause does not

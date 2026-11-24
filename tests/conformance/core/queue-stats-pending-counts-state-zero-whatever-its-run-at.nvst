@@ -30,7 +30,7 @@ echo "empty: ", Queue::stats("q")->pending(), "\n";
 // on another queue.
 int $n = 0;
 while ($n < 6) {
-    Queue::push("jobs/a.nvs", {queue: "q", args: ["n" => $n]});
+    Queue::push("jobs/a.nvs", {queue: "q", arguments: ["n" => $n]});
     $n = $n + 1;
 }
 Queue::push("jobs/a.nvs", {queue: "q", runAt: Core\Time::now()->plus(1h)});

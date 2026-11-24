@@ -88,7 +88,7 @@ try {
 // 7. 5000 jobs are added, and then deleted 1000 at a time.
 int $i = 0;
 while ($i < 5000) {
-    Queue::push('jobs/a.nvs', { queue: 'q', args: ['n' => $i] });
+    Queue::push('jobs/a.nvs', { queue: 'q', arguments: ['n' => $i] });
     $i = $i + 1;
 }
 uint $total = 0;

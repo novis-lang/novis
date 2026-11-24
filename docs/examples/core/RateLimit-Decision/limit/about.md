@@ -1,6 +1,6 @@
 Returns the limit that a rate limit decision was made against.
 
-When you call `Core\RateLimit::shed` or `Core\RateLimit::consume`, you pass the number of units a
+When you call `Core\RateLimit::consumeLocally` or `Core\RateLimit::consume`, you pass the number of units a
 key may use in a period. The `Core\RateLimit\Decision` you get back contains that number, and
 `limit` returns it unchanged. It is the same for a call that was allowed and for one that was not.
 

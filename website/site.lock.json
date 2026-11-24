@@ -575,8 +575,8 @@
   "docs/examples/core/Cli/showLive/about.md": {
     "Core\\Cli::showLive": "4fd92a6142d1a822"
   },
-  "docs/examples/core/Cli/multiSelect/about.md": {
-    "Core\\Cli::multiSelect": "9f2aa3177a95f677"
+  "docs/examples/core/Cli/selectMany/about.md": {
+    "Core\\Cli::selectMany": "9f2aa3177a95f677"
   },
   "docs/examples/core/Cli/showProgress/about.md": {
     "Core\\Cli::showProgress": "1b996e2482bc64d1"
@@ -1628,8 +1628,8 @@
   "docs/examples/core/Ldap-Filter/any/about.md": {
     "Core\\Ldap\\Filter::any": "0c312998f5ecd4ec"
   },
-  "docs/examples/core/Ldap-Filter/approx/about.md": {
-    "Core\\Ldap\\Filter::approx": "090c9ff98c74f5d7"
+  "docs/examples/core/Ldap-Filter/approximately/about.md": {
+    "Core\\Ldap\\Filter::approximately": "090c9ff98c74f5d7"
   },
   "docs/examples/core/Ldap-Filter/atLeast/about.md": {
     "Core\\Ldap\\Filter::atLeast": "751d3141029297c6"
@@ -2171,8 +2171,8 @@
   "docs/examples/core/RateLimit/consume/about.md": {
     "Core\\RateLimit::consume": "dd388dee9d7e72fd"
   },
-  "docs/examples/core/RateLimit/shed/about.md": {
-    "Core\\RateLimit::shed": "aff1eb0bfec936d6"
+  "docs/examples/core/RateLimit/consumeLocally/about.md": {
+    "Core\\RateLimit::consumeLocally": "aff1eb0bfec936d6"
   },
   "docs/examples/core/RateLimit-Decision/isAllowed/about.md": {
     "Core\\RateLimit\\Decision::isAllowed": "4180c94c661060b9"
@@ -3939,7 +3939,7 @@
     "Novis\\Image\\Color::rgba": "2523b4d285615e97"
   },
   "docs/examples/novis/Image-Diff/constructor/about.md": {
-    "Novis\\Image\\Diff::constructor": "d458be0b24205aad"
+    "Novis\\Image\\Comparison::constructor": "d458be0b24205aad"
   },
   "docs/examples/novis/Image-Font/fromBytes/about.md": {
     "Novis\\Image\\Font::fromBytes": "605cc69a143396c7"
@@ -5366,8 +5366,8 @@
   "help:Core\\Cli::showLive": {
     "Core\\Cli::showLive": "b9d5040dc780ded0"
   },
-  "help:Core\\Cli::multiSelect": {
-    "Core\\Cli::multiSelect": "5cdd2b47aeffc150"
+  "help:Core\\Cli::selectMany": {
+    "Core\\Cli::selectMany": "5cdd2b47aeffc150"
   },
   "help:Core\\Cli::showProgress": {
     "Core\\Cli::showProgress": "e73cdb211cbcfed5"
@@ -6494,8 +6494,8 @@
   "help:Core\\Ldap\\Filter::any": {
     "Core\\Ldap\\Filter::any": "ff0f7d6b6bb95326"
   },
-  "help:Core\\Ldap\\Filter::approx": {
-    "Core\\Ldap\\Filter::approx": "b49fd5340201575a"
+  "help:Core\\Ldap\\Filter::approximately": {
+    "Core\\Ldap\\Filter::approximately": "b49fd5340201575a"
   },
   "help:Core\\Ldap\\Filter::atLeast": {
     "Core\\Ldap\\Filter::atLeast": "0c5d0ff2947094fa"
@@ -7055,8 +7055,8 @@
   "help:Core\\RateLimit::consume": {
     "Core\\RateLimit::consume": "f1625cdd68afb8fd"
   },
-  "help:Core\\RateLimit::shed": {
-    "Core\\RateLimit::shed": "f8c9515b3730a93e"
+  "help:Core\\RateLimit::consumeLocally": {
+    "Core\\RateLimit::consumeLocally": "f8c9515b3730a93e"
   },
   "help:Core\\RateLimit\\Decision::isAllowed": {
     "Core\\RateLimit\\Decision::isAllowed": "107a6a9072176da4"
@@ -8675,8 +8675,8 @@
   "help:Novis\\Image\\Color::rgba": {
     "Novis\\Image\\Color::rgba": "1d3e86dbf3869c17"
   },
-  "help:Novis\\Image\\Diff::constructor": {
-    "Novis\\Image\\Diff::constructor": "0d5b05835ac86ce9"
+  "help:Novis\\Image\\Comparison::constructor": {
+    "Novis\\Image\\Comparison::constructor": "0d5b05835ac86ce9"
   },
   "help:Novis\\Image\\Font::fromBytes": {
     "Novis\\Image\\Font::fromBytes": "cfc174782a9371eb"

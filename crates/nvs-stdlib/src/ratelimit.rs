@@ -1,12 +1,12 @@
 //! `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s
 //! limiter for what only the application knows, as both halves of it: `consume`
-//! over the shared store, `shed` over this process's own memory, and the
+//! over the shared store, `consumeLocally` over this process's own memory, and the
 //! `Core\RateLimit\Decision` each answers with.
 //!
 //! The two members are two *jobs*. `consume` enforces a policy the
 //! application promised somebody — a plan quota, a login limit — so its state
 //! is the shared store and its answer is coherent across every core and every
-//! machine. `shed` drops load to keep a host up, so its state is the serving
+//! machine. `consumeLocally` drops load to keep a host up, so its state is the serving
 //! process's own memory and an approximate answer is adequate. Two members
 //! rather than a flag on one, so which guarantee a program relies on is visible
 //! in review.
@@ -51,15 +51,15 @@
 //! and the five lines that genuinely differ between an in-process decision and
 //! an atomic one are all that differ. That rule's "both tiers run the identical
 //! algorithm" is that
-//! factoring, and `shed_is_the_same_gcra_over_the_process_own_memory` is where
+//! factoring, and `consume_locally_is_the_same_gcra_over_the_process_own_memory` is where
 //! it is checked rather than promised.
 //!
-//! # Decision: `shed`'s state is `Core\Cache`'s memory tier, not a map of its own
+//! # Decision: `consumeLocally`'s state is `Core\Cache`'s memory tier, not a map of its own
 //!
 //! The in-process half needs somewhere to keep one timestamp per key, and the
 //! runtime already has exactly one in-process store: [`crate::cache`]'s memory
 //! tier, the one sharded map every core of the serving process reads
-//! (`rule:concurrency/the-memory-tier-is-one-store-per-process`). `shed` writes
+//! (`rule:concurrency/the-memory-tier-is-one-store-per-process`). `consumeLocally` writes
 //! there, under [`PREFIX`] and under the same application-and-generation
 //! scope a `Core\Cache::memory()` entry has, for the reason `consume` writes to
 //! the one shared store — a second map would be a second footprint to bound,
@@ -75,7 +75,7 @@
 //! machines has one allowance in each.
 //!
 //! Three consequences, all the approximation
-//! `rule:core-classes/ratelimit-two-members` allows `shed`, and none of them a
+//! `rule:core-classes/ratelimit-two-members` allows `consumeLocally`, and none of them a
 //! defect. An entry this tier evicts is an arrival forgotten, so a shed key that loses its
 //! timestamp admits a burst — which is why `consume` may not live here. A
 //! reload starts every key over, because the scope carries the configuration
@@ -116,14 +116,14 @@
 //! **What it spends:** one entry per live key — one timestamp, not a window of
 //! arrivals, which is `rule:core-classes/ratelimit-gcra`'s O(1)-per-key and what makes limiting per user
 //! affordable at a million users. `consume`'s entry is in the shared store and
-//! expires on its own once the key drains; `shed`'s is in this process's
+//! expires on its own once the key drains; `consumeLocally`'s is in this process's
 //! memory tier, held once for every core and bounded by that tier's cap. It
 //! lives as long as the key's window (`tau`), after which it reads as an absent
 //! one, so a flood of new keys evicts entries already past their window before
 //! a live limiter's. Under a fixed test clock it lives for ever, because that
 //! clock never passes a window. In this process, `consume` spends
 //! the request text and one three-integer reply, both released with the call,
-//! and `shed` spends the scoped key it looks up, released with the call, and
+//! and `consumeLocally` spends the scoped key it looks up, released with the call, and
 //! the decimal timestamp it stores.
 
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
@@ -209,7 +209,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         // call between the two changes the guarantee and nothing else, not even
         // an argument's position.
         CoreMethod {
-            name: "shed",
+            name: "consumeLocally",
             names: &["key", "limit", "per"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
@@ -220,8 +220,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(DECISION_NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_ratelimit_shed",
-            doc: Some(&SHED_DOC),
+            symbol: "nvs_core_ratelimit_consume_locally",
+            doc: Some(&CONSUME_LOCALLY_DOC),
         },
     ],
     instance: &[],
@@ -233,7 +233,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const CARD: ClassDoc = ClassDoc {
     short: "Limits how often something may happen for one key, such as one account or one API \
             key. `consume` counts in the shared store, so every server gives the same answer. \
-            `shed` counts in the memory of this server process only, to drop load quickly. Both \
+            `consumeLocally` counts in the memory of this server process only, to drop load quickly. Both \
             return a `Core\\RateLimit\\Decision`.",
 };
 
@@ -295,8 +295,8 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\RateLimit::shed`'s reference card — `rule:core-api/reference-card`.
-const SHED_DOC: MethodDoc = MethodDoc {
+/// `Core\RateLimit::consumeLocally`'s reference card — `rule:core-api/reference-card`.
+const CONSUME_LOCALLY_DOC: MethodDoc = MethodDoc {
     short: "Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. \
             The count is kept in the memory of this server process. The result says if this call \
             is inside the limit. Use it to drop load. Use `consume` for a limit you promised to \
@@ -413,7 +413,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
 
 /// `Core\RateLimit\Decision`'s class card — `rule:core-api/reference-card`.
 const DECISION_CARD: ClassDoc = ClassDoc {
-    short: "The result of one `Core\\RateLimit::consume` or `shed` call. `isAllowed` says whether \
+    short: "The result of one `Core\\RateLimit::consume` or `consumeLocally` call. `isAllowed` says whether \
             the call was inside the limit. `limit`, `remaining` and `retryAfter` give the numbers \
             for `RateLimit` and `Retry-After` response headers.",
 };
@@ -461,7 +461,9 @@ const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ratelimit_consume" => (nvs_core_ratelimit_consume as *const ()).cast(),
-        "nvs_core_ratelimit_shed" => (nvs_core_ratelimit_shed as *const ()).cast(),
+        "nvs_core_ratelimit_consume_locally" => {
+            (nvs_core_ratelimit_consume_locally as *const ()).cast()
+        }
         "nvs_core_ratelimit_decision_is_allowed" => {
             (nvs_core_ratelimit_decision_is_allowed as *const ()).cast()
         }
@@ -487,7 +489,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// would be, and how many further units the allowance holds.
 ///
 /// The clock is the **store's**, not the caller's: the whole difference between
-/// this member and `shed` is that every core agrees, and a theoretical arrival
+/// this member and `consumeLocally` is that every core agrees, and a theoretical arrival
 /// time compared against N differently-skewed machine clocks agrees only as far
 /// as the worst of them. `redis.replicate_commands` is called where it exists
 /// because Redis before 5 refused a write after a non-deterministic read
@@ -546,7 +548,7 @@ struct Window {
 ///
 /// The ceiling is [`SCRIPT`]'s rather than each tier's, so that a limit either
 /// tier refuses is a limit both refuse: the two members are one algorithm under
-/// `rule:core-classes/ratelimit-gcra`, and a window `shed` accepted and `consume` did not would make moving a
+/// `rule:core-classes/ratelimit-gcra`, and a window `consumeLocally` accepted and `consume` did not would make moving a
 /// call between them a rewrite.
 fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Fault> {
     let refuse = |why: String| Fault::thrown(format!("{NAME}::{member}(): {why}"));
@@ -650,7 +652,7 @@ fn step(stored: Option<i128>, now: i128, window: Window, cost: u64) -> ([i64; 3]
 /// `None` for a value that is not one of ours, too, which is the memory tier's
 /// contract rather than a defence: an entry may be absent at any time, and a
 /// program that overwrote this key through `Core\Cache::memory()` has forgotten
-/// one key's arrival — `shed`'s approximation
+/// one key's arrival — `consumeLocally`'s approximation
 /// (`rule:core-classes/ratelimit-two-members`), in the tier chosen for tolerating
 /// it. Read as text and never as raw bytes, so no payload a program wrote can
 /// decode as anything but a number or nothing.
@@ -814,7 +816,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit::shed(tainted string $key, uint $limit, Duration $per,
+    /// `Core\RateLimit::consumeLocally(tainted string $key, uint $limit, Duration $per,
     /// {burst?: uint, cost?: uint}): RateLimit\Decision` — `rule:core-classes/ratelimit-two-members`'s
     /// approximate member.
     ///
@@ -835,15 +837,15 @@ nvs_runtime::nvs_helper! {
     ///
     /// A thrown `RuntimeError` for a limit that cannot be enforced, from
     /// [`window`] and from nowhere else.
-    fn nvs_core_ratelimit_shed(ctx, args: [5]) {
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::shed's $key"))?;
-        let limit = uint_of(args, 1, "shed")?.unwrap_or(0);
-        let per = crate::time::nanos_of(args, 2, "shed")?;
-        let burst = uint_of(args, 3, "shed")?.unwrap_or(limit);
-        let cost = uint_of(args, 4, "shed")?.unwrap_or(1);
+    fn nvs_core_ratelimit_consume_locally(ctx, args: [5]) {
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::consumeLocally's $key"))?;
+        let limit = uint_of(args, 1, "consumeLocally")?.unwrap_or(0);
+        let per = crate::time::nanos_of(args, 2, "consumeLocally")?;
+        let burst = uint_of(args, 3, "consumeLocally")?.unwrap_or(limit);
+        let cost = uint_of(args, 4, "consumeLocally")?.unwrap_or(1);
 
-        let window = window(limit, per, burst, "shed")?;
-        admissible(cost, burst, "shed")?;
+        let window = window(limit, per, burst, "consumeLocally")?;
+        admissible(cost, burst, "consumeLocally")?;
 
         // The same namespacing as the coherent tier, for the same reason: the
         // store this writes to is the one `Core\Cache::memory()` hands out, and
@@ -873,7 +875,7 @@ nvs_runtime::nvs_helper! {
             &scoped,
             // The cap bounds a limiter's entries, and the lifetime above takes
             // each one off once it reads as absent. An entry the cap forgot
-            // earlier is the same approximation `shed` is chosen for.
+            // earlier is the same approximation `consumeLocally` is chosen for.
             lifetime,
             // Under the same `[cache.memory] max_size` every other entry of the
             // tier is under, which is the whole of what the `None` row in
@@ -896,7 +898,7 @@ nvs_runtime::nvs_helper! {
             // a shape error there would be this crate's bug rather than a
             // store's — which is what `Fault::fatal` says and a thrown
             // `IOError` would not.
-            Fault::fatal(format!("{NAME}::shed(): {why}"))
+            Fault::fatal(format!("{NAME}::consumeLocally(): {why}"))
         })
     }
 }
@@ -939,10 +941,11 @@ mod tests {
     use nvs_runtime::{Ctx, Tag};
 
     use super::{
-        ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
-        admissible, decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_is_allowed,
+        ALLOWED_SLOT, CLASS, CONSUME_DOC, CONSUME_LOCALLY_DOC, DECISION, PREFIX, SCRIPT, Value,
+        Window, admissible, decoded, nvs_core_ratelimit_consume,
+        nvs_core_ratelimit_consume_locally, nvs_core_ratelimit_decision_is_allowed,
         nvs_core_ratelimit_decision_limit, nvs_core_ratelimit_decision_remaining,
-        nvs_core_ratelimit_decision_retry_after, nvs_core_ratelimit_shed, step, window,
+        nvs_core_ratelimit_decision_retry_after, step, window,
     };
     use crate::cache::redis::Connection;
     use crate::cache::{Dial, Target};
@@ -979,7 +982,7 @@ mod tests {
     /// case's second answer a race.
     fn arrival(ctx: &mut Ctx) -> bool {
         let answered = nvs_runtime::call(
-            nvs_core_ratelimit_shed,
+            nvs_core_ratelimit_consume_locally,
             ctx,
             &[
                 Value::text(SHED_KEY),
@@ -989,7 +992,7 @@ mod tests {
                 Value::null(),
             ],
         )
-        .expect("`shed` reaches no store, so it has nothing to fail on");
+        .expect("`consumeLocally` reaches no store, so it has nothing to fail on");
         let object = answered.obj_ptr().expect("a decision is an instance");
         crate::instance::slot(object, ALLOWED_SLOT).as_bool() == Some(true)
     }
@@ -1182,7 +1185,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `shed` is the same algorithm over this process's own
+    /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `consumeLocally` is the same algorithm over this process's own
     /// memory, so what has to hold is that it is GCRA *and* that it is the same
     /// one — a second implementation that drifted from the first would make
     /// moving a call between the members a rewrite rather than a change of
@@ -1193,11 +1196,11 @@ mod tests {
     /// decoder. GCRA is asserted as behaviour over a sequence — two arrivals
     /// inside a burst of two, the third refused with the exact wait until the
     /// next unit drains, and that arrival admitted once it has.
-    // covers: Core\RateLimit::shed
+    // covers: Core\RateLimit::consumeLocally
     #[test]
-    fn shed_is_the_same_gcra_over_the_process_own_memory() {
+    fn consume_locally_is_the_same_gcra_over_the_process_own_memory() {
         let [consume, shed] = CLASS.methods else {
-            panic!("`consume` and `shed` are two members, and they are the whole class");
+            panic!("`consume` and `consumeLocally` are two members, and they are the whole class");
         };
         assert_eq!(
             consume.names, shed.names,
@@ -1211,7 +1214,7 @@ mod tests {
 
         // 2 per second, default burst: a 500ms emission interval and one second
         // of tolerance, both from the one `window` the shared tier uses.
-        let derived = window(2, 1_000_000_000, 2, "shed").expect("2 per second");
+        let derived = window(2, 1_000_000_000, 2, "consumeLocally").expect("2 per second");
         let (first, after_first) = step(None, 0, derived, 1);
         assert_eq!(first, [1, 0, 1], "the first of two admits, one unit left");
         let (second, after_second) = step(after_first, 0, derived, 1);
@@ -1248,11 +1251,11 @@ mod tests {
     /// wait after which it is refused again. [`admissible`] is what keeps that
     /// wait from reaching a `retryAfter`, for both members, and a cost equal to
     /// the burst is still admitted in one arrival.
-    // covers: Core\RateLimit::shed, Core\RateLimit::consume
+    // covers: Core\RateLimit::consumeLocally, Core\RateLimit::consume
     #[test]
     fn a_cost_past_the_burst_is_refused_rather_than_given_a_wait() {
         // 1 per hour with a burst of 5: a 3600-second interval.
-        let derived = window(1, 3_600_000_000_000, 5, "shed").expect("1 per hour");
+        let derived = window(1, 3_600_000_000_000, 5, "consumeLocally").expect("1 per hour");
         let (refused, _) = step(None, 0, derived, 6);
         assert_eq!(
             refused,
@@ -1265,10 +1268,10 @@ mod tests {
             "and an hour later the same arrival is refused again"
         );
 
-        assert!(admissible(6, 5, "shed").is_err());
+        assert!(admissible(6, 5, "consumeLocally").is_err());
         assert!(admissible(6, 5, "consume").is_err());
-        assert!(admissible(u64::MAX, 5, "shed").is_err());
-        assert!(admissible(5, 5, "shed").is_ok());
+        assert!(admissible(u64::MAX, 5, "consumeLocally").is_err());
+        assert!(admissible(5, 5, "consumeLocally").is_ok());
         let (whole, _) = step(None, 0, derived, 5);
         assert_eq!(
             whole,
@@ -1277,11 +1280,11 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/ratelimit-two-members`: `shed`'s arrivals live in this process's memory tier,
+    /// `rule:core-classes/ratelimit-two-members`: `consumeLocally`'s arrivals live in this process's memory tier,
     /// which is the whole of what it trades away — the count is **per serving
     /// process**, and an arrival the tier forgets is one that never happened.
     /// Neither is a defect, and both are only useful to a caller who is told: a
-    /// program that read a `shed` limit as a number somebody was promised has
+    /// program that read a `consumeLocally` limit as a number somebody was promised has
     /// picked the wrong member, and the contract is the one place that can be
     /// said in time.
     ///
@@ -1292,11 +1295,11 @@ mod tests {
     /// arrival. An unrelated write that fills the arrival's shard under
     /// `rule:concurrency/the-memory-tier-is-one-store-per-process`'s cap
     /// forgets the arrival, and the key then admits a burst GCRA alone would
-    /// have refused. And [`SHED_DOC`] states both, plus the absence of the
+    /// have refused. And [`CONSUME_LOCALLY_DOC`] states both, plus the absence of the
     /// `IOError` its coherent twin documents.
-    // covers: Core\RateLimit::shed
+    // covers: Core\RateLimit::consumeLocally
     #[test]
-    fn shed_is_per_process_and_approximate_and_says_so() {
+    fn consume_locally_is_per_process_and_approximate_and_says_so() {
         let _serial = crate::cache::tests::TIER
             .lock()
             .expect("the memory tier's cases run one at a time");
@@ -1342,7 +1345,7 @@ mod tests {
         assert_eq!(
             crate::cache::tests::memory_held(&entry),
             None,
-            "the cap forgot the arrival, which `shed`'s approximation allows at any time"
+            "the cap forgot the arrival, which `consumeLocally`'s approximation allows at any time"
         );
         assert!(
             arrival(&mut ctx),
@@ -1352,29 +1355,34 @@ mod tests {
 
         // And the card says so, in the two fields a caller reads while choosing
         // between the two members.
-        let limit = SHED_DOC.params[1];
+        let limit = CONSUME_LOCALLY_DOC.params[1];
         assert_eq!(limit.name, "limit");
         assert!(
             limit.desc.contains("in this server process") && limit.desc.contains("200"),
             "`limit`'s card has to state that the count multiplies by the number of processes"
         );
         assert!(
-            SHED_DOC.ret.contains("forget an entry at any time")
-                && SHED_DOC.ret.contains("allows a burst"),
+            CONSUME_LOCALLY_DOC
+                .ret
+                .contains("forget an entry at any time")
+                && CONSUME_LOCALLY_DOC.ret.contains("allows a burst"),
             "and the return's card the eviction a caller would otherwise read as a bug"
         );
         assert!(
-            SHED_DOC.errors.iter().all(|entry| entry.error != "IOError"),
+            CONSUME_LOCALLY_DOC
+                .errors
+                .iter()
+                .all(|entry| entry.error != "IOError"),
             "there is no store to be unreachable, so there is no `IOError` to document"
         );
     }
 
     /// `rule:testing/determinism-declared-on-the-test`: under a fixed clock
-    /// `shed` counts on that clock, so moving it an hour refills a limit of one
+    /// `consumeLocally` counts on that clock, so moving it an hour refills a limit of one
     /// an hour. The fixed timeline keeps its own entry, so the monotonic
     /// arrival made first neither refuses nor admits the fixed one.
     #[test]
-    fn shed_counts_on_a_tests_fixed_clock() {
+    fn consume_locally_counts_on_a_tests_fixed_clock() {
         let _serial = crate::cache::tests::TIER
             .lock()
             .expect("the memory tier's cases run one at a time");
