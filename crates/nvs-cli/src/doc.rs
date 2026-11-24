@@ -27,6 +27,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use nvs_syntax::doc_target::DocTarget;
 use serde_json::Value;
 
 /// Write this program's declarations as one Markdown page per class.
@@ -61,7 +62,7 @@ pub(crate) fn run(entry: &Path, out: &Path) -> ExitCode {
         Err(code) => return code,
     };
     let program = &document["program"];
-    let pages = pages(program);
+    let mut pages = pages(program);
     if pages.is_empty() {
         eprintln!("no class, interface or enum in this program: nothing to render");
         return ExitCode::SUCCESS;
@@ -69,6 +70,10 @@ pub(crate) fn run(entry: &Path, out: &Path) -> ExitCode {
     if let Err(err) = std::fs::create_dir_all(out) {
         eprintln!("error: could not create {}: {err}", out.display());
         return ExitCode::FAILURE;
+    }
+    let root = root_from(out, entry);
+    for page in &mut pages {
+        page.root = &root;
     }
     let names: Vec<&str> = pages.iter().map(|page| page.name).collect();
     for page in &pages {
@@ -88,6 +93,32 @@ struct Page<'a> {
     name: &'a str,
     kind: &'a str,
     value: &'a Value,
+    /// The program root as seen from the page's folder, with a trailing `/`,
+    /// or empty when the page sits in it: the prefix of a `@see` file
+    /// target's link ([`root_from`]).
+    root: &'a str,
+}
+
+/// The program root, the entry's folder, written relative to the folder
+/// `out` the pages are written to, with a trailing `/` unless it is empty.
+///
+/// `nvs meta --json` writes a `@see` file target relative to that root
+/// (`rule:tooling/meta-json-takes-a-program`), so the prefix and the target
+/// together are the link. A root the two folders cannot share, such as one on
+/// another drive, is written as the canonical root itself.
+fn root_from(out: &Path, entry: &Path) -> String {
+    let folder = match entry.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let (Ok(out), Ok(folder)) = (std::fs::canonicalize(out), std::fs::canonicalize(folder)) else {
+        return String::new();
+    };
+    match crate::meta::relative_path(&out, &folder) {
+        Some(relative) if relative == "." => String::new(),
+        Some(relative) => format!("{relative}/"),
+        None => format!("{}/", folder.display()),
+    }
 }
 
 /// Every page the program half asks for, in the document's own order — which is
@@ -104,7 +135,12 @@ fn pages(program: &Value) -> Vec<Page<'_>> {
         };
         for value in values {
             if let Some(name) = value["name"].as_str() {
-                out.push(Page { name, kind, value });
+                out.push(Page {
+                    name,
+                    kind,
+                    value,
+                    root: "",
+                });
             }
         }
     }
@@ -370,7 +406,14 @@ fn list(out: &mut String, doc: &Value, key: &str, name_key: &str, title: &str, s
 /// a class in code, and `parent` names the class that page's `extends` key
 /// names. An interface's `extends` is a list, so on an interface's page
 /// `parent` names nothing and stays code.
+///
+/// A file target is a link to the file, from the page's folder through the
+/// program root the document wrote it from, with its anchor kept: the anchor
+/// is the heading's slug, which a Markdown viewer gives the heading too.
 fn see(target: &str, owner: &Page<'_>, names: &[&str]) -> String {
+    if let DocTarget::File { .. } = DocTarget::of(target) {
+        return format!("[{target}]({}{target})", owner.root);
+    }
     let (class, member) = match target.split_once("::") {
         Some((class, member)) => (class.trim(), Some(member.trim())),
         None => (target.trim(), None),

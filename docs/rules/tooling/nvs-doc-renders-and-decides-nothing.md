@@ -10,7 +10,8 @@ it inherits by following those same keys to the nearest documented method of the
 comes from. A method inherited from a `Core` class or interface shows no inherited comment, because a
 `Core` member has no page in the run. A name with a page in the same run becomes a link, and one
 without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
-`static` is printed with `static ` in front of its signature.
+`static` is printed with `static ` in front of its signature. A `@see` file target becomes a link from the
+page's folder to the file, through the program root the document wrote it from, with its heading anchor kept.
 
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 (`rule:security/bidi-boundaries`). This repository does not itself need it — the one-file reference and the

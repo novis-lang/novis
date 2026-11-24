@@ -746,6 +746,51 @@ fn a_class_scoped_enum_is_listed_under_its_owner() {
     );
 }
 
+/// A `@see` file target written in a required file is listed relative to the
+/// entry's folder, with `/` separators and its anchor, so a consumer finds the
+/// file without knowing which file wrote the tag. A member target is unchanged.
+#[test]
+fn a_see_file_target_is_written_from_the_program_root() {
+    // covers: lang:programs/doc-comments
+    let dir = nvs_repo::scratch("meta-see-file");
+    std::fs::write(dir.join("nvs.toml"), "").expect("the project file is written");
+    std::fs::create_dir_all(dir.join("lib")).expect("lib is created");
+    std::fs::create_dir_all(dir.join("docs")).expect("docs is created");
+    std::fs::write(
+        dir.join("docs/guide.md"),
+        "# Guide\n\n## Setting up\n\nText.\n",
+    )
+    .expect("the guide is written");
+    std::fs::write(
+        dir.join("lib/shop.nvs"),
+        "<?nvs\n/// A shop.\n///\n/// @see ../docs/guide.md#setting-up\n/// @see Shop::open\n\
+         class Shop {\n    /// Opens the shop.\n    ///\n    /// @see ./shop.nvs\n    \
+         public function open(): int {\n        return 1;\n    }\n}\n",
+    )
+    .expect("the library is written");
+    std::fs::write(
+        dir.join("main.nvs"),
+        "<?nvs\nrequire \"lib/shop.nvs\";\necho (new Shop())->open(), \"\\n\";\n",
+    )
+    .expect("the entry is written");
+
+    let entry = dir.join("main.nvs").display().to_string();
+    let program = program(&["--json", &entry]);
+    let shop = declared(&program, "classes", "Shop");
+    assert_eq!(
+        shop["doc"]["see"],
+        serde_json::json!(["docs/guide.md#setting-up", "Shop::open"])
+    );
+    let open = shop["members"]
+        .as_array()
+        .expect("members")
+        .iter()
+        .find(|member| member["name"] == "open")
+        .expect("open is listed")
+        .clone();
+    assert_eq!(open["doc"]["see"], serde_json::json!(["lib/shop.nvs"]));
+}
+
 /// A user declaration's card is the `///` run above it: its prose under
 /// `short`, its `@see` targets and its `@example` paths as their own lists, and
 /// the registry's omission rule over all three — an undocumented declaration

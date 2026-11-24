@@ -1433,9 +1433,13 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// when the tag is checked, and the read is recorded for test selection.
 fn check_see_file(at: Span, path: &str, anchor: Option<&str>, src: &SourceFile, env: &mut Env<'_>) {
     let path_span = span_of(at, at.start as usize, at.start as usize + path.len());
+    // A bare file name, such as `nvs check app.nvs`, has the empty path as its
+    // folder, which `absolute` does not take: that folder is the current one.
     let folder = match src.path().and_then(Path::parent) {
-        Some(folder) => std::path::absolute(folder).unwrap_or_else(|_| folder.to_path_buf()),
-        None => std::env::current_dir().unwrap_or_default(),
+        Some(folder) if !folder.as_os_str().is_empty() => {
+            std::path::absolute(folder).unwrap_or_else(|_| folder.to_path_buf())
+        }
+        _ => std::env::current_dir().unwrap_or_default(),
     };
     let project = crate::lenders::project_of(&folder);
     let depth = folder

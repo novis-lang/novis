@@ -255,6 +255,35 @@ fn nvs_doc_renders_a_see_target_as_a_link() {
     );
 }
 
+/// A `@see` file target is a link from the page's folder to the file, with its
+/// heading anchor kept. The pages sit in `pages/`, one folder below the program
+/// root, so the link climbs one folder.
+#[test]
+fn a_see_file_target_links_relative_to_the_page() {
+    // covers: lang:programs/doc-comments
+    let dir = fixture_of(
+        "see-file",
+        "<?nvs\n/// A shop.\n///\n/// @see docs/guide.md#setting-up\nclass Shop {\n}\n",
+    );
+    std::fs::create_dir_all(dir.join("docs")).expect("docs is created");
+    std::fs::write(
+        dir.join("docs/guide.md"),
+        "# Guide\n\n## Setting up\n\nText.\n",
+    )
+    .expect("the guide is written");
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Shop.md");
+    assert!(
+        page.contains("[docs/guide.md#setting-up](../docs/guide.md#setting-up)"),
+        "the file target was not linked from the page: {page}"
+    );
+}
+
 #[test]
 fn nvs_doc_renders_every_see_and_every_example() {
     // `rule:tooling/doc-comment-tags-are-closed-and-checked`: both tags repeat, so

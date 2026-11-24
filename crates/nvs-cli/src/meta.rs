@@ -150,6 +150,7 @@ use nvs_syntax::ast::{
     InterfaceDecl, MethodMember, Modifier, Name, Param, PropertyMember, Stmt, StmtKind,
     TypeAliasDecl,
 };
+use nvs_syntax::doc_target::DocTarget;
 use rustc_hash::FxHashMap;
 use serde_json::{Map, Value, json};
 
@@ -963,6 +964,120 @@ struct Declared {
     types: Vec<Value>,
 }
 
+impl Declared {
+    /// How long each roster is, so [`Self::rebase_see`] reaches only what one
+    /// file added.
+    fn lengths(&self) -> [usize; 4] {
+        [
+            self.classes.len(),
+            self.interfaces.len(),
+            self.enums.len(),
+            self.types.len(),
+        ]
+    }
+
+    /// Rewrites each `@see` file target of the declarations added since
+    /// `before` from the writing file's folder `base` to the program `root`.
+    ///
+    /// `rule:tooling/meta-json-takes-a-program`: a consumer finds the file
+    /// from the root alone, without knowing which source file wrote the tag.
+    /// [`put_doc`] writes the tag as it was written, because the walk below it
+    /// is shared with the built-in components, which have no program root.
+    fn rebase_see(&mut self, before: [usize; 4], base: &Path, root: &Path) {
+        let rosters = [
+            &mut self.classes,
+            &mut self.interfaces,
+            &mut self.enums,
+            &mut self.types,
+        ];
+        for (roster, from) in rosters.into_iter().zip(before) {
+            for value in &mut roster[from..] {
+                rebase_cards(value, base, root);
+            }
+        }
+    }
+}
+
+/// Every `doc.see` list under `value`, rewritten by [`from_root`]. A class's
+/// `json` schema is not a card and is not entered.
+fn rebase_cards(value: &mut Value, base: &Path, root: &Path) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map.iter_mut() {
+                if key == "json" {
+                    continue;
+                }
+                if key == "doc"
+                    && let Some(targets) = child.get_mut("see").and_then(Value::as_array_mut)
+                {
+                    for target in targets {
+                        if let Some(rebased) =
+                            target.as_str().and_then(|t| from_root(t, base, root))
+                        {
+                            *target = Value::from(rebased);
+                        }
+                    }
+                }
+                rebase_cards(child, base, root);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                rebase_cards(item, base, root);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A `@see` file target written in the folder `base`, rewritten relative to
+/// the folder `root` with `/` separators and its anchor kept. A member target
+/// is `None`, and so is a file the two folders share no prefix with, such as
+/// one on another drive, which is then written as it was.
+fn from_root(written: &str, base: &Path, root: &Path) -> Option<String> {
+    let DocTarget::File { path, anchor } = DocTarget::of(written) else {
+        return None;
+    };
+    let file = std::fs::canonicalize(base.join(path)).ok()?;
+    let root = std::fs::canonicalize(root).ok()?;
+    let relative = relative_path(&root, &file)?;
+    Some(match anchor {
+        Some(anchor) => format!("{relative}#{anchor}"),
+        None => relative,
+    })
+}
+
+/// `to` written relative to the folder `from`, with `/` separators and a `..`
+/// for each folder it climbs. Both paths are canonical. `None` when they share
+/// no first component, such as two drives.
+pub(crate) fn relative_path(from: &Path, to: &Path) -> Option<String> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if shared == 0 {
+        return None;
+    }
+    let mut parts: Vec<String> = vec!["..".to_owned(); from.len() - shared];
+    parts.extend(
+        to[shared..]
+            .iter()
+            .map(|part| part.as_os_str().to_string_lossy().into_owned()),
+    );
+    if parts.is_empty() {
+        return Some(".".to_owned());
+    }
+    Some(parts.join("/"))
+}
+
+/// The folder a source file was read from: `.` for a bare file name and for a
+/// file that came from no disk.
+fn folder_of(src: &SourceFile) -> PathBuf {
+    match src.path().and_then(Path::parent) {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    }
+}
+
 /// Every declaration of the program `checked` is, in the registry's own shape.
 ///
 /// The order is `nvs_hir::resolve_program`'s: the entry file first, then each
@@ -975,9 +1090,12 @@ struct Declared {
 fn program_json(checked: &crate::Checked) -> Value {
     let mut declared = Declared::default();
     let mut schemas = Schemas::new(&checked.exprs, "#/program/schemas/");
+    let root = folder_of(checked.map.file(checked.id));
     for file in &checked.files {
         let src = checked.map.file(file.id);
+        let before = declared.lengths();
         collect(&file.stmts, src, "", &mut declared, &mut schemas);
+        declared.rebase_see(before, &folder_of(src), &root);
     }
     let mut out = Map::new();
     put_values(&mut out, "classes", declared.classes);
@@ -1482,7 +1600,9 @@ fn alias_cards(members: &[ClassMember], src: &SourceFile, owner: &str) -> Vec<Va
 /// The card has the `Core` card's keys, from [`doc_json`]: `short`, `params`
 /// as `{name, desc}` in the order `names` lists the parameters, `return`, and
 /// `errors` as `{error, desc}`, then `see` and `example`. Each is left out when
-/// it is empty.
+/// it is empty. Each tag is written as it was written; the program half then
+/// rewrites a `@see` file target from its program root
+/// ([`Declared::rebase_see`]).
 fn put_doc(
     out: &mut Map<String, Value>,
     doc: Option<&DocComment>,

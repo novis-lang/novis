@@ -13,6 +13,8 @@ is emitted in a shape mirroring the registry's own: name, signature, and a `doc`
 card's keys (`rule:tooling/doc-comment-tags-are-closed-and-checked`). `short` is the doc comment's prose,
 `params` is each `@param` as `{name, desc}` in signature order, `return` is the `@return` sentence, and
 `errors` is each `@throws` as `{error, desc}`, the class as written. `see` and `example` list those tags.
+A `@see` file target in `see` is written relative to the program root, the entry file's folder, with `/`
+separators and its anchor kept, so a consumer finds the file without knowing which source file wrote it.
 Each key is left out when it is empty. A method also carries `names`, its parameters without their `$`, as
 a registry member does. A promoted constructor parameter is listed as a `property` member, and its card's
 `short` is the constructor's `@param` for it. The `Core` half of that shape is the registry's and is
