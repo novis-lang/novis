@@ -258,6 +258,163 @@ keeps it. The command:
 | `Sheet->print($options)` | `setPrintOptions($options)` | in place; `print` reads like "print now" |
 | `Novis\Spreadsheet\Workbook->sheet`, `define` | `addSheet`, `defineName` | in place |
 
+**The `renames` block** is the table above, one fully qualified `Old New` pair per line, which
+`bun nv api-rename --goal clear-member-names` reads. `Class::member` is a static member and
+`Class->member` an instance member. An option field (`nanos`, `trustedToAuthForDelegation`, spawn's
+`args:`, `Image->metadata`'s `keep`) is not a member, so it is not in the block: its slice renames it by
+hand, and `bun nv names --check` names any left.
+
+```renames
+Core\Response::json Core\Response::sendJson
+Core\Response::html Core\Response::sendHtml
+Core\Response::text Core\Response::sendText
+Core\Response::bytes Core\Response::sendBytes
+Core\Response::slotted Core\Response::sendSlotted
+Core\Response::stream Core\Response::startStream
+Core\Request::query Core\Request::queryParameter
+Core\Request::queryArray Core\Request::queryParameters
+Core\Request::queryAs Core\Request::queryParametersAs
+Core\Request::post Core\Request::formField
+Core\Request::postArray Core\Request::formFields
+Core\Request::postAs Core\Request::formFieldsAs
+Core\Sse::stream Core\Sse::startStream
+Core\Sse->retry Core\Sse->setRetryDelay
+Core\Metrics::gauge Core\Metrics::setGauge
+Core\Task::afterResponse Core\Task::runAfterResponse
+Core\Router\Match->params Core\Router\Match->parameters
+Core\Router\Match->param Core\Router\Match->parameter
+Core\Script::args Core\Script::arguments
+Core\Cli::secret Core\Cli::askSecret
+Core\Cli::live Core\Cli::showLive
+Core\Cli::progress Core\Cli::showProgress
+Core\Test::scriptAnswers Core\Test::answerCli
+Core\Xml\Writer->content Core\Xml\Writer->writeText
+Core\Xml\Writer->attribute Core\Xml\Writer->writeAttribute
+Core\Xml\Writer->comment Core\Xml\Writer->writeComment
+Core\Xml\Writer->cdata Core\Xml\Writer->writeCdata
+Core\Xml\Writer->instruction Core\Xml\Writer->writeInstruction
+Core\Xml\Writer->doctype Core\Xml\Writer->writeDoctype
+Core\IO::temporaryDir Core\IO::createTemporaryDirectory
+Core\IO::makeDir Core\IO::makeDirectory
+Core\IO::removeDir Core\IO::removeDirectory
+Core\IO::isDir Core\IO::isDirectory
+Core\IO::stat Core\IO::metadata
+Core\IO\Metadata->isDir Core\IO\Metadata->isDirectory
+Core\Path::dirname Core\Path::parent
+Core\Path::basename Core\Path::fileName
+Core\Path::fromCwd Core\Path::fromWorkingDirectory
+Core\Path::thisDir Core\Path::thisDirectory
+Core\BigInt->add Core\BigInt->plus
+Core\BigInt->sub Core\BigInt->minus
+Core\BigInt->mul Core\BigInt->multipliedBy
+Core\BigInt->div Core\BigInt->dividedBy
+Core\BigInt->mod Core\BigInt->remainder
+Core\BigInt->pow Core\BigInt->raisedTo
+Core\BigInt->powMod Core\BigInt->raisedToModulo
+Core\BigInt->neg Core\BigInt->negated
+Core\BigInt->shl Core\BigInt->shiftedLeft
+Core\BigInt->shr Core\BigInt->shiftedRight
+Core\Decimal::divExact Core\Decimal::divideExact
+Core\Decimal::divRound Core\Decimal::divideRounded
+Core\Decimal::pow Core\Decimal::power
+Core\Math::intDiv Core\Math::quotient
+Core\Math::fdiv Core\Math::divide
+Core\Math::mod Core\Math::remainder
+Core\Arr::diff Core\Arr::difference
+Core\Arr::intersect Core\Arr::intersection
+Core\Arr::countBy Core\Arr::groupCounts
+Core\ObjectSet->intersect Core\ObjectSet->intersection
+Core\ObjectSet->diff Core\ObjectSet->difference
+Core\Uri->resolve Core\Uri->resolved
+Core\Uri->sign Core\Uri->signed
+Core\Time\DateTime->nanos Core\Time\DateTime->nanoseconds
+Core\Time\TimeOfDay->nanos Core\Time\TimeOfDay->nanoseconds
+Core\Db\Connection->stream Core\Db\Connection->queryEach
+Core\Db\Connection->streamAs Core\Db\Connection->queryEachAs
+Core\Db\Connection->transaction Core\Db\Connection->runTransaction
+Core\Db\Transaction->stream Core\Db\Transaction->queryEach
+Core\Db\Transaction->streamAs Core\Db\Transaction->queryEachAs
+Core\Db\Transaction->transaction Core\Db\Transaction->runTransaction
+Core\Db\Column->nullable Core\Db\Column->isNullable
+Core\Http\Client::stream Core\Http\Client::openStream
+Core\Ldap\Connection->compare Core\Ldap\Connection->hasValue
+Core\Ldap\Connection->changes Core\Ldap\Connection->searchChanges
+Core\Http\TlsInfo->verified Core\Http\TlsInfo->isVerified
+Core\RateLimit\Decision->allowed Core\RateLimit\Decision->isAllowed
+Core\WebPush\Sent->gone Core\WebPush\Sent->isGone
+Core\Test\Outcome->passed Core\Test\Outcome->hasPassed
+Core\Ldap\Ad\AccountFlags->script Core\Ldap\Ad\AccountFlags->hasLogonScript
+Core\Ldap\Ad\AccountFlags->disabled Core\Ldap\Ad\AccountFlags->isDisabled
+Core\Ldap\Ad\AccountFlags->homeDirectoryRequired Core\Ldap\Ad\AccountFlags->isHomeDirectoryRequired
+Core\Ldap\Ad\AccountFlags->lockedOut Core\Ldap\Ad\AccountFlags->isLockedOut
+Core\Ldap\Ad\AccountFlags->passwordNotRequired Core\Ldap\Ad\AccountFlags->isPasswordNotRequired
+Core\Ldap\Ad\AccountFlags->reversibleEncryption Core\Ldap\Ad\AccountFlags->allowsReversibleEncryption
+Core\Ldap\Ad\AccountFlags->temporaryDuplicateAccount Core\Ldap\Ad\AccountFlags->isTemporaryDuplicateAccount
+Core\Ldap\Ad\AccountFlags->normalAccount Core\Ldap\Ad\AccountFlags->isNormalAccount
+Core\Ldap\Ad\AccountFlags->interdomainTrustAccount Core\Ldap\Ad\AccountFlags->isInterdomainTrustAccount
+Core\Ldap\Ad\AccountFlags->workstationTrustAccount Core\Ldap\Ad\AccountFlags->isWorkstationTrustAccount
+Core\Ldap\Ad\AccountFlags->serverTrustAccount Core\Ldap\Ad\AccountFlags->isServerTrustAccount
+Core\Ldap\Ad\AccountFlags->passwordNeverExpires Core\Ldap\Ad\AccountFlags->hasNonExpiringPassword
+Core\Ldap\Ad\AccountFlags->mnsLogonAccount Core\Ldap\Ad\AccountFlags->isMnsLogonAccount
+Core\Ldap\Ad\AccountFlags->smartcardRequired Core\Ldap\Ad\AccountFlags->isSmartcardRequired
+Core\Ldap\Ad\AccountFlags->trustedForDelegation Core\Ldap\Ad\AccountFlags->isTrustedForDelegation
+Core\Ldap\Ad\AccountFlags->notDelegated Core\Ldap\Ad\AccountFlags->isNotDelegated
+Core\Ldap\Ad\AccountFlags->useDesKeyOnly Core\Ldap\Ad\AccountFlags->usesDesKeyOnly
+Core\Ldap\Ad\AccountFlags->noPreauthRequired Core\Ldap\Ad\AccountFlags->isPreauthNotRequired
+Core\Ldap\Ad\AccountFlags->passwordExpired Core\Ldap\Ad\AccountFlags->isPasswordExpired
+Core\Ldap\Ad\AccountFlags->trustedToAuthForDelegation Core\Ldap\Ad\AccountFlags->isTrustedToAuthenticateForDelegation
+Core\Ldap\Ad\AccountFlags->partialSecretsAccount Core\Ldap\Ad\AccountFlags->isPartialSecretsAccount
+Core\Ldap\Ad\GroupType->system Core\Ldap\Ad\GroupType->isSystemGroup
+Core\Ldap\Ad\GroupType->global Core\Ldap\Ad\GroupType->isGlobal
+Core\Ldap\Ad\GroupType->domainLocal Core\Ldap\Ad\GroupType->isDomainLocal
+Core\Ldap\Ad\GroupType->universal Core\Ldap\Ad\GroupType->isUniversal
+Core\Ldap\Ad\GroupType->appBasic Core\Ldap\Ad\GroupType->isAppBasicGroup
+Core\Ldap\Ad\GroupType->appQuery Core\Ldap\Ad\GroupType->isAppQueryGroup
+Core\Ldap\Ad\GroupType->security Core\Ldap\Ad\GroupType->isSecurityGroup
+Novis\Image\Image->resize Novis\Image\Image->resized
+Novis\Image\Image->crop Novis\Image\Image->cropped
+Novis\Image\Image->trim Novis\Image\Image->trimmed
+Novis\Image\Image->rotate Novis\Image\Image->rotated
+Novis\Image\Image->flip Novis\Image\Image->flipped
+Novis\Image\Image->flatten Novis\Image\Image->flattened
+Novis\Image\Image->sharpen Novis\Image\Image->sharpened
+Novis\Image\Image->blur Novis\Image\Image->blurred
+Novis\Image\Image->tint Novis\Image\Image->tinted
+Novis\Image\Image->grayscale Novis\Image\Image->grayscaled
+Novis\Image\Image->composite Novis\Image\Image->withOverlay
+Novis\Image\Image->brightness Novis\Image\Image->withBrightness
+Novis\Image\Image->contrast Novis\Image\Image->withContrast
+Novis\Image\Image->gamma Novis\Image\Image->withGamma
+Novis\Image\Image->text Novis\Image\Image->withText
+Novis\Image\Image->format Novis\Image\Image->withFormat
+Novis\Image\Image->metadata Novis\Image\Image->keepingMetadata
+Novis\Image\Image->variants Novis\Image\Image->encodeVariants
+Novis\Pdf\Document->asset Novis\Pdf\Document->withAsset
+Novis\Pdf\Document->standard Novis\Pdf\Document->withStandard
+Novis\Pdf\Document->invoiceXml Novis\Pdf\Document->withInvoiceXml
+Novis\Pdf\Document->password Novis\Pdf\Document->withPassword
+Novis\Pdf\Document->created Novis\Pdf\Document->withCreationTime
+Novis\Pdf\Document->header Novis\Pdf\Document->withHeader
+Novis\Pdf\Document->footer Novis\Pdf\Document->withFooter
+Novis\Pdf\Document->slots Novis\Pdf\Document->withSlots
+Novis\Spreadsheet\Chart->series Novis\Spreadsheet\Chart->withSeries
+Novis\Spreadsheet\Chart->combine Novis\Spreadsheet\Chart->combinedWith
+Novis\Spreadsheet\Sheet->add Novis\Spreadsheet\Sheet->addRow
+Novis\Spreadsheet\Sheet->addAll Novis\Spreadsheet\Sheet->addRows
+Novis\Spreadsheet\Sheet->merge Novis\Spreadsheet\Sheet->mergeCells
+Novis\Spreadsheet\Sheet->link Novis\Spreadsheet\Sheet->addLink
+Novis\Spreadsheet\Sheet->note Novis\Spreadsheet\Sheet->addNote
+Novis\Spreadsheet\Sheet->validate Novis\Spreadsheet\Sheet->addValidation
+Novis\Spreadsheet\Sheet->group Novis\Spreadsheet\Sheet->addOutlineGroup
+Novis\Spreadsheet\Sheet->table Novis\Spreadsheet\Sheet->addTable
+Novis\Spreadsheet\Sheet->conditional Novis\Spreadsheet\Sheet->addConditionalFormat
+Novis\Spreadsheet\Sheet->image Novis\Spreadsheet\Sheet->addImage
+Novis\Spreadsheet\Sheet->chart Novis\Spreadsheet\Sheet->addChart
+Novis\Spreadsheet\Sheet->print Novis\Spreadsheet\Sheet->setPrintOptions
+Novis\Spreadsheet\Workbook->sheet Novis\Spreadsheet\Workbook->addSheet
+Novis\Spreadsheet\Workbook->define Novis\Spreadsheet\Workbook->defineName
+```
+
 Unchanged on purpose: zero-argument reads (`Request::path()`), keyed reads (`Db\Row->int`,
 `Request::header`), static factories (`Duration::seconds`, `Color::rgba`), `on…` handlers, the `Intl`
 formatters, `Novis\Rest`, and every static member on a value (`Str::trim`, `Arr::sort`).
