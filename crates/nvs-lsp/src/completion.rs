@@ -534,6 +534,14 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
     if !matches!(last, '\'' | '"' | '/' | '.' | ':' | '{') {
         return false;
     }
+    if matches!(last, '/' | '.')
+        && matches!(
+            comment_at(analysed, offset).and_then(|comment| doc_tag_at(analysed, comment, offset)),
+            Some(DocTag::See(_) | DocTag::Example(_))
+        )
+    {
+        return true;
+    }
     match literal_at(analysed, files, &analysed.index.at(offset), offset) {
         Some(Literal::Hole(_, values)) => {
             last == '{' || values.iter().any(|value| value.separator == Some(last))
@@ -2548,7 +2556,9 @@ fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
         .map(|(rank, kind)| {
             let tag = format!("@{}", kind.name());
             let detail = match kind {
-                DocTagKind::See => "links to a class, method, property, constant or enum case",
+                DocTagKind::See => {
+                    "links to a class, method, property, constant, enum case or file"
+                }
                 DocTagKind::Example => "links to an example file under `examples/` or `tests/`",
                 DocTagKind::Param => "says what one parameter means",
                 DocTagKind::Return => "says what the returned value means",
@@ -2702,12 +2712,31 @@ fn throws_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
 }
 
 /// What a `@see` target starting at `start` may name: the types in reach, and
-/// after `Class::` the members of that class.
+/// after `Class::` the members of that class. Once the text holds a `/` or a
+/// `.`, it is a file target (`nvs_syntax::doc_target::DocTarget::of`), and the
+/// entries of the folder it reaches are offered, as for `@example`, inside
+/// the project only. After a `#`, the heading slugs of the Markdown file
+/// before it are offered ([`see_headings`]).
 ///
 /// Every item names the text it replaces, because a target has a `\` or a `$`
 /// in it that a client does not count as part of a word.
 fn see_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
     let written = cursor.upto().get(start as usize..).unwrap_or_default();
+    if let Some((path, anchor)) = written.split_once('#') {
+        return see_headings(cursor, path, anchor);
+    }
+    if written.contains(['/', '.']) {
+        if !inside_the_project(cursor, written) {
+            return Vec::new();
+        }
+        return paths(
+            cursor,
+            &WrittenPath {
+                text_start: start,
+                files: Files::All,
+            },
+        );
+    }
     let Some((class_text, member)) = written.split_once("::") else {
         return in_reach(cursor, Spelled::WithoutImport)
             .into_iter()
@@ -2751,6 +2780,59 @@ fn see_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
         }
     }
     offered
+}
+
+/// Whether the folder a `@see` file target's `written` text reaches is inside
+/// the project of the entry document (`nvs_hir::lenders::project_of`), so no
+/// entry outside it is offered. The checker refuses a target outside it, on
+/// the same terms.
+fn inside_the_project(cursor: &Cursor<'_>, written: &str) -> bool {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(base) = file.path().and_then(std::path::Path::parent) else {
+        return false;
+    };
+    let directory = written.rfind(['/', '\\']).map_or("", |at| &written[..=at]);
+    if std::path::Path::new(directory).has_root() || directory.contains(':') {
+        return false;
+    }
+    let project = nvs_hir::lenders::project_of(base);
+    let (Ok(project), Ok(reached)) = (project.canonicalize(), base.join(directory).canonicalize())
+    else {
+        return false;
+    };
+    reached.starts_with(project)
+}
+
+/// The heading slugs of the Markdown file a `@see` target's `path` names,
+/// each replacing the `anchor` text written after the `#`. Nothing for a file
+/// that is not Markdown, or that cannot be read.
+///
+/// The file is read when the list is asked for.
+fn see_headings(cursor: &Cursor<'_>, path: &str, anchor: &str) -> Vec<CompletionItem> {
+    if !nvs_syntax::doc_target::is_markdown(path) || !inside_the_project(cursor, path) {
+        return Vec::new();
+    }
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(base) = file.path().and_then(std::path::Path::parent) else {
+        return Vec::new();
+    };
+    let Ok(text) = std::fs::read_to_string(base.join(path)) else {
+        return Vec::new();
+    };
+    nvs_syntax::doc_target::heading_slugs(&text)
+        .into_iter()
+        .map(|(slug, line)| CompletionItem {
+            text_edit: Some(cursor.replacing(anchor.len(), slug.clone())),
+            filter_text: Some(slug.clone()),
+            detail: text
+                .lines()
+                .nth(line as usize)
+                .map(|line| line.trim().to_owned()),
+            label: slug,
+            kind: Some(CompletionItemKind::REFERENCE),
+            ..CompletionItem::default()
+        })
+        .collect()
 }
 
 /// Whether the name being written at `offset` follows a single `:` that itself

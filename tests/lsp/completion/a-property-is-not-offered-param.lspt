@@ -13,4 +13,4 @@ class Order
 completion
 --EXPECT--
 @example keyword   links to an example file under `examples/` or `tests/`
-@see    keyword   links to a class, method, property, constant or enum case
+@see    keyword   links to a class, method, property, constant, enum case or file
