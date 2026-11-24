@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "fixed",
+      "features": [
+        "Core\\Response::sendFile"
+      ],
+      "text": "A request that calls `Core\\Response::sendFile` more than once sends only the last file. The `max_output` limit under `[limits]` now counts only that file. Before, it counted the size of every file the request named."
+    },
+    {
       "kind": "new",
       "features": [
         "Core\\Str::afterPrefix",

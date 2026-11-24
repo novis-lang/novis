@@ -1,0 +1,26 @@
+--TEST--
+`Core\Response::sendFile` called twice in a request counts only the file it sends against `[limits] max_output` — `rule:errors/on-limit`
+--GET--
+page=about
+--FILE--
+<?nvs
+// covers: Core\Response::sendFile
+// The page is 37 bytes and the limit is 50. The second call replaces the
+// first, so the request sends one page and stays under the limit.
+// The request checks its limits in the loop after the calls.
+Core\Response::sendFile("page.html");
+Core\Response::sendFile("page.html");
+for (var $i = 0; $i < 10; $i++) {
+}
+--FILE page.html--
+<h1>About</h1>
+<p>tea &amp; cake</p>
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+
+[limits]
+max_output = "50"
+--EXPECT--
+<h1>About</h1>
+<p>tea &amp; cake</p>
