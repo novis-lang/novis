@@ -34,6 +34,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   hidden behind an earlier error. A script that compared the span's text with the old name fixed
   nothing, because the span is `$book`. Match `->old` right after the span's end instead. See
   `nvs check --json`'s `labels[].span` and `tools/nv/cmd/api-rename.ts`.
+- **`bun nv close` prints only the first lines of a red check's list, and a rename makes every
+  page's search questions stale.** `close` showed 17 stale questions, and `site --check questions`
+  alone showed 538: the renames moved the text hash of every card, `about.md` and example they
+  touched. Run the red part alone for the whole list. Then rewrite only the questions that name an
+  old member, and stamp the rest with `MSYS_NO_PATHCONV=1`, because Git Bash turns a `/reference/…`
+  URL into a Windows path. See `tools/nv/cmd/site.ts` `questionSources`.
 - **An example app's ignored files grow across local runs, and `site --check apps` once read them.**
   `apps/registry/registry.sqlite` reached 113 MB, so the backup tests' dump passed the memory
   ceiling and `close` went red where CI was green. `inApp` now moves every untracked file under the

@@ -37,7 +37,7 @@ stages:
     context: [website/src/data/changes.json]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: names-tool
@@ -679,46 +679,36 @@ changes entries.
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 8 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 8 touched.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 8 is done. `bun nv proofs --gate --goal clear-member-names --limit 0` names nothing (1229
-features), and `bun nv site --check stale review changes` is green.
-- The `tests` rows were paid with `// covers:` markers (`http-response-text-and-bytes-read-one-body-and-agree.nvst`,
-  `a-response-bytes-body-sends-octets-no-text-member-carries.nvst`). The `Router\Match` covers line
-  still said `params`/`param`, and so did `docs/rules/routing/matching-is-not-dispatching.md`'s
-  signature block (it also had two lines run together), two case comments and `registry.rs:7277`.
-  `api-rename --check` misses a `Class::member` id of an instance member (stage 3's note).
-- `IO/within` and `Session/clearLongLived` `about.md` were over 200 words, and one
-  `createTemporaryDirectory` example step was over two lines. They were trimmed, reviewed and stamped.
-- All 828 perf rows are recorded with the release binary, in nine runs, each committed. Five bench
-  fixes came first (commit `chore(perf): every feature the renames reached has a current figure`):
-  35 `Core\Ldap` benches now declare `calls 1`, following 66deda307b. `Response/sendFile` sends the
-  renamed bench files. `Spreadsheet-Sheet/addChart` adds rows before `column`. `Http-TlsInfo/isVerified`
-  runs 512 rounds like `cipher`.
-- Build and clippy are green. No test ran.
+Every stage is done. Build and clippy are green, `bun nv close --goal clear-member-names` is green,
+`bun nv names --check` and `bun nv api-rename --check --goal clear-member-names` are green, and the
+goal's two tool tests pass (`names.test.ts`, `api-rename.test.ts`, 21 tests).
+- `close` was red on the website's questions. The renames moved the text hash of 538 pages. Their
+  questions are search phrases, so only three named an old member (`Sheet->add`, `Chart->series`,
+  `Arr::diff`), and they were rewritten. The five renamed reference pages' entries moved to their new
+  URLs. All were stamped. `close` prints only the first lines of a long list, so `bun nv site --check
+  questions` alone gives the whole count.
+- `close` was red on the roadmap: `route-values`, `static-in-callables` and `enum-tables` had no theme.
+  Each has one now. The naming theme no longer says the compiler names the new name.
+- `api-rename --check` now finds an instance member's feature id written `Class::member`, and the
+  sweep rewrites it (backlog item closed). The tree has none left.
+- `rule:core-api/verb-lexicon` now holds the decisions only this file held: the judgement calls of
+  stages 1 and 7 and where a rename stops (stored columns, WIT fields, history files, file names, the
+  one breaking `changed` entry). The four parts, the check, the lists, the pre-alpha rules and the
+  Declined items were in their rules already.
 
 ### Next
 
-Stage 9, the goal's close (the pack names whether it is the chain's full gate).
-1. The newcomer review over the pages stage 8 touched: `site --check review` is already green, so
-   this is a check that it stays so.
-2. Close it with a build, clippy and `bun nv close --goal clear-member-names`. Fix every red it names
-   in one pass. A source or `about.md` edit makes its feature's perf figure stale again: rerecord only
-   those ids with `bun nv proofs --record-perf --nvs target/release/nvs.exe --only <ids>` after
-   `bun nv relink --build`.
-3. Before `DONE`: move each standing decision only this file holds into a rule or module doc
-   (`docs/rules/core-api/verb-lexicon.md` holds the four parts already), then delete the file.
-
-Expect red at stage 9 if anything was missed: `.lspt` completion cases, `nvs-test`'s
-`TOP_LEVEL_ONLY` cases, `crates/nvs-cli/tests/meta.rs`'s name lists and `ext_world.rs`'s
-`IMAGE_MEMBERS`, `path.rs`'s test helpers `file_name` and `parent`, any `.out` of a renamed
-conformance case, and any test that pins a help card's wording.
+Nothing in this goal. The driver runs the acceptance checks and retires the file. The `renames` block
+stays until then, because `no-old-names` reads it. No test is expected to go red. The live goal
+after this is `see-files`.
 
 ### Backlog
 
@@ -731,7 +721,5 @@ conformance case, and any test that pins a help card's wording.
   are still in the dense essay voice. This goal changed only their names. Readers also found
   "series", "label", "passkey", "challenge", "cron", "proxy" and "isolate" undefined on some cards and
   pages. These predate the goal, so a later prose pass takes them.
-- `bun nv api-rename --check` does not find an instance member's old id written as `Class::member`
-  (a `// covers:` line, a rule's signature block). It should check that form for every `->` row.
 - `extensions/*/nvs/*.nvs` doc comments fail `proofs --comments`' step bound (`Image.nvs:59` and
   others). The bound is for example programs, so the command should skip package sources.
