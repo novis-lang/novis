@@ -4790,7 +4790,7 @@ is a static member of the class it returns, so the class a reader looks up is th
 | `Core\Time\Instant` | `fromEpoch(int, {nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)` |
 | `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanoseconds?})`, `fromIso(text)` |
-| `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)`, `parse(text, pattern, Zone)` |
+| `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, ?Zone)`, `parse(text, pattern, Zone)` |
 
 `DateTime::at` takes its three parts in the order the readers `date()`, `timeOfDay()` and `zone()`
 return them, and resolves a skipped local time forward and a repeated one to the earlier instant.
@@ -4807,21 +4807,39 @@ part of a unit reads one less than a reader that truncates toward zero gives.
 
 `Date::at` names its parameters `year`, `month` and `day`, the names of its readers.
 
-**One text format per class, the ISO 8601 extended form, and nothing else.**
+**One text format per class, the ISO 8601 extended form, and nothing else.** Each class writes the
+text its `fromIso` reads: `Date::toIso`, `TimeOfDay::toIso`, `DateTime::toIso` and `Instant::toIso`,
+and `fromIso($v->toIso())` is `$v` at both ends of the range.
 
 - `Date::fromIso` reads `YYYY-MM-DD` over the year range `Date::at` takes. No week date, no ordinal
   date and no basic form such as `20240301`. Year zero is `0000`, and `-0000` throws.
 - `TimeOfDay::fromIso` reads `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f` with one to nine fraction digits. No
   `24:00` and no leap second `60`.
-- `DateTime::fromIso(text, Zone)` reads a date, or a date, a separator and a time. The separator is
-  `T` or one space, as RFC 3339 allows. A date alone is the first instant of that day, and a local
-  time resolves as `DateTime::at` resolves it. An offset or a `Z` in the text throws, and the message
-  names `Instant::fromIso(...)->in($zone)`: the zone is the argument, never the text.
+- `DateTime::fromIso(text, ?Zone)` reads a date, or a date, a separator and a time. The separator is
+  `T` or one space, as RFC 3339 allows. After the time the text may write an offset, `±HH:MM` or
+  `±HH:MM:SS`, and then one zone in brackets, as RFC 9557 writes a zoned time:
+  `2026-01-05T08:30:00+01:00[Europe/Vienna]`. A text with `[Zone]` needs no `$zone`; a text without
+  one is read in `$zone` and throws when it is `null`. A text with `[Zone]` and a `$zone` naming
+  another zone throws ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)). A date alone is the first instant of
+  that day, and a local time with no offset resolves as `DateTime::at` resolves it. An offset picks
+  one copy of a repeated hour, and an offset the zone does not have at that local time throws. An
+  offset with no zone after it, or a `Z`, throws and the message names
+  `Instant::fromIso(...)->in($zone)`. Only one bracket is read: a critical flag `[!...]` and a tag
+  such as `[u-ca=...]` throw. A zone name is looked up as `Zone::of` looks it up, and an offset in
+  the brackets is a fixed zone, `[+05:30]`.
+- `DateTime::toIso` writes that full form: the local time with seconds, a fraction only when it is
+  not zero, the offset as `±HH:MM` (`±HH:MM:SS` for a local mean time with seconds) and the zone's
+  id. UTC is `+00:00[UTC]`, never `Z`. **Why the offset and the zone are both in the text:** the
+  offset names one moment in a repeated hour, so the text is never ambiguous, and the zone lets the
+  text cross a query string or a JSON document with no second argument and come back in its own
+  zone. The text without a zone is `format(...)`'s.
 - `Instant::fromIso` reads a date, `T` or one space, a time as `TimeOfDay::fromIso` reads it, and
   `Z` or a `±HH:MM` offset. A leap second `60`, a lower-case `t` or `z`, a comma before the fraction
   and a basic offset such as `+0100` throw.
 - A year is four digits, with a `-` before a year before year 1. The expanded `±YYYYYY` form throws,
   so there is one text per year.
+- `Date::toIso` writes `YYYY-MM-DD`, and `TimeOfDay::toIso` writes `HH:MM:SS`, with a fraction only
+  when it is not zero.
 - `Instant::toIso` writes RFC 3339 in UTC with the year in that same form, so the first instant is
   `-9999-01-02T01:59:59Z` and `fromIso($i->toIso())` is `$i` at both ends of the range. JSON writes
   and reads an `Instant` as that text.
@@ -4829,9 +4847,17 @@ part of a unit reads one less than a reader that truncates toward zero gives.
 
 **A literal text is checked while compiling.** A string literal at the text argument of every `fromIso`
 is a [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments) intrinsic, one `Grammar::Iso` row per class, so
-`Date::fromIso('2024-02-30')` is a compile error at the literal. The run-time path runs the same parser
+`Date::fromIso('2024-02-30')` is a compile error at the literal. A `DateTime` literal's zone name
+and its offset are checked too, and a literal with no `[Zone]` in a call that writes no `$zone` does
+not compile. The run-time path runs the same parser
 ([`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour)). `DateTime::parse` keeps its prepared CLDR
 pattern row under its new owner.
+
+**A written pattern with `Y` and no `w` warns.** `Y` is the year of the ISO week, which differs from
+the calendar year `y` on a few days around New Year: on 2024-12-30, `YYYY` writes `2025`. So a literal
+pattern at `DateTime::format` or `DateTime::parse` with a `Y` and no `w` is warning `W1038`, whose
+help names `y`. A warning and not an error, because `YYYY` beside `ww` is correct and a program may
+mean `Y` alone. A pattern built at run time is not judged.
 
 **A zone fixed in the source is written as text.** A string literal at a parameter typed
 `Core\Time\Zone` is that zone: `DateTime::fromIso('2024-03-01 09:30', 'Europe/Berlin')`,
