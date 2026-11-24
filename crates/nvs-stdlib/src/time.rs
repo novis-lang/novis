@@ -1949,6 +1949,16 @@ pub const DATETIME: CoreClass = CoreClass {
             doc: Some(&DATETIME_COMPARE_TO_DOC),
         },
         CoreMethod {
+            name: "toIso",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_time_datetime_to_iso",
+            doc: Some(&DATETIME_TO_ISO_DOC),
+        },
+        CoreMethod {
             name: "date",
             names: &[],
             params: &[],
@@ -2331,6 +2341,17 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::toInstant`'s reference card — `rule:core-api/reference-card`.
 /// `Core\Time\DateTime::compareTo`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\DateTime::toIso`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_TO_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Returns the date-time as ISO text with its offset and its zone, such as \
+            `2026-01-05T08:30:00+01:00[Europe/Vienna]`. `DateTime::fromIso` reads this text back.",
+    params: &[],
+    ret: "A `string` with the local date and time, the offset from UTC and the zone name in \
+          brackets. It always has seconds. It has a fraction of a second only when the fraction \
+          is not zero.",
+    errors: &[],
+};
+
 const DATETIME_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Checks which of two date-times is earlier, as `Comparable` requires. It compares             the moment, to the nanosecond. The zone does not count, so 10:00 in             `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The             operators `<`, `>`, `<=`, `>=` and `<=>` use this method too.",
     params: &[ParamDoc {
@@ -2598,6 +2619,7 @@ fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_datetime_to_instant" => {
             (nvs_core_time_datetime_to_instant as *const ()).cast()
         }
+        "nvs_core_time_datetime_to_iso" => (nvs_core_time_datetime_to_iso as *const ()).cast(),
         "nvs_core_time_datetime_compare_to" => {
             (nvs_core_time_datetime_compare_to as *const ()).cast()
         }
@@ -2857,6 +2879,16 @@ pub const DATE: CoreClass = CoreClass {
             doc: Some(&DATE_COMPARE_TO_DOC),
         },
         CoreMethod {
+            name: "toIso",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_time_date_to_iso",
+            doc: Some(&DATE_TO_ISO_DOC),
+        },
+        CoreMethod {
             name: "weekday",
             names: &[],
             params: &[],
@@ -3086,6 +3118,16 @@ const DATE_WITH_DOC: MethodDoc = MethodDoc {
 };
 
 /// `Core\Time\Date::compareTo`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\Date::toIso`'s reference card — `rule:core-api/reference-card`.
+const DATE_TO_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text \
+            back.",
+    params: &[],
+    ret: "A `string` with the year, the month and the day. The year has four digits, and a year \
+          before year 1 starts with `-`.",
+    errors: &[],
+};
+
 const DATE_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two dates on the calendar, as `Comparable` requires.",
     params: &[ParamDoc {
@@ -3162,6 +3204,7 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_date_plus" => (nvs_core_time_date_plus as *const ()).cast(),
         "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
         "nvs_core_time_date_with" => (nvs_core_time_date_with as *const ()).cast(),
+        "nvs_core_time_date_to_iso" => (nvs_core_time_date_to_iso as *const ()).cast(),
         "nvs_core_time_date_compare_to" => (nvs_core_time_date_compare_to as *const ()).cast(),
         "nvs_core_time_date_weekday" => (nvs_core_time_date_weekday as *const ()).cast(),
         "nvs_core_time_date_day_of_year" => (nvs_core_time_date_day_of_year as *const ()).cast(),
@@ -3312,6 +3355,16 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             text: TextOrigin::Unmarked,
             symbol: "nvs_core_time_of_day_compare_to",
             doc: Some(&TIME_OF_DAY_COMPARE_TO_DOC),
+        },
+        CoreMethod {
+            name: "toIso",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_time_of_day_to_iso",
+            doc: Some(&TIME_OF_DAY_TO_ISO_DOC),
         },
         CoreMethod {
             name: "hour",
@@ -3532,6 +3585,16 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
 };
 
 /// `Core\Time\TimeOfDay::compareTo`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\TimeOfDay::toIso`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_TO_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Returns the time as ISO text, such as `08:30:00`. `TimeOfDay::fromIso` reads this text \
+            back.",
+    params: &[],
+    ret: "A `string` with the hour, the minute and the second. It has a fraction of a second only \
+          when the fraction is not zero.",
+    errors: &[],
+};
+
 const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Checks which of two times comes first in the day, as `Comparable` requires. \
             The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` is \
@@ -3618,6 +3681,7 @@ fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_of_day_plus" => (nvs_core_time_of_day_plus as *const ()).cast(),
         "nvs_core_time_of_day_minus" => (nvs_core_time_of_day_minus as *const ()).cast(),
         "nvs_core_time_of_day_with" => (nvs_core_time_of_day_with as *const ()).cast(),
+        "nvs_core_time_of_day_to_iso" => (nvs_core_time_of_day_to_iso as *const ()).cast(),
         "nvs_core_time_of_day_compare_to" => (nvs_core_time_of_day_compare_to as *const ()).cast(),
         "nvs_core_time_of_day_hour" => (nvs_core_time_of_day_hour as *const ()).cast(),
         "nvs_core_time_of_day_minute" => (nvs_core_time_of_day_minute as *const ()).cast(),
@@ -4902,6 +4966,87 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_instant_to_iso(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toIso")?;
         Ok(Value::text(&iso_text(at)))
+    }
+}
+
+// ============================================================================
+// `toIso` of `Date`, `TimeOfDay` and `DateTime`: the text each `fromIso` reads
+// ============================================================================
+
+/// `date` as `YYYY-MM-DD`, with the year in `fromIso`'s one form: four digits,
+/// and a `-` before them for a year before year 1.
+fn date_iso_text(date: civil::Date) -> String {
+    let year = i32::from(date.year());
+    let sign = if year < 0 { "-" } else { "" };
+    format!(
+        "{sign}{:04}-{:02}-{:02}",
+        year.unsigned_abs(),
+        date.month(),
+        date.day()
+    )
+}
+
+/// `time` as `HH:MM:SS`, always with seconds, and a fraction with as few digits
+/// as keep it exact when it is not zero.
+fn clock_iso_text(time: civil::Time) -> String {
+    let mut text = format!(
+        "{:02}:{:02}:{:02}",
+        time.hour(),
+        time.minute(),
+        time.second()
+    );
+    let nanos = time.subsec_nanosecond();
+    if nanos != 0 {
+        let fraction = format!("{nanos:09}");
+        text.push('.');
+        text.push_str(fraction.trim_end_matches('0'));
+    }
+    text
+}
+
+/// `at` as RFC 9557 text: the local date and time, the offset and the zone,
+/// `2026-01-05T08:30:00+01:00[Europe/Vienna]`. The offset names one moment in a
+/// repeated hour, and the zone is the one [`nvs_core_time_datetime_zone`]
+/// returns. An offset with seconds, which only a zone's local mean time before
+/// about 1900 has, is written `+HH:MM:SS` by [`render_offset`], so the text
+/// names the moment exactly.
+fn zoned_iso_text(at: &Zoned) -> String {
+    let local = at.datetime();
+    let offset = render_offset(at.offset().seconds());
+    let zone = match at.time_zone().iana_name() {
+        Some(name) => name.to_owned(),
+        None => offset.clone(),
+    };
+    format!(
+        "{}T{}{offset}[{zone}]",
+        date_iso_text(local.date()),
+        clock_iso_text(local.time())
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->toIso(): string` — [`date_iso_text`], the text `Date::fromIso` reads.
+    fn nvs_core_time_date_to_iso(_ctx, args: [1]) {
+        let date = date_of(args, 0, "toIso")?;
+        Ok(Value::text(&date_iso_text(date)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$t->toIso(): string` — [`clock_iso_text`], the text `TimeOfDay::fromIso`
+    /// reads.
+    fn nvs_core_time_of_day_to_iso(_ctx, args: [1]) {
+        let time = clock_of(args, 0, "toIso")?;
+        Ok(Value::text(&clock_iso_text(time)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->toIso(): string` — [`zoned_iso_text`], the local time with its
+    /// offset and its zone.
+    fn nvs_core_time_datetime_to_iso(_ctx, args: [1]) {
+        let at = zoned_of(args, 0, "toIso")?;
+        Ok(Value::text(&zoned_iso_text(&at)))
     }
 }
 
@@ -6282,6 +6427,108 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Calls a `toIso` member on `value`, which this frame built, and returns
+    /// the text. It releases both.
+    fn to_iso_called(member: nvs_runtime::HelperFn, value: Value) -> String {
+        let mut ctx = Ctx::buffered();
+        let args = [value];
+        let result = nvs_runtime::call(member, &mut ctx, &args).expect("every value renders");
+        let text = result.as_text().expect("a `string`").to_owned();
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the value, and the member returned a fresh string"
+        )]
+        unsafe {
+            result.release();
+            args[0].release();
+        }
+        text
+    }
+
+    /// `Date::toIso` writes `YYYY-MM-DD`, and `fromIso` reads it back to the
+    /// same date: the first and the last date, year zero, a year before year 1
+    /// and a leap day.
+    // covers: Core\Time\Date::toIso, Core\Time\Date::fromIso
+    #[test]
+    fn to_iso_date_round_trips_through_from_iso() {
+        let cases = [
+            (civil::Date::MIN, "-9999-01-01"),
+            (civil::date(-1, 12, 31), "-0001-12-31"),
+            (civil::date(0, 1, 1), "0000-01-01"),
+            (civil::date(2024, 2, 29), "2024-02-29"),
+            (civil::Date::MAX, "9999-12-31"),
+        ];
+        for (date, written) in cases {
+            assert_eq!(to_iso_called(nvs_core_time_date_to_iso, date_built(date)), written);
+            assert_eq!(iso_date(written), Ok(date), "{written}");
+        }
+    }
+
+    /// `TimeOfDay::toIso` always writes seconds, and a fraction only when it is
+    /// not zero, with as few digits as keep it exact. `fromIso` reads each text
+    /// back to the same time.
+    // covers: Core\Time\TimeOfDay::toIso, Core\Time\TimeOfDay::fromIso
+    #[test]
+    fn to_iso_time_of_day_round_trips_through_from_iso() {
+        let cases = [
+            (civil::time(0, 0, 0, 0), "00:00:00"),
+            (civil::time(8, 30, 0, 0), "08:30:00"),
+            (civil::time(8, 30, 0, 500_000_000), "08:30:00.5"),
+            (civil::time(23, 59, 59, 1), "23:59:59.000000001"),
+            (civil::time(23, 59, 59, 999_999_999), "23:59:59.999999999"),
+        ];
+        for (time, written) in cases {
+            assert_eq!(to_iso_called(nvs_core_time_of_day_to_iso, clock_built(time)), written);
+            assert_eq!(iso_time(written), Ok(time), "{written}");
+        }
+    }
+
+    /// `DateTime::toIso` writes the local time, the offset as `+HH:MM` and the
+    /// zone in brackets. UTC is `+00:00[UTC]` and never `Z`, and the two
+    /// copies of a repeated hour differ by their offset.
+    // covers: Core\Time\DateTime::toIso
+    #[test]
+    fn to_iso_datetime_writes_its_offset_and_zone() {
+        let zoned = |text: &str, zone: &str| {
+            let at: Timestamp = text.parse().expect("an instant");
+            Zoned::new(at, TimeZone::get(zone).expect("a zone in the database"))
+        };
+        let cases = [
+            (
+                zoned("2026-01-05T07:30:00Z", "Europe/Vienna"),
+                "2026-01-05T08:30:00+01:00[Europe/Vienna]",
+            ),
+            (
+                zoned("2026-07-05T06:30:00.25Z", "Europe/Vienna"),
+                "2026-07-05T08:30:00.25+02:00[Europe/Vienna]",
+            ),
+            (zoned("2026-01-05T08:30:00Z", "UTC"), "2026-01-05T08:30:00+00:00[UTC]"),
+            (
+                zoned("2026-01-05T08:30:00Z", "America/New_York"),
+                "2026-01-05T03:30:00-05:00[America/New_York]",
+            ),
+            // The hour from 02:00 to 03:00 on 2026-10-25 happens twice in Vienna.
+            (
+                zoned("2026-10-25T00:30:00Z", "Europe/Vienna"),
+                "2026-10-25T02:30:00+02:00[Europe/Vienna]",
+            ),
+            (
+                zoned("2026-10-25T01:30:00Z", "Europe/Vienna"),
+                "2026-10-25T02:30:00+01:00[Europe/Vienna]",
+            ),
+            (
+                Zoned::new(
+                    "2026-01-05T08:30:00Z".parse().expect("an instant"),
+                    TimeZone::fixed(Offset::from_seconds(5 * 3_600 + 30 * 60).expect("an offset")),
+                ),
+                "2026-01-05T14:00:00+05:30[+05:30]",
+            ),
+        ];
+        for (at, written) in cases {
+            assert_eq!(to_iso_called(nvs_core_time_datetime_to_iso, datetime_built(&at)), written);
+        }
+    }
 
     /// Every slot constant and the registered layout agree — the one thing a
     /// paste error here would turn into a silent wrong read.
