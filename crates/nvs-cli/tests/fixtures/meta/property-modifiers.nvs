@@ -1,0 +1,16 @@
+<?nvs
+// A class with one property for each modifier a signature shows.
+
+class Customer {
+    public string $name = "Ada";
+}
+
+class Order {
+    public int $total = 0;
+    public lateinit ?Customer $buyer;
+    public readonly int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}

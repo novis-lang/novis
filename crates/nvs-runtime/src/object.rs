@@ -570,6 +570,18 @@ pub struct ClassDesc {
     /// carries it and [`ClassTable::set_readonly_fields`] fills it. **Cost:**
     /// one `bool` per field per class, once per process, not per instance.
     readonly_fields: Vec<bool>,
+    /// Whether each field slot is declared `lateinit` (`rule:classes/lateinit`),
+    /// in [`Self::fields`]' order, and an empty list reads as "no slot is
+    /// `lateinit`". `Core\Reflect\PropertyInfo::isLateInit` is the reader.
+    ///
+    /// A list of its own rather than the [`FieldDefault::Unset`] entries in
+    /// [`Self::defaults`], because those also arm a slot a constructor may leave
+    /// unset while an observer runs, and that slot is not `lateinit`.
+    /// `nvs_ir::ir::Class::lateinit_fields` carries it and
+    /// [`ClassTable::set_lateinit_fields`] fills it. **Cost:** one `bool` per
+    /// field per class that declares or inherits a `lateinit` property, once
+    /// per process, not per instance.
+    lateinit_fields: Vec<bool>,
     /// Each field slot's declared type, spelled as the declaration spells it —
     /// empty for a class no declaration laid out, on [`Self::public_fields`]'
     /// terms exactly.
@@ -2101,6 +2113,14 @@ impl ClassDesc {
         self.readonly_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether slot `index` is declared `lateinit`, by this class or by the
+    /// ancestor that declares it — see [`Self::lateinit_fields`]. `false` for
+    /// a slot nothing told this class.
+    #[must_use]
+    pub fn field_is_lateinit(&self, index: usize) -> bool {
+        self.lateinit_fields.get(index).copied().unwrap_or(false)
+    }
+
     /// Every class constant this class answers, in declaration order with each
     /// ancestor's after its own — see [`Self::constants`].
     #[must_use]
@@ -2763,6 +2783,7 @@ impl ClassTable {
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
             readonly_fields: Vec::new(),
+            lateinit_fields: Vec::new(),
             field_types: Vec::new(),
             field_classes: Vec::new(),
             field_checks: Vec::new(),
@@ -3148,6 +3169,28 @@ impl ClassTable {
             readonly.len()
         );
         desc.readonly_fields = readonly;
+    }
+
+    /// Fills in `id`'s per-slot `lateinit` bits — see
+    /// [`ClassDesc::lateinit_fields`].
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `lateinit` is not one
+    /// entry per slot, which would describe another class's slots.
+    pub fn set_lateinit_fields(&mut self, id: ClassId, lateinit: Vec<bool>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            lateinit.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared `lateinit` bits",
+            desc.name,
+            desc.fields.len(),
+            lateinit.len()
+        );
+        desc.lateinit_fields = lateinit;
     }
 
     /// Fills in `id`'s class constants — see [`ClassDesc::constants`].

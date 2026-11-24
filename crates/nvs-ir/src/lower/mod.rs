@@ -364,6 +364,34 @@ fn property_defaults(
         .collect()
 }
 
+/// Whether each of the class labelled `label`'s flattened slots is declared
+/// `lateinit` by the class or by an ancestor, aligned to `layout.fields`.
+///
+/// Read off the checker's own-only lists over the same chain
+/// [`property_defaults`] walks, and kept apart from its `Unset` entries,
+/// because those also arm a slot that is not `lateinit`
+/// ([`ExprTypeTable::pipeline_armed`]). Empty when no slot is `lateinit`.
+fn lateinit_fields(
+    label: &str,
+    layout: &nvs_types::ClassLayout,
+    exprs: &ExprTypeTable,
+) -> Vec<bool> {
+    let mut bits = vec![false; layout.fields.len()];
+    let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
+    for owner in chain {
+        for property in exprs.lateinit_properties(owner) {
+            if let Some(slot) = layout.slot_of(property) {
+                bits[slot] = true;
+            }
+        }
+    }
+    if bits.contains(&true) {
+        bits
+    } else {
+        Vec::new()
+    }
+}
+
 /// One evaluated constant, as the runtime's own smaller vocabulary spells it,
 /// or `None` where that vocabulary has no member for it.
 ///
@@ -1328,6 +1356,9 @@ fn lower_program_as(
                 // The `readonly` bit, copied for the same reason and aligned
                 // to the same order.
                 readonly_fields: layout.readonly_fields.clone(),
+                // The `lateinit` bit, aligned to the same order — see
+                // `lateinit_fields`.
+                lateinit_fields: lateinit_fields(label, layout, exprs),
                 // The declared type beside it, aligned to the same slot order
                 // and copied for the same reason: the spelling lives where the
                 // declaration does.
@@ -1422,6 +1453,7 @@ fn lower_program_as(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
+        lateinit_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
@@ -1458,6 +1490,7 @@ fn lower_program_as(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
+        lateinit_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
@@ -3019,6 +3052,7 @@ impl<'a> Lowering<'a> {
             public_fields: vec![true; field_count],
             protected_fields: vec![false; field_count],
             readonly_fields: Vec::new(),
+            lateinit_fields: Vec::new(),
             // Empty rather than one entry per slot, which is `ir::Class`'s
             // "nothing told this class": an anonymous object declares no type to
             // spell, its slots being typed by what was written into them.
@@ -5329,6 +5363,7 @@ fn tagged_shape_class(sorted_names: Vec<String>) -> crate::ir::Class {
         public_fields: vec![true; field_count],
         protected_fields: vec![false; field_count],
         readonly_fields: Vec::new(),
+        lateinit_fields: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
         field_checks: Vec::new(),

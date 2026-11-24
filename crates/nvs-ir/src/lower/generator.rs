@@ -550,6 +550,7 @@ pub(crate) fn lower_generator(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
+        lateinit_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),

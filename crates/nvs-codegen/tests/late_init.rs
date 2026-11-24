@@ -185,6 +185,39 @@ echo Core\\Json::encode($p->tags), Core\\Json::encode($p->counts);
     );
 }
 
+/// `Core\Reflect\PropertyInfo::isLateInit` and `isReadonly` read what each
+/// declaration wrote, through the whole pipeline: a subclass reports the
+/// parent's `lateinit` and `readonly` properties, and an observed class's
+/// ordinary property, which its constructor may leave unset while the observer
+/// runs, is not `lateinit`.
+// covers: Core\Reflect\PropertyInfo::isLateInit
+// covers: Core\Reflect\PropertyInfo::isReadonly
+#[test]
+fn a_reflected_property_tells_lateinit_and_readonly_through_the_pipeline() {
+    let source = "<?nvs
+class Post {
+    public lateinit string $title;
+    public readonly int $id;
+    public function constructor(int $id) { $this->id = $id; }
+}
+class Article extends Post {
+    public int $words = 0;
+}
+final class Watched implements PropertyObserver {
+    public string $name;
+    public function constructor() { $this->name = \"a\"; }
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void {}
+}
+foreach ([Core\\Reflect::forObject(new Article(1)), Core\\Reflect::forObject(new Watched())] as var $info) {
+    foreach ($info->properties() as var $p) {
+        echo $p->name(), \":\", $p->isLateInit() ? \"L\" : \"-\", $p->isReadonly() ? \"R\" : \"-\", \"/\";
+    }
+}
+";
+    assert_eq!(output_of(source), "title:L-/id:-R/words:--/name:--/");
+}
+
 /// Inside `initProperty`, only a write that initializes an uninitialized
 /// `lateinit` property is plain. A second write to the same property, and a
 /// write to an ordinary property, still reach `beforePropertySet` and then

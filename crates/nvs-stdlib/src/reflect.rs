@@ -33,7 +33,7 @@
 //! `rule:core-classes/reflect` says it is: nothing it carries can be dereferenced back into the program.
 //!
 //! **What it spends:** per `forClass` or `forObject` call, one array and one
-//! [`PROPERTY_INFO`] of three slots per declared property, one array and one
+//! [`PROPERTY_INFO`] of five slots per declared property, one array and one
 //! [`METHOD_INFO`] of three slots per declared method, one array and one
 //! [`CONSTANT_INFO`] of three slots per class constant, and the attach-site
 //! roster the attribute decision below prices, charged to the
@@ -278,6 +278,14 @@ const PROPERTY_PUBLIC_SLOT: usize = 1;
 /// [`PROPERTY_INFO`]'s slot holding the type the declaration spells, or `null`
 /// where it named none.
 const PROPERTY_TYPE_SLOT: usize = 2;
+
+/// [`PROPERTY_INFO`]'s slot holding whether the property is declared
+/// `lateinit` — [`nvs_runtime::ClassDesc::field_is_lateinit`].
+const PROPERTY_LATEINIT_SLOT: usize = 3;
+
+/// [`PROPERTY_INFO`]'s slot holding whether the property is declared
+/// `readonly` — [`nvs_runtime::ClassDesc::field_is_readonly`].
+const PROPERTY_READONLY_SLOT: usize = 4;
 
 /// [`CONSTANT_INFO`]'s slot holding the constant's name.
 const CONSTANT_NAME_SLOT: usize = 0;
@@ -1543,16 +1551,56 @@ pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
             symbol: "nvs_core_reflect_property_info_type",
             doc: Some(&PROPERTY_TYPE_DOC),
         },
+        CoreMethod {
+            name: "isLateInit",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_reflect_property_info_is_late_init",
+            doc: Some(&PROPERTY_IS_LATE_INIT_DOC),
+        },
+        CoreMethod {
+            name: "isReadonly",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_reflect_property_info_is_readonly",
+            doc: Some(&PROPERTY_IS_READONLY_DOC),
+        },
     ],
-    slots: &["name", "public", "type"],
+    slots: &["name", "public", "type", "lateinit", "readonly"],
     constants: &[],
 };
 
 /// `Core\Reflect\PropertyInfo`'s class card — `rule:core-api/reference-card`.
 const PROPERTY_INFO_CARD: ClassDoc = ClassDoc {
-    short: "One property of a class, as `Core\\Reflect\\ClassInfo::properties` returns it. `name` \
-            and `isPublic` describe the declaration. `type` returns the type the property is \
-            declared with.",
+    short: "One property of a class, as `Core\\Reflect\\ClassInfo::properties` returns it. `name`, \
+            `isPublic`, `isLateInit` and `isReadonly` describe the declaration. `type` returns the \
+            type the property is declared with.",
+};
+
+/// `Core\Reflect\PropertyInfo::isLateInit`'s reference card — `rule:core-api/reference-card`.
+const PROPERTY_IS_LATE_INIT_DOC: MethodDoc = MethodDoc {
+    short: "Tells you whether the property is declared `lateinit`.",
+    params: &[],
+    ret: "`true` for a property declared `lateinit`, also when a parent class declares it. A \
+          `lateinit` property may stay unset after the constructor. Use `isinit` to check if it \
+          has a value.",
+    errors: &[],
+};
+
+/// `Core\Reflect\PropertyInfo::isReadonly`'s reference card — `rule:core-api/reference-card`.
+const PROPERTY_IS_READONLY_DOC: MethodDoc = MethodDoc {
+    short: "Tells you whether the property is declared `readonly`.",
+    params: &[],
+    ret: "`true` for a property declared `readonly`, also when a parent class declares it. After \
+          the constructor sets a `readonly` property, `Core\\Reflect\\ClassInfo::set` on it throws \
+          a `RuntimeError`.",
+    errors: &[],
 };
 
 /// `Core\Reflect\PropertyInfo::name`'s reference card — `rule:core-api/reference-card`.
@@ -1953,6 +2001,8 @@ fn describe(desc: &ClassDesc) -> Value {
                 Value::text(name),
                 Value::bool(desc.field_is_public(slot)),
                 ty,
+                Value::bool(desc.field_is_lateinit(slot)),
+                Value::bool(desc.field_is_readonly(slot)),
             ],
         ));
     }
@@ -2185,6 +2235,12 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_reflect_property_info_type" => {
             (nvs_core_reflect_property_info_type as *const ()).cast()
         }
+        "nvs_core_reflect_property_info_is_late_init" => {
+            (nvs_core_reflect_property_info_is_late_init as *const ()).cast()
+        }
+        "nvs_core_reflect_property_info_is_readonly" => {
+            (nvs_core_reflect_property_info_is_readonly as *const ()).cast()
+        }
         "nvs_core_reflect_method_info_name" => {
             (nvs_core_reflect_method_info_name as *const ()).cast()
         }
@@ -2343,7 +2399,7 @@ nvs_runtime::nvs_helper! {
     /// does not carry, is a contained `FATAL`: the checker and `as
     /// propertyPath<T>` checked the path before it could reach here.
     ///
-    /// **What it spends:** one array and one [`PROPERTY_INFO`] of three slots
+    /// **What it spends:** one array and one [`PROPERTY_INFO`] of five slots
     /// per segment, per call, charged to the request. One roster is read per
     /// segment.
     fn nvs_core_reflect_steps(ctx, args: [2]) {
@@ -2373,6 +2429,8 @@ nvs_runtime::nvs_helper! {
                         Value::text(&String::from_utf8_lossy(segment)),
                         Value::bool(true),
                         Value::text(ty),
+                        Value::bool(false),
+                        Value::bool(false),
                     ],
                 ));
                 continue;
@@ -2407,6 +2465,8 @@ nvs_runtime::nvs_helper! {
                     Value::text(name),
                     Value::bool(desc.field_is_public(slot)),
                     ty,
+                    Value::bool(desc.field_is_lateinit(slot)),
+                    Value::bool(desc.field_is_readonly(slot)),
                 ],
             ));
         }
@@ -3073,6 +3133,24 @@ nvs_runtime::nvs_helper! {
     /// than a guess at what the compiler laid the slot out as.
     fn nvs_core_reflect_property_info_type(_ctx, args: [1]) {
         slot_of(args, &PROPERTY_INFO, PROPERTY_TYPE_SLOT, "type")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\PropertyInfo::isLateInit(): bool` — whether the property
+    /// is declared `lateinit`, from
+    /// [`nvs_runtime::ClassDesc::field_is_lateinit`].
+    fn nvs_core_reflect_property_info_is_late_init(_ctx, args: [1]) {
+        slot_of(args, &PROPERTY_INFO, PROPERTY_LATEINIT_SLOT, "isLateInit")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\PropertyInfo::isReadonly(): bool` — whether the property
+    /// is declared `readonly`, from
+    /// [`nvs_runtime::ClassDesc::field_is_readonly`].
+    fn nvs_core_reflect_property_info_is_readonly(_ctx, args: [1]) {
+        slot_of(args, &PROPERTY_INFO, PROPERTY_READONLY_SLOT, "isReadonly")
     }
 }
 
@@ -7034,6 +7112,152 @@ mod tests {
             rows_of("authors.name"),
             ["authors: array<Author>", "name: string"],
             "the shorthand's segment is read on the element class"
+        );
+    }
+
+    /// A `Post` with three properties, one per modifier: `title` is ordinary,
+    /// `author` is `lateinit` and `id` is `readonly`. `title` is also armed
+    /// with the never-written marker, as a constructor that runs an observer
+    /// arms a slot, so a `lateinit` answer read off the marker would be wrong
+    /// for it. `Article` extends `Post` and adds `summary`; its bits are what
+    /// the lowering writes for an inherited slot. Both are described.
+    fn modifier_family() -> (Ctx, [Value; 2]) {
+        let mut classes = ClassTable::new();
+        let post = classes.define("Post", &["title", "author", "id"], &[]);
+        classes.set_public_fields(post, vec![true, true, true]);
+        classes.set_lateinit_fields(post, vec![false, true, false]);
+        classes.set_readonly_fields(post, vec![false, false, true]);
+        classes.set_defaults(
+            post,
+            vec![
+                (0, nvs_runtime::FieldDefault::Unset),
+                (1, nvs_runtime::FieldDefault::Unset),
+            ],
+        );
+        let article = classes.define("Article", &["title", "author", "id", "summary"], &[post]);
+        classes.set_public_fields(article, vec![true, true, true, true]);
+        classes.set_lateinit_fields(article, vec![false, true, false, false]);
+        classes.set_readonly_fields(article, vec![false, false, true, false]);
+        let classes = std::sync::Arc::new(classes);
+        #[expect(
+            unsafe_code,
+            reason = "each descriptor belongs to `classes`, which is alive for the whole call, \
+                      and `describe` copies what it reads rather than keeping the descriptor"
+        )]
+        let described = [post, article].map(|id| super::describe(unsafe { &*classes.desc(id) }));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, post));
+        (ctx, described)
+    }
+
+    /// Every row of a description's property roster, as its name and the bit
+    /// `member` reads.
+    fn modifier_rows(ctx: &mut Ctx, info: Value, member: NvsFn) -> Vec<(String, bool)> {
+        let listed = call(super::nvs_core_reflect_class_info_properties, ctx, &[info])
+            .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`properties` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`properties` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..roster.count() {
+            let row = roster.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(ctx, super::nvs_core_reflect_property_info_name, row),
+                call(member, ctx, &[row])
+                    .expect("a bit slot always answers")
+                    .as_bool()
+                    .expect("the slot holds a bool"),
+            ));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference `properties` handed back"
+        )]
+        unsafe {
+            listed.release();
+        }
+        read
+    }
+
+    /// `isLateInit` is true for the `lateinit` property alone. `title` is
+    /// armed with the never-written marker too, and it is not `lateinit`.
+    // covers: Core\Reflect\PropertyInfo::isLateInit
+    #[test]
+    fn a_property_info_tells_lateinit() {
+        let (mut ctx, [post, _]) = modifier_family();
+        let owned = |name: &str, bit: bool| (name.to_owned(), bit);
+        assert_eq!(
+            modifier_rows(
+                &mut ctx,
+                post,
+                super::nvs_core_reflect_property_info_is_late_init
+            ),
+            vec![
+                owned("title", false),
+                owned("author", true),
+                owned("id", false)
+            ],
+        );
+    }
+
+    /// `isReadonly` is true for the `readonly` property alone.
+    // covers: Core\Reflect\PropertyInfo::isReadonly
+    #[test]
+    fn a_property_info_tells_readonly() {
+        let (mut ctx, [post, _]) = modifier_family();
+        let owned = |name: &str, bit: bool| (name.to_owned(), bit);
+        assert_eq!(
+            modifier_rows(
+                &mut ctx,
+                post,
+                super::nvs_core_reflect_property_info_is_readonly
+            ),
+            vec![
+                owned("title", false),
+                owned("author", false),
+                owned("id", true)
+            ],
+        );
+    }
+
+    /// A subclass's description says the same of the properties it inherits,
+    /// and its own ordinary property is neither.
+    // covers: Core\Reflect\PropertyInfo::isLateInit
+    // covers: Core\Reflect\PropertyInfo::isReadonly
+    #[test]
+    fn a_property_info_tells_an_inherited_lateinit_property() {
+        let (mut ctx, [_, article]) = modifier_family();
+        let owned = |name: &str, bit: bool| (name.to_owned(), bit);
+        assert_eq!(
+            modifier_rows(
+                &mut ctx,
+                article,
+                super::nvs_core_reflect_property_info_is_late_init
+            ),
+            vec![
+                owned("title", false),
+                owned("author", true),
+                owned("id", false),
+                owned("summary", false)
+            ],
+        );
+        assert_eq!(
+            modifier_rows(
+                &mut ctx,
+                article,
+                super::nvs_core_reflect_property_info_is_readonly
+            ),
+            vec![
+                owned("title", false),
+                owned("author", false),
+                owned("id", true),
+                owned("summary", false)
+            ],
         );
     }
 }

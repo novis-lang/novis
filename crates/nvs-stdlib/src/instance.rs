@@ -594,7 +594,13 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
     ),
     (
         &crate::reflect::PROPERTY_INFO,
-        Slots::Typed(&[CoreTy::Str, CoreTy::Bool, CoreTy::Nullable(&CoreTy::Str)]),
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Bool,
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Bool,
+            CoreTy::Bool,
+        ]),
     ),
     (
         &crate::reflect::PARAMETER_INFO,

@@ -1407,14 +1407,23 @@ pub(crate) fn method_signature(method: &MethodMember, src: &SourceFile) -> Strin
     signature
 }
 
-/// A program property's signature: its declared type and its `$name`, as
-/// `int $total`. [`method_signature`]'s two callers print it too.
+/// A program property's signature: its `readonly` and `lateinit` modifiers in
+/// source order, its declared type and its `$name`, as `int $total` or
+/// `lateinit ?Customer $buyer`. Visibility is the member's `visibility` key,
+/// so it is not repeated here. [`method_signature`]'s two callers print it too.
 pub(crate) fn property_signature(property: &PropertyMember, src: &SourceFile) -> String {
-    format!(
-        "{} {}",
-        text(src, property.ty.span),
-        text(src, property.name)
-    )
+    let mut out = String::new();
+    for modifier in &property.modifiers {
+        match modifier {
+            Modifier::Readonly => out.push_str("readonly "),
+            Modifier::Lateinit => out.push_str("lateinit "),
+            _ => {}
+        }
+    }
+    out.push_str(text(src, property.ty.span));
+    out.push(' ');
+    out.push_str(text(src, property.name));
+    out
 }
 
 /// One parameter as it was written — `inout`, `covariant` and `...` included,

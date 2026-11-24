@@ -428,6 +428,15 @@ pub struct Class {
     /// **Cost:** one `bool` per field slot per class, once per compiled unit,
     /// not per request.
     pub readonly_fields: Vec<bool>,
+    /// Whether each field slot is declared `lateinit`, by this class or by an
+    /// ancestor, aligned to [`Self::fields`]. **Empty** reads as "no slot is
+    /// `lateinit`". `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_lateinit_fields`, and
+    /// `Core\Reflect\PropertyInfo::isLateInit` reads it.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit,
+    /// not per request.
+    pub lateinit_fields: Vec<bool>,
     /// A straight copy of `nvs_types::layout::ClassLayout::constants`, which
     /// owns the roster's flattening rule and why a folded value travels rather
     /// than the declaration's source text. `nvs-codegen` turns each row into a

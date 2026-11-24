@@ -340,6 +340,7 @@ pub(crate) fn lower_anon_fn(
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
             readonly_fields: Vec::new(),
+            lateinit_fields: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             // And for the same reason again: a capture's type was written on
@@ -1244,6 +1245,7 @@ fn thunk_class(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
+        lateinit_fields: Vec::new(),
         constants: target
             .map(|target| nvs_types::ClassConstant {
                 name: FN_TARGET.to_owned(),

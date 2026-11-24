@@ -2337,6 +2337,13 @@ impl Classes {
             self.table
                 .set_readonly_fields(id, class.readonly_fields.clone());
         }
+        // The `lateinit` bit, on the same terms. `Core\Reflect` is its reader.
+        if class.lateinit_fields.len() == class.fields.len()
+            && class.lateinit_fields.contains(&true)
+        {
+            self.table
+                .set_lateinit_fields(id, class.lateinit_fields.clone());
+        }
         // The declared type beside it, at the same granularity and guarded the
         // same way: `Core\Reflect\PropertyInfo` names the type a slot was
         // declared with, and `nvs_runtime::ClassDesc::field_tag` — the only

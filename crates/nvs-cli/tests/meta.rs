@@ -705,6 +705,24 @@ fn meta_json_nests_a_class_scoped_alias_under_its_owner() {
     assert_eq!(file_scope, vec!["Greeting"]);
 }
 
+/// A property's signature writes its `readonly` and `lateinit` modifiers
+/// before the type, and an ordinary property's signature is its type and name.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn a_property_signature_carries_lateinit_and_readonly() {
+    let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/property-modifiers.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &entry]);
+
+    let order = declared(&program, "classes", "Order");
+    let signature = |name: &str| declared(&order, "members", name)["signature"].clone();
+    assert_eq!(signature("$total"), "int $total");
+    assert_eq!(signature("$buyer"), "lateinit ?Customer $buyer");
+    assert_eq!(signature("$id"), "readonly int $id");
+}
+
 /// An enum a class body owns is emitted inside its owner's entry, under an
 /// `enums` key and in the card shape a file-scope enum has, named
 /// `Shop\Order::Status`: the name a program sees (`rule:enums/reflection`).
