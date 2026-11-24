@@ -2851,9 +2851,9 @@ fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
     let _quiet = serialised();
 
     // `nvs_runtime::budget`'s module doc argues that keeping the high-water mark
-    // on every allocation is a few instructions in front of an allocation that
-    // costs far more. This measures the whole balance update the mark is part
-    // of — the live balance, the mark's compare and the ceiling check, on the
+    // on every allocation is a few loads, compares and stores in front of the
+    // allocation. This measures the whole balance update the mark is part of —
+    // the live balance, the mark's compare and the ceiling check, on the
     // allocation and on the release — against a round trip to the platform
     // heap, which is an allocation with no counting in front of it. The mark is
     // inside the measured figure, so a bound on the whole is a bound on the
@@ -2863,14 +2863,23 @@ fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
     // update cannot allocate, since it runs inside the allocator. What it can
     // gain is instructions and calls, and no portable counter reads those.
     //
-    // The soft bound is a quarter: inlined, the update is a few loads, compares
-    // and stores. The hard bound is the heap's own cost. On glibc that round
-    // trip is a thread-cache hit of under 3 ns, so an update that is a call
-    // instead of inlined code reaches it: an out-of-line `budget::carry` reads
-    // about 1.05x there on a steady run. That is why `carry` is `#[inline]`. A
-    // hard miss on a run the yardstick calls steady is a change in the code
-    // this caller gets, not load.
-    const UPDATE_PER_PLATFORM: Bound = Bound::ratio_under(0.25, 1.0);
+    // The ratio is a CPU's figure as much as the code's. On unchanged code, a
+    // steady run reads from 0.67x to 1.15x across CI's Linux runners and 0.69x
+    // in WSL, because the loop below is two read-modify-writes of the same
+    // `live` cell per round trip, and so mostly a store-to-load forwarding
+    // latency, which CPU models do not share. The lookup of the thread's
+    // counters also runs on every call here, as it does in the allocator, so
+    // an out-of-line `carry` moves the figure by less than the spread between
+    // runners: in WSL it is 0.80x where a hoisted lookup reads 0.33x. This
+    // guard cannot see a lost `#[inline]`, and does not try.
+    //
+    // What it sees is a change of kind: an atomic, a lock, a table lookup or a
+    // second thread-local in the update, each of which costs a multiple of the
+    // heap's round trip. The soft bound is the heap's own cost, which the
+    // slowest runner already passes. The hard bound is twice the heap, past
+    // every runner's reading of the code as it is, and a hard miss on a run
+    // the yardstick calls steady is a change in the code, not the runner.
+    const UPDATE_PER_PLATFORM: Bound = Bound::ratio_under(1.0, 2.0);
 
     let layout = Layout::from_size_align(32, 8).expect("a valid layout");
     let bytes = isize::try_from(layout.size()).expect("a 32-byte layout fits an isize");
@@ -2878,11 +2887,11 @@ fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
     judge(
         "memory balance and high-water mark update, against a platform heap round trip",
         UPDATE_PER_PLATFORM,
-        "Keeping the memory mark and balance now costs as much as the allocation it fronts. \
-         On glibc that is the cost of an out-of-line `nvs_runtime::budget::carry`, so check \
-         first that it is still `#[inline]` and inlined into this caller. If it is, the update \
-         itself grew: `nvs_runtime::budget`'s § What it spends argues it is a few \
-         instructions, and that argument is reopened.",
+        "Keeping the memory mark and balance now costs twice the allocation it fronts, which \
+         no runner reads for the update as `nvs_runtime::budget::carry` writes it. The update \
+         grew by a change of kind, such as an atomic, a lock or a second thread-local lookup: \
+         `nvs_runtime::budget`'s § What it spends argues it is a few loads, compares and \
+         stores, and that argument is reopened.",
         |yard| {
             let update = ns_per_op(500_000, 5, || balance_round_trip(bytes));
             let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
