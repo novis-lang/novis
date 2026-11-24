@@ -2,10 +2,10 @@
 //! them, and the conversion of each to and from its Novis value.
 
 use self::bindings::exports::nvs::intl::icu::{
-    CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, DateTimeOptions, Length,
-    ListOptions, ListType, LocalDateTime, NumberOptions, NumberStyle, Numeric, PluralCategory,
-    PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOptions, TimeUnit, Width,
-    Word, ZoneStyle,
+    CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, DateFields, DateOptions,
+    DateTimeOptions, Length, ListOptions, ListType, LocalDateTime, NumberOptions, NumberStyle,
+    Numeric, PluralCategory, PluralKind, RelativeItem, RelativeOptions, Service, Strength,
+    TimeOptions, TimeUnit, Width, Word, ZoneStyle,
 };
 use self::bindings::nvs::ext::types::{Date, Error as WitError, TimeOfDay};
 use crate::call::Error;
@@ -55,7 +55,7 @@ world! {
     format_numbers(Vec<String>, String, NumberOptions) -> Vec<String>;
     plural_categories(Vec<String>, String, PluralKind) -> Vec<PluralCategory>;
     format_date_times(Vec<LocalDateTime>, String, DateTimeOptions) -> Vec<String>;
-    format_dates(Vec<Date>, String, Length) -> Vec<String>;
+    format_dates(Vec<Date>, String, DateOptions) -> Vec<String>;
     format_times(Vec<TimeOfDay>, String, TimeOptions) -> Vec<String>;
     format_relative(Vec<RelativeItem>, String, RelativeOptions) -> Vec<String>;
     format_lists(Vec<Vec<String>>, String, ListOptions) -> Vec<String>;
@@ -72,7 +72,8 @@ records! {
         compact_display,
     }
     LocalDateTime { year, month, day, hour, minute, second, nanos, offset_seconds, zone }
-    DateTimeOptions { length, seconds, zone }
+    DateOptions { length, fields }
+    DateTimeOptions { length, fields, seconds, zone }
     TimeOptions { seconds }
     RelativeItem { count, unit }
     RelativeOptions { width, numeric }
@@ -89,6 +90,10 @@ enums! {
     PluralKind [Cardinal, Ordinal]
     PluralCategory [Zero, One, Two, Few, Many, Other]
     Length [Short, Medium, Long]
+    DateFields [
+        Day, MonthDay, YearMonthDay, Weekday, DayWeekday, MonthDayWeekday, YearMonthDayWeekday,
+        Month, YearMonth, Year,
+    ]
     ZoneStyle [None, Offset, Location, Generic]
     TimeUnit [Second, Minute, Hour, Day, Week, Month, Quarter, Year]
     Width [Wide, Short, Narrow]

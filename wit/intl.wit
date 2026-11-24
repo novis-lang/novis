@@ -90,6 +90,22 @@ interface icu {
         long,
     }
 
+    /// Which parts of a date are written, named from the largest part to
+    /// the smallest. The locale decides their order. `month`, `year-month`
+    /// and `year` have no day, so they are not written with a time.
+    enum date-fields {
+        day,
+        month-day,
+        year-month-day,
+        weekday,
+        day-weekday,
+        month-day-weekday,
+        year-month-day-weekday,
+        month,
+        year-month,
+        year,
+    }
+
     enum zone-style {
         none,
         offset,
@@ -112,8 +128,15 @@ interface icu {
         zone: string,
     }
 
+    /// An absent field is the default: `medium` and `year-month-day`.
+    record date-options {
+        length: option<length>,
+        fields: option<date-fields>,
+    }
+
     record date-time-options {
         length: option<length>,
+        fields: option<date-fields>,
         seconds: option<bool>,
         zone: option<zone-style>,
     }
@@ -201,7 +224,7 @@ interface icu {
 
     format-date-times: func(values: list<local-date-time>, locale: string, options: date-time-options) -> result<list<string>, error>;
 
-    format-dates: func(values: list<date>, locale: string, length: length) -> result<list<string>, error>;
+    format-dates: func(values: list<date>, locale: string, options: date-options) -> result<list<string>, error>;
 
     format-times: func(values: list<time-of-day>, locale: string, options: time-options) -> result<list<string>, error>;
 

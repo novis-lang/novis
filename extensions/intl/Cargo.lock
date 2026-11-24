@@ -611,15 +611,18 @@ dependencies = [
  "icu_calendar",
  "icu_collator",
  "icu_datetime",
+ "icu_datetime_data",
  "icu_decimal",
  "icu_experimental",
  "icu_list",
  "icu_locale",
+ "icu_locale_fallback",
  "icu_plurals",
  "icu_provider",
  "icu_segmenter",
  "serde",
  "wit-bindgen",
+ "zerovec",
 ]
 
 [[package]]

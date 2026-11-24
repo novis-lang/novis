@@ -31,6 +31,15 @@ fixed_decimal = "0.7"
 # The deserializer that hands a rule string to `icu_plurals`' parser.
 serde = "1"
 
+# The baked date data and the crates its macros name, so a test lists every locale the data
+# has: `icu_datetime`'s own provider does not list them. The versions are the ones
+# `icu_datetime`'s `compiled_data` already locks, so the test adds no crate to the build.
+[dev-dependencies]
+icu_datetime_data = "2.4"
+icu_locale_fallback = "2.4"
+icu_provider = { version = "2.4", features = ["baked"] }
+zerovec = "0.11"
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 wit-bindgen = "0.63"
 

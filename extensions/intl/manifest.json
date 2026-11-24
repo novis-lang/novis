@@ -50,7 +50,7 @@
       "params": [
         {"name": "values", "type": "array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{ length?: Length, seconds?: bool, zone?: ZoneStyle }"}
+        {"name": "options", "type": "{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle }"}
       ],
       "returns": "array<string>",
       "help": "Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale."
@@ -60,10 +60,10 @@
       "params": [
         {"name": "values", "type": "array<Core\\Time\\Date>"},
         {"name": "locale", "type": "string"},
-        {"name": "length", "type": "Length"}
+        {"name": "options", "type": "{ length?: Length, fields?: Fields }"}
       ],
       "returns": "array<string>",
-      "help": "Formats calendar dates in the locale."
+      "help": "Formats calendar dates in the locale, with the parts of each date that `fields` names."
     },
     {
       "name": "formatTimes",
@@ -136,12 +136,13 @@
   "enums": [
     {"name": "Strength", "owner": "Collator", "cases": ["Primary", "Secondary", "Tertiary", "Quaternary", "Identical"], "help": "Which differences between two strings count when `Collator` sorts them. `Collator` sorts strings by the rules of a language. `Primary` compares the letters only, so \"resume\" and \"Résumé\" are equal. `Secondary` also compares accents. `Tertiary` also compares upper and lower case. This is the default. `ignorePunctuation` is another option of `Collator`. When it is `true`, `Primary`, `Secondary` and `Tertiary` do not compare punctuation. `Quaternary` also compares that punctuation. `Identical` also compares the characters themselves when everything else is equal."},
     {"name": "CaseFirst", "owner": "Collator", "cases": ["Off", "Upper", "Lower"], "help": "Whether uppercase or lowercase letters come first when `Collator` sorts words that differ only in case. `Collator` sorts strings by the rules of a language. `Off` is the default. It follows the rules of the language. In English, it puts \"apple\" before \"Apple\". `Upper` puts \"Apple\" first. `Lower` puts \"apple\" first."},
-    {"name": "Style", "owner": "NumberFormat", "cases": ["Decimal", "Percent", "Currency", "Compact"], "help": "How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style."},
+    {"name": "Style", "owner": "NumberFormat", "cases": ["Decimal", "Percent", "Currency", "Compact"], "help": "How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style. `Decimal` writes a plain number, such as \"1,234.5\" in English. `Percent` multiplies the number by 100 and writes a percentage, so 0.25 is \"25%\". `Currency` writes an amount of money, such as \"$19.90\". `Compact` writes a large number in a short form, such as \"1.2K\" for 1,200."},
     {"name": "CurrencyDisplay", "owner": "NumberFormat", "cases": ["Symbol", "Narrow", "Name"], "help": "How `NumberFormat::currency` writes the currency of an amount. `Symbol` writes the usual symbol of the language and region. This is the default. In Canada, \"$\" means Canadian dollars. So in English for Canada, 19.90 US dollars are written \"US$19.90\". `Narrow` writes the shortest symbol, such as \"$19.90\". A reader may not know which dollar it is. `Name` writes the name of the currency, such as \"19.90 US dollars\"."},
     {"name": "CompactDisplay", "owner": "NumberFormat", "cases": ["Short", "Long"], "help": "How a compact number is written. A compact number is a large number written short, such as \"1.2K\" for 1,200. `Short` writes \"1.2K\" and is the default. `Long` writes \"1.2 thousand\"."},
-    {"name": "Kind", "owner": "PluralRules", "cases": ["Cardinal", "Ordinal"], "help": "Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as \"3 items\", or the rules for places, such as \"3rd\"."},
-    {"name": "Category", "owner": "PluralRules", "cases": ["Zero", "One", "Two", "Few", "Many", "Other"], "help": "A plural category of the locale. `PluralRules` returns these as `Core\\Cldr::PluralCategory`."},
-    {"name": "Length", "owner": "DateFormat", "cases": ["Short", "Medium", "Long"], "help": "How long a formatted date is. The default is `Medium`."},
+    {"name": "Kind", "owner": "PluralRules", "cases": ["Cardinal", "Ordinal"], "help": "Which plural rules `Icu::pluralCategories` uses. `Cardinal` uses the rules for counting, such as \"3 items\". `Ordinal` uses the rules for places, such as \"3rd\"."},
+    {"name": "Category", "owner": "PluralRules", "cases": ["Zero", "One", "Two", "Few", "Many", "Other"], "help": "A plural category of the locale: `Zero`, `One`, `Two`, `Few`, `Many` or `Other`. Each language uses some of them. English counting uses `One` for 1 and `Other` for every other number. `PluralRules` returns these as `Core\\Cldr::PluralCategory`."},
+    {"name": "Length", "owner": "DateFormat", "cases": ["Short", "Medium", "Long"], "help": "How long a formatted date is. `Short` writes \"3/1/26\" in English. `Medium` writes \"Mar 1, 2026\". This is the default. `Long` writes \"March 1, 2026\". There is no longer length. To show the day of the week too, use `Fields::YearMonthDayWeekday` with `Long`."},
+    {"name": "Fields", "owner": "DateFormat", "cases": ["Day", "MonthDay", "YearMonthDay", "Weekday", "DayWeekday", "MonthDayWeekday", "YearMonthDayWeekday", "Month", "YearMonth", "Year"], "help": "Which parts of a date `DateFormat::dates` and `DateFormat::dateTimes` show. The name of a case lists its parts. The locale decides their order. The examples below use `Length::Long`. `Day` shows the day of the month. `MonthDay` shows the month and the day, such as \"5. Januar\" in `de`. `YearMonthDay` shows the year, the month and the day. This is the default. `Weekday` shows the day of the week, such as \"Montag\" in `de`. `DayWeekday` shows the day of the month and the day of the week. `MonthDayWeekday` shows the month, the day and the day of the week. `YearMonthDayWeekday` shows the year, the month, the day and the day of the week, such as \"Montag, 5. Januar 2026\" in `de`. `Month` shows the month, such as \"Januar\" in `de`. `YearMonth` shows the month and the year, such as \"Januar 2026\" in `de`. `Year` shows the year. `Month`, `YearMonth` and `Year` have no day, so `DateFormat::dateTimes` throws a `LogicError` for them."},
     {"name": "ZoneStyle", "owner": "DateFormat", "cases": ["None", "Offset", "Location", "Generic"], "help": "How `DateFormat::dateTimes` shows the time zone of a date and time. `None` shows no time zone. This is the default. `Offset` shows the difference from UTC, such as \"GMT+2\". `Location` shows the country or city of the zone. For the zone `Europe/Vienna`, this is \"Austria Time\". `Generic` shows the general name of the zone, such as \"Central European Time\". It does not say whether it is summer time, so the name is the same in summer and in winter."},
     {"name": "Unit", "owner": "RelativeTime", "cases": ["Second", "Minute", "Hour", "Day", "Week", "Month", "Quarter", "Year"], "help": "The unit of time that `RelativeTime::format` writes. `RelativeTime::format` writes a count of a unit as a time before or after now. A count of -2 with `Week` gives \"2 weeks ago\". A positive count is in the future. `Quarter` is three months."},
     {"name": "Width", "cases": ["Wide", "Short", "Narrow"], "help": "How short `RelativeTime::format` and `ListFormat::join` make their text. `Wide` writes every word in full: \"3 months ago\" and \"Shop, Blog, and Wiki\". This is the default. `Short` uses short forms: \"3 mo. ago\" and \"Shop, Blog, & Wiki\". `Narrow` uses the shortest forms: \"3mo ago\" and \"Shop, Blog, Wiki\"."},

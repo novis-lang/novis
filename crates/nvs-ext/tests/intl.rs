@@ -666,14 +666,14 @@ fn a_core_time_value_formats_in_its_zone_and_locale() {
             &[("year", 2026), ("month", 3), ("day", 1)],
         );
         let dates = ["Short", "Medium", "Long"].map(|length| {
-            let length = Value::Case(length.to_owned());
+            let options = shape(&[("length", Value::Case(length.to_owned()))]);
             written(
                 request,
                 extension,
                 "formatDates",
                 vec![date.clone()],
                 "en-US",
-                length,
+                options,
             )
         });
         let time = core(

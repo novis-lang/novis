@@ -11,15 +11,23 @@
 //! transitions.
 //!
 //! The fields cross as ISO fields and are formatted in the locale's calendar, so a `-u-ca-`
-//! keyword in the tag selects another. The date fields are year, month and day at the given
-//! [`Length`]; the time is hours and minutes, and seconds only when asked for. Nanoseconds are
-//! never shown. One formatter is built per call, and a field out of its range is `Invalid`.
+//! keyword in the tag selects another. The date parts are the [`Fields`] asked for, year, month
+//! and day by default, at the given [`Length`]; the time is hours and minutes, and seconds only
+//! when asked for. Nanoseconds are never shown. One formatter is built per call, and a field out
+//! of its range is `Invalid`.
+//!
+//! A [`Fields`] case is one of ICU4X's `DateFields`, so the locale's data decides the order of
+//! the parts and the words between them: there is no skeleton string to write
+//! (`rule:core-api/no-mode-strings`). `Month`, `YearMonth` and `Year` are ICU4X's calendar
+//! periods, which have no day and so no time beside them: `format-date-times` returns
+//! `Invalid` for them before it formats anything, and a program formats the `Date` instead.
 
 use icu_calendar::Iso;
+use icu_datetime::fieldsets::T;
 use icu_datetime::fieldsets::builder::{DateFields, FieldSetBuilder, ZoneStyle as Zone};
-use icu_datetime::fieldsets::{T, YMD};
 use icu_datetime::input::{Date as IsoDate, DateTime, Time, TimeZone, UtcOffset, ZonedDateTime};
 use icu_datetime::options::{Length as IcuLength, TimePrecision};
+use icu_datetime::pattern::DateTimeNames;
 use icu_datetime::{DateTimeFormatter, NoCalendarFormatter};
 
 use crate::Error;
@@ -30,6 +38,59 @@ pub enum Length {
     Short,
     Medium,
     Long,
+}
+
+/// Which parts of a date are written, named from the largest to the smallest. The locale decides
+/// their order and the words between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fields {
+    Day,
+    MonthDay,
+    YearMonthDay,
+    Weekday,
+    DayWeekday,
+    MonthDayWeekday,
+    YearMonthDayWeekday,
+    Month,
+    YearMonth,
+    Year,
+}
+
+impl Fields {
+    /// Every case, in the order WIT declares them.
+    pub const ALL: [Self; 10] = [
+        Self::Day,
+        Self::MonthDay,
+        Self::YearMonthDay,
+        Self::Weekday,
+        Self::DayWeekday,
+        Self::MonthDayWeekday,
+        Self::YearMonthDayWeekday,
+        Self::Month,
+        Self::YearMonth,
+        Self::Year,
+    ];
+
+    fn icu(self) -> DateFields {
+        match self {
+            Self::Day => DateFields::D,
+            Self::MonthDay => DateFields::MD,
+            Self::YearMonthDay => DateFields::YMD,
+            Self::Weekday => DateFields::E,
+            Self::DayWeekday => DateFields::DE,
+            Self::MonthDayWeekday => DateFields::MDE,
+            Self::YearMonthDayWeekday => DateFields::YMDE,
+            Self::Month => DateFields::M,
+            Self::YearMonth => DateFields::YM,
+            Self::Year => DateFields::Y,
+        }
+    }
+
+    /// Whether the case has a day, which a time can be written beside.
+    #[must_use]
+    pub fn has_day(self) -> bool {
+        !matches!(self, Self::Month | Self::YearMonth | Self::Year)
+    }
 }
 
 /// How the zone of a date and time is named, if at all.
@@ -66,11 +127,19 @@ pub struct TimeOfDay {
     pub nanos: i64,
 }
 
-/// The options of `format-date-times`. An absent field is the default: `Medium`, no seconds and
-/// no zone.
+/// The options of `format-dates`. An absent field is the default: `Medium` and `YearMonthDay`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DateOptions {
+    pub length: Option<Length>,
+    pub fields: Option<Fields>,
+}
+
+/// The options of `format-date-times`. An absent field is the default: `Medium`,
+/// `YearMonthDay`, no seconds and no zone.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DateTimeOptions {
     pub length: Option<Length>,
+    pub fields: Option<Fields>,
     pub seconds: Option<bool>,
     pub zone: Option<ZoneStyle>,
 }
@@ -126,17 +195,24 @@ fn time(time: TimeOfDay) -> Result<Time, Error> {
 ///
 /// # Errors
 ///
-/// `Invalid` for a malformed tag, a field out of its range or an offset no zone has, and
-/// `Runtime` when the locale has no date data at all.
+/// `Invalid` for a malformed tag, a field out of its range, an offset no zone has and [`Fields`]
+/// with no day, and `Runtime` when the locale has no date data at all.
 pub fn format_date_times(
     values: &[LocalDateTime],
     tag: &str,
     options: DateTimeOptions,
 ) -> Result<Vec<String>, Error> {
     let locale = crate::locale(tag)?;
+    let fields = options.fields.unwrap_or(Fields::YearMonthDay);
+    if !fields.has_day() {
+        return Err(Error::Invalid(format!(
+            "`Fields::{fields:?}` shows no day, so it cannot be shown with a time. \
+             Format the date with `DateFormat::dates` instead."
+        )));
+    }
     let mut builder = FieldSetBuilder::new();
     builder.length = Some(length(options.length.unwrap_or(Length::Medium)));
-    builder.date_fields = Some(DateFields::YMD);
+    builder.date_fields = Some(fields.icu());
     builder.time_precision = Some(precision(options.seconds));
     builder.zone_style = match options.zone.unwrap_or(ZoneStyle::None) {
         ZoneStyle::None => None,
@@ -147,7 +223,8 @@ pub fn format_date_times(
     let field_set = builder
         .build_composite()
         .map_err(|err| Error::Runtime(format!("No date format for these options: {err}.")))?;
-    let formatter = DateTimeFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
+    let formatter =
+        DateTimeFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
     values
         .iter()
         .map(|value| {
@@ -172,20 +249,52 @@ pub fn format_date_times(
         .collect()
 }
 
-/// Each date written in `tag`'s locale at `length`.
+/// Each date written in `tag`'s locale under `options`.
 ///
 /// # Errors
 ///
 /// `Invalid` for a malformed tag or a field out of its range, and `Runtime` when the locale has
 /// no date data at all.
-pub fn format_dates(values: &[Date], tag: &str, at: Length) -> Result<Vec<String>, Error> {
+pub fn format_dates(
+    values: &[Date],
+    tag: &str,
+    options: DateOptions,
+) -> Result<Vec<String>, Error> {
     let locale = crate::locale(tag)?;
-    let formatter = DateTimeFormatter::try_new((&locale).into(), YMD::for_length(length(at)))
-        .map_err(no_data(tag))?;
-    values
-        .iter()
-        .map(|value| Ok(formatter.format(&iso_date(*value)?).to_string()))
-        .collect()
+    let fields = options.fields.unwrap_or(Fields::YearMonthDay);
+    let mut builder = FieldSetBuilder::new();
+    builder.length = Some(length(options.length.unwrap_or(Length::Medium)));
+    builder.date_fields = Some(fields.icu());
+    let no_format = |err| Error::Runtime(format!("No date format for these options: {err}."));
+    // A date field set and a calendar period are two formatter types, so each has its arm.
+    if fields.has_day() {
+        let field_set = builder.build_date().map_err(no_format)?;
+        let formatter =
+            DateTimeFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
+        values
+            .iter()
+            .map(|value| Ok(formatter.format(&iso_date(*value)?).to_string()))
+            .collect()
+    } else {
+        let field_set = builder.build_calendar_period().map_err(no_format)?;
+        let formatter =
+            DateTimeFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
+        // ICU4X 2.4 does not load the number formatter for some calendar-period patterns, such
+        // as `pt`'s long year and month, and then writes the year in ASCII digits as an error
+        // part. Loading it here writes the locale's own digits. It is loaded once per call.
+        let mut names = DateTimeNames::from_formatter((&locale).into(), formatter);
+        names
+            .as_mut()
+            .include_decimal_formatter()
+            .map_err(|err| Error::Runtime(format!("No number data for `{tag}`: {err}.")))?;
+        let formatter = names
+            .try_into_formatter(field_set)
+            .map_err(|(err, _)| no_data(tag)(err))?;
+        values
+            .iter()
+            .map(|value| Ok(formatter.format(&iso_date(*value)?).to_string()))
+            .collect()
+    }
 }
 
 /// Each time of day written in `tag`'s locale, with seconds only when `seconds` is `true`.
@@ -205,7 +314,8 @@ pub fn format_times(
     } else {
         T::hm()
     };
-    let formatter = NoCalendarFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
+    let formatter =
+        NoCalendarFormatter::try_new((&locale).into(), field_set).map_err(no_data(tag))?;
     values
         .iter()
         .map(|value| Ok(formatter.format(&time(*value)?).to_string()))
@@ -263,7 +373,10 @@ mod tests {
     fn a_zone_is_named_by_its_place_or_its_generic_name() {
         let values = [vienna(7, 15, 7200)];
         let place = format_date_times(&values, "en", with_zone(ZoneStyle::Location));
-        assert_eq!(place.unwrap(), ["Jul 14, 2026, 3:05\u{202f}PM Austria Time"]);
+        assert_eq!(
+            place.unwrap(),
+            ["Jul 14, 2026, 3:05\u{202f}PM Austria Time"]
+        );
         let generic = format_date_times(&values, "en", with_zone(ZoneStyle::Generic));
         assert_eq!(
             generic.unwrap(),
@@ -284,14 +397,24 @@ mod tests {
             month: 3,
             day: 1,
         };
-        assert_eq!(format_dates(&[date], "en", Length::Long).unwrap(), ["March 1, 2026"]);
+        let long = DateOptions {
+            length: Some(Length::Long),
+            ..DateOptions::default()
+        };
+        assert_eq!(
+            format_dates(&[date], "en", long).unwrap(),
+            ["March 1, 2026"]
+        );
         let time = TimeOfDay {
             hour: 9,
             minute: 30,
             second: 15,
             nanos: 0,
         };
-        assert_eq!(format_times(&[time], "en-GB", Some(true)).unwrap(), ["09:30:15"]);
+        assert_eq!(
+            format_times(&[time], "en-GB", Some(true)).unwrap(),
+            ["09:30:15"]
+        );
     }
 
     #[test]
@@ -301,6 +424,148 @@ mod tests {
             month: 13,
             day: 1,
         };
-        assert!(matches!(format_dates(&[date], "en", Length::Short), Err(Error::Invalid(_))));
+        let short = DateOptions {
+            length: Some(Length::Short),
+            ..DateOptions::default()
+        };
+        assert!(matches!(
+            format_dates(&[date], "en", short),
+            Err(Error::Invalid(_))
+        ));
+    }
+
+    fn fields(fields: Fields) -> DateOptions {
+        DateOptions {
+            length: Some(Length::Long),
+            fields: Some(fields),
+        }
+    }
+
+    /// Every locale the built-in date data has its own weekday names for, which is the set
+    /// `negotiate`'s `Dates` service reads. The baked provider does not list its locales, so the
+    /// data crate's macro lists them for a probe type of this test's own.
+    fn every_dates_locale() -> Vec<String> {
+        use icu_datetime_data::__impl_datetime_names_weekday_v1;
+        use icu_provider::IterableDataProvider;
+        mod icu {
+            pub use icu_datetime as datetime;
+        }
+        struct Probe;
+        icu_datetime_data::make_provider!(Probe);
+        icu_datetime_data::impl_datetime_names_weekday_v1!(Probe, ITER);
+        let ids =
+            IterableDataProvider::<icu_datetime::provider::names::DatetimeNamesWeekdayV1>::iter_ids(
+                &Probe,
+            )
+            .unwrap();
+        let mut tags: Vec<String> = ids.iter().map(|id| id.locale.to_string()).collect();
+        tags.sort();
+        tags.dedup();
+        tags
+    }
+
+    #[test]
+    fn date_format_fields_every_case_formats_in_every_locale() {
+        let date = Date {
+            year: 2026,
+            month: 7,
+            day: 14,
+        };
+        let locales = every_dates_locale();
+        assert!(
+            locales.len() > 100,
+            "only {} locales were listed",
+            locales.len()
+        );
+        // A formatter that misses data panics in a debug build, so a panic is a failure too,
+        // and every failing case and locale is named at once.
+        let quiet = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let mut failed = Vec::new();
+        let mut judge = |what: String, run: &dyn Fn() -> Result<Vec<String>, Error>| {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
+                Ok(Ok(text)) if !text[0].trim().is_empty() => {}
+                Ok(Ok(_)) => failed.push(format!("{what}: formats nothing")),
+                Ok(Err(err)) => failed.push(format!("{what}: {err:?}")),
+                Err(_) => failed.push(format!("{what}: panics")),
+            }
+        };
+        for tag in &locales {
+            for case in Fields::ALL {
+                for at in [Length::Short, Length::Medium, Length::Long] {
+                    let options = DateOptions {
+                        length: Some(at),
+                        fields: Some(case),
+                    };
+                    judge(format!("{case:?} at {at:?} in `{tag}`"), &|| {
+                        format_dates(&[date], tag, options)
+                    });
+                }
+                if case.has_day() {
+                    let options = DateTimeOptions {
+                        fields: Some(case),
+                        ..DateTimeOptions::default()
+                    };
+                    judge(format!("{case:?} with a time in `{tag}`"), &|| {
+                        format_date_times(&[vienna(7, 15, 7200)], tag, options)
+                    });
+                }
+            }
+        }
+        std::panic::set_hook(quiet);
+        assert!(
+            failed.is_empty(),
+            "{} failed:\n{}",
+            failed.len(),
+            failed.join("\n")
+        );
+    }
+
+    #[test]
+    fn date_format_fields_year_month_in_de() {
+        let date = Date {
+            year: 2026,
+            month: 1,
+            day: 5,
+        };
+        let text = |case| format_dates(&[date], "de", fields(case)).unwrap();
+        assert_eq!(text(Fields::YearMonth), ["Januar 2026"]);
+        assert_eq!(text(Fields::Month), ["Januar"]);
+        assert_eq!(text(Fields::Year), ["2026"]);
+        assert_eq!(text(Fields::MonthDay), ["5. Januar"]);
+        assert_eq!(text(Fields::YearMonthDay), ["5. Januar 2026"]);
+    }
+
+    #[test]
+    fn date_format_fields_weekday_in_de() {
+        let date = Date {
+            year: 2026,
+            month: 1,
+            day: 5,
+        };
+        let text = |case| format_dates(&[date], "de", fields(case)).unwrap();
+        assert_eq!(text(Fields::Weekday), ["Montag"]);
+        assert_eq!(
+            text(Fields::YearMonthDayWeekday),
+            ["Montag, 5. Januar 2026"]
+        );
+    }
+
+    #[test]
+    fn date_format_fields_on_date_times() {
+        let options = |case| DateTimeOptions {
+            fields: Some(case),
+            ..DateTimeOptions::default()
+        };
+        let values = [vienna(7, 15, 7200)];
+        let weekday = format_date_times(&values, "en", options(Fields::Weekday)).unwrap();
+        assert_eq!(weekday, ["Tue 3:05\u{202f}PM"]);
+        for case in [Fields::Month, Fields::YearMonth, Fields::Year] {
+            let refused = format_date_times(&values, "en", options(case));
+            assert!(
+                matches!(refused, Err(Error::Invalid(_))),
+                "{case:?}: {refused:?}"
+            );
+        }
     }
 }

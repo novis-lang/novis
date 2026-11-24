@@ -58,10 +58,10 @@ mod guest {
     });
 
     use exports::nvs::intl::icu::{
-        CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, Date, DateTimeOptions, Error,
-        Guest, Length, ListOptions, ListType, LocalDateTime, NumberOptions, NumberStyle, Numeric,
-        PluralCategory, PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOfDay,
-        TimeOptions, TimeUnit, Width, Word, ZoneStyle,
+        CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, Date, DateFields, DateOptions,
+        DateTimeOptions, Error, Guest, Length, ListOptions, ListType, LocalDateTime, NumberOptions,
+        NumberStyle, Numeric, PluralCategory, PluralKind, RelativeItem, RelativeOptions, Service,
+        Strength, TimeOfDay, TimeOptions, TimeUnit, Width, Word, ZoneStyle,
     };
 
     struct Component;
@@ -99,6 +99,22 @@ mod guest {
             Length::Short => crate::dates::Length::Short,
             Length::Medium => crate::dates::Length::Medium,
             Length::Long => crate::dates::Length::Long,
+        }
+    }
+
+    fn fields(fields: DateFields) -> crate::dates::Fields {
+        use crate::dates::Fields as F;
+        match fields {
+            DateFields::Day => F::Day,
+            DateFields::MonthDay => F::MonthDay,
+            DateFields::YearMonthDay => F::YearMonthDay,
+            DateFields::Weekday => F::Weekday,
+            DateFields::DayWeekday => F::DayWeekday,
+            DateFields::MonthDayWeekday => F::MonthDayWeekday,
+            DateFields::YearMonthDayWeekday => F::YearMonthDayWeekday,
+            DateFields::Month => F::Month,
+            DateFields::YearMonth => F::YearMonth,
+            DateFields::Year => F::Year,
         }
     }
 
@@ -228,6 +244,7 @@ mod guest {
                 .collect();
             let options = crate::dates::DateTimeOptions {
                 length: options.length.map(length),
+                fields: options.fields.map(fields),
                 seconds: options.seconds,
                 zone: options.zone.map(|zone| match zone {
                     ZoneStyle::None => Z::None,
@@ -242,10 +259,14 @@ mod guest {
         fn format_dates(
             values: Vec<Date>,
             locale: String,
-            at: Length,
+            options: DateOptions,
         ) -> Result<Vec<String>, Error> {
             let values: Vec<crate::dates::Date> = values.iter().map(date).collect();
-            crate::dates::format_dates(&values, &locale, length(at)).map_err(error)
+            let options = crate::dates::DateOptions {
+                length: options.length.map(length),
+                fields: options.fields.map(fields),
+            };
+            crate::dates::format_dates(&values, &locale, options).map_err(error)
         }
 
         fn format_times(
