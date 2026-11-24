@@ -25,7 +25,7 @@ stages:
     context: [extensions/intl/src/dates.rs, extensions/intl/nvs/DateFormat.nvs, extensions/intl/manifest.json, wit/intl.wit, docs/rules/core-classes/intl-roster.md]
   - id: 6
     title: "the rules hold every decision and every decline, and stages 1 to 3 have their feature proofs"
-    status: open
+    status: done
   - id: 7
     title: "stages 4 and 5 have their feature proofs, and the website says what changed"
     status: open
@@ -425,14 +425,14 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 `Time-Duration/` and `Time-Zone/`, and one for `docs/examples/core/ObjectMap/`,
 `docs/examples/lang/expressions/comparison-and-equality/`, the attacks and the benches.
 
-- [ ] The six declines of § *Standing decisions*, each in the Declined list of the rule the table names:
+- [x] The six declines of § *Standing decisions*, each in the Declined list of the rule the table names:
   `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`,
   `docs/rules/classes/stringable.md:1`, `docs/rules/core-api/no-mode-strings.md:14` and
   `docs/rules/core-classes/intl-roster.md:51`.
-- [ ] `docs/rules/types/ordering.md:1` and `docs/rules/classes/comparable.md:1`: `DateTime` orders by
+- [x] `docs/rules/types/ordering.md:1` and `docs/rules/classes/comparable.md:1`: `DateTime` orders by
   its moment.
-- [ ] `docs/rules/core-api/collections-drop-revoked-objects.md:1`: a key is found with `==`.
-- [ ] The proofs `bun nv proofs --owed --goal time-values` names for stage 1 to 3's members, at the
+- [x] `docs/rules/core-api/collections-drop-revoked-objects.md:1`: a key is found with `==`.
+- [x] The proofs `bun nv proofs --owed --goal time-values` names for stage 1 to 3's members, at the
   paths it prints: `about.md`, three examples, a bench and an attack per new member, and the changed
   examples of `==` and `ObjectMap`. Every `.nvs` and `about.md` follows AGENTS.md § *Text an end user
   reads*.
@@ -462,56 +462,56 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stages 1 to 5 are done. Stage 4 is `1925501b9d`, and stage 5 is `6f5ec01ee0`.
+Stages 1 to 6 are done. Stage 6 is `60df6ca00f` (the rules) and `ca36b2cca2` (the proofs).
 
-- `wit/intl.wit` has `enum date-fields` (ten cases), `record date-options { length, fields }`, and
-  `fields` on `date-time-options`. `format-dates` takes `date-options`. The host's typed mirror,
-  `crates/nvs-ext/src/typed/intl.rs`, and the guest glue in `extensions/intl/src/lib.rs` follow.
-- `extensions/intl/src/dates.rs`: `Fields` with `ALL`, `icu()` and `has_day()`, and `DateOptions`.
-  `format_dates` builds a date field set or a calendar period, and loads the number formatter for
-  the second (§ *Standing decisions*, stage 5). `format_date_times` returns `Invalid` for a case
-  with no day.
-- `extensions/intl/manifest.json`: the `Fields` enum owned by `DateFormat`, its help naming each
-  case with `de` examples at `Length::Long`. `Length`, `Style`, `Kind` and `Category` help now name
-  every case. `DateFormat.nvs` takes `fields?: Fields` on `dates` and `dateTimes`.
-- The check `intl-fields` ran once by name with its new `cwd: extensions/intl`: four tests, green.
-  The coverage test found the `pt` failure above before the fix. Build, clippy, `cargo fmt --check`
-  and the extension's own clippy are green. A smoke run of the debug binary printed `01/2026` for
-  `YearMonth` in `de` at `Medium`, `janeiro de 2026` in `pt` at `Long`, and the `LogicError` for
-  `Fields::Year` on `dateTimes`.
+- The rules: `rule:types/duration` says `90m == 1h30m` is `true`. `rule:types/ordering` and
+  `rule:classes/comparable` order a `DateTime` by its moment. `collections-drop-revoked-objects` has
+  § *A key is found with `==`*. `a-time-class-builds-its-own-values` has the `Date` calendar members
+  and three declines, `stringable` the `Date` decline and E0710, `no-mode-strings` and `intl-roster`
+  the skeleton and `Full` declines, and `intl-roster` the `Fields` option and the stage 5 calls.
+- The proofs: every stage 1 to 3 member owes only `perf` now. New conformance cases:
+  `tests/conformance/core/date-*.nvst` (four), `datetime-*.nvst` (four),
+  `time-of-day-to-iso-*.nvst` and `time-values-compare-by-value.nvst`. Each ran green by name with
+  the debug binary. `time-duration-compare-to-*` and `time-a-written-zone-is-checked-and-shared`
+  expected identity and now expect equality; both ran green.
+- Help texts rewritten and stamped: `Date::next`, `previous`, `DateTime::compareTo` (its strings
+  had lost their `\` continuations), `DateTime::fromIso`, `Duration::compareTo`, `ObjectSet::add`
+  and every `Core\Unit` case. `docs/reference/core/ObjectMap.md` and `ObjectSet.md` say a key is
+  found with `==`. `DateTime::compareTo`'s Rust test carries its `covers:` marker.
+- Build, clippy and `cargo fmt --check` are green.
 
 ### Next
 
-Stage 6, as its `**Split:**` line says: the session writes the rules, then three writing subagents
-take the proofs. Its items carry the anchors. Stage 6 adds to `rule:core-classes/intl-roster`
-(`docs/rules/core-classes/intl-roster.md:1`): the `Full` decline, the `Fields` option and the stage 5
-calls in § *Standing decisions* (`dateTimes` throws for a case with no day, one help text per enum).
+Stage 7, as its `**Split:**` line says. Its items carry the anchors.
 
-Stage 6 also owes this: `rule:types/duration` still says "`90m == 1h30m` is `false`" in its literal
-paragraph. Stage 1 made that `true`, so the sentence is rewritten there.
+- The proofs of `Date::parse`, `Date::range`, `Duration::toClock`, `Duration::fromClock` and
+  `Novis\Intl\DateFormat::Fields`, plus the help reviews of `DateFormat::dates`, `dateTimes` and
+  `Length`. `bun nv site --check review` lists the eight `help:` entries still unstamped.
+- **`perf` is owed by about a hundred `Core\Time` members**, because `time.rs` changed since they
+  were measured. It clears with `bun nv proofs --record-perf` on a proof build, once no more
+  `time.rs` change is coming. Stage 7's last item, `proofs --owed` names nothing, needs it. Pass
+  `--nvs target/debug/nvs.exe` to `--bless` and `--run`: without it, `proofs` builds the proof
+  profile and waits on another session's build lock.
+- The website: `comparison.mdx` and `changes.json` as the items say. `render --website` first, then
+  `site --check stale` and `questions` (playbook: run the render before reading the questions).
+  `website/public/llms-full.txt` still shows `formatDates` with a `length` parameter until then.
 
-Stage 7 owes the proofs of the four stage 4 members: `Date::parse`, `Date::range`,
-`Duration::toClock` and `Duration::fromClock`. It also owes the `fields` examples of
-`Novis\Intl\DateFormat::dates` and `dateTimes`. The `DateFormat` cards, the `Length`, `Style`,
-`Kind` and `Category` enum cards and the new `Fields` card changed, so `site --check stale` and
-`questions` will name their pages. `website/public/llms-full.txt` still shows `formatDates` with a
-`length` parameter until `render --website` runs.
-
-Tests that may go red in the gate: the `floored` refactor touched every `DateTime::startOf` and
-`endOf` call for a day and larger, and those tests did not run in stage 3
-(`datetime_start_of_*`, `datetime_end_of_*` in `time.rs`). A conformance case or example that prints
-`==` on two equal `Core\Time` values and expected `false`. Grep `tests/conformance` and
-`docs/examples` for `compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate
-names one. A `.nvs` source with `format('Y…')` and no `w` now prints `W1038`. The `ObjectMap`,
-`ObjectSet`, `DateTime::fromIso`, `Instant::fromIso` and `Core\Unit` card texts changed, so
-`site --check stale` and `questions` will name their pages in stage 7. `nvs meta`'s snapshot, if a test
-pins it, gains three `toIso` rows, `fromIso`'s `?Zone $zone = null`, eleven `Date` rows, four
-`DateTime` rows and two `Duration` rows, plus the intl `Fields` enum. A test that pins the intl
-component's size (`crates/nvs-ext/tests/builtin.rs`, 5%) may move a little with the new field sets.
-`crates/nvs-ext/tests/intl.rs`'s `a_core_time_value_formats_in_its_zone_and_locale` now passes
-`formatDates` an options shape and did not run here. A test that counts `PREPARED_MEMBERS` or the intrinsic
-rows sees one more of each. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text, and
-`docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` could show `[Europe/Berlin]`
-as the fix. Stage 6 also owes the proofs of the thirteen new stage 3 members.
+Tests that may go red in the gate: `datetime_start_of_*` and `datetime_end_of_*` in `time.rs` (the
+`floored` refactor of stage 3, not run since). Examples still using `compareTo(...) == 0` where `==`
+now works give the same output and are left alone:
+`docs/examples/core/IO-Metadata/modifiedAt/02-the-time-is-kept.nvs:15`,
+`Time-DateTime/date/03-orders-per-day-in-the-shop-time-zone.nvs:20`,
+`Time-Duration/toString/02-a-negative-duration.nvs:10`. A `.nvs` with `format('Y…')` and no `w`
+prints `W1038`. `nvs meta`'s snapshot, if a test pins it, gains the new rows and the intl `Fields`
+enum. `crates/nvs-ext/tests/builtin.rs` pins the intl component's size (5%).
+`crates/nvs-ext/tests/intl.rs`'s `a_core_time_value_formats_in_its_zone_and_locale` did not run since
+stage 5. A test that counts `PREPARED_MEMBERS` or the intrinsic rows sees one more of each.
+`data/proofs/review-baseline.json` still names the old
+`Time-Duration/compareTo/02-same-length-is-not-the-same-object.nvs`; `proofs --gate` may name it.
 
 ### Backlog
+
+- A mixed `int` and `uint` expression compiled and then threw at run time: `$at * 3 < ($begins->month()
+  - 1) / 3 + 1`, with `month()` a `uint`, gave "`int` and `uint` have no representable common type".
+  The checker should refuse it while compiling. Found in stage 6's `DateTime::quarter` attack, which
+  writes around it. It is outside this goal.
