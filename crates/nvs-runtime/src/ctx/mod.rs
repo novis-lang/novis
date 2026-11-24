@@ -1379,6 +1379,16 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and one short allocation per
     /// request that sends a file.
     file_body: Option<Box<std::path::Path>>,
+    /// The size of the file [`Self::file_body`] names, when the server will
+    /// send it, charged to `[limits] max_output` by [`Self::output_used`].
+    ///
+    /// Kept here rather than added to the thread's written count, because a
+    /// later `Core\Response::sendFile` replaces the file and must replace its
+    /// charge too, and that count never decreases. `0` until a request
+    /// declares a file.
+    ///
+    /// **What it spends:** one word per request.
+    file_body_bytes: usize,
     /// The writing half of a response body being written **over time**, for the
     /// request that opened one — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// streaming response, whose other half the connection is draining.

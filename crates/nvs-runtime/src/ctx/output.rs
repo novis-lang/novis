@@ -913,10 +913,24 @@ impl Ctx {
     /// terms — a word left on a context nobody asks costs a name — so the two
     /// halves of the answer are one field and never a fact the caller has to
     /// keep.
+    ///
+    /// **`bytes` is the file's size, charged to `[limits] max_output` when the
+    /// server will send it.** A later declaration replaces the file, and its
+    /// size replaces the earlier charge, so a request is charged for the one
+    /// file it sends and not for every call that named one. Off a request
+    /// nothing is charged here: the member writes the bytes through
+    /// [`Self::write_output`], which charges them as they go.
     #[must_use]
-    pub fn declare_file_body(&mut self, path: &std::path::Path) -> bool {
+    pub fn declare_file_body(&mut self, path: &std::path::Path, bytes: usize) -> bool {
         self.file_body = Some(path.into());
-        self.inbound.is_some()
+        if self.inbound.is_none() {
+            return false;
+        }
+        self.file_body_bytes = bytes;
+        if self.over_output_limit() {
+            self.request_safepoint(SafepointFlags::OUTPUT_LIMIT);
+        }
+        true
     }
 
     /// Takes the name away, leaving the context with none — the finish path's
@@ -1677,6 +1691,56 @@ mod tests {
         assert_eq!(headers[7], DeclaredHeader::set("X-Header-7", "last"));
         assert_eq!(headers[NAMES], DeclaredHeader::set("Set-Cookie", "b=2"));
         assert!(ctx.take_headers().is_empty(), "a take left rows behind");
+    }
+
+    /// A request sends one file however many times it named one, so
+    /// `[limits] max_output` is charged that file's size once: each
+    /// declaration replaces the last one's charge. One file over the limit is
+    /// still caught when it is declared.
+    #[test]
+    fn a_declared_file_is_charged_once_and_a_later_one_replaces_it() {
+        let mut request = Ctx::buffered();
+        request.set_inbound(Inbound::new("GET", "/", ""));
+        request.set_output_limit(1_000);
+        let path = std::path::Path::new("page.html");
+
+        for _ in 0..3 {
+            assert!(
+                request.declare_file_body(path, 600),
+                "a request sends the file"
+            );
+        }
+        assert_eq!(request.output_used(), 600, "three calls, one file sent");
+        assert!(!request.over_output_limit());
+
+        assert!(request.declare_file_body(path, 300));
+        assert_eq!(
+            request.output_used(),
+            300,
+            "the second file replaced the first"
+        );
+
+        request.write_output(b"0123456789").expect("a buffer");
+        assert_eq!(
+            request.output_used(),
+            310,
+            "written bytes still count beside it"
+        );
+
+        assert!(request.declare_file_body(path, 2_000));
+        assert!(
+            request.over_output_limit(),
+            "one file past the limit is caught"
+        );
+    }
+
+    /// Off a request nothing reads the declaration, and the member writes the
+    /// bytes itself, so the declaration charges nothing.
+    #[test]
+    fn a_file_declared_off_a_request_charges_nothing() {
+        let mut run = Ctx::buffered();
+        assert!(!run.declare_file_body(std::path::Path::new("page.html"), 600));
+        assert_eq!(run.output_used(), 0);
     }
 
     /// `[limits] max_output` bounds the *response*: what a capture swallowed is

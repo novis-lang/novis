@@ -11228,7 +11228,7 @@ pub(crate) mod tests {
                     if path == "/send" {
                         // This isolate has no inbound request, so the answer is
                         // `false`. The loop still sends the file the run named.
-                        let _framed = child.declare_file_body(&notes);
+                        let _framed = child.declare_file_body(&notes, 0);
                     } else {
                         child.write_output(b"entry").expect("a buffer");
                     }

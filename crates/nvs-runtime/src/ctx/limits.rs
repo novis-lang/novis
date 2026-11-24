@@ -510,10 +510,14 @@ impl Ctx {
     /// `rule:security/isolate-shares-nothing`'s
     /// "child output against the root's `max_output`" and the same arrangement
     /// [`Self::memory_used`] already has, plus the tree's off-core count for the
-    /// same reason and on the same branch.
+    /// same reason and on the same branch. The file a request declared as its
+    /// body is added by its size, once, whatever number of calls named a file
+    /// ([`Self::declare_file_body`]).
     #[must_use]
     pub fn output_used(&self) -> usize {
-        let own = crate::budget::written_bytes().saturating_sub(self.output_base);
+        let own = crate::budget::written_bytes()
+            .saturating_sub(self.output_base)
+            .saturating_add(self.file_body_bytes);
         if self.on_root_core {
             own.saturating_add(self.tree.off_core.output())
         } else {

@@ -379,6 +379,7 @@ impl Ctx {
             inline_debug: Vec::new(),
             style_nonce: None,
             file_body: None,
+            file_body_bytes: 0,
             body_stream: None,
             stream_window: None,
             stream_must_end: None,

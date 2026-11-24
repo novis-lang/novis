@@ -2146,10 +2146,10 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        if ctx.declare_file_body(path) {
-            // The server sends the file, so its size is charged to the output
-            // limit here, as the bytes it will write.
-            ctx.charge_output(usize::try_from(found.len()).unwrap_or(usize::MAX));
+        // On a request the server sends the file, and the declaration charges
+        // its size to the output limit in place of any file named before.
+        let size = usize::try_from(found.len()).unwrap_or(usize::MAX);
+        if ctx.declare_file_body(path, size) {
             return Ok(Value::null());
         }
         let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\Response::sendFile")?;
