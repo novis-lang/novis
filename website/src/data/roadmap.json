@@ -1,31 +1,41 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
-  "internal": ["allocation-accounting"],
+  "internal": [],
   "themes": [
     {
       "title": "Clearer method names",
       "text": "Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. When you use an old name, the compiler tells you the new one.",
-      "goals": ["clear-member-names"]
+      "goals": [
+        "clear-member-names"
+      ]
     },
     {
       "title": "Documentation links",
       "text": "A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.",
-      "goals": ["see-files"]
+      "goals": [
+        "see-files"
+      ]
     },
     {
       "title": "Faster reflection",
       "text": "`Core\\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.",
-      "goals": ["reflect-once"]
+      "goals": [
+        "reflect-once"
+      ]
     },
     {
       "title": "Dates and times",
       "text": "`==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.",
-      "goals": ["time-values"]
+      "goals": [
+        "time-values"
+      ]
     },
     {
       "title": "Extending classes you do not own",
       "text": "An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.",
-      "goals": ["extend-blocks"]
+      "goals": [
+        "extend-blocks"
+      ]
     }
   ]
 }
