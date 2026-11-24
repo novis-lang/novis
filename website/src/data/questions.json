@@ -3326,6 +3326,17 @@
       "Give a prompt a default answer when no one is there"
     ]
   },
+  "/reference/core/cli/asksecret/": {
+    "feature": "Core\\Cli::askSecret",
+    "hash": "14c8ebfec0efde48",
+    "questions": [
+      "How do I ask for a password in the terminal?",
+      "Read a password without showing what is typed",
+      "Hide user input at a prompt",
+      "Prompt for an API key without echoing it",
+      "Ask for a new password twice and compare"
+    ]
+  },
   "/reference/core/cli/colordepth/": {
     "feature": "Core\\Cli::colorDepth",
     "hash": "81bfd6d7e2ff5429",
@@ -3392,17 +3403,6 @@
       "Check if the script runs interactively"
     ]
   },
-  "/reference/core/cli/live/": {
-    "feature": "Core\\Cli::live",
-    "hash": "af0b8c60e61571ad",
-    "questions": [
-      "How do I update a line in place in the terminal?",
-      "Redraw several lines of status while work runs",
-      "Show changing output without scrolling the screen",
-      "How do I make a live status display for a CLI?",
-      "Refresh a block of terminal text in place"
-    ]
-  },
   "/reference/core/cli/multiselect/": {
     "feature": "Core\\Cli::multiSelect",
     "hash": "ee19d182349dabdc",
@@ -3414,28 +3414,6 @@
       "Let the user choose none, one or many items"
     ]
   },
-  "/reference/core/cli/progress/": {
-    "feature": "Core\\Cli::progress",
-    "hash": "aedee4d16442f551",
-    "questions": [
-      "How do I show a progress bar in the terminal?",
-      "Display progress while processing many files",
-      "Add a progress bar to a command-line tool",
-      "Show how much work is done out of a total",
-      "Progress bar with a caption for a long task"
-    ]
-  },
-  "/reference/core/cli/secret/": {
-    "feature": "Core\\Cli::secret",
-    "hash": "14c8ebfec0efde48",
-    "questions": [
-      "How do I ask for a password in the terminal?",
-      "Read a password without showing what is typed",
-      "Hide user input at a prompt",
-      "Prompt for an API key without echoing it",
-      "Ask for a new password twice and compare"
-    ]
-  },
   "/reference/core/cli/select/": {
     "feature": "Core\\Cli::select",
     "hash": "9be1ce8931d7a0e9",
@@ -3445,6 +3423,28 @@
       "Ask the user to choose one item",
       "Pick a value from a list of choices in a CLI",
       "Choose one option with a default when Enter is pressed"
+    ]
+  },
+  "/reference/core/cli/showlive/": {
+    "feature": "Core\\Cli::showLive",
+    "hash": "af0b8c60e61571ad",
+    "questions": [
+      "How do I update a line in place in the terminal?",
+      "Redraw several lines of status while work runs",
+      "Show changing output without scrolling the screen",
+      "How do I make a live status display for a CLI?",
+      "Refresh a block of terminal text in place"
+    ]
+  },
+  "/reference/core/cli/showprogress/": {
+    "feature": "Core\\Cli::showProgress",
+    "hash": "aedee4d16442f551",
+    "questions": [
+      "How do I show a progress bar in the terminal?",
+      "Display progress while processing many files",
+      "Add a progress bar to a command-line tool",
+      "Show how much work is done out of a total",
+      "Progress bar with a caption for a long task"
     ]
   },
   "/reference/core/cli/width/": {
@@ -6193,6 +6193,17 @@
       "Back up a file before changing it"
     ]
   },
+  "/reference/core/io/createtemporarydirectory/": {
+    "feature": "Core\\IO::createTemporaryDirectory",
+    "hash": "f292a06c4fc0d5bf",
+    "questions": [
+      "How do I create a temporary folder?",
+      "Where should I put temporary files?",
+      "Get a private scratch directory that is deleted at the end",
+      "Make a temp directory that cleans itself up",
+      "Where can my web server save files without any setting?"
+    ]
+  },
   "/reference/core/io/exists/": {
     "feature": "Core\\IO::exists",
     "hash": "61a7289aae2d1b15",
@@ -6203,8 +6214,8 @@
       "Check for a missing file without an error"
     ]
   },
-  "/reference/core/io/isdir/": {
-    "feature": "Core\\IO::isDir",
+  "/reference/core/io/isdirectory/": {
+    "feature": "Core\\IO::isDirectory",
     "hash": "9176eb3467017507",
     "questions": [
       "How do I check if a path is a folder?",
@@ -6267,14 +6278,24 @@
       "Can my web server list folders outside its app folder?"
     ]
   },
-  "/reference/core/io/makedir/": {
-    "feature": "Core\\IO::makeDir",
+  "/reference/core/io/makedirectory/": {
+    "feature": "Core\\IO::makeDirectory",
     "hash": "1f5cfce6f4b9a134",
     "questions": [
       "How do I create a folder?",
       "Create a directory and all missing parent folders",
       "Make a nested folder path in one call",
       "Create a folder only if it does not exist yet"
+    ]
+  },
+  "/reference/core/io/metadata/": {
+    "feature": "Core\\IO::metadata",
+    "hash": "731ff362130ded70",
+    "questions": [
+      "Get file size, change time and type in one call",
+      "How do I read the metadata of a file?",
+      "Get information about a file or folder",
+      "Check several file details with only one system call"
     ]
   },
   "/reference/core/io/modifiedat/": {
@@ -6354,8 +6375,8 @@
       "Delete a file and know it was really removed"
     ]
   },
-  "/reference/core/io/removedir/": {
-    "feature": "Core\\IO::removeDir",
+  "/reference/core/io/removedirectory/": {
+    "feature": "Core\\IO::removeDirectory",
     "hash": "5b2fd41b4d114535",
     "questions": [
       "How do I delete an empty folder?",
@@ -6372,16 +6393,6 @@
       "How many bytes is this file?",
       "Reject an upload that is too large before reading it",
       "Check file size without reading the file"
-    ]
-  },
-  "/reference/core/io/stat/": {
-    "feature": "Core\\IO::stat",
-    "hash": "731ff362130ded70",
-    "questions": [
-      "Get file size, change time and type in one call",
-      "How do I read the metadata of a file?",
-      "Get information about a file or folder",
-      "Check several file details with only one system call"
     ]
   },
   "/reference/core/io/stdin/": {
@@ -6404,17 +6415,6 @@
       "Read binary data from stdin",
       "Read input that is not UTF-8 from a pipe",
       "Count the bytes my program receives on standard input"
-    ]
-  },
-  "/reference/core/io/temporarydir/": {
-    "feature": "Core\\IO::temporaryDir",
-    "hash": "f292a06c4fc0d5bf",
-    "questions": [
-      "How do I create a temporary folder?",
-      "Where should I put temporary files?",
-      "Get a private scratch directory that is deleted at the end",
-      "Make a temp directory that cleans itself up",
-      "Where can my web server save files without any setting?"
     ]
   },
   "/reference/core/io/walk/": {
@@ -6597,8 +6597,8 @@
       "Why does file information not update after the file changes?"
     ]
   },
-  "/reference/core/io-metadata/isdir/": {
-    "feature": "Core\\IO\\Metadata::isDir",
+  "/reference/core/io-metadata/isdirectory/": {
+    "feature": "Core\\IO\\Metadata::isDirectory",
     "hash": "548ca7586546b7ae",
     "questions": [
       "Does the file information I already read describe a folder?",
@@ -11281,26 +11281,6 @@
       "Path functions that do not read the disk"
     ]
   },
-  "/reference/core/path/basename/": {
-    "feature": "Core\\Path::basename",
-    "hash": "7ad21ec3f74bc357",
-    "questions": [
-      "How do I get the file name from a full path?",
-      "Get the file name without its extension",
-      "Name of the last folder in a path",
-      "Take the file name from an uploaded file path"
-    ]
-  },
-  "/reference/core/path/dirname/": {
-    "feature": "Core\\Path::dirname",
-    "hash": "31cca34619d7a299",
-    "questions": [
-      "How do I get the folder that contains a file?",
-      "Go up two folders from a path",
-      "Parent directory of a path",
-      "Find a folder next to a configuration file"
-    ]
-  },
   "/reference/core/path/extension/": {
     "feature": "Core\\Path::extension",
     "hash": "32ced01c58f77d6c",
@@ -11311,8 +11291,18 @@
       "Why does .gitignore have no extension?"
     ]
   },
-  "/reference/core/path/fromcwd/": {
-    "feature": "Core\\Path::fromCwd",
+  "/reference/core/path/filename/": {
+    "feature": "Core\\Path::fileName",
+    "hash": "7ad21ec3f74bc357",
+    "questions": [
+      "How do I get the file name from a full path?",
+      "Get the file name without its extension",
+      "Name of the last folder in a path",
+      "Take the file name from an uploaded file path"
+    ]
+  },
+  "/reference/core/path/fromworkingdirectory/": {
+    "feature": "Core\\Path::fromWorkingDirectory",
     "hash": "b36a0576b77c098d",
     "questions": [
       "How do I turn a file name the user typed into a full path?",
@@ -11351,6 +11341,16 @@
       "Resolve parent folder parts in a path without the disk"
     ]
   },
+  "/reference/core/path/parent/": {
+    "feature": "Core\\Path::parent",
+    "hash": "31cca34619d7a299",
+    "questions": [
+      "How do I get the folder that contains a file?",
+      "Go up two folders from a path",
+      "Parent directory of a path",
+      "Find a folder next to a configuration file"
+    ]
+  },
   "/reference/core/path/relativeto/": {
     "feature": "Core\\Path::relativeTo",
     "hash": "a244f26212298f82",
@@ -11371,8 +11371,8 @@
       "Get each directory name in a path as a list"
     ]
   },
-  "/reference/core/path/thisdir/": {
-    "feature": "Core\\Path::thisDir",
+  "/reference/core/path/thisdirectory/": {
+    "feature": "Core\\Path::thisDirectory",
     "hash": "da2c93f300735f0c",
     "questions": [
       "How do I get the folder of the current script?",
@@ -14728,6 +14728,16 @@
       "Does a sleep wait in a test with a fixed clock?"
     ]
   },
+  "/reference/core/test/answercli/": {
+    "feature": "Core\\Test::answerCli",
+    "hash": "f72a248152626944",
+    "questions": [
+      "How do I test a command-line program that prompts for input?",
+      "Give typed replies to prompts in a test",
+      "Simulate a user at the keyboard in tests",
+      "Test a setup wizard with yes and no replies"
+    ]
+  },
   "/reference/core/test/answerhttp/": {
     "feature": "Core\\Test::answerHttp",
     "hash": "faa1e9286e8ed02f",
@@ -14942,16 +14952,6 @@
       "Give a command input on stdin in a test",
       "Test the usage message when an argument is missing",
       "Why does a command run inside a request throw a LogicError?"
-    ]
-  },
-  "/reference/core/test/scriptanswers/": {
-    "feature": "Core\\Test::scriptAnswers",
-    "hash": "f72a248152626944",
-    "questions": [
-      "How do I test a command-line program that prompts for input?",
-      "Give typed replies to prompts in a test",
-      "Simulate a user at the keyboard in tests",
-      "Test a setup wizard with yes and no replies"
     ]
   },
   "/reference/core/test/senthttp/": {
@@ -17221,7 +17221,7 @@
     ]
   },
   "/reference/core/xml-writer/attribute/": {
-    "feature": "Core\\Xml\\Writer::attribute",
+    "feature": "Core\\Xml\\Writer::writeAttribute",
     "hash": "394d46f82f955bc3",
     "questions": [
       "How do I add an attribute to an XML tag?",
@@ -17231,7 +17231,7 @@
     ]
   },
   "/reference/core/xml-writer/cdata/": {
-    "feature": "Core\\Xml\\Writer::cdata",
+    "feature": "Core\\Xml\\Writer::writeCdata",
     "hash": "576f5db05676f9cc",
     "questions": [
       "How do I put HTML inside an XML element without escaping?",
@@ -17241,7 +17241,7 @@
     ]
   },
   "/reference/core/xml-writer/comment/": {
-    "feature": "Core\\Xml\\Writer::comment",
+    "feature": "Core\\Xml\\Writer::writeComment",
     "hash": "efa4a8d89dd3c713",
     "questions": [
       "How do I add a comment to generated XML?",
@@ -17251,7 +17251,7 @@
     ]
   },
   "/reference/core/xml-writer/content/": {
-    "feature": "Core\\Xml\\Writer::content",
+    "feature": "Core\\Xml\\Writer::writeText",
     "hash": "66a0fe3eb2a04d50",
     "questions": [
       "How do I write text between XML tags?",
@@ -17261,7 +17261,7 @@
     ]
   },
   "/reference/core/xml-writer/doctype/": {
-    "feature": "Core\\Xml\\Writer::doctype",
+    "feature": "Core\\Xml\\Writer::writeDoctype",
     "hash": "5ac061ffb860ef13",
     "questions": [
       "How do I add a DOCTYPE line to XML output?",
@@ -17291,7 +17291,7 @@
     ]
   },
   "/reference/core/xml-writer/instruction/": {
-    "feature": "Core\\Xml\\Writer::instruction",
+    "feature": "Core\\Xml\\Writer::writeInstruction",
     "hash": "a1c23dba7c0eb6f6",
     "questions": [
       "How do I link a stylesheet to an XML feed?",

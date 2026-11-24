@@ -375,7 +375,7 @@ codes! {
     pub const W_REPEATED_READ: Code = Code::new("W1035").card(
         "This code reads the same value twice. The second call does all the work of the first \
          call again. Keep the first result in a variable and use it both times. For several \
-         facts about one file path, call `Core\\IO::stat` once. For several query parameters, \
+         facts about one file path, call `Core\\IO::metadata` once. For several query parameters, \
          call `Core\\Uri::parseQuery` once.",
     );
     /// A `Core\Str::slice` that cuts off a prefix or a suffix the code has

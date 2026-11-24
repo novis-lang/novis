@@ -38,7 +38,7 @@ class ProductPageTest
     public function keepThePage(Outcome $outcome): void
     {
         if (!$outcome->passed()) {
-            IO::write(Path::fromCwd(Page::fileFor($outcome->name())), $this->page);
+            IO::write(Path::fromWorkingDirectory(Page::fileFor($outcome->name())), $this->page);
         }
     }
 }

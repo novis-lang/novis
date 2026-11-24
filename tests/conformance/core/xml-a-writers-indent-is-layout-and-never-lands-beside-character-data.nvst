@@ -11,16 +11,16 @@ One sequence of writes, two writers: the indent changes where a document is brok
 class Catalog {
     public static function into(Core\Xml\Writer $w): string {
         $w->startDocument();
-        $w->doctype("catalog");
-        $w->comment("two shapes of one document");
-        $w->instruction("render", "compact");
+        $w->writeDoctype("catalog");
+        $w->writeComment("two shapes of one document");
+        $w->writeInstruction("render", "compact");
         $w->startElement("catalog");
-        $w->attribute("id", "7");
+        $w->writeAttribute("id", "7");
         $w->startElement("item");
-        $w->content("a & b");
+        $w->writeText("a & b");
         $w->endElement();
         $w->startElement("note");
-        $w->cdata("]] not a close");
+        $w->writeCdata("]] not a close");
         $w->endElement();
         $w->startElement("empty");
         $w->endElement();

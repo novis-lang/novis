@@ -3,7 +3,7 @@
 // names that cannot exist. `move` must move the file or throw an `IOError`, and must not crash.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, 'data.txt');
 Core\IO::write($file, 'hello');
 
@@ -29,13 +29,13 @@ echo 'step 2: done', "\n";
 
 // 3. A folder moved into itself. It must throw an `IOError` and leave the folder in place.
 string $folder = Core\Path::join($dir, 'folder');
-Core\IO::makeDir($folder);
+Core\IO::makeDirectory($folder);
 try {
     Core\IO::move($folder, Core\Path::join($folder, 'inside'));
     throw new LogicError('a folder moved into itself');
 } catch (IOError $intoItself) {
 }
-if (!Core\IO::isDir($folder)) {
+if (!Core\IO::isDirectory($folder)) {
     throw new LogicError('a refused move lost the folder');
 }
 echo 'step 3: done', "\n";

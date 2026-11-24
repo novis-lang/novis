@@ -23,7 +23,7 @@ class Page
     }
 }
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $source = Core\Path::join($dir, 'page.txt');
 string $cache = Core\Path::join($dir, 'page.cache');
 Core\IO::write($source, "hello\n");

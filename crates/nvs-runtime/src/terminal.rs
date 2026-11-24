@@ -94,7 +94,7 @@
 //! # A live region ends in a `Drop`, because every other ending can be skipped
 //!
 //! `rule:tooling/in-place-output-is-a-scoped-live-region`'s in-place output is the module's third half: [`Region`] owns
-//! the cursor between the two ends of one `Core\Cli::live` call. `rule:tooling/the-terminal-is-restored-on-every-exit-path` makes
+//! the cursor between the two ends of one `Core\Cli::showLive` call. `rule:tooling/the-terminal-is-restored-on-every-exit-path` makes
 //! putting the terminal back an obligation on **every** exit path — a throw, a
 //! fatal, an internal panic (`rule:errors/panics-bypass-user-code`), a signal — and the only construct in Rust that runs on all of them is
 //! a destructor. So restoration is [`Region`]'s `Drop` and lives nowhere else:
@@ -788,7 +788,7 @@ const HIDE_CURSOR: &str = "\x1b[?25l";
 /// See [`HIDE_CURSOR`].
 const SHOW_CURSOR: &str = "\x1b[?25h";
 
-/// The terminal rows one `Core\Cli::live` call owns — `rule:tooling/in-place-output-is-a-scoped-live-region`'s live
+/// The terminal rows one `Core\Cli::showLive` call owns — `rule:tooling/in-place-output-is-a-scoped-live-region`'s live
 /// region, and `rule:tooling/the-terminal-is-restored-on-every-exit-path`'s restoration obligation as a destructor.
 ///
 /// Most of the section's properties are here: the cursor is hidden while
@@ -929,7 +929,7 @@ impl Region {
     /// One write and one flush, or nothing at all for an inert region.
     ///
     /// Every failure is dropped: a region is decoration over a device the
-    /// program does not own, and a `Core\Cli::live` body that failed because
+    /// program does not own, and a `Core\Cli::showLive` body that failed because
     /// the terminal went away mid-frame would turn a cosmetic problem into the
     /// program's outcome.
     fn write(&mut self, bytes: &str) {

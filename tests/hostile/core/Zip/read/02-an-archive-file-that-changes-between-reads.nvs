@@ -29,8 +29,8 @@ class Attack
 bytes $packed = Core\Encoding::fromBase64('UEsDBBQAAAAIAAAAIVykiLt8KQAAACcAAAAKAAAAcmVhZG1lLnR4dAvJSMzLVqjML1VIyy9SSMkvz8vJT0zJzEtXKMnILFYoSi3ILyrR4wIAUEsDBBQAAAAIAAAAIVx17X2pLgAAADIAAAAOAAAAZGF0YS9zYWxlcy5jc3bLzc8rydApyS9JzOHySswrTSyq1DE0MjDgcktNKoLwjE0NuHwTi5IzdAwNgRIAUEsBAhQAFAAAAAgAAAAhXKSIu3wpAAAAJwAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAACAAAACFcde19qS4AAAAyAAAADgAAAAAAAAAAAAAApIFRAAAAZGF0YS9zYWxlcy5jc3ZQSwUGAAAAAAIAAgB0AAAAqwAAAAAA');
 bytes $stored = Core\Encoding::fromBase64('UEsDBBQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAcmVhZG1lLnR4dEhlbGxvUEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAHAAAAaW1hZ2VzL1BLAwQUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAGltYWdlcy9sb2dvLnBuZ1BOR1BLAwQUAAAAAAAAACFcj7atpwsAAAALAAAACgAAAGluZGV4Lmh0bWw8aDE+SGk8L2gxPlBLAQIUABQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAAAAAAAAAAACkgQAAAAByZWFkbWUudHh0UEsBAhQAFAAAAAAAAAAhXAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAO1BLQAAAGltYWdlcy9QSwECFAAUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAAAAAAAAAAAApIFSAAAAaW1hZ2VzL2xvZ28ucG5nUEsBAhQAFAAAAAAAAAAhXI+2racLAAAACwAAAAoAAAAAAAAAAAAAAKSBggAAAGluZGV4Lmh0bWxQSwUGAAAAAAQABADiAAAAtQAAAAAA');
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-zip-changes');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-zip-changes');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'upload.zip');
 Core\IO::write($path, $packed);
 Core\IO\File $archive = Core\IO::open($path, Core\IO::FileMode::Read);
@@ -81,4 +81,4 @@ echo 'step 5: ', $failed, " reads threw a ParseError\n";
 $archive->close();
 $writer->close();
 Core\IO::remove($path);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);

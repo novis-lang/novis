@@ -2403,7 +2403,7 @@ fn a_changed_restart_key_is_logged_once_as_pending() {
 }
 
 /// A program that makes a temporary directory and prints its path.
-const TEMPORARY: &str = "<?nvs\necho Core\\IO::temporaryDir();\n";
+const TEMPORARY: &str = "<?nvs\necho Core\\IO::createTemporaryDirectory();\n";
 
 /// `[io] temp_root` at `root`, with a write grant over both `roots`.
 fn temp_root(root: &Path, roots: &[&Path]) -> String {

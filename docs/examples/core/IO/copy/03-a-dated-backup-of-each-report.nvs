@@ -1,11 +1,11 @@
 <?nvs
 // Shows a backup job that copies each report into a backup folder, with the date in the new name.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $reports = Core\Path::join($dir, 'reports');
 string $backups = Core\Path::join($dir, 'backups');
-Core\IO::makeDir($reports);
-Core\IO::makeDir($backups);
+Core\IO::makeDirectory($reports);
+Core\IO::makeDirectory($backups);
 Core\IO::write(Core\Path::join($reports, 'sales.csv'), "month,total\nMay,1200\n");
 Core\IO::write(Core\Path::join($reports, 'stock.csv'), "item,count\nchair,40\n");
 

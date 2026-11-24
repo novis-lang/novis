@@ -5,7 +5,7 @@ Core\IO::move ends with the content at the destination and nothing at the source
 // A rename is two claims and a member that only made the first one looks
 // correct at the destination: the content arrives, *and* the old name stops
 // existing. Every case below asserts both.
-Core\IO::makeDir("archive");
+Core\IO::makeDirectory("archive");
 
 Core\IO::write("report.txt", "the report");
 Core\IO::move("report.txt", "archive/report.txt");

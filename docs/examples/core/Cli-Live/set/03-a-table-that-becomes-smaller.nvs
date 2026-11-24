@@ -3,7 +3,7 @@
 // file on the screen. A file that is done loses its row, so the table becomes
 // smaller until nothing is left.
 
-uint $copied = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+uint $copied = Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     array<string> $files = ['photos.zip', 'notes.txt', 'backup.db'];
     uint $done = 0;
 

@@ -13,7 +13,7 @@ class Bench
             $chunks[] = 'part, ' as bytes;
             $n = $n + 1;
         }
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'upload.bin');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'upload.bin');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

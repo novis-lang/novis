@@ -210,7 +210,7 @@ writing one, starting another script. Some capabilities have a default by run ki
 
 Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
 file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
-`nvs.toml`. It may write only in the directories `Core\IO::temporaryDir` made for it.
+`nvs.toml`. It may write only in the directories `Core\IO::createTemporaryDirectory` made for it.
 
 Outbound connections have a default too. Every run may connect to any public host. A loopback
 address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
@@ -222,7 +222,7 @@ configuration loads, and a name that is not found stops the load. Write a folder
 `"bin/"`, so it is not read as a program name.
 
 Every run may spawn a script inside its app folder, except below a folder whose name starts with `.`
-or a directory `Core\IO::temporaryDir` made. A script anywhere else needs a `script.spawn` line.
+or a directory `Core\IO::createTemporaryDirectory` made. A script anywhere else needs a `script.spawn` line.
 
 Every run may read environment variables. A package may read them only when its `[grants]` line
 lists `"env"`.

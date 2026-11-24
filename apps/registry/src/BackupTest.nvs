@@ -116,7 +116,7 @@ final class BackupTest
                     commit: $row->string('git_commit'),
                 }));
             }
-            IO::makeDir($site->work . '/log');
+            IO::makeDirectory($site->work . '/log');
             IO::write($site->work . '/log/checkpoint', "test\n" . Arr::count($entries) . "\nroot\n");
             var $check = Test::double<LogCheck>({
                 entries: fn(): ?array<string> => $entries,
@@ -156,7 +156,7 @@ final class BackupTest
     private static function folder(): string
     {
         string $folder = Path::join(Index::work(Site::load()), 'test-backup-' . Random::token(8));
-        IO::makeDir($folder);
+        IO::makeDirectory($folder);
         return $folder;
     }
 
@@ -250,7 +250,7 @@ final class BackupTest
     // Deletes `$path` and everything in it.
     private static function remove(string $path): void
     {
-        if (!IO::isDir($path)) {
+        if (!IO::isDirectory($path)) {
             if (IO::exists($path)) {
                 IO::remove($path);
             }
@@ -259,7 +259,7 @@ final class BackupTest
         foreach (IO::list($path) as string $name) {
             BackupTest::remove(Path::join($path, $name));
         }
-        IO::removeDir($path);
+        IO::removeDirectory($path);
     }
 
     private static function trusted(mixed $value): string

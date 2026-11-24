@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $paths = [
             Core\Path::join($dir, 'to-html-each-a.md'),
             Core\Path::join($dir, 'to-html-each-b.md'),

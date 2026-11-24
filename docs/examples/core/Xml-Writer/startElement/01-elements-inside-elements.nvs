@@ -6,17 +6,17 @@ $writer->startDocument();
 
 // `order` is the root element. Everything below goes inside it.
 $writer->startElement('order');
-$writer->attribute('id', '1042');
+$writer->writeAttribute('id', '1042');
 
 // `customer` is inside `order`, and `name` is inside `customer`.
 $writer->startElement('customer');
 $writer->startElement('name');
-$writer->content('Anna Berger');
+$writer->writeText('Anna Berger');
 $writer->endElement();
 $writer->endElement();
 
 $writer->startElement('total');
-$writer->content('25.90');
+$writer->writeText('25.90');
 $writer->endElement();
 
 $writer->endElement();

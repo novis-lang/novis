@@ -73,13 +73,13 @@ try {
 
 // 6. An answer of a million separators and nothing else. Every part of it is
 //    empty, so the answer is the empty set.
-Core\Test::scriptAnswers([Core\Str::repeat(',', 1000000)]);
+Core\Test::answerCli([Core\Str::repeat(',', 1000000)]);
 array<string> $none = Core\Cli::multiSelect('what should happen?', $choices);
 echo 'step 6 chose ', Core\Arr::count($none), "\n";
 
 // 7. An answer of a million digits. It is not a number on the menu, so the
 //    question is asked again, and there is nobody left to ask.
-Core\Test::scriptAnswers([Core\Str::repeat('9', 1000000)]);
+Core\Test::answerCli([Core\Str::repeat('9', 1000000)]);
 try {
     Core\Cli::multiSelect('what should happen?', $choices);
     echo "step 7 was answered\n";

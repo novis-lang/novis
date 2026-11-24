@@ -2,7 +2,7 @@
 // Shows how to send a file only to a visitor who may have it, under a download name.
 
 // A real server already has this file. The example writes it first, so that it has a file to send.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'invoice-1042.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'invoice-1042.csv');
 Core\IO::write($path, "item,price\nTea,4.50\nCups,12.00\n");
 
 // The check comes before `sendFile`. A visitor without the right key gets a 403 status and no file.

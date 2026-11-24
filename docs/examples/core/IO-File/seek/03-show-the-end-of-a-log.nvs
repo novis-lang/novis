@@ -2,7 +2,7 @@
 // Shows how to read only the end of a large log file.
 // The program never reads the start of the file, however large it is.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'app.log');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'app.log');
 Core\IO\File $log = Core\IO::open($path, Core\IO::FileMode::Write);
 uint $i = 1;
 while ($i <= 5000) {

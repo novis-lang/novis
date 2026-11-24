@@ -1,8 +1,8 @@
 <?nvs
 // Shows how `Core\IO::list` returns the name of each file and folder inside a folder.
 
-string $site = Core\Path::join(Core\IO::temporaryDir(), 'site');
-Core\IO::makeDir(Core\Path::join($site, 'images'));
+string $site = Core\Path::join(Core\IO::createTemporaryDirectory(), 'site');
+Core\IO::makeDirectory(Core\Path::join($site, 'images'));
 Core\IO::write(Core\Path::join($site, 'index.html'), "<h1>Home</h1>\n");
 Core\IO::write(Core\Path::join($site, 'style.css'), "h1 { color: navy; }\n");
 

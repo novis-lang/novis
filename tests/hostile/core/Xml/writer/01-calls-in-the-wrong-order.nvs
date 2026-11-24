@@ -24,7 +24,7 @@ Try::call(fn(): void => { Core\Xml::writer({ indent: '<x>' }); });
 
 // 2. Content, an element and the end of the document before `startDocument`. Each prints LogicError.
 Core\Xml\Writer $early = Core\Xml::writer();
-Try::call(fn(): void => { $early->content('x'); });
+Try::call(fn(): void => { $early->writeText('x'); });
 Try::call(fn(): void => { $early->startElement('a'); });
 Try::call(fn(): void => { $early->endDocument(); });
 
@@ -35,18 +35,18 @@ $out->startElement('root');
 Try::call(fn(): void => { $out->startElement('1st'); });
 Try::call(fn(): void => { $out->startElement('a b'); });
 Try::call(fn(): void => { $out->startElement('</root><evil>'); });
-Try::call(fn(): void => { $out->attribute('on click', 'x'); });
-Try::call(fn(): void => { $out->content("x\x01y"); });
-Try::call(fn(): void => { $out->comment('a -- b'); });
-Try::call(fn(): void => { $out->instruction('go', 'a ?> <evil/>'); });
-Try::call(fn(): void => { $out->instruction('xml', "version=\"1.0\""); });
+Try::call(fn(): void => { $out->writeAttribute('on click', 'x'); });
+Try::call(fn(): void => { $out->writeText("x\x01y"); });
+Try::call(fn(): void => { $out->writeComment('a -- b'); });
+Try::call(fn(): void => { $out->writeInstruction('go', 'a ?> <evil/>'); });
+Try::call(fn(): void => { $out->writeInstruction('xml', "version=\"1.0\""); });
 
 // 4. The same attribute twice, and an attribute after content. Each prints LogicError.
 $out->startElement('item');
-$out->attribute('id', '1');
-Try::call(fn(): void => { $out->attribute('id', '2'); });
-$out->content('text');
-Try::call(fn(): void => { $out->attribute('late', 'x'); });
+$out->writeAttribute('id', '1');
+Try::call(fn(): void => { $out->writeAttribute('id', '2'); });
+$out->writeText('text');
+Try::call(fn(): void => { $out->writeAttribute('late', 'x'); });
 $out->endElement();
 
 // 5. Closing more elements than are open. The last one prints LogicError.
@@ -70,7 +70,7 @@ $big->startElement('r');
 $i = 0;
 while ($i < 1000000) {
     $big->startElement('i');
-    $big->content('<&>');
+    $big->writeText('<&>');
     $big->endElement();
     $i = $i + 1;
 }

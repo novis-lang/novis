@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `Core\IO::remove` throws an `IOError` when there is no file to delete.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $path = Core\Path::join($dir, 'cache.txt');
 Core\IO::write($path, "old data\n");
 

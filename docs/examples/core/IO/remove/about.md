@@ -3,7 +3,7 @@ Deletes one file.
 `Core\IO::remove` takes the path of a file and deletes it. After the call, the file does not exist
 and `Core\IO::exists` returns `false` for that path.
 
-`remove` deletes files only. To delete an empty folder, use `Core\IO::removeDir`. There is no way to
+`remove` deletes files only. To delete an empty folder, use `Core\IO::removeDirectory`. There is no way to
 delete a folder and everything in it with one call. A program that wants this lists the folder and
 deletes each file first.
 
@@ -12,5 +12,5 @@ the operating system does not allow the deletion. So a program always knows if a
 deleted.
 
 A program you start from the command line may delete any file. On a server, a program may delete
-files only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the
+files only in the folders that `Core\IO::createTemporaryDirectory` made for it. Any other path needs the
 `fs.write` capability. Without it, `remove` throws a `RuntimeError` and the file stays.

@@ -38,7 +38,7 @@ foreach (Core\Json::encodeEach($users) as var $piece) {
 }
 
 // `writeStream` writes the pieces to a file. This file has one user on each line.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'users.jsonl');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'users.jsonl');
 Core\IO::writeStream($path, Core\Json::encodeEach($users, { lines: true }), { overwrite: true });
 echo Core\IO::read($path);
 ```

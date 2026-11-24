@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `Core\IO::makeDirectory` creates a folder and every missing folder above it.
+
+string $root = Core\Path::join(Core\IO::createTemporaryDirectory(), 'project');
+string $deep = Core\Path::join($root, 'src', 'views', 'admin');
+
+// One call creates "project", "src", "views" and "admin".
+Core\IO::makeDirectory($deep);
+
+// This prints "project/src: true" and then "project/src/views/admin: true".
+echo 'project/src: ', Core\IO::isDirectory(Core\Path::join($root, 'src')) ? 'true' : 'false', "\n";
+echo 'project/src/views/admin: ', Core\IO::isDirectory($deep) ? 'true' : 'false', "\n";

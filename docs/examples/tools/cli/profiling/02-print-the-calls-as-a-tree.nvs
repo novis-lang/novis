@@ -30,7 +30,7 @@ class Checkout
     }
 }
 
-string $file = Core\Path::thisDir('checkout.speedscope.json');
+string $file = Core\Path::thisDirectory('checkout.speedscope.json');
 
 Core\Debug::startProfile($file);
 int $total = Checkout::total([1000, 2500]);

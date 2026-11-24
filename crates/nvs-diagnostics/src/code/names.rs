@@ -147,7 +147,7 @@ codes! {
         "A bare name such as `MY_LIMIT` is not a constant, because Novis has no global constants. \
          Every constant belongs to a class, so write `Class::NAME`. For a PHP constant, use its \
          `Core` replacement, for example `Core\\Math::PI` for `M_PI`. For `__FILE__` and \
-         `__DIR__`, write `Core\\Path::thisFile()` and `Core\\Path::thisDir()`.",
+         `__DIR__`, write `Core\\Path::thisFile()` and `Core\\Path::thisDirectory()`.",
     );
     /// A bare name called as a function — `strlen($s)` — which in PHP would
     /// be a global function call. `rule:classes/no-free-functions-or-constants`: every callable is a method,

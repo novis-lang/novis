@@ -31,7 +31,7 @@
 //! file and used in another would make that file ambiguous, so it stays a
 //! run-time value, and a relative one meets the run-time refusal in
 //! `nvs_runtime::capability::require`. The message there names
-//! `Core\Path::join` and `Core\Path::fromCwd`.
+//! `Core\Path::join` and `Core\Path::fromWorkingDirectory`.
 //!
 //! A path built from a written relative path is the one run-time value whose
 //! refusal is certain while compiling, so it is `E0840` instead: the left end
@@ -72,7 +72,7 @@
 //!
 //! # The file that wrote the call
 //!
-//! `Core\Path::thisFile()` and `Core\Path::thisDir($join)` are replaced by
+//! `Core\Path::thisFile()` and `Core\Path::thisDirectory($join)` are replaced by
 //! [`fold_this`] with the path of the file that wrote them and its folder,
 //! from the same [`base_dir`] a literal is joined to, so a bundle answers the
 //! folder beside the executable. The answer goes into the written-path table
@@ -244,8 +244,8 @@ fn report_built(value: &Expr, env: &mut Env<'_>) {
         )
         .with_help(
             "start the path with the folder of this file: \
-             `Core\\Path::thisDir('data') . '/' . $name`, or \
-             `Core\\Path::join(Core\\Path::thisDir('data'), $name)`",
+             `Core\\Path::thisDirectory('data') . '/' . $name`, or \
+             `Core\\Path::join(Core\\Path::thisDirectory('data'), $name)`",
         ),
     );
 }
@@ -258,13 +258,13 @@ fn may_become_a_drive(text: &str) -> bool {
     matches!((chars.next(), chars.next()), (Some(letter), None) if letter.is_ascii_alphabetic())
 }
 
-/// Whether `member` of `owner` is `Core\Path::thisFile` or `thisDir`, the two
+/// Whether `member` of `owner` is `Core\Path::thisFile` or `thisDirectory`, the two
 /// calls [`fold_this`] replaces with a path.
 pub(crate) fn is_this(owner: &QName, member: &str) -> bool {
-    owner.to_string() == r"Core\Path" && matches!(member, "thisFile" | "thisDir")
+    owner.to_string() == r"Core\Path" && matches!(member, "thisFile" | "thisDirectory")
 }
 
-/// Records the path `Core\Path::thisFile()` or `Core\Path::thisDir($join)`
+/// Records the path `Core\Path::thisFile()` or `Core\Path::thisDirectory($join)`
 /// names under the call's own span, in the table a written path is recorded
 /// in, where `nvs-ir` lowers it to a string constant — the module doc's
 /// § *The file that wrote the call*.
@@ -306,13 +306,15 @@ fn report_join(join: &Expr, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_PATH_THIS_DIR_JOIN_NOT_A_WRITTEN_RELATIVE_PATH,
-            format!("`Core\\Path::thisDir({written})` needs a relative path written in quotes"),
+            format!(
+                "`Core\\Path::thisDirectory({written})` needs a relative path written in quotes"
+            ),
         )
         .with_primary(join.span, "not a relative path in quotes")
         .with_help(
             "the folder is joined while the program compiles. Write a relative path in quotes, \
              such as `'data'`. For a path the program builds, write \
-             `Core\\Path::join(Core\\Path::thisDir(), $part)`",
+             `Core\\Path::join(Core\\Path::thisDirectory(), $part)`",
         ),
     );
 }
@@ -365,7 +367,7 @@ fn base_dir(src: &SourceFile) -> Option<PathBuf> {
 /// file: canonical, so every link is followed, a Windows short name such as
 /// `RUNNER~1` is written out in full, and the letters have their on-disk case.
 /// The entry file arrives as it was typed and a required file arrives
-/// canonical, so this is what makes `thisDir()` and a literal give the same
+/// canonical, so this is what makes `thisDirectory()` and a literal give the same
 /// folder in both. Inside a bundled executable the folder is synthetic, and
 /// [`nvs_diagnostics::embedded::on_disk`] answers where it is on disk.
 ///
@@ -377,7 +379,7 @@ fn base_dir(src: &SourceFile) -> Option<PathBuf> {
 /// by the name they typed.
 ///
 /// **Cost:** one `canonicalize` call per literal and per `thisFile` or
-/// `thisDir` call while compiling, on a file the compiler has just read.
+/// `thisDirectory` call while compiling, on a file the compiler has just read.
 fn base_file(src: &SourceFile) -> Option<PathBuf> {
     let path = src.path()?;
     let name = path.file_name()?;

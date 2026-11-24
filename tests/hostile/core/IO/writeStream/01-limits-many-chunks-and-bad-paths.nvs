@@ -4,8 +4,8 @@
 // stream that fails must leave no file.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
+Core\IO::makeDirectory($dir);
 
 // 1. A stream of exactly `max` bytes is saved. A stream of `max` + 1 bytes throws an error and
 // leaves no file. The extra byte is in its own chunk at the end.
@@ -78,7 +78,7 @@ foreach ($bad as string $badPath) {
     } catch (RuntimeError $refused) {
     }
 }
-if (!Core\IO::isDir($dir)) {
+if (!Core\IO::isDirectory($dir)) {
     throw new LogicError('the folder was replaced by `writeStream`');
 }
 echo 'step 4: done', "\n";

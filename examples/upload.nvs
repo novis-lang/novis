@@ -17,11 +17,11 @@
 // absence of a request stops it.
 //
 // The grant this needs is in `nvs.toml`, keyed on this entry, for the reason
-// `examples/files.nvs`'s block gives: `Core\IO::temporaryDir()` answers with the
+// `examples/files.nvs`'s block gives: `Core\IO::createTemporaryDirectory()` answers with the
 // host's own path, and that is not a name this repository can write down.
 
 // A directory this program owns, so the fixture leaves nothing behind.
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // The whole receiving end, written exactly as a request handler writes it: the
 // walk, the launderer, and one of a part's consumers. A part is received once
@@ -73,5 +73,5 @@ try {
 // And back to nothing. No temp file outlives the program, because none was ever
 // made on its behalf.
 Core\IO::remove($blob);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);
 echo 'removed', "\n";

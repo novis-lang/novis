@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to make a backup copy of a binary file and check that it is exact.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $original = Core\Path::join($dir, 'invoices.zip');
 string $backup = Core\Path::join($dir, 'invoices.zip.bak');
 

@@ -40,7 +40,7 @@ certificates, leaf first, each over a fresh P-256 key, because a real server sen
 intermediate and a `peerChain()` example should show that order. A prefix row whose URL names no
 scheme is not checked for `http://`.
 
-`answerHttp`, `tlsSession`, `answerSocket` and `Core\Test::scriptAnswers` throw a `LogicError` in work
+`answerHttp`, `tlsSession`, `answerSocket` and `Core\Test::answerCli` throw a `LogicError` in work
 a server runs: a request, a connection, a scheduled fire and a job, outside `nvs test`. A test left in a
 served program would otherwise give it replies no host sent. A test, a request or run a test makes, and
 a CLI program may call them, because every example and attack that calls a host runs under `nvs run`

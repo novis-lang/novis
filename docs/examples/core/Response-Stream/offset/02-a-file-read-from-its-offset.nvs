@@ -2,7 +2,7 @@
 // Shows how to send a file from storage, starting at the byte the browser asked for.
 
 // A real server already has this file. The example writes it first, so that it has a file to send.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'notes.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'notes.txt');
 Core\IO::write($path, "Line one\nLine two\nLine three\n");
 
 Core\Response\Stream $body = Core\Response::startStream('text/plain; charset=utf-8', Core\IO::size($path) as int);

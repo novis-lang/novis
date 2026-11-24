@@ -710,8 +710,8 @@ const WINDOW_SLOT: usize = 7;
 /// **Every one of these is a write, and none of them is a question**, which is
 /// the disjointness `rule:core-classes/xml-tree-and-stream` asks for read from
 /// the writing side: the tree's members answer what a node holds, and nothing
-/// here answers anything until the document is finished. `content` is the
-/// member the family would have called `text`, renamed rather than shared —
+/// here answers anything until the document is finished. `writeText` is the
+/// member the family would have called `text`, named apart rather than shared —
 /// reading a node's text and writing character data are two operations, and a
 /// spelling they had in common is exactly what the rule forbids.
 ///
@@ -774,47 +774,47 @@ pub(crate) const WRITER: CoreClass = CoreClass {
             doc: Some(&END_ELEMENT_DOC),
         },
         CoreMethod {
-            name: "content",
+            name: "writeText",
             names: &["text"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_content",
+            symbol: "nvs_core_xml_writer_write_text",
             doc: Some(&CONTENT_DOC),
         },
         CoreMethod {
-            name: "attribute",
+            name: "writeAttribute",
             names: &["name", "value"],
             params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_attribute",
+            symbol: "nvs_core_xml_writer_write_attribute",
             doc: Some(&ATTRIBUTE_DOC),
         },
         CoreMethod {
-            name: "comment",
+            name: "writeComment",
             names: &["text"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_comment",
+            symbol: "nvs_core_xml_writer_write_comment",
             doc: Some(&COMMENT_DOC),
         },
         CoreMethod {
-            name: "cdata",
+            name: "writeCdata",
             names: &["text"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_cdata",
+            symbol: "nvs_core_xml_writer_write_cdata",
             doc: Some(&CDATA_DOC),
         },
         CoreMethod {
-            name: "instruction",
+            name: "writeInstruction",
             names: &["target", "data"],
             // Sinks, unlike the members above: XML escapes nothing inside an
             // instruction, and its data is an instruction to the program that
@@ -823,17 +823,17 @@ pub(crate) const WRITER: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_instruction",
+            symbol: "nvs_core_xml_writer_write_instruction",
             doc: Some(&INSTRUCTION_DOC),
         },
         CoreMethod {
-            name: "doctype",
+            name: "writeDoctype",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_xml_writer_doctype",
+            symbol: "nvs_core_xml_writer_write_doctype",
             doc: Some(&DOCTYPE_DOC),
         },
     ],
@@ -927,7 +927,7 @@ const END_DOCUMENT_DOC: MethodDoc = MethodDoc {
 /// `rule:core-api/reference-card`.
 const START_ELEMENT_DOC: MethodDoc = MethodDoc {
     short: "Opens an element, such as `<order>`. Everything you write until the matching \
-            `endElement` goes inside it. Call `attribute` right after this method to add \
+            `endElement` goes inside it. Call `writeAttribute` right after this method to add \
             attributes to the element.",
     params: &[ParamDoc {
         name: "name",
@@ -958,7 +958,7 @@ const END_ELEMENT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::content`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Xml\Writer::writeText`'s reference card — `rule:core-api/reference-card`.
 const CONTENT_DOC: MethodDoc = MethodDoc {
     short: "Writes text inside the open element. The writer escapes it: `&` becomes `&amp;`, `<` \
             becomes `&lt;` and `>` becomes `&gt;`. A parser reads back exactly the text you \
@@ -978,7 +978,7 @@ const CONTENT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::attribute`'s reference card —
+/// `Core\Xml\Writer::writeAttribute`'s reference card —
 /// `rule:core-api/reference-card`.
 const ATTRIBUTE_DOC: MethodDoc = MethodDoc {
     short: "Adds one attribute to the element that `startElement` opened last. Call it right after \
@@ -1007,7 +1007,7 @@ const ATTRIBUTE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::comment`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Xml\Writer::writeComment`'s reference card — `rule:core-api/reference-card`.
 const COMMENT_DOC: MethodDoc = MethodDoc {
     short: "Writes an XML comment, such as `<!-- note -->`. You can write it before the root \
             element, inside an element, or after the root element is closed.",
@@ -1025,11 +1025,11 @@ const COMMENT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::cdata`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Xml\Writer::writeCdata`'s reference card — `rule:core-api/reference-card`.
 const CDATA_DOC: MethodDoc = MethodDoc {
     short: "Writes text inside the open element as a CDATA section, such as \
             `<![CDATA[a < b]]>`. The text is written unchanged. A parser reads it as the same text \
-            that `content` writes.",
+            that `writeText` writes.",
     params: &[ParamDoc {
         name: "text",
         desc: "The text to write. `<` and `&` are allowed and are not escaped. The text cannot \
@@ -1037,7 +1037,7 @@ const CDATA_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing. After this call, the writer does not indent inside this element, like after \
-          `content`.",
+          `writeText`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "No element is open. The text contains `]]>`. The text contains a control character \
@@ -1045,7 +1045,7 @@ const CDATA_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::instruction`'s reference card —
+/// `Core\Xml\Writer::writeInstruction`'s reference card —
 /// `rule:core-api/reference-card`.
 const INSTRUCTION_DOC: MethodDoc = MethodDoc {
     short: "Writes a processing instruction, such as `<?xml-stylesheet href=\"a.css\"?>`. It is a \
@@ -1076,7 +1076,7 @@ const INSTRUCTION_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Xml\Writer::doctype`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Xml\Writer::writeDoctype`'s reference card — `rule:core-api/reference-card`.
 const DOCTYPE_DOC: MethodDoc = MethodDoc {
     short: "Writes a document type declaration, such as `<!DOCTYPE html>`, before the root \
             element. It writes only the name. It does not write a link to a DTD file or any entity \
@@ -1153,12 +1153,20 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
             (nvs_core_xml_writer_start_element as *const ()).cast()
         }
         "nvs_core_xml_writer_end_element" => (nvs_core_xml_writer_end_element as *const ()).cast(),
-        "nvs_core_xml_writer_content" => (nvs_core_xml_writer_content as *const ()).cast(),
-        "nvs_core_xml_writer_attribute" => (nvs_core_xml_writer_attribute as *const ()).cast(),
-        "nvs_core_xml_writer_comment" => (nvs_core_xml_writer_comment as *const ()).cast(),
-        "nvs_core_xml_writer_cdata" => (nvs_core_xml_writer_cdata as *const ()).cast(),
-        "nvs_core_xml_writer_instruction" => (nvs_core_xml_writer_instruction as *const ()).cast(),
-        "nvs_core_xml_writer_doctype" => (nvs_core_xml_writer_doctype as *const ()).cast(),
+        "nvs_core_xml_writer_write_text" => (nvs_core_xml_writer_write_text as *const ()).cast(),
+        "nvs_core_xml_writer_write_attribute" => {
+            (nvs_core_xml_writer_write_attribute as *const ()).cast()
+        }
+        "nvs_core_xml_writer_write_comment" => {
+            (nvs_core_xml_writer_write_comment as *const ()).cast()
+        }
+        "nvs_core_xml_writer_write_cdata" => (nvs_core_xml_writer_write_cdata as *const ()).cast(),
+        "nvs_core_xml_writer_write_instruction" => {
+            (nvs_core_xml_writer_write_instruction as *const ()).cast()
+        }
+        "nvs_core_xml_writer_write_doctype" => {
+            (nvs_core_xml_writer_write_doctype as *const ()).cast()
+        }
         _ => return None,
     }))
 }
@@ -4015,14 +4023,14 @@ fn end_element(receiver: Value) -> Result<Value, Fault> {
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_content`]'s body — the writer's escape point.
+/// [`nvs_core_xml_writer_write_text`]'s body — the writer's escape point.
 ///
 /// # Errors
 ///
 /// A `LogicError` where no element is open, for a character a document cannot
 /// write, and for a document that is not open.
 fn content(receiver: Value, text: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "content")?;
+    let pen = Pen::of(receiver, "writeText")?;
     pen.writing()?;
     let open = pen.count(OPEN_COUNT_SLOT)?;
     if open == 0 {
@@ -4035,7 +4043,7 @@ fn content(receiver: Value, text: &str) -> Result<Value, Fault> {
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_attribute`]'s body.
+/// [`nvs_core_xml_writer_write_attribute`]'s body.
 ///
 /// # Errors
 ///
@@ -4043,7 +4051,7 @@ fn content(receiver: Value, text: &str) -> Result<Value, Fault> {
 /// tag already carries, for a name a document cannot carry, for a value holding
 /// a character a document cannot write, and for a document that is not open.
 fn attribute(receiver: Value, name: &str, value: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "attribute")?;
+    let pen = Pen::of(receiver, "writeAttribute")?;
     pen.writing()?;
     if !pen.flag(TAG_SLOT)? {
         return pen.refuse(
@@ -4075,14 +4083,14 @@ fn attribute(receiver: Value, name: &str, value: &str) -> Result<Value, Fault> {
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_comment`]'s body.
+/// [`nvs_core_xml_writer_write_comment`]'s body.
 ///
 /// # Errors
 ///
 /// A `LogicError` for content XML gives a comment no way to hold, and for a
 /// document that is not open.
 fn comment(receiver: Value, text: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "comment")?;
+    let pen = Pen::of(receiver, "writeComment")?;
     pen.writing()?;
     if text.contains("--") || text.ends_with('-') {
         return pen
@@ -4097,14 +4105,14 @@ fn comment(receiver: Value, text: &str) -> Result<Value, Fault> {
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_cdata`]'s body.
+/// [`nvs_core_xml_writer_write_cdata`]'s body.
 ///
 /// # Errors
 ///
 /// A `LogicError` where no element is open, for a text holding `]]>` or a
 /// character a document cannot write, and for a document that is not open.
 fn cdata(receiver: Value, text: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "cdata")?;
+    let pen = Pen::of(receiver, "writeCdata")?;
     pen.writing()?;
     let open = pen.count(OPEN_COUNT_SLOT)?;
     if open == 0 {
@@ -4122,7 +4130,7 @@ fn cdata(receiver: Value, text: &str) -> Result<Value, Fault> {
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_instruction`]'s body.
+/// [`nvs_core_xml_writer_write_instruction`]'s body.
 ///
 /// # Errors
 ///
@@ -4130,7 +4138,7 @@ fn cdata(receiver: Value, text: &str) -> Result<Value, Fault> {
 /// declaration's own, for data holding `?>` or a character a document cannot
 /// write, and for a document that is not open.
 fn instruction(receiver: Value, target: &str, data: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "instruction")?;
+    let pen = Pen::of(receiver, "writeInstruction")?;
     pen.writing()?;
     if !is_name(target) {
         return pen.refuse(&format!("`{target}` is not a name a document can write"));
@@ -4156,7 +4164,7 @@ fn instruction(receiver: Value, target: &str, data: &str) -> Result<Value, Fault
     Ok(Value::null())
 }
 
-/// [`nvs_core_xml_writer_doctype`]'s body.
+/// [`nvs_core_xml_writer_write_doctype`]'s body.
 ///
 /// # Errors
 ///
@@ -4164,7 +4172,7 @@ fn instruction(receiver: Value, target: &str, data: &str) -> Result<Value, Fault
 /// already written (a document carries at most one), for a name a document
 /// cannot carry, and for a document that is not open.
 fn doctype(receiver: Value, name: &str) -> Result<Value, Fault> {
-    let pen = Pen::of(receiver, "doctype")?;
+    let pen = Pen::of(receiver, "writeDoctype")?;
     pen.writing()?;
     if pen.flag(ROOT_SLOT)? {
         return pen.refuse(
@@ -4282,57 +4290,57 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->content(string $text): void` — character data, escaped.
-    fn nvs_core_xml_writer_content(_ctx, args: [2]) {
-        content(args[0], text_of(&args[1], "content")?)
+    /// `$writer->writeText(string $text): void` — character data, escaped.
+    fn nvs_core_xml_writer_write_text(_ctx, args: [2]) {
+        content(args[0], text_of(&args[1], "writeText")?)
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->attribute(string $name, string $value): void` — one attribute
+    /// `$writer->writeAttribute(string $name, string $value): void` — one attribute
     /// on the element that was just opened.
-    fn nvs_core_xml_writer_attribute(_ctx, args: [3]) {
+    fn nvs_core_xml_writer_write_attribute(_ctx, args: [3]) {
         attribute(
             args[0],
-            text_of(&args[1], "attribute")?,
-            text_of(&args[2], "attribute")?,
+            text_of(&args[1], "writeAttribute")?,
+            text_of(&args[2], "writeAttribute")?,
         )
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->comment(string $text): void` — a comment, as one call.
-    fn nvs_core_xml_writer_comment(_ctx, args: [2]) {
-        comment(args[0], text_of(&args[1], "comment")?)
+    /// `$writer->writeComment(string $text): void` — a comment, as one call.
+    fn nvs_core_xml_writer_write_comment(_ctx, args: [2]) {
+        comment(args[0], text_of(&args[1], "writeComment")?)
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->cdata(string $text): void` — character data as a CDATA
-    /// section, which is an escaping choice about the same text `content`
+    /// `$writer->writeCdata(string $text): void` — character data as a CDATA
+    /// section, which is an escaping choice about the same text `writeText`
     /// writes.
-    fn nvs_core_xml_writer_cdata(_ctx, args: [2]) {
-        cdata(args[0], text_of(&args[1], "cdata")?)
+    fn nvs_core_xml_writer_write_cdata(_ctx, args: [2]) {
+        cdata(args[0], text_of(&args[1], "writeCdata")?)
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->instruction(string $target, string $data): void` — a
+    /// `$writer->writeInstruction(string $target, string $data): void` — a
     /// processing instruction, as one call.
-    fn nvs_core_xml_writer_instruction(_ctx, args: [3]) {
+    fn nvs_core_xml_writer_write_instruction(_ctx, args: [3]) {
         instruction(
             args[0],
-            text_of(&args[1], "instruction")?,
-            text_of(&args[2], "instruction")?,
+            text_of(&args[1], "writeInstruction")?,
+            text_of(&args[2], "writeInstruction")?,
         )
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$writer->doctype(string $name): void` — the document type declaration,
+    /// `$writer->writeDoctype(string $name): void` — the document type declaration,
     /// which names a document type and resolves nothing.
-    fn nvs_core_xml_writer_doctype(_ctx, args: [2]) {
-        doctype(args[0], text_of(&args[1], "doctype")?)
+    fn nvs_core_xml_writer_write_doctype(_ctx, args: [2]) {
+        doctype(args[0], text_of(&args[1], "writeDoctype")?)
     }
 }
 
@@ -5660,12 +5668,12 @@ mod tests {
     /// that scanned every earlier name could only do in quadratic time. Under
     /// Miri the tag carries fifty names, so the run stays inside CI's time
     /// limit. The native run keeps the pin.
-    // covers: Core\Xml\Writer::attribute
+    // covers: Core\Xml\Writer::writeAttribute
     #[test]
     fn attribute_values_parse_back_and_names_are_checked_per_tag() {
         let start = super::nvs_core_xml_writer_start_element;
         let end = super::nvs_core_xml_writer_end_element;
-        let attribute = super::nvs_core_xml_writer_attribute;
+        let attribute = super::nvs_core_xml_writer_write_attribute;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "");
@@ -5719,12 +5727,12 @@ mod tests {
     /// own indented line inside an element, and unindented inside text. A text
     /// holding `--` or ending with `-` is refused and writes nothing, so the
     /// document around the refusals is exactly the accepted calls and parses.
-    // covers: Core\Xml\Writer::comment
+    // covers: Core\Xml\Writer::writeComment
     #[test]
     fn comments_go_where_the_writer_stands_and_refuse_what_would_end_them() {
         let start = super::nvs_core_xml_writer_start_element;
         let end = super::nvs_core_xml_writer_end_element;
-        let comment = super::nvs_core_xml_writer_comment;
+        let comment = super::nvs_core_xml_writer_write_comment;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "  ");
@@ -5751,7 +5759,7 @@ mod tests {
         wrote(asked(&mut ctx, start, &[writer, b]));
         wrote(asked(
             &mut ctx,
-            super::nvs_core_xml_writer_content,
+            super::nvs_core_xml_writer_write_text,
             &[writer, x],
         ));
         wrote(asked(&mut ctx, comment, &[writer, texts[2]]));
@@ -5776,15 +5784,15 @@ mod tests {
     }
 
     /// A CDATA section is written unescaped and parses back as the same text.
-    /// It stops the indent the way `content` does, so no whitespace is added
+    /// It stops the indent the way `writeText` does, so no whitespace is added
     /// beside it. It needs an open element, and a text holding `]]>` is refused
     /// and writes nothing, while `]]` alone is accepted.
-    // covers: Core\Xml\Writer::cdata
+    // covers: Core\Xml\Writer::writeCdata
     #[test]
     fn cdata_parses_back_unchanged_and_refuses_what_would_end_it() {
         let start = super::nvs_core_xml_writer_start_element;
         let end = super::nvs_core_xml_writer_end_element;
-        let cdata = super::nvs_core_xml_writer_cdata;
+        let cdata = super::nvs_core_xml_writer_write_cdata;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "  ");
@@ -5836,10 +5844,10 @@ mod tests {
     /// target alone. The declaration's target in any casing, a target that is
     /// not a name and data holding `?>` are refused and write nothing, while
     /// data ending in a bare `?` is accepted and survives the round trip.
-    // covers: Core\Xml\Writer::instruction
+    // covers: Core\Xml\Writer::writeInstruction
     #[test]
     fn instructions_parse_back_as_written_and_refuse_what_would_end_them() {
-        let instruction = super::nvs_core_xml_writer_instruction;
+        let instruction = super::nvs_core_xml_writer_write_instruction;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "  ");
@@ -5928,10 +5936,10 @@ mod tests {
     /// if one came first. A second declaration, one after the root element
     /// has started and a name that is not a name are refused and write
     /// nothing, so the prolog holds exactly one `<!DOCTYPE`.
-    // covers: Core\Xml\Writer::doctype
+    // covers: Core\Xml\Writer::writeDoctype
     #[test]
     fn a_doctype_is_written_once_above_the_root_and_refused_after_either() {
-        let doctype = super::nvs_core_xml_writer_doctype;
+        let doctype = super::nvs_core_xml_writer_write_doctype;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "  ");
@@ -5954,7 +5962,7 @@ mod tests {
         }
         wrote(asked(
             &mut ctx,
-            super::nvs_core_xml_writer_comment,
+            super::nvs_core_xml_writer_write_comment,
             &[writer, remark],
         ));
         wrote(asked(&mut ctx, doctype, &[writer, html]));
@@ -5993,12 +6001,12 @@ mod tests {
     /// written as they are. It needs an open element on both sides of the
     /// root, a control character and U+FFFF are refused and write nothing, and an empty
     /// text still closes the element as `<e></e>`.
-    // covers: Core\Xml\Writer::content
+    // covers: Core\Xml\Writer::writeText
     #[test]
     fn content_parses_back_as_written_and_cannot_become_markup() {
         let start = super::nvs_core_xml_writer_start_element;
         let end = super::nvs_core_xml_writer_end_element;
-        let content = super::nvs_core_xml_writer_content;
+        let content = super::nvs_core_xml_writer_write_text;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "  ");
@@ -6182,9 +6190,9 @@ mod tests {
 
         let start = super::nvs_core_xml_writer_start_element;
         let end = super::nvs_core_xml_writer_end_element;
-        let attribute = super::nvs_core_xml_writer_attribute;
-        let content = super::nvs_core_xml_writer_content;
-        let doctype = super::nvs_core_xml_writer_doctype;
+        let attribute = super::nvs_core_xml_writer_write_attribute;
+        let content = super::nvs_core_xml_writer_write_text;
+        let doctype = super::nvs_core_xml_writer_write_doctype;
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let writer = pen(&mut ctx, "");

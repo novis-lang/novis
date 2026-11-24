@@ -1,5 +1,5 @@
 --TEST--
-a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromCwd` or `Core\Path::join` makes it one the door accepts — `rule:programs/relative-paths-resolve-from-their-file`
+a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromWorkingDirectory` or `Core\Path::join` makes it one the door accepts — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // covers: lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file
@@ -21,11 +21,11 @@ try {
     echo $error->message, "\n";
 }
 
-// `fromCwd` joins it to the folder the program was started from.
-echo Core\IO::read(Core\Path::fromCwd($name));
+// `fromWorkingDirectory` joins it to the folder the program was started from.
+echo Core\IO::read(Core\Path::fromWorkingDirectory($name));
 
 // `join` builds it from a folder the program already holds as an absolute path.
-string $folder = Core\Path::fromCwd('data');
+string $folder = Core\Path::fromWorkingDirectory('data');
 echo Core\IO::read(Core\Path::join($folder, 'note.txt'));
 --FILE data/note.txt--
 read
@@ -34,8 +34,8 @@ read
 read = ["./data"]
 --EXPECT--
 Core\IO::read needs an absolute path, and `data/note.txt` is relative
-help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromWorkingDirectory` for a path typed on the command line
 Core\IO::write needs an absolute path, and `data/copy.txt` is relative
-help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromWorkingDirectory` for a path typed on the command line
 read
 read

@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(int $rounds): int
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $paths = [
             Core\Path::join($dir, 'template.txt'),
             Core\Path::join($dir, 'style.css'),

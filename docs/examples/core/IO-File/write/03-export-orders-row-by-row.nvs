@@ -2,7 +2,7 @@
 // Shows how to export many rows to a CSV file one row at a time.
 // Only one row is in memory at a time, however many rows there are.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.csv');
 Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);
 uint $bytes = $out->write("id,customer,total\n");
 

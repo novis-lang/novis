@@ -3,7 +3,7 @@
 // working on beside the bar. The bar is scaled to the number of files, and each
 // file that is sent moves it one step.
 
-uint $sent = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+uint $sent = Core\Cli::showProgress(3, fn(Core\Cli\Progress $bar): uint => {
     array<string> $files = ['photos.zip', 'notes.txt', 'backup.db'];
     uint $done = 0;
 

@@ -7,8 +7,8 @@ echo 'check the files every: ', Core\Config::get('opcache.revalidate_freq') ?? '
 
 // This is an edit. After you save it, run `nvs reload`.
 // The command returns when the new code is compiled, and the next request runs it.
-string $page = Core\Path::join(Core\IO::temporaryDir(), 'hello.nvs');
+string $page = Core\Path::join(Core\IO::createTemporaryDirectory(), 'hello.nvs');
 Core\IO::write($page, "<?nvs\necho 'Hello, version 2';\n");
-echo 'saved: ', Core\Path::basename($page), "\n";
+echo 'saved: ', Core\Path::fileName($page), "\n";
 
 // If you forget `nvs reload`, the server still finds the edit within one hour.

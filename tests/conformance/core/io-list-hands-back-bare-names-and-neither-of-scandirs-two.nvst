@@ -55,7 +55,7 @@ echo "names that are not paths: ", $bare as string, "\n";
 echo "names that resolve under the directory: ", $joined as string, "\n";
 
 // An entry is a name, and the kind of thing it names is a separate question —
-// which is exactly the split `isFile`/`isDir` are for. The listing does not say
+// which is exactly the split `isFile`/`isDirectory` are for. The listing does not say
 // which of its entries is a directory and does not have to, and the two counts
 // summing to the whole listing is what says the directory entry is in it.
 int $files = 0;
@@ -64,7 +64,7 @@ foreach ($entries as string $name) {
     if (Core\IO::isFile(Core\Path::join($tree, $name))) {
         $files = $files + 1;
     }
-    if (Core\IO::isDir(Core\Path::join($tree, $name))) {
+    if (Core\IO::isDirectory(Core\Path::join($tree, $name))) {
         $dirs = $dirs + 1;
     }
 }

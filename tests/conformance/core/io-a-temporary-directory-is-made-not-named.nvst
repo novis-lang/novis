@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::temporaryDir answers a directory that already exists and is already empty, and two calls never answer the same one — so a program never races another for a name, which is the whole of what `sys_get_temp_dir` plus a hand-rolled suffix gets wrong
+Core\IO::createTemporaryDirectory answers a directory that already exists and is already empty, and two calls never answer the same one — so a program never races another for a name, which is the whole of what `sys_get_temp_dir` plus a hand-rolled suffix gets wrong
 --FILE--
 <?nvs
 // Nothing here prints a path: the answer is host-specific by construction, so
@@ -7,7 +7,7 @@ Core\IO::temporaryDir answers a directory that already exists and is already emp
 // PHP's split cannot offer -- the directory is *made*, so it is there before
 // the caller sees the name, and there is no window in which somebody else can
 // take it.
-string $first = Core\IO::temporaryDir();
+string $first = Core\IO::createTemporaryDirectory();
 
 if (Core\IO::exists($first)) {
     echo "made: yes\n";
@@ -16,9 +16,9 @@ if (Core\IO::exists($first)) {
 }
 
 // Empty, and asserted the only way emptiness can be asserted with the members
-// that exist: `removeDir` refuses a directory holding anything, so one that
+// that exist: `removeDirectory` refuses a directory holding anything, so one that
 // removes on the first call held nothing.
-string $second = Core\IO::temporaryDir();
+string $second = Core\IO::createTemporaryDirectory();
 
 if ($first == $second) {
     echo "distinct: no\n";
@@ -26,7 +26,7 @@ if ($first == $second) {
     echo "distinct: yes\n";
 }
 
-Core\IO::removeDir($second);
+Core\IO::removeDirectory($second);
 
 if (Core\IO::exists($second)) {
     echo "second removed: no\n";
@@ -45,7 +45,7 @@ echo "wrote: ", $size as string, "\n";
 // runtime deciding that lifetime would be deciding it for data it knows
 // nothing about.
 Core\IO::remove($note);
-Core\IO::removeDir($first);
+Core\IO::removeDirectory($first);
 
 if (Core\IO::exists($first)) {
     echo "first removed: no\n";

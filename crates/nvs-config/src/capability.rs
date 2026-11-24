@@ -275,7 +275,7 @@ pub struct Run<'a> {
     pub serving: bool,
     /// The app folder, or `None` where the run has no entry file to take one from.
     pub folder: Option<&'a Path>,
-    /// The directories `Core\IO::temporaryDir` made for this context, canonical. Empty for an
+    /// The directories `Core\IO::createTemporaryDirectory` made for this context, canonical. Empty for an
     /// asker with no context, which then meets the narrower default.
     pub temporary: &'a [PathBuf],
     /// Whether the configuration names `development` as the mode this run started in. A runtime

@@ -212,13 +212,13 @@ pub fn relative(path: &Path, member: &str) -> Option<String> {
     }
     Some(format!(
         "{member} needs an absolute path, and `{}` is relative\nhelp: build the path with \
-         `Core\\Path::join` from a folder you know, or with `Core\\Path::fromCwd` for a path \
+         `Core\\Path::join` from a folder you know, or with `Core\\Path::fromWorkingDirectory` for a path \
          typed on the command line",
         path.display()
     ))
 }
 
-/// The process's working directory, for `Core\Path::fromCwd` — the one way a program reads it,
+/// The process's working directory, for `Core\Path::fromWorkingDirectory` — the one way a program reads it,
 /// and only outside a request.
 ///
 /// A command-line program is started from a directory its user chose, and a path typed on its
@@ -1122,7 +1122,7 @@ pub fn metadata(ctx: &Ctx, path: &Path, member: &str) -> Result<Metadata, Fault>
 /// been shown to cover it, and `None` if there is not.
 ///
 /// Separate from [`metadata`] for the same reason [`exists`] is: **absence is an answer here, not a
-/// failure**, because the members over this door — `Core\IO::isFile` and `Core\IO::isDir` — ask what
+/// failure**, because the members over this door — `Core\IO::isFile` and `Core\IO::isDirectory` — ask what
 /// kind of thing is at a name, and *nothing* is a complete answer to that. It is one door rather
 /// than an [`exists`] followed by a [`metadata`] so that the two questions are one `stat`: the pair
 /// answers the wrong thing for a name something else removes between them, and a member whose
@@ -2273,7 +2273,10 @@ mod tests {
             assert_eq!(class, ThrownClass::Runtime);
             assert!(message.contains("`data/note.txt` is relative"), "{message}");
             assert!(message.contains("Core\\Path::join"), "{message}");
-            assert!(message.contains("Core\\Path::fromCwd"), "{message}");
+            assert!(
+                message.contains("Core\\Path::fromWorkingDirectory"),
+                "{message}"
+            );
             assert!(
                 !message.contains(cap.name()),
                 "the grant was not asked about: {message}"
@@ -2294,11 +2297,12 @@ mod tests {
 
     /// A context answering no request reads the working directory, and the answer is an absolute
     /// path to a directory that exists.
-    // covers: Core\Path::fromCwd
+    // covers: Core\Path::fromWorkingDirectory
     #[test]
     fn the_working_directory_is_read_outside_a_request() {
         let ctx = Ctx::buffered();
-        let found = working_dir(&ctx, "Core\\Path::fromCwd").expect("no request is being answered");
+        let found = working_dir(&ctx, "Core\\Path::fromWorkingDirectory")
+            .expect("no request is being answered");
         assert!(found.is_absolute(), "{}", found.display());
         assert!(found.is_dir(), "{}", found.display());
     }
@@ -2686,7 +2690,8 @@ mod tests {
         let root = scratch("configured");
         let mut ctx = rooted_at(&root);
 
-        let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+        let made = temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory")
+            .expect("`write = true` covers it");
 
         // Both sides resolved, since the runtime resolves the root and `target/` may be a symlink.
         assert!(
@@ -2723,7 +2728,8 @@ mod tests {
         assert!(!root.exists(), "the case starts with nothing on disk");
         let mut ctx = rooted_at(&root);
 
-        let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+        let made = temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory")
+            .expect("`write = true` covers it");
 
         assert!(root.is_dir(), "the first use created the root");
         assert!(
@@ -2759,8 +2765,10 @@ mod tests {
         let root = scratch("tracked");
         let mut ctx = rooted_at(&root);
 
-        let first = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
-        let second = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("and covers the second");
+        let first = temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory")
+            .expect("`write = true` covers it");
+        let second = temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory")
+            .expect("and covers the second");
 
         assert_eq!(
             ctx.temporary_dirs(),
@@ -2775,7 +2783,7 @@ mod tests {
             "[capabilities.fs]\nwrite = []\n\n[io]\ntemp_root = '{}'\n",
             root.display()
         )));
-        temp_dir(&mut refused, "Core\\IO::temporaryDir")
+        temp_dir(&mut refused, "Core\\IO::createTemporaryDirectory")
             .expect_err("`write = []` is a written key that grants nothing");
         assert!(
             refused.temporary_dirs().is_empty(),
@@ -2807,11 +2815,13 @@ mod tests {
         let root = scratch("script-end");
         let (filled, held) = {
             let mut ctx = rooted_at(&root);
-            let filled = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true`");
+            let filled =
+                temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory").expect("`write = true`");
             std::fs::write(filled.join("note.txt"), b"what the program wrote")
                 .expect("the directory was just created");
 
-            let held = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("and the second");
+            let held =
+                temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory").expect("and the second");
             ctx.hold_open_file(
                 std::fs::File::create(held.join("open.txt")).expect("the directory exists"),
             );

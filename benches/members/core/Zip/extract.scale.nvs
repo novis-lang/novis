@@ -67,7 +67,7 @@ class Bench
     public static function run(uint $size): uint
     {
         bytes $archive = Bench::archive(['notes.txt'], Core\Bytes::repeat('a' as bytes, $size));
-        string $folder = Core\IO::temporaryDir();
+        string $folder = Core\IO::createTemporaryDirectory();
         uint $total = 0;
         uint $i = 0;
         while ($i < 16) {

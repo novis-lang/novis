@@ -64,7 +64,7 @@ Attempt::change([
 array<string> $folders = ['cache', 'tmp', 'lsp', 'logs/../cache', 'config'];
 foreach ($folders as string $folder) {
     try {
-        Core\IO::makeDir($data . '/' . $folder);
+        Core\IO::makeDirectory($data . '/' . $folder);
         Core\IO::write($data . '/' . $folder . '/nvs.toml', "[capabilities.process]\nexec = [\"*\"]\n");
         echo "written\n";
     } catch (Throwable $denied) {

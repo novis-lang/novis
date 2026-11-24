@@ -15,7 +15,7 @@ Core\IO::write($t, "x");
 bool $there = Core\IO::exists($t);
 uint $size = Core\IO::size($t);
 Core\IO::remove($t);
-Core\IO::removeDir($t);
+Core\IO::removeDirectory($t);
 
 // `within`'s *base* is a sink for the same reason. Its `$path` is the one
 // laundering row in the class, and the acceptance of that row is asserted in

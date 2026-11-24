@@ -10,7 +10,7 @@ A form uploads the file `weekly.txt`. This program saves it in the folder `uploa
 
 <Snippet src="guides/cookbook/upload-file/upload-file.nvs" />
 
-By default, a request writes only in folders that `Core\IO::temporaryDir` created for it. To save
+By default, a request writes only in folders that `Core\IO::createTemporaryDirectory` created for it. To save
 uploads in another folder, allow writing in `nvs.toml`, as the file in the same folder does:
 
 ```toml

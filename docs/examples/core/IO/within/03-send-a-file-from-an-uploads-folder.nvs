@@ -15,7 +15,7 @@ class Downloads
     }
 }
 
-string $uploads = Core\IO::temporaryDir();
+string $uploads = Core\IO::createTemporaryDirectory();
 Core\IO::write(Core\Path::join($uploads, 'invoice-17.txt'), "Invoice 17: 49.90 EUR\n");
 
 // The first name is a file in the uploads folder. This prints "Invoice 17: 49.90 EUR".

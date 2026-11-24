@@ -12,7 +12,7 @@
 // because an option says what to do with the destination and never what the
 // destination is allowed to be -- the qualifier is the parameter's and nothing
 // written in the bag reaches it.
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     string $safe = Core\IO::within($dir, "upload.bin");
     $part->saveTo($safe);

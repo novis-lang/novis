@@ -31,7 +31,7 @@ class Attack
     }
 }
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 string $path = Core\Path::join($folder, 'attack-export-to.xlsx');
 var $design = Workbook::createInMemory();
 $design->sheet('Invoice')->add(['{{shop}}']);

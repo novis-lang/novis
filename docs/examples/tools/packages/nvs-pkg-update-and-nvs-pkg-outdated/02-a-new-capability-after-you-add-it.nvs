@@ -6,11 +6,11 @@
 require './vendor/packages.nvs';
 
 // No line in `[grants]` matches this file, so it may write files.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'headlines.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'headlines.txt');
 Core\IO::write($path, "Spring Sale\nNew Opening Hours\n");
 
 // `Acme\Feed` reads the file and writes the titles in lower case to a second file.
-string $copy = Core\Path::join(Core\IO::temporaryDir(), 'headlines-lower.txt');
+string $copy = Core\Path::join(Core\IO::createTemporaryDirectory(), 'headlines-lower.txt');
 Acme\Feed\Feed::save($copy, Acme\Feed\Feed::titles($path));
 
 // This prints the second file: `spring sale` and `new opening hours`.

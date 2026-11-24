@@ -4,8 +4,8 @@
 // hostile: timeout-ms 60000
 // hostile: ends-early 2 FATAL
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'large.txt');
 
 // 1. The program writes a file of forty million bytes, one million at a time, and then lowers its

@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $log = Core\Path::join(Core\IO::temporaryDir(), 'bench.log');
+        string $log = Core\Path::join(Core\IO::createTemporaryDirectory(), 'bench.log');
         string $line = Core\Str::repeat('a', $size);
         uint $i = 0;
         while ($i < 64) {

@@ -108,7 +108,7 @@ it, and a relative path starts at the current folder.
 |---|---|---|
 | `nvs.toml` | the configuration file that `nvs` reads when the current folder has no `nvs.toml` | `--config` |
 | `cache` | compiled programs | `[opcache] file_cache_dir` |
-| `tmp` | the folders that `Core\IO::temporaryDir` creates | `[io] temp_root` |
+| `tmp` | the folders that `Core\IO::createTemporaryDirectory` creates | `[io] temp_root` |
 | `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
 | `logs` | `nvs.log`, the log of a service | `[log] target` |
 
@@ -118,7 +118,7 @@ that runs `nvs` can open it. On Windows, `Administrators` and `SYSTEM` can open 
 commands, such as `nvs config check`, never create it.
 
 If `nvs` cannot create or use the data folder, it prints one warning and runs without it. Programs
-then run without the compile cache, and `Core\IO::temporaryDir` throws an error. This happens when
+then run without the compile cache, and `Core\IO::createTemporaryDirectory` throws an error. This happens when
 the `nvs` program is in a folder that your account cannot write to, for example `/usr/local/bin`.
 Pass `--data` with a folder that only your account can change.
 

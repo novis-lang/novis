@@ -48,7 +48,7 @@ final class Prompt {
 
     public static function secret(): string {
         try {
-            secret tainted string $pass = Core\Cli::secret("password?");
+            secret tainted string $pass = Core\Cli::askSecret("password?");
             return "answered";
         } catch (Core\Cli\NotInteractive $none) {
             return "refused";

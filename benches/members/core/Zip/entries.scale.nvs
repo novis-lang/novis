@@ -73,7 +73,7 @@ class Bench
             $n = $n + 1;
         }
         // Each of the 16 files has `$size` bytes, so the archive grows and the list does not.
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'project.zip');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'project.zip');
         Core\IO::write($path, Bench::archive($names, Core\Bytes::repeat('a' as bytes, $size)));
         Core\IO\File $archive = Core\IO::open($path, Core\IO::FileMode::Read);
         uint $total = 0;

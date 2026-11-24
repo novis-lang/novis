@@ -29,7 +29,7 @@ Declares the HTTP path and method this method handles. Write it twice to handle 
 No `nvs.toml` was found for this program. It runs under the default policy:
 
 - `fs.read`: files in this file's directory, except `nvs.toml` and names that start with `.` (default)
-- `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+- `fs.write`: only the directories `Core\IO::createTemporaryDirectory` makes (default)
 - `script.spawn`: files in this file's directory, outside its temporary directories (default)
 - `net.connect`: every host (default)
 - `env`: every environment variable (default)

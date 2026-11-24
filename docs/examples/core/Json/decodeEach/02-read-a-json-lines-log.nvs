@@ -2,7 +2,7 @@
 // Shows how to read a JSON Lines log file, where each line is one JSON object.
 
 // The program writes a small log first, so that it has one to read.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'app.jsonl');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'app.jsonl');
 Core\IO::write(
     $path,
     "{\"level\":\"info\",\"message\":\"server started\"}\n"

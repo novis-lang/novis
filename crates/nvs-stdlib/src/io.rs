@@ -192,13 +192,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&IS_FILE_DOC),
         },
         CoreMethod {
-            name: "isDir",
+            name: "isDirectory",
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_is_dir",
+            symbol: "nvs_core_io_is_directory",
             doc: Some(&IS_DIR_DOC),
         },
         CoreMethod {
@@ -248,13 +248,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&MODIFIED_AT_DOC),
         },
         CoreMethod {
-            name: "stat",
+            name: "metadata",
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Instance(METADATA_NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_stat",
+            symbol: "nvs_core_io_metadata",
             doc: Some(&STAT_DOC),
         },
         CoreMethod {
@@ -291,23 +291,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&REMOVE_DOC),
         },
         CoreMethod {
-            name: "makeDir",
+            name: "makeDirectory",
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_make_dir",
+            symbol: "nvs_core_io_make_directory",
             doc: Some(&MAKE_DIR_DOC),
         },
         CoreMethod {
-            name: "removeDir",
+            name: "removeDirectory",
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_remove_dir",
+            symbol: "nvs_core_io_remove_directory",
             doc: Some(&REMOVE_DIR_DOC),
         },
         CoreMethod {
@@ -344,13 +344,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&WALK_DOC),
         },
         CoreMethod {
-            name: "temporaryDir",
+            name: "createTemporaryDirectory",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_temporary_dir",
+            symbol: "nvs_core_io_create_temporary_directory",
             doc: Some(&TEMPORARY_DIR_DOC),
         },
         CoreMethod {
@@ -747,7 +747,7 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::isDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO::isDirectory`'s reference card — `rule:core-api/reference-card`.
 const IS_DIR_DOC: MethodDoc = MethodDoc {
     short: "Checks whether `$path` is a directory. Symbolic links are followed, so a link to a \
             directory gives `true`. It needs the `fs.read` capability.",
@@ -758,7 +758,7 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
     }],
     ret: "`true` for a directory. `false` for a file, for any other kind of entry, and for a path \
           where nothing exists. A path can exist and still give `false` for both `isFile` and \
-          `isDir`.",
+          `isDirectory`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -860,7 +860,7 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::stat`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO::metadata`'s reference card — `rule:core-api/reference-card`.
 const STAT_DOC: MethodDoc = MethodDoc {
     short: "Returns what the operating system reports about `$path`, as a `Core\\IO\\Metadata`. A \
             program that needs several facts about a file makes only one system call. It needs \
@@ -957,7 +957,7 @@ const MOVE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::makeDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO::makeDirectory`'s reference card — `rule:core-api/reference-card`.
 const MAKE_DIR_DOC: MethodDoc = MethodDoc {
     short: "Makes sure a directory exists at `$path`. It also creates every missing parent \
             directory. It needs the `fs.write` capability.",
@@ -969,7 +969,7 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
     }],
     ret: "Nothing. A directory that already exists is a success, not an error. The method only \
           promises that the directory exists afterwards, so a caller needs no `exists` check \
-          first. `removeDir` works differently. It does not delete directories recursively.",
+          first. `removeDirectory` works differently. It does not delete directories recursively.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -991,7 +991,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
             file is a write.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to delete. To delete a directory, use `removeDir`.",
+        desc: "The file to delete. To delete a directory, use `removeDirectory`.",
         shape: &[],
     }],
     ret: "Nothing. Removing a path where nothing exists throws an error. A program that deleted \
@@ -1010,7 +1010,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::removeDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO::removeDirectory`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
     short: "Deletes the **empty** directory at `$path`. It needs the `fs.write` capability. There \
             is no recursive form, so one wrong argument cannot delete a whole tree. To empty a \
@@ -1094,7 +1094,7 @@ const WALK_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::temporaryDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO::createTemporaryDirectory`'s reference card — `rule:core-api/reference-card`.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     short: "Creates a new, empty folder for temporary files and returns its path. Novis deletes \
             the folder and every file in it when the script or the request ends.",
@@ -1976,7 +1976,7 @@ const WALK_CARD: ClassDoc = ClassDoc {
 /// `DirEntry::file_type` reports the link rather than what it points at, which
 /// is what this body asks — so a link that points back up its own tree makes
 /// the walk finite instead of endless. That is a deliberate divergence from
-/// [`nvs_core_io_is_dir`], whose whole partition follows links: a predicate
+/// [`nvs_core_io_is_directory`], whose whole partition follows links: a predicate
 /// about one name is answering a question about what the name leads to, where
 /// a walk that followed one would be enumerating a graph and calling it a
 /// tree.
@@ -2022,11 +2022,11 @@ pub(crate) const WALK: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\IO::stat`'s answer, as [`CoreTy::Instance`] spells it.
+/// `Core\IO::metadata`'s answer, as [`CoreTy::Instance`] spells it.
 pub(crate) const METADATA_NAME: &str = r"Core\IO\Metadata";
 
 /// [`METADATA`]'s slots, in declaration order — the layout
-/// [`nvs_core_io_stat`] fills and every member of that class reads back.
+/// [`nvs_core_io_metadata`] fills and every member of that class reads back.
 const METADATA_SIZE_SLOT: usize = 0;
 /// See [`METADATA_SIZE_SLOT`].
 const METADATA_MODIFIED_AT_SLOT: usize = 1;
@@ -2037,12 +2037,12 @@ const METADATA_IS_DIR_SLOT: usize = 3;
 
 /// `Core\IO\Metadata`'s class card — `rule:core-api/reference-card`.
 const METADATA_CARD: ClassDoc = ClassDoc {
-    short: "What `Core\\IO::stat` returns about one path: its size, when it was last changed, and \
+    short: "What `Core\\IO::metadata` returns about one path: its size, when it was last changed, and \
             whether it is a file or a directory. All four are read at the same moment. They do not \
-            change when the file changes later, so call `stat` again to get new values.",
+            change when the file changes later, so call `metadata` again to get new values.",
 };
 
-/// `Core\IO::stat`, as the value it answers with: one `stat` call's whole
+/// `Core\IO::metadata`, as the value it answers with: one `stat` call's whole
 /// answer about one path, frozen at the moment it was asked.
 ///
 /// # Decision: an instance, not a fixed-key shape
@@ -2060,8 +2060,8 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 ///
 /// # Decision: it answers the questions the single-question members answer
 ///
-/// `size`, `modifiedAt`, `isFile` and `isDir` are all members of `Core\IO`
-/// too, beside `stat` on purpose.
+/// `size`, `modifiedAt`, `isFile` and `isDirectory` are all members of `Core\IO`
+/// too, beside `metadata` on purpose.
 /// **`rule:core-api/shape-rules` R17/R18 are not what that collides with**: R18 forbids a static
 /// that *mirrors an object's own method* — `Time::format($instant, $fmt)`
 /// beside `$instant->format($fmt)`, where the object is the static's own
@@ -2070,7 +2070,7 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// taken and the operation is a slot read. They are not two spellings of one
 /// operation and their answers can differ — a file that grew between the two
 /// calls says so — which is exactly why a program that asks more than one
-/// question asks `stat` once instead.
+/// question asks `metadata` once instead.
 ///
 /// # What it does not carry
 ///
@@ -2088,14 +2088,14 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// is one every caller has to write a branch for. `Core\IO` has `modifiedAt`
 /// alone, and that is the one every filesystem has.
 ///
-/// **What it spends:** two allocations per `stat` — this instance and the
+/// **What it spends:** two allocations per `metadata` call — this instance and the
 /// `Core\Time\Instant` in its second slot — charged to the request that asked,
 /// released with it. The `Instant` is built eagerly rather than from a stored
 /// pair of `int` slots so that its representation stays inside
 /// [`crate::time`], which is where [`crate::time::instant_at_system_time`]'s
 /// own doc argues it belongs.
 ///
-/// What `Core\IO::stat` answers with — every metadata question as one
+/// What `Core\IO::metadata` answers with — every metadata question as one
 /// value, so a program asking more than one question about a path pays for
 /// one syscall. Its own docs argue why it is an instance rather than a
 /// shape (`rule:types/shape-type`), and why the questions it answers are also members of
@@ -2137,24 +2137,24 @@ pub(crate) const METADATA: CoreClass = CoreClass {
             doc: Some(&METADATA_IS_FILE_DOC),
         },
         CoreMethod {
-            name: "isDir",
+            name: "isDirectory",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_io_metadata_is_dir",
+            symbol: "nvs_core_io_metadata_is_directory",
             doc: Some(&METADATA_IS_DIR_DOC),
         },
     ],
-    slots: &["size", "modifiedAt", "isFile", "isDir"],
+    slots: &["size", "modifiedAt", "isFile", "isDirectory"],
     constants: &[],
 };
 
 /// `Core\IO\Metadata::size`'s reference card — `rule:core-api/reference-card`.
 const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
-    short: "The file's size in bytes at the moment `stat` was called. It needs no capability, \
-            because `stat` already checked the path.",
+    short: "The file's size in bytes at the moment `metadata` was called. It needs no capability, \
+            because `metadata` already checked the path.",
     params: &[],
     ret: "The byte count as a `uint`. For a directory, the number depends on the platform and has \
           no portable meaning.",
@@ -2164,7 +2164,7 @@ const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
 /// `Core\IO\Metadata::modifiedAt`'s reference card — `rule:core-api/reference-card`.
 const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     short: "When the file was last written, as a `Core\\Time\\Instant`. It is the same value that \
-            `Core\\IO::modifiedAt` returns, taken from this `stat` result.",
+            `Core\\IO::modifiedAt` returns, taken from this `metadata` result.",
     params: &[],
     ret: "The modification time as an exact point in time, with no time zone.",
     errors: &[],
@@ -2174,13 +2174,13 @@ const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
 const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
     short: "Whether the path was a regular file. Most paths are either a file or a directory, but \
             not all. A socket, a device node and a named pipe give `false` for both `isFile` and \
-            `isDir`.",
+            `isDirectory`.",
     params: &[],
     ret: "`true` for a regular file, `false` for anything else that was there.",
     errors: &[],
 };
 
-/// `Core\IO\Metadata::isDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\IO\Metadata::isDirectory`'s reference card — `rule:core-api/reference-card`.
 const METADATA_IS_DIR_DOC: MethodDoc = MethodDoc {
     short: "Whether the path was a directory. As with `isFile`, some paths are neither a file nor \
             a directory.",
@@ -2200,26 +2200,30 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_io_write_stream" => (nvs_core_io_write_stream as *const ()).cast(),
         "nvs_core_io_exists" => (nvs_core_io_exists as *const ()).cast(),
         "nvs_core_io_is_file" => (nvs_core_io_is_file as *const ()).cast(),
-        "nvs_core_io_is_dir" => (nvs_core_io_is_dir as *const ()).cast(),
+        "nvs_core_io_is_directory" => (nvs_core_io_is_directory as *const ()).cast(),
         "nvs_core_io_is_readable" => (nvs_core_io_is_readable as *const ()).cast(),
         "nvs_core_io_is_writable" => (nvs_core_io_is_writable as *const ()).cast(),
         "nvs_core_io_list" => (nvs_core_io_list as *const ()).cast(),
         "nvs_core_io_canonicalize" => return Some(nvs_core_io_canonicalize::entry()),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
         "nvs_core_io_modified_at" => (nvs_core_io_modified_at as *const ()).cast(),
-        "nvs_core_io_stat" => (nvs_core_io_stat as *const ()).cast(),
+        "nvs_core_io_metadata" => (nvs_core_io_metadata as *const ()).cast(),
         "nvs_core_io_metadata_size" => (nvs_core_io_metadata_size as *const ()).cast(),
         "nvs_core_io_metadata_modified_at" => {
             (nvs_core_io_metadata_modified_at as *const ()).cast()
         }
         "nvs_core_io_metadata_is_file" => (nvs_core_io_metadata_is_file as *const ()).cast(),
-        "nvs_core_io_metadata_is_dir" => (nvs_core_io_metadata_is_dir as *const ()).cast(),
+        "nvs_core_io_metadata_is_directory" => {
+            (nvs_core_io_metadata_is_directory as *const ()).cast()
+        }
         "nvs_core_io_copy" => (nvs_core_io_copy as *const ()).cast(),
         "nvs_core_io_move" => (nvs_core_io_move as *const ()).cast(),
-        "nvs_core_io_make_dir" => (nvs_core_io_make_dir as *const ()).cast(),
+        "nvs_core_io_make_directory" => (nvs_core_io_make_directory as *const ()).cast(),
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
-        "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
-        "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
+        "nvs_core_io_remove_directory" => (nvs_core_io_remove_directory as *const ()).cast(),
+        "nvs_core_io_create_temporary_directory" => {
+            (nvs_core_io_create_temporary_directory as *const ()).cast()
+        }
         "nvs_core_io_within" => return Some(nvs_core_io_within::entry()),
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
         "nvs_core_io_walk" => (nvs_core_io_walk as *const ()).cast(),
@@ -3620,15 +3624,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::makeDir(string $path): void` — replacing `mkdir`, whose
+    /// `Core\IO::makeDirectory(string $path): void` — replacing `mkdir`, whose
     /// `$recursive` parameter is this member's only behaviour.
     ///
     /// [`nvs_runtime::capability::create_dir`]'s doc owns both decisions —
-    /// why the parents come with it where `removeDir` refuses to recurse, and
+    /// why the parents come with it where `removeDirectory` refuses to recurse, and
     /// why a directory that is already there is success.
-    fn nvs_core_io_make_dir(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "makeDir", "path")?);
-        nvs_runtime::capability::create_dir(ctx, path, "Core\\IO::makeDir")?;
+    fn nvs_core_io_make_directory(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "makeDirectory", "path")?);
+        nvs_runtime::capability::create_dir(ctx, path, "Core\\IO::makeDirectory")?;
         Ok(Value::null())
     }
 }
@@ -3885,7 +3889,7 @@ nvs_runtime::nvs_helper! {
 /// The modification time in `stat` as a `Core\Time\Instant`, or the `IOError`
 /// saying why there is not one.
 ///
-/// One function because [`nvs_core_io_modified_at`] and [`nvs_core_io_stat`]
+/// One function because [`nvs_core_io_modified_at`] and [`nvs_core_io_metadata`]
 /// ask the same thing of the same `stat` and must fail the same way: a
 /// platform that does not record a modification time and one that recorded an
 /// unnameable one are both `IOError`s here rather than a `null` either caller
@@ -3934,11 +3938,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::stat(string $path): Core\IO\Metadata` — replacing `stat`,
+    /// `Core\IO::metadata(string $path): Core\IO\Metadata` — replacing `stat`,
     /// `lstat` and the whole `file*` family of one-question members.
     ///
     /// **One syscall, four answers.** That is the only reason this member
-    /// exists beside `size`, `modifiedAt`, `isFile` and `isDir`: a program
+    /// exists beside `size`, `modifiedAt`, `isFile` and `isDirectory`: a program
     /// asking two of those questions about one path pays for two `stat`s, and
     /// the two can disagree because anything else may have written between
     /// them. [`METADATA`]'s own docs own why that is not the two-spellings
@@ -3948,12 +3952,12 @@ nvs_runtime::nvs_helper! {
     /// back a whole `std::fs::Metadata` for exactly this, and its doc comment
     /// is the home of why a second door per field would have been a second
     /// syscall for the same permission.
-    fn nvs_core_io_stat(ctx, args: [2]) {
-        let path = Path::new(text(&args[1], "stat", "path")?);
+    fn nvs_core_io_metadata(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "metadata", "path")?);
         let stat = ctx.with_own_file(own_word(args), |ctx| {
-            nvs_runtime::capability::metadata(ctx, path, "Core\\IO::stat")
+            nvs_runtime::capability::metadata(ctx, path, "Core\\IO::metadata")
         })?;
-        let modified = modified_at(&stat, path, "Core\\IO::stat")?;
+        let modified = modified_at(&stat, path, "Core\\IO::metadata")?;
         Ok(crate::instance::build(
             &METADATA,
             [
@@ -4016,20 +4020,20 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$m->isDir(): bool` — whether the path was a directory.
-    fn nvs_core_io_metadata_is_dir(_ctx, args: [1]) {
-        metadata_slot(args, METADATA_IS_DIR_SLOT, "isDir")
+    /// `$m->isDirectory(): bool` — whether the path was a directory.
+    fn nvs_core_io_metadata_is_directory(_ctx, args: [1]) {
+        metadata_slot(args, METADATA_IS_DIR_SLOT, "isDirectory")
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\IO::isFile(string $path): bool` — replacing `is_file`.
     ///
-    /// One `stat` and one question of it. The pair `isFile`/`isDir` partitions
+    /// One `stat` and one question of it. The pair `isFile`/`isDirectory` partitions
     /// what [`nvs_core_io_exists`] answers `true` for — and does not cover it,
     /// because a socket, a device node and a named pipe are all names that
     /// exist and are neither. That is why this is not spelled as the negation
-    /// of `isDir` anywhere: two members that each answer `false` for the same
+    /// of `isDirectory` anywhere: two members that each answer `false` for the same
     /// path is the honest shape, and one derived from the other would have to
     /// invent an answer for the third kind.
     ///
@@ -4047,7 +4051,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::isDir(string $path): bool` — replacing `is_dir`.
+    /// `Core\IO::isDirectory(string $path): bool` — replacing `is_dir`.
     ///
     /// The other half of [`nvs_core_io_is_file`]'s partition, over the same
     /// door and the same `stat`; that member's doc comment owns why the two are
@@ -4058,9 +4062,9 @@ nvs_runtime::nvs_helper! {
     /// may `list` a name wants the answer about what the name leads to, and the
     /// one member that cares where a link points is `within`, whose whole job
     /// is that it resolves first.
-    fn nvs_core_io_is_dir(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "isDir", "path")?);
-        let found = nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isDir")?;
+    fn nvs_core_io_is_directory(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "isDirectory", "path")?);
+        let found = nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isDirectory")?;
         Ok(Value::bool(found.is_some_and(|stat| stat.is_dir())))
     }
 }
@@ -4092,7 +4096,7 @@ nvs_runtime::nvs_helper! {
         for entry in entries {
             // Lossy only where a name is not UTF-8, which a Novis `string`
             // cannot hold at all (`rule:types/bytes`) — the same reading as
-            // [`nvs_core_io_temporary_dir`]'s.
+            // [`nvs_core_io_create_temporary_directory`]'s.
             names.append(Value::text(&entry.name.to_string_lossy()));
         }
         Ok(Value::array(names))
@@ -4196,7 +4200,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\IO::remove(string $path): void` — replacing `unlink`.
     ///
-    /// A file only. `removeDir` is the other half, and the split is the
+    /// A file only. `removeDirectory` is the other half, and the split is the
     /// operating system's own rather than this class's invention: the two are
     /// different syscalls with different failure modes, and one member covering
     /// both would have to guess which the caller meant for a name that is not
@@ -4209,19 +4213,19 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::removeDir(string $path): void` — replacing `rmdir`.
+    /// `Core\IO::removeDirectory(string $path): void` — replacing `rmdir`.
     ///
     /// Empty directories only; the door's own doc comment carries why there is
     /// no recursive form, which is a security decision and not an omission.
-    fn nvs_core_io_remove_dir(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "removeDir", "path")?);
-        nvs_runtime::capability::remove_dir(ctx, path, "Core\\IO::removeDir")?;
+    fn nvs_core_io_remove_directory(ctx, args: [1]) {
+        let path = Path::new(text(&args[0], "removeDirectory", "path")?);
+        nvs_runtime::capability::remove_dir(ctx, path, "Core\\IO::removeDirectory")?;
         Ok(Value::null())
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::temporaryDir(): string` — replacing `sys_get_temp_dir`,
+    /// `Core\IO::createTemporaryDirectory(): string` — replacing `sys_get_temp_dir`,
     /// `tempnam` and `tmpfile`, none of which survives on its own.
     ///
     /// One member instead of three, because the two PHP splits into are the
@@ -4240,8 +4244,8 @@ nvs_runtime::nvs_helper! {
     /// counterpart to call, no persist option to pass and nothing for the
     /// program to remember — which is why there is no `temporaryFile` either:
     /// a file that must outlive its script is storage.
-    fn nvs_core_io_temporary_dir(ctx, _args: [0]) {
-        let made = nvs_runtime::capability::temp_dir(ctx, "Core\\IO::temporaryDir")?;
+    fn nvs_core_io_create_temporary_directory(ctx, _args: [0]) {
+        let made = nvs_runtime::capability::temp_dir(ctx, "Core\\IO::createTemporaryDirectory")?;
         // Lossy only where a path is not UTF-8, which a Novis `string` cannot
         // hold at all (`rule:types/bytes`): the alternative is refusing to answer for a
         // temporary root this process did not choose.
@@ -5033,9 +5037,9 @@ mod tests {
         assert!(refused.contains("fs.read"), "{refused}");
     }
 
-    /// `Core\IO::isDir` answers `true` for a directory alone: a file and a missing name are both
+    /// `Core\IO::isDirectory` answers `true` for a directory alone: a file and a missing name are both
     /// `false`. A context with no `fs.read` throws.
-    // covers: Core\IO::isDir
+    // covers: Core\IO::isDirectory
     #[cfg_attr(
         miri,
         ignore = "reaches a file through `openat`, which Miri does not emulate"
@@ -5044,7 +5048,7 @@ mod tests {
     fn core_io_is_dir_answers_true_for_a_directory_alone_and_a_refusal_throws() {
         assert_eq!(
             kinds_under(
-                nvs_core_io_is_dir,
+                nvs_core_io_is_directory,
                 "is-dir",
                 &mut reading("1MiB"),
                 call_with
@@ -5052,7 +5056,7 @@ mod tests {
             [false, true, false]
         );
         let refused = call_with(
-            nvs_core_io_is_dir,
+            nvs_core_io_is_directory,
             &mut writing(),
             &[spelled(&scratch("x").1)],
         )
@@ -5142,10 +5146,10 @@ mod tests {
         let _ = std::fs::remove_file(&empty);
     }
 
-    /// `Core\IO::stat` answers the size in bytes and which kind of thing is at the path, a file
+    /// `Core\IO::metadata` answers the size in bytes and which kind of thing is at the path, a file
     /// or a folder, from one call. A name with nothing at it throws naming the member, and a
     /// context with no `fs.read` throws before the operating system is asked.
-    // covers: Core\IO::stat
+    // covers: Core\IO::metadata
     #[cfg_attr(
         miri,
         ignore = "reaches a file through `openat`, which Miri does not emulate"
@@ -5157,13 +5161,14 @@ mod tests {
         let dir = file.parent().expect("a scratch file sits in a directory");
         let mut ctx = reading("1MiB");
         let stat_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
-            call_read(nvs_core_io_stat, ctx, &[spelled(path)]).map(|value| {
-                let slot =
-                    |index| metadata_slot(&[value], index, "stat").expect("a `Core\\IO\\Metadata`");
+            call_read(nvs_core_io_metadata, ctx, &[spelled(path)]).map(|value| {
+                let slot = |index| {
+                    metadata_slot(&[value], index, "metadata").expect("a `Core\\IO\\Metadata`")
+                };
                 let answered = (
                     slot(0).as_uint().expect("the size is a `uint`"),
                     slot(2).as_bool().expect("`isFile` is a `bool`"),
-                    slot(3).as_bool().expect("`isDir` is a `bool`"),
+                    slot(3).as_bool().expect("`isDirectory` is a `bool`"),
                 );
                 #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
                 unsafe {
@@ -5179,7 +5184,7 @@ mod tests {
         );
         assert!(matches!(stat_of(&mut ctx, dir), Ok((_, false, true))));
         let missing = stat_of(&mut ctx, &scratch("stat-missing.txt").1).expect_err("no file");
-        assert!(missing.contains(r"Core\IO::stat"), "{missing}");
+        assert!(missing.contains(r"Core\IO::metadata"), "{missing}");
 
         let refused = stat_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
@@ -5187,10 +5192,10 @@ mod tests {
         let _ = std::fs::remove_file(&file);
     }
 
-    /// `Core\IO::stat(path)` under `ctx`, as the `Core\IO\Metadata` a program holds. The caller
+    /// `Core\IO::metadata(path)` under `ctx`, as the `Core\IO\Metadata` a program holds. The caller
     /// owns the one reference returned.
     fn stat_on(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Value {
-        call_read(nvs_core_io_stat, ctx, &[spelled(path)]).expect("a path the case created")
+        call_read(nvs_core_io_metadata, ctx, &[spelled(path)]).expect("a path the case created")
     }
 
     /// One `Core\IO\Metadata` member on `metadata`, as a program calls it. The caller owns the
@@ -5199,9 +5204,9 @@ mod tests {
         nvs_runtime::call(member, ctx, &[metadata]).expect("a member of a snapshot cannot fail")
     }
 
-    /// `Core\IO\Metadata::size` returns the byte count `stat` read, so "Café" is 5 and an empty
-    /// file is 0. The value is a snapshot: after the file grows it still returns 5, however
-    /// often it is asked, and only a new `stat` returns the new size.
+    /// `Core\IO\Metadata::size` returns the byte count `metadata` read, so "Café" is 5 and an
+    /// empty file is 0. The value is a snapshot: after the file grows it still returns 5, however
+    /// often it is asked, and only a new `metadata` call returns the new size.
     // covers: Core\IO\Metadata::size
     #[cfg_attr(
         miri,
@@ -5242,8 +5247,8 @@ mod tests {
     }
 
     /// `Core\IO\Metadata::modifiedAt` returns the time the operating system recorded when
-    /// `stat` ran, to the second a test set it to. Setting a later time leaves the held value
-    /// on the old one, and a new `stat` returns the later one.
+    /// `metadata` ran, to the second a test set it to. Setting a later time leaves the held value
+    /// on the old one, and a new `metadata` call returns the later one.
     // covers: Core\IO\Metadata::modifiedAt
     #[cfg_attr(
         miri,
@@ -5280,28 +5285,29 @@ mod tests {
         assert_eq!(
             iso_of(&mut ctx, before),
             "2023-11-14T22:13:20Z",
-            "a new `stat` does not move the value taken before it"
+            "a new `metadata` call does not move the value taken before it"
         );
         let_go(before);
         let_go(after);
         let _ = std::fs::remove_file(&path);
     }
 
-    /// `isFile` and `isDir` of one `Core\IO\Metadata`, in that order.
+    /// `isFile` and `isDirectory` of one `Core\IO\Metadata`, in that order.
     fn kind_of(ctx: &mut nvs_runtime::Ctx, metadata: Value) -> (bool, bool) {
         (
             asked(ctx, nvs_core_io_metadata_is_file, metadata)
                 .as_bool()
                 .expect("`isFile` returns a bool"),
-            asked(ctx, nvs_core_io_metadata_is_dir, metadata)
+            asked(ctx, nvs_core_io_metadata_is_directory, metadata)
                 .as_bool()
-                .expect("`isDir` returns a bool"),
+                .expect("`isDirectory` returns a bool"),
         )
     }
 
     /// `Core\IO\Metadata::isFile` is `true` for a regular file and `false` for a directory, and
-    /// `isDir` gives the other answer. When the file is replaced by a directory of the same
-    /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
+    /// `isDirectory` gives the other answer. When the file is replaced by a directory of the
+    /// same name, the value taken before still returns `true`, and a new `metadata` call returns
+    /// `false`.
     // covers: Core\IO\Metadata::isFile
     #[cfg_attr(
         miri,
@@ -5329,10 +5335,11 @@ mod tests {
         let _ = std::fs::remove_dir(&path);
     }
 
-    /// `Core\IO\Metadata::isDir` is `true` for a directory and `false` for a regular file, and
+    /// `Core\IO\Metadata::isDirectory` is `true` for a directory and `false` for a regular file, and
     /// `isFile` gives the other answer. When the directory is replaced by a file of the same
-    /// name, the value taken before still returns `true`, and a new `stat` returns `false`.
-    // covers: Core\IO\Metadata::isDir
+    /// name, the value taken before still returns `true`, and a new `metadata` call returns
+    /// `false`.
+    // covers: Core\IO\Metadata::isDirectory
     #[cfg_attr(
         miri,
         ignore = "reaches a file through `openat`, which Miri does not emulate"
@@ -5448,10 +5455,10 @@ mod tests {
         let _ = std::fs::remove_file(&to);
     }
 
-    /// `Core\IO::makeDir` creates every missing folder on the path, and a second call for a
+    /// `Core\IO::makeDirectory` creates every missing folder on the path, and a second call for a
     /// folder that is already there succeeds. A path under a file throws, and a context granting
     /// `fs.read` alone throws and creates nothing.
-    // covers: Core\IO::makeDir
+    // covers: Core\IO::makeDirectory
     #[cfg_attr(
         miri,
         ignore = "opens a file with `openat`, which Miri does not emulate"
@@ -5462,26 +5469,26 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let nested = root.join("a").join("b").join("c");
         let mut ctx = writing();
-        call_with(nvs_core_io_make_dir, &mut ctx, &[spelled(&nested)]).expect("a new tree");
+        call_with(nvs_core_io_make_directory, &mut ctx, &[spelled(&nested)]).expect("a new tree");
         assert!(nested.is_dir(), "every missing parent was created");
-        call_with(nvs_core_io_make_dir, &mut ctx, &[spelled(&nested)])
+        call_with(nvs_core_io_make_directory, &mut ctx, &[spelled(&nested)])
             .expect("a folder already there is success");
 
         let file = root.join("file.txt");
         std::fs::write(&file, b"x").expect("a file in the way");
         let failed = call_with(
-            nvs_core_io_make_dir,
+            nvs_core_io_make_directory,
             &mut ctx,
             &[spelled(&file.join("sub"))],
         )
         .expect_err("a file is not a folder");
-        assert!(failed.contains(r"Core\IO::makeDir"), "{failed}");
-        call_with(nvs_core_io_make_dir, &mut ctx, &[""])
+        assert!(failed.contains(r"Core\IO::makeDirectory"), "{failed}");
+        call_with(nvs_core_io_make_directory, &mut ctx, &[""])
             .expect_err("an empty path names no folder, so none exists afterwards");
 
         let other = root.join("refused");
         let refused = call_with(
-            nvs_core_io_make_dir,
+            nvs_core_io_make_directory,
             &mut reading("1MiB"),
             &[spelled(&other)],
         )
@@ -5517,7 +5524,7 @@ mod tests {
         assert!(again.contains("gone.txt"), "{again}");
 
         call_with(nvs_core_io_remove, &mut ctx, &[spelled(&root)])
-            .expect_err("a folder is `removeDir`'s argument");
+            .expect_err("a folder is `removeDirectory`'s argument");
         assert!(root.is_dir(), "a refused removal leaves the folder");
 
         let kept = root.join("kept.txt");
@@ -5530,10 +5537,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// `Core\IO::removeDir` deletes an empty folder, and a folder with a file in it throws and
+    /// `Core\IO::removeDirectory` deletes an empty folder, and a folder with a file in it throws and
     /// keeps both. A file and a missing name throw, and a context granting `fs.read` alone throws
     /// naming `fs.write` and leaves the folder.
-    // covers: Core\IO::removeDir
+    // covers: Core\IO::removeDirectory
     #[cfg_attr(
         miri,
         ignore = "reaches a file through `openat`, which Miri does not emulate"
@@ -5545,30 +5552,30 @@ mod tests {
         let empty = root.join("empty");
         std::fs::create_dir_all(&empty).expect("an empty folder");
         let mut ctx = writing();
-        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&empty)]).expect("a removal");
+        call_with(nvs_core_io_remove_directory, &mut ctx, &[spelled(&empty)]).expect("a removal");
         assert!(!empty.exists(), "the folder is gone");
 
         let full = root.join("full");
         let inside = full.join("keep.txt");
         std::fs::create_dir_all(&full).expect("a folder to fill");
         std::fs::write(&inside, b"x").expect("a file inside");
-        let failed = call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&full)])
+        let failed = call_with(nvs_core_io_remove_directory, &mut ctx, &[spelled(&full)])
             .expect_err("a folder with entries is not empty");
-        assert!(failed.contains(r"Core\IO::removeDir"), "{failed}");
+        assert!(failed.contains(r"Core\IO::removeDirectory"), "{failed}");
         assert!(
             inside.exists(),
             "a refused removal keeps what the folder has"
         );
 
-        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&inside)])
+        call_with(nvs_core_io_remove_directory, &mut ctx, &[spelled(&inside)])
             .expect_err("a file is `remove`'s argument");
-        call_with(nvs_core_io_remove_dir, &mut ctx, &[spelled(&empty)])
+        call_with(nvs_core_io_remove_directory, &mut ctx, &[spelled(&empty)])
             .expect_err("nothing is left to delete");
 
         let kept = root.join("kept");
         std::fs::create_dir_all(&kept).expect("a folder to keep");
         let refused = call_with(
-            nvs_core_io_remove_dir,
+            nvs_core_io_remove_directory,
             &mut reading("1MiB"),
             &[spelled(&kept)],
         )
@@ -5728,14 +5735,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// `Core\IO::temporaryDir` creates a folder that exists and is empty when the call returns,
+    /// `Core\IO::createTemporaryDirectory` creates a folder that exists and is empty when the call returns,
     /// and a second call creates a second folder. A context granting `fs.read` alone throws
     /// naming `fs.write`.
-    // covers: Core\IO::temporaryDir
+    // covers: Core\IO::createTemporaryDirectory
     #[test]
     fn core_io_temporary_dir_makes_a_new_empty_folder_each_call_and_needs_fs_write() {
         let made = |ctx: &mut nvs_runtime::Ctx| {
-            call_with(nvs_core_io_temporary_dir, ctx, &[]).map(|value| {
+            call_with(nvs_core_io_create_temporary_directory, ctx, &[]).map(|value| {
                 let path = std::path::PathBuf::from(value.as_text().expect("a path is a string"));
                 #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
                 unsafe {

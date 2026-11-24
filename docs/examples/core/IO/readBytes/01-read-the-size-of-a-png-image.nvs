@@ -2,7 +2,7 @@
 // Shows how to read an image file as bytes and find its width and height.
 
 // This writes the first 24 bytes of a PNG image that is 640 by 480 pixels.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'photo.png');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'photo.png');
 Core\IO::write($path, Core\Encoding::fromHex('89504e470d0a1a0a0000000d4948445200000280000001e0'));
 
 // `readBytes` returns the file exactly as it is on disk. This prints "24 bytes".

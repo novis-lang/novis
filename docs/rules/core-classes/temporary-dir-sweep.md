@@ -1,4 +1,4 @@
-`Core\IO::temporaryDir()` is the whole temporary-file surface: it hands out an **owned directory**
+`Core\IO::createTemporaryDirectory()` is the whole temporary-file surface: it hands out an **owned directory**
 and the program names files inside it. There is no `temporaryFile`, because a program needing one
 temporary file needs somewhere to put the second.
 
@@ -12,7 +12,7 @@ data folder, which Novis creates private to its account. Exclusive ownership of 
 entire safety argument for the sweeps: the runtime never deletes anything it did not create, because
 nothing else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
 classic TOCTOU surface this forbids, and nothing in Novis reads the system temporary directory. With
-neither root — the key unset and no usable data folder — `temporaryDir` throws, and only for a program
+neither root — the key unset and no usable data folder — `createTemporaryDirectory` throws, and only for a program
 that calls it.
 
 The two test runners, `nvs test` over a `.nvst` tree and `nvs lsp-test`, have no script and no grant,
@@ -38,7 +38,7 @@ file's `try/finally`.
 early. A deletion the OS refuses is one log line, and the directory waits for the next sweep. An
 operator may set `[debug] keep_temporary` to keep everything *visibly* — each kept path is logged —
 and there is no in-language setter, because a program that can exempt its own files can be made to
-hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
+hoard them. The program's own `remove` and `removeDirectory` are unchanged and still throw: a deliberate
 action's failure is the program's to hear about. Unifying the two in either direction gives either a
 throwing sweep or a silent `remove`.
 
@@ -47,12 +47,12 @@ and off again. Kept directories stay in the owned root, and the operator's clean
 debugging session's keepings are cleared.
 
 **Memory:** one path per directory a script created, request-local and charged to the request's
-memory limit, and released when the script ends. A script that never calls `temporaryDir` holds
+memory limit, and released when the script ends. A script that never calls `createTemporaryDirectory` holds
 nothing. On disk, the rare orphan of a hard-killed script waits on a machine with no server until
 the operator runs the cleanup command.
 
 **Declined:**
-- **Sweeping on the next `temporaryDir` call.** A program that never calls again never sweeps, so
+- **Sweeping on the next `createTemporaryDirectory` call.** A program that never calls again never sweeps, so
   leftovers grow with the scripts run, which is a leak. It also bills one request for another's
   deletions, on the request path.
 - **Wall-clock lifetimes, such as "delete after ten minutes".** They delete files a long-running

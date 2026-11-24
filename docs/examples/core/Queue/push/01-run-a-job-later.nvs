@@ -24,6 +24,6 @@ Queue::push('jobs/send-welcome.nvs', { queue: 'mail', args: ['user' => 42] });
 // This prints the last folder and name of that file, and the data the worker receives.
 foreach ($db->query('select script, args from nvs_jobs', []) as Row $row) {
     tainted string $script = $row->string('script') ?? '';
-    echo Core\Path::basename(Core\Path::dirname($script)), '/', Core\Path::basename($script), "\n";
+    echo Core\Path::fileName(Core\Path::parent($script)), '/', Core\Path::fileName($script), "\n";
     echo $row->string('args') ?? '', "\n";
 }

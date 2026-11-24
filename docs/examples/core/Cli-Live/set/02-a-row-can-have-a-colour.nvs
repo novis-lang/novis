@@ -6,7 +6,7 @@
 Core\Cli\Style $good = Core\Cli\Style::of({ color: Core\Cli\Color::GREEN });
 Core\Cli\Style $busy = Core\Cli\Style::of({ color: Core\Cli\Color::YELLOW });
 
-string $state = Core\Cli::live(fn(Core\Cli\Live $screen): string => {
+string $state = Core\Cli::showLive(fn(Core\Cli\Live $screen): string => {
     $screen->set([
         Core\Cli\Text::styled('database   ready', $good),
         Core\Cli\Text::styled('cache      warming up', $busy),

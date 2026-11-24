@@ -465,15 +465,15 @@ context it runs in, and a live region renders nothing when its stream is not a t
 `rule:tooling/in-place-output-is-a-scoped-live-region`
 
 ```nvs
-Cli::live(fn($live) => {
+Cli::showLive(fn($live) => {
     foreach ($files as $f) {
         $live->set([Cli\Text::plain("scanning {$f}")]);
     }
 });
 ```
 
-`Cli::live<T>(callable(Cli\Live): T $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
-`Cli::progress<T>(uint $total, callable(Cli\Progress): T $body): T` hands it a `Cli\Progress` with
+`Cli::showLive<T>(callable(Cli\Live): T $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
+`Cli::showProgress<T>(uint $total, callable(Cli\Progress): T $body): T` hands it a `Cli\Progress` with
 `->advance({by?: uint, label?: string})`. Both answer what the body computed, at the body's type.
 **The runtime owns the cursor**: it coalesces frames on a timer rather than repainting per `set`,
 diffs against the previous frame, hides and restores the cursor, and **renders nothing at all when
@@ -492,21 +492,21 @@ them leaves the operator's shell unusable.
 A resize is not repainted: the profile is resolved once
 ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)), so the width a region clamps its rows to is
 fixed for its life. The mutable `Cli\Live` and `Cli\Progress` handles are stateful objects, not value
-types, so the immutability of value types does not bind them, and `progress` is a closed, named
-behaviour built on `live` rather than a second way to write the same thing.
+types, so the immutability of value types does not bind them, and `showProgress` is a closed, named
+behaviour built on `showLive` rather than a second way to write the same thing.
 
 **Memory:** a region holds two frames, the one on screen and the one waiting for the timer, each at
-most the terminal's width times its height, for as long as its `live` call runs.
+most the terminal's width times its height, for as long as its `showLive` or `showProgress` call runs.
 
 <sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
-## A prompt is a `Core\Cli` member that reads the controlling terminal, and `secret` originates a `secret`
+## A prompt is a `Core\Cli` member that reads the controlling terminal, and `askSecret` originates a `secret`
 
 `rule:tooling/a-prompt-is-a-core-member`
 
-`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::multiSelect<T>` and `Cli::secret` are `Core`
+`Cli::ask`, `Cli::confirm`, `Cli::select<T>`, `Cli::multiSelect<T>` and `Cli::askSecret` are `Core`
 members, because raw mode is unreachable from userland with the FFI door shut
 ([`security/no-ffi`](security.md#security-no-ffi)) and an extension runs in a sandbox with no tty: if `Core` does not ship the
 interactive half, Novis does not have it at any tier. A question takes its options as one trailing
@@ -516,7 +516,7 @@ shape — `{default?, validate?}` on `ask`, `{default?}` on `confirm`, `{labels?
 
 Four properties follow from rules that already exist. `select<T>` returns the chosen value, not an
 index. `confirm` returns a plain `bool`, because a closed two-case answer is a checked conversion and
-a checked conversion launders. `secret` originates a `secret tainted string`
+a checked conversion launders. `askSecret` originates a `secret tainted string`
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)), so a password typed at a prompt structurally cannot
 be echoed, logged, dumped, put in a `Throwable` message or serialized. And **a prompt reads the
 controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat data.csv | myprog` can
@@ -546,7 +546,7 @@ away mid-answer getting a throw is priced at [`programs/memory-priority`](progra
 program that cannot hang outranks one that never gives up.
 
 Under `nvs test`, prompts drain a scripted answer queue instead of reading a terminal:
-`Core\Test::scriptAnswers(array<string> $answers)` — a member on the class the *test* calls, never a
+`Core\Test::answerCli(array<string> $answers)` — a member on the class the *test* calls, never a
 filler on `Core\Cli` that would let production code answer its own prompts. It is drained where all
 five prompts already meet, so a sixth inherits it. A scripted line wins over a terminal that is there,
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable

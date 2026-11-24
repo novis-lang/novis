@@ -17,8 +17,8 @@ class Cleanup
 }
 
 // The program writes five log files first, so that it runs as it is.
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'logs');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'logs');
+Core\IO::makeDirectory($dir);
 array<string> $days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02'];
 foreach ($days as string $day) {
     Core\IO::write(Core\Path::join($dir, $day . '.log'), "...\n");

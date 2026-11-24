@@ -32,7 +32,7 @@ try {
 
 // 3. Read the file beside it, found from the folder of this file.
 try {
-    string $folder = Core\Path::dirname(Core\Path::thisFile());
+    string $folder = Core\Path::parent(Core\Path::thisFile());
     echo Core\IO::read(Core\Path::join($folder, 'nvs.toml')), "\n";
 } catch (RuntimeError $error) {
     echo "3: throws\n";

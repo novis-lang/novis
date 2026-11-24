@@ -19,9 +19,9 @@ class Uploads
     }
 }
 
-string $uploads = Core\Path::join(Core\IO::temporaryDir(), 'uploads');
-Core\IO::makeDir(Core\Path::join($uploads, 'users', 'anna'));
-Core\IO::makeDir(Core\Path::join($uploads, 'users', 'ben'));
+string $uploads = Core\Path::join(Core\IO::createTemporaryDirectory(), 'uploads');
+Core\IO::makeDirectory(Core\Path::join($uploads, 'users', 'anna'));
+Core\IO::makeDirectory(Core\Path::join($uploads, 'users', 'ben'));
 Core\IO::write(Core\Path::join($uploads, 'banner.jpg'), '0123456789');
 Core\IO::write(Core\Path::join($uploads, 'users', 'anna', 'avatar.jpg'), '01234');
 Core\IO::write(Core\Path::join($uploads, 'users', 'ben', 'avatar.jpg'), '0123');

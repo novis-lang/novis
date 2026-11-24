@@ -1,0 +1,26 @@
+<?nvs
+// Shows the two mistakes `writeAttribute` does not allow, and the error each one throws.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement('note');
+$writer->writeAttribute('lang', 'en');
+
+// An element can have each attribute name only once.
+try {
+    $writer->writeAttribute('lang', 'de');
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// After you write text inside an element, you cannot add an attribute to it.
+$writer->writeText('Back at noon.');
+try {
+    $writer->writeAttribute('author', 'Sam');
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The calls that threw an error wrote nothing.
+$writer->endElement();
+echo $writer->endDocument(), "\n";

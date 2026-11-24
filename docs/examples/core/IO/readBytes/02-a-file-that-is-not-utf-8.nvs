@@ -2,7 +2,7 @@
 // Shows how to read a file that is not UTF-8 text.
 
 // In the Latin-1 character set, "é" is the single byte e9. That byte alone is not valid UTF-8.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'export.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'export.csv');
 Core\IO::write($path, Core\Encoding::fromHex('6361e9'));
 
 // `Core\IO::read` needs UTF-8 text, so it throws an error. This prints "not UTF-8".

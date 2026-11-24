@@ -1,5 +1,5 @@
 --TEST--
-Core\Path::normalize answers a normal form, join and dirname re-render the same path, and no segment can move the base's root
+Core\Path::normalize answers a normal form, join and parent re-render the same path, and no segment can move the base's root
 --FILE--
 <?nvs
 // The sibling cases pin `Core\Path`'s members row by row. This one pins the three
@@ -29,10 +29,10 @@ foreach ($paths as string $p) {
     // unchanged, so normalizing twice is normalizing once. A `..` that was
     // kept because it could not be cancelled is the row this would catch.
     $normal = $normal + ((Core\Path::normalize($n) == $n) ? 1 : 0);
-    // join with no segments and dirname at zero levels are the same
+    // join with no segments and parent at zero levels are the same
     // re-rendering, reached from two members: both drop a repeated and a
     // trailing separator, and neither resolves a `.` or a `..`.
-    $rendered = $rendered + ((Core\Path::join($p) == Core\Path::dirname($p, {levels: 0})) ? 1 : 0);
+    $rendered = $rendered + ((Core\Path::join($p) == Core\Path::parent($p, {levels: 0})) ? 1 : 0);
     // An empty segment names nothing, so it contributes nothing rather than a
     // separator — PHP's `$a . "/" . $b` writes a trailing one here.
     $neutral = $neutral + ((Core\Path::join($p, "") == Core\Path::join($p)) ? 1 : 0);
@@ -64,7 +64,7 @@ foreach ($segments as string $seg) {
 }
 echo "rooted ", $kept, " relative ", $relative, " of ", Core\Arr::count($segments), "\n";
 
-// dirname and basename are one decomposition rather than two readings: what
+// parent and fileName are one decomposition rather than two readings: what
 // they take apart, join puts back, for every path that names something inside
 // a directory. The total version of that claim — through the normal form, so
 // a bare name and a bare root stop being exceptions — is
@@ -72,7 +72,7 @@ echo "rooted ", $kept, " relative ", $relative, " of ", Core\Arr::count($segment
 array<string> $files = ["/var/www/html/index.php", "a//b/./c", "C:/log/app.log", "/a", "x/y"];
 int $whole = 0;
 foreach ($files as string $f) {
-    $whole = $whole + ((Core\Path::join(Core\Path::dirname($f), Core\Path::basename($f)) == Core\Path::join($f)) ? 1 : 0);
+    $whole = $whole + ((Core\Path::join(Core\Path::parent($f), Core\Path::fileName($f)) == Core\Path::join($f)) ? 1 : 0);
 }
 echo "recomposed ", $whole, " of ", Core\Arr::count($files), "\n";
 
@@ -80,7 +80,7 @@ echo "recomposed ", $whole, " of ", Core\Arr::count($files), "\n";
 // directory is `.` rather than the empty string, so recomposing re-attaches
 // it. Both spellings name the same file; only one of them is a path every
 // caller can use.
-echo Core\Path::dirname("report.tar.gz"), "|", Core\Str::replace(Core\Path::join(Core\Path::dirname("report.tar.gz"), Core\Path::basename("report.tar.gz")), Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Path::parent("report.tar.gz"), "|", Core\Str::replace(Core\Path::join(Core\Path::parent("report.tar.gz"), Core\Path::fileName("report.tar.gz")), Core\Path::SEPARATOR, "/"), "|\n";
 --EXPECT--
 normal 12 rerender 12 empty 12 of 12
 rooted 7 relative 7 of 7

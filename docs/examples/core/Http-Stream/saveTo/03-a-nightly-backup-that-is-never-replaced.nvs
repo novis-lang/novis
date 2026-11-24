@@ -23,7 +23,7 @@ class Backup
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'backup-2024-05-01.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'backup-2024-05-01.txt');
 
 // The job runs twice. This prints "saved 1200 bytes" and then "a backup for this day already exists".
 Backup::save('https://backup.example.com/export/2024-05-01', $path);

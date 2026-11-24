@@ -76,7 +76,7 @@ foreach ($folders as string $folder) {
         echo "denied\n";
     }
     try {
-        Core\IO::removeDir($folder);
+        Core\IO::removeDirectory($folder);
         echo "deleted\n";
     } catch (Throwable $denied) {
         echo "denied\n";
@@ -96,7 +96,7 @@ foreach ($files as string $path) {
 array<string> $created = [$dir . '/cache/sub', $dir . '/config/conf.d', $dir . '/cache2'];
 foreach ($created as string $path) {
     try {
-        Core\IO::makeDir($path);
+        Core\IO::makeDirectory($path);
         echo "created\n";
     } catch (Throwable $denied) {
         echo "denied\n";

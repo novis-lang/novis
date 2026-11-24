@@ -3,7 +3,7 @@
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'prices.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'prices.csv');
 
 // `csv` sets the separator and the charset that the file is written in.
 var $book = Workbook::createForFile($path, { csv: { separator: ';', charset: Core\Charset::Windows1252 } });

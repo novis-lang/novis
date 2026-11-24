@@ -1,8 +1,8 @@
 <?nvs
 // Shows what `Core\IO::list` returns for an empty folder, and what happens when the path is a file.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'inbox');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'inbox');
+Core\IO::makeDirectory($dir);
 
 // The folder is empty, so `list` returns an empty array. This prints "entries: 0".
 echo 'entries: ', Core\Arr::count(Core\IO::list($dir)), "\n";

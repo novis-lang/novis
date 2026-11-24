@@ -27,7 +27,7 @@ echo 'total: ', $total, "\n";
 // This prints each line that ran, and how many times it ran.
 // Line 10 adds one price, so its count is 3.
 foreach (Core\Debug::coverage() as string $path => array<int> $lines) {
-    echo Core\Path::basename($path), "\n";
+    echo Core\Path::fileName($path), "\n";
     foreach ($lines as string $line => int $count) {
         echo '  line ', $line, ': ', $count, "\n";
     }

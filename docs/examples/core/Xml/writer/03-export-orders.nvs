@@ -12,12 +12,12 @@ $out->startDocument();
 $out->startElement('orders');
 foreach ($orders as array<string> $order) {
     $out->startElement('order');
-    $out->attribute('id', $order['id']);
+    $out->writeAttribute('id', $order['id']);
     $out->startElement('customer');
-    $out->content($order['customer']);
+    $out->writeText($order['customer']);
     $out->endElement();
     $out->startElement('total');
-    $out->content($order['total']);
+    $out->writeText($order['total']);
     $out->endElement();
     $out->endElement();
 }

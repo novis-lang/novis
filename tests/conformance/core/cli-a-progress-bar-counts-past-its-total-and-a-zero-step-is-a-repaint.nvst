@@ -20,7 +20,7 @@ class Step {
     }
 }
 
-var $counted = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): string => {
+var $counted = Core\Cli::showProgress(3, fn(Core\Cli\Progress $bar): string => {
     int $asked = 0;
     int $agreed = 0;
 
@@ -78,7 +78,7 @@ echo "steps ", $counted, "\n";
 // The other total with no interior: zero, where the row is a finished bar from
 // the first frame and the counter still counts. This is the division the
 // percentage would otherwise do by zero.
-var $ofNothing = Core\Cli::progress(0, fn(Core\Cli\Progress $bar): string => {
+var $ofNothing = Core\Cli::showProgress(0, fn(Core\Cli\Progress $bar): string => {
     $bar->advance({by: 7});
     if (Step::reached($bar, 7)) {
         return "a total of nothing still counts";

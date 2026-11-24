@@ -3,8 +3,8 @@
 // and names that do not exist. `canonicalize` must return a full path or throw an error.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($dir, 'a'));
+string $dir = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($dir, 'a'));
 string $file = Core\Path::join($dir, 'target.txt');
 Core\IO::write($file, 'x');
 string $expected = Core\IO::canonicalize($file);

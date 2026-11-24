@@ -8,9 +8,9 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         Core\IO::write(Core\Path::join($dir, 'a.txt'), 'x');
-        Core\IO::makeDir(Core\Path::join($dir, 'archive'));
+        Core\IO::makeDirectory(Core\Path::join($dir, 'archive'));
         array<string> $paths = [
             Core\Path::join($dir, 'a.txt'),
             Core\Path::join($dir, 'archive'),

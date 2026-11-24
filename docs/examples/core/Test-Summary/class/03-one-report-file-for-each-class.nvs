@@ -37,7 +37,7 @@ class RefundTest
     public static function writeReport(Summary $summary): void
     {
         string $text = Report::text($summary->passed(), $summary->failed(), $summary->skipped());
-        IO::write(Path::fromCwd(Report::fileFor($summary->class())), $text);
+        IO::write(Path::fromWorkingDirectory(Report::fileFor($summary->class())), $text);
     }
 }
 

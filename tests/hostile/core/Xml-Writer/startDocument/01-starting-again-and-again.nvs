@@ -21,7 +21,7 @@ Core\Xml\Writer $out = Core\Xml::writer({ indent: '  ' });
 
 // 1. Writes before the document is started. Each prints LogicError.
 Try::call(fn(): void => { $out->startElement('root'); });
-Try::call(fn(): void => { $out->content('text'); });
+Try::call(fn(): void => { $out->writeText('text'); });
 Try::call(fn(): void => { $out->endDocument(); });
 
 // 2. The document is started, and then 100,000 more starts are tried. This prints 100000.

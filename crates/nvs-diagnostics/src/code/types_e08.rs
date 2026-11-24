@@ -627,7 +627,7 @@ codes! {
          Change the parameter's type to `string`, or delete `#[Core\\Path]`.",
     );
 
-    /// A `Core\Path::thisDir($join)` whose `$join` is not a relative string
+    /// A `Core\Path::thisDirectory($join)` whose `$join` is not a relative string
     /// literal — a variable, a constant, a concatenation or an absolute path.
     ///
     /// `rule:programs/relative-paths-resolve-from-their-file`'s fold replaces
@@ -636,9 +636,9 @@ codes! {
     /// and the help names it rather than letting the fold quietly fall back to
     /// a call.
     pub const E_PATH_THIS_DIR_JOIN_NOT_A_WRITTEN_RELATIVE_PATH: Code = Code::new("E0837").card(
-        "`Core\\Path::thisDir` adds its argument to the folder while the program compiles, so \
+        "`Core\\Path::thisDirectory` adds its argument to the folder while the program compiles, so \
          the argument must be a relative path written as a string in quotes, such as `'data'`. \
-         For a path the program builds, write `Core\\Path::join(Core\\Path::thisDir(), $part)`.",
+         For a path the program builds, write `Core\\Path::join(Core\\Path::thisDirectory(), $part)`.",
     );
 
     /// A `Core\Program::constructors<T, C>()` whose `C` is not a `callable`
@@ -677,13 +677,13 @@ codes! {
     /// whole string literal to the folder of its file. A path built this way stays
     /// relative when the program runs, and every path door throws for a
     /// relative path, so the call can never succeed. The help names
-    /// `Core\Path::thisDir` and `Core\Path::join`, which build the same path
+    /// `Core\Path::thisDirectory` and `Core\Path::join`, which build the same path
     /// from the file's folder.
     pub const E_PATH_BUILT_FROM_A_WRITTEN_RELATIVE_PATH: Code = Code::new("E0840").card(
         "This path starts with a relative path, and the rest is added while the program runs. \
          The result is still a relative path, so the call always throws an error. Start the path \
-         with the folder of this file: `Core\\Path::thisDir('data') . '/' . $name`, or \
-         `Core\\Path::join(Core\\Path::thisDir('data'), $name)`.",
+         with the folder of this file: `Core\\Path::thisDirectory('data') . '/' . $name`, or \
+         `Core\\Path::join(Core\\Path::thisDirectory('data'), $name)`.",
     );
     /// A type argument written where the member needs an **enum** —
     /// `Core\Router\Match::accessAs<App\Policy>` over a class. The members that

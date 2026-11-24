@@ -2,7 +2,7 @@
 // Shows that a path that ends in `.csv` makes a CSV file.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.csv');
 
 var $book = Workbook::createForFile($path);
 $book->sheet('Orders')->addAll([

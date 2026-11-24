@@ -154,7 +154,7 @@ foreach ($folders as string $folder) {
         echo "denied\n";
     }
     try {
-        Core\IO::removeDir($folder);
+        Core\IO::removeDirectory($folder);
         echo "deleted\n";
     } catch (Throwable $denied) {
         echo "denied\n";

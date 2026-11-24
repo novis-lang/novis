@@ -3,7 +3,7 @@
 // a terminal you see three rows, then two, then one. This example does not run
 // in a terminal, so the region draws nothing and only the report is printed.
 
-uint $rows = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+uint $rows = Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     // Three rows. The region is three lines tall.
     $screen->set([
         Core\Cli\Text::plain('orders    waiting'),

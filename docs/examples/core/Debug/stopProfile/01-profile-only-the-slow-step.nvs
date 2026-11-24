@@ -21,7 +21,7 @@ class Upload
     }
 }
 
-string $file = Core\Path::thisDir('resize.speedscope.json');
+string $file = Core\Path::thisDirectory('resize.speedscope.json');
 
 // Only the calls between the start and the stop are timed. `notify` runs after the stop.
 Core\Debug::startProfile($file);

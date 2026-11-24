@@ -393,14 +393,14 @@ pub enum Granted {
     /// Every argument, as a written `true` grants.
     Everything,
     /// A path inside the run's app folder with no component below it that starts with `.` and
-    /// none named `nvs.toml`, or a path inside a directory `Core\IO::temporaryDir` made for this
+    /// none named `nvs.toml`, or a path inside a directory `Core\IO::createTemporaryDirectory` made for this
     /// run. Asked of the canonical path.
     AppFolder,
     /// A path inside the run's app folder with no component below it that starts with `.` and
-    /// none named `nvs.toml`, and inside no directory `Core\IO::temporaryDir` made for this run.
+    /// none named `nvs.toml`, and inside no directory `Core\IO::createTemporaryDirectory` made for this run.
     /// Asked of the canonical path.
     AppCode,
-    /// A path inside a directory `Core\IO::temporaryDir` made for this run, and nothing else.
+    /// A path inside a directory `Core\IO::createTemporaryDirectory` made for this run, and nothing else.
     Temporary,
 }
 

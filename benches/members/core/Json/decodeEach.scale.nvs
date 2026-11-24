@@ -43,7 +43,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'decode-each-scale.json');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'decode-each-scale.json');
         Core\IO::writeStream($path, Document::pieces($size), { overwrite: true });
 
         uint $total = 0;

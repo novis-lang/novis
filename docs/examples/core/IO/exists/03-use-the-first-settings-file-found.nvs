@@ -1,8 +1,8 @@
 <?nvs
 // Shows how a program looks for its settings in several places and uses the first file it finds.
 
-string $dir = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($dir, 'defaults'));
+string $dir = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($dir, 'defaults'));
 Core\IO::write(Core\Path::join($dir, 'defaults/app.ini'), "debug = false\n");
 
 // The local file comes first, so it wins when it is there. Here only the default file exists.
@@ -20,5 +20,5 @@ foreach ($candidates as string $candidate) {
 }
 
 // This prints "defaults/app.ini" and then "debug = false".
-echo Core\Path::basename(Core\Path::dirname($found)), '/', Core\Path::basename($found), "\n";
+echo Core\Path::fileName(Core\Path::parent($found)), '/', Core\Path::fileName($found), "\n";
 echo Core\IO::read($found);

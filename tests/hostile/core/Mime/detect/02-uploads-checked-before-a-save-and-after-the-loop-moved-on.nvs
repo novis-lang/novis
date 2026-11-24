@@ -3,8 +3,8 @@
 // already read or that the loop has passed. The saved file should have every byte of the upload.
 // Each late check should throw a `LogicError`.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-detect-uploads');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-detect-uploads');
+Core\IO::makeDirectory($dir);
 ?Core\Request\Part $first = null;
 uint $index = 0;
 foreach (Core\Request::files() as Core\Request\Part $part) {

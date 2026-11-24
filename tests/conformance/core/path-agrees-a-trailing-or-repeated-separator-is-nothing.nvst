@@ -23,8 +23,8 @@ foreach ($bare as string $b) {
     string $interior = Core\Str::slice($b, 0, 1) . Core\Str::replace(Core\Str::slice($b, 1), "/", "//");
     array<string> $same = [$b . "/", $b . "//", $interior];
     foreach ($same as string $d) {
-        $agreed = $agreed + ((Core\Path::basename($b) == Core\Path::basename($d)) ? 1 : 0);
-        $agreed = $agreed + ((Core\Path::dirname($b) == Core\Path::dirname($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::fileName($b) == Core\Path::fileName($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::parent($b) == Core\Path::parent($d)) ? 1 : 0);
         $agreed = $agreed + ((Core\Path::extension($b) == Core\Path::extension($d)) ? 1 : 0);
         $agreed = $agreed + ((Core\Path::normalize($b) == Core\Path::normalize($d)) ? 1 : 0);
         $agreed = $agreed + ((Core\Path::isAbsolute($b) == Core\Path::isAbsolute($d)) ? 1 : 0);
@@ -56,8 +56,8 @@ echo "elements ", $elements, " empty ", $empties, "\n";
 // a real one for the decorated spelling. Rendered with `/` because emission
 // follows the host (the loop goal's own note about the two legs).
 string $decorated = "/var/log//";
-echo "basename ", Core\Path::basename($decorated), "\n";
-echo "dirname ", Core\Str::replace(Core\Path::dirname($decorated), Core\Path::SEPARATOR, "/"), "\n";
+echo "fileName ", Core\Path::fileName($decorated), "\n";
+echo "parent ",Core\Str::replace(Core\Path::parent($decorated), Core\Path::SEPARATOR, "/"), "\n";
 echo "normalize ", Core\Str::replace(Core\Path::normalize($decorated), Core\Path::SEPARATOR, "/"), "\n";
 echo "split ", Core\Arr::count(Core\Path::split($decorated)), " elements\n";
 
@@ -76,8 +76,8 @@ echo "unc root ", Core\Arr::count(Core\Path::split("//server/share/f")), " eleme
 --EXPECT--
 agreed 108 of 6 members x 3 spellings x 6 paths
 elements 56 empty 0
-basename log
-dirname /var
+fileName log
+parent /var
 normalize /var/log
 split 3 elements
 root absolute 1 element

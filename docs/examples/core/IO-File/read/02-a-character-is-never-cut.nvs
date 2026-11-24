@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `read` never cuts a character in two.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'cafe.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'cafe.txt');
 Core\IO::write($path, 'café');
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);

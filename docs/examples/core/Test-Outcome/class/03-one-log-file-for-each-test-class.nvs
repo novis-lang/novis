@@ -34,7 +34,7 @@ class InvoiceTest
     public function writeLog(Outcome $outcome): void
     {
         string $line = $outcome->name() . ' ' . ($outcome->passed() ? 'passed' : 'failed') . "\n";
-        IO::append(Path::fromCwd(TestLog::fileFor($outcome->class())), $line);
+        IO::append(Path::fromWorkingDirectory(TestLog::fileFor($outcome->class())), $line);
     }
 }
 

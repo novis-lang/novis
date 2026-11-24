@@ -12,7 +12,7 @@ class Import
     }
 }
 
-string $file = Core\Path::thisDir('import.speedscope.json');
+string $file = Core\Path::thisDirectory('import.speedscope.json');
 int $imported = 0;
 
 Core\Debug::startProfile($file);

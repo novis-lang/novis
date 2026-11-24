@@ -1600,7 +1600,7 @@ parameter of your own method, and a path in quotes passed to it works the same w
 
 **Good to know:** this works only for a path written in quotes in the call itself. A path such as
 `'data/' . $name` starts with a relative path, so it does not compile. Start it with the folder of your file:
-`Core\Path::thisDir('data') . '/' . $name`. `Core\Path::join` also adds a name to a full folder path.
+`Core\Path::thisDirectory('data') . '/' . $name`. `Core\Path::join` also adds a name to a full folder path.
 A relative path in a variable throws a `RuntimeError` when a file method gets it.
 
 **The examples below** read a file next to the program, pass a path to a method of your own, and
@@ -1682,12 +1682,12 @@ tea 2.80
 
 string $name = 'prices.txt';
 
-// `Core\Path::thisDir('data')` returns the full path of the `data` folder next
+// `Core\Path::thisDirectory('data')` returns the full path of the `data` folder next
 // to this file. The name is added to it, so this read works.
-echo Core\IO::read(Core\Path::thisDir('data') . '/' . $name);
+echo Core\IO::read(Core\Path::thisDirectory('data') . '/' . $name);
 
 // `Core\Path::join` adds the name to a full folder path. This prints the same file.
-string $folder = Core\Path::thisDir('data');
+string $folder = Core\Path::thisDirectory('data');
 echo Core\IO::read(Core\Path::join($folder, $name));
 ```
 

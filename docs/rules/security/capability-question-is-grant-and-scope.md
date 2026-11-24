@@ -13,7 +13,7 @@ from or the `root` of the most specific `[[app]]` block over that file. A key th
 the whole grant. A key it does not write takes its default for that run, from the configuration
 crate's table of defaults. On a CLI run `fs.read` and `fs.write` default to every path. In server
 work `fs.read` defaults to the app folder, less every path with a component below it that starts
-with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::temporaryDir` made for
+with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::createTemporaryDirectory` made for
 this context, which the context hands the procedure with the run; both of those read too.
 `net.connect` defaults to every public host, `net.internal` to loopback on a CLI run and in
 development, `process.exec` to every program on a CLI run, and `script.spawn` to the app folder less

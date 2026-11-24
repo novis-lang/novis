@@ -17,8 +17,8 @@ class Logs
     }
 }
 
-string $logs = Core\Path::join(Core\IO::temporaryDir(), 'logs');
-Core\IO::makeDir(Core\Path::join($logs, 'archive'));
+string $logs = Core\Path::join(Core\IO::createTemporaryDirectory(), 'logs');
+Core\IO::makeDirectory(Core\Path::join($logs, 'archive'));
 Core\IO::write(Core\Path::join($logs, 'app.log'), "started\nstopped\n");
 Core\IO::write(Core\Path::join($logs, 'error.log'), "disk full\n");
 Core\IO::write(Core\Path::join($logs, 'notes.txt'), "not a log\n");

@@ -75,7 +75,7 @@ entry file. If an `[[app]]` block with `root` matches, the app folder is that `r
 | | CLI run | Server work |
 |---|---|---|
 | Read files | any file | the app folder, except names that start with `.` and files named `nvs.toml` |
-| Write files | any file | only folders that `Core\IO::temporaryDir` created for this run |
+| Write files | any file | only folders that `Core\IO::createTemporaryDirectory` created for this run |
 | Connect | any public host, and `127.0.0.1` or `::1` | any public host. `127.0.0.1` and `::1` work only in development mode |
 | Run a program | any program. A name such as `git` is found on `PATH` | none |
 | Start a script | a script in the app folder | a script in the app folder |

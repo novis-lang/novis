@@ -35,7 +35,7 @@ echo 'uuid=' . (Core\Uuid::tryParse('00000000-0000-4000-8000-000000000000') != n
 
 var $joined = Core\Path::join('srv', 'app', 'index.nvs');
 echo 'path=' . Core\Str::replace($joined, Core\Path::SEPARATOR, '/') . "\n";
-echo 'stem=' . Core\Path::basename('/srv/app/index.nvs', { withoutExtension: true }) . "\n";
+echo 'stem=' . Core\Path::fileName('/srv/app/index.nvs', { withoutExtension: true }) . "\n";
 echo 'ext=' . (Core\Path::extension('/srv/app/index.nvs') ?? 'none') . "\n";
 
 var $query = Core\Uri::parseQuery('a=1&b[]=2&b[]=3&c[k]=v');

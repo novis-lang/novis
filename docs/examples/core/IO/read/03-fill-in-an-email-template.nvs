@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a program reads an email template from a file and fills in the customer's details.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'welcome.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'welcome.txt');
 Core\IO::write($path, "Hello {name},\nyour order {order} is on its way.\n");
 
 // `Core\Str::replaceAll` replaces each key in the text with its value.

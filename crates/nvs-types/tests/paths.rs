@@ -214,7 +214,7 @@ fn a_path_built_from_a_written_relative_path_does_not_compile_without_a_file() {
 }
 
 /// A path built from something other than a written relative path may be absolute
-/// at run time, so it compiles: a variable first, `Core\Path::thisDir`, an
+/// at run time, so it compiles: a variable first, `Core\Path::thisDirectory`, an
 /// absolute literal, a drive, a single letter that a drive may follow, an
 /// interpolated string that starts with a value, and a plain written relative path,
 /// which is joined to its file. A parameter that is not a path is not checked.
@@ -224,7 +224,7 @@ fn a_path_built_from_anything_else_compiles() {
         "built_ok.nvs",
         "<?nvs\nstring $name = 'x';\n\
          echo Core\\IO::exists($name . '/x.txt') ? 'y' : 'n';\n\
-         echo Core\\IO::exists(Core\\Path::thisDir('data') . '/' . $name) ? 'y' : 'n';\n\
+         echo Core\\IO::exists(Core\\Path::thisDirectory('data') . '/' . $name) ? 'y' : 'n';\n\
          echo Core\\IO::exists('/srv/data/' . $name) ? 'y' : 'n';\n\
          echo Core\\IO::exists('C:' . $name) ? 'y' : 'n';\n\
          echo Core\\IO::exists('C' . $name) ? 'y' : 'n';\n\
@@ -295,9 +295,9 @@ fn this_file_in_a_required_file_names_that_file() {
     assert!(paths[0].ends_with(&tail(&["lib", "blog.nvs"])), "{paths:?}");
 }
 
-/// `Core\Path::thisDir()` is the folder `thisFile()` is in, and `null` as the
+/// `Core\Path::thisDirectory()` is the folder `thisFile()` is in, and `null` as the
 /// join is the same as writing none.
-// covers: Core\Path::thisDir
+// covers: Core\Path::thisDirectory
 #[test]
 fn this_dir_folds_to_the_folder_of_the_file_that_wrote_it() {
     let (diags, exprs) = check_program_table(&[
@@ -308,7 +308,7 @@ fn this_dir_folds_to_the_folder_of_the_file_that_wrote_it() {
         (
             "shop/report.nvs",
             "<?nvs\nclass Report {\n  public static function where(): string {\n    \
-             return Core\\Path::thisFile() . Core\\Path::thisDir() . Core\\Path::thisDir(null);\n  \
+             return Core\\Path::thisFile() . Core\\Path::thisDirectory() . Core\\Path::thisDirectory(null);\n  \
              }\n}\n",
         ),
     ]);
@@ -325,18 +325,18 @@ fn this_dir_folds_to_the_folder_of_the_file_that_wrote_it() {
 /// entry is loaded by the path the caller gave and the required file by its
 /// canonical path, and in a temporary folder the two differ: a Windows short
 /// name such as `RUNNER~1`, or macOS's `/var` link to `/private/var`.
-// covers: Core\Path::thisDir
+// covers: Core\Path::thisDirectory
 #[test]
 fn this_dir_in_the_entry_and_in_a_required_file_name_one_folder_the_same_way() {
     let (diags, exprs) = check_program_table(&[
         (
             "this_dir_entry.nvs",
-            "<?nvs\nrequire 'lib/blog.nvs';\necho Core\\Path::thisDir(), Blog::folder(), \"\\n\";\n",
+            "<?nvs\nrequire 'lib/blog.nvs';\necho Core\\Path::thisDirectory(), Blog::folder(), \"\\n\";\n",
         ),
         (
             "lib/blog.nvs",
             "<?nvs\nclass Blog {\n  public static function folder(): string {\n    \
-             return Core\\Path::thisDir();\n  }\n}\n",
+             return Core\\Path::thisDirectory();\n  }\n}\n",
         ),
     ]);
     assert!(!diags.has_errors(), "{diags:?}");
@@ -351,14 +351,14 @@ fn this_dir_in_the_entry_and_in_a_required_file_name_one_folder_the_same_way() {
 
 /// A written relative path is joined to the folder as a written path is, with `.`
 /// and `..` removed, and a named argument fills the same parameter.
-// covers: Core\Path::thisDir
+// covers: Core\Path::thisDirectory
 #[test]
 fn this_dir_joins_a_written_relative_path() {
     let (diags, exprs) = check_program_table(&[(
         "this_dir_join.nvs",
-        "<?nvs\necho Core\\Path::thisDir(), \"\\n\";\n\
-         echo Core\\Path::thisDir('data/./rates.json'), \"\\n\";\n\
-         echo Core\\Path::thisDir(join: 'data/../mail'), \"\\n\";\n",
+        "<?nvs\necho Core\\Path::thisDirectory(), \"\\n\";\n\
+         echo Core\\Path::thisDirectory('data/./rates.json'), \"\\n\";\n\
+         echo Core\\Path::thisDirectory(join: 'data/../mail'), \"\\n\";\n",
     )]);
     assert!(!diags.has_errors(), "{diags:?}");
     let paths = resolved(&exprs);
@@ -376,18 +376,18 @@ fn this_dir_joins_a_written_relative_path() {
 
 /// A join that is a variable, a constant, a concatenation or an absolute path
 /// does not compile, and records nothing.
-// covers: Core\Path::thisDir
+// covers: Core\Path::thisDirectory
 #[test]
 fn this_dir_with_a_join_that_is_not_a_written_relative_path_does_not_compile() {
     let (diags, exprs) = check_program_table(&[(
         "this_dir_reject.nvs",
         "<?nvs\nclass Shop {\n  public const string DATA = 'data';\n}\n\
          string $part = 'data';\n\
-         echo Core\\Path::thisDir($part), \"\\n\";\n\
-         echo Core\\Path::thisDir(Shop::DATA), \"\\n\";\n\
-         echo Core\\Path::thisDir('da' . 'ta'), \"\\n\";\n\
-         echo Core\\Path::thisDir('/srv/data'), \"\\n\";\n\
-         echo Core\\Path::thisDir(''), \"\\n\";\n",
+         echo Core\\Path::thisDirectory($part), \"\\n\";\n\
+         echo Core\\Path::thisDirectory(Shop::DATA), \"\\n\";\n\
+         echo Core\\Path::thisDirectory('da' . 'ta'), \"\\n\";\n\
+         echo Core\\Path::thisDirectory('/srv/data'), \"\\n\";\n\
+         echo Core\\Path::thisDirectory(''), \"\\n\";\n",
     )]);
     assert_eq!(
         count(

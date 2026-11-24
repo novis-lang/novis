@@ -3,7 +3,7 @@
 use Novis\Spreadsheet\Export;
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'nightly.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'nightly.xlsx');
 
 // The function adds the sheets. It runs when `save` is called.
 var $report = new Export(fn(Workbook $book): void => {

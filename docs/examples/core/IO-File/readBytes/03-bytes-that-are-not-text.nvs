@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `readBytes` returns bytes that are not valid UTF-8 exactly as they are in the file.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'export-utf16.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'export-utf16.csv');
 // This file is UTF-16 text. It starts with the bytes ff fe, which are not valid UTF-8.
 Core\IO::write($path, Core\Encoding::fromHex('fffe49004400'));
 

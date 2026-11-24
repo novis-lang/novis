@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a second handle can read what was written, before and after `flush`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'counter.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'counter.txt');
 
 Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
 $writer->write('42');

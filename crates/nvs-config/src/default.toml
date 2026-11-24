@@ -194,7 +194,7 @@
 # not read a file or folder whose name starts with `.`, or a file named `nvs.toml`.
 #read = ["public/", "storage/"]       # default: any file on a CLI run, the app folder in server work
 # When `write` is not written, a CLI run writes any file. Server work writes only the temporary
-# folders that `Core\IO::temporaryDir` made for that run.
+# folders that `Core\IO::createTemporaryDirectory` made for that run.
 #write = ["storage/"]                 # default: any file on a CLI run, its temporary folders in server work
 
 [capabilities.net]
@@ -371,7 +371,7 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [io] — the one directory `Core\IO::temporaryDir` creates under
+# [io] — the one directory `Core\IO::createTemporaryDirectory` creates under
 # (`rule:core-classes/temporary-dir-sweep`).
 # ----------------------------------------------------------------------------------------------
 

@@ -1872,7 +1872,7 @@ mod tests {
     /// roster: the environment is outside the program's own text, so a value
     /// out of it is untrusted however the operator wrote it, and a variable
     /// holding a URL still has to reach `Core\Http::allowUrl`. `Core\Cli::ask`
-    /// and `Core\Cli::secret` are the last two and the same reading again —
+    /// and `Core\Cli::askSecret` are the last two and the same reading again —
     /// `rule:tooling/a-prompt-is-a-core-member`'s
     /// prompts answer what a person typed at a terminal, which is outside the
     /// program exactly as a request body is, and `secret`'s answer carries the
@@ -2085,7 +2085,7 @@ mod tests {
             BTreeSet::from([
                 (r"Core\Cli", "arguments", "array<tainted string>".to_owned(),),
                 (r"Core\Cli", "ask", "tainted string".to_owned()),
-                (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
+                (r"Core\Cli", "askSecret", "secret tainted string".to_owned(),),
                 (
                     r"Core\Compress\Decompressor",
                     "finish",

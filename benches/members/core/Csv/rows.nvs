@@ -9,7 +9,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $paths = [
             Core\Path::join($dir, 'a.csv'),
             Core\Path::join($dir, 'b.csv'),

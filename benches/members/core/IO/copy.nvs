@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $sources = [Core\Path::join($dir, 'a.ini'), Core\Path::join($dir, 'b.ini')];
         Core\IO::write($sources[0], Core\Str::repeat('a', 64));
         Core\IO::write($sources[1], Core\Str::repeat('b', 96));

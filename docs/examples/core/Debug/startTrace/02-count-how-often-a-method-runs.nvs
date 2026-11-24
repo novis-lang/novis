@@ -22,7 +22,7 @@ class Catalog
     }
 }
 
-string $file = Core\Path::thisDir('invoice.jsonl');
+string $file = Core\Path::thisDirectory('invoice.jsonl');
 
 Core\Debug::startTrace($file);
 int $sum = Catalog::invoice(['tea' => 3, 'honey' => 2]);

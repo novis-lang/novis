@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $file = Core\Path::join(Core\IO::temporaryDir(), 'names.txt');
+        string $file = Core\Path::join(Core\IO::createTemporaryDirectory(), 'names.txt');
         Core\IO::write($file, Core\Str::repeat("Ada\n", $size));
         uint $total = 0;
         uint $i = 0;

@@ -11,7 +11,7 @@ same file from a terminal and from a server. `exit` ends a program before its la
 <FeatureSection examples="lang/programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file" heading="File paths" id="file-paths" />
 
 A program started with `nvs run` may read any file. A web request may read the files in its app
-folder, and `nvs.toml` can allow less. `Core\Path::fromCwd` joins a path to the folder the program was started
+folder, and `nvs.toml` can allow less. `Core\Path::fromWorkingDirectory` joins a path to the folder the program was started
 from. Use it for a path typed on the command line. It throws an error while the program handles a
 web request.
 
@@ -20,7 +20,7 @@ web request.
 ## Do and don't
 
 - Do write a file path in quotes, relative to the file that uses it.
-- Do use `Core\Path::join` with `Core\Path::thisDir()` for a path you build from parts.
+- Do use `Core\Path::join` with `Core\Path::thisDirectory()` for a path you build from parts.
 - Do use `exit(1)` or another status that is not 0 when a command-line program fails.
-- Don't use `Core\Path::fromCwd` in code that handles web requests.
+- Don't use `Core\Path::fromWorkingDirectory` in code that handles web requests.
 - Don't write `die`. It does not compile.

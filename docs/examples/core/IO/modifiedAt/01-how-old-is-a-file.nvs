@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to find out how long ago a file was changed.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'notes.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'notes.txt');
 Core\IO::write($path, "Buy milk\n");
 
 // `modifiedAt` returns the time the file was written.

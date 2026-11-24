@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::makeDir and Core\IO::isDir throw a `RuntimeError` for an empty path, because an empty path does not start at a root, and makeDir still accepts a directory that is already there — `rule:programs/relative-paths-resolve-from-their-file`, `rule:security/capability-check-at-the-door`
+Core\IO::makeDirectory and Core\IO::isDirectory throw a `RuntimeError` for an empty path, because an empty path does not start at a root, and makeDirectory still accepts a directory that is already there — `rule:programs/relative-paths-resolve-from-their-file`, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The contract is that the directory exists after the call. An empty path
@@ -7,22 +7,22 @@ Core\IO::makeDir and Core\IO::isDir throw a `RuntimeError` for an empty path, be
 // before the filesystem or a grant is asked. The grant is unscoped, so the
 // throw cannot come from a grant.
 try {
-    Core\IO::makeDir("");
+    Core\IO::makeDirectory("");
     echo "empty: made\n";
 } catch (RuntimeError $e) {
-    echo "makeDir: ", $e->message, "\n";
+    echo "makeDirectory:", $e->message, "\n";
 }
 try {
-    bool $isDir = Core\IO::isDir("");
+    bool $isDirectory =Core\IO::isDirectory("");
     echo "empty: answered\n";
 } catch (RuntimeError $e) {
-    echo "isDir: ", $e->message, "\n";
+    echo "isDirectory:", $e->message, "\n";
 }
 
 // The accepted side: a directory already there is success, twice.
-Core\IO::makeDir("sub");
-Core\IO::makeDir("sub");
-if (Core\IO::isDir("sub")) {
+Core\IO::makeDirectory("sub");
+Core\IO::makeDirectory("sub");
+if (Core\IO::isDirectory("sub")) {
     echo "sub: a directory\n";
 }
 --FILE nvs.toml--
@@ -30,8 +30,8 @@ if (Core\IO::isDir("sub")) {
 read = true
 write = true
 --EXPECT--
-makeDir: Core\IO::makeDir needs an absolute path, and `` is relative
-help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
-isDir: Core\IO::isDir needs an absolute path, and `` is relative
-help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+makeDirectory:Core\IO::makeDirectory needs an absolute path, and `` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromWorkingDirectory` for a path typed on the command line
+isDirectory:Core\IO::isDirectory needs an absolute path, and `` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromWorkingDirectory` for a path typed on the command line
 sub: a directory

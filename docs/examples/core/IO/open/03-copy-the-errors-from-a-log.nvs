@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a program reads a log file one line at a time and copies the error lines to a second file.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $source = Core\Path::join($dir, 'app.log');
 string $target = Core\Path::join($dir, 'errors.log');
 Core\IO::write($source, "INFO start\nERROR disk full\nINFO retry\nERROR disk full\nINFO stop\n");

@@ -8,7 +8,7 @@ Core\IO::isReadable and ::isWritable answer the operating system's question abou
 // "cannot" is an ordinary branch -- a config file that may be absent, a
 // directory a tool offers to use if it can.
 Core\IO::write("note.txt", "hello\n");
-Core\IO::makeDir("sub");
+Core\IO::makeDirectory("sub");
 
 if (Core\IO::isReadable("note.txt")) {
     echo "note.txt: readable\n";
@@ -22,7 +22,7 @@ if (Core\IO::isWritable("note.txt")) {
 }
 
 // A directory is a path like any other here. Neither member is about the kind
-// of thing at the name -- that is `isFile` and `isDir` -- and a program that
+// of thing at the name -- that is `isFile` and `isDirectory` -- and a program that
 // wants to know whether it may create a file asks about the directory, since
 // the name it means does not exist yet.
 if (Core\IO::isReadable("sub")) {

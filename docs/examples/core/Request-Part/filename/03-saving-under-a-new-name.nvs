@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a website saves each upload under a name it makes, and keeps the client's name for display.
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 uint $number = 0;
 foreach (Core\Request::files() as Core\Request\Part $part) {
     $number = $number + 1;

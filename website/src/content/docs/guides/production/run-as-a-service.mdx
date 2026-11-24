@@ -69,7 +69,7 @@ With `--account`, the service runs as that account. The account can read the dat
 every configuration file. It can write only to these folders in the data folder:
 
 - `cache`, the compiled programs
-- `tmp`, the folders that `Core\IO::temporaryDir` creates
+- `tmp`, the folders that `Core\IO::createTemporaryDirectory` creates
 - `lsp`, files for the editor
 - `logs`, the log files
 - `debug`, the requests that `[debug] store` records for `nvs debug`

@@ -87,7 +87,7 @@ try {
     echo "denied\n";
 }
 try {
-    Core\IO::removeDir($dir . '/config');
+    Core\IO::removeDirectory($dir . '/config');
     echo "deleted\n";
 } catch (Throwable $denied) {
     echo "denied\n";
@@ -97,7 +97,7 @@ try {
 array<string> $created = [$dir . '/config/conf.d', $dir . '/cache', $dir . '/logs/../config.d'];
 foreach ($created as string $path) {
     try {
-        Core\IO::makeDir($path);
+        Core\IO::makeDirectory($path);
         echo "created\n";
     } catch (Throwable $denied) {
         echo "denied\n";

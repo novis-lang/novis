@@ -41,7 +41,7 @@ class PackingFeeTest
     #[AfterClass]
     public static function writeRerunFile(Summary $summary): void
     {
-        IO::write(Path::fromCwd('failed-tests.txt'), Rerun::fileText($summary->failedTests()));
+        IO::write(Path::fromWorkingDirectory('failed-tests.txt'), Rerun::fileText($summary->failedTests()));
     }
 }
 

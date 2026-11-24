@@ -1,5 +1,5 @@
 <?nvs
-// Reads the size from a result of `stat`, as a program does when it checks an upload against a limit.
+// Reads the size from a result of `metadata`, as a program does when it checks an upload against a limit.
 // bench: iterations 1024 callgrind
 // bench: allocations 0
 // bench: complexity constant
@@ -19,12 +19,12 @@ class Bench
     }
 }
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 array<Core\IO\Metadata> $infos = [];
 array<string> $contents = ['x', 'xxxxx', 'xxxxxxxxxx'];
 foreach ($contents as string $content) {
     string $path = Core\Path::join($dir, 'size-' . (Core\Str::length($content) as string) . '.dat');
     Core\IO::write($path, $content);
-    $infos[] = Core\IO::stat($path);
+    $infos[] = Core\IO::metadata($path);
 }
 echo Bench::run($infos, 1024), "\n";

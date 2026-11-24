@@ -29,7 +29,7 @@ class InventoryTest
     #[AfterClass]
     public static function writeStatus(Summary $summary): void
     {
-        IO::write(Path::fromCwd('build-light.txt'), Light::color($summary->failed()));
+        IO::write(Path::fromWorkingDirectory('build-light.txt'), Light::color($summary->failed()));
     }
 }
 

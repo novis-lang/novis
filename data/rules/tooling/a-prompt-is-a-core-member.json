@@ -1,5 +1,5 @@
 {
-  "title": "A prompt is a `Core\\Cli` member that reads the controlling terminal, and `secret` originates a `secret`",
+  "title": "A prompt is a `Core\\Cli` member that reads the controlling terminal, and `askSecret` originates a `secret`",
   "status": "shipped",
   "seeAlso": [
     "tooling/a-prompt-never-blocks",

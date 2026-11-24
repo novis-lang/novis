@@ -5,9 +5,9 @@ A live region nests by call nesting, and the outer one paints again once the inn
 // `rule:tooling/in-place-output-is-a-scoped-live-region` is the scoped-callable shape `Core\Out::capture` already uses,
 // so regions nest the way calls nest: the stack is an implementation detail
 // and no program can observe an unbalanced one.
-var $depth = Core\Cli::live(fn(Core\Cli\Live $outer): string => {
+var $depth = Core\Cli::showLive(fn(Core\Cli\Live $outer): string => {
     $outer->set([Core\Cli\Text::plain("outer")]);
-    var $inner = Core\Cli::live(fn(Core\Cli\Live $nested): string => {
+    var $inner = Core\Cli::showLive(fn(Core\Cli\Live $nested): string => {
         $nested->set([Core\Cli\Text::plain("inner")]);
         return "inner";
     });

@@ -27,7 +27,7 @@ class Attack
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'shop.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'shop.xlsx');
 Core\IO\File $start = Core\IO::open($path, Core\IO::FileMode::Write);
 $start->write('Shop');
 $start->close();

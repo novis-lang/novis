@@ -6,7 +6,7 @@ mail and the shared cache.
 
 With no `[capabilities]`, a command-line program may use any file, connect to public hosts and
 loopback, and run any program. A server program may read its application folder, except `nvs.toml` and names that start
-with `.`. It may write only in folders from `Core\IO::temporaryDir`, and connect to public hosts.
+with `.`. It may write only in folders from `Core\IO::createTemporaryDirectory`, and connect to public hosts.
 Both may start a script from that folder. Other capabilities need a grant.
 
 A grant is `true` for all, or a list of directories, hosts or names. `false` or `[]` allows nothing.

@@ -2,7 +2,7 @@
 // Shows an import that saves every customer of a file, or none of them when the file is broken.
 
 // The third customer in this file is cut off, so the file is not valid JSON.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'customers.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'customers.json');
 Core\IO::write(
     $path,
     "[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Ben\"},{\"id\":3,\"na",

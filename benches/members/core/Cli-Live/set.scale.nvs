@@ -13,7 +13,7 @@ class Bench
             $rows[] = Core\Cli\Text::plain('reading');
             $row = $row + 1;
         }
-        return Core\Cli::live(fn(Core\Cli\Live $screen): int => {
+        return Core\Cli::showLive(fn(Core\Cli\Live $screen): int => {
             int $total = 0;
             uint $i = 0;
             while ($i < 64) {

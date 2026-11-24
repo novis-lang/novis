@@ -213,8 +213,8 @@ final class ReleasesTest
             // The archive is deleted from the store and from the work folder, and is not sent again.
             string $path = Releases::archiveOf($db, ReleasesTest::KEY, '0.0.9');
             Test::assertSame($path, 'archive/' . Str::slice($digest, 7) . '.tar');
-            IO::makeDir($folder . '/files/archive');
-            IO::makeDir($folder . '/work/archive');
+            IO::makeDirectory($folder . '/files/archive');
+            IO::makeDirectory($folder . '/work/archive');
             IO::write($folder . '/files/' . $path, 'bytes');
             IO::write($folder . '/work/' . $path, 'bytes');
             var $stores = new Stores($db, ReleasesTest::site($folder));
@@ -543,14 +543,14 @@ final class ReleasesTest
     private static function folder(): string
     {
         string $folder = Path::join(Index::work(Site::load()), 'test-releases-' . Random::token(8));
-        IO::makeDir($folder);
+        IO::makeDirectory($folder);
         return $folder;
     }
 
     // Deletes `$path` and everything in it.
     private static function remove(string $path): void
     {
-        if (!IO::isDir($path)) {
+        if (!IO::isDirectory($path)) {
             if (IO::exists($path)) {
                 IO::remove($path);
             }
@@ -559,7 +559,7 @@ final class ReleasesTest
         foreach (IO::list($path) as string $name) {
             ReleasesTest::remove(Path::join($path, $name));
         }
-        IO::removeDir($path);
+        IO::removeDirectory($path);
     }
 
     private static function now(): int

@@ -1267,7 +1267,7 @@ pub struct Ctx {
     /// would outlive the test that filled it and answer the next one's prompt,
     /// which is the failure a fixed clock avoids the same way.
     ///
-    /// The only writer is `Core\Test::scriptAnswers`, so a request or a
+    /// The only writer is `Core\Test::answerCli`, so a request or a
     /// `nvs run` never has one — and a program cannot script its own prompts
     /// into a state nobody typed, which is what keeps
     /// `rule:tooling/a-prompt-never-blocks`
@@ -1689,7 +1689,7 @@ pub struct Ctx {
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
     open_connections: Vec<(u64, OpenConnection)>,
-    /// The temporary directories `Core\IO::temporaryDir` has handed this script,
+    /// The temporary directories `Core\IO::createTemporaryDirectory` has handed this script,
     /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
     /// `rule:core-classes/temporary-dir-sweep` for the sweep that reads it.
     ///

@@ -6,7 +6,7 @@
 
 // 1. A row of control characters. It clears the screen, renames the window and
 //    ends the line early. All of it must arrive as text.
-Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     string $esc = Core\Str::fromCodePoint(27);
     $screen->set([
         Core\Cli\Text::plain("{$esc}[2J{$esc}[H"),
@@ -19,7 +19,7 @@ echo "step 1 painted\n";
 
 // 2. A row of a million characters, and a thousand rows at once. A row wider
 //    than the terminal is cut, so the region keeps its shape.
-Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     $screen->set([Core\Cli\Text::plain(Core\Str::repeat('w', 1000000))]);
 
     array<Core\Cli\Text> $tall = [];
@@ -35,7 +35,7 @@ echo "step 2 painted\n";
 
 // 3. Half a million repaints of one region. The runtime draws on its own timer,
 //    so a program cannot make it draw faster, and nothing may be kept behind.
-uint $painted = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+uint $painted = Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     uint $at = 0;
     while ($at < 500000) {
         $screen->set([Core\Cli\Text::plain(Core\Str::format('frame %d', $at))]);
@@ -47,7 +47,7 @@ echo 'step 3 painted ', $painted, " frames\n";
 
 // 4. The region is emptied and filled again, over and over. An empty region is
 //    allowed, and the region after it must still be drawn.
-Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+Core\Cli::showLive(fn(Core\Cli\Live $screen): uint => {
     array<Core\Cli\Text> $none = [];
     uint $at = 0;
     while ($at < 10000) {

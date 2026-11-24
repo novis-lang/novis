@@ -11,12 +11,12 @@ $writer->endElement();
 
 // `item` has an attribute, but nothing inside it. It is written as `<item sku="A-1"/>`.
 $writer->startElement('item');
-$writer->attribute('sku', 'A-1');
+$writer->writeAttribute('sku', 'A-1');
 $writer->endElement();
 
 // `note` has text inside, so it is closed with `</note>`.
 $writer->startElement('note');
-$writer->content('Please ring twice.');
+$writer->writeText('Please ring twice.');
 $writer->endElement();
 
 $writer->endElement();

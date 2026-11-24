@@ -1,4 +1,4 @@
-# The attacks write a file in the folder from `Core\IO::temporaryDir()` and read it back.
+# The attacks write a file in the folder from `Core\IO::createTemporaryDirectory()` and read it back.
 # The path of that folder is different on every computer, so these lines allow
 # reading and writing files, and nothing else.
 [capabilities.fs]

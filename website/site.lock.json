@@ -572,17 +572,17 @@
   "docs/examples/core/Cli/isTty/about.md": {
     "Core\\Cli::isTty": "845b6cdbb2ad8ca6"
   },
-  "docs/examples/core/Cli/live/about.md": {
-    "Core\\Cli::live": "4fd92a6142d1a822"
+  "docs/examples/core/Cli/showLive/about.md": {
+    "Core\\Cli::showLive": "4fd92a6142d1a822"
   },
   "docs/examples/core/Cli/multiSelect/about.md": {
     "Core\\Cli::multiSelect": "9f2aa3177a95f677"
   },
-  "docs/examples/core/Cli/progress/about.md": {
-    "Core\\Cli::progress": "1b996e2482bc64d1"
+  "docs/examples/core/Cli/showProgress/about.md": {
+    "Core\\Cli::showProgress": "1b996e2482bc64d1"
   },
-  "docs/examples/core/Cli/secret/about.md": {
-    "Core\\Cli::secret": "6c5ef2950caab010"
+  "docs/examples/core/Cli/askSecret/about.md": {
+    "Core\\Cli::askSecret": "6c5ef2950caab010"
   },
   "docs/examples/core/Cli/select/about.md": {
     "Core\\Cli::select": "ff9019891307aed9"
@@ -1205,8 +1205,8 @@
   "docs/examples/core/IO/exists/about.md": {
     "Core\\IO::exists": "cb18529c294a4b43"
   },
-  "docs/examples/core/IO/isDir/about.md": {
-    "Core\\IO::isDir": "d3ff7eb8644415d3"
+  "docs/examples/core/IO/isDirectory/about.md": {
+    "Core\\IO::isDirectory": "d3ff7eb8644415d3"
   },
   "docs/examples/core/IO/isFile/about.md": {
     "Core\\IO::isFile": "4980d4d9e9660840"
@@ -1223,8 +1223,8 @@
   "docs/examples/core/IO/list/about.md": {
     "Core\\IO::list": "6a0bcd014dea0385"
   },
-  "docs/examples/core/IO/makeDir/about.md": {
-    "Core\\IO::makeDir": "04fcb08ce1e92613"
+  "docs/examples/core/IO/makeDirectory/about.md": {
+    "Core\\IO::makeDirectory": "04fcb08ce1e92613"
   },
   "docs/examples/core/IO/modifiedAt/about.md": {
     "Core\\IO::modifiedAt": "5a04b5085234d22d"
@@ -1247,14 +1247,14 @@
   "docs/examples/core/IO/remove/about.md": {
     "Core\\IO::remove": "909f311a8ce73775"
   },
-  "docs/examples/core/IO/removeDir/about.md": {
-    "Core\\IO::removeDir": "15c83e7cb38e7707"
+  "docs/examples/core/IO/removeDirectory/about.md": {
+    "Core\\IO::removeDirectory": "15c83e7cb38e7707"
   },
   "docs/examples/core/IO/size/about.md": {
     "Core\\IO::size": "584c81c9ecae243c"
   },
-  "docs/examples/core/IO/stat/about.md": {
-    "Core\\IO::stat": "3fb4eef7da2fd813"
+  "docs/examples/core/IO/metadata/about.md": {
+    "Core\\IO::metadata": "3fb4eef7da2fd813"
   },
   "docs/examples/core/IO/stdin/about.md": {
     "Core\\IO::stdin": "a24a5925a33b289d"
@@ -1262,8 +1262,8 @@
   "docs/examples/core/IO/stdinStream/about.md": {
     "Core\\IO::stdinStream": "aad6a2e52223ffe0"
   },
-  "docs/examples/core/IO/temporaryDir/about.md": {
-    "Core\\IO::temporaryDir": "af4ed242a5ea78e9"
+  "docs/examples/core/IO/createTemporaryDirectory/about.md": {
+    "Core\\IO::createTemporaryDirectory": "af4ed242a5ea78e9"
   },
   "docs/examples/core/IO/walk/about.md": {
     "Core\\IO::walk": "26b8d007a3acf231"
@@ -1307,8 +1307,8 @@
   "docs/examples/core/IO-File/write/about.md": {
     "Core\\IO\\File::write": "97f029d317fac87e"
   },
-  "docs/examples/core/IO-Metadata/isDir/about.md": {
-    "Core\\IO\\Metadata::isDir": "86d18b9a0df3b3f0"
+  "docs/examples/core/IO-Metadata/isDirectory/about.md": {
+    "Core\\IO\\Metadata::isDirectory": "86d18b9a0df3b3f0"
   },
   "docs/examples/core/IO-Metadata/isFile/about.md": {
     "Core\\IO\\Metadata::isFile": "e165d42a60880fbc"
@@ -2003,17 +2003,17 @@
   "docs/examples/core/Password/verify/about.md": {
     "Core\\Password::verify": "aa8f074f92366c94"
   },
-  "docs/examples/core/Path/basename/about.md": {
-    "Core\\Path::basename": "c559eb9eafe89936"
+  "docs/examples/core/Path/fileName/about.md": {
+    "Core\\Path::fileName": "c559eb9eafe89936"
   },
-  "docs/examples/core/Path/dirname/about.md": {
-    "Core\\Path::dirname": "cda18e791b37f3aa"
+  "docs/examples/core/Path/parent/about.md": {
+    "Core\\Path::parent": "cda18e791b37f3aa"
   },
   "docs/examples/core/Path/extension/about.md": {
     "Core\\Path::extension": "79c4a7e50af5fa61"
   },
-  "docs/examples/core/Path/fromCwd/about.md": {
-    "Core\\Path::fromCwd": "c7b3d0185fb18720"
+  "docs/examples/core/Path/fromWorkingDirectory/about.md": {
+    "Core\\Path::fromWorkingDirectory": "c7b3d0185fb18720"
   },
   "docs/examples/core/Path/isAbsolute/about.md": {
     "Core\\Path::isAbsolute": "97a880bf64f2ebe0"
@@ -2030,8 +2030,8 @@
   "docs/examples/core/Path/split/about.md": {
     "Core\\Path::split": "ad164197a469b8e0"
   },
-  "docs/examples/core/Path/thisDir/about.md": {
-    "Core\\Path::thisDir": "68db69d688b20553"
+  "docs/examples/core/Path/thisDirectory/about.md": {
+    "Core\\Path::thisDirectory": "68db69d688b20553"
   },
   "docs/examples/core/Path/thisFile/about.md": {
     "Core\\Path::thisFile": "12fc8c09c8fb00d9"
@@ -2894,8 +2894,8 @@
   "docs/examples/core/Test/run/about.md": {
     "Core\\Test::run": "cd8c83c44ecc09e1"
   },
-  "docs/examples/core/Test/scriptAnswers/about.md": {
-    "Core\\Test::scriptAnswers": "5a01af14cc097012"
+  "docs/examples/core/Test/answerCli/about.md": {
+    "Core\\Test::answerCli": "5a01af14cc097012"
   },
   "docs/examples/core/Test/sentHttp/about.md": {
     "Core\\Test::sentHttp": "0a898ac22924a193"
@@ -3470,20 +3470,20 @@
   "docs/examples/core/Xml-Reader/read/about.md": {
     "Core\\Xml\\Reader::read": "e59a7fc54543e50f"
   },
-  "docs/examples/core/Xml-Writer/attribute/about.md": {
-    "Core\\Xml\\Writer::attribute": "068e97d42cbe5eb6"
+  "docs/examples/core/Xml-Writer/writeAttribute/about.md": {
+    "Core\\Xml\\Writer::writeAttribute": "068e97d42cbe5eb6"
   },
-  "docs/examples/core/Xml-Writer/cdata/about.md": {
-    "Core\\Xml\\Writer::cdata": "e4bcd69f0a9f7c0c"
+  "docs/examples/core/Xml-Writer/writeCdata/about.md": {
+    "Core\\Xml\\Writer::writeCdata": "e4bcd69f0a9f7c0c"
   },
-  "docs/examples/core/Xml-Writer/comment/about.md": {
-    "Core\\Xml\\Writer::comment": "91501c27777ca874"
+  "docs/examples/core/Xml-Writer/writeComment/about.md": {
+    "Core\\Xml\\Writer::writeComment": "91501c27777ca874"
   },
-  "docs/examples/core/Xml-Writer/content/about.md": {
-    "Core\\Xml\\Writer::content": "629598b8f076eeb5"
+  "docs/examples/core/Xml-Writer/writeText/about.md": {
+    "Core\\Xml\\Writer::writeText": "629598b8f076eeb5"
   },
-  "docs/examples/core/Xml-Writer/doctype/about.md": {
-    "Core\\Xml\\Writer::doctype": "a662b9e0001f3db5"
+  "docs/examples/core/Xml-Writer/writeDoctype/about.md": {
+    "Core\\Xml\\Writer::writeDoctype": "a662b9e0001f3db5"
   },
   "docs/examples/core/Xml-Writer/endDocument/about.md": {
     "Core\\Xml\\Writer::endDocument": "e13d502981d001f4"
@@ -3491,8 +3491,8 @@
   "docs/examples/core/Xml-Writer/endElement/about.md": {
     "Core\\Xml\\Writer::endElement": "1c2a847828b88075"
   },
-  "docs/examples/core/Xml-Writer/instruction/about.md": {
-    "Core\\Xml\\Writer::instruction": "fe38304a93acfcc4"
+  "docs/examples/core/Xml-Writer/writeInstruction/about.md": {
+    "Core\\Xml\\Writer::writeInstruction": "fe38304a93acfcc4"
   },
   "docs/examples/core/Xml-Writer/startDocument/about.md": {
     "Core\\Xml\\Writer::startDocument": "d99773407e5cc832"
@@ -5363,17 +5363,17 @@
   "help:Core\\Cli::isTty": {
     "Core\\Cli::isTty": "d64582f621b38b5c"
   },
-  "help:Core\\Cli::live": {
-    "Core\\Cli::live": "b9d5040dc780ded0"
+  "help:Core\\Cli::showLive": {
+    "Core\\Cli::showLive": "b9d5040dc780ded0"
   },
   "help:Core\\Cli::multiSelect": {
     "Core\\Cli::multiSelect": "5cdd2b47aeffc150"
   },
-  "help:Core\\Cli::progress": {
-    "Core\\Cli::progress": "e73cdb211cbcfed5"
+  "help:Core\\Cli::showProgress": {
+    "Core\\Cli::showProgress": "e73cdb211cbcfed5"
   },
-  "help:Core\\Cli::secret": {
-    "Core\\Cli::secret": "48383a073dc865d0"
+  "help:Core\\Cli::askSecret": {
+    "Core\\Cli::askSecret": "48383a073dc865d0"
   },
   "help:Core\\Cli::select": {
     "Core\\Cli::select": "99082df2b80c63b8"
@@ -6062,8 +6062,8 @@
   "help:Core\\IO::FileMode": {
     "Core\\IO::FileMode": "3bc65d917d717c34"
   },
-  "help:Core\\IO::isDir": {
-    "Core\\IO::isDir": "c662ee40bb16dd8c"
+  "help:Core\\IO::isDirectory": {
+    "Core\\IO::isDirectory": "c662ee40bb16dd8c"
   },
   "help:Core\\IO::isFile": {
     "Core\\IO::isFile": "9837917eca1bf314"
@@ -6080,8 +6080,8 @@
   "help:Core\\IO::list": {
     "Core\\IO::list": "e825959d870af14c"
   },
-  "help:Core\\IO::makeDir": {
-    "Core\\IO::makeDir": "83ebbec7852a0d1d"
+  "help:Core\\IO::makeDirectory": {
+    "Core\\IO::makeDirectory": "83ebbec7852a0d1d"
   },
   "help:Core\\IO::modifiedAt": {
     "Core\\IO::modifiedAt": "cf1c25fa9aa581fd"
@@ -6104,14 +6104,14 @@
   "help:Core\\IO::remove": {
     "Core\\IO::remove": "809d6a03b12e0d5f"
   },
-  "help:Core\\IO::removeDir": {
-    "Core\\IO::removeDir": "50e665bdd8f76945"
+  "help:Core\\IO::removeDirectory": {
+    "Core\\IO::removeDirectory": "50e665bdd8f76945"
   },
   "help:Core\\IO::size": {
     "Core\\IO::size": "057482d3cfebeb7a"
   },
-  "help:Core\\IO::stat": {
-    "Core\\IO::stat": "06b7301d804d3df1"
+  "help:Core\\IO::metadata": {
+    "Core\\IO::metadata": "06b7301d804d3df1"
   },
   "help:Core\\IO::stdin": {
     "Core\\IO::stdin": "dba0c8d78687d4f2"
@@ -6119,8 +6119,8 @@
   "help:Core\\IO::stdinStream": {
     "Core\\IO::stdinStream": "03789a2f99e5dde2"
   },
-  "help:Core\\IO::temporaryDir": {
-    "Core\\IO::temporaryDir": "0dafa4961caac960"
+  "help:Core\\IO::createTemporaryDirectory": {
+    "Core\\IO::createTemporaryDirectory": "0dafa4961caac960"
   },
   "help:Core\\IO::walk": {
     "Core\\IO::walk": "e5ec3774e82ebff8"
@@ -6164,8 +6164,8 @@
   "help:Core\\IO\\File::write": {
     "Core\\IO\\File::write": "741e5f7716c812bd"
   },
-  "help:Core\\IO\\Metadata::isDir": {
-    "Core\\IO\\Metadata::isDir": "e7611e1bcd8879a5"
+  "help:Core\\IO\\Metadata::isDirectory": {
+    "Core\\IO\\Metadata::isDirectory": "e7611e1bcd8879a5"
   },
   "help:Core\\IO\\Metadata::isFile": {
     "Core\\IO\\Metadata::isFile": "1b20e4be1fdbd887"
@@ -6884,17 +6884,17 @@
   "help:Core\\Password::verify": {
     "Core\\Password::verify": "4c27ae4b9f613783"
   },
-  "help:Core\\Path::basename": {
-    "Core\\Path::basename": "9dcc37b557cd781e"
+  "help:Core\\Path::fileName": {
+    "Core\\Path::fileName": "9dcc37b557cd781e"
   },
-  "help:Core\\Path::dirname": {
-    "Core\\Path::dirname": "78f4b77461e788f1"
+  "help:Core\\Path::parent": {
+    "Core\\Path::parent": "78f4b77461e788f1"
   },
   "help:Core\\Path::extension": {
     "Core\\Path::extension": "73fd668926b0d328"
   },
-  "help:Core\\Path::fromCwd": {
-    "Core\\Path::fromCwd": "dc8bc5642b480340"
+  "help:Core\\Path::fromWorkingDirectory": {
+    "Core\\Path::fromWorkingDirectory": "dc8bc5642b480340"
   },
   "help:Core\\Path::isAbsolute": {
     "Core\\Path::isAbsolute": "a6375ef87f2c7509"
@@ -6911,8 +6911,8 @@
   "help:Core\\Path::split": {
     "Core\\Path::split": "3ac8abcdc6638056"
   },
-  "help:Core\\Path::thisDir": {
-    "Core\\Path::thisDir": "ddf68ff751461110"
+  "help:Core\\Path::thisDirectory": {
+    "Core\\Path::thisDirectory": "ddf68ff751461110"
   },
   "help:Core\\Path::thisFile": {
     "Core\\Path::thisFile": "d339b2b4cfcf8182"
@@ -7808,8 +7808,8 @@
   "help:Core\\Test::run": {
     "Core\\Test::run": "0d96274e79359703"
   },
-  "help:Core\\Test::scriptAnswers": {
-    "Core\\Test::scriptAnswers": "2e8d60847380e0c3"
+  "help:Core\\Test::answerCli": {
+    "Core\\Test::answerCli": "2e8d60847380e0c3"
   },
   "help:Core\\Test::sentHttp": {
     "Core\\Test::sentHttp": "d257fdacac90e995"
@@ -8396,20 +8396,20 @@
   "help:Core\\Xml\\Reader::read": {
     "Core\\Xml\\Reader::read": "b9edd2c2c0d02fd3"
   },
-  "help:Core\\Xml\\Writer::attribute": {
-    "Core\\Xml\\Writer::attribute": "1236a72712792fb1"
+  "help:Core\\Xml\\Writer::writeAttribute": {
+    "Core\\Xml\\Writer::writeAttribute": "1236a72712792fb1"
   },
-  "help:Core\\Xml\\Writer::cdata": {
-    "Core\\Xml\\Writer::cdata": "c5f397a451627632"
+  "help:Core\\Xml\\Writer::writeCdata": {
+    "Core\\Xml\\Writer::writeCdata": "c5f397a451627632"
   },
-  "help:Core\\Xml\\Writer::comment": {
-    "Core\\Xml\\Writer::comment": "3027ae594db14742"
+  "help:Core\\Xml\\Writer::writeComment": {
+    "Core\\Xml\\Writer::writeComment": "3027ae594db14742"
   },
-  "help:Core\\Xml\\Writer::content": {
-    "Core\\Xml\\Writer::content": "f3c4787084db37e7"
+  "help:Core\\Xml\\Writer::writeText": {
+    "Core\\Xml\\Writer::writeText": "f3c4787084db37e7"
   },
-  "help:Core\\Xml\\Writer::doctype": {
-    "Core\\Xml\\Writer::doctype": "a9dd6db40fed0aac"
+  "help:Core\\Xml\\Writer::writeDoctype": {
+    "Core\\Xml\\Writer::writeDoctype": "a9dd6db40fed0aac"
   },
   "help:Core\\Xml\\Writer::endDocument": {
     "Core\\Xml\\Writer::endDocument": "375318620c6236fa"
@@ -8417,8 +8417,8 @@
   "help:Core\\Xml\\Writer::endElement": {
     "Core\\Xml\\Writer::endElement": "1d42f4b805ace070"
   },
-  "help:Core\\Xml\\Writer::instruction": {
-    "Core\\Xml\\Writer::instruction": "dbdcf92b19c2197d"
+  "help:Core\\Xml\\Writer::writeInstruction": {
+    "Core\\Xml\\Writer::writeInstruction": "dbdcf92b19c2197d"
   },
   "help:Core\\Xml\\Writer::startDocument": {
     "Core\\Xml\\Writer::startDocument": "32fa78acfaa5e0ed"

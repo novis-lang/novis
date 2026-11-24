@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to give a file a new name with `Core\IO::move`.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $draft = Core\Path::join($dir, 'draft.txt');
 string $final = Core\Path::join($dir, 'final.txt');
 Core\IO::write($draft, "Dear customer,\n");

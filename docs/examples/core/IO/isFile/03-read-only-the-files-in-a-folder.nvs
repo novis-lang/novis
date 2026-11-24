@@ -1,8 +1,8 @@
 <?nvs
 // Shows how a program reads every file in a folder and skips the folders inside it.
 
-string $inbox = Core\Path::join(Core\IO::temporaryDir(), 'inbox');
-Core\IO::makeDir(Core\Path::join($inbox, 'archive'));
+string $inbox = Core\Path::join(Core\IO::createTemporaryDirectory(), 'inbox');
+Core\IO::makeDirectory(Core\Path::join($inbox, 'archive'));
 Core\IO::write(Core\Path::join($inbox, 'a.txt'), "first message\n");
 Core\IO::write(Core\Path::join($inbox, 'b.txt'), "second message\n");
 

@@ -3,9 +3,9 @@
 // calls, and paths that name no folder. `list` must return every name or throw an `IOError`.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
 string $many = Core\Path::join($dir, 'many');
-Core\IO::makeDir($many);
+Core\IO::makeDirectory($many);
 
 // 1. A folder with five thousand files. Every name must be in the result, once.
 uint $count = 0;

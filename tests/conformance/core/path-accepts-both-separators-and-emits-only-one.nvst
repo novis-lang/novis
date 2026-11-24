@@ -30,8 +30,8 @@ array<string> $subjects = [
 int $accepted = 0;
 foreach ($subjects as string $s) {
     var $t = Core\Str::replace($s, "/", "\\");
-    $accepted = $accepted + ((Core\Path::basename($s) == Core\Path::basename($t)) ? 1 : 0);
-    $accepted = $accepted + ((Core\Path::dirname($s) == Core\Path::dirname($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::fileName($s) == Core\Path::fileName($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::parent($s) == Core\Path::parent($t)) ? 1 : 0);
     $accepted = $accepted + ((Core\Path::extension($s) == Core\Path::extension($t)) ? 1 : 0);
     $accepted = $accepted + ((Core\Path::normalize($s) == Core\Path::normalize($t)) ? 1 : 0);
     $accepted = $accepted + ((Core\Path::isAbsolute($s) == Core\Path::isAbsolute($t)) ? 1 : 0);
@@ -64,7 +64,7 @@ foreach ($subjects as string $e) {
     var $w = Core\Str::replace($e, "/", "\\");
     $emitted = $emitted + (Core\Str::contains(Core\Path::normalize($w), $foreign) ? 0 : 1);
     $emitted = $emitted + (Core\Str::contains(Core\Path::join($w, "sub"), $foreign) ? 0 : 1);
-    $emitted = $emitted + (Core\Str::contains(Core\Path::dirname($w), $foreign) ? 0 : 1);
+    $emitted = $emitted + (Core\Str::contains(Core\Path::parent($w), $foreign) ? 0 : 1);
 }
 echo "emitted ", $emitted, " of 3 members x ", Core\Arr::count($subjects), " subjects\n";
 

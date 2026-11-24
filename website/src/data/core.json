@@ -5661,7 +5661,7 @@
           },
           "slug": "secret",
           "url": "/reference/core/cli/secret/",
-          "examples": "core/Cli/secret"
+          "examples": "core/Cli/askSecret"
         },
         {
           "id": "Cli.live",
@@ -5694,7 +5694,7 @@
           },
           "slug": "live",
           "url": "/reference/core/cli/live/",
-          "examples": "core/Cli/live"
+          "examples": "core/Cli/showLive"
         },
         {
           "id": "Cli.progress",
@@ -5739,7 +5739,7 @@
           },
           "slug": "progress",
           "url": "/reference/core/cli/progress/",
-          "examples": "core/Cli/progress"
+          "examples": "core/Cli/showProgress"
         }
       ],
       "slug": "cli",
@@ -17122,7 +17122,7 @@
           },
           "slug": "isdir",
           "url": "/reference/core/io/isdir/",
-          "examples": "core/IO/isDir"
+          "examples": "core/IO/isDirectory"
         },
         {
           "id": "IO.isReadable",
@@ -17329,7 +17329,7 @@
           },
           "slug": "stat",
           "url": "/reference/core/io/stat/",
-          "examples": "core/IO/stat"
+          "examples": "core/IO/metadata"
         },
         {
           "id": "IO.copy",
@@ -17525,7 +17525,7 @@
           },
           "slug": "makedir",
           "url": "/reference/core/io/makedir/",
-          "examples": "core/IO/makeDir"
+          "examples": "core/IO/makeDirectory"
         },
         {
           "id": "IO.removeDir",
@@ -17568,7 +17568,7 @@
           },
           "slug": "removedir",
           "url": "/reference/core/io/removedir/",
-          "examples": "core/IO/removeDir"
+          "examples": "core/IO/removeDirectory"
         },
         {
           "id": "IO.list",
@@ -17682,7 +17682,7 @@
           },
           "slug": "temporarydir",
           "url": "/reference/core/io/temporarydir/",
-          "examples": "core/IO/temporaryDir"
+          "examples": "core/IO/createTemporaryDirectory"
         },
         {
           "id": "IO.canonicalize",
@@ -18507,7 +18507,7 @@
           },
           "slug": "isdir",
           "url": "/reference/core/io-metadata/isdir/",
-          "examples": "core/IO-Metadata/isDir"
+          "examples": "core/IO-Metadata/isDirectory"
         }
       ],
       "slug": "io-metadata",
@@ -35038,7 +35038,7 @@
           },
           "slug": "basename",
           "url": "/reference/core/path/basename/",
-          "examples": "core/Path/basename"
+          "examples": "core/Path/fileName"
         },
         {
           "id": "Path.dirname",
@@ -35080,7 +35080,7 @@
           },
           "slug": "dirname",
           "url": "/reference/core/path/dirname/",
-          "examples": "core/Path/dirname"
+          "examples": "core/Path/parent"
         },
         {
           "id": "Path.extension",
@@ -35392,7 +35392,7 @@
           },
           "slug": "fromcwd",
           "url": "/reference/core/path/fromcwd/",
-          "examples": "core/Path/fromCwd"
+          "examples": "core/Path/fromWorkingDirectory"
         },
         {
           "id": "Path.thisFile",
@@ -35455,7 +35455,7 @@
           },
           "slug": "thisdir",
           "url": "/reference/core/path/thisdir/",
-          "examples": "core/Path/thisDir"
+          "examples": "core/Path/thisDirectory"
         }
       ],
       "slug": "path",
@@ -47760,7 +47760,7 @@
           },
           "slug": "scriptanswers",
           "url": "/reference/core/test/scriptanswers/",
-          "examples": "core/Test/scriptAnswers"
+          "examples": "core/Test/answerCli"
         },
         {
           "id": "Test.request",
@@ -55058,7 +55058,7 @@
           },
           "slug": "content",
           "url": "/reference/core/xml-writer/content/",
-          "examples": "core/Xml-Writer/content"
+          "examples": "core/Xml-Writer/writeText"
         },
         {
           "id": "Xml.Writer.attribute",
@@ -55109,7 +55109,7 @@
           },
           "slug": "attribute",
           "url": "/reference/core/xml-writer/attribute/",
-          "examples": "core/Xml-Writer/attribute"
+          "examples": "core/Xml-Writer/writeAttribute"
         },
         {
           "id": "Xml.Writer.comment",
@@ -55148,7 +55148,7 @@
           },
           "slug": "comment",
           "url": "/reference/core/xml-writer/comment/",
-          "examples": "core/Xml-Writer/comment"
+          "examples": "core/Xml-Writer/writeComment"
         },
         {
           "id": "Xml.Writer.cdata",
@@ -55187,7 +55187,7 @@
           },
           "slug": "cdata",
           "url": "/reference/core/xml-writer/cdata/",
-          "examples": "core/Xml-Writer/cdata"
+          "examples": "core/Xml-Writer/writeCdata"
         },
         {
           "id": "Xml.Writer.instruction",
@@ -55238,7 +55238,7 @@
           },
           "slug": "instruction",
           "url": "/reference/core/xml-writer/instruction/",
-          "examples": "core/Xml-Writer/instruction"
+          "examples": "core/Xml-Writer/writeInstruction"
         },
         {
           "id": "Xml.Writer.doctype",
@@ -55277,7 +55277,7 @@
           },
           "slug": "doctype",
           "url": "/reference/core/xml-writer/doctype/",
-          "examples": "core/Xml-Writer/doctype"
+          "examples": "core/Xml-Writer/writeDoctype"
         }
       ],
       "slug": "xml-writer",

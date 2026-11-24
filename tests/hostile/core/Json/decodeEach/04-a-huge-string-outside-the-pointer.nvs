@@ -50,7 +50,7 @@ foreach (Core\Json::decodeEach<mixed>(Upload::numbers(), '/items') as mixed $val
 echo '3 elements read: ', $after, "\n";
 
 // 4. The same string in a file, read at `/items`. This prints `2`.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'junk-before-items.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'junk-before-items.json');
 Core\IO::writeStream($path, Upload::text(), { overwrite: true });
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $fromFile = 0;

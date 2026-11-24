@@ -7,7 +7,7 @@ parameter of your own method, and a path in quotes passed to it works the same w
 
 **Good to know:** this works only for a path written in quotes in the call itself. A path such as
 `'data/' . $name` starts with a relative path, so it does not compile. Start it with the folder of your file:
-`Core\Path::thisDir('data') . '/' . $name`. `Core\Path::join` also adds a name to a full folder path.
+`Core\Path::thisDirectory('data') . '/' . $name`. `Core\Path::join` also adds a name to a full folder path.
 A relative path in a variable throws a `RuntimeError` when a file method gets it.
 
 **The examples below** read a file next to the program, pass a path to a method of your own, and

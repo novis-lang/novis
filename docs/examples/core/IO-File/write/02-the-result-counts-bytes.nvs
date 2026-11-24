@@ -2,7 +2,7 @@
 // Shows what `write` returns: the number of bytes it wrote.
 // A character such as `é` or `ö` uses more than one byte.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'names.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'names.txt');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // "Café" has 4 characters and 5 bytes, so this prints 4 and then 5.

@@ -92,7 +92,7 @@ final class DownloadsTest
             ]) });
 
             var $downloads = new Downloads($db);
-            IO::makeDir($folder);
+            IO::makeDirectory($folder);
             IO::write(Path::join($folder, 'logs.key'), "the storage password\n");
             var $log = new Store('http', DownloadsTest::LOGS, 'AccessKey', Path::join($folder, 'logs.key'));
             Test::assertSame($downloads->countLog($log, $day, $folder), 3);
@@ -138,7 +138,7 @@ final class DownloadsTest
     // Deletes the file or the folder `$path` with everything in it.
     private static function remove(string $path): void
     {
-        if (!IO::isDir($path)) {
+        if (!IO::isDirectory($path)) {
             if (IO::exists($path)) {
                 IO::remove($path);
             }
@@ -147,6 +147,6 @@ final class DownloadsTest
         foreach (IO::list($path) as string $name) {
             DownloadsTest::remove(Path::join($path, $name));
         }
-        IO::removeDir($path);
+        IO::removeDirectory($path);
     }
 }

@@ -17,7 +17,7 @@ every time it is reached.*
 path is literal text (`'...'` or `"..."` with no interpolation), a class constant declared in a file
 the walk has already read, or `.` between two of those. A relative path resolves from the file the
 `require` is written in (`rule:programs/relative-paths-resolve-from-their-file`). Every other path —
-a variable, a call such as `Core\Path::thisDir() . '/autoload.nvs'`, an interpolation, a heredoc, an
+a variable, a call such as `Core\Path::thisDirectory() . '/autoload.nvs'`, an interpolation, a heredoc, an
 `as` conversion, or a constant no file read so far declares — is `E0330` at the path, whose help
 names `require './autoload.nvs';`. Such a site could load nothing and only ever throw. The one
 `require` that still throws for a missing target at run time is a literal in a source with no

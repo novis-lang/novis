@@ -1,8 +1,8 @@
 <?nvs
 // Shows that two different ways to write the path of one file give the same result.
 
-string $dir = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($dir, 'docs'));
+string $dir = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($dir, 'docs'));
 Core\IO::write(Core\Path::join($dir, 'readme.txt'), 'hello');
 
 string $short = Core\Path::join($dir, 'readme.txt');
@@ -14,4 +14,4 @@ if (Core\IO::canonicalize($short) == Core\IO::canonicalize($long)) {
 }
 
 // The result has no `..` in it. This prints "readme.txt".
-echo Core\Path::basename(Core\IO::canonicalize($long)), "\n";
+echo Core\Path::fileName(Core\IO::canonicalize($long)), "\n";

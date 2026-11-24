@@ -147,10 +147,10 @@ marked `~`: it is the machine, not the code.
 | `Core\Cli::escape` | 4.00 | 2.00 | 1.00 | 45.0 |  |  | complexity linear, calls 2, allocations 1 | 4fc2594c8ec2 |
 | `Core\Cli::height` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4fc2594c8ec2 |
 | `Core\Cli::isTty` | 6.67 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4fc2594c8ec2 |
-| `Core\Cli::live` | 5.00 | 4.00 | 10.00 | 646.0 | -1.000 | -64.000 | complexity constant, calls 4, allocations 10 | 4fc2594c8ec2 |
+| `Core\Cli::showLive` | 5.00 | 4.00 | 10.00 | 646.0 | -1.000 | -64.000 | complexity constant, calls 4, allocations 10 | 4fc2594c8ec2 |
 | `Core\Cli::multiSelect` | 6.00 | 2.00 | 29.00 | 884.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
-| `Core\Cli::progress` | 5.00 | 3.00 | 9.00 | 324.0 |  |  | complexity constant, calls 3, allocations 9 | 4fc2594c8ec2 |
-| `Core\Cli::secret` | 6.00 | 4.00 | 6.00 | 317.0 |  |  | complexity linear, calls 4, allocations 6 | 4fc2594c8ec2 |
+| `Core\Cli::showProgress` | 5.00 | 3.00 | 9.00 | 324.0 |  |  | complexity constant, calls 3, allocations 9 | 4fc2594c8ec2 |
+| `Core\Cli::askSecret` | 6.00 | 4.00 | 6.00 | 317.0 |  |  | complexity linear, calls 4, allocations 6 | 4fc2594c8ec2 |
 | `Core\Cli::select` | 4.00 | 1.00 | 2.00 | 78.0 |  |  | complexity linear, calls 1, allocations 2 | 4fc2594c8ec2 |
 | `Core\Cli::width` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4fc2594c8ec2 |
 | `Core\Cli::write` | 5.00 | 2.00 | 1.00 | 5.0 |  |  | complexity linear, calls 2, allocations 1 | 4fc2594c8ec2 |
@@ -357,13 +357,13 @@ marked `~`: it is the machine, not the code.
 | `Core\IO::canonicalize` | 3.00 | 2.00 | 12.33 | 683.3 |  | +8.000 | complexity constant, calls 2 | 3d6e1ab929ed |
 | `Core\IO::copy` | 4.00 | 2.00 | 72.00 | 1827.0 |  |  | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\IO::exists` | 4.00 | 1.00 | 28.50 | 1052.5 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
-| `Core\IO::isDir` | 4.00 | 1.00 | 29.50 | 1067.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
+| `Core\IO::isDirectory` | 4.00 | 1.00 | 29.50 | 1067.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
 | `Core\IO::isFile` | 4.00 | 1.00 | 30.00 | 1080.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
 | `Core\IO::isReadable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
 | `Core\IO::isWritable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
 | `Core\IO::lines` | 9.00 | 9.00 | 33.00 | 1112.0 |  | +40.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::list` | 4.00 | 2.00 | 40.34 | 66669.3 |  | +32.000 | complexity linear | 3d6e1ab929ed |
-| `Core\IO::makeDir` | 5.00 | 2.00 | 26.00 | 635.0 |  |  | complexity constant, calls 2 | 3d6e1ab929ed |
+| `Core\IO::makeDirectory` | 5.00 | 2.00 | 26.00 | 635.0 |  |  | complexity constant, calls 2 | 3d6e1ab929ed |
 | `Core\IO::modifiedAt` | 4.00 | 2.00 | 26.00 | 722.9 |  |  | complexity constant, calls 2 | 3d6e1ab929ed |
 | `Core\IO::move` | 4.00 | 1.00 | 55.00 | 1659.0 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
 | `Core\IO::open` | 5.00 | 3.00 | 25.02 | 791.0 |  |  | complexity constant | 3d6e1ab929ed |
@@ -371,12 +371,12 @@ marked `~`: it is the machine, not the code.
 | `Core\IO::readBytes` | 3.00 | 2.00 | 26.50 | 721.0 |  | +8.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::readText` | 4.00 | 2.00 | 29.00 | 794.5 |  | +8.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::remove` | 6.00 | 2.00 | 61.00 | 2284.0 |  |  | complexity constant | 3d6e1ab929ed |
-| `Core\IO::removeDir` | 6.00 | 2.00 | 59.00 | 2244.0 |  |  | complexity constant | 3d6e1ab929ed |
+| `Core\IO::removeDirectory` | 6.00 | 2.00 | 59.00 | 2244.0 |  |  | complexity constant | 3d6e1ab929ed |
 | `Core\IO::size` | 3.00 | 1.00 | 25.00 | 652.7 |  |  | complexity constant, calls 1 | 3d6e1ab929ed |
-| `Core\IO::stat` | 7.00 | 3.00 | 27.00 | 812.6 |  |  | complexity constant | 3d6e1ab929ed |
+| `Core\IO::metadata` | 7.00 | 3.00 | 27.00 | 812.6 |  |  | complexity constant | 3d6e1ab929ed |
 | `Core\IO::stdin` | 2.00 | 3.00 | 5.00 | 182584.0 |  | +8.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::stdinStream` | 5.00 | 7.00 | 5.00 | 199016.0 |  | +8.000 | complexity linear | 3d6e1ab929ed |
-| `Core\IO::temporaryDir` | 3.00 | 2.00 | 15.02 | 918.0 |  | +8.000 | complexity constant | 3d6e1ab929ed |
+| `Core\IO::createTemporaryDirectory` | 3.00 | 2.00 | 15.02 | 918.0 |  | +8.000 | complexity constant | 3d6e1ab929ed |
 | `Core\IO::walk` | 10.00 | 9.00 | 91.00 | 133782.0 |  | +40.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::within` | 3.00 | 2.00 | 52.00 | 2481.0 |  | +8.000 | complexity linear | 3d6e1ab929ed |
 | `Core\IO::write` | 5.00 | 2.00 | 25.00 | 700.0 |  |  | complexity linear, calls 2 | 3d6e1ab929ed |
@@ -391,7 +391,7 @@ marked `~`: it is the machine, not the code.
 | `Core\IO\File::tell` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\IO\File::truncate` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\IO\File::write` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 3d6e1ab929ed |
-| `Core\IO\Metadata::isDir` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
+| `Core\IO\Metadata::isDirectory` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\IO\Metadata::isFile` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\IO\Metadata::modifiedAt` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\IO\Metadata::size` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
@@ -621,16 +621,16 @@ marked `~`: it is the machine, not the code.
 | `Core\Password::hash` | 3.00 | 2.00 | 7.00 | 19923329.1 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Password::needsRehash` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Password::verify` | 5.00 | 1.00 | 1.00 | 19922944.0 |  |  | complexity constant | 4fc2594c8ec2 |
-| `Core\Path::basename` | 3.00 | 2.00 | 2.00 | 113.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Path::dirname` | 3.00 | 2.00 | 5.00 | 178.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Path::fileName` | 3.00 | 2.00 | 2.00 | 113.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Path::parent` | 3.00 | 2.00 | 5.00 | 178.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Path::extension` | 3.00 | 2.00 | 2.00 | 107.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Path::fromCwd` | 3.00 | 2.00 | 10.00 | 426.0 |  | -5.000 | complexity linear | 4fc2594c8ec2 |
+| `Core\Path::fromWorkingDirectory` | 3.00 | 2.00 | 10.00 | 426.0 |  | -5.000 | complexity linear | 4fc2594c8ec2 |
 | `Core\Path::isAbsolute` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Path::join` | 3.00 | 2.00 | 11.00 | 622.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Path::normalize` | 3.00 | 2.00 | 6.34 | 323.6 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Path::relativeTo` | 4.00 | 2.00 | 11.02 | 679.5 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Path::split` | 3.00 | 2.00 | 8.50 | 500.5 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Path::thisDir` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
+| `Core\Path::thisDirectory` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Path::thisFile` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Path::withExtension` | 3.00 | 2.00 | 9.00 | 360.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Process::run` | 4.00 | 3.00 | 82.50 | 42468.0 |  | +1000.000 | complexity constant, calls 3 | 4fc2594c8ec2 |
@@ -917,7 +917,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Test::expectFailure` | 4.00 | 3.00 | 12.00 | 936.0 |  | +41.000 | complexity constant | 9dce981c7a77 |
 | `Core\Test::partial` | 4.00 | 3.00 | 28.00 | 1654.0 |  | +56.000 | complexity constant | 9dce981c7a77 |
 | `Core\Test::request` | 4.00 | 4.00 | 36.02 | 5104.0 |  | +184.000 | complexity linear | 9dce981c7a77 |
-| `Core\Test::scriptAnswers` | 4.00 | 3.00 | 6.00 | 333.0 |  | +24.000 | complexity linear | 9dce981c7a77 |
+| `Core\Test::answerCli` | 4.00 | 3.00 | 6.00 | 333.0 |  | +24.000 | complexity linear | 9dce981c7a77 |
 | `Core\Test::sentHttp` | 3.00 | 2.00 | 19.00 | 1513.0 |  | +128.000 | complexity linear | 9dce981c7a77 |
 | `Core\Test::sentSocket` | 3.00 | 2.00 | 8.00 | 625.0 |  | +40.000 | complexity linear | 9dce981c7a77 |
 | `Core\Test::serverUrl` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 9dce981c7a77 |
@@ -1086,14 +1086,14 @@ marked `~`: it is the machine, not the code.
 | `Core\Xml\Node::text` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\Xml\Reader::depth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\Xml\Reader::read` | 6.00 | 1.00 | 15.00 | 937.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::attribute` | 6.06 | 1.03 | 3.25 | 276.6 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::cdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::comment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::content` | 0.50 | 0.13 | 0.22 | 8.6 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::doctype` | 6.00 | 3.00 | 6.00 | 618.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeAttribute` | 6.06 | 1.03 | 3.25 | 276.6 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeCdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeComment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeText` | 0.50 | 0.13 | 0.22 | 8.6 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeDoctype` | 6.00 | 3.00 | 6.00 | 618.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Xml\Writer::endDocument` | 7.00 | 6.00 | 9.00 | 823.5 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Xml\Writer::endElement` | 7.50 | 2.00 | 4.52 | 227.6 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Xml\Writer::instruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Xml\Writer::writeInstruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Xml\Writer::startDocument` | 5.00 | 2.00 | 5.00 | 503.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Xml\Writer::startElement` | 5.00 | 2.00 | 2.02 | 159.1 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Zip::entries` | 3.00 | 2.00 | 32.00 | 4388.5 |  |  | complexity constant, allocations 32, calls 2 | 4fc2594c8ec2 |
@@ -1420,7 +1420,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Cache\SecretEntry::of` | Core\Cache\SecretEntry | 1777.5 units against a `constant` ceiling of 100 |
 | `Core\Cldr::ordinalCategory` | Core\Cldr | 703.1 units against a `constant` ceiling of 100 |
 | `Core\Cldr::pluralCategory` | Core\Cldr | 298.6 units against a `constant` ceiling of 100 |
-| `Core\Cli::live` | Core\Cli | 2811.9 units against a `constant` ceiling of 100 |
+| `Core\Cli::showLive` | Core\Cli | 2811.9 units against a `constant` ceiling of 100 |
 | `Core\Config::all` | Core\Config | 11913.3 units against a `constant` ceiling of 100 |
 | `Core\Crypto::agree` | Core\Crypto | 9323.0 units against a `constant` ceiling of 100 |
 | `Core\Crypto\KeyPair::publicKey` | Core\Crypto\KeyPair | 68677.0 units against a `constant` ceiling of 100 |
@@ -1504,20 +1504,20 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Http\TlsInfo::version` | Core\Http\TlsInfo | 376.3 units against a `constant` ceiling of 100 |
 | `Core\IO::canonicalize` | Core\IO | 12333.4 units against a `constant` ceiling of 100 |
 | `Core\IO::exists` | Core\IO | 20192.9 units against a `constant` ceiling of 100 |
-| `Core\IO::isDir` | Core\IO | 21633.4 units against a `constant` ceiling of 100 |
+| `Core\IO::isDirectory` | Core\IO | 21633.4 units against a `constant` ceiling of 100 |
 | `Core\IO::isFile` | Core\IO | 24392.6 units against a `constant` ceiling of 100 |
 | `Core\IO::isReadable` | Core\IO | 2616.7 units against a `constant` ceiling of 100 |
 | `Core\IO::isWritable` | Core\IO | 2913.0 units against a `constant` ceiling of 100 |
-| `Core\IO::makeDir` | Core\IO | 19463.3 units against a `constant` ceiling of 100 |
+| `Core\IO::makeDirectory` | Core\IO | 19463.3 units against a `constant` ceiling of 100 |
 | `Core\IO::modifiedAt` | Core\IO | 19616.6 units against a `constant` ceiling of 100 |
 | `Core\IO::move` | Core\IO | 87417.6 units against a `constant` ceiling of 100 |
 | `Core\IO::open` | Core\IO | 20747.1 units against a `constant` ceiling of 100 |
 | `Core\IO::remove` | Core\IO | 5.8x its group's median of 27029.0 units — 156950.0 units against a `constant` ceiling of 100 |
-| `Core\IO::removeDir` | Core\IO | 5.2x its group's median of 27029.0 units — 139277.3 units against a `constant` ceiling of 100 |
+| `Core\IO::removeDirectory` | Core\IO | 5.2x its group's median of 27029.0 units — 139277.3 units against a `constant` ceiling of 100 |
 | `Core\IO::size` | Core\IO | 27029.0 units against a `constant` ceiling of 100 |
-| `Core\IO::stat` | Core\IO | 31113.8 units against a `constant` ceiling of 100 |
+| `Core\IO::metadata` | Core\IO | 31113.8 units against a `constant` ceiling of 100 |
 | `Core\IO::stdinStream` | Core\IO | 13.3x its group's median of 27029.0 units |
-| `Core\IO::temporaryDir` | Core\IO | 84673.4 units against a `constant` ceiling of 100 |
+| `Core\IO::createTemporaryDirectory` | Core\IO | 84673.4 units against a `constant` ceiling of 100 |
 | `Core\IO\File::close` | Core\IO\File | 20255.2 units against a `constant` ceiling of 100 |
 | `Core\IO\File::flush` | Core\IO\File | 1084.7 units against a `constant` ceiling of 100 |
 | `Core\IO\File::lock` | Core\IO\File | 21707.9 units against a `constant` ceiling of 100 |
@@ -1525,7 +1525,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO\File::seek` | Core\IO\File | 26450.0 units against a `constant` ceiling of 100 |
 | `Core\IO\File::tell` | Core\IO\File | 899.5 units against a `constant` ceiling of 100 |
 | `Core\IO\File::truncate` | Core\IO\File | 25417.5 units against a `constant` ceiling of 100 |
-| `Core\IO\Metadata::isDir` | Core\IO\Metadata | 4918.9 units against a `constant` ceiling of 100 |
+| `Core\IO\Metadata::isDirectory` | Core\IO\Metadata | 4918.9 units against a `constant` ceiling of 100 |
 | `Core\IO\Metadata::isFile` | Core\IO\Metadata | 5670.9 units against a `constant` ceiling of 100 |
 | `Core\IO\Metadata::modifiedAt` | Core\IO\Metadata | 9.8x its group's median of 22408.3 units — 219562.2 units against a `constant` ceiling of 100 |
 | `Core\IO\Metadata::size` | Core\IO\Metadata | 22408.3 units against a `constant` ceiling of 100 |
@@ -2113,10 +2113,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Cli::escape` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::height` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::isTty` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
-| `Core\Cli::live` | 10900.8 | 14243.8 | 2811.907 | +39.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
+| `Core\Cli::showLive` | 10900.8 | 14243.8 | 2811.907 | +39.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::multiSelect` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
-| `Core\Cli::progress` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
-| `Core\Cli::secret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
+| `Core\Cli::showProgress` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
+| `Core\Cli::askSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::select` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::width` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
 | `Core\Cli::write` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3aa3f9396fc6dbb13257e5eff9d79d93 |
@@ -2323,13 +2323,13 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO::canonicalize` | 43055.9 | 48796.1 | 12333.388 | -71.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::copy` | 386846.5 | 411857.4 | 110812.513 | -12.0% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::exists` | 70493.4 | 72876.2 | 20192.884 | -28.7% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO::isDir` | 75522.3 | 80772.7 | 21633.419 | -3.1% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO::isDirectory` | 75522.3 | 80772.7 | 21633.419 | -3.1% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::isFile` | 85154.7 | 568845.3 | 24392.635 | -21.8% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::isReadable` | 9134.8 | 17007.0 | 2616.662 | -45.5% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::isWritable` | 10169.1 | 14272.7 | 2912.959 | +98.9% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::lines` | 75312.9 | 82755.9 | 21573.443 | +8.9% ~ | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::list` | 100810.2 | 102660.2 | 28877.157 | -18.7% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO::makeDir` | 67946.5 | 70259.8 | 19463.330 | -47.6% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO::makeDirectory` | 67946.5 | 70259.8 | 19463.330 | -47.6% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::modifiedAt` | 68481.6 | 70773.8 | 19616.626 | -53.0% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::move` | 305175.0 | 338979.3 | 87417.645 | -28.3% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::open` | 72428.1 | 76119.1 | 20747.100 | -19.7% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
@@ -2337,12 +2337,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO::readBytes` | 78474.6 | 81552.0 | 22479.120 | -22.6% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::readText` | 85057.8 | 88801.6 | 24364.885 | -46.6% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::remove` | 547912.5 | 1166213.7 | 156950.014 | -32.1% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO::removeDir` | 486217.2 | 988011.7 | 139277.338 | -28.7% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO::removeDirectory` | 486217.2 | 988011.7 | 139277.338 | -28.7% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::size` | 94358.2 | 106097.7 | 27028.990 | -8.0% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO::stat` | 108618.4 | 117774.2 | 31113.824 | -49.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO::metadata` | 108618.4 | 117774.2 | 31113.824 | -49.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::stdin` | 85400.0 | 594100.0 | 24462.905 | -95.2% ~ | skipped, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::stdinStream` | 1256600.0 | 2075700.0 | 359954.168 |  | skipped, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO::temporaryDir` | 295594.9 | 302848.8 | 84673.424 | -13.7% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO::createTemporaryDirectory` | 295594.9 | 302848.8 | 84673.424 | -13.7% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::walk` | 205554.7 | 209725.8 | 58881.320 | +15.9% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::within` | 113088.7 | 116963.7 | 32394.349 | -24.7% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::write` | 238774.6 | 287500.8 | 68397.195 | -12.0% ~ | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
@@ -2357,7 +2357,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\IO\File::tell` | 3140.1 | 23339.2 | 899.495 | +385.1% ~ | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO\File::truncate` | 88732.4 | 98785.2 | 25417.480 | +70.2% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO\File::write` | 15594.9 | 17450.4 | 4467.179 | +62.2% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
-| `Core\IO\Metadata::isDir` | 17171.9 | 19977.9 | 4918.899 | +643.9% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
+| `Core\IO\Metadata::isDirectory` | 17171.9 | 19977.9 | 4918.899 | +643.9% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO\Metadata::isFile` | 19797.0 | 44314.0 | 5670.860 | +877.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO\Metadata::modifiedAt` | 766491.8 | 2124329.7 | 219562.245 | +4834.0% | unclear | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO\Metadata::size` | 78227.5 | 184076.0 | 22408.347 | +1925.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
@@ -2587,16 +2587,16 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Password::hash` | 11419185.0 | 11786670.0 | 5151899.391 | -2.0% ~ | flat | 4fc2594c8ec2 | 6773562de07bc70f32ca84bc7483aa23 |
 | `Core\Password::needsRehash` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 6773562de07bc70f32ca84bc7483aa23 |
 | `Core\Password::verify` | 11766905.0 | 12065455.0 | 5308777.352 | -2.1% ~ | flat | 4fc2594c8ec2 | 6773562de07bc70f32ca84bc7483aa23 |
-| `Core\Path::basename` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
-| `Core\Path::dirname` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
+| `Core\Path::fileName` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
+| `Core\Path::parent` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::extension` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
-| `Core\Path::fromCwd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
+| `Core\Path::fromWorkingDirectory` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::isAbsolute` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::join` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::normalize` | 0.0 | 207446.7 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::relativeTo` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::split` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
-| `Core\Path::thisDir` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
+| `Core\Path::thisDirectory` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::thisFile` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Path::withExtension` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 03963b78c5fde06c9dd376e7f0dad33e |
 | `Core\Process::run` | 26851266.0 | 34195149.0 | 12114263.930 | +200.5% | flat | 4fc2594c8ec2 | 6d0908a26673a6cba73b9f6e93a7460c |
@@ -2883,7 +2883,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Test::expectFailure` | 0.0 | 0.0 | 0.000 |  | flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
 | `Core\Test::partial` | 0.0 | 0.0 | 0.000 |  | flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
 | `Core\Test::request` | 0.0 | 53.5 | 0.000 |  | flat, flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
-| `Core\Test::scriptAnswers` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
+| `Core\Test::answerCli` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
 | `Core\Test::sentHttp` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
 | `Core\Test::sentSocket` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
 | `Core\Test::serverUrl` | 0.0 | 0.0 | 0.000 |  | flat | 9dce981c7a77 | 9ee7fce6db959f8c58eb9d5b0885145d |
@@ -3052,14 +3052,14 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Xml\Node::text` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Reader::depth` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Reader::read` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::attribute` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::cdata` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::comment` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::content` | 82976.7 | 137179.4 | 37435.916 |  | skipped, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::doctype` | 10870.7 | 195518.0 | 4904.445 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeAttribute` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeCdata` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeComment` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeText` | 82976.7 | 137179.4 | 37435.916 |  | skipped, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeDoctype` | 10870.7 | 195518.0 | 4904.445 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Writer::endDocument` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Writer::endElement` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
-| `Core\Xml\Writer::instruction` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
+| `Core\Xml\Writer::writeInstruction` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Writer::startDocument` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Xml\Writer::startElement` | 0.0 | 0.0 | 0.000 |  | unclear, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |
 | `Core\Zip::entries` | 49938.3 | 53960.9 | 22530.242 | -26.1% | flat, flat | 4fc2594c8ec2 | 64e67627ab6e8f7beea7f0d08b60751a |

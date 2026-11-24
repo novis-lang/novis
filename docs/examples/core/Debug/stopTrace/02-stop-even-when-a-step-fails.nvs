@@ -12,7 +12,7 @@ class Payments
     }
 }
 
-string $file = Core\Path::thisDir('payments.jsonl');
+string $file = Core\Path::thisDirectory('payments.jsonl');
 
 Core\Debug::startTrace($file);
 try {

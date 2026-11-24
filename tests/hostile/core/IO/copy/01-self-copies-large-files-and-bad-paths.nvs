@@ -4,10 +4,10 @@
 // A failed copy must never empty or change the source.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $source = Core\Path::join($dir, 'source.bin');
 Core\IO::write($source, 'keep me');
-Core\IO::makeDir(Core\Path::join($dir, 'sub'));
+Core\IO::makeDirectory(Core\Path::join($dir, 'sub'));
 
 // 1. The source as its own destination, written three ways. Each copy must throw, and the source must not change.
 array<string> $selves = [

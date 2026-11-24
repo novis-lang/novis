@@ -3,8 +3,8 @@
 // read-only handles ask for a lock. Only one handle may have the lock, and nothing may crash.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-lock');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-lock');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'shared.lock');
 
 // 1. The first handle takes the lock. 500 more handles try, and each `lock` must throw an `IOError`.

@@ -38,7 +38,7 @@ class Attack
     }
 }
 string $out = Attack::path('./out');
-Core\IO::makeDir($out);
+Core\IO::makeDirectory($out);
 string $first = Core\Path::join($out, 'first.jsonl');
 string $second = Core\Path::join($out, 'second.jsonl');
 
@@ -78,5 +78,5 @@ echo 'step 5: ', $rounds, " traces\n";
 // The traces are deleted, so nothing stays on disk.
 Core\IO::remove($first);
 Core\IO::remove($second);
-Core\IO::removeDir($out);
+Core\IO::removeDirectory($out);
 echo "the runtime is still standing\n";

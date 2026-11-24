@@ -6,8 +6,8 @@
 // whose only content is an empty directory are one entry apart. A member that
 // reported files and descended silently past directories answers 0 to both, and
 // the first line alone would not have caught it.
-Core\IO::makeDir("hollow");
-Core\IO::makeDir("outer/inner");
+Core\IO::makeDirectory("hollow");
+Core\IO::makeDirectory("outer/inner");
 
 int $hollow = 0;
 foreach (Core\IO::walk("hollow") as string $entry) {

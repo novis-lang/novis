@@ -2,8 +2,8 @@
 // Attack: a program gives a file that it opened only for writing to functions that read a file.
 // Each function should throw an error, and the file should keep its content.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-write-only');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-write-only');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'data.csv');
 
 // 1. A handle opened with `Write`. Opening it empties the file, so the program writes the content
@@ -80,4 +80,4 @@ echo 'step 2: ', $thrown, " errors\n";
 echo 'step 3: ', Core\IO::read($path) == "fig,2\napple,10\nplum,3\n" ? 'unchanged' : 'changed', "\n";
 
 Core\IO::remove($path);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);

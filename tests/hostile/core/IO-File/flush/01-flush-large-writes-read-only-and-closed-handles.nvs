@@ -3,8 +3,8 @@
 // and on a closed handle. Each step must work or throw an error, and must not crash.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-flush');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-flush');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'data.txt');
 
 // 1. A handle flushes 100000 times with nothing written.

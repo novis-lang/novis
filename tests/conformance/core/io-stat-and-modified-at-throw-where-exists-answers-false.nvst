@@ -1,13 +1,13 @@
 --TEST--
-Core\IO::stat and ::modifiedAt name the bound absence puts them on, both sides of it: each answers for a directory that is there and throws IOError for a name that is not, where ::exists answers `false` for the same name — a missing file has no metadata, and inventing a zero or an epoch would be indistinguishable from a real one — `rule:security/capability-check-at-the-door`
+Core\IO::metadata and ::modifiedAt name the bound absence puts them on, both sides of it: each answers for a directory that is there and throws IOError for a name that is not, where ::exists answers `false` for the same name — a missing file has no metadata, and inventing a zero or an epoch would be indistinguishable from a real one — `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The accepted side first, on the kind of path that is easiest to get wrong:
 // a directory is a name with metadata, so both members answer for it.
-Core\IO::makeDir("sub");
+Core\IO::makeDirectory("sub");
 
-var $dir = Core\IO::stat("sub");
-if ($dir->isDir()) {
+var $dir = Core\IO::metadata("sub");
+if ($dir->isDirectory()) {
     echo "sub: a directory\n";
 }
 if ($dir->isFile()) {
@@ -27,7 +27,7 @@ if (Core\IO::modifiedAt("sub")->compareTo($dir->modifiedAt()) == 0) {
 // zero. Inventing a zero for the missing name in the next block is exactly
 // what would make these two indistinguishable to a caller.
 Core\IO::write("empty.txt", "");
-var $empty = Core\IO::stat("empty.txt");
+var $empty = Core\IO::metadata("empty.txt");
 int $bytes = $empty->size() as int;
 echo "empty.txt: ", $bytes as string, " bytes\n";
 if ($empty->isFile()) {
@@ -44,7 +44,7 @@ if (Core\IO::exists("missing.txt")) {
 }
 
 try {
-    var $gone = Core\IO::stat("missing.txt");
+    var $gone = Core\IO::metadata("missing.txt");
     echo "missing.txt: measured\n";
 } catch (IOError $absent) {
     echo "missing.txt: no metadata\n";

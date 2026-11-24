@@ -69,7 +69,7 @@ final class Site
     // and names the path when a file it names does not exist.
     public static function load(): Site
     {
-        string $base = Path::thisDir('..');
+        string $base = Path::thisDirectory('..');
         var $settings = Json::decode(IO::read('../hosting.json')) as array<mixed>;
         array<Store> $stores = [];
         var $listed = ($settings['stores'] ?? []) as array<mixed>;

@@ -4508,7 +4508,7 @@ mod tests {
 
     /// A context granting every write and naming `root` as `rule:core-classes/temporary-dir-sweep`'s owned
     /// root, written the way an operator writes both — the grant because
-    /// `Core\IO::temporaryDir` asks `fs.write` for the path it is about to
+    /// `Core\IO::createTemporaryDirectory` asks `fs.write` for the path it is about to
     /// create (`rule:security/capability-check-at-the-door`), and the root because the default is the platform
     /// one and a case asserting a root is empty must own that root outright.
     ///
@@ -4557,7 +4557,7 @@ mod tests {
         let root = scratch.join("root");
         let entry = a_file_running(
             "temporary-dir",
-            r#"string $dir = Core\IO::temporaryDir();
+            r#"string $dir = Core\IO::createTemporaryDirectory();
 Core\IO::write($dir . "/note.txt", "written while the script ran");
 echo $dir, "\n";"#,
         );

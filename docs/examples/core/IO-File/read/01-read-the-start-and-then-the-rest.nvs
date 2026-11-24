@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the first part of a file, and then the rest.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'note.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'note.txt');
 Core\IO::write($path, 'Hello, world!');
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);

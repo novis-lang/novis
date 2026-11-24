@@ -1,8 +1,8 @@
 <?nvs
 // Shows how a program deletes the unfinished downloads in a folder and keeps the finished files.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'downloads');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'downloads');
+Core\IO::makeDirectory($dir);
 Core\IO::write(Core\Path::join($dir, 'invoice-1.pdf'), 'finished');
 Core\IO::write(Core\Path::join($dir, 'invoice-2.pdf.part'), 'half');
 Core\IO::write(Core\Path::join($dir, 'photo.jpg.part'), 'half');

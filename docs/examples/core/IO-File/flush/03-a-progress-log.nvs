@@ -1,7 +1,7 @@
 <?nvs
 // Shows a long job that writes one line per finished step to a log, and flushes after each line.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'import.log');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'import.log');
 array<string> $steps = ['customers', 'orders', 'invoices'];
 
 Core\IO\File $log = Core\IO::open($path, Core\IO::FileMode::Write);

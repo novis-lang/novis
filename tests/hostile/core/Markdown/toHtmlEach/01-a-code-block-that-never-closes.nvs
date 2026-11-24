@@ -24,7 +24,7 @@ class Upload
     // Writes the file and returns its path.
     public static function write(string $name, uint $count, bool $fence): string
     {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), $name);
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), $name);
         Core\IO::writeStream($path, Upload::lines($count, $fence), { overwrite: true });
         return $path;
     }

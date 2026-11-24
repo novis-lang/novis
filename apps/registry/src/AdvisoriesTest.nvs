@@ -308,7 +308,7 @@ final class AdvisoriesTest
 
     private static function feed(string $folder): array<string>
     {
-        IO::makeDir($folder . '/work/log');
+        IO::makeDirectory($folder . '/work/log');
         IO::write($folder . '/work/log/advisories', '{"schema": 1}');
         return ['advisories'];
     }
@@ -359,14 +359,14 @@ final class AdvisoriesTest
     private static function folder(): string
     {
         string $folder = Path::join(Index::work(Site::load()), 'test-advisories-' . Random::token(8));
-        IO::makeDir($folder);
+        IO::makeDirectory($folder);
         return $folder;
     }
 
     // Deletes `$path` and everything in it.
     private static function remove(string $path): void
     {
-        if (!IO::isDir($path)) {
+        if (!IO::isDirectory($path)) {
             if (IO::exists($path)) {
                 IO::remove($path);
             }
@@ -375,6 +375,6 @@ final class AdvisoriesTest
         foreach (IO::list($path) as string $name) {
             AdvisoriesTest::remove(Path::join($path, $name));
         }
-        IO::removeDir($path);
+        IO::removeDirectory($path);
     }
 }

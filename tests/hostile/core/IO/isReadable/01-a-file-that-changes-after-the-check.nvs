@@ -2,7 +2,7 @@
 // Attack: a file is deleted or replaced by a folder after `isReadable` returned `true`, and names that cannot exist are checked.
 // The read that follows must throw an `IOError`, and nothing may crash.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, 'settings.ini');
 
 // 1. The file is deleted after the check. The read must throw an `IOError`.
@@ -22,7 +22,7 @@ if (Core\IO::isReadable($file)) {
 echo 'step 1: done', "\n";
 
 // 2. A folder takes the name of the file. `isReadable` is `true`, but reading a folder must throw an `IOError`.
-Core\IO::makeDir($file);
+Core\IO::makeDirectory($file);
 if (!Core\IO::isReadable($file)) {
     throw new LogicError('a new folder was not readable');
 }

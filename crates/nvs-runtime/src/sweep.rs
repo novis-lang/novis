@@ -1,4 +1,4 @@
-//! `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep: the directories `Core\IO::temporaryDir` handed
+//! `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep: the directories `Core\IO::createTemporaryDirectory` handed
 //! this script, deleted when the script ends.
 //!
 //! The program is never asked to clean up and never asked to remember. What it
@@ -165,7 +165,7 @@ fn note(path: &std::path::Path, error: &std::io::Error) -> nvs_render::Record {
 /// kind this reads — everything else is handed back exactly as the operating
 /// system gave it.
 ///
-/// **Recursive**, unlike the `Core\IO::removeDir` a program can call. That
+/// **Recursive**, unlike the `Core\IO::removeDirectory` a program can call. That
 /// member is non-recursive as a security decision, because it is pointed at a
 /// path the program named; this is pointed only at a directory the runtime
 /// itself created, under the root it owns, whose whole contract is that it goes
@@ -466,7 +466,7 @@ mod tests {
             "[capabilities.fs]\nwrite = true\n\n[io]\ntemp_root = '{}'\n",
             root.display()
         )));
-        let made = crate::capability::temp_dir(&mut ctx, "Core\\IO::temporaryDir")
+        let made = crate::capability::temp_dir(&mut ctx, "Core\\IO::createTemporaryDirectory")
             .expect("`write = true` covers the root the case configured");
 
         assert!(

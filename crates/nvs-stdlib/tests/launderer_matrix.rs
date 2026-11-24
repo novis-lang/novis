@@ -414,7 +414,7 @@ fn dn_levels(input: &str, answer: &str, levels: usize) -> Result<(), String> {
     Ok(())
 }
 
-/// The path sink `Core\Path::fromCwd` answers for: a path that starts at a root, with every `.`
+/// The path sink `Core\Path::fromWorkingDirectory` answers for: a path that starts at a root, with every `.`
 /// and `..` already resolved. On Windows `\` starts at the root of the current drive.
 fn resolved_path(_: &str, answer: &str) -> Result<(), String> {
     let path = Path::new(answer);
@@ -574,9 +574,9 @@ const ROWS: &[Row] = &[
         safe: html_rebuilt,
     },
     Row {
-        member: r"Core\Path::fromCwd",
+        member: r"Core\Path::fromWorkingDirectory",
         sink: "a file path typed on the command line",
-        run: |ctx, input| plain(ctx, "nvs_core_path_from_cwd", input),
+        run: |ctx, input| plain(ctx, "nvs_core_path_from_working_directory", input),
         safe: resolved_path,
     },
     Row {
@@ -598,12 +598,12 @@ const ROWS: &[Row] = &[
         safe: form_value,
     },
     Row {
-        member: r"Core\Xml\Writer::attribute",
+        member: r"Core\Xml\Writer::writeAttribute",
         sink: "an XML document",
         run: |ctx, input| {
             xml(
                 ctx,
-                "nvs_core_xml_writer_attribute",
+                "nvs_core_xml_writer_write_attribute",
                 Before::Attribute,
                 input,
             )
@@ -611,27 +611,55 @@ const ROWS: &[Row] = &[
         safe: document,
     },
     Row {
-        member: r"Core\Xml\Writer::cdata",
+        member: r"Core\Xml\Writer::writeCdata",
         sink: "an XML document",
-        run: |ctx, input| xml(ctx, "nvs_core_xml_writer_cdata", Before::Element, input),
+        run: |ctx, input| {
+            xml(
+                ctx,
+                "nvs_core_xml_writer_write_cdata",
+                Before::Element,
+                input,
+            )
+        },
         safe: document,
     },
     Row {
-        member: r"Core\Xml\Writer::comment",
+        member: r"Core\Xml\Writer::writeComment",
         sink: "an XML document",
-        run: |ctx, input| xml(ctx, "nvs_core_xml_writer_comment", Before::Element, input),
+        run: |ctx, input| {
+            xml(
+                ctx,
+                "nvs_core_xml_writer_write_comment",
+                Before::Element,
+                input,
+            )
+        },
         safe: document,
     },
     Row {
-        member: r"Core\Xml\Writer::content",
+        member: r"Core\Xml\Writer::writeText",
         sink: "an XML document",
-        run: |ctx, input| xml(ctx, "nvs_core_xml_writer_content", Before::Element, input),
+        run: |ctx, input| {
+            xml(
+                ctx,
+                "nvs_core_xml_writer_write_text",
+                Before::Element,
+                input,
+            )
+        },
         safe: document,
     },
     Row {
-        member: r"Core\Xml\Writer::doctype",
+        member: r"Core\Xml\Writer::writeDoctype",
         sink: "an XML document",
-        run: |ctx, input| xml(ctx, "nvs_core_xml_writer_doctype", Before::Prolog, input),
+        run: |ctx, input| {
+            xml(
+                ctx,
+                "nvs_core_xml_writer_write_doctype",
+                Before::Prolog,
+                input,
+            )
+        },
         safe: document,
     },
     Row {

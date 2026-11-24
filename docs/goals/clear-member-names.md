@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/sse.rs]
   - id: 4
     title: "the command line and the file system are renamed: Cli, Test, Xml\\Writer, IO and Path"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cli.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/path.rs]
   - id: 5
     title: "values and data are renamed: BigInt, Decimal, Math, Arr, ObjectSet, Uri, Time, Db, Http and Ldap"
@@ -559,14 +559,14 @@ listing every `Old` → `New` it renamed, as the standing decision says.
 
 **Split:** as stage 3.
 
-- [ ] `crates/nvs-stdlib/src/cli.rs:325`, `:335`, `:352`; `test.rs:825`.
-- [ ] `crates/nvs-stdlib/src/xml.rs:777` to `:830`: the six `write…` members, and the cards that say
+- [x] `crates/nvs-stdlib/src/cli.rs:325`, `:335`, `:352`; `test.rs:825`.
+- [x] `crates/nvs-stdlib/src/xml.rs:777` to `:830`: the six `write…` members, and the cards that say
   "call `attribute`".
-- [ ] `crates/nvs-stdlib/src/io.rs:195`, `:251`, `:294`, `:304`, `:347`, and `IO\Metadata->isDir`.
-- [ ] `crates/nvs-stdlib/src/path.rs:109`, `:122`, `:214`, `:245`, and `rule:core-api/one-temporary-directory-member`'s name.
-- [ ] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
+- [x] `crates/nvs-stdlib/src/io.rs:195`, `:251`, `:294`, `:304`, `:347`, and `IO\Metadata->isDir`.
+- [x] `crates/nvs-stdlib/src/path.rs:109`, `:122`, `:214`, `:245`, and `rule:core-api/one-temporary-directory-member`'s name.
+- [x] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
   directories moved.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
 
 ### 5. values and data are renamed: BigInt, Decimal, Math, Arr, ObjectSet, Uri, Time, Db, Http and Ldap
 
@@ -636,44 +636,63 @@ changes entries.
 
 ### State
 
-Stages 1 to 3 are done. Stage 3 renamed `Response`, `Request`, `Sse`, `Metrics`, `Task`,
-`Router\Match` and `Script`: registry rows, native symbols (`nvs_core_response_send_json` and the
-rest), cards, the checker's lists (`nvs-types` `response.rs`, `core_lib.rs`, `intrinsics.rs`,
-`routes.rs`, `derive.rs`), `CAPABILITIES`, examples, benches and hostile directories, and every caller.
-`upgrade`'s `$args` is `$arguments` everywhere. `bun nv api-rename --class <Old\Class>` (repeatable)
-filters the block and has a test. The filtered `--check` over stage 3's seven classes is green.
-`cargo build` and `cargo clippy --all-targets -- -D warnings` are green, and `bun nv rules --check`
-is clean. No test or conformance run was made this stage.
+Stages 1 to 4 are done. Stage 4 renamed `Cli`, `Test`, `Xml\Writer`, `IO`, `IO\Metadata` and `Path`:
+rows, symbols, cards, the bare-string lists (`registry.rs`, `rereads.rs`, `paths.rs`, `core_lib.rs`),
+the `isDirectory` slot, the directories, feature ids, `nvs.toml` comments and every caller. Six
+`io-`/`path-` conformance cases changed an `echo` label with its `--EXPECT--` line. Build, clippy,
+`rules --check` and the filtered `api-rename --check` are green. No test ran this stage.
 
-Tests to expect red at stage 9, if anything was missed: the `.lspt` completion cases that list
-`Core\Response` or `Core\Request` members by their bare names, and `nvs-test`'s `TOP_LEVEL_ONLY`
-cases. `website/src/data/core.json`, `website/public/llms-full.txt` and the stamps in
-`site.lock.json` are stale until stage 8 regenerates them.
+The sweep never reads `.json`, `.toml` or `.out`: `.agent-tmp/stage4_data.py` and `stage4_ids.py`
+renamed those. `questions.json`'s page keys are the lower-case new names, which
+`bun nv site --check questions` confirms at stage 8.
 
-Red until stage 7: `bun nv names --check`, the unfiltered `bun nv api-rename --check`, and so
-`ci --check`, the floor's `ci-check` and `ci --push`. Stage 7's names outside the table are
-`CoreProcess::run` and `spawn`'s `cwd`, the `nanos` option of `Instant::fromEpoch` and
-`TimeOfDay::at`, `Queue::push`'s `args`, `NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect`
-and `LdapFilter::approx`.
+Expect red at stage 9 if anything was missed: `.lspt` completion cases that list renamed members by
+bare name, `nvs-test`'s `TOP_LEVEL_ONLY` cases, and the six changed conformance cases.
+`website/src/data/core.json`, `website/public/llms-full.txt` and `site.lock.json`'s stamps are stale
+until stage 8.
+
+Red until stage 7: `bun nv names --check`, the unfiltered `api-rename --check`, so `ci --check`, the
+floor's `ci-check` and `ci --push`. Stage 7's names outside the table: `CoreProcess::run`, `spawn`'s
+`cwd`, the `nanos` option of `Instant::fromEpoch` and `TimeOfDay::at`, `Queue::push`'s `args`,
+`NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect` and `LdapFilter::approx`.
 
 ### Next
 
-Stage 4 from its first item, the same way as stage 3:
-1. Rename the rows, symbols and cards at `crates/nvs-stdlib/src/cli.rs:325`, `test.rs:825`,
-   `xml.rs:777`, `io.rs:195` and `path.rs:109`, with every Rust list that names the member as a bare
-   string (`git grep -nE '"(secret|live|progress|scriptAnswers|...)"' crates`).
-2. Run `bun nv api-rename --goal clear-member-names --class 'Core\Cli' --class 'Core\Test'
-   --class 'Core\Xml\Writer' --class 'Core\IO' --class 'Core\IO\Metadata' --class 'Core\Path'`.
-   Fix its `->old(` list by line, as `.agent-tmp/instance3.py` did, after checking each receiver.
-3. Move the example, bench and hostile directories, and rewrite the paths that name them.
-4. Rename the `Class::member` feature ids by hand in the `.json` data and the `// covers:` lines.
-5. Give the bare mentions in cards and comments to a writing subagent, one per file group.
+Stage 5 from its first item, the same way as stage 4. Stage 5 is the largest, so stop after Db and
+Ldap if the leftovers do not fit:
+1. Rename the rows, symbols and cards at `crates/nvs-stdlib/src/bigint.rs:204`, `decimal.rs:103`,
+   `math.rs:189`, `arr.rs:691`, `objset.rs:130`, `uri.rs:646`, `time.rs:1247`, `db/registry.rs:509`,
+   `http.rs:1785`, `ratelimit.rs:367`, `webpush.rs:207`, `test/hooks.rs:76`, `ldap/registry.rs:446`
+   and `ldap/flags.rs:167`. A script like `.agent-tmp/stage4_symbols.py` renames the symbols with a
+   whole-word regex and the `name: "old",` rows per file. Then rename every Rust list that names a member
+   as a bare string (`git grep -nP '"(add|sub|mul|…)"' crates`), checking each hit's class.
+2. Run `bun nv api-rename --goal clear-member-names --class …` for the stage's classes into a file,
+   and fix its `->old(` list by line with `.agent-tmp/stage4_instances.py`, after excluding the
+   receivers of another class (`->add(` and `->diff(` have many).
+3. Move the directories with `.agent-tmp/stage4_move.py` (edit its map).
+4. Rename instance feature ids (`Core\BigInt::add`) with `stage4_ids.py`, and the `.json`/`.toml`
+   names with `stage4_data.py`; check `git grep` on `*.json *.toml *.out` afterwards.
+5. Give the bare mentions to writing subagents by group, as stage 4 did: one for the stdlib modules
+   with their examples, hostile, benches and conformance cases, one for `docs/rules`, `data/`, the
+   playbook and the website.
 6. Run `bun nv rules --render`, the filtered `--check`, `cargo fmt`, build and clippy.
 
 ### Backlog
 
 - `rule:core-classes/script-args`, the `script-args-*.nvst` cases and
   `05-give-the-child-a-value-with-args.nvs` still say `args`. Stage 8 renames them together.
+- File names and a rule id that still hold a stage 4 old word, for stage 8's one pass:
+  `rule:core-classes/temporary-dir-sweep`; `tests/conformance/core/test-script-answers-*.nvst` (3),
+  `cli-secret-originates-…`, `io-stat-agrees-…`, `io-a-stat-is-a-snapshot-…`,
+  `io-is-file-and-is-dir-partition-…`, `io-make-dir-*.nvst` (3), `io-temporary-dir-is-refused-…`,
+  `path-dirname-and-basename-…` (named at `path-normalize-has-a-normal-form-…nvst:71`),
+  `path-from-cwd-…`, `path-this-dir-…`, `path-this-file-and-this-dir-…`,
+  `reject/path-a-tainted-path-not-from-cwd-…`; the Rust test `…_and_script_answers_write_the_ledger…`
+  at `crates/nvs-stdlib/src/test.rs:8802`, and the helpers `fn basename`/`fn dirname` in
+  `crates/nvs-stdlib/src/path.rs:1318`.
+- `bun nv api-rename`'s `TEXT_EXTENSIONS` lacks `.json`, `.toml` and `.out`. Stage 7 adds them, so
+  its `--check` sees the data files (the generated `core.json`, `llms-full.txt` and the history files
+  stay excluded).
 - `crates/nvs-stdlib/src/request.rs:1872` says "which used to have its own", which is history in a
   comment. Rewrite it when the file is next open.
 - `docs/rules/config/an-entry-runs-on-a-server-event.md:79` says "the args map". Check whether it means

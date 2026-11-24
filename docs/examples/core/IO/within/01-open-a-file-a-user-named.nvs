@@ -1,7 +1,7 @@
 <?nvs
 // Shows how `Core\IO::within` checks that a file name from a user stays inside one folder.
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 Core\IO::write(Core\Path::join($folder, 'readme.txt'), "Welcome!\n");
 
 // "readme.txt" is inside the folder. `within` returns its full path, so the program can read it.

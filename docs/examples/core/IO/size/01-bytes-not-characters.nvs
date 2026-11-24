@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `Core\IO::size` counts the bytes in a file, not the characters.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, 'name.txt');
 
 // "Cafe" has four characters and four bytes. This prints 4.

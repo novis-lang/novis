@@ -15,7 +15,7 @@ folder, as `./out.txt` and not `out.txt`. Otherwise the check finds it not grant
 
 When `nvs.toml` does not set `fs.read` or `fs.write`, a program started from the command line reads
 and writes any path. Server work reads its application folder, except `nvs.toml` and names that
-start with `.`. It writes only the temporary folders that `Core\IO::temporaryDir` made for it.
+start with `.`. It writes only the temporary folders that `Core\IO::createTemporaryDirectory` made for it.
 
 `stdinStream` reads the program's standard input in pieces of `bytes`, one piece per step of a
 `foreach` loop.

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::exists, ::size, ::remove and ::removeDir agree about one file and one directory across the whole of their life — the size is the operating system's byte count rather than the length of the string that was handed over, and each removal is asserted by the `exists` after it rather than by the call having returned — `rule:security/capability-check-at-the-door`
+Core\IO::exists, ::size, ::remove and ::removeDirectory agree about one file and one directory across the whole of their life — the size is the operating system's byte count rather than the length of the string that was handed over, and each removal is asserted by the `exists` after it rather than by the call having returned — `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The four members are one story about one name: it is not there, it is, it is
@@ -45,16 +45,16 @@ if (Core\IO::exists("sub")) {
     echo "before: sub is not there\n";
 }
 
-// `removeDir` empties nothing, so the entry goes first. That is a security
+// `removeDirectory` empties nothing, so the entry goes first. That is a security
 // decision and not an omission: a recursive form would be one grant check
 // standing in for a whole tree of them.
 Core\IO::remove("sub/keep.txt");
-Core\IO::removeDir("sub");
+Core\IO::removeDirectory("sub");
 
 if (Core\IO::exists("sub")) {
-    echo "after removeDir: sub is there\n";
+    echo "after removeDirectory:sub is there\n";
 } else {
-    echo "after removeDir: sub is not there\n";
+    echo "after removeDirectory:sub is not there\n";
 }
 --FILE sub/keep.txt--
 keep
@@ -68,4 +68,4 @@ after write: note.txt is there
 size: 12
 after remove: note.txt is not there
 before: sub is there
-after removeDir: sub is not there
+after removeDirectory:sub is not there

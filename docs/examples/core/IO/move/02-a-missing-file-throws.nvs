@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `Core\IO::move` throws an `IOError` when it cannot move the file.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $missing = Core\Path::join($dir, 'missing.txt');
 string $target = Core\Path::join($dir, 'moved.txt');
 

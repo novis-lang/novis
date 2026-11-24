@@ -14,8 +14,8 @@ class Tree
     }
 }
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'archive');
-Core\IO::makeDir(Core\Path::join($dir, '2024'));
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'archive');
+Core\IO::makeDirectory(Core\Path::join($dir, '2024'));
 
 // "2024" is empty, so this prints "2024: 0".
 echo '2024: ', Tree::count(Core\Path::join($dir, '2024')), "\n";

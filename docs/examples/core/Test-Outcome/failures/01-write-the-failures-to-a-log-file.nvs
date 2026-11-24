@@ -43,7 +43,7 @@ class ShippingTest
     {
         string $text = FailureLog::lines($outcome->name(), $outcome->failures());
         if ($text != '') {
-            IO::append(Path::fromCwd('failures.log'), $text);
+            IO::append(Path::fromWorkingDirectory('failures.log'), $text);
         }
     }
 }

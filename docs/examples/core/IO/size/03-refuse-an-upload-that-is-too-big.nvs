@@ -16,7 +16,7 @@ class Uploads
     }
 }
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $small = Core\Path::join($dir, 'avatar.png');
 string $large = Core\Path::join($dir, 'video.mp4');
 Core\IO::write($small, Core\Str::repeat('x', 300));
@@ -25,5 +25,5 @@ Core\IO::write($large, Core\Str::repeat('x', 5000));
 // This prints "avatar.png: accepted (300 bytes)" and then "video.mp4: too big (5000 bytes)".
 array<string> $uploads = [$small, $large];
 foreach ($uploads as string $path) {
-    echo Core\Path::basename($path), ': ', Uploads::accept($path), "\n";
+    echo Core\Path::fileName($path), ': ', Uploads::accept($path), "\n";
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the first bytes of a file to check what kind of file it is.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'photo.png');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'photo.png');
 Core\IO::write($path, Core\Encoding::fromHex('89504e470d0a1a0a0000000d49484452'));
 
 // Every PNG image starts with these 8 bytes.

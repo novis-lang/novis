@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `truncate` can also make a file longer. The new bytes are zero bytes.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'space.dat');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'space.dat');
 Core\IO::write($path, 'abc');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 

@@ -19,7 +19,7 @@ class Checkout
 }
 
 // The trace file goes in the folder of this program. `nvs.toml` allows a trace there.
-string $file = Core\Path::thisDir('checkout.jsonl');
+string $file = Core\Path::thisDirectory('checkout.jsonl');
 
 // From here on, each call adds one line to the file when it returns.
 Core\Debug::startTrace($file);

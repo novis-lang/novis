@@ -21,9 +21,9 @@ echo Core\Cli::confirm("Continue?", {default: true}) ? "yes" : "no", "\n";
 // `select<T>` answers the chosen value, never its index.
 echo Core\Cli::select("Pick one", ["alpha", "beta"], {default: "beta"}), "\n";
 
-// `secret` takes no default: a password nobody typed is not a password.
+// `askSecret` takes no default: a password nobody typed is not a password.
 try {
-    Core\Cli::secret("Password:");
+    Core\Cli::askSecret("Password:");
 } catch (Core\Cli\NotInteractive $noPassword) {
     echo $noPassword->message, "\n";
 }
@@ -41,5 +41,5 @@ no answer for Core\Cli::ask: there is no controlling terminal
 ada
 yes
 beta
-no answer for Core\Cli::secret: there is no controlling terminal
+no answer for Core\Cli::askSecret: there is no controlling terminal
 Core\Cli::select was given nothing to choose between

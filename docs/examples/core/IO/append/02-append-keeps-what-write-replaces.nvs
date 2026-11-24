@@ -1,7 +1,7 @@
 <?nvs
 // Shows the difference between `Core\IO::append` and `Core\IO::write` on a file that has text in it.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'note.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'note.txt');
 Core\IO::write($path, 'first');
 
 // `append` keeps "first" and adds to the end. This prints "first, second".

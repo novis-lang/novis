@@ -8,7 +8,7 @@ from a `spawn script` door and from a `[[schedule]]` entry alike. `require` alre
 so spawning it grants nothing new. The default leaves out every path with a component below the app
 folder that starts with `.` and every file named `nvs.toml`, as the default read does
 (`rule:security/capability-question-is-grant-and-scope`). It also leaves out every directory
-`Core\IO::temporaryDir` made for this run, so a run never spawns a script it wrote, even where the
+`Core\IO::createTemporaryDirectory` made for this run, so a run never spawns a script it wrote, even where the
 temporary root is inside the app folder. The method form (`Class::method`) names code already in the
 running unit, so it spawns too. A script outside the app folder needs a written `spawn` root, and a
 written list replaces the default whole.

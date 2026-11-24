@@ -17,7 +17,7 @@ class Signup
     }
 }
 
-string $file = Core\Path::thisDir('signup.jsonl');
+string $file = Core\Path::thisDirectory('signup.jsonl');
 
 Core\Debug::startTrace($file);
 echo Signup::register('ada@example.com'), "\n";

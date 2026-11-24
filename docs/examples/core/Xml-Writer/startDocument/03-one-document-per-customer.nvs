@@ -9,9 +9,9 @@ class Invoice
         Core\Xml\Writer $writer = Core\Xml::writer({ indent: '  ' });
         $writer->startDocument();
         $writer->startElement('invoice');
-        $writer->attribute('customer', $customer);
+        $writer->writeAttribute('customer', $customer);
         $writer->startElement('total');
-        $writer->content($total as string);
+        $writer->writeText($total as string);
         $writer->endElement();
         $writer->endElement();
         return $writer->endDocument();

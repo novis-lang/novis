@@ -22,7 +22,7 @@ $list->jobs[] = new Job('send-invoices', 0);
 $list->jobs[] = new Job('resize-images', 2);
 
 // `Core\Serialize::encode` gives `bytes`. `Core\IO::write` saves them to the file as they are.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'jobs.bin');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'jobs.bin');
 Core\IO::write($path, Core\Serialize::encode($list));
 
 // On the next run, the tool reads the bytes back and builds the list again.

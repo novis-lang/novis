@@ -713,7 +713,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     defaults: &[],
     // The callable's own `: T`. The member's answer *is* the callable's, so
     // the transaction is scenery around a call that computes whatever it was going to compute
-    // — the same binding `Core\Cli::live` performs, and the reason a
+    // — the same binding `Core\Cli::showLive` performs, and the reason a
     // transaction can wrap an existing expression without retyping it.
     return_ty: CoreTy::Var("T"),
     text: TextOrigin::Unmarked,

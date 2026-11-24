@@ -24,7 +24,7 @@ class Catalog
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'products.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'products.json');
 
 // `encodeEach` returns the JSON text in pieces. `writeStream` writes each piece to the file.
 Core\IO::writeStream($path, Core\Json::encodeEach(Catalog::products()), { overwrite: true });

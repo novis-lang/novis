@@ -25,7 +25,7 @@ class ShoppingListTest
 
     public function constructor()
     {
-        $this->file = Path::fromCwd('shopping-list-test.txt');
+        $this->file = Path::fromWorkingDirectory('shopping-list-test.txt');
     }
 
     #[Test]

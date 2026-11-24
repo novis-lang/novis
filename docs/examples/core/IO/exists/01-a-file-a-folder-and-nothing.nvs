@@ -1,7 +1,7 @@
 <?nvs
 // Shows what `Core\IO::exists` returns for a file, a folder and a path with nothing at it.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, 'notes.txt');
 Core\IO::write($file, 'hello');
 

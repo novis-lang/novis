@@ -4,7 +4,7 @@
 // This server sends 5000 bytes. The program allows at most 1000.
 Core\Test::answerHttp('https://images.example.com/photo.jpg', 200, { body: Core\Str::repeat('x', 5000) });
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'photo.jpg');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'photo.jpg');
 Core\Http\Stream $photo = Core\Http\Client::stream(Core\Http\Method::Get, 'https://images.example.com/photo.jpg');
 
 // `saveTo` throws a `RuntimeError` when the body is larger than the limit.

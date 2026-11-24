@@ -4,7 +4,7 @@
 require './vendor/packages.nvs';
 
 // No line in `[grants]` matches this file, so it may write files.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'news.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'news.txt');
 Core\IO::write($path, "Summer Sale\nNew Store in Vienna\n");
 
 // The grant line of `Acme\Feed` lists `fs.read`, so the package reads the file.

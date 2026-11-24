@@ -92,7 +92,7 @@ final class StoresTest
             Test::answerHttp(StoresTest::URL . '*', 201);
             Test::answerHttp(StoresTest::URL . 'index/acme/http.json', 500);
             var $db = StoresTest::database();
-            IO::makeDir($folder . '/files/log');
+            IO::makeDirectory($folder . '/files/log');
             IO::write($folder . '/files/log/checkpoint', "test\n0\nold\n");
             var $stores = new Stores($db, StoresTest::site($folder, [new Store('dir', $folder . '/files'), StoresTest::http($folder)], []));
             StoresTest::queue($stores);
@@ -222,7 +222,7 @@ final class StoresTest
     // Writes `$text` to `$file`, and makes its folder first.
     private static function write(string $file, string $text): void
     {
-        IO::makeDir(Path::dirname($file));
+        IO::makeDirectory(Path::parent($file));
         IO::write($file, $text);
     }
 
@@ -257,7 +257,7 @@ final class StoresTest
     // Deletes `$path` and everything in it.
     private static function remove(string $path): void
     {
-        if (!IO::isDir($path)) {
+        if (!IO::isDirectory($path)) {
             if (IO::exists($path)) {
                 IO::remove($path);
             }
@@ -266,6 +266,6 @@ final class StoresTest
         foreach (IO::list($path) as string $name) {
             StoresTest::remove(Path::join($path, $name));
         }
-        IO::removeDir($path);
+        IO::removeDirectory($path);
     }
 }

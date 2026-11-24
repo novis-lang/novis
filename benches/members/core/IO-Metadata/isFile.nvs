@@ -1,5 +1,5 @@
 <?nvs
-// Checks if a result of `stat` is a file, as a program does when it copies the files of a folder.
+// Checks if a result of `metadata` is a file, as a program does when it copies the files of a folder.
 // bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
@@ -23,8 +23,8 @@ class Bench
     }
 }
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $path = Core\Path::join($dir, 'is-file.dat');
 Core\IO::write($path, 'x');
-array<Core\IO\Metadata> $infos = [Core\IO::stat($path), Core\IO::stat($dir)];
+array<Core\IO\Metadata> $infos = [Core\IO::metadata($path), Core\IO::metadata($dir)];
 echo Bench::run($infos, 1024), "\n";

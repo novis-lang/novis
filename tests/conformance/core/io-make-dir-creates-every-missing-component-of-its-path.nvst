@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::makeDir creates every missing component of the path it is given, not only the last one — the whole chain is a directory afterwards, and a file written into the deepest one lands there
+Core\IO::makeDirectory creates every missing component of the path it is given, not only the last one — the whole chain is a directory afterwards, and a file written into the deepest one lands there
 --FILE--
 <?nvs
 // `mkdir`'s `$recursive` is a parameter with a default that surprises everyone
@@ -16,19 +16,19 @@ string $dir = Here::path('.');
 array<string> $chain = ["one", "one/two", "one/two/three"];
 int $n = Core\Arr::count($chain) as int;
 
-Core\IO::makeDir("one/two/three");
+Core\IO::makeDirectory("one/two/three");
 
 int $made = 0;
 int $i = 0;
 for (; $i < $n; $i = $i + 1) {
-    if (Core\IO::isDir(Core\Path::join($dir, $chain[$i]))) {
+    if (Core\IO::isDirectory(Core\Path::join($dir, $chain[$i]))) {
         $made = $made + 1;
     }
 }
 echo "components: ", $n as string, ", directories afterwards: ", $made as string, "\n";
 
 // The deepest one is a real directory and not a name that merely answers
-// `isDir`: something can be written into it and read back out.
+// `isDirectory`: something can be written into it and read back out.
 Core\IO::write("one/two/three/note.txt", "at the bottom");
 echo "written into the deepest: '", Core\IO::read("one/two/three/note.txt"), "'\n";
 

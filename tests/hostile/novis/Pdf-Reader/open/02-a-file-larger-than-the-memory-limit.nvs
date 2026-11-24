@@ -5,8 +5,8 @@
 // hostile: ends-early 3 FATAL
 use Novis\Pdf\Reader;
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-pdf-size');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-pdf-size');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'large.pdf');
 
 // 1. Writes the start of the file, and then 40 MB of comment lines, one million bytes at a time.

@@ -3,7 +3,7 @@ use Novis\Spreadsheet\Reader;
 // Shows how to write an Excel file to a path and read it back.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'sales-2024-05.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'sales-2024-05.xlsx');
 
 // The file at `$path` is created, or replaced if it exists.
 var $book = Workbook::createForFile($path);

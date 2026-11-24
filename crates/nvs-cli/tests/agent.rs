@@ -128,7 +128,7 @@ fn the_primer_names_the_capability_model_and_the_smallest_grant() {
     for wanted in [
         "A command-line run (`nvs run`, `nvs test`) may read and write every",
         "Server work may read the files in its app folder, but no dot-file",
-        "It may write only in the directories `Core\\IO::temporaryDir` made for it.",
+        "It may write only in the directories `Core\\IO::createTemporaryDirectory` made for it.",
         "The default for every other capability is **denied** until a grant is written.",
         "`fs.read`",
         "[capabilities.fs]",

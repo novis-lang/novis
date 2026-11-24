@@ -1,5 +1,5 @@
 <?nvs
-// Reads the modification time from a result of `stat`, as a program does when it looks for the newest file.
+// Reads the modification time from a result of `metadata`, as a program does when it looks for the newest file.
 // bench: iterations 256 callgrind
 // bench: allocations 0
 // bench: complexity constant
@@ -22,8 +22,8 @@ class Bench
     }
 }
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $path = Core\Path::join($dir, 'modified-at.dat');
 Core\IO::write($path, 'x');
-array<Core\IO\Metadata> $infos = [Core\IO::stat($path), Core\IO::stat($dir)];
+array<Core\IO\Metadata> $infos = [Core\IO::metadata($path), Core\IO::metadata($dir)];
 echo Bench::run($infos, 256), "\n";

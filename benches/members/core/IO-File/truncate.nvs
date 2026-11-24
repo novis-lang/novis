@@ -20,7 +20,7 @@ class Bench
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'truncate.dat');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'truncate.dat');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 echo Bench::run($file, 256), "\n";
 $file->close();

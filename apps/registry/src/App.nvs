@@ -130,7 +130,7 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function pageScript(): void
     {
-        Response::sendFile(Core\Path::thisDir('../public/registry.js'));
+        Response::sendFile(Core\Path::thisDirectory('../public/registry.js'));
     }
 
     // The service worker of the account page. It shows each push message and sends back its code.
@@ -138,7 +138,7 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function pushScript(): void
     {
-        Response::sendFile(Core\Path::thisDir('../public/push.js'));
+        Response::sendFile(Core\Path::thisDirectory('../public/push.js'));
     }
 
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.

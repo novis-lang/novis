@@ -3,7 +3,7 @@
 // `modifiedAt` must return a time or throw an `IOError`, and must not crash.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. A file rewritten two thousand times. Its time must never go back.
 string $log = Core\Path::join($dir, 'app.log');

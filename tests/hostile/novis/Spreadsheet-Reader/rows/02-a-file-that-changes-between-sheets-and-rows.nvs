@@ -54,8 +54,8 @@ $short->sheet('News')->add(['two']);
 $short->sheet('Shop')->add(['three']);
 bytes $second = $short->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-sheet-changes');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-sheet-changes');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'upload.xlsx');
 Core\IO::write($path, $first);
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
@@ -95,4 +95,4 @@ Attack::open(4, $file);
 $file->close();
 $writer->close();
 Core\IO::remove($path);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);

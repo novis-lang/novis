@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'archive.bin');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'archive.bin');
         Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('89'), $size));
         Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
         uint $total = 0;

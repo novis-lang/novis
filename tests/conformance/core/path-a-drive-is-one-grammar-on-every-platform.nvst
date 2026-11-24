@@ -22,7 +22,7 @@ echo Core\Str::replace(Core\Str::join(Core\Path::split("C:\\var\\www"), ","), Co
 
 // A drive root has no name of its own, and walking past it — one level at a
 // time or by counting `..` — stops there with the drive still attached.
-echo Core\Path::basename("C:/"), "|", Core\Str::replace(Core\Path::dirname($win, {levels: 9}), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::normalize("C:/a/../.."), Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Path::fileName("C:/"), "|", Core\Str::replace(Core\Path::parent($win, {levels: 9}), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::normalize("C:/a/../.."), Core\Path::SEPARATOR, "/"), "|\n";
 
 // relativeTo compares a component byte for byte, because case-insensitivity
 // is a property of a filesystem and this member touches none. The drive

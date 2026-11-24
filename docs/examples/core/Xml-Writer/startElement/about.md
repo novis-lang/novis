@@ -2,7 +2,7 @@ Opens an element, such as `<order>`. Everything you write after this call goes i
 until you close it with `endElement`. You can open an element inside another one, and so build a
 document of any shape.
 
-Right after `startElement`, you can add attributes to the element with `attribute`. The name must be a
+Right after `startElement`, you can add attributes to the element with `writeAttribute`. The name must be a
 valid XML name, such as `order`, `_id` or `atom:link`. The writer does not escape a name, so a name
 with a space or a `<` throws a `LogicError`.
 

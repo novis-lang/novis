@@ -1,4 +1,4 @@
-# The `extract` bench writes files in a new folder from `Core\IO::temporaryDir()`.
+# The `extract` bench writes files in a new folder from `Core\IO::createTemporaryDirectory()`.
 # The path of that folder is different on every computer, so these lines allow
 # reading and writing files, and nothing else.
 [capabilities.fs]

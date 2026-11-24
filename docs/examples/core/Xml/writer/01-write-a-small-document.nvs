@@ -6,8 +6,8 @@ Core\Xml\Writer $out = Core\Xml::writer();
 // `startDocument` writes the XML declaration. Every other call comes after it.
 $out->startDocument();
 $out->startElement('greeting');
-$out->attribute('lang', 'en');
-$out->content('Hello');
+$out->writeAttribute('lang', 'en');
+$out->writeText('Hello');
 // `endElement` closes the element that was opened last, so it needs no name.
 $out->endElement();
 

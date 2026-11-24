@@ -35,10 +35,10 @@ try {
     echo '4: ', Core\Str::before($error->message, "\n"), "\n";
 }
 
-// 5. `Core\Path::fromCwd` joins a path to the working folder. It throws while
+// 5. `Core\Path::fromWorkingDirectory` joins a path to the working folder. It throws while
 // a request is answered.
 try {
-    echo Core\Path::fromCwd($name), "\n";
+    echo Core\Path::fromWorkingDirectory($name), "\n";
 } catch (RuntimeError $error) {
     echo '5: ', Core\Str::before($error->message, "\n"), "\n";
 }

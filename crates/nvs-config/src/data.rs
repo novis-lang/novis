@@ -438,7 +438,7 @@ impl Unusable {
         };
         format!(
             "{head}\n  \
-             note: programs run without the compile cache, and `Core\\IO::temporaryDir` throws an \
+             note: programs run without the compile cache, and `Core\\IO::createTemporaryDirectory` throws an \
              error.\n  \
              help: pass `--data <folder>` to use a folder that only this account can change."
         )

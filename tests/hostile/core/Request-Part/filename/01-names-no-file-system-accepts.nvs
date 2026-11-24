@@ -3,7 +3,7 @@
 // that gives its file name twice. Each save under such a name should throw an error or
 // stay inside the folder, and the name given twice should throw a `ParseError`.
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 array<Core\Request\Part> $parts = [];
 
 // 1. Saves each file inside the folder, under the name the client sent.

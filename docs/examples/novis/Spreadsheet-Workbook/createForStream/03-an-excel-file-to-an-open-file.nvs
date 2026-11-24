@@ -3,7 +3,7 @@ use Novis\Spreadsheet\Reader;
 // Shows how to write an Excel file to an open file and read it back.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'stock.xlsx');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // Without `format`, an open file gets an Excel file (xlsx).

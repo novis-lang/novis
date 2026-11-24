@@ -1,12 +1,12 @@
 <?nvs
-// Shows how to read when a file was last changed from the result of `Core\IO::stat`.
+// Shows how to read when a file was last changed from the result of `Core\IO::metadata`.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'settings.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'settings.json');
 Core\IO::write($path, "{\"theme\": \"dark\"}\n");
 
 // `modifiedAt` returns a `Core\Time\Instant`.
 // `since` returns the time from that moment to now, as a `Core\Time\Duration`.
-Core\Time\Instant $changed = Core\IO::stat($path)->modifiedAt();
+Core\Time\Instant $changed = Core\IO::metadata($path)->modifiedAt();
 Core\Time\Duration $age = Core\Time::now()->since($changed);
 
 // The file was written a moment ago, so this prints "changed less than a minute ago".

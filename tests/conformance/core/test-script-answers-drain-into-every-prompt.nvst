@@ -1,11 +1,11 @@
 --TEST--
-Core\Test::scriptAnswers writes the queue every Core\Cli prompt drains, so an interactive flow is assertable — `rule:tooling/a-prompt-is-a-core-member`, `rule:testing/determinism-declared-on-the-test`
+Core\Test::answerCli writes the queue every Core\Cli prompt drains, so an interactive flow is assertable — `rule:tooling/a-prompt-is-a-core-member`, `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
 // This case runs with every standard stream redirected, which is
 // `rule:tooling/a-prompt-never-blocks`'s "no controlling terminal" — so every answer below is the scripted one, and each
 // line is what a person would have typed at that prompt.
-Core\Test::scriptAnswers(["Ada", "y", "2"]);
+Core\Test::answerCli(["Ada", "y", "2"]);
 
 echo Core\Cli::ask("Your name?"), "\n";
 echo Core\Cli::confirm("Continue?") ? "yes" : "no", "\n";
@@ -24,8 +24,8 @@ try {
 
 // The tail, not a replacement: a flow scripted in two calls is read in one
 // order, so what the second call added is still behind what the first did.
-Core\Test::scriptAnswers(["first"]);
-Core\Test::scriptAnswers(["second"]);
+Core\Test::answerCli(["first"]);
+Core\Test::answerCli(["second"]);
 echo Core\Cli::ask("One?"), "\n";
 echo Core\Cli::ask("Two?"), "\n";
 --EXPECT--

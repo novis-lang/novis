@@ -7,9 +7,9 @@ class Links
     public static function to(string $from, string $to): string
     {
         // A link starts in the folder of the page it is on.
-        string $way = Core\Path::relativeTo($to, Core\Path::dirname($from)) ?? $to;
+        string $way = Core\Path::relativeTo($to, Core\Path::parent($from)) ?? $to;
         string $href = Core\Str::replace($way, Core\Path::SEPARATOR, '/');
-        return "<a href=\"{$href}\">" . Core\Path::basename($to, { withoutExtension: true }) . '</a>';
+        return "<a href=\"{$href}\">" . Core\Path::fileName($to, { withoutExtension: true }) . '</a>';
     }
 }
 

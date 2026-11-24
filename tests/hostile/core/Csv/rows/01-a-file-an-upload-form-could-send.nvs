@@ -5,7 +5,7 @@
 // stop the program.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. A quoted field of eight megabytes that is never closed.
 string $unclosed = Core\Path::join($dir, 'unclosed.csv');

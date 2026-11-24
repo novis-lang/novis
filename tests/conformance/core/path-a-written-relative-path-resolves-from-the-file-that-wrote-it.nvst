@@ -19,7 +19,7 @@ echo Reader::given('data/note.txt');
 // What the parameter receives is an absolute path.
 string $seen = Reader::path('./data/../data/note.txt');
 echo Core\Path::isAbsolute($seen) ? "absolute\n" : "relative\n";
-echo Core\Str::replace(Core\Path::relativeTo($seen, Core\Path::dirname(Reader::path('x'))) ?? '', Core\Path::SEPARATOR, '/'), "\n";
+echo Core\Str::replace(Core\Path::relativeTo($seen, Core\Path::parent(Reader::path('x'))) ?? '', Core\Path::SEPARATOR, '/'), "\n";
 
 // An absolute literal is passed as it was written.
 echo Reader::path('/srv/shop/data.json'), "\n";

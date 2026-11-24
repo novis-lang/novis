@@ -18,6 +18,6 @@ class Bench
     }
 }
 
-string $folder = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($folder, 'photos'));
+string $folder = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($folder, 'photos'));
 echo Bench::run($folder, 16), "\n";

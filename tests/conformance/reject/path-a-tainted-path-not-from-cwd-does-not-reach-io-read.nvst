@@ -1,10 +1,10 @@
 --TEST--
-A path typed on the command line that does not go through `Core\Path::fromCwd` is still `tainted`, so `Core\IO::read` does not compile with it — `rule:security/launderers-are-sink-named`
+A path typed on the command line that does not go through `Core\Path::fromWorkingDirectory` is still `tainted`, so `Core\IO::read` does not compile with it — `rule:security/launderers-are-sink-named`
 --ARGS--
 notes/report.txt
 --FILE--
 <?nvs
-// `fromCwd` is the one launderer for a typed path. Without it the argument
+// `fromWorkingDirectory` is the one launderer for a typed path. Without it the argument
 // keeps `tainted`, and a path door refuses it while compiling.
 foreach (Core\Cli::arguments() as tainted string $typed) {
     echo Core\IO::read($typed);

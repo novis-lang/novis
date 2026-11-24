@@ -57,7 +57,7 @@ try {
 } catch (ParseError $refused) {
     echo "extract: ParseError\n";
 }
-echo Core\IO::isDir("never") ? "never: created\n" : "never: not created\n";
+echo Core\IO::isDirectory("never") ? "never: created\n" : "never: not created\n";
 
 // A folder entry counts its own level, so 65 folders is refused as well.
 try {

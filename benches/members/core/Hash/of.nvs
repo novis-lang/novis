@@ -9,7 +9,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $names = ['invoice.pdf', 'logo.png', 'notes.txt'];
         array<Core\IO\File> $files = [];
         foreach ($names as string $name) {

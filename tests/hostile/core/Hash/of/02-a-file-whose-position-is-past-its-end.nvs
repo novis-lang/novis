@@ -3,8 +3,8 @@
 // `Core\Hash::of` and `Core\Csv::rows` should read the whole file from its first byte.
 // `Core\Mime::detect` should read its first bytes, and the position should stay where it was.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-past-the-end');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-past-the-end');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'image.png');
 bytes $content = Core\Bytes::join([Core\Encoding::fromHex('89504e470d0a1a0a'), Core\Str::repeat("fig,2\n", 1000) as bytes]);
 Core\IO::write($path, $content);
@@ -59,4 +59,4 @@ echo 'step 6: ', Core\Bytes::length($file->readBytes(4096)), " bytes\n";
 
 $file->close();
 Core\IO::remove($path);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);

@@ -13,8 +13,8 @@ while ($i < Core\Arr::count($customers)) {
 }
 
 // One call saves the whole file. An export from an earlier run is replaced.
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'exports');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'exports');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'orders.csv');
 Core\IO::write($path, $csv);
 

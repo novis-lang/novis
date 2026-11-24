@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to copy a large file in parts, so the program never has the whole file in memory.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $source = Core\Path::join($dir, 'export.csv');
 string $copy = Core\Path::join($dir, 'export-copy.csv');
 Core\IO::write($source, Core\Str::repeat("1042,Café Größenwahn,19.90\n", 20000));

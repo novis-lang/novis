@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         array<bytes> $chunks = ['first part, ' as bytes, 'second part, ' as bytes, "last part\n" as bytes];
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $paths = [
             Core\Path::join($dir, 'upload-a.bin'),
             Core\Path::join($dir, 'upload-b.bin'),

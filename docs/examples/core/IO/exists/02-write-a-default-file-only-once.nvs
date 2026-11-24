@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a program creates a file with default content only when the file is not there yet.
 
-string $settings = Core\Path::join(Core\IO::temporaryDir(), 'settings.ini');
+string $settings = Core\Path::join(Core\IO::createTemporaryDirectory(), 'settings.ini');
 
 // The program checks the file each time it starts. Here it starts twice.
 // This prints "first start: created" and then "second start: kept".

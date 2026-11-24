@@ -6,7 +6,7 @@
 require './vendor/packages.nvs';
 
 // No line in `[grants]` matches this file, so it may write files.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.txt');
 Core\IO::write($path, "Order 1041 Shipped\nOrder 1042 Packed\n");
 
 // `Acme\Feed` reads the file. This prints the two lines in lower case.

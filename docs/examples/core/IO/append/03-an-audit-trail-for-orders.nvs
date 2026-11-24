@@ -10,7 +10,7 @@ class Audit
     }
 }
 
-string $file = Core\Path::join(Core\IO::temporaryDir(), 'orders-audit.csv');
+string $file = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders-audit.csv');
 
 Audit::record($file, 1042, 'created', 'anna');
 Audit::record($file, 1042, 'paid', 'anna');

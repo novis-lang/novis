@@ -1012,7 +1012,7 @@ impl Ctx {
     }
 
     /// Adds `answers` to the tail of this context's scripted answer queue —
-    /// `rule:tooling/a-prompt-is-a-core-member`'s last paragraph, as `Core\Test::scriptAnswers`.
+    /// `rule:tooling/a-prompt-is-a-core-member`'s last paragraph, as `Core\Test::answerCli`.
     ///
     /// The tail rather than a replacement, because a queue that discarded what
     /// it had not reached yet would make two calls scripting two halves of one

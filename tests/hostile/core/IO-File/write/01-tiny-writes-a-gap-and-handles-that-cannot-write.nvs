@@ -4,8 +4,8 @@
 // Each step must work or throw an error, and must not crash.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-write');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-write');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'data.txt');
 
 // 1. 200000 writes of one byte each. The file must have 200000 bytes.

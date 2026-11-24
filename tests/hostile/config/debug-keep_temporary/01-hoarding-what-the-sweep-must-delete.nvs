@@ -52,29 +52,29 @@ while ($i < 50000) {
 // 5. Make 1,000 temporary directories with files in them, and delete none of them here.
 uint $made = 0;
 while ($made < 1000) {
-    string $scratch = Core\IO::temporaryDir();
+    string $scratch = Core\IO::createTemporaryDirectory();
     Core\IO::write($scratch . '/order.csv', "order,total\n1042,19.90\n");
     Core\IO::write($scratch . '/order.csv.part', '');
     $made = $made + 1;
 }
 
 // 6. Make one directory 400 levels deep. Deleting it should not overflow the stack.
-string $tower = Core\IO::temporaryDir();
+string $tower = Core\IO::createTemporaryDirectory();
 string $path = $tower;
 uint $level = 0;
 while ($level < 400) {
     $path = $path . '/d';
-    Core\IO::makeDir($path);
+    Core\IO::makeDirectory($path);
     $level = $level + 1;
 }
 Core\IO::write($path . '/bottom.txt', 'the last one');
 
 // 7. Delete one temporary directory early, and replace another with a file. The cleanup should not fail.
-string $vanished = Core\IO::temporaryDir();
-Core\IO::removeDir($vanished);
+string $vanished = Core\IO::createTemporaryDirectory();
+Core\IO::removeDirectory($vanished);
 
-string $swapped = Core\IO::temporaryDir();
-Core\IO::removeDir($swapped);
+string $swapped = Core\IO::createTemporaryDirectory();
+Core\IO::removeDirectory($swapped);
 Core\IO::write($swapped, 'no longer a directory');
 
 // 8. `keep_temporary` should still be the value from the file.

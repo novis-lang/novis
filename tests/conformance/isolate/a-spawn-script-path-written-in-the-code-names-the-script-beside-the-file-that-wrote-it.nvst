@@ -43,4 +43,4 @@ try {
 the child beside jobs/Runner.nvs ran
 the child beside case.nvs ran
 `spawn script` needs an absolute path, and `child.nvs` is relative
-help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromWorkingDirectory` for a path typed on the command line

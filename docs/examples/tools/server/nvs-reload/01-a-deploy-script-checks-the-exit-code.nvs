@@ -16,8 +16,8 @@ class Deploy
 }
 
 // The deploy writes the files of the new release into the app folder.
-string $app = Core\Path::join(Core\IO::temporaryDir(), 'shop');
-Core\IO::makeDir($app);
+string $app = Core\Path::join(Core\IO::createTemporaryDirectory(), 'shop');
+Core\IO::makeDirectory($app);
 Core\IO::write(Core\Path::join($app, 'index.nvs'), "<?nvs\necho 'Shop, release 2';\n");
 echo 'copied: ', Core\Arr::count(Core\IO::list($app)), " file\n";
 

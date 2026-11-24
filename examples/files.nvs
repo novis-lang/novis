@@ -15,7 +15,7 @@
 // the first one that escapes it.
 
 // A directory this program owns, so the fixture leaves nothing behind.
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $note = Core\Path::join($dir, 'note.txt');
 
 // Whole-file write, then the size the operating system agrees on rather
@@ -68,5 +68,5 @@ try {
 // And back to nothing.
 Core\IO::remove($note);
 Core\IO::remove($roster);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);
 echo 'removed', "\n";

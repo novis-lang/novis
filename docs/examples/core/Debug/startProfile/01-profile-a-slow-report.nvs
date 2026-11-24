@@ -19,7 +19,7 @@ class Report
 }
 
 // The profile file goes in the folder of this program. `nvs.toml` allows a profile there.
-string $file = Core\Path::thisDir('report.speedscope.json');
+string $file = Core\Path::thisDirectory('report.speedscope.json');
 
 // Every call between the start and the stop is timed.
 Core\Debug::startProfile($file);

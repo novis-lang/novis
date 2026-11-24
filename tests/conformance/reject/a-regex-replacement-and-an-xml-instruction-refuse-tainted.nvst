@@ -14,11 +14,11 @@ Core\Xml\Writer $w = Core\Xml::writer();
 $w->startDocument();
 $w->startElement("feed");
 // An instruction escapes nothing, and its reader follows it.
-$w->instruction($t, "go");
-$w->instruction("xml-stylesheet", $t);
+$w->writeInstruction($t, "go");
+$w->writeInstruction("xml-stylesheet", $t);
 // Text and an attribute value are escaped, so both compile.
-$w->attribute("title", $t);
-$w->content($t);
+$w->writeAttribute("title", $t);
+$w->writeText($t);
 echo "unreachable\n";
 --EXPECT--
 

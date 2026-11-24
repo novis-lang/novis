@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $files = [
             Core\Path::join($dir, 'icon.png'),
             Core\Path::join($dir, 'logo.gif'),

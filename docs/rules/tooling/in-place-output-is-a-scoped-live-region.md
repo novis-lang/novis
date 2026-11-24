@@ -1,13 +1,13 @@
 ```nvs
-Cli::live(fn($live) => {
+Cli::showLive(fn($live) => {
     foreach ($files as $f) {
         $live->set([Cli\Text::plain("scanning {$f}")]);
     }
 });
 ```
 
-`Cli::live<T>(callable(Cli\Live): T $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
-`Cli::progress<T>(uint $total, callable(Cli\Progress): T $body): T` hands it a `Cli\Progress` with
+`Cli::showLive<T>(callable(Cli\Live): T $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
+`Cli::showProgress<T>(uint $total, callable(Cli\Progress): T $body): T` hands it a `Cli\Progress` with
 `->advance({by?: uint, label?: string})`. Both answer what the body computed, at the body's type.
 **The runtime owns the cursor**: it coalesces frames on a timer rather than repainting per `set`,
 diffs against the previous frame, hides and restores the cursor, and **renders nothing at all when
@@ -26,8 +26,8 @@ them leaves the operator's shell unusable.
 A resize is not repainted: the profile is resolved once
 (`rule:tooling/the-terminal-profile-resolves-once`), so the width a region clamps its rows to is
 fixed for its life. The mutable `Cli\Live` and `Cli\Progress` handles are stateful objects, not value
-types, so the immutability of value types does not bind them, and `progress` is a closed, named
-behaviour built on `live` rather than a second way to write the same thing.
+types, so the immutability of value types does not bind them, and `showProgress` is a closed, named
+behaviour built on `showLive` rather than a second way to write the same thing.
 
 **Memory:** a region holds two frames, the one on screen and the one waiting for the timer, each at
-most the terminal's width times its height, for as long as its `live` call runs.
+most the terminal's width times its height, for as long as its `showLive` or `showProgress` call runs.

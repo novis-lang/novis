@@ -10,7 +10,7 @@ Core\Test::answerHttp('https://files.example.com/ten', 200, { body: '0123456789'
 Core\Test::answerHttp('https://files.example.com/large', 200, { body: Core\Str::repeat('z', 8000000) });
 Core\Test::answerHttp('https://files.example.com/many/*', 200, { body: Core\Str::repeat('m', 500) });
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. An empty body with a limit of 0. The file must exist and be empty.
 string $empty = Core\Path::join($dir, 'empty.bin');

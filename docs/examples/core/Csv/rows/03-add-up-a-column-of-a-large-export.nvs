@@ -2,7 +2,7 @@
 // Shows how to add up one column of a sales export. The file is read record by
 // record, so a file of ten gigabytes needs as much memory as this one.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'sales.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'sales.csv');
 Core\IO::write(
     $path,
     "date;region;amount\n"

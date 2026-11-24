@@ -11,7 +11,7 @@ class Bench
         Core\Test::answerHttp('https://files.example.com/a.csv', 200, { body: Core\Str::repeat('a', 64) });
         Core\Test::answerHttp('https://files.example.com/b.csv', 200, { body: Core\Str::repeat('b', 96) });
         array<string> $urls = ['https://files.example.com/a.csv', 'https://files.example.com/b.csv'];
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -28,7 +28,7 @@ class StockTest
     public function addRow(Outcome $outcome): void
     {
         string $row = RunRow::csv($outcome->class(), $outcome->name(), $outcome->attempt(), $outcome->passed());
-        IO::append(Path::fromCwd('test-runs.csv'), $row);
+        IO::append(Path::fromWorkingDirectory('test-runs.csv'), $row);
     }
 }
 

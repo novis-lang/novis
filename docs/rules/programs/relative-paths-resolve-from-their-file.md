@@ -33,7 +33,7 @@ another type. A default value of such a parameter resolves against the file that
 concatenation of string literals and a variable are values built while the program runs: a constant
 declared in one file and used in another has no single file to resolve against. A path
 argument that starts with a relative string literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
-relative on every run, so it does not compile (`E0840`); `Core\Path::thisDir('data') . '/' . $name`
+relative on every run, so it does not compile (`E0840`); `Core\Path::thisDirectory('data') . '/' . $name`
 builds it from the file's folder. A single letter, which a `:` could turn into a drive, and a
 heredoc are left to the run-time check. The join is
 lexical: `.` and `..` are removed from the text and nothing on disk is read, so the answer does not
@@ -42,11 +42,11 @@ with no folder on disk, gets the same answer. The capability check still canonic
 before it compares it with a grant (`rule:security/path-scope-canonicalise-then-prefix`). Inside a
 bundled executable the file's folder maps to the same folder beside the executable.
 
-**A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDir()`.**
+**A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDirectory()`.**
 The compiler replaces each call with the absolute path of the file that contains it, or that file's
 folder, from the same folder a string literal is joined to, and the program runs a string constant.
-`thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
-compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
+`thisDirectory($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
+compile (`E0837`), and `Core\Path::join(Core\Path::thisDirectory(), $part)` joins a path the program
 builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`, and that diagnostic's
 help names the two members. A program wants its folder as a value where no path parameter is: to
 build a path from parts it computes, to hand a folder to a library, to print where it runs from.
@@ -58,8 +58,8 @@ throws a `RuntimeError` that says so.
 
 **A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
-program holds, and `Core\Path::fromCwd` joins a path typed on a command line to the working directory.
-`fromCwd` throws while a request is being answered, because a server's working directory is not the
+program holds, and `Core\Path::fromWorkingDirectory` joins a path typed on a command line to the working directory.
+`fromWorkingDirectory` throws while a request is being answered, because a server's working directory is not the
 app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cli::arguments` reaches
 a path door through it (`rule:security/launderers-are-sink-named` states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
 spawn, a queued job, a scheduled entry and a log handler alike: a relative path reaching it is a
@@ -87,7 +87,7 @@ that file's folder, names the same files as a string literal in a program beside
 - **A `__DIR__` constant.** Every call site would have to write the join, and a forgotten one would
   still resolve against the working directory. A magic constant is also syntax that a `Core` member
   makes unnecessary.
-- **`thisDir` accepting any string and joining at run time.** It would be `Core\Path::join` under a
+- **`thisDirectory` accepting any string and joining at run time.** It would be `Core\Path::join` under a
   second name, and the call could not be folded.
-- **`thisFile` and `thisDir` answering the entry file.** A library could not name a file beside its
+- **`thisFile` and `thisDirectory` answering the entry file.** A library could not name a file beside its
   own code.

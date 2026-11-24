@@ -2,7 +2,7 @@
 // Attack: a program writes names a folder cannot take, and replaces a file with a folder after `isWritable` returned `true`.
 // Each write must throw an `IOError`, and nothing may crash.
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. The folder is writable, but a name of 100000 characters is too long. The write must throw an `IOError`.
 if (!Core\IO::isWritable($dir)) {
@@ -22,7 +22,7 @@ if (!Core\IO::isWritable($file)) {
     throw new LogicError('a new file was not writable');
 }
 Core\IO::remove($file);
-Core\IO::makeDir($file);
+Core\IO::makeDirectory($file);
 try {
     Core\IO::write($file, 'id,total');
     throw new LogicError('a folder was written as a file');

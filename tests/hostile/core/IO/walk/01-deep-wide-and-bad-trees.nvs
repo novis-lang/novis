@@ -4,7 +4,7 @@
 // throw an `IOError`.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
 
 // 1. A tree two hundred folders deep. Every folder must be in the result, once.
 // A path this long can be too long for the system. Then the step throws an `IOError`.
@@ -16,7 +16,7 @@ try {
         $level = Core\Path::join($level, 'd');
         $depth = $depth + 1;
     }
-    Core\IO::makeDir($level);
+    Core\IO::makeDirectory($level);
     uint $found = 0;
     foreach (Core\IO::walk($deep) as string $entry) {
         $found = $found + 1;
@@ -33,7 +33,7 @@ string $wide = Core\Path::join($dir, 'wide');
 uint $folder = 0;
 while ($folder < 50) {
     string $sub = Core\Path::join($wide, 'folder-' . $folder);
-    Core\IO::makeDir($sub);
+    Core\IO::makeDirectory($sub);
     uint $file = 0;
     while ($file < 100) {
         Core\IO::write(Core\Path::join($sub, 'file-' . $file . '.txt'), 'x');
@@ -76,10 +76,10 @@ foreach ($held as string $entry) {
 foreach ($held as string $entry) {
     string $folderPath = Core\Path::join($wide, $entry);
     if (Core\IO::exists($folderPath)) {
-        Core\IO::removeDir($folderPath);
+        Core\IO::removeDirectory($folderPath);
     }
 }
-Core\IO::removeDir($wide);
+Core\IO::removeDirectory($wide);
 uint $kept = 0;
 foreach ($held as string $entry) {
     $kept = $kept + 1;

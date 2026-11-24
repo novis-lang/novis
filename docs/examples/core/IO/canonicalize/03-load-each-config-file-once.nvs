@@ -1,8 +1,8 @@
 <?nvs
 // Shows how a program loads each settings file only once, even when a list names one file in two ways.
 
-string $dir = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($dir, 'conf'));
+string $dir = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($dir, 'conf'));
 Core\IO::write(Core\Path::join($dir, 'conf/app.ini'), "name = shop\n");
 Core\IO::write(Core\Path::join($dir, 'conf/db.ini'), "host = localhost\n");
 

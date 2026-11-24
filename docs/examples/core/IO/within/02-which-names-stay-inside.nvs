@@ -1,8 +1,8 @@
 <?nvs
 // Shows which file names `Core\IO::within` allows, and which ones it refuses.
 
-string $folder = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($folder, 'photos'));
+string $folder = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($folder, 'photos'));
 
 // A name may use `..` if the result is still inside the folder. A file that does not exist yet is allowed.
 // A name that ends outside the folder is refused. An absolute path to another place is refused too.

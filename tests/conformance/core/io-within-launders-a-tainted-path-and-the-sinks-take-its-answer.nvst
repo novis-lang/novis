@@ -9,7 +9,7 @@ Core\IO::within is the path sink's launderer — a tainted path may be declared 
 // the resolver. The refusal itself is
 // tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst; what
 // this file asserts is the route past it.
-string $base = Core\IO::temporaryDir();
+string $base = Core\IO::createTemporaryDirectory();
 string $note = Core\Path::join($base, "note.txt");
 Core\IO::write($note, "laundered\n");
 
@@ -27,7 +27,7 @@ int $size = Core\IO::size($safe) as int;
 echo "size: ", $size as string, "\n";
 
 Core\IO::remove($safe);
-Core\IO::removeDir($base);
+Core\IO::removeDirectory($base);
 echo "gone: ", Core\IO::exists($base) ? "y" : "n", "\n";
 --FILE nvs.toml--
 [capabilities.fs]

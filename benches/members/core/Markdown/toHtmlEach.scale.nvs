@@ -27,7 +27,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'to-html-each-scale.md');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'to-html-each-scale.md');
         Core\IO::writeStream($path, Document::pieces($size), { overwrite: true });
 
         uint $parts = 0;

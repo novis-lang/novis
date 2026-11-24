@@ -1,0 +1,28 @@
+<?nvs
+// Shows the two errors `writeCdata` throws, and how to write such a text with `writeText`.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// No element is open yet. This prints the error message.
+try {
+    $writer->writeCdata('Hello');
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startElement('note');
+
+// `]]>` ends a CDATA section, so it is not allowed in the text. This prints the error message.
+string $text = 'The end marker is ]]> in XML.';
+try {
+    $writer->writeCdata($text);
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// `writeText` escapes `>`, so it can write the same text.
+$writer->writeText($text);
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

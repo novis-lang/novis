@@ -30,7 +30,7 @@ class CheckoutTest
     public static function updateStatusPage(Summary $summary): void
     {
         string $line = StatusLine::of($summary->class(), $summary->passed(), $summary->failed(), $summary->flaky());
-        IO::append(Path::fromCwd('status.txt'), $line);
+        IO::append(Path::fromWorkingDirectory('status.txt'), $line);
     }
 }
 

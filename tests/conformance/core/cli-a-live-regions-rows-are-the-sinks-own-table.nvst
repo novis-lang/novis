@@ -92,7 +92,7 @@ class Sweep {
     }
 }
 
-var $counted = Core\Cli::live(fn(Core\Cli\Live $live): string => Sweep::over($live));
+var $counted = Core\Cli::showLive(fn(Core\Cli\Live $live): string => Sweep::over($live));
 echo $counted, "\n";
 
 // The two spellings of the same erase-line command, as a row would carry them.

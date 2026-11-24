@@ -15,7 +15,7 @@ class Here {
 }
 string $dir = Here::path('.');
 Core\IO::write("source.txt", "the content");
-Core\IO::makeDir("sub");
+Core\IO::makeDirectory("sub");
 array<string> $spellings = ["source.txt", "sub/../source.txt"];
 
 int $refused = 0;

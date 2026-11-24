@@ -5,8 +5,8 @@ Core\Xml\Writer $out = Core\Xml::writer();
 $out->startDocument();
 $out->startElement('note');
 // `"`, `<`, `>` and `&` are written as entities, so they stay text and do not become markup.
-$out->attribute('title', "Tom's \"best\" <idea>");
-$out->content('1 < 2 & 3 > 2');
+$out->writeAttribute('title', "Tom's \"best\" <idea>");
+$out->writeText('1 < 2 & 3 > 2');
 $out->endElement();
 echo $out->endDocument(), "\n";
 

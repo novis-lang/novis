@@ -7,8 +7,8 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $folder = Core\Path::join(Core\IO::temporaryDir(), 'uploads');
-        Core\IO::makeDir($folder);
+        string $folder = Core\Path::join(Core\IO::createTemporaryDirectory(), 'uploads');
+        Core\IO::makeDirectory($folder);
         uint $n = 0;
         while ($n < $size) {
             Core\IO::write(Core\Path::join($folder, Core\Str::format('%d.txt', $n)), 'a');

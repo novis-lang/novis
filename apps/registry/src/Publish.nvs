@@ -277,8 +277,8 @@ final class Publish
     // The folder the build writes the archives to. It is made when it does not exist.
     private static function builds(): string
     {
-        if (!IO::isDir('../builds')) {
-            IO::makeDir('../builds');
+        if (!IO::isDirectory('../builds')) {
+            IO::makeDirectory('../builds');
         }
         return IO::canonicalize('../builds');
     }

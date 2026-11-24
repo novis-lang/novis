@@ -2,7 +2,7 @@
 // Shows how to convert a Markdown file to HTML one part at a time.
 
 // The program writes a small file first, so that it has one to read.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'changes.md');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'changes.md');
 Core\IO::write(
     $path,
     "# Version 2.1\n\nSearch is faster now.\n\n## Fixed\n\n"

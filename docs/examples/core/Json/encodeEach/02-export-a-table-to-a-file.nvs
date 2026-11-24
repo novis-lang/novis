@@ -27,7 +27,7 @@ $db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)
 // `streamAs` reads one row at a time. `encodeEach` takes the next row only when it needs it.
 // So you can export a table that is larger than memory.
 var $orders = $db->streamAs<Order>('select id, customer, cents from orders order by id', []);
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.json');
 Core\IO::writeStream($path, Core\Json::encodeEach($orders), { overwrite: true });
 
 $db->close();

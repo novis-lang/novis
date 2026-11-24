@@ -11,7 +11,7 @@ outside goes into a result through `Core\Regex::replaceWith`, whose function ret
 never reads it as a template.
 
 **An XML processing instruction is a sink for the same reason, though it is written rather than
-parsed.** `Core\Xml\Writer::instruction` escapes nothing, since XML has no escape inside one, and its
+parsed.** `Core\Xml\Writer::writeInstruction` escapes nothing, since XML has no escape inside one, and its
 data is an instruction to the program that reads the document: an `xml-stylesheet` names the file a
 browser fetches and runs. Its target and data refuse `tainted`; the writer's text, attribute, comment
 and CDATA members escape or refuse what they cannot write, and stay launderers.

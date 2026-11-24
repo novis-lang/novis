@@ -33,7 +33,7 @@ class LoginTest
     public function report(Outcome $outcome): void
     {
         string $line = JUnit::testCase($outcome->class(), $outcome->name(), $outcome->passed());
-        IO::append(Path::fromCwd('junit-cases.xml'), $line);
+        IO::append(Path::fromWorkingDirectory('junit-cases.xml'), $line);
     }
 }
 

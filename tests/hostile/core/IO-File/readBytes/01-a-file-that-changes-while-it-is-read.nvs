@@ -3,8 +3,8 @@
 // it longer. Each read should return the bytes the file has at that moment, or empty `bytes`.
 // No read should return bytes past the end of the file.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read-bytes');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-read-bytes');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'data.bin');
 Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('00ff'), 524288));
 
@@ -86,4 +86,4 @@ echo 'step 6: ', Core\Encoding::toHex($digest), "\n";
 $reader->close();
 $writer->close();
 Core\IO::remove($path);
-Core\IO::removeDir($dir);
+Core\IO::removeDirectory($dir);

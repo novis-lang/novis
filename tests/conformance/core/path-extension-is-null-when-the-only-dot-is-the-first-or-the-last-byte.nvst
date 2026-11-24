@@ -4,7 +4,7 @@ Core\Path::extension is null for a name whose only dot is its first byte or its 
 <?nvs
 final class Show {
     public static function of(string $path): string {
-        return "[" . Core\Path::basename($path, {withoutExtension: true})
+        return "[" . Core\Path::fileName($path, {withoutExtension: true})
             . "][" . (Core\Path::extension($path) ?? "<null>") . "]";
     }
 }

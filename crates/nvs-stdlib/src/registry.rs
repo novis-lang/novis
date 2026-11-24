@@ -439,7 +439,7 @@ pub enum CoreTy {
     /// which already existed because the language can write the type.
     TaintedBytes,
     /// `secret tainted string` — both qualifiers at once, and the one row that
-    /// needs it is `Core\Cli::secret`.
+    /// needs it is `Core\Cli::askSecret`.
     ///
     /// [`Self::SecretBytes`] and [`Self::TaintedStr`] are the two axes
     /// separately, and this is neither's generalisation: a password typed at a
@@ -452,7 +452,7 @@ pub enum CoreTy {
     /// `rule:tooling/a-prompt-is-a-core-member`
     /// writes the return type with both words for that reason.
     ///
-    /// Return position for `Core\Cli::secret`, and **options-bag position** for
+    /// Return position for `Core\Cli::askSecret`, and **options-bag position** for
     /// `Core\Http\Client`'s body keys, which is where the two words earn
     /// something an ordinary parameter cannot get from them. At an ordinary
     /// parameter a [`Qual`] already decides what the slot admits, so this
@@ -2181,7 +2181,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     ),
     (crate::io::NAME, "exists", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "isFile", Some(nvs_config::Cap::FsRead)),
-    (crate::io::NAME, "isDir", Some(nvs_config::Cap::FsRead)),
+    (
+        crate::io::NAME,
+        "isDirectory",
+        Some(nvs_config::Cap::FsRead),
+    ),
     (crate::io::NAME, "isReadable", Some(nvs_config::Cap::FsRead)),
     // `fs.write` and not `fs.read`, which is the one place this table's split
     // is decided by what a question is *about* rather than by what its member
@@ -2201,7 +2205,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // One row for the member that answers every one of the questions above at
     // once, and the same capability each of them needs — a `stat` is one read
     // whether the caller wanted one field of it or four.
-    (crate::io::NAME, "stat", Some(nvs_config::Cap::FsRead)),
+    (crate::io::NAME, "metadata", Some(nvs_config::Cap::FsRead)),
     // Enumeration is a read of one path — the directory itself — and never a
     // grant over what the listing names. `capability::read_dir`'s own doc is
     // the home of that reading, and of why it is a door rather than a widening
@@ -2227,12 +2231,20 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `move` is `fs.write` on both ends and not `copy`'s pair: taking the
     // source away is destroying it.
     (crate::io::NAME, "move", Some(nvs_config::Cap::FsWrite)),
-    (crate::io::NAME, "makeDir", Some(nvs_config::Cap::FsWrite)),
-    (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),
-    (crate::io::NAME, "removeDir", Some(nvs_config::Cap::FsWrite)),
     (
         crate::io::NAME,
-        "temporaryDir",
+        "makeDirectory",
+        Some(nvs_config::Cap::FsWrite),
+    ),
+    (crate::io::NAME, "remove", Some(nvs_config::Cap::FsWrite)),
+    (
+        crate::io::NAME,
+        "removeDirectory",
+        Some(nvs_config::Cap::FsWrite),
+    ),
+    (
+        crate::io::NAME,
+        "createTemporaryDirectory",
         Some(nvs_config::Cap::FsWrite),
     ),
     (crate::io::NAME, "within", Some(nvs_config::Cap::FsRead)),
@@ -2265,14 +2277,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // one row per member rather than one for the class precisely so that a
     // member added later cannot inherit the answer without being asked.
     // `Core\IO\Metadata`'s four members reach nothing at all: the `stat` that
-    // built the value was checked when `Core\IO::stat` asked, and each member
+    // built the value was checked when `Core\IO::metadata` asked, and each member
     // here is a slot read over the answer it already holds. That is the same
     // shape as the handle rows below — the check happened where the value was
     // produced — and the reason a snapshot is worth having.
     (crate::io::METADATA_NAME, "size", None),
     (crate::io::METADATA_NAME, "modifiedAt", None),
     (crate::io::METADATA_NAME, "isFile", None),
-    (crate::io::METADATA_NAME, "isDir", None),
+    (crate::io::METADATA_NAME, "isDirectory", None),
     (crate::io::FILE_NAME, "read", None),
     (crate::io::FILE_NAME, "readBytes", None),
     (crate::io::FILE_NAME, "readLine", None),
@@ -3188,7 +3200,7 @@ pub const OWN_FILE_READS: &[(&str, &str)] = &[
     (crate::io::NAME, "isFile"),
     (crate::io::NAME, "isReadable"),
     (crate::io::NAME, "size"),
-    (crate::io::NAME, "stat"),
+    (crate::io::NAME, "metadata"),
     (crate::io::NAME, "modifiedAt"),
 ];
 
@@ -4151,7 +4163,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::io::NAME, "isFile"),
     (crate::io::NAME, "isReadable"),
     (crate::io::NAME, "size"),
-    (crate::io::NAME, "stat"),
+    (crate::io::NAME, "metadata"),
     (crate::io::NAME, "modifiedAt"),
 ];
 

@@ -11,7 +11,7 @@ a test method and a spawned isolate all write through that sink, so it covers a 
 a test report — which is where a credential in practice leaks. A terminal is the secret shown to a
 person, which is disclosure, not use; a command whose purpose is to print a token writes
 `Core\Secret::reveal()` with its reason on that one line. It also agrees with the way in:
-`Core\Cli::secret()` reads a password with terminal echo disabled
+`Core\Cli::askSecret()` reads a password with terminal echo disabled
 (`rule:tooling/a-prompt-is-a-core-member`).
 
 The refusal costs the cheapest debugging tool there is: `echo $x` does not work for exactly the

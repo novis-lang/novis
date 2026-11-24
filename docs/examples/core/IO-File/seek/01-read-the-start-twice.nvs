@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to move the handle of an open file, so the next read starts at another byte.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'greeting.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'greeting.txt');
 Core\IO::write($path, 'Hello, world');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 

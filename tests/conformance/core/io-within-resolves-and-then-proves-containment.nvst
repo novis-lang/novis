@@ -8,7 +8,7 @@ Core\IO::within resolves a path and then proves containment — a name that stay
 // symlink is on the way. So the path is resolved first and proved second, and
 // this case asserts the bound on both sides -- what stays inside, and what
 // leaves.
-string $base = Core\IO::temporaryDir();
+string $base = Core\IO::createTemporaryDirectory();
 string $note = Core\Path::join($base, "note.txt");
 Core\IO::write($note, "x\n");
 
@@ -21,7 +21,7 @@ echo "inside exists: ", Core\IO::exists($inside) ? "y" : "n", "\n";
 // A `..` that comes back is accepted, and answers the same path the plain name
 // did. A member that refused every `..` by looking at the string would be wrong
 // here in the safe direction, and still wrong.
-string $detour = Core\IO::within($base, ".." . "/" . Core\Path::basename($base) . "/note.txt");
+string $detour = Core\IO::within($base, ".." . "/" . Core\Path::fileName($base) . "/note.txt");
 echo "detour agrees: ", $detour == $inside ? "y" : "n", "\n";
 
 // The refusing side, counted rather than read off three lines: three spellings
@@ -32,7 +32,7 @@ echo "detour agrees: ", $detour == $inside ? "y" : "n", "\n";
 array<string> $escapes = [
     "../../../etc/passwd",
     "..",
-    ".." . "/" . Core\Path::basename($base) . "more/thing.txt",
+    ".." . "/" . Core\Path::fileName($base) . "more/thing.txt",
 ];
 int $total = Core\Arr::count($escapes) as int;
 int $refused = 0;
@@ -56,7 +56,7 @@ echo "escapes: ", $total as string, ", refused: ", $refused as string, ", naming
 // And the program removes what it made, because nothing sweeps a temporary
 // directory for it.
 Core\IO::remove($note);
-Core\IO::removeDir($base);
+Core\IO::removeDirectory($base);
 echo "cleaned: ", Core\IO::exists($base) ? "y" : "n", "\n";
 --FILE nvs.toml--
 [capabilities.fs]

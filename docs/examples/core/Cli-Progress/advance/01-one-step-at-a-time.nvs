@@ -3,7 +3,7 @@
 // bar after each one. This example does not run in a terminal, so the bar
 // draws nothing and only the report is printed.
 
-uint $steps = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+uint $steps = Core\Cli::showProgress(3, fn(Core\Cli\Progress $bar): uint => {
     array<string> $work = ['read the file', 'check the rows', 'write the report'];
     uint $done = 0;
 

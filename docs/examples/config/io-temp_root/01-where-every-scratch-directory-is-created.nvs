@@ -3,7 +3,7 @@
 
 // Nothing sets `[io] temp_root`, so Novis uses the `tmp` folder in its data folder, `.nvsdata`.
 // The full path differs on each machine, so this prints only the last folder, `tmp`.
-echo 'root folder:     ', Core\Path::basename(Core\Config::get('io.temp_root') ?? ''), "\n";
+echo 'root folder:     ', Core\Path::fileName(Core\Config::get('io.temp_root') ?? ''), "\n";
 
 // `Core\Config::set('io.temp_root', ...)` does not compile,
 // because a program may not change `io.temp_root`.

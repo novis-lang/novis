@@ -5,8 +5,8 @@
 // hostile: timeout-ms 60000
 // hostile: ends-early 3 FATAL
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-sparse');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-sparse');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'sparse.bin');
 
 // 1. `truncate` makes the empty file 64 GB long. The file system stores no bytes for the new part.

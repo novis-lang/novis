@@ -18,7 +18,7 @@ try {
 // And it refused before it reached a door: the destination the call named was
 // never created, so an archive that is refused leaves nothing at all behind —
 // not even the empty directory it would have written into.
-if (Core\IO::isDir("out")) {
+if (Core\IO::isDirectory("out")) {
     echo "out: created\n";
 } else {
     echo "out: never created\n";

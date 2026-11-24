@@ -13,7 +13,7 @@ away mid-answer getting a throw is priced at `rule:programs/memory-priority`'s o
 program that cannot hang outranks one that never gives up.
 
 Under `nvs test`, prompts drain a scripted answer queue instead of reading a terminal:
-`Core\Test::scriptAnswers(array<string> $answers)` — a member on the class the *test* calls, never a
+`Core\Test::answerCli(array<string> $answers)` — a member on the class the *test* calls, never a
 filler on `Core\Cli` that would let production code answer its own prompts. It is drained where all
 five prompts already meet, so a sixth inherits it. A scripted line wins over a terminal that is there,
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable

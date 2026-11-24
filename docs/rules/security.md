@@ -353,7 +353,7 @@ from a `spawn script` door and from a `[[schedule]]` entry alike. `require` alre
 so spawning it grants nothing new. The default leaves out every path with a component below the app
 folder that starts with `.` and every file named `nvs.toml`, as the default read does
 ([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). It also leaves out every directory
-`Core\IO::temporaryDir` made for this run, so a run never spawns a script it wrote, even where the
+`Core\IO::createTemporaryDirectory` made for this run, so a run never spawns a script it wrote, even where the
 temporary root is inside the app folder. The method form (`Class::method`) names code already in the
 running unit, so it spawns too. A script outside the app folder needs a written `spawn` root, and a
 written list replaces the default whole.
@@ -676,7 +676,7 @@ from or the `root` of the most specific `[[app]]` block over that file. A key th
 the whole grant. A key it does not write takes its default for that run, from the configuration
 crate's table of defaults. On a CLI run `fs.read` and `fs.write` default to every path. In server
 work `fs.read` defaults to the app folder, less every path with a component below it that starts
-with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::temporaryDir` made for
+with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::createTemporaryDirectory` made for
 this context, which the context hands the procedure with the run; both of those read too.
 `net.connect` defaults to every public host, `net.internal` to loopback on a CLI run and in
 development, `process.exec` to every program on a CLI run, and `script.spawn` to the app folder less
@@ -1838,7 +1838,7 @@ outside goes into a result through `Core\Regex::replaceWith`, whose function ret
 never reads it as a template.
 
 **An XML processing instruction is a sink for the same reason, though it is written rather than
-parsed.** `Core\Xml\Writer::instruction` escapes nothing, since XML has no escape inside one, and its
+parsed.** `Core\Xml\Writer::writeInstruction` escapes nothing, since XML has no escape inside one, and its
 data is an instruction to the program that reads the document: an `xml-stylesheet` names the file a
 browser fetches and runs. Its target and data refuse `tainted`; the writer's text, attribute, comment
 and CDATA members escape or refuse what they cannot write, and stay launderers.
@@ -1994,13 +1994,13 @@ a shell argument or a path, and a single catch-all invites exactly the false con
 exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
 widening an existing one.
 
-**One launderer checks nothing in the bytes: `Core\Path::fromCwd`**, for a file path typed on the
+**One launderer checks nothing in the bytes: `Core\Path::fromWorkingDirectory`**, for a file path typed on the
 command line. It throws while a request is being answered, so request data never passes through it.
 The user who typed the path can already open any file the process can, and the `fs` grants still
 bound every file its answer names. A request that opens a file named by its own data keeps
-`Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
+`Core\IO::within($base, $path)`. `fromWorkingDirectory` removes `tainted` and nothing else: a `secret` argument
 does not compile, as at every launderer. A queued job and a spawned isolate answer no request, so
-`fromCwd` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
+`fromWorkingDirectory` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
 answer names. Without the exception, the one use the member exists for, a command-line tool opening
 the file its user named, needs `Core\Taint::assertTrusted` at every call.
 
@@ -2012,7 +2012,7 @@ Which return type a launderer takes is a predicate rather than a per-member choi
 
 - **A new `CoreTy` for "a path from the command line".** It marks the same fact the qualifier already
   marks, and every path door would have to accept the new type.
-- **Keeping `fromCwd`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
+- **Keeping `fromWorkingDirectory`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
   escape hatch becomes a line every command-line tool writes, so it stops marking the unusual call.
 - **Laundering `Core\Cli::arguments` itself.** An argument is also a shell word, an SQL value and HTML
   text, and a launderer names one sink.
@@ -2679,7 +2679,7 @@ type, property or local. A helper that loads an API key is expected to declare i
 so there is no reading of its result that is not a credential. Each is a declared return type, not
 an ambient grant.
 
-- **`Core\Cli::secret`** reads a password at a terminal prompt with echo disabled and answers
+- **`Core\Cli::askSecret`** reads a password at a terminal prompt with echo disabled and answers
   `secret tainted string`: the person at the keyboard is outside the program.
 - **`Core\Env::secret('NAME')`** answers `?secret string`, `null` where nothing set the variable. It
   reads the variable `Core\Env::get` reads, and a program calls it instead of `get` to say that the
@@ -2767,7 +2767,7 @@ a test method and a spawned isolate all write through that sink, so it covers a 
 a test report — which is where a credential in practice leaks. A terminal is the secret shown to a
 person, which is disclosure, not use; a command whose purpose is to print a token writes
 `Core\Secret::reveal()` with its reason on that one line. It also agrees with the way in:
-`Core\Cli::secret()` reads a password with terminal echo disabled
+`Core\Cli::askSecret()` reads a password with terminal echo disabled
 ([`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member)).
 
 The refusal costs the cheapest debugging tool there is: `echo $x` does not work for exactly the

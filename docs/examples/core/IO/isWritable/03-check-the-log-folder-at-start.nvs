@@ -5,7 +5,7 @@ class Startup
 {
     public static function check(string $logDir): string
     {
-        if (!Core\IO::isDir($logDir)) {
+        if (!Core\IO::isDirectory($logDir)) {
             return 'the log folder is missing';
         }
         if (!Core\IO::isWritable($logDir)) {
@@ -15,12 +15,12 @@ class Startup
     }
 }
 
-string $logs = Core\Path::join(Core\IO::temporaryDir(), 'logs');
+string $logs = Core\Path::join(Core\IO::createTemporaryDirectory(), 'logs');
 
 // The folder does not exist yet. This prints "the log folder is missing".
 echo Startup::check($logs), "\n";
 
-// After `makeDir` creates it, the check passes. This prints "ok".
-Core\IO::makeDir($logs);
+// After `makeDirectory` creates it, the check passes. This prints "ok".
+Core\IO::makeDirectory($logs);
 echo Startup::check($logs), "\n";
 Core\IO::append(Core\Path::join($logs, 'app.log'), "started\n");

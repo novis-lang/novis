@@ -3,7 +3,7 @@
 // It also saves one file twice and saves a file after the loop moved on.
 // Each wrong save should throw an error and leave no partial file behind.
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 array<Core\Request\Part> $parts = [];
 foreach (Core\Request::files() as Core\Request\Part $part) {
     $parts[] = $part;

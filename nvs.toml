@@ -285,9 +285,9 @@ read = true
 # `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
 # walk until the program has been allowed to create the directories it hoards.
 # The `tests/hostile` block writes `read = []` and `write = []`, so this block writes both back.
-# `true` rather than a path: `Core\IO::temporaryDir` creates under the host's own temporary
+# `true` rather than a path: `Core\IO::createTemporaryDirectory` creates under the host's own temporary
 # directory, and a grant naming `C:\Users\…\AppData\Local\Temp` or `/tmp` would pin the attack to
-# one machine. Every attack below that writes into `Core\IO::temporaryDir()`'s answer is granted
+# one machine. Every attack below that writes into `Core\IO::createTemporaryDirectory()`'s answer is granted
 # `true` for this reason.
 [[app]]
 entry = "tests/hostile/config/debug-keep_temporary/01-hoarding-what-the-sweep-must-delete.nvs"
@@ -324,7 +324,7 @@ entry = "tests/hostile/lang/errors/fatal-errors-limits-no-catch-sees/01-a-progra
 [app.limits]
 memory = "16M"
 
-# The attacks on the members that open files write into `Core\IO::temporaryDir()`'s answer and
+# The attacks on the members that open files write into `Core\IO::createTemporaryDirectory()`'s answer and
 # read it back, so each is granted `true` for the reason the `debug-keep_temporary` block above
 # gives. Their examples and benches are CLI runs, which read and write any file with no block.
 # `Core\Csv::rows`'s attack is one program, so its block is an `entry`.

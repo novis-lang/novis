@@ -366,7 +366,7 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, None, env, *cur);
                 }
-                // `Core\Path::thisFile` and `thisDir`, which the checker
+                // `Core\Path::thisFile` and `thisDirectory`, which the checker
                 // replaced with the path of the file that wrote them, under
                 // the call's span in the table a path given as a string literal uses
                 // (`rule:programs/relative-paths-resolve-from-their-file`).

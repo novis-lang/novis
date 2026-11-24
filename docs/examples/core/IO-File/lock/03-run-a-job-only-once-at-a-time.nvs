@@ -19,7 +19,7 @@ class Job
     }
 }
 
-string $lockPath = Core\Path::join(Core\IO::temporaryDir(), 'reports.lock');
+string $lockPath = Core\Path::join(Core\IO::createTemporaryDirectory(), 'reports.lock');
 
 // Another copy of the job is running and has the lock. This prints "another copy is running".
 Core\IO\File $other = Core\IO::open($lockPath, Core\IO::FileMode::ReadWrite);

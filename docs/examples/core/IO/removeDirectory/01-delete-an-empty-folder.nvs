@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to delete an empty folder with `Core\IO::removeDirectory`.
+
+string $folder = Core\Path::join(Core\IO::createTemporaryDirectory(), 'uploads');
+Core\IO::makeDirectory($folder);
+
+// The folder exists now, so this prints "before: true".
+echo 'before: ', Core\IO::isDirectory($folder) ? 'true' : 'false', "\n";
+
+Core\IO::removeDirectory($folder);
+
+// The folder is deleted, so this prints "after: false".
+echo 'after: ', Core\IO::isDirectory($folder) ? 'true' : 'false', "\n";

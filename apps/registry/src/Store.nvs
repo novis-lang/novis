@@ -58,7 +58,7 @@ final class Store
     {
         if ($this->kind == 'dir') {
             string $target = Path::join($this->location, $path);
-            IO::makeDir(Path::dirname($target));
+            IO::makeDirectory(Path::parent($target));
             string $partial = $target . '.' . Random::token(8) . '.partial';
             IO::copy($file, $partial);
             IO::move($partial, $target);

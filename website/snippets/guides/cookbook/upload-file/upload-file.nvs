@@ -1,7 +1,7 @@
 <?nvs
 // This program saves an uploaded file in a folder.
-string $folder = Core\Path::join(Core\IO::temporaryDir(), 'uploads');
-Core\IO::makeDir($folder);
+string $folder = Core\Path::join(Core\IO::createTemporaryDirectory(), 'uploads');
+Core\IO::makeDirectory($folder);
 
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // The client chose the file name, so the program uses its own name.

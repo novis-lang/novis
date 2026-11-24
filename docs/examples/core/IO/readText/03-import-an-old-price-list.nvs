@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a program imports a price list that an older shop system exported in Windows-1252.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'prices.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'prices.csv');
 array<bytes> $export = [Core\Encoding::encodeText("Café au lait;3,50 €\nCrème brûlée;6,00 €\n", Core\Charset::Windows1252)];
 Core\IO::writeStream($path, $export, { overwrite: true });
 

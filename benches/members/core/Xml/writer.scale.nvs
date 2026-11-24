@@ -14,9 +14,9 @@ class Bench
             Core\Xml\Writer $out = Core\Xml::writer();
             $out->startDocument();
             $out->startElement('order');
-            $out->attribute('id', $i as string);
+            $out->writeAttribute('id', $i as string);
             $out->startElement('customer');
-            $out->content($customer);
+            $out->writeText($customer);
             $out->endElement();
             $out->endElement();
             $total = $total + Core\Str::length($out->endDocument()) as uint;

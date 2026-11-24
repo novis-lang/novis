@@ -4,7 +4,7 @@ use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.ods');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'stock.ods');
 
 // A path that ends in `.ods` makes an ods file. The calls are the same as for an xlsx file.
 var $book = Workbook::createForFile($path);

@@ -273,7 +273,7 @@ In your own image, the `RUN` line above creates it, because the account `app` ca
 in `/usr/local/bin`.
 
 Without this folder, `nvs` prints a warning. It runs without the compile cache, and
-`Core\IO::temporaryDir` throws an error.
+`Core\IO::createTemporaryDirectory` throws an error.
 
 The folder is inside the container. When you remove the container, the compile cache is deleted,
 and the next container compiles every program again. With `read_only: true`, `nvs` cannot write to

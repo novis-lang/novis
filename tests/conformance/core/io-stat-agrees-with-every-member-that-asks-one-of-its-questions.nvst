@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — `rule:core-api/shape-rules` R17
+Core\IO::metadata answers in one call what ::size, ::isFile, ::isDirectory and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same metadata fails here while still looking right on its own line — `rule:core-api/shape-rules` R17
 --FILE--
 <?nvs
 // The four single-question members and the one that answers all four exist
@@ -8,10 +8,10 @@ Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedA
 // system with a path, while each member of the snapshot reads a slot -- but
 // they must never disagree about a file nothing is writing.
 Core\IO::write("note.txt", "hello world\n");
-Core\IO::makeDir("sub");
+Core\IO::makeDirectory("sub");
 
-var $file = Core\IO::stat("note.txt");
-var $dir = Core\IO::stat("sub");
+var $file = Core\IO::metadata("note.txt");
+var $dir = Core\IO::metadata("sub");
 
 // Counted, not read off a line. Four agreements is the whole assertion; a
 // member answering plausibly on its own row still fails this.
@@ -23,7 +23,7 @@ if (($file->size() as int) == (Core\IO::size("note.txt") as int)) {
 if ($file->isFile() == Core\IO::isFile("note.txt")) {
     $agree = $agree + 1;
 }
-if ($file->isDir() == Core\IO::isDir("note.txt")) {
+if ($file->isDirectory() == Core\IO::isDirectory("note.txt")) {
     $agree = $agree + 1;
 }
 // The modification time is a point on the timeline and not a number, so the
@@ -37,9 +37,9 @@ echo "agreeing answers: ", $agree as string, "\n";
 
 // And the same four questions of a directory, where two of them swap. The
 // pair partitions most of what exists without covering it, which is
-// `isFile`/`isDir`'s own rule stated over a snapshot instead of over a path.
-if ($dir->isDir() == Core\IO::isDir("sub")) {
-    echo "directory: isDir agrees\n";
+// `isFile`/`isDirectory`'s own rule stated over a snapshot instead of over a path.
+if ($dir->isDirectory() == Core\IO::isDirectory("sub")) {
+    echo "directory: isDirectory agrees\n";
 }
 if ($dir->isFile() == Core\IO::isFile("sub")) {
     echo "directory: isFile agrees\n";
@@ -47,7 +47,7 @@ if ($dir->isFile() == Core\IO::isFile("sub")) {
 if ($file->isFile()) {
     echo "note.txt: a file\n";
 }
-if ($dir->isDir()) {
+if ($dir->isDirectory()) {
     echo "sub: a directory\n";
 }
 --FILE nvs.toml--
@@ -56,7 +56,7 @@ read = ["."]
 write = ["."]
 --EXPECT--
 agreeing answers: 4
-directory: isDir agrees
+directory: isDirectory agrees
 directory: isFile agrees
 note.txt: a file
 sub: a directory

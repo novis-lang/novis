@@ -1,8 +1,8 @@
 <?nvs
 // Shows that only one profile can run at a time.
 
-string $first = Core\Path::thisDir('import.speedscope.json');
-string $second = Core\Path::thisDir('export.speedscope.json');
+string $first = Core\Path::thisDirectory('import.speedscope.json');
+string $second = Core\Path::thisDirectory('export.speedscope.json');
 
 Core\Debug::startProfile($first);
 echo "profile of the import started\n";

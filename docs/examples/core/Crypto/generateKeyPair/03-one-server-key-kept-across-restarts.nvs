@@ -10,7 +10,7 @@ bytes $stored = Core\Secret::revealBytes(
     $pair->write(),
     'the server key is written to disk and read back at the next start',
 );
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'server-key.bin');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'server-key.bin');
 Core\IO::write($path, $stored);
 
 // This is what the next start does. `Core\IO::readBytes` reads the saved bytes.

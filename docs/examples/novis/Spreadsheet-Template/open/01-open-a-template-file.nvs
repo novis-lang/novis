@@ -4,7 +4,7 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 string $templatePath = Core\Path::join($folder, 'order-template.xlsx');
 string $orderPath = Core\Path::join($folder, 'order-1042.xlsx');
 

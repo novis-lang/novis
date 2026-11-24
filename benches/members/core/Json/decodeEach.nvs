@@ -22,7 +22,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         array<string> $paths = [
             Core\Path::join($dir, 'decode-each-a.json'),
             Core\Path::join($dir, 'decode-each-b.json'),

@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         string $from = Core\Path::join($dir, 'a.ini');
         string $to = Core\Path::join($dir, 'copy.ini');
         Core\IO::write($from, Core\Str::repeat('a', $size));

@@ -111,7 +111,7 @@ final class Restore
             return true;
         }
         Store $store = $this->site->stores[0];
-        IO::makeDir($folder);
+        IO::makeDirectory($folder);
         string $checkpoint = $folder . '/checkpoint.' . Random::token(8) . '.partial';
         if (!$store->fetch('log/checkpoint', $checkpoint)) {
             return false;
@@ -125,7 +125,7 @@ final class Restore
         }
         foreach ($files as tainted string $path) {
             string $target = IO::within($folder, $path);
-            IO::makeDir(Path::dirname($target));
+            IO::makeDirectory(Path::parent($target));
             if (!$store->fetch(Index::logPath($this->work, $path), $target)) {
                 IO::remove($checkpoint);
                 throw new RuntimeError('The store ' . $store->location . ' has no log/' . $path . '.');
@@ -228,7 +228,7 @@ final class Restore
         string $path = 'index/' . Index::slug($key) . '.json';
         string $file = Path::join($this->work, $path);
         if (!IO::isFile($file)) {
-            IO::makeDir(Path::dirname($file));
+            IO::makeDirectory(Path::parent($file));
             if (!$this->site->stores[0]->fetch($path, $file)) {
                 throw new RuntimeError('The store ' . $this->site->stores[0]->location . ' has no ' . $path . '.');
             }

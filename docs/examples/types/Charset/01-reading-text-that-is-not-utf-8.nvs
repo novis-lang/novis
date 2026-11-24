@@ -3,7 +3,7 @@
 // as text needs the name of the encoding they were written in.
 
 // The old system writes its files in Latin-1. This line makes such a file.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'export.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'export.txt');
 Core\IO::write($path, Core\Encoding::encodeText('Café', Core\Charset::Latin1));
 
 // `Core\IO::readBytes` reads the file exactly as it is on disk.

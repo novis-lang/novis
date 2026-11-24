@@ -4,11 +4,11 @@
 
 class Checks
 {
-    // Returns the folder that contains `$path`. `Core\Path::dirname` writes the folder
+    // Returns the folder that contains `$path`. `Core\Path::parent` writes the folder
     // with `\` on Windows, so every `\` is replaced with `/`.
     public static function folderOf(tainted string $path): tainted string
     {
-        return Core\Str::replace(Core\Path::dirname($path), "\\", '/');
+        return Core\Str::replace(Core\Path::parent($path), "\\", '/');
     }
 
     public static function show(tainted string $file, tainted string $cache): void

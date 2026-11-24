@@ -8,7 +8,7 @@ tainted bytes $start = $body->peek(21);
 
 if (Core\Bytes::startsWith($start, "order,customer,total\n" as bytes)) {
     // `writeStream` still gets every byte, including the 21 bytes that `peek` read.
-    string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+    string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.csv');
     Core\IO::writeStream($path, $body);
     // This prints `saved 86 bytes`.
     echo 'saved ', Core\IO::size($path), " bytes\n";

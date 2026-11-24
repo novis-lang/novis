@@ -33,10 +33,10 @@ try {
     echo "no menu\n";
 }
 
-// `secret` has no default at all, so the same run throws where the three
+// `askSecret` has no default at all, so the same run throws where the three
 // above answered.
 try {
-    Core\Cli::secret("Password:");
+    Core\Cli::askSecret("Password:");
 } catch (Core\Cli\NotInteractive $noPassword) {
     echo "threw\n";
 }

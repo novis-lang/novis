@@ -3129,7 +3129,7 @@ mod tests {
             // conditions hold, and they are met one step later: the Update's
             // `done` and `open` each answer the carrier.
             (r"Core\Markdown\Live::push", false),
-            (r"Core\Path::fromCwd", false),
+            (r"Core\Path::fromWorkingDirectory", false),
             (r"Core\Regex::quote", false),
             (r"Core\Taint::assertTrusted", false),
             (r"Core\Taint::assertTrustedBytes", false),
@@ -3143,11 +3143,11 @@ mod tests {
             // member names the sink it launders for. `instruction` is not on
             // the roster: XML escapes nothing inside an instruction, so its
             // parameters are sinks and refuse a tainted value outright.
-            (r"Core\Xml\Writer::attribute", false),
-            (r"Core\Xml\Writer::cdata", false),
-            (r"Core\Xml\Writer::comment", false),
-            (r"Core\Xml\Writer::content", false),
-            (r"Core\Xml\Writer::doctype", false),
+            (r"Core\Xml\Writer::writeAttribute", false),
+            (r"Core\Xml\Writer::writeCdata", false),
+            (r"Core\Xml\Writer::writeComment", false),
+            (r"Core\Xml\Writer::writeText", false),
+            (r"Core\Xml\Writer::writeDoctype", false),
             (r"Core\Xml\Writer::startElement", false),
         ];
 

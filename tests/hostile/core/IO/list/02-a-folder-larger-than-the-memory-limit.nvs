@@ -4,9 +4,9 @@
 // hostile: timeout-ms 120000
 // hostile: ends-early 2 FATAL
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
 string $many = Core\Path::join($dir, 'many');
-Core\IO::makeDir($many);
+Core\IO::makeDirectory($many);
 
 // 1. The program writes twenty thousand files with names of two hundred characters. That is about
 // four million bytes of names. Then it lowers its memory limit to 2 MiB.

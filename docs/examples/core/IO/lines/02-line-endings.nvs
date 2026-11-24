@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `Core\IO::lines` reads Windows, Linux and old Mac line breaks the same way.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'colors.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'colors.txt');
 
 // The first text uses "\r\n" (Windows). The second uses "\n" (Linux and macOS).
 // The third uses "\r" (old Mac). Each text has the same three lines.

@@ -8,8 +8,8 @@ echo 'arguments: ', Core\Arr::count(Core\Cli::arguments()), "\n";
 var $zone = Core\Time\Zone::of('America/New_York');
 echo "zone: ok\n";
 
-// `Core\IO::temporaryDir` creates its folder in the data folder, so the user `nonroot`
+// `Core\IO::createTemporaryDirectory` creates its folder in the data folder, so the user `nonroot`
 // must be able to write there. This prints "data folder: ok".
-string $draft = Core\Path::join(Core\IO::temporaryDir(), 'draft.txt');
+string $draft = Core\Path::join(Core\IO::createTemporaryDirectory(), 'draft.txt');
 Core\IO::write($draft, 'ok');
 echo 'data folder: ', Core\IO::readText($draft), "\n";

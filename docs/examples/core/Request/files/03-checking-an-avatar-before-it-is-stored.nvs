@@ -3,7 +3,7 @@
 use Novis\Image\Format;
 use Novis\Image\Image;
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // The form has one file field, `avatar`. Other files are skipped.
     if ($part->name() != 'avatar') {

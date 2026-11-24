@@ -964,7 +964,7 @@ impl Ctx {
         self.open_connections.get_mut(index).map(|(_, held)| held)
     }
 
-    /// Records a directory `Core\IO::temporaryDir` has just created for this
+    /// Records a directory `Core\IO::createTemporaryDirectory` has just created for this
     /// script — `rule:core-classes/temporary-dir-sweep`'s per-script list, written by
     /// [`crate::capability::temp_dir`](crate::capability::temp_dir) and by
     /// nothing else.
@@ -980,7 +980,7 @@ impl Ctx {
     /// (`rule:core-classes/temporary-dir-sweep`) — so there is nothing to take out of the middle of the list and the
     /// entry simply stays until the sweep drains all of them.
     ///
-    /// **What it spends:** one `PathBuf` per `temporaryDir` call this script
+    /// **What it spends:** one `PathBuf` per `createTemporaryDirectory` call this script
     /// made — O(directories created), request-local, released with the request
     /// and charged to its memory limit, which is the bound
     /// `rule:programs/memory-priority` asks for.

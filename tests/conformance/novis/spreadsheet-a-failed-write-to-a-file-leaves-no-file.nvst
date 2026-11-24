@@ -15,7 +15,7 @@ final class Folder {
     }
 }
 
-Core\IO::makeDir("out");
+Core\IO::makeDirectory("out");
 Core\IO::write("out/shop.xlsx", "old report");
 
 // Before `finish`, the rows are in a temporary file. The old file is unchanged.

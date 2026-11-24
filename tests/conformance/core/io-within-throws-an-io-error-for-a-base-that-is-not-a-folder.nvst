@@ -5,7 +5,7 @@ Core\IO::within throws an IOError for a base that does not exist or is a file, w
 // A missing `$path` resolves through its deepest existing ancestor, so a
 // program can check a name before it creates the file. A missing `$base` is
 // not answered the same way: a folder that is not there contains nothing.
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, "note.txt");
 Core\IO::write($file, "x\n");
 
@@ -36,7 +36,7 @@ echo "bases: ", $total as string, ", io errors: ", $io as string,
 
 // The name under an existing base is still answered when it is missing.
 string $fresh = Core\IO::within($dir, "not-yet.txt");
-echo "missing name answered: ", Core\Path::basename($fresh), "\n";
+echo "missing name answered: ", Core\Path::fileName($fresh), "\n";
 --FILE nvs.toml--
 [capabilities.fs]
 read = true

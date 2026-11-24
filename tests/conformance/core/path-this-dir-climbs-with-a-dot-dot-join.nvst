@@ -1,5 +1,5 @@
 --TEST--
-`Core\Path::thisDir('..')` is the folder above, and `thisFile` and `thisDir` give the same path in a method, in a loop and at the top of the file — `rule:programs/relative-paths-resolve-from-their-file`
+`Core\Path::thisDirectory('..')` is the folder above, and `thisFile` and `thisDirectory` give the same path in a method, in a loop and at the top of the file — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 class Shop {
@@ -9,10 +9,10 @@ class Shop {
 }
 
 // `..` is removed from the join, so the result is the folder above.
-string $dir = Core\Path::normalize(Core\Path::thisDir());
-echo Core\Path::normalize(Core\Path::thisDir('..')) == Core\Path::dirname($dir)
+string $dir = Core\Path::normalize(Core\Path::thisDirectory());
+echo Core\Path::normalize(Core\Path::thisDirectory('..')) == Core\Path::parent($dir)
     ? "one folder up\n" : "somewhere else\n";
-echo Core\Path::normalize(Core\Path::thisDir('data/..')) == $dir ? "same folder\n" : "different folder\n";
+echo Core\Path::normalize(Core\Path::thisDirectory('data/..')) == $dir ? "same folder\n" : "different folder\n";
 
 // Every call in this file gives the same path.
 uint $same = 0;

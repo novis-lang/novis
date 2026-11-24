@@ -11,10 +11,10 @@ echo Core\Config::get('wall_time') ?? 'unset', "\n";
 // starts at the folder of this program, which is the same folder.
 echo Core\IO::read('notes/today.txt');
 
-// `Core\Path::fromCwd` starts the path at the working directory.
+// `Core\Path::fromWorkingDirectory` starts the path at the working directory.
 // `notes` there is a different folder. Reading it throws a `RuntimeError`.
 try {
-    Core\IO::read(Core\Path::fromCwd('notes/today.txt'));
+    Core\IO::read(Core\Path::fromWorkingDirectory('notes/today.txt'));
 } catch (RuntimeError $denied) {
     echo "not allowed\n";
 }

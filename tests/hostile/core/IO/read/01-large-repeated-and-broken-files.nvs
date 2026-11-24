@@ -3,8 +3,8 @@
 // not text and paths that are not files. Each read must work or throw an error, and must not crash.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'input.txt');
 
 // 1. A file of fifty million characters. `read` returns all of it, or throws a `RuntimeError`

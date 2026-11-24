@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to loop over the lines that `Core\IO::lines` reads from a file.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'todo.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'todo.txt');
 Core\IO::write($path, "buy milk\ncall the bank\nwater the plants\n");
 
 // Each line comes without its line break. The last line break does not add an empty line.

@@ -9,7 +9,7 @@ while ($i < 10000) {
     $rows[] = "<customer id=\"" . $i as string . "\" country=\"" . $country . "\"/>";
     $i = $i + 1;
 }
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'customers.xml');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'customers.xml');
 Core\IO::write($path, '<customers>' . Core\Str::join($rows, '') . '</customers>');
 
 // The reader reads the open file one piece at a time and keeps only the

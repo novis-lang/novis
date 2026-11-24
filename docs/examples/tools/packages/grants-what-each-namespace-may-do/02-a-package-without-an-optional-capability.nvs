@@ -3,7 +3,7 @@
 
 autoload 'Acme\Disk' from './vendor/acme/disk/src';
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'cache.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'cache.txt');
 
 // The line for `Acme\Disk` does not list `fs.write`. So `Core\Cap::has` returns `false`,
 // and this prints `kept in memory`.

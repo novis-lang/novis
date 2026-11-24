@@ -38,7 +38,7 @@ Declares the HTTP path and method this method handles. Write it twice to handle 
 These are the grants of the whole program, from `nvs.toml`. Every route of the program has the same grants.
 
 - `fs.read`: `data`
-- `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+- `fs.write`: only the directories `Core\IO::createTemporaryDirectory` makes (default)
 - `script.spawn`: files in this file's directory, outside its temporary directories (default)
 - `net.connect`: `api.example.com`
 - `db.connect`: `main`

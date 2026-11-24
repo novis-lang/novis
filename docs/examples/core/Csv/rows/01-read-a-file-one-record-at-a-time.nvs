@@ -3,7 +3,7 @@
 // single record, so a file of any size can be read this way.
 
 // The program writes a small file first, so that it has one to read.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.csv');
 Core\IO::write($path, "fig,2\napple,10\n");
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);

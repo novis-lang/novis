@@ -33,7 +33,7 @@ final class Index
     // `IO::within` throws a `RuntimeError` when the path leads out of the folder `log` of `$work`.
     public static function logPath(string $work, tainted string $path): string
     {
-        IO::makeDir($work . '/log');
+        IO::makeDirectory($work . '/log');
         string $log = IO::within($work, 'log');
         string $way = Path::relativeTo(IO::within($log, $path), $log) ?? '';
         return 'log/' . Str::replace($way, Path::SEPARATOR, '/');
@@ -42,8 +42,8 @@ final class Index
     // Returns the work folder, where the public files are made and signed. It is made when it does not exist.
     public static function work(Site $site): string
     {
-        if (!IO::isDir($site->work)) {
-            IO::makeDir($site->work);
+        if (!IO::isDirectory($site->work)) {
+            IO::makeDirectory($site->work);
         }
         return IO::canonicalize($site->work);
     }
@@ -134,7 +134,7 @@ final class Index
             foreach ($rows as Row $row) {
                 string $version = Index::trusted($row->string('version'));
                 string $digest = Index::hexOf(Index::trusted($row->string('digest')));
-                IO::makeDir($folder . '/archive');
+                IO::makeDirectory($folder . '/archive');
                 IO::copy(Index::trusted($row->string('archive')), $folder . '/archive/' . $digest . '.tar');
                 $stores->queue('archive/' . $digest . '.tar', Stores::ARCHIVE);
                 $lines .= Index::trusted(Json::encode({
@@ -294,7 +294,7 @@ final class Index
             );
         }
         string $path = 'index/' . Index::slug($key) . '.json';
-        IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
+        IO::makeDirectory($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
         IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, $now));
         return $path;
     }

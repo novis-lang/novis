@@ -1,5 +1,5 @@
 ---
-summary: path text taken apart and put together — basename, extension, join, normalize, relative paths — without touching the filesystem
+summary: path text taken apart and put together — file name, parent, extension, join, normalize, relative paths — without touching the filesystem
 keywords: path, file name, file extension, directory name, parent directory, join paths, path separator, absolute path, relative path, normalize, ..
 ---
 
@@ -22,8 +22,8 @@ class Show
     }
 }
 string $p = '/var/www/html/index.php';
-echo Core\Path::basename($p), ' ', Core\Path::basename($p, { withoutExtension: true }), ' ', Core\Path::extension($p) ?? 'none', "\n";
-echo Show::slash(Core\Path::dirname($p)), ' ', Show::slash(Core\Path::dirname($p, { levels: 2 })), "\n";
+echo Core\Path::fileName($p), ' ', Core\Path::fileName($p, { withoutExtension: true }), ' ', Core\Path::extension($p) ?? 'none', "\n";
+echo Show::slash(Core\Path::parent($p)), ' ', Show::slash(Core\Path::parent($p, { levels: 2 })), "\n";
 echo Show::slash(Core\Path::withExtension($p, 'html')), "\n";
 echo Show::slash(Core\Path::join('/var/www', 'html', '/index.php')), "\n";
 echo Show::slash(Core\Path::normalize('/var/www/../log/./app.log')), "\n";

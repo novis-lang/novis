@@ -2640,7 +2640,7 @@ class Unreached {}
         dir.write("autoload.nvs", "<?nvs\n");
         dir.write(
             "main.nvs",
-            "<?nvs\nrequire Core\\Path::thisDir() . '/autoload.nvs';\n",
+            "<?nvs\nrequire Core\\Path::thisDirectory() . '/autoload.nvs';\n",
         );
 
         let (_module, diags) = resolve_entry(&dir, "main.nvs");

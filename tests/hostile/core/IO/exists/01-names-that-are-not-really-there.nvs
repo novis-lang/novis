@@ -3,7 +3,7 @@
 // `exists` must return `true` or `false`, or throw an error, and must not crash.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $file = Core\Path::join($dir, 'target.txt');
 Core\IO::write($file, 'x');
 

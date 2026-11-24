@@ -13,7 +13,7 @@ class Settings
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'greeting.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'greeting.txt');
 
 // This prints "Hello", the default value.
 echo Settings::greeting($path), "\n";

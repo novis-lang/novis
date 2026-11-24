@@ -3,7 +3,7 @@
 // downloaded file has the same checksum. Always use the algorithm the publisher names.
 
 // The program writes the file first, so that it has a download to check.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'release.tar');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'release.tar');
 Core\IO::write($path, 'the release archive');
 
 // The checksum as the publisher wrote it. A checksum is usually written as hex,

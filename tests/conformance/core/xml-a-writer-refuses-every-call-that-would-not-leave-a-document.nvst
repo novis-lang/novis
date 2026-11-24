@@ -23,12 +23,12 @@ try {
 
 // Character data belongs inside an element, and closing needs something open.
 try {
-    $w->content("loose");
+    $w->writeText("loose");
 } catch (LogicError $loose) {
     echo $loose->message, "\n";
 }
 try {
-    $w->cdata("loose");
+    $w->writeCdata("loose");
 } catch (LogicError $loose) {
     echo $loose->message, "\n";
 }
@@ -46,22 +46,22 @@ try {
 // The three constructs XML gives no escape grammar to are refused rather than
 // rewritten, because rewriting them would be a guess about what was meant.
 try {
-    $w->comment("a -- b");
+    $w->writeComment("a -- b");
 } catch (LogicError $dashes) {
     echo $dashes->message, "\n";
 }
 try {
-    $w->instruction("xml", "version=\"1.0\"");
+    $w->writeInstruction("xml", "version=\"1.0\"");
 } catch (LogicError $reserved) {
     echo $reserved->message, "\n";
 }
 try {
-    $w->doctype("1st");
+    $w->writeDoctype("1st");
 } catch (LogicError $digit) {
     echo $digit->message, "\n";
 }
 try {
-    $w->attribute("k", "v");
+    $w->writeAttribute("k", "v");
 } catch (LogicError $unattached) {
     echo $unattached->message, "\n";
 }
@@ -69,15 +69,15 @@ try {
 // An attribute goes on the start tag it belongs to, once, and only while that
 // tag is still open.
 $w->startElement("order");
-$w->attribute("id", "7");
+$w->writeAttribute("id", "7");
 try {
-    $w->attribute("id", "8");
+    $w->writeAttribute("id", "8");
 } catch (LogicError $repeated) {
     echo $repeated->message, "\n";
 }
-$w->content("one");
+$w->writeText("one");
 try {
-    $w->attribute("late", "9");
+    $w->writeAttribute("late", "9");
 } catch (LogicError $late) {
     echo $late->message, "\n";
 }
@@ -94,15 +94,15 @@ try {
 --EXPECT--
 Core\Xml\Writer::startElement(): the document is not open, and `startDocument` is what opens it.
 Core\Xml\Writer::startDocument(): the document is already open.
-Core\Xml\Writer::content(): character data belongs inside an element, and none is open.
-Core\Xml\Writer::cdata(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::writeText(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::writeCdata(): character data belongs inside an element, and none is open.
 Core\Xml\Writer::endElement(): no element is open, so there is nothing to close.
 Core\Xml\Writer::endDocument(): a document has a root element, and none was written.
-Core\Xml\Writer::comment(): a comment has no escape grammar, so it cannot hold `--` or end with `-`.
-Core\Xml\Writer::instruction(): `xml` is the declaration's own target, which `startDocument` writes.
-Core\Xml\Writer::doctype(): `1st` is not a name a document can write.
-Core\Xml\Writer::attribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
-Core\Xml\Writer::attribute(): this element already carries an attribute named `id`.
-Core\Xml\Writer::attribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
+Core\Xml\Writer::writeComment(): a comment has no escape grammar, so it cannot hold `--` or end with `-`.
+Core\Xml\Writer::writeInstruction(): `xml` is the declaration's own target, which `startDocument` writes.
+Core\Xml\Writer::writeDoctype(): `1st` is not a name a document can write.
+Core\Xml\Writer::writeAttribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
+Core\Xml\Writer::writeAttribute(): this element already carries an attribute named `id`.
+Core\Xml\Writer::writeAttribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
 <?xml version="1.0" encoding="UTF-8"?><order id="7">one</order>
 Core\Xml\Writer::endDocument(): the document is finished, and `endDocument` was already called.

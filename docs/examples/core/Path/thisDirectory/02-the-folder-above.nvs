@@ -1,0 +1,9 @@
+<?nvs
+// Shows how `..` in the path you add goes to the folder above.
+
+// This file is in the folder `Path/thisDirectory`. `..` removes the last part,
+// so this prints `Path`.
+echo Core\Path::fileName(Core\Path::thisDirectory('..')), "\n";
+
+// `.` and `..` are removed from the result. This prints `config`.
+echo Core\Path::fileName(Core\Path::thisDirectory('../shared/../config')), "\n";

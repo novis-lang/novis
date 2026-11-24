@@ -14,8 +14,8 @@ class Backup
     }
 }
 
-string $collectFile = Core\Path::thisDir('collect.speedscope.json');
-string $compressFile = Core\Path::thisDir('compress.speedscope.json');
+string $collectFile = Core\Path::thisDirectory('collect.speedscope.json');
+string $compressFile = Core\Path::thisDirectory('compress.speedscope.json');
 
 // Each step has its own start and stop, and its own file.
 Core\Debug::startProfile($collectFile);

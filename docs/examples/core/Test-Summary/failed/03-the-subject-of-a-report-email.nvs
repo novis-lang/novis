@@ -32,7 +32,7 @@ class NewsletterTest
     public static function writeSubject(Summary $summary): void
     {
         string $subject = Subject::of($summary->class(), $summary->passed(), $summary->failed());
-        IO::write(Path::fromCwd('report-subject.txt'), $subject);
+        IO::write(Path::fromWorkingDirectory('report-subject.txt'), $subject);
     }
 }
 

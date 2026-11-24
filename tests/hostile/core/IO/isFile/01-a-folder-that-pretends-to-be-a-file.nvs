@@ -3,9 +3,9 @@
 // `isFile` must return the right answer or throw an error, and must not crash.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 string $fake = Core\Path::join($dir, 'report.pdf');
-Core\IO::makeDir($fake);
+Core\IO::makeDirectory($fake);
 
 // 1. A folder with a file name. `isFile` must return `false`, and reading it must throw an `IOError`.
 if (Core\IO::isFile($fake)) {
@@ -55,11 +55,11 @@ while ($i < 2000) {
         throw new LogicError('a new file was not seen');
     }
     Core\IO::remove($name);
-    Core\IO::makeDir($name);
+    Core\IO::makeDirectory($name);
     if (Core\IO::isFile($name)) {
         throw new LogicError('a new folder was taken for a file');
     }
-    Core\IO::removeDir($name);
+    Core\IO::removeDirectory($name);
     $i = $i + 1;
 }
 echo 'step 3: done', "\n";

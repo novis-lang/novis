@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        Core\IO\File $file = Core\IO::open(Core\Path::join(Core\IO::temporaryDir(), 'orders.log'), Core\IO::FileMode::Write);
+        Core\IO\File $file = Core\IO::open(Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.log'), Core\IO::FileMode::Write);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

@@ -3,7 +3,7 @@
 // that cannot be a file. `append` must add exactly the bytes it gets or throw an error.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. Empty text, added 10000 times. The file must exist and be empty.
 string $empty = Core\Path::join($dir, 'empty.log');

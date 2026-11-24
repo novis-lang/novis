@@ -22,7 +22,7 @@ class ExportTest
 
     public function constructor()
     {
-        $this->file = Path::fromCwd('customers-export.csv');
+        $this->file = Path::fromWorkingDirectory('customers-export.csv');
     }
 
     #[Test]

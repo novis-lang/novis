@@ -1,8 +1,8 @@
 <?nvs
 // Shows how a program saves an uploaded file and stops when the upload is too large.
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'uploads');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'uploads');
+Core\IO::makeDirectory($dir);
 
 // An upload arrives in chunks. Here each chunk has 1000 bytes.
 array<bytes> $small = [Core\Str::repeat('a', 1000) as bytes, Core\Str::repeat('b', 1000) as bytes];

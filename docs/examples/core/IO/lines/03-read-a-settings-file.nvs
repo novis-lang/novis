@@ -20,7 +20,7 @@ class Settings
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'app.env');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'app.env');
 Core\IO::write($path, "# Database\nDB_HOST = localhost\nDB_PORT = 5432\n\n# Mail\nMAIL_FROM = shop@example.com\n");
 
 // This prints "DB_HOST: localhost", "DB_PORT: 5432" and "MAIL_FROM: shop@example.com".

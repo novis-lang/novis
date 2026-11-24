@@ -3,7 +3,7 @@
 // `size` must return the right number or throw an `IOError`, and must not crash.
 // hostile: timeout-ms 30000
 
-string $dir = Core\IO::temporaryDir();
+string $dir = Core\IO::createTemporaryDirectory();
 
 // 1. A file of 4 MiB. The size must be exactly 4194304.
 string $large = Core\Path::join($dir, 'large.bin');

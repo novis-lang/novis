@@ -1,6 +1,6 @@
 Replaces every row a live region shows.
 
-`Core\Cli::live` opens a region on the terminal and hands your code a `Core\Cli\Live`. `set` is the
+`Core\Cli::showLive` opens a region on the terminal and hands your code a `Core\Cli\Live`. `set` is the
 one thing you can do with it: you give it the rows the region should show now, one `Core\Cli\Text`
 each, and they replace the rows it showed before. Nothing is added to a region and nothing scrolls
 past. Give it fewer rows and the region becomes smaller; give it an empty array and it shows

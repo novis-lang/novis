@@ -1558,7 +1558,7 @@ class ShoppingListTest
 
     public function constructor()
     {
-        $this->file = Path::fromCwd('shopping-list-test.txt');
+        $this->file = Path::fromWorkingDirectory('shopping-list-test.txt');
     }
 
     #[Test]
@@ -1678,7 +1678,7 @@ class CheckoutTest
 
     public function constructor()
     {
-        $this->log = Path::fromCwd('checkout-test.log');
+        $this->log = Path::fromWorkingDirectory('checkout-test.log');
     }
 
     #[Test]
@@ -1697,7 +1697,7 @@ class CheckoutTest
             IO::remove($this->log);
         } else {
             string $name = Evidence::fileName($outcome->class(), $outcome->name(), $outcome->attempt());
-            IO::move($this->log, Path::fromCwd($name));
+            IO::move($this->log, Path::fromWorkingDirectory($name));
         }
     }
 

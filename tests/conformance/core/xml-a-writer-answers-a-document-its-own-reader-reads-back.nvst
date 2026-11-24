@@ -23,15 +23,15 @@ class Walk {
 
 Core\Xml\Writer $out = Core\Xml::writer();
 $out->startDocument();
-$out->comment("an order, written a node at a time");
-$out->instruction("render", "mode=compact");
+$out->writeComment("an order, written a node at a time");
+$out->writeInstruction("render", "mode=compact");
 $out->startElement("order");
-$out->attribute("id", "A&B \"7\"");
+$out->writeAttribute("id", "A&B \"7\"");
 $out->startElement("line");
-$out->content("2 < 3 & \"quoted\"");
+$out->writeText("2 < 3 & \"quoted\"");
 $out->endElement();
 $out->startElement("note");
-$out->cdata("<em>as written</em>");
+$out->writeCdata("<em>as written</em>");
 $out->endElement();
 $out->startElement("empty");
 $out->endElement();
@@ -47,7 +47,7 @@ Walk::over($document);
 // a document carrying one is written for a reader outside Novis.
 Core\Xml\Writer $typed = Core\Xml::writer();
 $typed->startDocument();
-$typed->doctype("order");
+$typed->writeDoctype("order");
 $typed->startElement("order");
 $typed->endElement();
 echo $typed->endDocument(), "\n";

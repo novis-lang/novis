@@ -6,7 +6,7 @@
 bytes $archive = Core\Encoding::fromBase64('UEsDBBQAAAAIAAAAIVykiLt8KQAAACcAAAAKAAAAcmVhZG1lLnR4dAvJSMzLVqjML1VIyy9SSMkvz8vJT0zJzEtXKMnILFYoSi3ILyrR4wIAUEsDBBQAAAAIAAAAIVx17X2pLgAAADIAAAAOAAAAZGF0YS9zYWxlcy5jc3bLzc8rydApyS9JzOHySswrTSyq1DE0MjDgcktNKoLwjE0NuHwTi5IzdAwNgRIAUEsBAhQAFAAAAAgAAAAhXKSIu3wpAAAAJwAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAACAAAACFcde19qS4AAAAyAAAADgAAAAAAAAAAAAAApIFRAAAAZGF0YS9zYWxlcy5jc3ZQSwUGAAAAAAIAAgB0AAAAqwAAAAAA');
 
 // The program writes the archive to a file first, so that it has one to open.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'report.zip');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'report.zip');
 Core\IO::write($path, $archive);
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 

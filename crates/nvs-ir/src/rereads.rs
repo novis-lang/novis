@@ -16,9 +16,9 @@
 //! - [`Row::Query`]: `$u->queryParameter(...)` of `Core\Uri`, with the same
 //!   plain variable as the receiver. Each call parses the whole query, and
 //!   `Core\Uri::parseQuery` parses it once, so the keys may differ.
-//! - [`Row::File`]: `Core\IO::isFile`, `isDir`, `size` and `modifiedAt`, with
+//! - [`Row::File`]: `Core\IO::isFile`, `isDirectory`, `size` and `modifiedAt`, with
 //!   the same plain variable as the path. Each call asks the file system, and
-//!   `Core\IO::stat` asks once, so any two of the four pair.
+//!   `Core\IO::metadata` asks once, so any two of the four pair.
 //!
 //! A session read is not a row. Under `nvs serve` with a 16 KiB record, a
 //! second `Core\Session::get` of one key cost the request 1.0x, so the rule
@@ -60,7 +60,7 @@ pub enum Row {
     Cache,
     /// `Core\Uri::queryParameter`.
     Query,
-    /// `Core\IO::isFile`, `isDir`, `size` and `modifiedAt` of one path.
+    /// `Core\IO::isFile`, `isDirectory`, `size` and `modifiedAt` of one path.
     File,
 }
 
@@ -80,7 +80,7 @@ impl Row {
         match self {
             Self::Cache => &["get"],
             Self::Query => &["queryParameter"],
-            Self::File => &["isFile", "isDir", "size", "modifiedAt"],
+            Self::File => &["isFile", "isDirectory", "size", "modifiedAt"],
         }
     }
 
@@ -170,7 +170,7 @@ pub fn warnings(rows: &[Reread]) -> Vec<Diagnostic> {
                 ),
                 Row::File => (
                     format!("this asks the file system about `{}` again", reread.subject),
-                    "call `Core\\IO::stat` once and read each fact from its result".to_owned(),
+                    "call `Core\\IO::metadata` once and read each fact from its result".to_owned(),
                 ),
             };
             Diagnostic::warning(code::W_REPEATED_READ, message)

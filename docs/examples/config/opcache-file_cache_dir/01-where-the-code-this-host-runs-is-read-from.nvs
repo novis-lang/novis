@@ -4,7 +4,7 @@
 
 // This file does not set it, so the server uses the `cache` folder in its data folder.
 // The full path differs on each machine, so this prints only the last folder, `cache`.
-echo 'artifact cache: ', Core\Path::basename(Core\Config::get('opcache.file_cache_dir') ?? ''), "\n";
+echo 'artifact cache: ', Core\Path::fileName(Core\Config::get('opcache.file_cache_dir') ?? ''), "\n";
 
 // By default the cache is on, and its size limit is `256M`.
 echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";

@@ -9,7 +9,7 @@ class Bench
     {
         // The form is the body in the file `saveTo.nvsr` beside this one.
         // A request body can be read only once.
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'handbook.txt');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'handbook.txt');
         foreach (Core\Request::files() as Core\Request\Part $part) {
             $part->saveTo($path);
         }

@@ -46,7 +46,7 @@ class Attack
     }
 }
 string $out = Attack::path('./out');
-Core\IO::makeDir($out);
+Core\IO::makeDirectory($out);
 string $first = Core\Path::join($out, 'first.json');
 string $second = Core\Path::join($out, 'second.json');
 
@@ -86,5 +86,5 @@ echo 'step 5: ', $rounds, " profiles\n";
 // The profiles are deleted, so nothing stays on disk.
 Attack::clean($first);
 Attack::clean($second);
-Core\IO::removeDir($out);
+Core\IO::removeDirectory($out);
 echo "the runtime is still standing\n";

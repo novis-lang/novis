@@ -1,5 +1,5 @@
 --TEST--
-the boundaries of Core\IO's metadata and removal members, both sides of each: `exists` answers for a name `size` throws on, `remove` refuses a directory, and `removeDir` refuses that same directory until the entry in it is gone
+the boundaries of Core\IO's metadata and removal members, both sides of each: `exists` answers for a name `size` throws on, `remove` refuses a directory, and `removeDirectory` refuses that same directory until the entry in it is gone
 --FILE--
 <?nvs
 // Everything here runs with the grant in place, so the operating system is what
@@ -39,19 +39,19 @@ try {
     echo "remove sub: not a file\n";
 }
 
-// And `removeDir` is rmdir, which refuses a directory that still holds
+// And `removeDirectory` is rmdir, which refuses a directory that still holds
 // something -- the door's own decision, since the alternative is one grant
 // check deleting a whole tree.
 try {
-    Core\IO::removeDir("sub");
-    echo "removeDir sub: removed\n";
+    Core\IO::removeDirectory("sub");
+    echo "removeDirectory sub:removed\n";
 } catch (IOError $full) {
-    echo "removeDir sub: not empty\n";
+    echo "removeDirectory sub:not empty\n";
 }
 
 // The other side of that bound: the same call, after the one entry is gone.
 Core\IO::remove("sub/keep.txt");
-Core\IO::removeDir("sub");
+Core\IO::removeDirectory("sub");
 if (Core\IO::exists("sub")) {
     echo "sub: exists\n";
 } else {
@@ -68,5 +68,5 @@ missing.txt: absent
 missing.txt: no size
 sub: exists
 remove sub: not a file
-removeDir sub: not empty
+removeDirectory sub:not empty
 sub: absent

@@ -10,16 +10,16 @@ array<string> $pages = [
 Core\Xml\Writer $writer = Core\Xml::writer({ indent: '  ' });
 $writer->startDocument();
 $writer->startElement('urlset');
-$writer->attribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+$writer->writeAttribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
 
 // Each page gets a `url` element with its address and the date it last changed.
 foreach ($pages as string $address => string $changed) {
     $writer->startElement('url');
     $writer->startElement('loc');
-    $writer->content($address);
+    $writer->writeText($address);
     $writer->endElement();
     $writer->startElement('lastmod');
-    $writer->content($changed);
+    $writer->writeText($changed);
     $writer->endElement();
     $writer->endElement();
 }

@@ -10,4 +10,4 @@ path needs the `fs.read` capability. Without it, `exists` throws a `RuntimeError
 return `false`, so `false` always means that nothing is there.
 
 **Good to know:** to find out what kind of thing is at the path, use `Core\IO::isFile` or
-`Core\IO::isDir`.
+`Core\IO::isDirectory`.

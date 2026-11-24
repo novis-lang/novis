@@ -377,7 +377,7 @@ at all — a test context, an embedder that has not built a snapshot — has no 
 **An unwritten `fs.read` or `fs.write` is every path on a CLI run.** In server work an unwritten
 `fs.read` is the app folder, less every path with a component below it that starts with `.` (`.env`,
 `.git/config`) and every file named `nvs.toml`, and an unwritten `fs.write` is the directories
-`Core\IO::temporaryDir` made for this context, which it also reads. A written key replaces its
+`Core\IO::createTemporaryDirectory` made for this context, which it also reads. A written key replaces its
 default whole, so `read = []` reads nothing and leaves writing at its default. An unwritten
 `net.connect` is every public host on both run kinds, and an unwritten `net.internal` is loopback on
 a CLI run and in a run that started in `development` ([`security/net-address-policy`](security.md#security-net-address-policy),

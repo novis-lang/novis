@@ -4,7 +4,7 @@
 // A temporary folder is not in `[capabilities.debug] profile`, so this start throws a `RuntimeError`.
 // A program run with `nvs run` may write files there, but that is not enough for a profile.
 try {
-    Core\Debug::startProfile(Core\Path::join(Core\IO::temporaryDir(), 'app.speedscope.json'));
+    Core\Debug::startProfile(Core\Path::join(Core\IO::createTemporaryDirectory(), 'app.speedscope.json'));
     echo "profile started\n";
 } catch (RuntimeError $denied) {
     echo "not allowed: the folder is not in [capabilities.debug] profile\n";
@@ -12,14 +12,14 @@ try {
 
 // `[debug] mode` here has `"profile"` and not `"trace"`. So a trace cannot start.
 try {
-    Core\Debug::startTrace(Core\Path::thisDir('app.jsonl'));
+    Core\Debug::startTrace(Core\Path::thisDirectory('app.jsonl'));
     echo "trace started\n";
 } catch (RuntimeError $notInMode) {
     echo "not allowed: [debug] mode does not include \"trace\"\n";
 }
 
 // The folder of this program is allowed, and the mode has `"profile"`. So this profile starts.
-string $file = Core\Path::thisDir('app.speedscope.json');
+string $file = Core\Path::thisDirectory('app.speedscope.json');
 Core\Debug::startProfile($file);
 echo "profile started\n";
 Core\Debug::stopProfile();

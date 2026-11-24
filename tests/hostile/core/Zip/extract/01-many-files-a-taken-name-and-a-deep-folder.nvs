@@ -86,13 +86,13 @@ while ($i < 1000) {
     $i = $i + 1;
 }
 bytes $spread = Archive::many($names, $block);
-string $first = Core\IO::temporaryDir();
+string $first = Core\IO::createTemporaryDirectory();
 Archive::tryExtract('step 1', $spread, $first, 4194304);
 echo 'step 1: ', Core\Arr::count(Core\IO::list($first)), " files on the disk\n";
 
 // 2. The same archive, asking for the largest possible limit. The server allows
 // 4 MiB, so this throws at the same file.
-Archive::tryExtract('step 2', $spread, Core\IO::temporaryDir(), $largest);
+Archive::tryExtract('step 2', $spread, Core\IO::createTemporaryDirectory(), $largest);
 
 // 3. The same archive into the folder of step 1. `part-0.bin` already exists, so
 // the first file throws and nothing is replaced.
@@ -103,14 +103,14 @@ string $taken = Core\Path::join($first, 'part-0.bin');
 Archive::tryExtract('step 4', Archive::many(['note.txt'], 'hello' as bytes), $taken, $largest);
 
 // 5. One archive has the file `notes`. The next one needs a folder `notes`.
-string $clash = Core\IO::temporaryDir();
+string $clash = Core\IO::createTemporaryDirectory();
 Archive::tryExtract('step 5a', Archive::many(['notes'], 'hello' as bytes), $clash, $largest);
 Archive::tryExtract('step 5b', Archive::many(['notes/one.txt'], 'hello' as bytes), $clash, $largest);
 
 // 6. A file inside 1000 nested folders, and one inside 20000. An archive may
 // nest at most 64 folders, so both throw a `ParseError`.
-Archive::tryExtract('step 6a', Archive::many([Core\Str::repeat('d/', 1000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
-Archive::tryExtract('step 6b', Archive::many([Core\Str::repeat('d/', 20000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
+Archive::tryExtract('step 6a', Archive::many([Core\Str::repeat('d/', 1000) . 'f.txt'], 'deep' as bytes), Core\IO::createTemporaryDirectory(), $largest);
+Archive::tryExtract('step 6b', Archive::many([Core\Str::repeat('d/', 20000) . 'f.txt'], 'deep' as bytes), Core\IO::createTemporaryDirectory(), $largest);
 
 // 6c. 100 files, each inside its own 64 nested folders. That is the deepest
 // allowed name, so every file is written, and no folder is shared.
@@ -120,7 +120,7 @@ while ($i < 100) {
     $deepNames[] = 'top-' . $i . '/' . Core\Str::repeat('d/', 63) . 'f.txt';
     $i = $i + 1;
 }
-Archive::tryExtract('step 6c', Archive::many($deepNames, 'deep' as bytes), Core\IO::temporaryDir(), $largest);
+Archive::tryExtract('step 6c', Archive::many($deepNames, 'deep' as bytes), Core\IO::createTemporaryDirectory(), $largest);
 
 // 7. 5000 folders and no file. Folders are not counted, so this prints 0 files.
 array<string> $folders = [];
@@ -129,6 +129,6 @@ while ($i < 5000) {
     $folders[] = 'empty-' . $i . '/';
     $i = $i + 1;
 }
-Archive::tryExtract('step 7', Archive::many($folders, '' as bytes), Core\IO::temporaryDir(), $largest);
+Archive::tryExtract('step 7', Archive::many($folders, '' as bytes), Core\IO::createTemporaryDirectory(), $largest);
 
 echo "the runtime is still standing\n";

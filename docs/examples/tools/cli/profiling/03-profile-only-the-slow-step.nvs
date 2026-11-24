@@ -28,7 +28,7 @@ class Nightly
     }
 }
 
-string $file = Core\Path::thisDir('nightly.speedscope.json');
+string $file = Core\Path::thisDirectory('nightly.speedscope.json');
 
 // `loadSettings` runs before the start, so it is not in the profile.
 int $days = Nightly::loadSettings();

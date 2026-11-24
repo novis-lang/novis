@@ -7043,9 +7043,9 @@ final class Shop {
   }
   public static function assigned(string $q): void {
     string $p = $q;
-    var $a = Core\\IO::isDir($p);
+    var $a = Core\\IO::isDirectory($p);
     $p = \"other\";
-    var $b = Core\\IO::isDir($p);
+    var $b = Core\\IO::isDirectory($p);
   }
   public static function novis(Core\\Uri $u): void {
     var $a = $u->queryParameter(\"a\");

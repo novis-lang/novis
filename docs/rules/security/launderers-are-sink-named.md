@@ -8,13 +8,13 @@ a shell argument or a path, and a single catch-all invites exactly the false con
 exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
 widening an existing one.
 
-**One launderer checks nothing in the bytes: `Core\Path::fromCwd`**, for a file path typed on the
+**One launderer checks nothing in the bytes: `Core\Path::fromWorkingDirectory`**, for a file path typed on the
 command line. It throws while a request is being answered, so request data never passes through it.
 The user who typed the path can already open any file the process can, and the `fs` grants still
 bound every file its answer names. A request that opens a file named by its own data keeps
-`Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
+`Core\IO::within($base, $path)`. `fromWorkingDirectory` removes `tainted` and nothing else: a `secret` argument
 does not compile, as at every launderer. A queued job and a spawned isolate answer no request, so
-`fromCwd` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
+`fromWorkingDirectory` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
 answer names. Without the exception, the one use the member exists for, a command-line tool opening
 the file its user named, needs `Core\Taint::assertTrusted` at every call.
 
@@ -26,7 +26,7 @@ Which return type a launderer takes is a predicate rather than a per-member choi
 
 - **A new `CoreTy` for "a path from the command line".** It marks the same fact the qualifier already
   marks, and every path door would have to accept the new type.
-- **Keeping `fromCwd`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
+- **Keeping `fromWorkingDirectory`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
   escape hatch becomes a line every command-line tool writes, so it stops marking the unusual call.
 - **Laundering `Core\Cli::arguments` itself.** An argument is also a shell word, an SQL value and HTML
   text, and a launderer names one sink.

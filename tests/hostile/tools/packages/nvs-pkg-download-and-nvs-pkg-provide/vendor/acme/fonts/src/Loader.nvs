@@ -6,6 +6,6 @@ final class Loader
 {
     public static function load(string $name): string
     {
-        return Core\IO::readText(Core\Path::thisDir('../fonts') . '/' . $name);
+        return Core\IO::readText(Core\Path::thisDirectory('../fonts') . '/' . $name);
     }
 }

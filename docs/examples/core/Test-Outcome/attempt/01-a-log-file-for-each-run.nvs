@@ -22,7 +22,7 @@ class PaymentTest
 
     public function constructor()
     {
-        $this->log = Path::fromCwd('payment-test.log');
+        $this->log = Path::fromWorkingDirectory('payment-test.log');
     }
 
     // A payment service on the network can be slow, so this test may run 3 times.
@@ -40,7 +40,7 @@ class PaymentTest
         if ($outcome->passed()) {
             IO::remove($this->log);
         } else {
-            IO::move($this->log, Path::fromCwd(RunLog::fileName($outcome->name(), $outcome->attempt())));
+            IO::move($this->log, Path::fromWorkingDirectory(RunLog::fileName($outcome->name(), $outcome->attempt())));
         }
     }
 }

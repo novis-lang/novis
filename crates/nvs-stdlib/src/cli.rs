@@ -93,7 +93,7 @@
 //!
 //! # The prompts, and the two questions each one asks first
 //!
-//! `rule:tooling/a-prompt-is-a-core-member`'s `ask`, `confirm`, `select<T>` and `secret` are here, and
+//! `rule:tooling/a-prompt-is-a-core-member`'s `ask`, `confirm`, `select<T>` and `askSecret` are here, and
 //! what they have in common is where they *do not* read: `nvs_runtime`'s
 //! terminal module opens the controlling terminal by name, so a program whose
 //! standard input is a pipe can still ask a question. This module's own half
@@ -119,7 +119,7 @@
 //! freeze what it answers without a terminal or a person anywhere near it.
 //!
 //! A test can also *answer* them, which is `rule:tooling/a-prompt-is-a-core-member`'s last paragraph and is
-//! [`ask_terminal`]'s first line: `Core\Test::scriptAnswers` writes a queue onto
+//! [`ask_terminal`]'s first line: `Core\Test::answerCli` writes a queue onto
 //! the request's own context, and a prompt takes its oldest line ahead of both
 //! questions above. Ahead of them, because a flow whose answers depended on
 //! whether the suite ran from a developer's shell or from CI is exactly what a
@@ -173,7 +173,7 @@ const CARD: ClassDoc = ClassDoc {
 /// ahead of it. `rule:tooling/a-prompt-is-a-core-member`'s five
 /// prompts are all here now — `multiSelect` is the one whose answer is a set
 /// rather than a value, so it is `select`'s menu under a second reading loop
-/// rather than another row of the shape below. `live` and `progress` are last
+/// rather than another row of the shape below. `showLive` and `showProgress` are last
 /// because `rule:tooling/in-place-output-is-a-scoped-live-region` follows the prompts, and they are one region with
 /// two ways of writing a frame rather than two surfaces.
 ///
@@ -322,17 +322,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&MULTI_SELECT_DOC),
         },
         CoreMethod {
-            name: "secret",
+            name: "askSecret",
             names: &["question"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::SecretTaintedStr,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_cli_secret",
+            symbol: "nvs_core_cli_ask_secret",
             doc: Some(&SECRET_DOC),
         },
         CoreMethod {
-            name: "live",
+            name: "showLive",
             names: &["body"],
             // The one member here whose answer is the *body's* — `rule:tooling/in-place-output-is-a-scoped-live-region`
             // writes `live<T>(callable(Live): T $body): T`, so the region is
@@ -345,11 +345,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_cli_live",
+            symbol: "nvs_core_cli_show_live",
             doc: Some(&LIVE_DOC),
         },
         CoreMethod {
-            name: "progress",
+            name: "showProgress",
             names: &["total", "body"],
             params: &[
                 CoreTy::Uint,
@@ -358,7 +358,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_cli_progress",
+            symbol: "nvs_core_cli_show_progress",
             doc: Some(&PROGRESS_DOC),
         },
     ],
@@ -745,7 +745,7 @@ const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cli::secret`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Cli::askSecret`'s reference card — `rule:core-api/reference-card`.
 const SECRET_DOC: MethodDoc = MethodDoc {
     short: "Prints `$question` and reads the answer with the terminal's echo turned off. A \
             password typed here does not stay on the screen or in the scrollback buffer.",
@@ -760,12 +760,12 @@ const SECRET_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "Core\\Cli\\NotInteractive",
         desc: "There is no terminal, its input ended, or nobody answered before the prompt \
-               deadline. `secret` has no `default`, because a password that nobody typed is not a \
+               deadline. `askSecret` has no `default`, because a password that nobody typed is not a \
                password.",
     }],
 };
 
-/// `Core\Cli::live`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Cli::showLive`'s reference card — `rule:core-api/reference-card`.
 const LIVE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` with a live area open on the terminal, and returns what `$body` returns. \
             `$body` gets a `Core\\Cli\\Live`, whose `set` method replaces the area's rows in \
@@ -792,7 +792,7 @@ const LIVE_DEPTH: usize = 0;
 
 /// `Core\Cli\Live`'s class card — `rule:core-api/reference-card`.
 const LIVE_CARD: ClassDoc = ClassDoc {
-    short: "An area of the terminal that your program redraws while it works. `Core\\Cli::live` \
+    short: "An area of the terminal that your program redraws while it works. `Core\\Cli::showLive` \
             gives one to your function. Each update replaces what the area showed before.",
 };
 
@@ -801,7 +801,7 @@ const LIVE_CARD: ClassDoc = ClassDoc {
 ///
 /// One member, because `rule:tooling/in-place-output-is-a-scoped-live-region` names one: a region is *replaced* rather
 /// than appended to, which is what makes it a region and not a log. There is no
-/// `close` and no `clear` — the scope is the `Core\Cli::live` call, and a
+/// `close` and no `clear` — the scope is the `Core\Cli::showLive` call, and a
 /// member for ending one early would be the free-form cursor control that
 /// section refuses.
 ///
@@ -848,15 +848,15 @@ const SET_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "This area is not the active one on the terminal. It has closed, or an inner \
-               `Core\\Cli::live` is open inside it. A `Cli\\Live` belongs to the call that made \
+               `Core\\Cli::showLive` is open inside it. A `Cli\\Live` belongs to the call that made \
                it. Using it outside that call is a bug in the program.",
     }],
 };
 
-/// `Core\Cli::progress`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Cli::showProgress`'s reference card — `rule:core-api/reference-card`.
 const PROGRESS_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` with a progress bar open on the terminal, and returns what `$body` \
-            returns. It is a special case of `live`. The runtime draws the bar, and the program \
+            returns. It is a special case of `showLive`. The runtime draws the bar, and the program \
             only counts up to `$total`.",
     params: &[
         ParamDoc {
@@ -872,7 +872,7 @@ const PROGRESS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Exactly what `$body` returned, with the same type, as for `live`.",
+    ret: "Exactly what `$body` returned, with the same type, as for `showLive`.",
     errors: &[],
 };
 
@@ -915,13 +915,13 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
 
 /// `Core\Cli\Progress`'s class card — `rule:core-api/reference-card`.
 const PROGRESS_CARD: ClassDoc = ClassDoc {
-    short: "A progress bar that `Core\\Cli::progress` gives to your function. Each step moves the \
+    short: "A progress bar that `Core\\Cli::showProgress` gives to your function. Each step moves the \
             counter forward and draws the bar again.",
 };
 
-/// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `progress`'s body is handed.
+/// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `showProgress`'s body is handed.
 ///
-/// One member, as `rule:tooling/in-place-output-is-a-scoped-live-region` names it. `progress` over `live` does not break
+/// One member, as `rule:tooling/in-place-output-is-a-scoped-live-region` names it. `showProgress` over `showLive` does not break
 /// `rule:core-api/one-paradigm-per-operation`, which forbids a procedural twin of a class API and a class
 /// wrapper around a static, and a closed, named behaviour built on a general
 /// one is neither — which is why this class has a counter and no `set`.
@@ -1112,15 +1112,15 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
         "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
-        "nvs_core_cli_live" => (nvs_core_cli_live as *const ()).cast(),
-        "nvs_core_cli_progress" => (nvs_core_cli_progress as *const ()).cast(),
+        "nvs_core_cli_show_live" => (nvs_core_cli_show_live as *const ()).cast(),
+        "nvs_core_cli_show_progress" => (nvs_core_cli_show_progress as *const ()).cast(),
         "nvs_core_cli_progress_advance" => (nvs_core_cli_progress_advance as *const ()).cast(),
         "nvs_core_cli_live_set" => (nvs_core_cli_live_set as *const ()).cast(),
         "nvs_core_cli_ask" => return Some(nvs_core_cli_ask::entry()),
         "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
         "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
         "nvs_core_cli_multi_select" => (nvs_core_cli_multi_select as *const ()).cast(),
-        "nvs_core_cli_secret" => return Some(nvs_core_cli_secret::entry()),
+        "nvs_core_cli_ask_secret" => return Some(nvs_core_cli_ask_secret::entry()),
         _ => return None,
     }))
 }
@@ -1490,7 +1490,7 @@ fn ask_terminal(ctx: &mut nvs_runtime::Ctx, question: &str, echo: Echo) -> Answe
     // costs none of them a path of their own; and a scripted answer wins over a
     // terminal that is there, because a test whose result depended on whether
     // the developer ran it from a shell or from CI is the thing this exists to
-    // remove. `Core\Test::scriptAnswers` is the only filler, so outside a test
+    // remove. `Core\Test::answerCli` is the only filler, so outside a test
     // this is one not-taken branch on an empty queue.
     if let Some(scripted) = ctx.take_scripted_answer() {
         return Answer::Line(scripted);
@@ -1882,7 +1882,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::secret(string $question): secret tainted string` — `rule:tooling/a-prompt-is-a-core-member`'s
+    /// `Core\Cli::askSecret(string $question): secret tainted string` — `rule:tooling/a-prompt-is-a-core-member`'s
     /// fifth prompt, and the clearest demonstration of why
     /// `rule:security/secret-qualifier`'s
     /// qualifier was worth having: a password typed here structurally cannot
@@ -1897,14 +1897,14 @@ nvs_runtime::nvs_helper! {
     /// There is no `default`: a password nobody typed is not a password, so an
     /// unattended run throws [`not_interactive`] rather than proceeding with
     /// something a configuration file could have chosen.
-    fn nvs_core_cli_secret(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
-        let question = question_of(&args[0], "secret")?;
+    fn nvs_core_cli_ask_secret(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
+        let question = question_of(&args[0], "askSecret")?;
         let answer = match ask_terminal(ctx, &question, Echo::Hidden) {
             Answer::Line(line) => line,
-            // `secret` names no `default` at all, so the shared helper is
+            // `askSecret` names no `default` at all, so the shared helper is
             // reached with a `null` and always throws — which is the rule, not
             // a shortcut: a password nobody typed is not a password.
-            ref quiet => return unanswered(quiet, "secret", Value::null()),
+            ref quiet => return unanswered(quiet, "askSecret", Value::null()),
         };
         Ok(Value::text(&answer))
     } apply(result, _subject) {
@@ -3196,7 +3196,7 @@ thread_local! {
 /// One open region's scope, as a value whose destruction closes it.
 ///
 /// `rule:tooling/the-terminal-is-restored-on-every-exit-path` makes restoration an obligation on **every** exit path, and
-/// [`nvs_core_cli_live`] cannot discharge that with a statement after the call:
+/// [`nvs_core_cli_show_live`] cannot discharge that with a statement after the call:
 /// a throw from `$body` skips it, and an internal panic
 /// (`rule:errors/panics-bypass-user-code`) skips
 /// every statement there is. So the end of a region is a `Drop`, here and in
@@ -3231,7 +3231,7 @@ impl Drop for Open {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::live<T>(callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s scoped live
+    /// `Core\Cli::showLive<T>(callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s scoped live
     /// region, and `rule:tooling/the-terminal-is-restored-on-every-exit-path`'s restoration obligation.
     ///
     /// The whole member is: open a region, run `$body` with a handle to it, and
@@ -3245,7 +3245,7 @@ nvs_runtime::nvs_helper! {
     /// member, not `rule:tooling/a-prompt-never-blocks`'s silence: `$body` is the program's own work, and a
     /// piped run must do it. What throws is *claiming* the terminal, and an
     /// inert region claims nothing.
-    fn nvs_core_cli_live(ctx, args: [1]) {
+    fn nvs_core_cli_show_live(ctx, args: [1]) {
         let open = Open::region();
         let handle = crate::instance::build(
             &LIVE,
@@ -3276,7 +3276,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A thrown `LogicError` for a handle that is not the region holding the
     /// terminal. Two cases reach it and the sentence covers both, because they
-    /// are one rule: a handle that escaped its `Core\Cli::live` call, and an
+    /// are one rule: a handle that escaped its `Core\Cli::showLive` call, and an
     /// outer handle painted while an inner region is open. Painting the second
     /// would interleave two regions' rows on one cursor, which is the state
     /// `rule:tooling/in-place-output-is-a-scoped-live-region` exists to make unreachable.
@@ -3320,7 +3320,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 "Core\\Cli\\Live::set(): this handle's region has closed, or an inner one is \
-                 open inside it — a live region is scoped to the `Core\\Cli::live` call that \
+                 open inside it — a live region is scoped to the `Core\\Cli::showLive` call that \
                  made it, and only the innermost open region paints",
             ));
         }
@@ -3332,7 +3332,7 @@ nvs_runtime::nvs_helper! {
 /// Whether the region at `depth` is the one holding the terminal.
 ///
 /// Two handles ask this and both refuse in their own words: only one region
-/// owns the cursor, so painting an outer one — or one whose `Core\Cli::live`
+/// owns the cursor, so painting an outer one — or one whose `Core\Cli::showLive`
 /// call has returned — would interleave two regions' rows on one cursor.
 fn innermost(depth: usize) -> bool {
     REGIONS.with(|regions| depth + 1 == regions.borrow().len())
@@ -3382,20 +3382,20 @@ fn bar(done: u64, total: u64, label: &str) -> String {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::progress<T>(uint $total, callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s
-    /// second row, over the region [`nvs_core_cli_live`] opens.
+    /// `Core\Cli::showProgress<T>(uint $total, callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s
+    /// second row, over the region [`nvs_core_cli_show_live`] opens.
     ///
-    /// The whole difference from `live` is who writes the frame: here the
+    /// The whole difference from `showLive` is who writes the frame: here the
     /// runtime does, from a counter, so a program says how far it has come and
     /// never how the bar is drawn. That is why the handle has no `set` — a
-    /// progress bar a program could overwrite would be `live` with a worse
+    /// progress bar a program could overwrite would be `showLive` with a worse
     /// name.
-    fn nvs_core_cli_progress(ctx, args: [2]) {
+    fn nvs_core_cli_show_progress(ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `uint` in `CLASS` above, so
         // anything else is `E0401: expected uint, found …` at the checker.
         let total = args[0].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Cli::progress expected a `uint` total, got tag {}",
+                "Core\\Cli::showProgress expected a `uint` total, got tag {}",
                 args[0].tag_byte()
             ))
         })?;
@@ -3478,7 +3478,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 "Core\\Cli\\Progress::advance(): this handle's region has closed, or an inner \
-                 one is open inside it — a progress bar is scoped to the `Core\\Cli::progress` \
+                 one is open inside it — a progress bar is scoped to the `Core\\Cli::showProgress` \
                  call that made it, and only the innermost open region paints",
             ));
         }
@@ -3863,7 +3863,7 @@ mod tests {
         }
     }
 
-    /// What `Core\Cli::secret` promises about the line, and what its row
+    /// What `Core\Cli::askSecret` promises about the line, and what its row
     /// promises about a run nobody is watching. The answer is the line exactly
     /// as it was typed: nothing is trimmed, nothing is mapped onto a closed set,
     /// and an empty line is still an answer. A member reading a password the way
@@ -3873,15 +3873,15 @@ mod tests {
     /// `Core\Secret::reveal`, which is a second member in the path.
     ///
     /// The row is asserted beside the call for the other half of the promise:
-    /// the return type carries both qualifiers, and `secret` is the one prompt
+    /// the return type carries both qualifiers, and `askSecret` is the one prompt
     /// with no options bag, so there is nowhere for a `default` to be written.
-    // covers: Core\Cli::secret
+    // covers: Core\Cli::askSecret
     #[test]
     fn a_secret_is_the_line_as_typed_and_its_row_leaves_no_default_to_proceed_on() {
         let row = CLASS
             .methods
             .iter()
-            .find(|method| method.name == "secret")
+            .find(|method| method.name == "askSecret")
             .expect("the fifth prompt is a row on this class");
         assert!(
             matches!(row.return_ty, CoreTy::SecretTaintedStr),
@@ -3891,7 +3891,7 @@ mod tests {
             !row.params
                 .iter()
                 .any(|param| matches!(param, CoreTy::Options(_))),
-            "`secret` grew an options bag, which is where a `default` would go — and a \
+            "`askSecret` grew an options bag, which is where a `default` would go — and a \
              password nobody typed is not a password"
         );
 
@@ -3901,7 +3901,7 @@ mod tests {
 
         for typed in ["  pass word  ", "y", "", "\u{1b}[2J", "pässwörd"] {
             ctx.script_answers([typed.to_owned()]);
-            let answer = nvs_runtime::call(nvs_core_cli_secret, &mut ctx, &[question])
+            let answer = nvs_runtime::call(nvs_core_cli_ask_secret, &mut ctx, &[question])
                 .expect("secret answered");
             assert_eq!(
                 answer.as_text(),
@@ -3935,7 +3935,7 @@ mod tests {
     /// The guard truncates rather than pops, and the last assertion is what
     /// that buys: an inner region whose own guard was skipped is closed by the
     /// outer one, so the stack can never keep a region nobody can reach.
-    // covers: Core\Cli::live
+    // covers: Core\Cli::showLive
     #[test]
     fn a_live_region_ends_with_its_scope_and_takes_every_inner_one_with_it() {
         let depth_now = || REGIONS.with(|regions| regions.borrow().len());
@@ -3981,7 +3981,7 @@ mod tests {
     /// scales is on a terminal a case does not have. A `done` that wrapped
     /// would draw a finished import as one that had barely begun, which is the
     /// single worst thing a progress bar can say.
-    // covers: Core\Cli::progress
+    // covers: Core\Cli::showProgress
     #[test]
     fn a_progress_bar_saturates_and_keeps_the_caption_nobody_replaced() {
         let open = Open::region();
@@ -4547,7 +4547,7 @@ mod tests {
     /// no user code runs on.
     ///
     /// An internal panic is the hardest of the four and the only one testable
-    /// from Rust: a throw and a fatal both leave through `nvs_core_cli_live`'s
+    /// from Rust: a throw and a fatal both leave through `nvs_core_cli_show_live`'s
     /// own `Err`, while a panic leaves through nothing at all. So the region is
     /// held across a `catch_unwind` and its screen read back afterwards — which
     /// is what [`Region::painting_on`](nvs_runtime::terminal::Region::painting_on)
@@ -4556,11 +4556,11 @@ mod tests {
     /// rather than a destructor, the cursor would still be hidden here.
     ///
     /// The second half is the scope, over this module's own stack: [`Open`] is
-    /// what makes a region's end the `Core\Cli::live` call's end, so a panic
+    /// what makes a region's end the `Core\Cli::showLive` call's end, so a panic
     /// through one must leave nothing open. A region left on that stack is a
     /// depth a stale handle would still resolve against, which is the failure
     /// `Core\Cli\Live::set`'s refusal is written for.
-    // covers: Core\Cli::live
+    // covers: Core\Cli::showLive
     #[test]
     fn a_live_region_is_scoped_and_restores_the_terminal_on_a_panic() {
         use std::io::Write;
@@ -4590,7 +4590,7 @@ mod tests {
         let fell = std::panic::catch_unwind(move || {
             let mut region = nvs_runtime::terminal::Region::painting_on(Box::new(Screen(painted)));
             region.set(vec!["scanning one".to_owned()]);
-            panic!("the body of a `Core\\Cli::live` broke an invariant");
+            panic!("the body of a `Core\\Cli::showLive` broke an invariant");
         });
         std::panic::set_hook(told);
         assert!(fell.is_err(), "the region does not swallow the panic");
@@ -4627,7 +4627,7 @@ mod tests {
         assert!(fell.is_err());
         assert!(
             REGIONS.with(|regions| regions.borrow().is_empty()),
-            "a panic through `Core\\Cli::live` leaves no region open"
+            "a panic through `Core\\Cli::showLive` leaves no region open"
         );
     }
 
@@ -4763,7 +4763,7 @@ mod tests {
             ANSWER_DEADLINE > Duration::ZERO && ANSWER_DEADLINE <= Duration::from_secs(600),
             "a prompt's deadline is finite and scaled to a person answering a question"
         );
-        for prompt in ["ask", "confirm", "select", "multiSelect", "secret"] {
+        for prompt in ["ask", "confirm", "select", "multiSelect", "askSecret"] {
             let row = CLASS
                 .methods
                 .iter()
@@ -5798,7 +5798,7 @@ mod tests {
     ///
     /// The refusal is the member's own — only the innermost open region paints
     /// — and the class it is thrown as is
-    /// `tests/hostile/core/Cli/live/01-a-region-that-will-not-give-the-terminal-back.nvs`'s,
+    /// `tests/hostile/core/Cli/showLive/01-a-region-that-will-not-give-the-terminal-back.nvs`'s,
     /// which catches `LogicError` by name.
     // covers: Core\Cli\Live::set
     #[test]

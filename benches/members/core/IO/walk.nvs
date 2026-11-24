@@ -7,14 +7,14 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $dir = Core\Path::join(Core\IO::temporaryDir(), 'templates');
+        string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'templates');
         array<string> $roots = [
             Core\Path::join($dir, 'mail'),
             Core\Path::join($dir, 'pages'),
             Core\Path::join($dir, 'admin'),
         ];
         foreach ($roots as string $made) {
-            Core\IO::makeDir(Core\Path::join($made, 'parts'));
+            Core\IO::makeDirectory(Core\Path::join($made, 'parts'));
             Core\IO::write(Core\Path::join($made, 'a.html'), 'a');
             Core\IO::write(Core\Path::join($made, 'parts', 'b.html'), 'b');
         }

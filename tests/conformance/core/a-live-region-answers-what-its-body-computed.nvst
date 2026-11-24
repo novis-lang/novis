@@ -1,11 +1,11 @@
 --TEST--
-Core\Cli::live runs its body and answers what that body answered, at the body's own type -- `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-tty-belongs-to-the-main-task`
+Core\Cli::showLive runs its body and answers what that body answered, at the body's own type -- `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-tty-belongs-to-the-main-task`
 --FILE--
 <?nvs
 // `rule:tooling/in-place-output-is-a-scoped-live-region`: `live<T>(callable $body): T`. The region is scenery around a
 // call that computes whatever it was going to compute, so a call site pays
 // nothing in what it can return for drawing while it works.
-var $named = Core\Cli::live(fn(Core\Cli\Live $live): string => {
+var $named = Core\Cli::showLive(fn(Core\Cli\Live $live): string => {
     $live->set([Core\Cli\Text::plain("scanning one")]);
     // A region is *replaced* rather than appended to, which is what makes it a
     // region and not a log -- so a second frame with two rows is two rows.
@@ -15,7 +15,7 @@ var $named = Core\Cli::live(fn(Core\Cli\Live $live): string => {
 echo "answered: ", $named, "\n";
 
 // `T` is the body's own, so a second call at a different one needs no cast.
-var $counted = Core\Cli::live(fn(Core\Cli\Live $live): int => {
+var $counted = Core\Cli::showLive(fn(Core\Cli\Live $live): int => {
     $live->set([Core\Cli\Text::plain("counting")]);
     return 41 + 1;
 });

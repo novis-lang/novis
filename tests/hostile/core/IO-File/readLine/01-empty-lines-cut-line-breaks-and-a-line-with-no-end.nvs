@@ -5,8 +5,8 @@
 // hostile: timeout-ms 60000
 // hostile: ends-early 6 FATAL
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read-line');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-read-line');
+Core\IO::makeDirectory($dir);
 string $path = Core\Path::join($dir, 'data.txt');
 
 // 1. A file of 100000 empty lines. Each one must be an empty string, and then `null`.

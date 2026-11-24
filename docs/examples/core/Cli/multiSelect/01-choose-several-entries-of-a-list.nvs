@@ -1,12 +1,12 @@
 <?nvs
 // Shows how to let somebody choose several entries of a list at the terminal. In a
 // terminal the person types the numbers. This example answers itself with
-// `Core\Test::scriptAnswers`, so that it prints the same thing everywhere.
+// `Core\Test::answerCli`, so that it prints the same thing everywhere.
 
 array<string> $features = ['dark mode', 'e-mail digest', 'beta pages'];
 
 // The answer is choice 3 and choice 1. A space works in place of the comma.
-Core\Test::scriptAnswers(['3,1']);
+Core\Test::answerCli(['3,1']);
 
 array<string> $on = Core\Cli::multiSelect('Which features should be on?', $features);
 

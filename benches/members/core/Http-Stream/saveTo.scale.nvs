@@ -9,7 +9,7 @@ class Bench
     {
         // The reply comes from this table, so nothing is sent over a network.
         Core\Test::answerHttp('https://files.example.com/a.csv', 200, { body: Core\Str::repeat('a', $size) });
-        string $dir = Core\IO::temporaryDir();
+        string $dir = Core\IO::createTemporaryDirectory();
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

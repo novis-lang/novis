@@ -653,7 +653,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   thousands of cases red at once. Add the `"nvs_core_str_…" => return Some(….entry())` arm beside
   its neighbour's. `until: gone crates/nvs-stdlib/src/lib.rs:with no implementation address`
 - **The published corpus calls `Core\Test::answerHttp`, `answerSocket`, `tlsSession` and
-  `scriptAnswers` at the top of `nvs run` programs.** Hundreds of examples, attacks and benches answer
+  `answerCli` at the top of `nvs run` programs.** Hundreds of examples, attacks and benches answer
   their own outbound calls that way, so a goal item to make them throw "outside a test" broke them
   all. They throw only in work a server runs. Grep `docs/examples`, `tests/hostile` and `benches`
   before narrowing a `Core\Test` member. See `not_in_a_server` in `crates/nvs-stdlib/src/test.rs`.

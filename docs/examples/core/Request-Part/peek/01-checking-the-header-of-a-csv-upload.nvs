@@ -2,7 +2,7 @@
 // Shows how an expense report website checks the first line of a CSV file before it saves the file.
 
 bytes $header = 'date,amount,note' as bytes;
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // `peek` returns the first 16 bytes of the file. The file is not read yet.
     tainted bytes $start = $part->peek(16);

@@ -25,7 +25,7 @@ class Import
     }
 }
 
-string $file = Core\Path::thisDir('import.speedscope.json');
+string $file = Core\Path::thisDirectory('import.speedscope.json');
 
 Core\Debug::startProfile($file);
 int $shipping = Import::run(['DE', 'DE', 'FR', 'DE', 'AT']);

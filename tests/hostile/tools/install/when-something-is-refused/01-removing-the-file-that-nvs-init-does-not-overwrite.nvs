@@ -109,8 +109,8 @@ array<string> $names = [
 ];
 foreach ($names as string $name) {
     try {
-        Core\IO::makeDir($dir . '/uploads/' . $name);
-        Core\IO::removeDir($dir . '/uploads/' . $name);
+        Core\IO::makeDirectory($dir . '/uploads/' . $name);
+        Core\IO::removeDirectory($dir . '/uploads/' . $name);
         echo "created and deleted\n";
     } catch (Throwable $denied) {
         echo "not created\n";

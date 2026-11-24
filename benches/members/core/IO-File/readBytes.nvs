@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        string $path = Core\Path::join(Core\IO::temporaryDir(), 'read-bytes.bin');
+        string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'read-bytes.bin');
         Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('89504e470d0a1a0a'), 2000));
         Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
         bytes $part = '' as bytes;

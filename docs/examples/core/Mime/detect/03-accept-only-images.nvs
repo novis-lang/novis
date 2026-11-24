@@ -12,7 +12,7 @@ class Avatar
     }
 }
 
-string $folder = Core\IO::temporaryDir();
+string $folder = Core\IO::createTemporaryDirectory();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     // The gzip file is rejected, because it is not one of the three image types.
     if (!Avatar::accepts($part)) {

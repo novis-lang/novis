@@ -114,7 +114,7 @@ are framed with a data descriptor (general-purpose bit 3), so the writer never s
   (`Workbook.nvs:70`).
 
 There is no in-memory target and no `createForStream`. A program that needs the archive's bytes, for
-a mail attachment or `Core\Storage::put`, writes it to a file under `Core\IO::temporaryDir()` and
+a mail attachment or `Core\Storage::put`, writes it to a file under `Core\IO::createTemporaryDirectory()` and
 passes the file. That costs one temporary file and keeps the writer's memory independent of the
 archive's size, which is the user's ask.
 

@@ -3182,7 +3182,7 @@ impl ExprTypeTable {
     /// `None` for every other expression. Two kinds are recorded: a relative
     /// string literal at a path parameter, keyed by the literal's own span
     /// (what `nvs_syntax::ast::ExprKind::Str` carries), and a
-    /// `Core\Path::thisFile` or `thisDir` call, keyed by the call's span.
+    /// `Core\Path::thisFile` or `thisDirectory` call, keyed by the call's span.
     #[must_use]
     pub fn written_path(&self, span: Span) -> Option<&str> {
         self.written_paths.get(&span).map(String::as_str)

@@ -19,7 +19,7 @@ fn with_no_nvs_toml_the_hover_names_the_default_policy() {
         "No `nvs.toml` was found for this program. It runs under the default policy:\n\n\
          - `fs.read`: files in this file's directory, except `nvs.toml` and names that start \
          with `.` (default)\n\
-         - `fs.write`: only the directories `Core\\IO::temporaryDir` makes (default)\n\
+         - `fs.write`: only the directories `Core\\IO::createTemporaryDirectory` makes (default)\n\
          - `script.spawn`: files in this file's directory, outside its temporary directories \
          (default)\n\
          - `net.connect`: every host (default)\n\

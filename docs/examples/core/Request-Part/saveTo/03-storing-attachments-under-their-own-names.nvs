@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a help desk stores the attachments of a ticket under the names the client sent.
 
-string $attachments = Core\IO::temporaryDir();
+string $attachments = Core\IO::createTemporaryDirectory();
 foreach (Core\Request::files() as Core\Request\Part $part) {
     try {
         // The client chooses the file name, so `saveTo` does not accept it directly.

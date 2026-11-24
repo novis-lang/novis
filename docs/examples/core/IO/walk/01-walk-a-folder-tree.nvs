@@ -1,8 +1,8 @@
 <?nvs
 // Shows how `Core\IO::walk` returns every file and folder in a folder and in all its sub-folders.
 
-string $site = Core\Path::join(Core\IO::temporaryDir(), 'site');
-Core\IO::makeDir(Core\Path::join($site, 'images', 'icons'));
+string $site = Core\Path::join(Core\IO::createTemporaryDirectory(), 'site');
+Core\IO::makeDirectory(Core\Path::join($site, 'images', 'icons'));
 Core\IO::write(Core\Path::join($site, 'index.html'), "<h1>Home</h1>\n");
 Core\IO::write(Core\Path::join($site, 'images', 'logo.png'), 'png');
 Core\IO::write(Core\Path::join($site, 'images', 'icons', 'cart.svg'), '<svg/>');

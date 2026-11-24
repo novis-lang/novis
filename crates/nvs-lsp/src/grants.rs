@@ -201,7 +201,8 @@ fn list(text: &mut String, written: Option<&Capabilities>, folder: &Path, dir: &
                     folder_of(folder, dir)
                 ),
                 Granted::Temporary => {
-                    "only the directories `Core\\IO::temporaryDir` makes (default)".to_owned()
+                    "only the directories `Core\\IO::createTemporaryDirectory` makes (default)"
+                        .to_owned()
                 }
             },
         };

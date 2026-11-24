@@ -3,8 +3,8 @@
 // be refused with an error, or return a path that is still inside the folder.
 // hostile: timeout-ms 60000
 
-string $base = Core\IO::temporaryDir();
-Core\IO::makeDir(Core\Path::join($base, 'inside'));
+string $base = Core\IO::createTemporaryDirectory();
+Core\IO::makeDirectory(Core\Path::join($base, 'inside'));
 Core\IO::write(Core\Path::join($base, 'inside', 'a.txt'), 'a');
 // The folder's own full path. Every allowed answer must start with it.
 string $root = Core\IO::within($base, '');
@@ -48,7 +48,7 @@ echo 'step 3: done', "\n";
 // 4. Names that only look like they stay inside: a sibling folder whose name starts the same way,
 // a backslash, a NUL byte, a doubled separator and a name that is only dots.
 array<string> $tricks = [
-    '../' . Core\Path::basename($base) . '-other/a.txt',
+    '../' . Core\Path::fileName($base) . '-other/a.txt',
     "inside/..\\..\\..\\a.txt",
     "inside/a.txt\0/../../../x",
     'inside//..//..//x',
@@ -64,7 +64,7 @@ echo 'step 4: done', "\n";
 uint $refused = 0;
 uint $i = 0;
 while ($i < 20000) {
-    $refused = $refused + Guard::check($base, $root, 'inside/../../' . Core\Path::basename($base) . '/../x') as uint;
+    $refused = $refused + Guard::check($base, $root, 'inside/../../' . Core\Path::fileName($base) . '/../x') as uint;
     $i = $i + 1;
 }
 if ($refused != 20000) {

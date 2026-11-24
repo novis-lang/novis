@@ -4,7 +4,7 @@
 autoload 'Shop\Catalog' from './shop/catalog';
 
 // No line in `[grants]` matches this file, so it may write files.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'products.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'products.txt');
 Core\IO::write($path, "Lamp\nChair\nDesk\n");
 
 // `Products::names` reads the file. This prints three product names.

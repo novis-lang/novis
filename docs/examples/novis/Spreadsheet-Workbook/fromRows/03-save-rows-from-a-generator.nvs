@@ -16,7 +16,7 @@ class Visits
 }
 
 // With `freeze: false`, the header row does not stay at the top when a person scrolls.
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'visits.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'visits.xlsx');
 var $written = Workbook::fromRows(Visits::perDay(), { sheet: 'Visits', freeze: false })->save($path);
 
 // `save` returns the number of rows of each sheet.

@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $file = Core\Path::join(Core\IO::temporaryDir(), 'cities.txt');
+        string $file = Core\Path::join(Core\IO::createTemporaryDirectory(), 'cities.txt');
         array<bytes> $parts = [Core\Encoding::encodeText(Core\Str::repeat('é', $size), Core\Charset::Latin1)];
         Core\IO::writeStream($file, $parts, { overwrite: true });
         uint $total = 0;

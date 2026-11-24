@@ -1,5 +1,5 @@
 //! `rule:programs/relative-paths-resolve-from-their-file`'s `Core\Path::thisFile`
-//! and `thisDir`, lowered: each call is the string constant the checker folded
+//! and `thisDirectory`, lowered: each call is the string constant the checker folded
 //! it to, and no instruction calls either member's symbol.
 //!
 //! The symbols exist only for a source with no file behind it, and their bodies
@@ -59,12 +59,12 @@ fn insts(program: &Program) -> impl Iterator<Item = &InstKind> {
 /// naming this file, its folder and a path under it, and nothing calls either
 /// member's symbol.
 // covers: Core\Path::thisFile
-// covers: Core\Path::thisDir
+// covers: Core\Path::thisDirectory
 #[test]
 fn this_file_and_this_dir_lower_to_a_string_constant() {
     let program = compile(
-        "<?nvs\necho Core\\Path::thisFile(), \"\\n\";\necho Core\\Path::thisDir(), \"\\n\";\n\
-         echo Core\\Path::thisDir('data/rates.json'), \"\\n\";\n",
+        "<?nvs\necho Core\\Path::thisFile(), \"\\n\";\necho Core\\Path::thisDirectory(), \"\\n\";\n\
+         echo Core\\Path::thisDirectory('data/rates.json'), \"\\n\";\n",
     );
     let calls: Vec<&str> = insts(&program)
         .filter_map(|kind| match kind {

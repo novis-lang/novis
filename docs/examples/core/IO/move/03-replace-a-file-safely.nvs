@@ -13,7 +13,7 @@ class Settings
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'settings.json');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'settings.json');
 Settings::save($path, "{\"theme\": \"light\"}\n");
 Settings::save($path, "{\"theme\": \"dark\"}\n");
 

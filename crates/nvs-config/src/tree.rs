@@ -585,7 +585,7 @@ pub struct Debug {
     pub token_file: Option<String>,
 }
 
-/// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::temporaryDir` creates under.
+/// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::createTemporaryDirectory` creates under.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Io {

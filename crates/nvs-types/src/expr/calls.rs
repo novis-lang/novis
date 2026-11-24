@@ -953,7 +953,7 @@ pub(crate) fn infer_static_call(
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
     // `rule:programs/relative-paths-resolve-from-their-file`'s `thisFile` and
-    // `thisDir`, replaced by the path of the file that wrote them — the arm
+    // `thisDirectory`, replaced by the path of the file that wrote them — the arm
     // above's reasoning, for a fold whose answer is a path. A source with no
     // file records nothing here, and the `ExprInfo::Call` below lowers the
     // call. See [`crate::paths::fold_this`].

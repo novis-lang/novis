@@ -12,5 +12,5 @@ When a write fails part of the way through, `writeStream` deletes the file befor
 half-written file stays on the disk.
 
 A command-line program may write any path. On a server, a program may write only in the folders
-from `Core\IO::temporaryDir`. Any other path needs the `fs.write` capability. Without it,
+from `Core\IO::createTemporaryDirectory`. Any other path needs the `fs.write` capability. Without it,
 `writeStream` throws a `RuntimeError` and creates no file.

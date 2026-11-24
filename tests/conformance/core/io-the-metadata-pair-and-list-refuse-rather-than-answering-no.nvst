@@ -1,5 +1,5 @@
 --TEST--
-With nothing granted, `Core\IO::isFile`, `::isDir`, `::list` and `::canonicalize` throw naming `fs.read` rather than answering the empty answer each of them has — `false`, `false`, no entries and no resolution — counted over a sweep of spellings so that a door letting one form through moves a number here — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`
+With nothing granted, `Core\IO::isFile`, `::isDirectory`, `::list` and `::canonicalize` throw naming `fs.read` rather than answering the empty answer each of them has — `false`, `false`, no entries and no resolution — counted over a sweep of spellings so that a door letting one form through moves a number here — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // Three of these four members have a *plausible negative answer*, which is what
@@ -62,11 +62,11 @@ for (; $i < $total; $i = $i + 1) {
     }
 
     try {
-        bool $dir = Core\IO::isDir($path);
+        bool $dir = Core\IO::isDirectory($path);
         $answered = $answered + 1;
     } catch (RuntimeError $shut) {
         $refused = $refused + 1;
-        if ($shut->message == "Core\\IO::isDir needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
+        if ($shut->message == "Core\\IO::isDirectory needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $named = $named + 1;
         }
     }

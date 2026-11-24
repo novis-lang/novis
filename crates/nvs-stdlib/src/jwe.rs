@@ -23,7 +23,7 @@
 //! question this class had: a union carries no `rule:security/unclassified-parameter-refuses-tainted`
 //! classification, so a `secret bytes|Crypto\PublicKey|secret string` parameter
 //! would refuse every `tainted` argument — and a password is tainted whether it
-//! came off a form or out of `Core\Cli::secret`. `Core\Crypto::deriveKey`'s
+//! came off a form or out of `Core\Cli::askSecret`. `Core\Crypto::deriveKey`'s
 //! whole-parameter `secret string` takes that same value today, which is what
 //! [`KEY`]'s `password` static mirrors.
 //!
@@ -334,7 +334,7 @@ pub(crate) const KEY: CoreClass = CoreClass {
             name: "password",
             names: &["password"],
             // `secret string` because that is what a password *is*, and the one
-            // spelling that admits `Core\Cli::secret`'s `secret tainted string`
+            // spelling that admits `Core\Cli::askSecret`'s `secret tainted string`
             // — which is the whole reason this class is four statics rather
             // than one union parameter.
             params: &[CoreTy::SecretText(Qual::Neutral)],
@@ -401,7 +401,7 @@ const KEY_PASSWORD_DOC: MethodDoc = MethodDoc {
             random content key is then encrypted with it.",
     params: &[ParamDoc {
         name: "password",
-        desc: "The password, of any length. It can come from `Core\\Cli::secret` or a form \
+        desc: "The password, of any length. It can come from `Core\\Cli::askSecret` or a form \
                field. It is not hashed for storage. Use `Core\\Password` for that.",
         shape: &[],
     }],

@@ -13,9 +13,9 @@ final class FacturX
         Writer $xml = Core\Xml::writer();
         $xml->startDocument();
         $xml->startElement('rsm:CrossIndustryInvoice');
-        $xml->attribute('xmlns:rsm', 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100');
-        $xml->attribute('xmlns:ram', 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100');
-        $xml->attribute('xmlns:udt', 'urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100');
+        $xml->writeAttribute('xmlns:rsm', 'urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100');
+        $xml->writeAttribute('xmlns:ram', 'urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100');
+        $xml->writeAttribute('xmlns:udt', 'urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100');
 
         // The profile says which rules the XML follows. EN 16931 is the European standard for invoices.
         $xml->startElement('rsm:ExchangedDocumentContext');
@@ -80,8 +80,8 @@ final class FacturX
         FacturX::leaf($xml, 'ram:LineTotalAmount', "{$totals->net}");
         FacturX::leaf($xml, 'ram:TaxBasisTotalAmount', "{$totals->net}");
         $xml->startElement('ram:TaxTotalAmount');
-        $xml->attribute('currencyID', 'EUR');
-        $xml->content("{$totals->vat}");
+        $xml->writeAttribute('currencyID', 'EUR');
+        $xml->writeText("{$totals->vat}");
         $xml->endElement();
         FacturX::leaf($xml, 'ram:GrandTotalAmount', "{$totals->total}");
         FacturX::leaf($xml, 'ram:DuePayableAmount', "{$totals->total}");
@@ -111,8 +111,8 @@ final class FacturX
         $xml->endElement();
         $xml->startElement('ram:SpecifiedLineTradeDelivery');
         $xml->startElement('ram:BilledQuantity');
-        $xml->attribute('unitCode', FacturX::unitCode($item->unit));
-        $xml->content("{$item->quantity}");
+        $xml->writeAttribute('unitCode', FacturX::unitCode($item->unit));
+        $xml->writeText("{$item->quantity}");
         $xml->endElement();
         $xml->endElement();
         $xml->startElement('ram:SpecifiedLineTradeSettlement');
@@ -141,14 +141,14 @@ final class FacturX
         $xml->endElement();
         $xml->startElement('ram:URIUniversalCommunication');
         $xml->startElement('ram:URIID');
-        $xml->attribute('schemeID', 'EM');
-        $xml->content($party->email);
+        $xml->writeAttribute('schemeID', 'EM');
+        $xml->writeText($party->email);
         $xml->endElement();
         $xml->endElement();
         $xml->startElement('ram:SpecifiedTaxRegistration');
         $xml->startElement('ram:ID');
-        $xml->attribute('schemeID', 'VA');
-        $xml->content($party->vatId);
+        $xml->writeAttribute('schemeID', 'VA');
+        $xml->writeText($party->vatId);
         $xml->endElement();
         $xml->endElement();
         $xml->endElement();
@@ -159,8 +159,8 @@ final class FacturX
     {
         $xml->startElement($element);
         $xml->startElement('udt:DateTimeString');
-        $xml->attribute('format', '102');
-        $xml->content($date->format('yyyyMMdd'));
+        $xml->writeAttribute('format', '102');
+        $xml->writeText($date->format('yyyyMMdd'));
         $xml->endElement();
         $xml->endElement();
     }
@@ -169,7 +169,7 @@ final class FacturX
     private static function leaf(Writer $xml, string $element, string $text): void
     {
         $xml->startElement($element);
-        $xml->content($text);
+        $xml->writeText($text);
         $xml->endElement();
     }
 

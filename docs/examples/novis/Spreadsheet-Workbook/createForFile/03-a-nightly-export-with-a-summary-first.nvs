@@ -3,7 +3,7 @@ use Novis\Spreadsheet\Reader;
 // Shows a nightly job that saves an export of two sheets, with the summary as the first tab.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'nightly.xlsx');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'nightly.xlsx');
 var $book = Workbook::createForFile($path, { properties: { title: 'Nightly orders', company: 'Shop' } });
 
 // The rows of a sheet are written first, and its totals are known at the end.

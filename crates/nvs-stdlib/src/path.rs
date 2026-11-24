@@ -6,7 +6,7 @@
 //! `Path`/`PathBuf` are a *host* abstraction that resolves differently on each
 //! target and would drag `OsStr`'s non-UTF-8 question into a type `rule:types/bytes`
 //! guarantees is text. Everything here is `&str` arithmetic. One member reads
-//! the process rather than the disk: [`nvs_core_path_from_cwd()`] asks
+//! the process rather than the disk: [`nvs_core_path_from_working_directory()`] asks
 //! `nvs_runtime::capability::working_dir` for the working directory and then
 //! joins with the same grammar as everything else.
 //!
@@ -37,7 +37,7 @@
 //! * **A trailing dot is not an extension either.** `extension('report.')` is
 //!   `null`, not `''`: an empty extension is an absence, and R5 makes `null`
 //!   the one spelling of that.
-//! * **`dirname('')` is `'.'`**, not PHP's `''`. The empty path names the
+//! * **`parent('')` is `'.'`**, not PHP's `''`. The empty path names the
 //!   current directory's contents, so its parent is the current directory;
 //!   PHP's answer is the one input where `dirname` hands back something that
 //!   is not a usable directory.
@@ -53,7 +53,7 @@
 //! it (`C:\log`), or a UNC server and share (`\\server\share\f`). The doubled
 //! separator belongs to the UNC root rather than being two empty components,
 //! and the server and share belong to it rather than being names, so
-//! `basename('\\server\share')` is the empty name every root has and every
+//! `fileName('\\server\share')` is the empty name every root has and every
 //! member that re-renders a path renders the root back. What the third shape
 //! spends is one more `&str` pair on the [`Parts`] a call already builds: a
 //! stack value that dies with the call, per `rule:programs/memory-priority`.
@@ -79,7 +79,7 @@
 //! member that answers the caller's text, and `isAbsolute` is the class's only
 //! `Qual::Neutral` row because a `bool` carries no byte of its subject.
 //!
-//! **`fromCwd` is the class's one launderer**, for the file-path sink, and it
+//! **`fromWorkingDirectory` is the class's one launderer**, for the file-path sink, and it
 //! checks nothing in the bytes. `rule:security/launderers-are-sink-named`
 //! states it as that rule's one exception and why it holds: the member throws
 //! while a request is answered, the user who typed the path can already open
@@ -106,7 +106,7 @@ pub const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "basename",
+            name: "fileName",
             names: &["path"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
@@ -115,11 +115,11 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             text: TextOrigin::Derived,
-            symbol: "nvs_core_path_basename",
+            symbol: "nvs_core_path_file_name",
             doc: Some(&BASENAME_DOC),
         },
         CoreMethod {
-            name: "dirname",
+            name: "parent",
             names: &["path"],
             params: &[
                 CoreTy::Text(Qual::Contagious),
@@ -128,7 +128,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             text: TextOrigin::Derived,
-            symbol: "nvs_core_path_dirname",
+            symbol: "nvs_core_path_parent",
             doc: Some(&DIRNAME_DOC),
         },
         CoreMethod {
@@ -211,7 +211,7 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&RELATIVE_TO_DOC),
         },
         CoreMethod {
-            name: "fromCwd",
+            name: "fromWorkingDirectory",
             names: &["path"],
             // Plain text and not a path parameter: a path parameter's string literal
             // is joined to the file that wrote it, and the whole point of this
@@ -224,7 +224,7 @@ pub const CLASS: CoreClass = CoreClass {
             text: TextOrigin::Clean(
                 "The working directory is chosen by the person who starts the program.",
             ),
-            symbol: "nvs_core_path_from_cwd",
+            symbol: "nvs_core_path_from_working_directory",
             doc: Some(&FROM_CWD_DOC),
         },
         // The next two are folded while checking (`nvs_types::paths`'s
@@ -242,13 +242,13 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&THIS_FILE_DOC),
         },
         CoreMethod {
-            name: "thisDir",
+            name: "thisDirectory",
             names: &["join"],
             params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
             defaults: &[Const::Null],
             return_ty: CoreTy::Str,
             text: TextOrigin::Clean("The path names a file of the program itself."),
-            symbol: "nvs_core_path_this_dir",
+            symbol: "nvs_core_path_this_directory",
             doc: Some(&THIS_DIR_DOC),
         },
     ],
@@ -263,7 +263,7 @@ const CARD: ClassDoc = ClassDoc {
             `/` and `\\` as separators on every platform, and writes `Path::SEPARATOR`.",
 };
 
-/// `Core\Path::basename`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Path::fileName`'s reference card — `rule:core-api/reference-card`.
 const BASENAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the last part of `$path`: the file name, or the name of the last folder. A \
             separator at the end is ignored, so `/srv/shop/` gives `shop`.",
@@ -285,7 +285,7 @@ const BASENAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::dirname`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Path::parent`'s reference card — `rule:core-api/reference-card`.
 const DIRNAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the folder that contains `$path`. The option `levels` goes up more than one \
             folder.",
@@ -304,7 +304,7 @@ const DIRNAME_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the \
-          root for an absolute path and `.` for a relative one. `dirname('')` is `.`.",
+          root for an absolute path and `.` for a relative one. `parent('')` is `.`.",
     errors: &[],
 };
 
@@ -445,7 +445,7 @@ const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::fromCwd`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Path::fromWorkingDirectory`'s reference card — `rule:core-api/reference-card`.
 const FROM_CWD_DOC: MethodDoc = MethodDoc {
     short: "Joins `$path` to the folder the program was started from, and returns the full \
             path. Use it for a path that a user typed on the command line.",
@@ -479,7 +479,7 @@ const THIS_FILE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Path::thisDir`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Path::thisDirectory`'s reference card — `rule:core-api/reference-card`.
 const THIS_DIR_DOC: MethodDoc = MethodDoc {
     short: "Returns the full path of the folder that contains this source file. The compiler \
             writes the path in place of the call, so the call costs nothing when the program \
@@ -488,7 +488,7 @@ const THIS_DIR_DOC: MethodDoc = MethodDoc {
         name: "join",
         desc: "A relative path, written directly in the code as a string such as `'data'`. \
                It is added to the folder. A variable or a full path does not compile. Use \
-               `Core\\Path::join(Core\\Path::thisDir(), $part)` for a part the program builds.",
+               `Core\\Path::join(Core\\Path::thisDirectory(), $part)` for a part the program builds.",
         shape: &[],
     }],
     ret: "The full path of the folder, with `$join` added when you give one, and with its \
@@ -499,7 +499,7 @@ const THIS_DIR_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Path::basename`'s `{ withoutExtension?: bool }` — `pathinfo`'s
+/// `Core\Path::fileName`'s `{ withoutExtension?: bool }` — `pathinfo`'s
 /// `PATHINFO_FILENAME` as an option rather than as a second member, since it
 /// asks the same question of the same path.
 const BASENAME_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -508,8 +508,8 @@ const BASENAME_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Bool(false),
 }];
 
-/// `Core\Path::dirname`'s `{ levels?: uint }` — PHP's second `dirname` argument,
-/// with [`nvs_core_path_dirname`]'s own docs owning what `0` means here and
+/// `Core\Path::parent`'s `{ levels?: uint }` — PHP's second `dirname` argument,
+/// with [`nvs_core_path_parent`]'s own docs owning what `0` means here and
 /// throws there.
 const DIRNAME_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "levels",
@@ -538,8 +538,8 @@ const SEPARATOR: &str = std::path::MAIN_SEPARATOR_STR;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_path_basename" => return Some(nvs_core_path_basename::entry()),
-        "nvs_core_path_dirname" => return Some(nvs_core_path_dirname::entry()),
+        "nvs_core_path_file_name" => return Some(nvs_core_path_file_name::entry()),
+        "nvs_core_path_parent" => return Some(nvs_core_path_parent::entry()),
         "nvs_core_path_extension" => return Some(nvs_core_path_extension::entry()),
         "nvs_core_path_with_extension" => return Some(nvs_core_path_with_extension::entry()),
         "nvs_core_path_join" => return Some(nvs_core_path_join::entry()),
@@ -547,9 +547,11 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_path_normalize" => return Some(nvs_core_path_normalize::entry()),
         "nvs_core_path_is_absolute" => (nvs_core_path_is_absolute as *const ()).cast(),
         "nvs_core_path_relative_to" => return Some(nvs_core_path_relative_to::entry()),
-        "nvs_core_path_from_cwd" => return Some(nvs_core_path_from_cwd::entry()),
+        "nvs_core_path_from_working_directory" => {
+            return Some(nvs_core_path_from_working_directory::entry());
+        }
         "nvs_core_path_this_file" => (nvs_core_path_this_file as *const ()).cast(),
-        "nvs_core_path_this_dir" => (nvs_core_path_this_dir as *const ()).cast(),
+        "nvs_core_path_this_directory" => (nvs_core_path_this_directory as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -869,17 +871,17 @@ fn produced(text: &str) -> HelperResult {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::basename(string $path, { withoutExtension?: bool }): string`
+    /// `Core\Path::fileName(string $path, { withoutExtension?: bool }): string`
     /// — replacing PHP's `basename` and `pathinfo(…, PATHINFO_BASENAME)`.
     ///
     /// The **name** of the last component, so a trailing separator is ignored
     /// (`/a/b/` is `b`, as PHP's own `basename` answers) and a path that is
-    /// nothing but a root has no name at all: `basename('/')` is `''`. That
+    /// nothing but a root has no name at all: `fileName('/')` is `''`. That
     /// empty answer is PHP's too, and it is a `string` rather than R5's `null`
     /// because the published signature says so — a root is not an *absent* name.
-    fn nvs_core_path_basename(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
-        let path = text(&args[0], "basename", "the path")?;
-        let without_extension = boolean(&args[1], "basename", "the `withoutExtension` option")?;
+    fn nvs_core_path_file_name(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
+        let path = text(&args[0], "fileName", "the path")?;
+        let without_extension = boolean(&args[1], "fileName", "the `withoutExtension` option")?;
 
         let parts = parse(path);
         let Some(name) = parts.components.last() else {
@@ -895,13 +897,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::dirname(string $path, { levels?: uint }): string` — replacing
+    /// `Core\Path::parent(string $path, { levels?: uint }): string` — replacing
     /// PHP's `dirname`, whose second argument becomes the one option here.
     ///
     /// Drops `levels` components from the end. Where that leaves nothing, the
     /// answer is the root for an absolute path and `.` for a relative one, so
     /// every answer is a directory a program can use — including
-    /// `dirname('')`, which is `.` rather than PHP's `''` (this module's third
+    /// `parent('')`, which is `.` rather than PHP's `''` (this module's third
     /// divergence).
     ///
     /// **`levels: 0` is the path itself**, with its separators normalized,
@@ -910,9 +912,9 @@ nvs_runtime::nvs_helper! {
     /// total answer; a throw would only make an arithmetic result fatal.
     /// Asking to go up further than there are components stops at the root,
     /// exactly as walking one level at a time would.
-    fn nvs_core_path_dirname(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
-        let path = text(&args[0], "dirname", "the path")?;
-        let levels = count(&args[1], "dirname", "the `levels` option")?;
+    fn nvs_core_path_parent(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
+        let path = text(&args[0], "parent", "the path")?;
+        let levels = count(&args[1], "parent", "the `levels` option")?;
 
         let parts = parse(path);
         let keep = parts.components.len().saturating_sub(levels);
@@ -1191,7 +1193,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::fromCwd(string $path): string` — `realpath`'s use in a
+    /// `Core\Path::fromWorkingDirectory(string $path): string` — `realpath`'s use in a
     /// command-line tool, without the disk: a path the user typed, made
     /// absolute against the directory the program was started from.
     ///
@@ -1207,10 +1209,10 @@ nvs_runtime::nvs_helper! {
     /// argument are one path to [`parse`], and [`resolved`] removes `.` and
     /// `..`, exactly as `normalize` does. An argument that begins at a root
     /// replaces the directory, as a second `join` segment would not.
-    fn nvs_core_path_from_cwd(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
-        const MEMBER: &str = r"Core\Path::fromCwd";
+    fn nvs_core_path_from_working_directory(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
+        const MEMBER: &str = r"Core\Path::fromWorkingDirectory";
 
-        let path = text(&args[0], "fromCwd", "the path")?;
+        let path = text(&args[0], "fromWorkingDirectory", "the path")?;
         let cwd = nvs_runtime::capability::working_dir(ctx, MEMBER)?;
         if begins_at_root(path) {
             let parts = parse(path);
@@ -1246,15 +1248,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Path::thisDir(?string $join = null): string` — `__DIR__`, as a
+    /// `Core\Path::thisDirectory(?string $join = null): string` — `__DIR__`, as a
     /// member the checker folds. [`nvs_core_path_this_file`]'s reason for a
     /// body that only throws.
-    fn nvs_core_path_this_dir(_ctx, _args: [1]) {
+    fn nvs_core_path_this_directory(_ctx, _args: [1]) {
         // no case can reach this: every case is a file, so the checker folds
         // the call. `this_file_and_this_dir_throw_without_a_file` is what
         // asserts it instead.
         Err(Fault::thrown(
-            r"Core\Path::thisDir has no folder to name: this source was compiled from text",
+            r"Core\Path::thisDirectory has no folder to name: this source was compiled from text",
         ))
     }
 }
@@ -1319,7 +1321,7 @@ mod tests {
     fn basename(path: &str, without_extension: bool) -> String {
         taken(
             run(
-                super::nvs_core_path_basename,
+                super::nvs_core_path_file_name,
                 &[s(path), Value::bool(without_extension)],
             )
             .expect("basename never fails"),
@@ -1329,11 +1331,8 @@ mod tests {
     /// `dirname`, with the option written out.
     fn dirname(path: &str, levels: u64) -> String {
         taken(
-            run(
-                super::nvs_core_path_dirname,
-                &[s(path), Value::uint(levels)],
-            )
-            .expect("dirname never fails"),
+            run(super::nvs_core_path_parent, &[s(path), Value::uint(levels)])
+                .expect("dirname never fails"),
         )
     }
 
@@ -1386,7 +1385,7 @@ mod tests {
 
     /// Every row checked against PHP 8.5's `basename`, except the two this
     /// module diverges on deliberately.
-    // covers: Core\Path::basename
+    // covers: Core\Path::fileName
     #[test]
     fn basename_answers_the_last_components_name() {
         assert_eq!(basename("/a/b/c.txt", false), "c.txt");
@@ -1400,7 +1399,7 @@ mod tests {
         assert_eq!(basename("/a\\b", false), "b");
     }
 
-    // covers: Core\Path::basename
+    // covers: Core\Path::fileName
     #[test]
     fn basename_without_extension_drops_only_a_real_extension() {
         assert_eq!(basename("/a/b/c.txt", true), "c");
@@ -1412,7 +1411,7 @@ mod tests {
         assert_eq!(basename("report.", true), "report.");
     }
 
-    // covers: Core\Path::dirname
+    // covers: Core\Path::parent
     #[test]
     fn dirname_walks_up_and_stops_at_a_root() {
         assert_eq!(dirname("/a/b/c.txt", 1), "/a/b");
@@ -1429,7 +1428,7 @@ mod tests {
 
     /// PHP throws a `ValueError` for `levels < 1`; this answers the path
     /// itself, with its separators normalized. See the member's own docs.
-    // covers: Core\Path::dirname
+    // covers: Core\Path::parent
     #[test]
     fn dirname_at_zero_levels_is_the_path_normalized() {
         assert_eq!(dirname("/a\\b/c", 0), "/a/b/c");
@@ -1686,7 +1685,7 @@ mod tests {
     /// `rule:security/launderers-are-sink-named`'s one exception, its first
     /// half. The row launders its one parameter and answers a plain `string`,
     /// so the checker gives a path typed on the command line to a path door.
-    // covers: Core\Path::fromCwd
+    // covers: Core\Path::fromWorkingDirectory
     #[test]
     fn from_cwd_returns_a_string_without_tainted() {
         use crate::registry::{CoreTy, Qual};
@@ -1694,8 +1693,8 @@ mod tests {
         let row = super::CLASS
             .methods
             .iter()
-            .find(|method| method.name == "fromCwd")
-            .expect("`Core\\Path::fromCwd` is registered");
+            .find(|method| method.name == "fromWorkingDirectory")
+            .expect("`Core\\Path::fromWorkingDirectory` is registered");
         assert!(
             matches!(row.params, [CoreTy::Text(Qual::Launder)]),
             "the one parameter is a launderer, so its `tainted` does not reach the answer"
@@ -1709,13 +1708,17 @@ mod tests {
     /// The exception's second half, and what makes the first one safe: a
     /// context answering a request throws whatever the argument is, so
     /// request data never reaches the laundered answer.
-    // covers: Core\Path::fromCwd
+    // covers: Core\Path::fromWorkingDirectory
     #[test]
     fn from_cwd_throws_while_a_request_is_answered() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
         let path = s("report.txt");
-        let result = call(super::nvs_core_path_from_cwd, &mut ctx, &[path]);
+        let result = call(
+            super::nvs_core_path_from_working_directory,
+            &mut ctx,
+            &[path],
+        );
         #[expect(
             unsafe_code,
             reason = "this test owns the one reference it built for the \
@@ -1736,7 +1739,7 @@ mod tests {
     /// for a source with no file, and then each throws and names what is
     /// missing.
     // covers: Core\Path::thisFile
-    // covers: Core\Path::thisDir
+    // covers: Core\Path::thisDirectory
     #[test]
     fn this_file_and_this_dir_throw_without_a_file() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -1746,7 +1749,11 @@ mod tests {
         assert!(message.contains("has no file to name"), "{message}");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let result = call(super::nvs_core_path_this_dir, &mut ctx, &[Value::null()]);
+        let result = call(
+            super::nvs_core_path_this_directory,
+            &mut ctx,
+            &[Value::null()],
+        );
         assert!(result.is_err(), "no folder to name");
         let message = ctx.pending().expect("the throw is pending").into_owned();
         assert!(message.contains("has no folder to name"), "{message}");

@@ -12,7 +12,7 @@ type, property or local. A helper that loads an API key is expected to declare i
 so there is no reading of its result that is not a credential. Each is a declared return type, not
 an ambient grant.
 
-- **`Core\Cli::secret`** reads a password at a terminal prompt with echo disabled and answers
+- **`Core\Cli::askSecret`** reads a password at a terminal prompt with echo disabled and answers
   `secret tainted string`: the person at the keyboard is outside the program.
 - **`Core\Env::secret('NAME')`** answers `?secret string`, `null` where nothing set the variable. It
   reads the variable `Core\Env::get` reads, and a program calls it instead of `get` to say that the

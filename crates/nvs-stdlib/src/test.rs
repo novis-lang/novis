@@ -822,13 +822,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SERVER_URL_DOC),
         },
         CoreMethod {
-            name: "scriptAnswers",
+            name: "answerCli",
             names: &["answers"],
             params: &[CoreTy::Array(&CoreTy::Text(Qual::Neutral))],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_test_script_answers",
+            symbol: "nvs_core_test_answer_cli",
             doc: Some(&SCRIPT_ANSWERS_DOC),
         },
         CoreMethod {
@@ -1371,7 +1371,7 @@ const SERVER_URL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test::scriptAnswers`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Test::answerCli`'s reference card — `rule:core-api/reference-card`.
 const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     short: "Gives the answers for the next questions your program asks with `Core\\Cli`, such \
             as `Core\\Cli::confirm`. Such a question is called a prompt. Each prompt uses the \
@@ -2569,7 +2569,7 @@ fn lines_of(value: Value) -> Result<Vec<String>, Fault> {
         // Unreachable from source: the row declares `array<string>` here, so
         // `E0401` refuses any other argument a phase before this runs.
         Fault::fatal(format!(
-            "Core\\Test::scriptAnswers expected an `array`, got tag {}",
+            "Core\\Test::answerCli expected an `array`, got tag {}",
             value.tag_byte()
         ))
     })?;
@@ -2586,7 +2586,7 @@ fn lines_of(value: Value) -> Result<Vec<String>, Fault> {
             // declared `array<string>` is what `E0401` checks, so a non-text
             // element never reaches this crate.
             Fault::fatal(format!(
-                "Core\\Test::scriptAnswers expected a `string` answer, got tag {}",
+                "Core\\Test::answerCli expected a `string` answer, got tag {}",
                 element.tag_byte()
             ))
         })?;
@@ -2596,7 +2596,7 @@ fn lines_of(value: Value) -> Result<Vec<String>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::scriptAnswers(array<string> $answers): void` — `rule:tooling/a-prompt-is-a-core-member`
+    /// `Core\Test::answerCli(array<string> $answers): void` — `rule:tooling/a-prompt-is-a-core-member`
     /// 's last paragraph, which is the whole of what makes an interactive
     /// flow assertable: prompts drain a queue the test supplied rather than
     /// reading a terminal.
@@ -2604,7 +2604,7 @@ nvs_runtime::nvs_helper! {
     /// **One member for all five prompts, and it names none of them.** The
     /// queue is drained in `nvs_stdlib::cli`'s `ask_terminal`, which every
     /// prompt already goes through, so `ask`, `confirm`, `select`,
-    /// `multiSelect` and `secret` gain this at once and a sixth prompt would
+    /// `multiSelect` and `askSecret` gain this at once and a sixth prompt would
     /// gain it by construction. A per-member spelling — `answerAsk`,
     /// `answerSelect` — would make the test say which member asked, which is
     /// exactly the coupling to the subject's internals a test should not have.
@@ -2619,8 +2619,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A call in work a server runs throws** ([`not_in_a_server`]). A test
     /// and a CLI program may call it.
-    fn nvs_core_test_script_answers(ctx, args: [1]) {
-        not_in_a_server(ctx, "Core\\Test::scriptAnswers")?;
+    fn nvs_core_test_answer_cli(ctx, args: [1]) {
+        not_in_a_server(ctx, "Core\\Test::answerCli")?;
         ctx.script_answers(lines_of(args[0])?);
         Ok(Value::null())
     }
@@ -2653,7 +2653,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The check `scriptAnswers`, `answerHttp`, `tlsSession` and `answerSocket`
+/// The check `answerCli`, `answerHttp`, `tlsSession` and `answerSocket`
 /// run first. Each replaces something the outside world gives a program, so
 /// each throws in work a server runs: a request, a connection, a scheduled
 /// fire and a job. A test left in a served program then cannot fake the
@@ -3163,7 +3163,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_test_sent_url" => (nvs_core_test_sent_url as *const ()).cast(),
         "nvs_core_test_sent_header" => return Some(nvs_core_test_sent_header::entry()),
         "nvs_core_test_sent_body" => (nvs_core_test_sent_body as *const ()).cast(),
-        "nvs_core_test_script_answers" => (nvs_core_test_script_answers as *const ()).cast(),
+        "nvs_core_test_answer_cli" => (nvs_core_test_answer_cli as *const ()).cast(),
         "nvs_core_test_server_url" => (nvs_core_test_server_url as *const ()).cast(),
         "nvs_core_test_assert_same" => (nvs_core_test_assert_same as *const ()).cast(),
         "nvs_core_test_assert_equals" => (nvs_core_test_assert_equals as *const ()).cast(),
@@ -5968,7 +5968,7 @@ mod tests {
     /// Every assertion — every row but the four that are not one: `rule:testing/failure-ledger`'s
     /// `expectFailure`, which takes a body rather than a subject; `rule:testing/determinism-declared-on-the-test`'s
     /// `advance`, which asserts nothing at all and is the fixed clock's
-    /// mutator; `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers`, which is the same kind of
+    /// mutator; `rule:tooling/a-prompt-is-a-core-member`'s `answerCli`, which is the same kind of
     /// thing as `advance` — a test declaring the world its subject runs in,
     /// here the answers its prompts read; and `rule:testing/in-process-request`'s two, `request` and
     /// `serverUrl`, which are the subject rather than a claim about one and are
@@ -5983,7 +5983,7 @@ mod tests {
                 method.name,
                 "expectFailure"
                     | "advance"
-                    | "scriptAnswers"
+                    | "answerCli"
                     | "request"
                     | "serverUrl"
                     | "double"
@@ -6256,7 +6256,7 @@ mod tests {
 
     /// The four members that replace the outside world throw in a served
     /// request and arm nothing there, and a test's own request may call them.
-    // covers: Core\Test::answerHttp, Core\Test::answerSocket, Core\Test::tlsSession, Core\Test::scriptAnswers
+    // covers: Core\Test::answerHttp, Core\Test::answerSocket, Core\Test::tlsSession, Core\Test::answerCli
     #[test]
     fn the_members_that_replace_the_outside_world_throw_in_a_served_request() {
         fn refused(ctx: &mut Ctx, member: nvs_runtime::NvsFn, args: &[Value]) -> Option<String> {
@@ -6288,7 +6288,7 @@ mod tests {
             ("answerHttp", nvs_core_test_answer_http, &http),
             ("answerSocket", nvs_core_test_answer_socket, &socket),
             ("tlsSession", nvs_core_test_tls_session, &tls),
-            ("scriptAnswers", nvs_core_test_script_answers, &script),
+            ("answerCli", nvs_core_test_answer_cli, &script),
         ];
         for (name, member, args) in calls {
             let why = refused(&mut served, member, args)
@@ -6432,7 +6432,7 @@ mod tests {
         assert!(matches!(member.return_ty, CoreTy::Void));
         // It is one of the rows that assert nothing about a subject — this,
         // `rule:testing/determinism-declared-on-the-test`'s `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
-        // `scriptAnswers`, `rule:testing/in-process-request`'s `request` and `serverUrl`,
+        // `answerCli`, `rule:testing/in-process-request`'s `request` and `serverUrl`,
         // `rule:testing/an-outbound-call-is-answered-from-a-table`'s
         // `answerHttp`, `tlsSession` and `sentHttp`, and
         // `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
@@ -8795,9 +8795,9 @@ mod tests {
     /// `assertTrue` holds for `true` and fails for `false`, with the `message`
     /// option in front of the failure. `expectFailure` discharges every failure
     /// its body recorded, caught or thrown, keeps the passing entries, and
-    /// fails a body that failed nothing. `scriptAnswers` adds its lines to the
+    /// fails a body that failed nothing. `answerCli` adds its lines to the
     /// tail of the queue the `Core\Cli` prompts read.
-    // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::scriptAnswers
+    // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::answerCli
     #[test]
     fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
         /// How many failures [`fails_and_catches`] records. Twenty thousand
@@ -8992,7 +8992,7 @@ mod tests {
                 list.append(Value::text(line));
             }
             let list = Value::array(list);
-            let answered = nvs_runtime::call(nvs_core_test_script_answers, ctx, &[list]);
+            let answered = nvs_runtime::call(nvs_core_test_answer_cli, ctx, &[list]);
             dropped(list);
             dropped(answered.expect("scripting answers never throws"));
         }

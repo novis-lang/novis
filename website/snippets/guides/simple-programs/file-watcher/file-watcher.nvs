@@ -24,7 +24,7 @@ class Watcher
     }
 }
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'notes.txt');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'notes.txt');
 Core\IO::write($path, "first version\n");
 Watcher $watcher = new Watcher($path);
 

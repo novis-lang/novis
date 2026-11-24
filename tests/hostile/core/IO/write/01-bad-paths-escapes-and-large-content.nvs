@@ -4,8 +4,8 @@
 // throw an error.
 // hostile: timeout-ms 60000
 
-string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
-Core\IO::makeDir($dir);
+string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack');
+Core\IO::makeDirectory($dir);
 
 // 1. One file is written 5000 times with a long text and a short text in turn. At the end the
 // file must contain only the last text.
@@ -38,7 +38,7 @@ foreach ($bad as string $badPath) {
     } catch (RuntimeError $refused) {
     }
 }
-if (!Core\IO::isDir($dir)) {
+if (!Core\IO::isDirectory($dir)) {
     throw new LogicError('the folder was replaced by `write`');
 }
 echo 'step 2: done', "\n";

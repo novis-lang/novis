@@ -9,7 +9,7 @@ Core\IO::within answers for a name nothing on disk answers for, keeps a name tha
 // about to create. And the proof compares *components*, so a `..` inside a
 // name is an ordinary letter pair while a `..` that is a whole component is
 // the escape.
-string $base = Core\IO::temporaryDir();
+string $base = Core\IO::createTemporaryDirectory();
 string $sep = Core\Path::SEPARATOR;
 string $note = Core\Path::join($base, "note.txt");
 Core\IO::write($note, "x\n");
@@ -20,13 +20,13 @@ Core\IO::write($note, "x\n");
 // a symlink spells the two differently, and this case is about containment,
 // not about that.
 string $inside = Core\IO::within($base, "note.txt");
-string $dir = Core\Path::dirname($inside);
+string $dir = Core\Path::parent($inside);
 
 // A name nothing on disk answers for is answered in the same directory as one
 // that is there -- and answering it creates nothing, which is the difference
 // between a question about a path and a question about a disk.
 string $absent = Core\IO::within($base, "absent.txt");
-echo "absent: same directory=", Core\Path::dirname($absent) == $dir ? "y" : "n",
+echo "absent: same directory=", Core\Path::parent($absent) == $dir ? "y" : "n",
      ", created=", Core\IO::exists($absent) ? "y" : "n", "\n";
 
 // Two absent levels, because one is the case a canonicalizer that gave up on
@@ -36,7 +36,7 @@ string $tail = "no" . $sep . "such" . $sep . "leaf.txt";
 string $deeper = Core\IO::within($base, $tail);
 echo "two absent levels: under the base=", Core\Str::startsWith($deeper, $dir) ? "y" : "n",
      ", named as given=", Core\Str::endsWith($deeper, $tail) ? "y" : "n",
-     ", created=", Core\IO::exists(Core\Path::dirname($deeper)) ? "y" : "n", "\n";
+     ", created=", Core\IO::exists(Core\Path::parent($deeper)) ? "y" : "n", "\n";
 
 // The discrimination, in one table so that it is asserted as a *contrast*
 // rather than as two lists. Rows 1 and 2 differ by one separator, and so do
@@ -97,7 +97,7 @@ array<string> $spellings = [
     $base,
     $base . $sep,
     $base . $sep . ".",
-    $base . $sep . ".." . $sep . Core\Path::basename($base),
+    $base . $sep . ".." . $sep . Core\Path::fileName($base),
 ];
 int $total = Core\Arr::count($spellings) as int;
 int $same = 0;
@@ -113,7 +113,7 @@ for (; $i < $total; $i = $i + 1) {
 echo "base spellings: ", $total as string, ", agreeing with the plain base: ", $same as string, "\n";
 
 Core\IO::remove($note);
-Core\IO::removeDir($base);
+Core\IO::removeDirectory($base);
 echo "cleaned: ", Core\IO::exists($base) ? "y" : "n", "\n";
 --FILE nvs.toml--
 [capabilities.fs]

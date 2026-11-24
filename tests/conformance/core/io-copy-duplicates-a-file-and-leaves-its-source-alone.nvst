@@ -44,7 +44,7 @@ echo "destinations: ", $n as string,
 
 // And across a directory, since a copy is not a same-directory operation: the
 // name is a path and the door checks the path.
-Core\IO::makeDir("into");
+Core\IO::makeDirectory("into");
 Core\IO::copy("source.txt", "into/dest.txt");
 echo "across a directory: '", Core\IO::read("into/dest.txt"), "'\n";
 --FILE nvs.toml--

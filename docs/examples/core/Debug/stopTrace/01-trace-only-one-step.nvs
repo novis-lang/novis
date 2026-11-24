@@ -14,7 +14,7 @@ class Nightly
     }
 }
 
-string $file = Core\Path::thisDir('import.jsonl');
+string $file = Core\Path::thisDirectory('import.jsonl');
 
 // Only the import is traced. `stopTrace` closes the file before the report starts.
 Core\Debug::startTrace($file);

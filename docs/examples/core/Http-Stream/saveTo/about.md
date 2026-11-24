@@ -9,7 +9,7 @@ when a file already exists at the path, so an existing file is never replaced. A
 the part already written is deleted.
 
 A program you start from the command line may save to any path. On a server, a program may write
-only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+only in the folders that `Core\IO::createTemporaryDirectory` made for it. Any other path needs the `fs.write`
 capability.
 
 The body of a stream can be read only once. After `saveTo()`, a call to `chunks()`, `lines()`,

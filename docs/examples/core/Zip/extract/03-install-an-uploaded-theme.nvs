@@ -7,7 +7,7 @@ class Themes
     // Each theme may have at most 1 MiB of files.
     public static function install(bytes $upload): string
     {
-        string $folder = Core\IO::temporaryDir();
+        string $folder = Core\IO::createTemporaryDirectory();
         try {
             uint $files = Core\Zip::extract($upload, $folder, 1048576);
             return 'installed ' . $files . ' files';

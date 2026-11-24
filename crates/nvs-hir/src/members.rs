@@ -2022,7 +2022,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                         .to_owned()
                 } else if matches!(text, "__FILE__" | "__DIR__") {
                     "there are no magic constants. `Core\\Path::thisFile()` returns the path of \
-                     this file, and `Core\\Path::thisDir()` returns its folder"
+                     this file, and `Core\\Path::thisDirectory()` returns its folder"
                         .to_owned()
                 } else {
                     "every constant belongs to a class, so write `Class::NAME`. A built-in \

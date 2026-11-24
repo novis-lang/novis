@@ -311,7 +311,7 @@ names the member to use, and its one fix is the fast form's text as an `alternat
 value read twice is `W1035`, found on the written tree by `nvs_ir::rereads::find` and raised by its
 `warnings`, and a `Core` call between the two that takes a callable stops it as a Novis call does. The same value read twice warns where two calls of one reading member in one
 function do the same work again: `get` on a cache store of one key,
-two or more `queryParameter` calls on one `Core\Uri`, and two or more of `Core\IO::isFile`, `isDir`,
+two or more `queryParameter` calls on one `Core\Uri`, and two or more of `Core\IO::isFile`, `isDirectory`,
 `size` and `modifiedAt` on one path. It carries no fix, because the fix needs a variable name. The
 shape is exact: the same receiver variable and the same literal key or path variable, neither assigned
 between the calls, the second reached only through the first, and between them no call to a Novis

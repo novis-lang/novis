@@ -2,7 +2,7 @@
 // Shows how to write your own line to a file first, and the rows after it.
 use Novis\Spreadsheet\Workbook;
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.csv');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'stock.csv');
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 $file->write("# Stock count, warehouse 2\n");
 

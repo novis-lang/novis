@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read a whole file in parts of the same size, until it ends.
 
-string $path = Core\Path::join(Core\IO::temporaryDir(), 'backup.bin');
+string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'backup.bin');
 Core\IO::write($path, Core\Bytes::repeat(Core\Encoding::fromHex('00ff'), 5000));
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
