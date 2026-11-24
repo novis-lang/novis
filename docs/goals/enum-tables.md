@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "an enum is a full key: a match covers every case, a constant holds cases, and an array is keyed by an enum"
-summary: "Reached when a match over an enum that misses a case and has no default does not compile, a class constant and a property default hold enum cases, as int of a case, other constants and Foo::class inside arrays, array<E, T> types an array whose keys are the cases of the enum E, Core\\Arr keeps and returns those keys, and the rules, the reference, the examples, the feature proofs and the website say so."
+summary: "Reached when a match over an enum that misses a case and has no default does not compile, a class constant and a property default hold enum cases, as int of a case, other constants and Foo::class inside arrays, array<E, T> types an array whose keys are the cases of the enum E, Core\\Arr keeps and returns those keys, the editor offers the cases where an enum is expected and a quick fix adds the arms a match is missing, and the rules, the reference, the examples, the feature proofs and the website say so."
 context: [docs/rules/enums/no-class-machinery.md, docs/rules/types/arrays.md, crates/nvs-types/src/ty.rs]
 stages:
   - id: 1
@@ -21,10 +21,14 @@ stages:
     status: open
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/json.rs]
   - id: 5
+    title: "the editor offers the cases where an enum is expected, and a quick fix adds the arms a match is missing"
+    status: open
+    context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/actions.rs, docs/rules/ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows.md, docs/rules/ide/completion-is-asked-where-a-spelling-ends.md]
+  - id: 6
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
     status: open
     context: [docs/examples/lang/enums, website/src/data/changes.json]
-  - id: 6
+  - id: 7
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -64,13 +68,18 @@ checks:
     name: "the conformance cases for the covering match, the folded constants and the enum-keyed array are green"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/reject/a-match-over-an-enum-that-misses-a-case-does-not-compile.nvst, --case, tests/conformance/enum/a-match-over-every-case-needs-no-default.nvst, --case, tests/conformance/enum/a-constant-holds-enum-cases-inside-an-array.nvst, --case, tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst, --case, tests/conformance/reject/an-enum-keyed-array-takes-only-its-own-cases.nvst]
     timeout: 1800
-  - id: proofs
+  - id: editor
     stage: 5
+    name: "the editor offers an enum's cases at a match arm, a keyed subscript, a keyed literal's key and an enum parameter, a quick fix adds a match's missing arms, and rename, hover and highlighting reach the new forms"
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/completion/a-match-arm-over-an-enum-offers-the-cases-not-yet-handled.lspt, --case, tests/lsp/completion/a-subscript-of-an-enum-keyed-array-offers-its-cases.lspt, --case, tests/lsp/completion/a-key-of-an-enum-keyed-literal-offers-the-cases-not-yet-written.lspt, --case, tests/lsp/completion/an-argument-at-an-enum-parameter-offers-its-cases.lspt, --case, tests/lsp/completion/the-key-of-an-array-type-offers-the-enums.lspt, --case, tests/lsp/actions/a-match-missing-a-case-is-offered-its-arms.lspt, --case, tests/lsp/rename/renaming-a-case-renames-it-inside-a-constant-table-and-a-keyed-literal.lspt, --case, tests/lsp/hover/an-enum-keyed-array-shows-its-key-type.lspt, --case, tests/lsp/highlight/an-enum-keyed-array-type-colours-both-arguments.lspt]
+    timeout: 1800
+  - id: proofs
+    stage: 6
     name: "every feature the goal's work reached has its feature proofs"
     run: [bun, nv, proofs, --gate, --goal, enum-tables]
     timeout: 1800
   - id: close
-    stage: 6
+    stage: 7
     name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
     run: [bun, nv, close, --goal, enum-tables]
     timeout: 900
@@ -204,6 +213,18 @@ already, so `array<T>` is the way to write that.
   (`crates/nvs-stdlib/src/json.rs:1289`). A decoded object becomes enum-keyed with `as array<E, T>`.
   `Core\Serialize`, `Core\Cache` and sessions keep the stored keys, and the same `as` types them.
 
+**The editor (stage 5).** The user asked for editor support as part of this goal.
+- **Cases where an enum is expected.** Completion offers `E::Case` rows first wherever the expected
+  type is `E`: a `match` arm over `E`, a subscript of `array<E, T>`, a key of a literal typed
+  `array<E, T>`, and an argument at an `E` parameter. At an arm and a literal key, a case already
+  written is left out, so the list is what is still missing. No new trigger character.
+- **The quick fix for a missing case** is the new error's own suggestion, so the server computes
+  nothing for it. Each inserted arm throws `LogicError` naming its case, so the file compiles and the
+  user replaces each body. A `default` arm is never inserted: it would switch the check off.
+- **Declined:** a code action that writes a constant table from an enum (generated code that no
+  diagnostic asks for, which `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+  does not allow); a new trigger character at `[` or `=>`.
+
 **Declined, and written into the rules' Declined lists.**
 - **A case as a key of a plain `array<T>`.** It would key by a number another enum shares, and give
   the key back as a string (`E0434` stays).
@@ -231,8 +252,9 @@ bench of a lookup by case against the same lookup through `as int`.
 attempt is recorded in the handoff with what failed, and the stage goes on.
 
 **Lanes.** The stages run in order. Stage 3 needs stage 2's folded case keys for its constants, and
-stage 4 needs stage 3's type. Every file here is in `nvs-types`, `nvs-ir` or `nvs-stdlib`, which the
-goals ahead also edit, so this goal runs last on the chain.
+stage 4 needs stage 3's type. Stage 5 needs stage 1's error and stage 3's type. Every file here is in
+`nvs-types`, `nvs-ir`, `nvs-stdlib` or `nvs-lsp`, which the goals ahead also edit, so this goal runs
+last on the chain.
 
 ## Stages
 
@@ -240,7 +262,7 @@ goals ahead also edit, so this goal runs last on the chain.
 
 - [ ] `crates/nvs-types/src/expr/mod.rs:928`: for an `E` or `?E` subject with no `default`, collect the
   cases the arm conditions name and report the new code for the rest. The doc comment names the
-  rule stage 5 writes, `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md`.
+  rule stage 6 writes, `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md`.
 - [ ] `crates/nvs-diagnostics/src/code/types_e10.rs:1`: the new code after `E1008`, with its card,
   written to AGENTS.md § *Text an end user reads*.
 - [ ] `crates/nvs-ir/src/lower/expr.rs:2268`: no no-match branch for a `match` the checker marked as
@@ -306,7 +328,37 @@ goals ahead also edit, so this goal runs last on the chain.
   `array<T>`, and its expected help changes.
 - [ ] The check `cases` run once.
 
-### 5. the rules, the reference, the examples, the feature proofs and the website say so
+### 5. the editor offers the cases where an enum is expected, and a quick fix adds the arms a match is missing
+
+**Split:** the `.lspt` cases go to one writing subagent once completion and the fix land. Its brief
+names the nine paths of the check `editor`, the neutral names `Priority`, `Low`, `Normal` and `High`,
+and `docs/agent/conventions.md` § *An `.lspt` case*.
+
+- [ ] `crates/nvs-lsp/src/completion.rs:410`: a new reach for a position whose expected type is an
+  enum `E`, offering `E::Case` rows before every other row. The positions: an arm condition of a
+  `match` over `E` or `?E` (only the cases no arm handles yet, and `null` for `?E`), a subscript of an
+  `array<E, T>`, a key of an array literal whose target is `array<E, T>` (only the cases not written
+  yet), and an argument at a parameter of type `E`. Trigger characters do not change: the list opens
+  while a word is typed or when the user asks for it
+  (`rule:ide/completion-is-asked-where-a-spelling-ends`).
+- [ ] The same module: after `array<` in type position, the enums in scope are offered beside the
+  types, as the existing type completion does.
+- [ ] Stage 1's new error carries one suggestion that inserts an arm per missing case before the
+  closing brace, each `Priority::High => throw new LogicError("…")` with the case named in the
+  message. `crates/nvs-lsp/src/actions.rs:287` offers it with no new code
+  (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). The arm text is held to
+  AGENTS.md § *Text an end user reads*.
+- [ ] Rename of a case (`crates/nvs-lsp/src/rename.rs:28`) reaches a case inside a constant table and
+  a key of a keyed literal. Hover and signature help print `array<E, T>` from stage 3's display. A
+  failing case is fixed at its cause.
+- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:362` already colours a name before `,` in a type
+  argument. The highlight case pins it, and the grammar changes only if the case is red.
+- [ ] The nine `.lspt` cases the check `editor` names, then the check run once.
+- [ ] The completion rule gains one sentence on the expected-type rows, in
+  `docs/rules/ide/completion-is-asked-where-a-spelling-ends.md:1` or the fragment `bun nv brief
+  --where completion` names as the home of what a list offers.
+
+### 6. the rules, the reference, the examples, the feature proofs and the website say so
 
 **Split:** the examples, the attack and the bench go to one writing subagent once the rules are
 rewritten. The session writes the rules, the docs and the website entry.
@@ -330,9 +382,9 @@ rewritten. The session writes the rules, the docs and the website entry.
   `bun nv site --stamp`.
 - [ ] `bun nv proofs --owed --goal enum-tables` names nothing.
 
-### 6. the goal is verified once, and every failure is fixed
+### 7. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 5 touched.
+- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
