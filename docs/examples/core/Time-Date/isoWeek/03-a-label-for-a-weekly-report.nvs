@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write a label such as `2026-W05` for a weekly report.
+
+class Report
+{
+    // The week number gets a leading zero, so the labels sort in order as text.
+    public static function label(Core\Time\Date $day): string
+    {
+        string $week = Core\Str::padStart($day->isoWeek() as string, 2, '0');
+        return $day->isoWeekYear() . '-W' . $week;
+    }
+}
+
+// This prints 2026-W05, 2026-W53 and 2025-W01.
+echo Report::label(Core\Time\Date::at(2026, 1, 28)), "\n";
+echo Report::label(Core\Time\Date::at(2027, 1, 2)), "\n";
+echo Report::label(Core\Time\Date::at(2024, 12, 30)), "\n";

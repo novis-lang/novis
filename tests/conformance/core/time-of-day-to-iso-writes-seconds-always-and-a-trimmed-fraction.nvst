@@ -1,0 +1,34 @@
+--TEST--
+`Core\Time\TimeOfDay::toIso` writes `HH:MM:SS` always, and a fraction only when it is not zero with its trailing zeros dropped, and `TimeOfDay::fromIso` reads every such text back as the same time over a table that reaches both ends of the day — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\TimeOfDay::toIso
+echo Core\Time\TimeOfDay::at(0, 0)->toIso(), "\n";
+echo Core\Time\TimeOfDay::at(8, 30)->toIso(), "\n";
+echo Core\Time\TimeOfDay::fromIso('12:00:05.250')->toIso(), "\n";
+echo Core\Time\TimeOfDay::fromIso('12:00:05.000')->toIso(), "\n";
+echo Core\Time\TimeOfDay::at(12, 0)->plus(1, Core\Unit::Nanosecond)->toIso(), "\n";
+echo Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 })->toIso(), "\n";
+
+// Round trip, counted: one fraction of each length from one to nine digits,
+// each at a different second of the day.
+array<int> $fractions = [100000000, 20000000, 3000000, 400000, 50000, 6000, 700, 80, 9];
+int $back = 0;
+int $digits = 1;
+foreach ($fractions as int $nanos) {
+    var $t = Core\Time\TimeOfDay::at(23, 59, { second: 59 })->minus($digits * 3701, Core\Unit::Second)->plus($nanos, Core\Unit::Nanosecond);
+    string $text = $t->toIso();
+    if (Core\Time\TimeOfDay::fromIso($text) == $t && Core\Str::length($text) == 9 + $digits) {
+        $back = $back + 1;
+    }
+    $digits = $digits + 1;
+}
+echo $back, "\n";
+--EXPECT--
+00:00:00
+08:30:00
+12:00:05.25
+12:00:05
+12:00:00.000000001
+23:59:59.999999999
+9

@@ -12,7 +12,8 @@ written as a string literal in `TimeOfDay::fromIso` is checked when the program 
 plus one hour is `00:30`. `Core\Unit::Day` and larger units throw an error, because there is no date
 to change. `format` takes the time letters of the patterns `DateTime::format` uses. A date letter or
 a zone letter does not compile. `DateTime::withTime` puts a time onto a date. `<`, `>`, `<=`, `>=`
-and `compareTo` order two times.
+and `compareTo` order two times, and `==` is `true` for two equal times. `toIso()` writes the time as
+text, such as `08:30:00`, and `TimeOfDay::fromIso` reads it back.
 
 `hour()`, `minute()`, `second()` and `nanoseconds()` return the four fields as numbers. Each returns a
 `uint`, with the same name as the field `with` takes.

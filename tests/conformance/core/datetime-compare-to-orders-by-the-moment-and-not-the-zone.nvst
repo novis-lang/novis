@@ -1,0 +1,49 @@
+--TEST--
+`Core\Time\DateTime::compareTo` orders two values by their moment to the nanosecond, so 10:00 in Berlin and 09:00 in London on one winter day compare `0` and are `==`, and `<`, `>`, `<=`, `>=` and `<=>` agree with it — `rule:types/ordering`
+--FILE--
+<?nvs
+// covers: Core\Time\DateTime::compareTo
+var $berlin = Core\Time\DateTime::fromIso('2026-01-05 10:00', 'Europe/Berlin');
+var $london = Core\Time\DateTime::fromIso('2026-01-05 09:00', 'Europe/London');
+var $later = Core\Time\DateTime::fromIso('2026-01-05 09:30', 'Europe/London');
+
+// One moment, two clocks: equal, both ways.
+echo $berlin->compareTo($london), ' ', $london->compareTo($berlin), "\n";
+echo $berlin == $london ? 'eq' : 'ne', ' ', $berlin != $london ? 'ne' : 'eq', "\n";
+echo $berlin <=> $london, ' ', $berlin <= $london ? 'le' : 'gt', ' ', $berlin >= $london ? 'ge' : 'lt', "\n";
+
+// The earlier hour on the London clock is the later moment.
+echo $later->compareTo($berlin), ' ', $berlin->compareTo($later), "\n";
+echo $later > $berlin ? 'gt' : 'le', ' ', $berlin < $later ? 'lt' : 'ge', ' ', $later <=> $berlin, "\n";
+
+// One nanosecond decides it, across two zones whose clocks are almost two days apart.
+var $noon = Core\Time\Instant::fromIso('2024-06-01T12:00:00Z');
+var $east = $noon->in(Core\Time\Zone::fixed(25h59m59s));
+var $west = $noon->plus(1ns)->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+echo $east->compareTo($west), ' ', $west->compareTo($east), ' ', $east < $west ? 'lt' : 'ge', "\n";
+
+// The zone is not part of the answer: the same moment read back in a third zone is still 0.
+echo $berlin->toInstant()->in(Core\Time\Zone::of('Asia/Tokyo'))->compareTo($london), "\n";
+
+// Agreement, counted over every ordered pair of the five values.
+array<Core\Time\DateTime> $all = [$berlin, $london, $later, $east, $west];
+int $agree = 0;
+foreach ($all as Core\Time\DateTime $a) {
+    foreach ($all as Core\Time\DateTime $b) {
+        int $c = $a->compareTo($b);
+        if (($a < $b) == ($c < 0) && ($a == $b) == ($c == 0) && ($a <=> $b) == $c
+            && $c == $a->toInstant()->compareTo($b->toInstant())) {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo $agree, "\n";
+--EXPECT--
+0 0
+eq eq
+0 le ge
+1 -1
+gt lt 1
+-1 1 lt
+0
+25

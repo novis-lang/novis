@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to print the quarter of a date with its first and its last day.
+
+var $date = Core\Time\Date::at(2026, 8, 17);
+
+// This prints Q3 2026: 2026-07-01 to 2026-09-30.
+echo 'Q', $date->quarter(), ' ', $date->year(), ': ',
+    $date->startOf(Core\Unit::Quarter)->toIso(), ' to ',
+    $date->endOf(Core\Unit::Quarter)->toIso(), "\n";

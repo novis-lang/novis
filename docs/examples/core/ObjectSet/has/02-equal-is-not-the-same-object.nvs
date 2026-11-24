@@ -1,5 +1,5 @@
 <?nvs
-// Shows that `has` looks for the same object, not an object with equal property values.
+// Shows that `has` finds an object of your own class only when it is the same object.
 
 final class Point
 {

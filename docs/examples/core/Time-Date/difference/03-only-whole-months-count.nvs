@@ -1,0 +1,15 @@
+<?nvs
+// Shows how `difference` counts months when the months have different lengths.
+
+use Core\Unit;
+
+var $start = Core\Time\Date::at(2024, 1, 31);
+
+// February has no day 31, so a whole month is not reached. This prints 0.
+echo $start->difference(Core\Time\Date::at(2024, 2, 29), Unit::Month), "\n";
+
+// On 1 March, one whole month is reached. This prints 1.
+echo $start->difference(Core\Time\Date::at(2024, 3, 1), Unit::Month), "\n";
+
+// A quarter is three months. This prints 1.
+echo $start->difference(Core\Time\Date::at(2024, 5, 1), Unit::Quarter), "\n";

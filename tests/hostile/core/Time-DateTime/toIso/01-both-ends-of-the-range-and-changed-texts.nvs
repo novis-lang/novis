@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `toIso` writes the first and the last moment of the range in the widest offsets, and the texts are changed.
+// Every text from `toIso` should read back as the same moment, and every changed text should throw a `ParseError`.
+
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+array<Core\Time\Zone> $zones = [
+    Core\Time\Zone::UTC,
+    Core\Time\Zone::fixed(25h59m59s),
+    Core\Time\Zone::fixed(25h59m59s->negated()),
+    Core\Time\Zone::of('Pacific/Kiritimati'),
+    Core\Time\Zone::of('Pacific/Pago_Pago'),
+];
+
+// 1. Both ends of the range in each zone are written and read back.
+int $same = 0;
+foreach ($zones as Core\Time\Zone $zone) {
+    var $low = $first->in($zone);
+    var $high = $last->in($zone);
+    if (Core\Time\DateTime::fromIso($low->toIso()) == $low) {
+        $same = $same + 1;
+    }
+    if (Core\Time\DateTime::fromIso($high->toIso()) == $high) {
+        $same = $same + 1;
+    }
+}
+echo $same, " of 10 read back\n";
+
+// 2. A text from `toIso` with a wrong offset, an unknown zone or a second zone name.
+// Each text is built while the program runs, so it is read when the program runs.
+string $text = Core\Time\DateTime::fromIso('2024-06-01 09:30', 'Europe/Berlin')->toIso();
+array<string> $changed = [
+    Core\Str::replace($text, '+02:00', '+01:00'),
+    Core\Str::replace($text, 'Europe/Berlin', 'Europe/Nowhere'),
+    Core\Str::replace($text, ']', '][UTC]'),
+    Core\Str::replace($text, '[Europe/Berlin]', ''),
+    Core\Str::replace($text, '[', '[' . Core\Str::repeat('A', 100000)),
+];
+int $refused = 0;
+foreach ($changed as string $bad) {
+    try {
+        Core\Time\DateTime::fromIso($bad);
+    } catch (ParseError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo $refused, " of 5 refused\n";
+
+// 3. Many texts with every length of fraction are written and read back.
+// Every value is freed, and no text should be read as a different moment.
+var $start = Core\Time\DateTime::fromIso('2024-10-27 00:00', 'Europe/Berlin');
+int $wrong = 0;
+int $i = 0;
+while ($i < 20000) {
+    var $value = $start->plus($i * 7919, Core\Unit::Second)->plus($i * 1001, Core\Unit::Nanosecond);
+    if (Core\Time\DateTime::fromIso($value->toIso()) != $value) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo $wrong, " wrong\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Compares two date-times in different time zones, as a program does when it checks if an event has started.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<Core\Time\DateTime> $events = [
+            Core\Time\DateTime::fromIso('2026-01-05 09:59', 'Europe/London'),
+            Core\Time\DateTime::fromIso('2026-01-05 10:00', 'Europe/Berlin'),
+            Core\Time\DateTime::fromIso('2026-01-05 18:30', 'Asia/Tokyo'),
+        ];
+        Core\Time\DateTime $now = Core\Time\DateTime::fromIso('2026-01-05 09:00', 'Europe/London');
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the event compared in this round
+            $total = $total + $events[(($total as uint + $i) % 3) as int]->compareTo($now) + 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

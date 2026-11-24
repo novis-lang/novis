@@ -1,0 +1,10 @@
+<?nvs
+// Shows that the quarter is read in the value's own time zone.
+
+// 22:00 on 31 March in New York is 04:00 on 1 April in Berlin.
+var $newYork = Core\Time\DateTime::fromIso('2026-03-31 22:00', 'America/New_York');
+var $berlin = $newYork->toInstant()->in(Core\Time\Zone::of('Europe/Berlin'));
+
+// The same moment is in quarter 1 in New York and in quarter 2 in Berlin. This prints 1, then 2.
+echo $newYork->quarter(), "\n";
+echo $berlin->quarter(), "\n";

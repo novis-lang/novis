@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to count the days from 2020 to 2030 where the year of the week is not the year of the date.
+
+var $day = Core\Time\Date::at(2020, 1, 1);
+var $end = Core\Time\Date::at(2030, 12, 31);
+int $count = 0;
+while ($day <= $end) {
+    if ($day->isoWeekYear() != $day->year()) {
+        $count = $count + 1;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+}
+
+// Each New Year has up to three of these days. This prints 19 days.
+echo $count, " days\n";

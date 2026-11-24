@@ -1,0 +1,21 @@
+<?nvs
+// Finds the date of a monthly payment that a customer wants on the 31st of each month.
+
+class Payment
+{
+    // A short month has no day 31. The payment is then on the last day of that month.
+    public static function due(Core\Time\DateTime $month): string
+    {
+        uint $day = 31;
+        if ($month->daysInMonth() < $day) {
+            $day = $month->daysInMonth();
+        }
+        return $month->with({ day: $day })->format('yyyy-MM-dd');
+    }
+}
+
+// This prints 2026-01-31, 2026-02-28 and 2026-04-30.
+array<string> $months = ['2026-01-01', '2026-02-01', '2026-04-01'];
+foreach ($months as string $text) {
+    echo Payment::due(Core\Time\DateTime::fromIso($text, 'UTC')), "\n";
+}

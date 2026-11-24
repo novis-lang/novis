@@ -1,0 +1,64 @@
+--TEST--
+`Core\Time\Date::next` and `previous` land on the weekday asked for, one to seven days away and seven exactly when the date is already on it, undo each other, and throw a `RuntimeError` when the answer is past either end of the calendar
+--FILE--
+<?nvs
+// covers: Core\Time\Date::next, Core\Time\Date::previous
+use Core\Unit;
+use Core\Time\Date;
+use Core\Time\Weekday;
+
+array<Weekday> $weekdays = [
+    Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday,
+    Weekday::Friday, Weekday::Saturday, Weekday::Sunday,
+];
+
+// Every pair of a day in two weeks and a weekday.
+int $right = 0;
+int $undone = 0;
+int $sevens = 0;
+var $day = Date::at(2024, 2, 24);
+int $i = 0;
+while ($i < 14) {
+    foreach ($weekdays as Weekday $w) {
+        var $after = $day->next($w);
+        var $before = $day->previous($w);
+        int $ahead = $day->difference($after, Unit::Day);
+        int $back = $day->difference($before, Unit::Day);
+        if ($after->weekday() == $w && $before->weekday() == $w
+            && $ahead >= 1 && $ahead <= 7 && $back >= -7 && $back <= -1) {
+            $right = $right + 1;
+        }
+        if ($after->previous($day->weekday())->compareTo($day) == 0
+            && $before->next($day->weekday())->compareTo($day) == 0) {
+            $undone = $undone + 1;
+        }
+        if ($w == $day->weekday() && $ahead == 7 && $back == -7) {
+            $sevens = $sevens + 1;
+        }
+    }
+    $day = $day->plus(1, Unit::Day);
+    $i = $i + 1;
+}
+echo $right, ' ', $undone, ' ', $sevens, "\n";
+
+// -9999-01-01 is a Monday and 9999-12-31 a Friday.
+echo Date::at(-9999, 1, 1)->next(Weekday::Sunday)->toIso(), ' ',
+    Date::at(9999, 12, 30)->next(Weekday::Friday)->toIso(), ' ',
+    Date::at(-9999, 1, 2)->previous(Weekday::Monday)->toIso(), "\n";
+try {
+    Date::at(9999, 12, 31)->next(Weekday::Saturday);
+    echo "no error\n";
+} catch (RuntimeError $e) {
+    echo "next: RuntimeError\n";
+}
+try {
+    Date::at(-9999, 1, 1)->previous(Weekday::Sunday);
+    echo "no error\n";
+} catch (RuntimeError $e) {
+    echo "previous: RuntimeError\n";
+}
+--EXPECT--
+98 98 14
+-9999-01-07 9999-12-31 -9999-01-01
+next: RuntimeError
+previous: RuntimeError

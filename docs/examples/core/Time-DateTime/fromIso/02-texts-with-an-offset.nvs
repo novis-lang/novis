@@ -1,18 +1,23 @@
 <?nvs
-// Shows what happens when a text has an offset from UTC, and how to read such a text instead.
+// Shows how `fromIso` reads a text with an offset from UTC.
 
-// The first text is a local time. The second ends in `Z` and the third in `+02:00`.
-// Both throw a `ParseError`, because neither text has a time zone name after it.
-array<string> $inputs = ['2024-06-01T09:30:00', '2024-06-01T07:30:00Z', '2024-06-01T09:30:00+02:00'];
+// This text has an offset and a zone name in brackets. This is the text `toIso` writes.
+// `fromIso` needs no second argument for it. This prints 2024-06-01 09:30 +02:00.
+var $saved = Core\Time\DateTime::fromIso('2024-06-01T09:30:00+02:00[Europe/Berlin]');
+echo $saved->format('yyyy-MM-dd HH:mm XXX'), "\n";
+
+// A text that ends in `Z` or in an offset alone has no zone name.
+// `fromIso` throws a `ParseError` for it.
+array<string> $inputs = ['2024-06-01T07:30:00Z', '2024-06-01T09:30:00+02:00'];
 foreach ($inputs as string $text) {
     try {
         echo Core\Time\DateTime::fromIso($text, 'Europe/Berlin')->format('yyyy-MM-dd HH:mm XXX'), "\n";
     } catch (ParseError $error) {
-        echo 'has an offset: ', $text, "\n";
+        echo 'no zone name: ', $text, "\n";
     }
 }
 
-// `Core\Time\Instant::fromIso` reads a text with an offset. `in` gives the time in Berlin.
+// `Core\Time\Instant::fromIso` reads such a text. `in` gives the time in Berlin.
 // This prints 2024-06-01 09:30 +02:00.
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
 echo Core\Time\Instant::fromIso('2024-06-01T07:30:00Z')->in($berlin)->format('yyyy-MM-dd HH:mm XXX'), "\n";

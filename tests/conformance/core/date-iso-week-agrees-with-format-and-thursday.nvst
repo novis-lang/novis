@@ -1,0 +1,48 @@
+--TEST--
+`Core\Time\Date::isoWeek` and `isoWeekYear` agree with `format`'s `w` and `YYYY` on every day from 2020 to 2030, every week runs Monday to Sunday under one number, a week's year is the year of its Thursday, and week `1` holds 4 January
+--FILE--
+<?nvs
+// covers: Core\Time\Date::isoWeek, Core\Time\Date::isoWeekYear
+use Core\Unit;
+use Core\Time\Date;
+use Core\Time\Weekday;
+
+int $formatAgrees = 0;
+int $thursday = 0;
+int $sameWeek = 0;
+int $fourth = 0;
+int $days = 0;
+var $day = Date::at(2020, 1, 1);
+var $end = Date::at(2030, 12, 31);
+while ($day <= $end) {
+    uint $week = $day->isoWeek();
+    int $weekYear = $day->isoWeekYear();
+    if ($day->format('w') as uint == $week && $day->format('YYYY') as int == $weekYear) {
+        $formatAgrees = $formatAgrees + 1;
+    }
+    // The Thursday of the same week names the week's year.
+    var $monday = $day->startOf(Unit::Week);
+    var $thu = $monday->plus(3, Unit::Day);
+    if ($thu->year() == $weekYear && $thu->weekday() == Weekday::Thursday) {
+        $thursday = $thursday + 1;
+    }
+    if ($monday->isoWeek() == $week && $day->endOf(Unit::Week)->isoWeek() == $week) {
+        $sameWeek = $sameWeek + 1;
+    }
+    if ($day->month() == 1 && $day->day() == 4 && $week == 1 && $weekYear == $day->year()) {
+        $fourth = $fourth + 1;
+    }
+    $days = $days + 1;
+    $day = $day->plus(1, Unit::Day);
+}
+echo $days, ' ', $formatAgrees, ' ', $thursday, ' ', $sameWeek, ' ', $fourth, "\n";
+
+// The days around New Year where the two years differ, and the ends of the calendar.
+echo Date::at(2027, 1, 1)->isoWeek(), ' ', Date::at(2027, 1, 1)->isoWeekYear(), ' ',
+    Date::at(2024, 12, 30)->isoWeek(), ' ', Date::at(2024, 12, 30)->isoWeekYear(), "\n";
+echo Date::at(-9999, 1, 1)->isoWeek(), ' ', Date::at(-9999, 1, 1)->isoWeekYear(), ' ',
+    Date::at(9999, 12, 31)->isoWeek(), ' ', Date::at(9999, 12, 31)->isoWeekYear(), "\n";
+--EXPECT--
+4018 4018 4018 4018 11
+53 2026 1 2025
+1 -9999 52 9999

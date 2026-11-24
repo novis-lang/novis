@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time\Duration::compareTo` is a total order over the signed length, asserted by counting trichotomy, antisymmetry, agreement with `toNanoseconds` and with `<` over every pair and transitivity over every triple; it answers the two ends of the range, whose difference no `int` holds, and `==` stays identity where it answers `0` — `rule:classes/comparable`
+`Core\Time\Duration::compareTo` is a total order over the signed length, asserted by counting trichotomy, antisymmetry, agreement with `toNanoseconds` and with `<` over every pair and transitivity over every triple; it answers the two ends of the range, whose difference no `int` holds, and `==` agrees with it where it answers `0` — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\Time\Duration::compareTo
@@ -79,10 +79,10 @@ echo "transitive=", $transitive, " chains=", $chains, "|\n";
 // answer is still one sign each way.
 echo $table[1]->compareTo($table[6]), " ", $table[6]->compareTo($table[1]), "\n";
 
-// Equal length is not the same object: `==` on two objects is identity.
+// Two durations of equal length are `==`, because a `Duration` compares by value.
 echo (90m == 1h30m) ? "same" : "distinct", " ", 90m->compareTo(1h30m), "\n";
 --EXPECT--
 trichotomy=100 zero=16 antisym=100 key=100 operator=100|
 transitive=1000 chains=258|
 -1 1
-distinct 0
+same 0

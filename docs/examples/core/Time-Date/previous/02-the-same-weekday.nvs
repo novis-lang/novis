@@ -1,0 +1,13 @@
+<?nvs
+// Shows what `previous` returns when the date is already on the weekday you give.
+
+use Core\Time\Weekday;
+
+// 20 May 2026 is a Wednesday.
+var $wednesday = Core\Time\Date::at(2026, 5, 20);
+
+// `previous` always moves back, so the result is one week earlier. This prints 2026-05-13.
+echo $wednesday->previous(Weekday::Wednesday)->toIso(), "\n";
+
+// To keep the date itself, start from the day after. This prints 2026-05-20.
+echo $wednesday->plus(1, Core\Unit::Day)->previous(Weekday::Wednesday)->toIso(), "\n";

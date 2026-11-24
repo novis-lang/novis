@@ -1,0 +1,12 @@
+<?nvs
+// Shows the week and its year for each day from 28 December 2026 to 4 January 2027.
+
+// The week from Monday 28 December to Sunday 3 January is week 53 of 2026.
+// Monday 4 January 2027 starts week 1 of 2027.
+var $day = Core\Time\DateTime::fromIso('2026-12-28', 'UTC');
+int $i = 0;
+while ($i < 8) {
+    echo $day->format('EEE yyyy-MM-dd'), ': week ', $day->isoWeek(), ' of ', $day->isoWeekYear(), "\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $i = $i + 1;
+}

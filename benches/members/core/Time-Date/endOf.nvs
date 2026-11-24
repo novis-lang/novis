@@ -1,0 +1,24 @@
+<?nvs
+// Finds the last day of the month of a date, as a program does when it sets the due date of an invoice.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $date = Core\Time\Date::at(2024, 1, 11);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each round starts from the day after last round's result
+            var $end = $date->endOf(Core\Unit::Month);
+            $total = $total + ($end->day() as int);
+            $date = $end->plus(1, Core\Unit::Day);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

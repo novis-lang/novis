@@ -1,0 +1,30 @@
+<?nvs
+// Attack: `isoWeekYear` reads the days around every New Year from -9999 to 9999, and both ends of the calendar.
+// The result should never be more than one year from `year()`, and nothing should crash.
+
+// 1. Both ends of the calendar. This prints -9999 and 9999.
+echo Core\Time\Date::at(-9999, 1, 1)->isoWeekYear(), ' ', Core\Time\Date::at(9999, 12, 31)->isoWeekYear(), "\n";
+
+// 2. 29 December to 3 January of every year.
+// A December day is in its own year or the next one, and a January day is in its own year or the one before.
+int $wrong = 0;
+int $differs = 0;
+int $year = -9999;
+while ($year < 9999) {
+    var $day = Core\Time\Date::at($year, 12, 29);
+    int $i = 0;
+    while ($i < 6) {
+        int $weekYear = $day->isoWeekYear();
+        int $shift = $weekYear - $day->year();
+        if ($shift != 0) {
+            $differs = $differs + 1;
+        }
+        if (($day->month() == 12 && ($shift < 0 || $shift > 1)) || ($day->month() == 1 && ($shift < -1 || $shift > 0))) {
+            $wrong = $wrong + 1;
+        }
+        $day = $day->plus(1, Core\Unit::Day);
+        $i = $i + 1;
+    }
+    $year = $year + 1;
+}
+echo $wrong, ' wrong, ', $differs, " differ from year()\n";

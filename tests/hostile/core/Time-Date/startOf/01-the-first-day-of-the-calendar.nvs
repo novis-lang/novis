@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `startOf` gets the first days of the calendar, where a week, month, quarter or year could start before the year -9999.
+// Each call should return a date that exists, or throw a `RuntimeError`, and nothing should crash.
+
+use Core\Unit;
+use Core\Time\Date;
+
+class Check
+{
+    // Returns 1 when the start is on or before the day and not before the first day of the calendar.
+    public static function inRange(Date $start, Date $day): int
+    {
+        return $start <= $day && $start >= Date::at(-9999, 1, 1) ? 1 : 0;
+    }
+}
+
+// 1. The first day of the calendar is a Monday, so each unit starts on it. This prints -9999-01-01 four times.
+var $first = Date::at(-9999, 1, 1);
+echo $first->startOf(Unit::Week)->toIso(), ' ', $first->startOf(Unit::Month)->toIso(), ' ',
+    $first->startOf(Unit::Quarter)->toIso(), ' ', $first->startOf(Unit::Year)->toIso(), "\n";
+
+// 2. Each of the first 400 days goes back to its week, month, quarter and year.
+int $good = 0;
+int $thrown = 0;
+var $day = $first;
+int $i = 0;
+while ($i < 400) {
+    try {
+        $good = $good + Check::inRange($day->startOf(Unit::Week), $day);
+        $good = $good + Check::inRange($day->startOf(Unit::Month), $day);
+        $good = $good + Check::inRange($day->startOf(Unit::Quarter), $day);
+        $good = $good + Check::inRange($day->startOf(Unit::Year), $day);
+    } catch (RuntimeError $tooEarly) {
+        $thrown = $thrown + 1;
+    }
+    $day = $day->plus(1, Unit::Day);
+    $i = $i + 1;
+}
+echo $good, ' good, ', $thrown, " thrown\n";
+
+// 3. The last day of the calendar. This prints 9999-12-27 and 9999-10-01.
+var $last = Date::at(9999, 12, 31);
+echo $last->startOf(Unit::Week)->toIso(), ' ', $last->startOf(Unit::Quarter)->toIso(), "\n";

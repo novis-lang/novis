@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `compareTo` gets the first and the last moment of the range in the widest offsets, and a long sort across many zones.
+// Each result should follow the moment and not the clock, and nothing should crash or leak.
+
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+var $east = Core\Time\Zone::fixed(25h59m59s);
+var $west = Core\Time\Zone::fixed(25h59m59s->negated());
+
+// 1. The first moment at +25:59:59 is compared with the last moment at -25:59:59, and with itself at -25:59:59.
+// This prints -1 1 0.
+echo $first->in($east)->compareTo($last->in($west)), ' ';
+echo $last->in($west)->compareTo($first->in($east)), ' ';
+echo $first->in($east)->compareTo($first->in($west)), "\n";
+
+// 2. Two values one nanosecond apart in two zones whose clocks are almost two days apart. This prints -1.
+var $noon = Core\Time\Instant::fromIso('2024-06-01T12:00:00Z');
+echo $noon->in($east)->compareTo($noon->plus(1ns)->in($west)), "\n";
+
+// 3. A list of 20,000 values in five zones is sorted, and every neighbour is checked.
+array<Core\Time\Zone> $zones = [$east, $west, Core\Time\Zone::UTC, Core\Time\Zone::of('Asia/Kolkata'), Core\Time\Zone::of('America/St_Johns')];
+array<Core\Time\DateTime> $values = [];
+int $i = 0;
+while ($i < 20000) {
+    $values[] = $noon->plus(Core\Time\Duration::seconds(($i * 7919) % 200000 - 100000))->in($zones[($i % 5) as string]);
+    $i = $i + 1;
+}
+array<Core\Time\DateTime> $sorted = Core\Arr::sort($values, {
+    comparator: fn (Core\Time\DateTime $p, Core\Time\DateTime $q): int => $p->compareTo($q),
+});
+int $wrong = 0;
+Core\Time\DateTime $previous = $first->in(Core\Time\Zone::UTC);
+foreach ($sorted as Core\Time\DateTime $value) {
+    if ($previous > $value || $previous->toInstant() > $value->toInstant()) {
+        $wrong = $wrong + 1;
+    }
+    $previous = $value;
+}
+echo $wrong, " out of order\n";

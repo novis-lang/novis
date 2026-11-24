@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the first days of January can be in the last week of the year before.
+
+// 1 January 2027 is a Friday. Its week has the Thursday 31 December 2026, so it is week 53 of 2026.
+// This prints 53 2026.
+var $newYear = Core\Time\DateTime::fromIso('2027-01-01', 'UTC');
+echo $newYear->isoWeek(), ' ', $newYear->isoWeekYear(), "\n";
+
+// The last days of December can be in week 1 of the next year.
+// 30 December 2024 is a Monday, and its week has 2 January 2025. This prints 1 2025.
+var $december = Core\Time\DateTime::fromIso('2024-12-30', 'UTC');
+echo $december->isoWeek(), ' ', $december->isoWeekYear(), "\n";

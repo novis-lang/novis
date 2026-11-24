@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to count the days and the weeks between two dates.
+
+use Core\Unit;
+
+var $start = Core\Time\Date::at(2024, 1, 1);
+var $end = Core\Time\Date::at(2024, 12, 31);
+
+// 31 December is 365 days after 1 January, because 2024 has 366 days. This prints 365.
+echo $start->difference($end, Unit::Day), "\n";
+
+// Only whole weeks count. This prints 52.
+echo $start->difference($end, Unit::Week), "\n";
+
+// Counting back to an earlier date gives a negative number. This prints -365.
+echo $end->difference($start, Unit::Day), "\n";

@@ -1,0 +1,45 @@
+--TEST--
+`Core\Time\DateTime::toIso` writes the local date and time, the offset and the zone in brackets, seconds always and a fraction only when it is not zero, and `DateTime::fromIso` with no second argument reads each text back as the same moment in the same zone, including the second of two repeated local times — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\DateTime::toIso, Core\Time\DateTime::fromIso
+var $vienna = Core\Time\DateTime::fromIso('2026-01-05 08:30', 'Europe/Vienna');
+echo $vienna->toIso(), "\n";
+echo $vienna->plus(6, Core\Unit::Month)->toIso(), "\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30:15.250', 'UTC')->toIso(), "\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30:00.000000001', 'Asia/Kolkata')->toIso(), "\n";
+echo $vienna->toInstant()->in(Core\Time\Zone::fixed(25h59m59s->negated()))->toIso(), "\n";
+
+// 02:30 happens twice in Berlin on 2024-10-27. The offset picks which one,
+// so the text of each reads back as itself and not as the other.
+var $firstHalf = Core\Time\DateTime::fromIso('2024-10-27 02:30', 'Europe/Berlin');
+var $secondHalf = $firstHalf->toInstant()->plus(1h)->in(Core\Time\Zone::of('Europe/Berlin'));
+echo $firstHalf->toIso(), ' ', $secondHalf->toIso(), "\n";
+var $readFirst = Core\Time\DateTime::fromIso($firstHalf->toIso());
+var $readSecond = Core\Time\DateTime::fromIso($secondHalf->toIso());
+echo $readFirst == $firstHalf ? 'first' : 'not first', ' ', $readSecond == $secondHalf ? 'second' : 'not second', ' ', $readFirst == $readSecond ? 'merged' : 'apart', "\n";
+
+// The zone comes back too, not just the moment.
+echo $readSecond->zone() == Core\Time\Zone::of('Europe/Berlin') ? 'zone kept' : 'zone lost', "\n";
+
+// A text whose bracket zone agrees with the second argument reads; one that
+// disagrees throws. Both are computed, so both are read at run time.
+string $text = $vienna->toIso();
+echo Core\Time\DateTime::fromIso($text, 'Europe/Vienna')->toIso() == $text ? 'agrees' : 'differs', "\n";
+try {
+    Core\Time\DateTime::fromIso($text, Core\Time\Zone::of('Asia/Tokyo'));
+    echo "read\n";
+} catch (ParseError $e) {
+    echo "two zones refused\n";
+}
+--EXPECT--
+2026-01-05T08:30:00+01:00[Europe/Vienna]
+2026-07-05T08:30:00+02:00[Europe/Vienna]
+2024-03-01T09:30:15.25+00:00[UTC]
+2024-03-01T09:30:00.000000001+05:30[Asia/Kolkata]
+2026-01-04T05:30:01-25:59:59[-25:59:59]
+2024-10-27T02:30:00+02:00[Europe/Berlin] 2024-10-27T02:30:00+01:00[Europe/Berlin]
+first second apart
+zone kept
+agrees
+two zones refused

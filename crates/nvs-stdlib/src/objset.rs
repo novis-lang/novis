@@ -182,7 +182,7 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectSet::add`'s reference card — `rule:core-api/reference-card`.
 const ADD_DOC: MethodDoc = MethodDoc {
-    short: "Adds `$value` to the set, unless the set already contains that same value.",
+    short: "Adds `$value` to the set, unless the set already contains a value that is `==` to it.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to add, matched with `==`.",

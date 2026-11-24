@@ -1,0 +1,15 @@
+<?nvs
+// Shows the three results of `compareTo` for two date-times.
+
+var $start = Core\Time\DateTime::fromIso('2026-03-02 09:00', 'Europe/Berlin');
+var $end = Core\Time\DateTime::fromIso('2026-03-02 17:30', 'Europe/Berlin');
+
+// This prints -1, then 1, then 0.
+echo $start->compareTo($end), "\n";
+echo $end->compareTo($start), "\n";
+echo $start->compareTo($start), "\n";
+
+// `<` uses `compareTo`. This prints "start first".
+if ($start < $end) {
+    echo "start first\n";
+}

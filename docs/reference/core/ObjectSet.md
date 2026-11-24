@@ -1,10 +1,12 @@
 ---
-summary: a typed set of objects held by identity
-keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects
+summary: a typed set of objects, each found with ==
+keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects, set of dates
 ---
 
-`Core\ObjectSet<T>` holds each object at most once, matched by **identity**: adding the same object twice
-leaves one member, and a second object equal in every property is a second member. It is built with
+`Core\ObjectSet<T>` holds each object at most once, and finds a member with `==`. For most objects that
+is **identity**: adding the same object twice leaves one member, and a second object equal in every
+property is a second member. A `Core\Time` value, such as a `Date`, compares by value, so two equal
+dates are one member. It is built with
 `new Core\ObjectSet<T>()`; `add`, `has` and `remove` are the membership members, and the set is `Iterable`
 — a `foreach` yields its members in insertion order, over a snapshot, so the body may `remove` what it is
 walking. A `foreach` does not copy the set. If the loop changes the set, the loop still walks the members

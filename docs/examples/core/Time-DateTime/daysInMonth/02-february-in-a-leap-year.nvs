@@ -1,0 +1,14 @@
+<?nvs
+// Shows that February has 29 days in a leap year.
+
+// 2024 is a leap year, so this prints 29.
+echo Core\Time\DateTime::fromIso('2024-02-10', 'UTC')->daysInMonth(), "\n";
+
+// 2100 is not a leap year, because it ends in 00 and 400 does not divide it. This prints 28.
+echo Core\Time\DateTime::fromIso('2100-02-10', 'UTC')->daysInMonth(), "\n";
+
+// The month is read in the value's own time zone.
+// 23:30 on 31 January in London is already 1 February in Berlin. This prints 31, then 29.
+var $london = Core\Time\DateTime::fromIso('2024-01-31 23:30', 'Europe/London');
+echo $london->daysInMonth(), "\n";
+echo $london->toInstant()->in(Core\Time\Zone::of('Europe/Berlin'))->daysInMonth(), "\n";

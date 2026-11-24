@@ -1,0 +1,26 @@
+<?nvs
+// Writes a time of day as ISO text, as a program does when it saves opening hours.
+// bench: iterations 1024
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(8, 30),
+            Core\Time\TimeOfDay::fromIso('12:00:05.25'),
+            Core\Time\TimeOfDay::at(23, 59, { second: 59 }),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the time
+            $total = $total + Core\Str::length($times[$total % 3]->toIso()) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

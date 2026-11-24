@@ -1,0 +1,26 @@
+<?nvs
+// Writes a date as ISO text, as a program does when it saves a date to a file or to JSON.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<Core\Time\Date> $days = [
+            Core\Time\Date::at(2024, 1, 1),
+            Core\Time\Date::at(5, 7, 7),
+            Core\Time\Date::at(9999, 12, 31),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the date written in this round
+            $total = $total + (Core\Str::length($days[(($total as uint + $i) % 3) as int]->toIso()) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

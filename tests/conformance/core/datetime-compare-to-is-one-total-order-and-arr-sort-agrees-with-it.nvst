@@ -1,0 +1,94 @@
+--TEST--
+`Core\Time\DateTime::compareTo` is a total order over a table of values in five zones, asserted by counting trichotomy, antisymmetry and transitivity, and `Core\Arr::sort` with a comparator that reads the epoch nanoseconds alone lands on the order `compareTo` gives — `rule:types/ordering`
+--FILE--
+<?nvs
+// covers: Core\Time\DateTime::compareTo
+class Epoch
+{
+    public static function order(Core\Time\DateTime $p, Core\Time\DateTime $q): int
+    {
+        int $seconds = $p->toInstant()->toEpochSeconds() <=> $q->toInstant()->toEpochSeconds();
+        if ($seconds != 0) {
+            return $seconds;
+        }
+        return $p->nanoseconds() <=> $q->nanoseconds();
+    }
+}
+
+// Ten moments, three of them the same moment in other zones, so the table
+// has ties that no clock reading shows.
+array<string> $texts = [
+    '2026-03-29T03:30:00+02:00[Europe/Berlin]',
+    '2026-03-29T01:30:00+00:00[UTC]',
+    '2026-03-29T10:30:00+09:00[Asia/Tokyo]',
+    '2026-03-28T21:30:00-04:00[America/New_York]',
+    '2026-03-29T01:59:59.999999999+00:00[UTC]',
+    '2026-03-29T03:00:00+02:00[Europe/Berlin]',
+    '-9999-01-02T01:59:59+00:00[UTC]',
+    '9999-12-30T22:00:00+00:00[UTC]',
+    '2026-03-29T07:00:00+05:30[Asia/Kolkata]',
+    '2026-03-29T01:30:00.000000001+00:00[UTC]',
+];
+array<Core\Time\DateTime> $table = [];
+foreach ($texts as string $text) {
+    $table[] = Core\Time\DateTime::fromIso($text);
+}
+
+int $pairs = 0;
+int $trichotomy = 0;
+int $antisymmetry = 0;
+foreach ($table as Core\Time\DateTime $a) {
+    foreach ($table as Core\Time\DateTime $b) {
+        int $ab = $a->compareTo($b);
+        int $ba = $b->compareTo($a);
+        $pairs = $pairs + 1;
+        if ($ab == -1 || $ab == 0 || $ab == 1) {
+            $trichotomy = $trichotomy + 1;
+        }
+        if ($ab == -$ba) {
+            $antisymmetry = $antisymmetry + 1;
+        }
+    }
+}
+
+int $triples = 0;
+int $transitive = 0;
+foreach ($table as Core\Time\DateTime $a) {
+    foreach ($table as Core\Time\DateTime $b) {
+        foreach ($table as Core\Time\DateTime $c) {
+            if ($a->compareTo($b) <= 0 && $b->compareTo($c) <= 0) {
+                $triples = $triples + 1;
+                if ($a->compareTo($c) <= 0) {
+                    $transitive = $transitive + 1;
+                }
+            }
+        }
+    }
+}
+echo $pairs, ' ', $trichotomy, ' ', $antisymmetry, "\n";
+echo $triples == $transitive ? 'transitive' : 'broken', "\n";
+
+// The comparator never calls `compareTo`: it reads the epoch second and the
+// nanosecond field, so the sort is an independent oracle for the order. Every
+// offset is a whole number of seconds, so the field is the instant's own.
+array<Core\Time\DateTime> $byEpoch = Core\Arr::sort($table, {
+    comparator: fn (Core\Time\DateTime $p, Core\Time\DateTime $q): int
+        => Epoch::order($p, $q),
+});
+int $inOrder = 0;
+int $i = 1;
+while ($i < 10) {
+    if ($byEpoch[($i - 1) as string]->compareTo($byEpoch[$i as string]) <= 0) {
+        $inOrder = $inOrder + 1;
+    }
+    $i = $i + 1;
+}
+echo $inOrder, "\n";
+echo $byEpoch[0]->toIso(), "\n";
+echo $byEpoch[9]->toIso(), "\n";
+--EXPECT--
+100 100 100
+transitive
+9
+-9999-01-02T01:59:59+00:00[UTC]
+9999-12-30T22:00:00+00:00[UTC]

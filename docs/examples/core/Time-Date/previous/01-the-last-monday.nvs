@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find the last Monday before a date.
+
+use Core\Time\Weekday;
+
+// 20 May 2026 is a Wednesday.
+var $today = Core\Time\Date::at(2026, 5, 20);
+
+// The last Monday is two days earlier. This prints Mon 2026-05-18.
+echo $today->previous(Weekday::Monday)->format('EEE yyyy-MM-dd'), "\n";
+
+// The last Friday is in the week before. This prints Fri 2026-05-15.
+echo $today->previous(Weekday::Friday)->format('EEE yyyy-MM-dd'), "\n";

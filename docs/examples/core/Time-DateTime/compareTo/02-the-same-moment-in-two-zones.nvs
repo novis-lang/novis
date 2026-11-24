@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `compareTo` compares the moment, and not the time on the clock.
+
+// In January, Berlin is one hour ahead of London. 10:00 in Berlin is 09:00 in London.
+var $berlin = Core\Time\DateTime::fromIso('2026-01-05 10:00', 'Europe/Berlin');
+var $london = Core\Time\DateTime::fromIso('2026-01-05 09:00', 'Europe/London');
+
+// Both values are the same moment, so this prints 0.
+echo $berlin->compareTo($london), "\n";
+
+// `==` compares the moment too. This prints "same moment".
+echo $berlin == $london ? 'same moment' : 'other moment', "\n";
+
+// 09:30 in London is later, even though the clock shows an earlier hour. This prints 1.
+echo Core\Time\DateTime::fromIso('2026-01-05 09:30', 'Europe/London')->compareTo($berlin), "\n";

@@ -1,10 +1,12 @@
 ---
-summary: a map keyed by object identity — a typed side table that keeps a value for each object
-keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup
+summary: a map keyed by objects, found with == — a typed side table that keeps a value for each object
+keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup, date key
 ---
 
-`Core\ObjectMap<K, V>` associates a value with an object, matched by **identity**: the one object is one
-key however many variables hold it, and two objects that agree on every property are two keys. `array<T>`
+`Core\ObjectMap<K, V>` associates a value with an object, and finds a key with `==`. For most objects
+that is **identity**: the one object is one key however many variables hold it, and two objects that
+agree on every property are two keys. A `Core\Time` value, such as a `Date` or a `Duration`, compares
+by value, so an equal date built elsewhere finds the same entry. `array<T>`
 cannot key on an object, so this is where a per-object side table lives. It is built with
 `new Core\ObjectMap<K, V>()`, `get` answers `?V` rather than throwing — there is no `$m[$k]` subscript on it —
 and `has` is the one member that tells an absent key from a stored `null`.

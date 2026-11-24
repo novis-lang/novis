@@ -20,7 +20,8 @@ Core\ObjectSet<Point> $points = new Core\ObjectSet<Point>();
 $points->add($a);
 $points->add($b);
 
-// `$a` and `$b` are equal, but they are not the same object. This prints 2.
+// `$a` and `$b` have the same property values, but they are two objects.
+// `$a == $b` is false, so this prints 2.
 echo $points->count(), "\n";
 
 // For numbers, equal values are the same value. This prints 2.

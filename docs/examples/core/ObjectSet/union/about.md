@@ -2,8 +2,9 @@ Builds a new `Core\ObjectSet` with every value that is in this set, in `$other`,
 that is in both sets is in the result only once. This replaces a loop that copies two
 `SplObjectStorage` objects into a third one.
 
-A value is matched by identity. Two objects with equal property values are two different values, so the
-result has both of them.
+A value is found with `==`. For an object of your own class, two objects with equal property values
+are two different values, so the result has both of them. Two `Date` values for the same day are one
+value.
 
 The result is a new set. `union` does not change this set or `$other`. The values of this set come
 first, in their order. Then the values of `$other` that are not in this set follow, in their order.

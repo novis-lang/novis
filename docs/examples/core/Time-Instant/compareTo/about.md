@@ -7,5 +7,5 @@ does not matter. `2024-03-01T13:00:00+01:00` and `2024-03-01T12:00:00Z` are the 
 You can also write `<`, `>`, `<=`, `>=` and `<=>` between two instants. They all use `compareTo`,
 so they always give the same answer.
 
-**Good to know:** `==` between two instants checks whether they are the same object. It does not
-compare the moment. To test for the same moment, check that `compareTo` returns `0`.
+**Good to know:** `==` compares two instants by their moment too. It is `true` for the two texts
+above.

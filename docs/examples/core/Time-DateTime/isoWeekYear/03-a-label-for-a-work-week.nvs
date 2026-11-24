@@ -1,0 +1,16 @@
+<?nvs
+// Builds a label such as `2026-W53` for the work week of a time sheet.
+
+class TimeSheet
+{
+    // The label uses `isoWeekYear`, not `year`. With `year`, 1 January 2027 gets the label 2027-W53.
+    // That week does not exist.
+    public static function label(Core\Time\DateTime $day): string
+    {
+        return $day->isoWeekYear() . '-W' . $day->isoWeek();
+    }
+}
+
+// Both days are in the same work week. This prints 2026-W53 twice.
+echo TimeSheet::label(Core\Time\DateTime::fromIso('2026-12-31 17:00', 'Europe/Berlin')), "\n";
+echo TimeSheet::label(Core\Time\DateTime::fromIso('2027-01-01 09:00', 'Europe/Berlin')), "\n";

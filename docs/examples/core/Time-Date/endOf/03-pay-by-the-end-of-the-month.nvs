@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to set the due date of an invoice to the last day of the next month.
+
+class Invoice
+{
+    // The function moves one month forward, then takes the last day of that month.
+    public static function dueDate(Core\Time\Date $sent): Core\Time\Date
+    {
+        return $sent->plus(1, Core\Unit::Month)->endOf(Core\Unit::Month);
+    }
+}
+
+// This prints 2024-02-29, then 2025-01-31.
+echo Invoice::dueDate(Core\Time\Date::at(2024, 1, 31))->toIso(), "\n";
+echo Invoice::dueDate(Core\Time\Date::at(2024, 12, 2))->toIso(), "\n";

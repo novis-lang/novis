@@ -1,0 +1,14 @@
+<?nvs
+// Shows that every day from Monday to Sunday has the same start of the week.
+
+var $day = Core\Time\Date::at(2026, 5, 18);
+int $i = 0;
+while ($i < 7) {
+    // Each line prints the day, then the Monday of its week: 2026-05-18.
+    echo $day->format('EEE yyyy-MM-dd'), ' -> ', $day->startOf(Core\Unit::Week)->toIso(), "\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $i = $i + 1;
+}
+
+// One day later is the next week. This prints 2026-05-25.
+echo $day->startOf(Core\Unit::Week)->toIso(), "\n";

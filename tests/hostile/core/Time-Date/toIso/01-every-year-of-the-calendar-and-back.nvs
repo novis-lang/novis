@@ -1,0 +1,26 @@
+<?nvs
+// Attack: `toIso` writes the first and last days of the calendar, years with fewer than four digits, and negative years.
+// `Core\Time\Date::fromIso` should read every text back to the same date, and nothing should leak.
+
+// 1. Both ends of the calendar. This prints -9999-01-01 and 9999-12-31.
+echo Core\Time\Date::at(-9999, 1, 1)->toIso(), ' ', Core\Time\Date::at(9999, 12, 31)->toIso(), "\n";
+
+// 2. Short years and the years around year 0. This prints -0001-12-31 0000-02-29 0001-01-01.
+echo Core\Time\Date::at(-1, 12, 31)->toIso(), ' ', Core\Time\Date::at(0, 2, 29)->toIso(), ' ',
+    Core\Time\Date::at(1, 1, 1)->toIso(), "\n";
+
+// 3. One date in every year of the calendar is written and read back.
+int $same = 0;
+int $year = -9999;
+while ($year <= 9999) {
+    var $date = Core\Time\Date::at($year, 12, 31);
+    if (Core\Time\Date::fromIso($date->toIso())->compareTo($date) == 0) {
+        $same = $same + 1;
+    }
+    $year = $year + 1;
+}
+echo $same, " of 19999 the same\n";
+
+// 4. The text always has ten characters, or eleven with a `-` in front.
+echo Core\Str::length(Core\Time\Date::at(7, 7, 7)->toIso()), ' ',
+    Core\Str::length(Core\Time\Date::at(-7, 7, 7)->toIso()), "\n";

@@ -1,0 +1,57 @@
+--TEST--
+`Core\Time\Date::difference` counts the whole units `plus` takes: `n` steps of a unit from a date are `n` units away, one day short of a step is one unit less, swapping the dates negates the count, a month counts only once its day is reached, and the count across the whole calendar is exact; `toIso` writes each date as `fromIso` reads it back
+--FILE--
+<?nvs
+// covers: Core\Time\Date::difference, Core\Time\Date::toIso
+use Core\Unit;
+use Core\Time\Date;
+
+// From 1 March 2024, n steps of each unit are n units away, a day less is n - 1, and the swap is -n.
+var $start = Date::at(2024, 3, 1);
+int $agree = 0;
+int $n = 1;
+while ($n <= 40) {
+    var $day = $start->plus($n, Unit::Day);
+    var $week = $start->plus($n, Unit::Week);
+    var $month = $start->plus($n, Unit::Month);
+    var $quarter = $start->plus($n, Unit::Quarter);
+    var $year = $start->plus($n, Unit::Year);
+    if ($start->difference($day, Unit::Day) == $n && $day->difference($start, Unit::Day) == -$n
+        && $start->difference($week, Unit::Week) == $n && $start->difference($week->minus(1, Unit::Day), Unit::Week) == $n - 1
+        && $start->difference($month, Unit::Month) == $n && $start->difference($month->minus(1, Unit::Day), Unit::Month) == $n - 1
+        && $start->difference($quarter, Unit::Quarter) == $n && $quarter->difference($start, Unit::Quarter) == -$n
+        && $start->difference($year, Unit::Year) == $n && $start->difference($year->minus(1, Unit::Day), Unit::Year) == $n - 1) {
+        $agree = $agree + 1;
+    }
+    $n = $n + 1;
+}
+echo $agree, "\n";
+
+// A month counts only once its day is reached, in both directions.
+var $jan31 = Date::at(2024, 1, 31);
+echo $jan31->difference(Date::at(2024, 2, 29), Unit::Month), ' ',
+    $jan31->difference(Date::at(2024, 3, 1), Unit::Month), ' ',
+    Date::at(2024, 2, 29)->difference($jan31, Unit::Month), ' ',
+    Date::at(2024, 2, 29)->difference(Date::at(2025, 2, 28), Unit::Year), ' ',
+    Date::at(2024, 2, 29)->difference(Date::at(2025, 3, 1), Unit::Year), "\n";
+
+// Across the whole calendar.
+var $first = Date::at(-9999, 1, 1);
+var $last = Date::at(9999, 12, 31);
+echo $first->difference($last, Unit::Day), ' ', $first->difference($last, Unit::Year), ' ',
+    $last->difference($first, Unit::Month), "\n";
+
+// `toIso` and `fromIso` agree, including short and negative years.
+array<string> $texts = ['-9999-01-01', '-0001-12-31', '0000-02-29', '0005-01-02', '2024-02-29', '9999-12-31'];
+int $round = 0;
+foreach ($texts as string $text) {
+    if (Date::fromIso($text)->toIso() == $text) {
+        $round = $round + 1;
+    }
+}
+echo $round, ' ', Date::at(2026, 5, 20)->toIso(), "\n";
+--EXPECT--
+40
+0 1 0 0 1
+7304483 19998 -239987
+6 2026-05-20

@@ -1,0 +1,33 @@
+<?nvs
+// Attack: `isoWeekYear` is read on the days around every New Year of 400 years, and at both ends of the range.
+// 4 January is always in week 1 of its own year, and 28 December always in the last week of its own year.
+// Each check should hold, and nothing should crash or leak.
+
+// 1. Every New Year from 2000 to 2399. Each day from 28 December to 4 January is checked.
+int $wrong = 0;
+int $year = 2000;
+while ($year < 2400) {
+    var $january = Core\Time\DateTime::at(Core\Time\Date::at($year, 1, 4), Core\Time\TimeOfDay::at(12, 0), 'UTC');
+    var $december = Core\Time\DateTime::at(Core\Time\Date::at($year, 12, 28), Core\Time\TimeOfDay::at(12, 0), 'UTC');
+    if ($january->isoWeekYear() != $year || $january->isoWeek() != 1 || $december->isoWeekYear() != $year) {
+        $wrong = $wrong + 1;
+    }
+    int $d = 1;
+    while ($d < 8) {
+        int $weekYear = $december->plus($d, Core\Unit::Day)->isoWeekYear();
+        if ($weekYear != $year && $weekYear != $year + 1) {
+            $wrong = $wrong + 1;
+        }
+        $d = $d + 1;
+    }
+    $year = $year + 1;
+}
+echo $wrong, " wrong\n";
+
+// 2. The first and the last moment of the range, in three zones. This prints -9999 9999 three times.
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+array<Core\Time\Zone> $zones = [Core\Time\Zone::UTC, Core\Time\Zone::fixed(25h59m59s), Core\Time\Zone::fixed(25h59m59s->negated())];
+foreach ($zones as Core\Time\Zone $zone) {
+    echo $first->in($zone)->isoWeekYear(), ' ', $last->in($zone)->isoWeekYear(), "\n";
+}

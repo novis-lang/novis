@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to put a date in a file name, with one file for each day.
+
+var $day = Core\Time\Date::at(2026, 12, 30);
+int $i = 0;
+while ($i < 3) {
+    // ISO text has no `/` and sorts in date order, so it is safe in a file name.
+    echo 'report-', $day->toIso(), ".csv\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $i = $i + 1;
+}

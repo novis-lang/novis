@@ -1,0 +1,11 @@
+<?nvs
+// Shows the ISO week number of a date.
+
+// 20 May 2026 is in week 21. This prints 21.
+echo Core\Time\Date::at(2026, 5, 20)->isoWeek(), "\n";
+
+// A week starts on Monday, so Sunday is still in the same week. This prints 21.
+echo Core\Time\Date::at(2026, 5, 24)->isoWeek(), "\n";
+
+// The Monday after it starts week 22. This prints 22.
+echo Core\Time\Date::at(2026, 5, 25)->isoWeek(), "\n";

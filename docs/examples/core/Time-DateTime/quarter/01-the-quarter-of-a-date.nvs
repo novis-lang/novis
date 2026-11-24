@@ -1,0 +1,9 @@
+<?nvs
+// Shows the quarter of the year for a few dates.
+
+// January to March is quarter 1, and October to December is quarter 4.
+// This prints 1, 2, 3 and 4.
+array<string> $dates = ['2026-03-31', '2026-04-01', '2026-09-15', '2026-12-24'];
+foreach ($dates as string $text) {
+    echo $text, ': ', Core\Time\DateTime::fromIso($text, 'UTC')->quarter(), "\n";
+}

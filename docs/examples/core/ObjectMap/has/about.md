@@ -1,8 +1,10 @@
 Checks if a `Core\ObjectMap` contains a key. It returns `true` or `false`. This replaces
 `isset($storage[$object])` and `$storage->contains($object)` on an `SplObjectStorage`.
 
-A key is found by identity. `has` returns `true` only for the same object you used with `set`.
-Another object with equal property values is a different key, so the result for it is `false`.
+A key is found with `==`. For an object of your own class, `has` returns `true` only for the same
+object you used with `set`. Another object with equal property values is a different key, so the
+result for it is `false`. A `Core\Time` value such as a `Date` is compared by its value, so an equal
+`Date` is the same key.
 
 `has` checks the key, not the value. A key whose value is `null` is still in the map, so `has`
 returns `true` for it. `get` returns `null` for that key and for a missing key, so `has` is the way

@@ -1,4 +1,11 @@
-Two values whose types can never be equal are the error `E0466`:
+`==` and `!=` are the only two equality operators.
+
+Six `Core\Time` classes are compared by their value: `Date`, `TimeOfDay`, `Instant`, `Duration`,
+`Zone` and `DateTime`. Two `Date` objects for the same day are equal. A `DateTime` is compared by
+its moment, so the same moment in two time zones is equal.
+
+Two values whose types can never be equal are the error `E0466`. Its message tells you to convert
+one side first. The error covers these pairs:
 
 - an `int` and a string, such as `1 == "1"`
 - an enum case and an `int`. Compare `$e as int` with the number instead.
@@ -37,6 +44,6 @@ are the same: a `mixed` `1` is equal to a `mixed` `1.0`.
 A `?int` compiles with `<`. When the value is `null`, the comparison throws a `RuntimeError`, such
 as "no ordering for a `null` against a `int`". Two `mixed` strings throw a `RuntimeError` too.
 
-On two objects, `<` calls `compareTo` and compares its result with `0`. `<=>` returns the result of
+On numbers, `<=>` returns `-1`, `0` or `1`. On two objects, `<` calls `compareTo` and compares its result with `0`. `<=>` returns the result of
 `compareTo` unchanged. So when `compareTo` returns `-40`, `$a <=> $b` is `-40`. `false <=> true` is
 `-1`.

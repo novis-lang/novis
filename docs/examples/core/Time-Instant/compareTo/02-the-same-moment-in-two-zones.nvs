@@ -4,11 +4,11 @@
 Core\Time\Instant $london = Core\Time\Instant::fromIso('2024-03-01T12:00:00Z');
 Core\Time\Instant $vienna = Core\Time\Instant::fromIso('2024-03-01T13:00:00+01:00');
 
-// `==` checks whether both variables are the same object. They are not, so this prints "different".
+// `==` compares the moment. Both texts name the same moment, so this prints "same".
 echo $london == $vienna ? 'same' : 'different', "\n";
 
-// `compareTo` compares the moment. It returns 0, so this prints "same moment".
-echo $london->compareTo($vienna) == 0 ? 'same moment' : 'other moment', "\n";
+// `compareTo` returns 0 for the same moment. This prints 0.
+echo $london->compareTo($vienna), "\n";
 
 // `<` uses `compareTo` too. This prints "no".
 echo $london < $vienna ? 'yes' : 'no', "\n";

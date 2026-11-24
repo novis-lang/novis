@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to work out the age of a person from the date of birth.
+
+class Person
+{
+    // The age is the number of whole years from the birthday to today.
+    public static function age(Core\Time\Date $born, Core\Time\Date $today): int
+    {
+        return $born->difference($today, Core\Unit::Year);
+    }
+}
+
+var $born = Core\Time\Date::at(1990, 6, 15);
+
+// The day before the birthday, the person is still 35. This prints 35.
+echo Person::age($born, Core\Time\Date::at(2026, 6, 14)), "\n";
+
+// On the birthday, the person is 36. This prints 36.
+echo Person::age($born, Core\Time\Date::at(2026, 6, 15)), "\n";

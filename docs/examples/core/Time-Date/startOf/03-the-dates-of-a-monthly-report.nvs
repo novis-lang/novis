@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find the first and the last day of a monthly report from any day in that month.
+
+class Report
+{
+    // `startOf` and `endOf` return the first and the last day of the month.
+    public static function title(Core\Time\Date $today): string
+    {
+        var $first = $today->startOf(Core\Unit::Month);
+        var $last = $today->endOf(Core\Unit::Month);
+        return 'Sales from ' . $first->toIso() . ' to ' . $last->toIso();
+    }
+}
+
+echo Report::title(Core\Time\Date::at(2024, 2, 14)), "\n";
+echo Report::title(Core\Time\Date::at(2026, 11, 30)), "\n";

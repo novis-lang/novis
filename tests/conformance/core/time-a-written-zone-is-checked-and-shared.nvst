@@ -23,7 +23,7 @@ echo $at->in(Core\Time\Zone::fixed(5h30m))->format($full), "|\n";
 var $name = "Europe/Berlin";
 echo $at->in(Core\Time\Zone::of($name))->format($full), "|\n";
 
-// Each written zone is its own value, so `==` compares identity.
+// A zone compares by its id, so a written zone and `Zone::of` with the same id are `==`.
 var $utc = Core\Time\Zone::UTC;
 echo ($utc == $utc) ? "same" : "distinct", " ", (Core\Time\Zone::of('UTC') == Core\Time\Zone::UTC) ? "same" : "distinct", "|\n";
 
@@ -47,5 +47,5 @@ echo (Core\Budget::memoryHeld() <= $before + 1024) ? "no growth" : "growth", "|\
 2024-03-01 14:00 +05:30 +05:30|
 2024-03-01 14:00 +05:30 +05:30|
 2024-03-01 09:30 +01:00 Europe/Berlin|
-same distinct|
+same same|
 no growth|

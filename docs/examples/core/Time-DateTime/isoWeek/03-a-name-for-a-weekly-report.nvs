@@ -1,0 +1,19 @@
+<?nvs
+// Builds the name of a weekly report file, such as `report-2026-W02.csv`.
+
+class Report
+{
+    // The year in the name is `isoWeekYear`, so the first days of January get the right name.
+    public static function fileName(Core\Time\DateTime $day): string
+    {
+        string $week = $day->isoWeek() as string;
+        if ($day->isoWeek() < 10) {
+            $week = '0' . $week;
+        }
+        return 'report-' . $day->isoWeekYear() . '-W' . $week . '.csv';
+    }
+}
+
+// This prints report-2026-W02.csv and report-2026-W53.csv.
+echo Report::fileName(Core\Time\DateTime::fromIso('2026-01-08 12:00', 'Europe/Berlin')), "\n";
+echo Report::fileName(Core\Time\DateTime::fromIso('2027-01-02 12:00', 'Europe/Berlin')), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a set of `Core\Time\Date` values finds a date that was built again.
+
+Core\ObjectSet<Core\Time\Date> $booked = new Core\ObjectSet<Core\Time\Date>();
+$booked->add(Core\Time\Date::at(2026, 7, 14));
+$booked->add(Core\Time\Date::at(2026, 7, 15));
+
+// A `Date` is compared by its day, so the same day is not added twice. This prints 2.
+$booked->add(Core\Time\Date::fromIso('2026-07-14'));
+echo $booked->count(), "\n";
+
+// This date is a new object, read from text. `has` finds it. This prints "booked".
+var $wanted = Core\Time\Date::fromIso('2026-07-15');
+echo $booked->has($wanted) ? 'booked' : 'free', "\n";
+
+// No value in the set has this day. This prints "free".
+echo $booked->has(Core\Time\Date::at(2026, 7, 16)) ? 'booked' : 'free', "\n";

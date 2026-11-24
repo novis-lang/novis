@@ -1,0 +1,21 @@
+<?nvs
+// Finds the last Friday before a date, as a program does when it works out a pay day.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): string
+    {
+        var $date = Core\Time\Date::at(2030, 1, 1);
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each step starts from last round's date
+            $date = $date->previous(Core\Time\Weekday::Friday);
+            $i = $i + 1;
+        }
+        return $date->toIso();
+    }
+}
+
+echo Bench::run(256), "\n";

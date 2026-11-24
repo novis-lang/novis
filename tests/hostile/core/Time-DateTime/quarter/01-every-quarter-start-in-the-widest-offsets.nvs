@@ -1,0 +1,33 @@
+<?nvs
+// Attack: `quarter` is read one nanosecond before and at the start of each quarter, in the widest offsets and at both ends of the range.
+// Each result should be 1 to 4 and follow the month in that zone, and nothing should crash or leak.
+
+array<Core\Time\Zone> $zones = [Core\Time\Zone::UTC, Core\Time\Zone::fixed(25h59m59s), Core\Time\Zone::fixed(25h59m59s->negated())];
+
+// 1. The start of each quarter from 2000 to 2399, and the nanosecond before it, in each zone.
+// The quarter at the start should be one more than the quarter before it, or 1 after 4.
+int $wrong = 0;
+int $checked = 0;
+foreach ($zones as Core\Time\Zone $zone) {
+    var $start = Core\Time\DateTime::fromIso('2000-01-01', $zone);
+    int $q = 0;
+    while ($q < 1600) {
+        var $begins = $start->plus($q * 3, Core\Unit::Month);
+        uint $before = $begins->minus(1, Core\Unit::Nanosecond)->quarter();
+        uint $at = $begins->quarter();
+        uint $month = $begins->month();
+        if ($at != $before % 4 + 1 || $at * 3 < $month || $at * 3 > $month + 2) {
+            $wrong = $wrong + 1;
+        }
+        $checked = $checked + 1;
+        $q = $q + 1;
+    }
+}
+echo $checked, ' checked, ', $wrong, " wrong\n";
+
+// 2. The first and the last moment of the range. This prints 1 4 three times.
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+foreach ($zones as Core\Time\Zone $zone) {
+    echo $first->in($zone)->quarter(), ' ', $last->in($zone)->quarter(), "\n";
+}

@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program stores one moment as a key thousands of times, each time in another time zone.
+// The map should keep one key for that moment, and objects of your own class should stay separate keys.
+
+final class Visit
+{
+    public function constructor(public int $room)
+    {}
+}
+
+var $moment = Core\Time\Instant::fromIso('2026-03-29T01:30:00Z');
+Core\ObjectMap<Core\Time\DateTime, int> $byMoment = new Core\ObjectMap<Core\Time\DateTime, int>();
+
+// 1. The same moment at every fixed offset from 18 hours behind UTC to 18 hours ahead, one minute apart.
+int $minutes = -1080;
+while ($minutes <= 1080) {
+    $byMoment->set($moment->in(Core\Time\Zone::fixed(Core\Time\Duration::minutes($minutes))), $minutes);
+    $minutes = $minutes + 1;
+}
+echo 'fixed offsets: ', $byMoment->count(), " key\n";
+
+// 2. The same moment in named zones. This moment is a summer time change in Europe.
+array<string> $names = ['UTC', 'Europe/Berlin', 'Europe/London', 'America/New_York', 'Asia/Tokyo',
+    'Asia/Kolkata', 'Australia/Lord_Howe', 'Pacific/Chatham', 'America/St_Johns', 'Pacific/Kiritimati'];
+foreach ($names as string $name) {
+    $byMoment->set($moment->in(Core\Time\Zone::of($name)), 0);
+}
+echo 'named zones: ', $byMoment->count(), " key\n";
+
+// 3. One nanosecond later is another moment, so it is a second key.
+$byMoment->set($moment->plus(1ns)->in(Core\Time\Zone::of('Asia/Tokyo')), 1);
+echo 'one nanosecond later: ', $byMoment->count(), " keys\n";
+
+// 4. Every lookup in any zone finds the first moment's entry.
+int $found = 0;
+foreach ($names as string $name) {
+    if ($byMoment->has($moment->in(Core\Time\Zone::of($name)))) {
+        $found = $found + 1;
+    }
+}
+echo 'found in ', $found, " zones\n";
+
+// 5. Many objects of your own class with the same property value are many keys.
+Core\ObjectMap<Visit, int> $visits = new Core\ObjectMap<Visit, int>();
+int $i = 0;
+while ($i < 10000) {
+    $visits->set(new Visit(7), $i);
+    $i = $i + 1;
+}
+echo 'equal visits: ', $visits->count(), " keys\n";

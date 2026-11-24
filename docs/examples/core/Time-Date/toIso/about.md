@@ -1,0 +1,10 @@
+Returns the date as text in the ISO 8601 form `YYYY-MM-DD`, such as `2026-05-20`.
+
+The month and the day always have two digits. The year always has four digits, so the year 5 is
+written `0005`. A year before year 1 starts with `-`, such as `-0044-03-15`.
+
+`Core\Time\Date::fromIso` reads this text back, and the result is the same date. That makes
+`toIso` the right choice when you save a date to a file, a database or JSON. ISO text also sorts
+in date order as a plain string.
+
+**Good to know:** to write a date in another form, such as `20 May 2026`, use `format`.

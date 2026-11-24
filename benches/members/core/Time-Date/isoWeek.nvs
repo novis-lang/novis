@@ -1,0 +1,26 @@
+<?nvs
+// Reads the ISO week number of a date, as a program does when it names a weekly report.
+// bench: iterations 1024
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<Core\Time\Date> $days = [
+            Core\Time\Date::at(2024, 12, 30),
+            Core\Time\Date::at(2026, 5, 25),
+            Core\Time\Date::at(2026, 12, 24),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the date read in this round
+            $total = $total + ($days[(($total as uint + $i) % 3) as int]->isoWeek() as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

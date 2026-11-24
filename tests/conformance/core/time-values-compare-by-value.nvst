@@ -1,0 +1,46 @@
+--TEST--
+`==` and `!=` compare the six `Core\Time` value classes by value: two equal `Date`, `TimeOfDay`, `Instant`, `Duration` (`90m == 1h30m`), `Zone` and `DateTime` values built separately are `==`, a `DateTime` by its moment alone across two zones, while two instances of a user class with the same properties stay `!=` by identity — `rule:expressions/object-identity-equality`
+--FILE--
+<?nvs
+// covers: Core\Time\Date::at, Core\Time\TimeOfDay::at, Core\Time\Instant::fromIso, Core\Time\Zone::of, Core\Time\DateTime::fromIso
+class Slot
+{
+    public function constructor(public int $hour) {}
+}
+
+// Each pair is built by two separate calls, so identity would say `!=`.
+echo Core\Time\Date::at(2026, 1, 5) == Core\Time\Date::at(2026, 1, 5) ? 'eq' : 'ne', ' ',
+    Core\Time\Date::at(2026, 1, 5) == Core\Time\Date::at(2026, 1, 6) ? 'eq' : 'ne', "\n";
+echo Core\Time\TimeOfDay::at(9, 30) == Core\Time\TimeOfDay::fromIso('09:30:00') ? 'eq' : 'ne', ' ',
+    Core\Time\TimeOfDay::at(9, 30) == Core\Time\TimeOfDay::at(9, 30)->plus(1, Core\Unit::Nanosecond) ? 'eq' : 'ne', "\n";
+echo Core\Time\Instant::fromIso('2024-03-01T12:00:00Z') == Core\Time\Instant::fromIso('2024-03-01T13:00:00+01:00') ? 'eq' : 'ne', ' ',
+    Core\Time\Instant::fromIso('2024-03-01T12:00:00Z') != Core\Time\Instant::fromIso('2024-03-01T12:00:00.000000001Z') ? 'ne' : 'eq', "\n";
+echo 90m == 1h30m ? 'eq' : 'ne', ' ', 90m == 1h31m ? 'eq' : 'ne', ' ', 0s == 0ms ? 'eq' : 'ne', "\n";
+string $berlinName = 'Europe/Berlin';
+echo Core\Time\Zone::of($berlinName) == Core\Time\Zone::of('Europe/Berlin') ? 'eq' : 'ne', ' ',
+    Core\Time\Zone::of('Europe/Berlin') == Core\Time\Zone::of('Europe/Paris') ? 'eq' : 'ne', "\n";
+
+// A `DateTime` is equal by its moment: 10:00 Berlin is 09:00 London in January.
+var $berlin = Core\Time\DateTime::fromIso('2026-01-05 10:00', 'Europe/Berlin');
+var $london = Core\Time\DateTime::fromIso('2026-01-05 09:00', 'Europe/London');
+echo $berlin == $london ? 'eq' : 'ne', ' ', $berlin != $london ? 'ne' : 'eq', ' ',
+    $berlin->toIso() == $london->toIso() ? 'same text' : 'other text', "\n";
+
+// A value is equal to itself through a second variable, as before.
+var $alias = $berlin;
+echo $alias == $berlin ? 'eq' : 'ne', "\n";
+
+// A user class keeps identity: same property, two objects.
+Slot $a = new Slot(9);
+Slot $b = new Slot(9);
+Slot $c = $a;
+echo $a == $b ? 'eq' : 'ne', ' ', $a == $c ? 'eq' : 'ne', "\n";
+--EXPECT--
+eq ne
+eq ne
+eq ne
+eq ne eq
+eq ne
+eq eq other text
+eq
+ne eq

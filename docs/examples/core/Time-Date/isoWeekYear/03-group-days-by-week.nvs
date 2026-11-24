@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to group days by their ISO week, using the year of the week and the week number.
+
+array<string> $days = ['2026-12-30', '2027-01-01', '2027-01-03', '2027-01-04'];
+foreach ($days as string $text) {
+    var $day = Core\Time\Date::fromIso($text);
+    // The first three days are in week 53 of 2026. The last one is in week 1 of 2027.
+    echo $text, ' -> ', $day->isoWeekYear(), ' week ', $day->isoWeek(), "\n";
+}

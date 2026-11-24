@@ -1,0 +1,9 @@
+<?nvs
+// Shows when the text from `toIso` has seconds and a fraction of a second.
+
+// The text always has seconds, even when they are zero. This prints 2024-03-01T09:30:00+00:00[UTC].
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30', 'UTC')->toIso(), "\n";
+
+// A fraction of a second is written only when it is not zero.
+// This prints 2024-03-01T09:30:15.25+00:00[UTC].
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30:15.250', 'UTC')->toIso(), "\n";

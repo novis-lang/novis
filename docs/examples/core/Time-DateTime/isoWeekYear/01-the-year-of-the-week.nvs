@@ -1,0 +1,10 @@
+<?nvs
+// Shows the year that the ISO week of a date belongs to.
+
+// For most days, `isoWeekYear` is the same as `year`. This prints 2026 2026.
+var $summer = Core\Time\DateTime::fromIso('2026-07-01', 'UTC');
+echo $summer->year(), ' ', $summer->isoWeekYear(), "\n";
+
+// 1 January 2027 is in week 53 of 2026. This prints 2027 2026.
+var $newYear = Core\Time\DateTime::fromIso('2027-01-01', 'UTC');
+echo $newYear->year(), ' ', $newYear->isoWeekYear(), "\n";

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `endOf` gets the last days of the calendar, where the week ends after the year 9999.
+// That call should throw a `RuntimeError`, every other call should return a date that exists, and nothing should leak.
+
+use Core\Unit;
+use Core\Time\Date;
+
+class Check
+{
+    // Returns 1 when the end is on or after the day and not after the last day of the calendar.
+    public static function inRange(Date $end, Date $day): int
+    {
+        return $end >= $day && $end <= Date::at(9999, 12, 31) ? 1 : 0;
+    }
+}
+
+// 1. The last day of the calendar is a Friday, so its week ends after 9999-12-31.
+var $last = Date::at(9999, 12, 31);
+try {
+    $last->endOf(Unit::Week);
+    echo "no error\n";
+} catch (RuntimeError $error) {
+    echo "week: RuntimeError\n";
+}
+
+// 2. The month, the quarter and the year still end on the last day. This prints 9999-12-31 three times.
+echo $last->endOf(Unit::Month)->toIso(), ' ', $last->endOf(Unit::Quarter)->toIso(), ' ',
+    $last->endOf(Unit::Year)->toIso(), "\n";
+
+// 3. Each of the last 400 days goes forward to the end of its month, quarter, year and week.
+int $good = 0;
+int $thrown = 0;
+var $day = $last;
+int $i = 0;
+while ($i < 400) {
+    $good = $good + Check::inRange($day->endOf(Unit::Month), $day);
+    $good = $good + Check::inRange($day->endOf(Unit::Quarter), $day);
+    $good = $good + Check::inRange($day->endOf(Unit::Year), $day);
+    try {
+        $good = $good + Check::inRange($day->endOf(Unit::Week), $day);
+    } catch (RuntimeError $tooLate) {
+        $thrown = $thrown + 1;
+    }
+    $day = $day->minus(1, Unit::Day);
+    $i = $i + 1;
+}
+echo $good, ' good, ', $thrown, " thrown\n";

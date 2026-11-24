@@ -1,0 +1,28 @@
+<?nvs
+// Attack: `isoWeek` reads the days around every New Year from -9999 to 9999, and both ends of the calendar.
+// Every week number should be from 1 to 53, and it should match the week that `format` prints.
+
+// 1. Both ends of the calendar. This prints 1 and 52.
+echo Core\Time\Date::at(-9999, 1, 1)->isoWeek(), ' ', Core\Time\Date::at(9999, 12, 31)->isoWeek(), "\n";
+
+// 2. 28 December to 4 January of every year. 28 December is always in the last week of its year.
+int $outOfRange = 0;
+int $differs = 0;
+int $year = -9999;
+while ($year < 9999) {
+    var $day = Core\Time\Date::at($year, 12, 28);
+    int $i = 0;
+    while ($i < 8) {
+        uint $week = $day->isoWeek();
+        if ($week < 1 || $week > 53) {
+            $outOfRange = $outOfRange + 1;
+        }
+        if ($week != $day->format('w') as uint) {
+            $differs = $differs + 1;
+        }
+        $day = $day->plus(1, Core\Unit::Day);
+        $i = $i + 1;
+    }
+    $year = $year + 1;
+}
+echo $outOfRange, ' out of range, ', $differs, " differ\n";

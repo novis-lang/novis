@@ -1,0 +1,11 @@
+<?nvs
+// Shows the year of the ISO week of a date.
+
+// In the middle of the year, it is the same as `year()`. This prints 2026.
+echo Core\Time\Date::at(2026, 5, 20)->isoWeekYear(), "\n";
+
+// 1 January 2027 is in the last week of 2026. This prints 2026.
+echo Core\Time\Date::at(2027, 1, 1)->isoWeekYear(), "\n";
+
+// 30 December 2024 is in the first week of 2025. This prints 2025.
+echo Core\Time\Date::at(2024, 12, 30)->isoWeekYear(), "\n";

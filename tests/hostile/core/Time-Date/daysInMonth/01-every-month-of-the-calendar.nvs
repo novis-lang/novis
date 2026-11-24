@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `daysInMonth` reads every month of every year from -9999 to 9999, including years 0 and -1.
+// Every result should be from 28 to 31, and the days of a year should add up to 365 or 366.
+
+// 1. Every month of the calendar. The days of each year are added up.
+int $outOfRange = 0;
+int $wrongYear = 0;
+int $year = -9999;
+while ($year <= 9999) {
+    int $days = 0;
+    uint $month = 1;
+    while ($month <= 12) {
+        uint $length = Core\Time\Date::at($year, $month, 1)->daysInMonth();
+        if ($length < 28 || $length > 31) {
+            $outOfRange = $outOfRange + 1;
+        }
+        $days = $days + ($length as int);
+        $month = $month + 1;
+    }
+    var $newYear = Core\Time\Date::at($year, 1, 1);
+    int $expected = $newYear->isLeapYear() ? 366 : 365;
+    if ($days != $expected) {
+        $wrongYear = $wrongYear + 1;
+    }
+    $year = $year + 1;
+}
+echo $outOfRange, ' out of range, ', $wrongYear, " wrong years\n";
+
+// 2. February around year 0, which is a leap year. This prints 28 29 28.
+echo Core\Time\Date::at(-1, 2, 1)->daysInMonth(), ' ', Core\Time\Date::at(0, 2, 1)->daysInMonth(), ' ',
+    Core\Time\Date::at(1, 2, 1)->daysInMonth(), "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Attack: `isoWeek` is read for every day of 400 years, and at both ends of the range in the widest offsets.
+// The week number should change only on a Monday, and nothing should crash or leak.
+
+// 1. Every day from 2000 to 2399. 71 of these 400 years have a week 53, so 497 days are in a week 53.
+var $start = Core\Time\DateTime::fromIso('2000-01-01 12:00', 'UTC');
+int $inWeek53 = 0;
+int $wrong = 0;
+uint $previous = $start->minus(1, Core\Unit::Day)->isoWeek();
+int $i = 0;
+while ($i < 146097) {
+    var $day = $start->plus($i, Core\Unit::Day);
+    uint $week = $day->isoWeek();
+    bool $monday = $day->weekday() == Core\Time\Weekday::Monday;
+    if (($week != $previous) != $monday || $week < 1 || $week > 53) {
+        $wrong = $wrong + 1;
+    }
+    if ($week == 53) {
+        $inWeek53 = $inWeek53 + 1;
+    }
+    $previous = $week;
+    $i = $i + 1;
+}
+echo $inWeek53, ' days in week 53, ', $wrong, " wrong\n";
+
+// 2. The first and the last moment of the range, in three zones. This prints 1 52 three times.
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+array<Core\Time\Zone> $zones = [Core\Time\Zone::UTC, Core\Time\Zone::fixed(25h59m59s), Core\Time\Zone::fixed(25h59m59s->negated())];
+foreach ($zones as Core\Time\Zone $zone) {
+    echo $first->in($zone)->isoWeek(), ' ', $last->in($zone)->isoWeek(), "\n";
+}

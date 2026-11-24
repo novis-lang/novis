@@ -5,6 +5,5 @@ same time, and `1` when it comes later. The check uses every part of the time, d
 nanosecond. A `TimeOfDay` has no date, so 00:10 always comes before 23:50.
 
 The operators `<`, `>`, `<=`, `>=` and `<=>` use `compareTo` too, so you can write `$a < $b`.
-`==` is different: it checks whether two variables are the same object. Two times made
-separately are not the same object, even when they show the same time. To check for the same
-time, test whether `compareTo` returns `0`.
+`==` compares the time too. Two times with the same hour, minute, second and nanosecond are equal,
+even when your program made them separately.

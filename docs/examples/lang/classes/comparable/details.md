@@ -9,4 +9,6 @@ compared with a number is `E0411` too. So is a value of a type such as `?Version
 Each operator calls `compareTo` once. If `compareTo` throws an error, the comparison throws that
 error.
 
-`==` does not call `compareTo`. `$a == $b` is `true` only when both variables are the same object.
+`==` does not call `compareTo`. For objects of your own class, `$a == $b` is `true` only when both
+variables are the same object. Six `Core\Time` classes, such as `Date` and `Duration`, are compared by
+their value.

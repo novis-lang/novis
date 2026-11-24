@@ -4,11 +4,11 @@
 Core\Time\Duration $planned = 90m;
 Core\Time\Duration $actual = 1h30m;
 
-// `==` checks whether both variables are the same object. They are not, so this prints "different".
+// `==` compares the length. 90 minutes is one hour and 30 minutes, so this prints "same".
 echo $planned == $actual ? 'same' : 'different', "\n";
 
-// `compareTo` compares the length. It returns 0, so this prints "same length".
-echo $planned->compareTo($actual) == 0 ? 'same length' : 'other length', "\n";
+// `compareTo` returns 0 for the same length. This prints 0.
+echo $planned->compareTo($actual), "\n";
 
 // `<` and `>` use `compareTo` too. This prints "no".
 echo $planned < $actual ? 'yes' : 'no', "\n";

@@ -19,7 +19,16 @@ it is called on.
 
 `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanoseconds()` return the fields as
 numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
-return a `uint`. These are the same names and types that `with` takes.
+return a `uint`. These are the same names and types that `with` takes. `daysInMonth()` returns the
+number of days in the month, and `quarter()` returns `1` to `4`. `isoWeek()` returns the ISO 8601
+week number, and `isoWeekYear()` returns the year that this week belongs to. These two can differ
+from `year()` for a few days around New Year.
+
+`toIso()` writes the value as text with its offset and its zone, such as
+`2026-01-05T08:30:00+01:00[Europe/Vienna]`. `DateTime::fromIso` reads this text back with no second
+argument. `compareTo` checks which of two values is earlier, and `<`, `>`, `<=`, `>=` use it too. It
+compares the moment, so 10:00 in `Europe/Berlin` and 09:00 in `Europe/London` on one winter day are
+equal. `==` compares the moment in the same way.
 
 `format` takes a **CLDR pattern**. `DateTime::parse` reads the same patterns, and `Date::format`
 and `TimeOfDay::format` use them for their own fields. A pattern written in the code is

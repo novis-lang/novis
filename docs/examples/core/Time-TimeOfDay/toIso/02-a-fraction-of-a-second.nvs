@@ -1,0 +1,12 @@
+<?nvs
+// Shows when the text from `toIso` has a fraction of a second.
+
+// A fraction of a second is written only when it is not zero.
+// Zeros at the end of the fraction are left out. This prints 12:00:05.25.
+echo Core\Time\TimeOfDay::fromIso('12:00:05.250')->toIso(), "\n";
+
+// One nanosecond after noon. This prints 12:00:00.000000001.
+echo Core\Time\TimeOfDay::at(12, 0)->plus(1, Core\Unit::Nanosecond)->toIso(), "\n";
+
+// A time with no fraction has none in the text. This prints 12:00:00.
+echo Core\Time\TimeOfDay::fromIso('12:00:00.000')->toIso(), "\n";

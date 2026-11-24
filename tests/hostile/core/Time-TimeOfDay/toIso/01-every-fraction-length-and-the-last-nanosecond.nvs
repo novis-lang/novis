@@ -1,0 +1,41 @@
+<?nvs
+// Attack: `toIso` writes times with every length of fraction, up to the last nanosecond of the day, and the texts are changed.
+// Every text from `toIso` should read back as the same time, and every changed text should throw a `ParseError`.
+
+Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
+
+// 1. The first and the last nanosecond of the day. This prints 00:00:00 and 23:59:59.999999999.
+echo Core\Time\TimeOfDay::at(0, 0)->toIso(), ' ', $last->toIso(), "\n";
+
+// 2. 30,000 times with fractions of every length are written and read back.
+// Every value is freed, and no text should be read as a different time.
+int $wrong = 0;
+int $i = 0;
+while ($i < 30000) {
+    Core\Time\TimeOfDay $time = $last->minus($i * 7919, Core\Unit::Second)->minus($i * 99991, Core\Unit::Nanosecond);
+    if (Core\Time\TimeOfDay::fromIso($time->toIso()) != $time) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo $wrong, " wrong\n";
+
+// 3. The text of the last nanosecond is changed: one more digit, the hour 24, the second 60, a long fraction and a `Z`.
+// Each text is built while the program runs, so it is read when the program runs.
+string $text = $last->toIso();
+array<string> $changed = [
+    $text . '9',
+    Core\Str::replace($text, '23:', '24:'),
+    Core\Str::replace($text, ':59.', ':60.'),
+    $text . Core\Str::repeat('9', 100000),
+    $text . 'Z',
+];
+int $refused = 0;
+foreach ($changed as string $bad) {
+    try {
+        Core\Time\TimeOfDay::fromIso($bad);
+    } catch (ParseError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo $refused, " of 5 refused\n";

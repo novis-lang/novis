@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find the next Friday after a date.
+
+use Core\Time\Weekday;
+
+// 20 May 2026 is a Wednesday.
+var $today = Core\Time\Date::at(2026, 5, 20);
+
+// The next Friday is two days later. This prints Fri 2026-05-22.
+echo $today->next(Weekday::Friday)->format('EEE yyyy-MM-dd'), "\n";
+
+// The next Monday is in the next week. This prints Mon 2026-05-25.
+echo $today->next(Weekday::Monday)->format('EEE yyyy-MM-dd'), "\n";

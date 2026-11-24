@@ -4,8 +4,8 @@
 Core\Time\TimeOfDay $a = Core\Time\TimeOfDay::at(12, 0);
 Core\Time\TimeOfDay $b = Core\Time\TimeOfDay::at(12, 0);
 
-// `==` checks if both variables are the same object. They are not, so this prints "different objects".
-echo $a == $b ? 'same object' : 'different objects', "\n";
+// `==` compares the time itself. Both are 12:00, so this prints "same time".
+echo $a == $b ? 'same time' : 'different time', "\n";
 
-// `compareTo` checks the time itself. This prints "same time".
-echo $a->compareTo($b) == 0 ? 'same time' : 'different time', "\n";
+// `compareTo` returns 0 for the same time. This prints 0.
+echo $a->compareTo($b), "\n";

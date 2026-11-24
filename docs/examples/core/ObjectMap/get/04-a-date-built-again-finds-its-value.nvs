@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a map keyed by `Core\Time\Date` finds a value with a date that was built again.
+
+Core\ObjectMap<Core\Time\Date, string> $holidays = new Core\ObjectMap<Core\Time\Date, string>();
+$holidays->set(Core\Time\Date::at(2026, 12, 25), 'Christmas Day');
+$holidays->set(Core\Time\Date::at(2027, 1, 1), 'New Year');
+
+// This date is a new object, read from text. A `Date` is compared by its day,
+// so `get` finds the entry. This prints "Christmas Day".
+var $asked = Core\Time\Date::fromIso('2026-12-25');
+echo $holidays->get($asked) ?? 'a working day', "\n";
+
+// No entry has this day. This prints "a working day".
+echo $holidays->get(Core\Time\Date::at(2026, 12, 28)) ?? 'a working day', "\n";

@@ -1,0 +1,35 @@
+<?nvs
+// Attack: `quarter` reads the first and the last day of every month, at both ends of the calendar and around year 0.
+// Every result should be from 1 to 4, and it should match the quarter of `startOf(Unit::Quarter)`.
+
+array<int> $years = [-9999, -1, 0, 1, 9999];
+int $good = 0;
+int $bad = 0;
+
+// 1. The first and the last day of every month in five years.
+foreach ($years as int $year) {
+    uint $month = 1;
+    while ($month <= 12) {
+        var $first = Core\Time\Date::at($year, $month, 1);
+        var $last = $first->endOf(Core\Unit::Month);
+        uint $expected = (Core\Math::quotient($month as int - 1, 3) + 1) as uint;
+        if ($first->quarter() == $expected && $last->quarter() == $expected
+            && $first->startOf(Core\Unit::Quarter)->quarter() == $expected) {
+            $good = $good + 1;
+        } else {
+            $bad = $bad + 1;
+        }
+        $month = $month + 1;
+    }
+}
+echo $good, ' good, ', $bad, " bad\n";
+
+// 2. One million reads of the same date.
+var $date = Core\Time\Date::at(9999, 12, 31);
+uint $sum = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $sum = $sum + $date->quarter();
+    $round = $round + 1;
+}
+echo $sum, "\n";

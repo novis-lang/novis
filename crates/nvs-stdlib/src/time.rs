@@ -716,9 +716,8 @@ const DURATION_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time\Duration::compareTo`'s reference card — `rule:core-api/reference-card`.
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two durations by length and sign, as `Comparable` requires, so a \
-            shorter duration compares below a longer one and a negative one below every \
-            positive one. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. \
+    short: "Checks which of two durations is shorter, as `Comparable` requires. A negative \
+            duration is shorter than every positive one. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. \
             `==` compares two durations by length, so `90m == 1h30m` is `true`.",
     params: &[ParamDoc {
         name: "other",
@@ -1722,15 +1721,15 @@ const UNIT_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Second",
-            desc: "One second of the civil clock.",
+            desc: "One second on the clock.",
         },
         CaseDoc {
             name: "Minute",
-            desc: "One minute of the civil clock.",
+            desc: "One minute on the clock.",
         },
         CaseDoc {
             name: "Hour",
-            desc: "One hour of the civil clock.",
+            desc: "One hour on the clock.",
         },
         CaseDoc {
             name: "Day",
@@ -1743,8 +1742,8 @@ const UNIT_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Month",
-            desc: "One calendar month, with the day-of-month clamped to the target month's \
-                   length.",
+            desc: "One calendar month. If the target month has fewer days, the day becomes the \
+                   last day of that month.",
         },
         CaseDoc {
             name: "Quarter",
@@ -1753,8 +1752,8 @@ const UNIT_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Year",
-            desc: "One calendar year, with 29 February clamped to the 28th where the target has \
-                   none.",
+            desc: "One calendar year. From 29 February, the result is 28 February in a year \
+                   that has no 29 February.",
         },
     ],
 };
@@ -2492,13 +2491,17 @@ const DATETIME_TO_ISO_DOC: MethodDoc = MethodDoc {
 };
 
 const DATETIME_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Checks which of two date-times is earlier, as `Comparable` requires. It compares             the moment, to the nanosecond. The zone does not count, so 10:00 in             `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The             operators `<`, `>`, `<=`, `>=` and `<=>` use this method too.",
+    short: "Checks which of two date-times is earlier, as `Comparable` requires. It compares \
+            the moment, to the nanosecond. The zone does not count, so 10:00 in \
+            `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The \
+            operators `<`, `>`, `<=`, `>=` and `<=>` use this method too.",
     params: &[ParamDoc {
         name: "other",
         desc: "The date-time to compare against.",
         shape: &[],
     }],
-    ret: "`-1` when this date-time is earlier than `$other`, `0` when both are the same           moment, `1` when it is later.",
+    ret: "`-1` when this date-time is earlier than `$other`, `0` when both are the same \
+          moment, `1` when it is later.",
     errors: &[],
 };
 
@@ -2767,13 +2770,13 @@ const DATETIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The `DateTime` in the zone of the text, or in `$zone`. Without an offset, a time \
           the zone skips moves forward past the gap, and a time that happens twice is the \
-          earlier one. The offset chooses which of the two times is meant.",
+          earlier one. The offset shows which of the two times is meant.",
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$text` is not in this form, or it is not a real date or time, such as \
                `2024-02-30`. It is also thrown when the zone does not have the offset at that \
-               time, when `$text` has no zone and `$zone` is `null`, and when the two name \
-               different zones. A text with a `Z`, or an offset and no zone, also throws it. \
+               time. It is thrown when `$text` has no zone and `$zone` is `null`, and when the \
+               two name different zones. A text with a `Z`, or an offset and no zone, also throws it. \
                Read such a text with `Instant::fromIso`, then call `->in($zone)`. It is also \
                thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
     }],
@@ -3618,14 +3621,14 @@ const DATE_DIFFERENCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::next`'s reference card — `rule:core-api/reference-card`.
 const DATE_NEXT_DOC: MethodDoc = MethodDoc {
-    short: "Finds the first date after this one that falls on `$w`.",
+    short: "Returns the first date after this one that is on the weekday `$w`.",
     params: &[ParamDoc {
         name: "w",
         desc: "The weekday to move to.",
         shape: &[],
     }],
-    ret: "A new `Date` one to seven days later. It is seven days later when this date already \
-          falls on `$w`.",
+    ret: "A new `Date` one to seven days later. It is seven days later when this date is \
+          already on `$w`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The result is after the year `9999`.",
@@ -3634,14 +3637,14 @@ const DATE_NEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::previous`'s reference card — `rule:core-api/reference-card`.
 const DATE_PREVIOUS_DOC: MethodDoc = MethodDoc {
-    short: "Finds the last date before this one that falls on `$w`.",
+    short: "Returns the last date before this one that is on the weekday `$w`.",
     params: &[ParamDoc {
         name: "w",
         desc: "The weekday to move to.",
         shape: &[],
     }],
-    ret: "A new `Date` one to seven days earlier. It is seven days earlier when this date already \
-          falls on `$w`.",
+    ret: "A new `Date` one to seven days earlier. It is seven days earlier when this date is \
+          already on `$w`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The result is before the year `-9999`.",
@@ -11460,6 +11463,7 @@ mod tests {
     }
 
     /// `compareTo` orders two date-times by their moment, whatever their zones.
+    // covers: Core\Time\DateTime::compareTo
     #[test]
     fn datetime_orders_by_its_moment_across_zones() {
         // 09:30 in London is 10:30 in Berlin, so it is later than 10:00 in Berlin.

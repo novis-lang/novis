@@ -1,0 +1,46 @@
+<?nvs
+// Attack: `next` looks for every weekday from the last days of the calendar. Some of those days are after the year 9999.
+// Those calls should throw a `RuntimeError`. Every other call should return the right weekday, and nothing should leak.
+
+use Core\Time\Weekday;
+
+array<Weekday> $weekdays = [
+    Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday,
+    Weekday::Friday, Weekday::Saturday, Weekday::Sunday,
+];
+
+// 1. Each of the last seven days looks for each weekday.
+// 9999-12-31 is a Friday, so many of these weekdays are after the end of the calendar.
+int $found = 0;
+int $thrown = 0;
+var $day = Core\Time\Date::at(9999, 12, 31);
+int $i = 0;
+while ($i < 7) {
+    foreach ($weekdays as Weekday $wanted) {
+        try {
+            if ($day->next($wanted)->weekday() == $wanted) {
+                $found = $found + 1;
+            }
+        } catch (RuntimeError $tooLate) {
+            $thrown = $thrown + 1;
+        }
+    }
+    $day = $day->minus(1, Core\Unit::Day);
+    $i = $i + 1;
+}
+echo $found, ' found, ', $thrown, " thrown\n";
+
+// 2. One hundred thousand steps to the next Sunday, from the year 2000 on.
+// Each step is exactly seven days, so this prints 100000.
+var $sunday = Core\Time\Date::at(2000, 1, 2);
+int $sevenDays = 0;
+int $step = 0;
+while ($step < 100000) {
+    var $after = $sunday->next(Weekday::Sunday);
+    if ($sunday->difference($after, Core\Unit::Day) == 7) {
+        $sevenDays = $sevenDays + 1;
+    }
+    $sunday = $after;
+    $step = $step + 1;
+}
+echo $sevenDays, "\n";

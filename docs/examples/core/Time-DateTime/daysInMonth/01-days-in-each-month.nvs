@@ -1,0 +1,12 @@
+<?nvs
+// Shows the number of days in the first four months of one year.
+
+// `daysInMonth` returns the number of days in the month of the value.
+// This prints 31 for January, 28 for February, 31 for March and 30 for April.
+var $start = Core\Time\DateTime::fromIso('2026-01-15', 'UTC');
+int $month = 0;
+while ($month < 4) {
+    var $day = $start->plus($month, Core\Unit::Month);
+    echo $day->format('MMMM'), ': ', $day->daysInMonth(), "\n";
+    $month = $month + 1;
+}

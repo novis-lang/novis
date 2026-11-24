@@ -17,7 +17,15 @@ moment of the date in a zone.
 error. Moving by months keeps the day inside the new month, as `DateTime::plus` does. `format`
 takes the date letters of the patterns `DateTime::format` uses. A time letter or a zone letter
 does not compile, because a `Date` has no time and no zone. `<`, `>`, `<=`, `>=` and `compareTo`
-order two dates.
+order two dates. `toIso()` returns the date as text such as `2024-01-31`, and `fromIso` reads that
+text back.
+
+`startOf` and `endOf` return the first and the last day of the week, month, quarter or year of a
+date. A week runs from Monday to Sunday. `difference` counts the whole days, weeks, months,
+quarters or years from one date to another. `next` and `previous` return the nearest date after or
+before a date that is on a given `Core\Time\Weekday`. `daysInMonth()` returns the number of days
+in the month, and `quarter()` returns `1` to `4`. `isoWeek()` returns the ISO 8601 week number,
+and `isoWeekYear()` returns the year that this week belongs to.
 
 ```nvs
 <?nvs

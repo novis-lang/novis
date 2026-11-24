@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the end of February depends on the year.
+
+// 2024 is a leap year. This prints 2024-02-29.
+echo Core\Time\Date::at(2024, 2, 10)->endOf(Core\Unit::Month)->toIso(), "\n";
+
+// 2023 is not a leap year. This prints 2023-02-28.
+echo Core\Time\Date::at(2023, 2, 10)->endOf(Core\Unit::Month)->toIso(), "\n";
+
+// 1900 is not a leap year either. This prints 1900-02-28.
+echo Core\Time\Date::at(1900, 2, 10)->endOf(Core\Unit::Month)->toIso(), "\n";

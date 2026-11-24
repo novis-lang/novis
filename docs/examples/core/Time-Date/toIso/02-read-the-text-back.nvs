@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `Core\Time\Date::fromIso` reads the text of `toIso` back to the same date.
+
+var $due = Core\Time\Date::at(2024, 2, 29);
+string $saved = $due->toIso();
+echo $saved, "\n";
+
+// `fromIso` builds a date from the saved text.
+// `compareTo` returns 0 for two equal dates, so this prints 0.
+var $loaded = Core\Time\Date::fromIso($saved);
+echo $loaded->compareTo($due), "\n";

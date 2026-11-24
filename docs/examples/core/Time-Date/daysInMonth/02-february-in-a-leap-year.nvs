@@ -1,0 +1,11 @@
+<?nvs
+// Shows that February is one day longer in a leap year.
+
+// 2024 is a leap year. This prints 29.
+echo Core\Time\Date::at(2024, 2, 1)->daysInMonth(), "\n";
+
+// 2023 is not a leap year. This prints 28.
+echo Core\Time\Date::at(2023, 2, 1)->daysInMonth(), "\n";
+
+// Every day of the month gives the same number. This prints 29.
+echo Core\Time\Date::at(2024, 2, 29)->daysInMonth(), "\n";

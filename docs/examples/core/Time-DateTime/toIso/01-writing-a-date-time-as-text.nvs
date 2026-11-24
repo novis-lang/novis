@@ -1,0 +1,13 @@
+<?nvs
+// Shows the text that `toIso` writes for a date and time in a time zone.
+
+// The text has the local date and time, the offset from UTC and the zone name.
+// This prints 2026-01-05T08:30:00+01:00[Europe/Vienna].
+var $meeting = Core\Time\DateTime::fromIso('2026-01-05 08:30', 'Europe/Vienna');
+echo $meeting->toIso(), "\n";
+
+// In July, Vienna is two hours ahead of UTC. This prints 2026-07-05T08:30:00+02:00[Europe/Vienna].
+echo $meeting->plus(6, Core\Unit::Month)->toIso(), "\n";
+
+// The same moment in UTC has the offset +00:00. This prints 2026-01-05T07:30:00+00:00[UTC].
+echo $meeting->toInstant()->in(Core\Time\Zone::UTC)->toIso(), "\n";

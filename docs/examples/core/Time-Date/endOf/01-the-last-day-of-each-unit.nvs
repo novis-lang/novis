@@ -1,0 +1,19 @@
+<?nvs
+// Shows the last day of the week, the month, the quarter and the year of one date.
+
+use Core\Unit;
+
+// 20 May 2026 is a Wednesday.
+var $date = Core\Time\Date::at(2026, 5, 20);
+
+// A week ends on Sunday. This prints 2026-05-24.
+echo $date->endOf(Unit::Week)->toIso(), "\n";
+
+// This prints 2026-05-31.
+echo $date->endOf(Unit::Month)->toIso(), "\n";
+
+// The second quarter ends with June. This prints 2026-06-30.
+echo $date->endOf(Unit::Quarter)->toIso(), "\n";
+
+// This prints 2026-12-31.
+echo $date->endOf(Unit::Year)->toIso(), "\n";

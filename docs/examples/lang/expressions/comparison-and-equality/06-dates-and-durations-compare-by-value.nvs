@@ -1,0 +1,34 @@
+<?nvs
+// Shows that `==` compares dates and durations by their value, and objects of your own class by identity.
+
+class Order
+{
+    public function constructor(public int $number)
+    {}
+}
+
+// Two `Date` objects for the same day are equal. This prints "same day".
+var $shipped = Core\Time\Date::at(2026, 3, 9);
+var $delivered = Core\Time\Date::fromIso('2026-03-09');
+echo $shipped == $delivered ? 'same day' : 'other day', "\n";
+
+// Two durations with the same length are equal. This prints "true".
+Core\Time\Duration $planned = 90m;
+Core\Time\Duration $actual = 1h30m;
+echo $planned == $actual ? 'true' : 'false', "\n";
+
+// A `DateTime` is compared by its moment. 10:00 in Berlin is 09:00 in London
+// on this day, so this prints "same moment".
+var $inBerlin = Core\Time\DateTime::at($shipped, Core\Time\TimeOfDay::at(10, 0), 'Europe/Berlin');
+var $inLondon = Core\Time\DateTime::at($shipped, Core\Time\TimeOfDay::at(9, 0), 'Europe/London');
+echo $inBerlin == $inLondon ? 'same moment' : 'other moment', "\n";
+
+// Two objects of your own class are equal only when they are the same object.
+// These two orders have the same number, so this prints "false".
+Order $first = new Order(17);
+Order $second = new Order(17);
+echo $first == $second ? 'true' : 'false', "\n";
+
+// The same object is equal to itself. This prints "true".
+Order $again = $first;
+echo $first == $again ? 'true' : 'false', "\n";

@@ -5,7 +5,8 @@ replaces a loop over one `SplObjectStorage` that skips each object another one c
 The order of the two sets matters. `$a->difference($b)` gives the values that only `$a` has.
 `$b->difference($a)` gives the values that only `$b` has.
 
-A value matches only when it is the same object. The result is a new set, and `difference` does not change this set
+A value matches when it is `==` to a value in the other set. For an object of your own class, that is
+only the same object. The result is a new set, and `difference` does not change this set
 or `$other`. The values keep the order they have in this set. If `$other` has every value of this
 set, the result is an empty set.
 

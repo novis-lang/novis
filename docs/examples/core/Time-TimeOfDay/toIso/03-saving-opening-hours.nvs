@@ -1,0 +1,14 @@
+<?nvs
+// Saves the opening hours of a shop as text and reads them back.
+
+Core\Time\TimeOfDay $opens = Core\Time\TimeOfDay::at(9, 0);
+Core\Time\TimeOfDay $closes = Core\Time\TimeOfDay::at(18, 30);
+
+// `toIso` gives text you can save in a file or a database. This prints 09:00:00-18:30:00.
+string $saved = $opens->toIso() . '-' . $closes->toIso();
+echo $saved, "\n";
+
+// `fromIso` reads each time back. The result is the same time, so this prints "same".
+var $parts = Core\Str::split($saved, '-');
+var $loaded = Core\Time\TimeOfDay::fromIso($parts[0]);
+echo $loaded == $opens ? 'same' : 'different', "\n";

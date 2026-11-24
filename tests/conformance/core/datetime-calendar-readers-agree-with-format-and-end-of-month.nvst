@@ -1,0 +1,55 @@
+--TEST--
+`Core\Time\DateTime`'s `daysInMonth`, `quarter`, `isoWeek` and `isoWeekYear` agree with `endOf(Month)->day()` and with `format`'s `Q`, `w` and `Y` over every day of 2024 to 2027 in two zones, and each is read in the value's own zone at the ends of the range — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\DateTime::daysInMonth, Core\Time\DateTime::quarter, Core\Time\DateTime::isoWeek, Core\Time\DateTime::isoWeekYear
+// Four years, a leap year among them and 2026 with a week 53, at 23:30 so
+// the day in Tokyo is a different day from the one in New York. `format` is
+// the independent oracle for the three week and quarter fields, and the day
+// of the month's last instant is the oracle for `daysInMonth`.
+array<string> $zones = ['America/New_York', 'Asia/Tokyo'];
+int $days = 0;
+int $wrong = 0;
+uint $leapFebruaries = 0;
+uint $week53 = 0;
+foreach ($zones as string $zoneId) {
+    var $start = Core\Time\DateTime::fromIso('2024-01-01 23:30', Core\Time\Zone::of($zoneId));
+    int $i = 0;
+    while ($i < 1461) {
+        var $d = $start->plus($i, Core\Unit::Day);
+        if ($d->daysInMonth() != $d->endOf(Core\Unit::Month)->day()) { $wrong = $wrong + 1; }
+        if ($d->quarter() as string != $d->format('Q')) { $wrong = $wrong + 1; }
+        if ($d->isoWeek() as string != $d->format('w')) { $wrong = $wrong + 1; }
+        if ($d->isoWeekYear() as string != $d->format('Y')) { $wrong = $wrong + 1; }
+        if ($d->quarter() * 3 < $d->month() || $d->quarter() * 3 > $d->month() + 2) { $wrong = $wrong + 1; }
+        if ($d->daysInMonth() == 29) { $leapFebruaries = $leapFebruaries + 1; }
+        if ($d->isoWeek() == 53) { $week53 = $week53 + 1; }
+        $days = $days + 1;
+        $i = $i + 1;
+    }
+}
+echo $days, ' days, ', $wrong, " wrong\n";
+// 29 days of the one leap February, and 7 days of the one week 53, per zone.
+echo $leapFebruaries, ' ', $week53, "\n";
+
+// One moment, two zones: the reader follows the zone's own calendar.
+var $moment = Core\Time\Instant::fromIso('2026-12-31T20:00:00Z');
+var $west = $moment->in(Core\Time\Zone::of('America/New_York'));
+var $east = $moment->in(Core\Time\Zone::of('Pacific/Kiritimati'));
+echo $west->daysInMonth(), ' ', $west->quarter(), ' ', $west->isoWeek(), ' ', $west->isoWeekYear(), ' ', $west->year(), "\n";
+echo $east->daysInMonth(), ' ', $east->quarter(), ' ', $east->isoWeek(), ' ', $east->isoWeekYear(), ' ', $east->year(), "\n";
+
+// The ends of the range at the widest offsets.
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
+var $westmost = Core\Time\Zone::fixed(25h59m59s->negated());
+var $eastmost = Core\Time\Zone::fixed(25h59m59s);
+echo $first->in($westmost)->format('yyyy-MM-dd'), ' ', $first->in($westmost)->daysInMonth(), ' ', $first->in($westmost)->quarter(), ' ', $first->in($westmost)->isoWeek(), ' ', $first->in($westmost)->isoWeekYear(), "\n";
+echo $last->in($eastmost)->format('yyyy-MM-dd'), ' ', $last->in($eastmost)->daysInMonth(), ' ', $last->in($eastmost)->quarter(), ' ', $last->in($eastmost)->isoWeek(), ' ', $last->in($eastmost)->isoWeekYear(), "\n";
+--EXPECT--
+2922 days, 0 wrong
+58 14
+31 4 53 2026 2026
+31 1 53 2026 2027
+-9999-01-01 31 1 1 -9999
+9999-12-31 31 4 52 9999

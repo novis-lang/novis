@@ -1,0 +1,11 @@
+<?nvs
+// Shows the quarter of a few dates in one year.
+
+// January to March is quarter 1. This prints 1.
+echo Core\Time\Date::at(2026, 3, 31)->quarter(), "\n";
+
+// April to June is quarter 2. This prints 2.
+echo Core\Time\Date::at(2026, 4, 1)->quarter(), "\n";
+
+// October to December is quarter 4. This prints 4.
+echo Core\Time\Date::at(2026, 12, 31)->quarter(), "\n";

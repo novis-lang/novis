@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to share a monthly budget of 3000 over the days of the month.
+
+class Budget
+{
+    // The function divides the budget by the number of days in the month.
+    // `Core\Math::quotient` returns the whole number part of the division.
+    public static function perDay(int $monthly, Core\Time\Date $date): int
+    {
+        return Core\Math::quotient($monthly, $date->daysInMonth() as int);
+    }
+}
+
+// This prints 100 for April, 96 for May and 103 for February 2024.
+echo Budget::perDay(3000, Core\Time\Date::at(2026, 4, 10)), "\n";
+echo Budget::perDay(3000, Core\Time\Date::at(2026, 5, 10)), "\n";
+echo Budget::perDay(3000, Core\Time\Date::at(2024, 2, 10)), "\n";

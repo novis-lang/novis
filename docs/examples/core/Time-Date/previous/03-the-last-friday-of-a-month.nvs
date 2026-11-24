@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find the last Friday of a month, for example a pay day.
+
+class Payroll
+{
+    // The function takes the first day of the next month and goes back to a Friday.
+    public static function payDay(int $year, uint $month): Core\Time\Date
+    {
+        var $nextMonth = Core\Time\Date::at($year, $month, 1)->plus(1, Core\Unit::Month);
+        return $nextMonth->previous(Core\Time\Weekday::Friday);
+    }
+}
+
+// This prints 2026-01-30, 2026-05-29 and 2026-07-31.
+echo Payroll::payDay(2026, 1)->toIso(), "\n";
+echo Payroll::payDay(2026, 5)->toIso(), "\n";
+echo Payroll::payDay(2026, 7)->toIso(), "\n";

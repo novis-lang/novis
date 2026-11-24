@@ -2,8 +2,10 @@ Takes a value out of a `Core\ObjectSet`. After `remove`, `has` returns `false` f
 the count is one less. `remove` returns nothing. This replaces `$storage->detach($object)` on an
 `SplObjectStorage`.
 
-A value is matched by identity. `remove` takes out only the same object that was added. An object
-with equal property values is a different object, and the set does not change. If the value is not in the
+A value is found with `==`. For an object of your own class, `remove` takes out only the same object
+that was added. An object with equal property values is a different object, and the set does not
+change. A `Core\Time` value such as a `Date` is compared by its value, so an equal `Date` is removed.
+If the value is not in the
 set, `remove` does nothing and does not throw an error.
 
 The set stops keeping the value alive. An object that nothing else uses is deleted at that point.

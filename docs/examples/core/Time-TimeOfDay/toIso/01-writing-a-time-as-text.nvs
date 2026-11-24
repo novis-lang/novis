@@ -1,0 +1,10 @@
+<?nvs
+// Shows the text that `toIso` writes for a time of day.
+
+// The text has the hour, the minute and the second, each with two digits.
+// This prints 08:30:00.
+echo Core\Time\TimeOfDay::at(8, 30)->toIso(), "\n";
+
+// Midnight is 00:00:00, and the last second of the day is 23:59:59.
+echo Core\Time\TimeOfDay::at(0, 0)->toIso(), "\n";
+echo Core\Time\TimeOfDay::at(23, 59, { second: 59 })->toIso(), "\n";

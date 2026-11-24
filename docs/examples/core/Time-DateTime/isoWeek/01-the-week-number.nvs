@@ -1,0 +1,10 @@
+<?nvs
+// Shows the ISO week number of a few dates.
+
+// An ISO week starts on Monday. Week 1 is the week with the first Thursday of the year.
+// Monday 5 January 2026 starts week 2, so this prints 1, then 2.
+echo Core\Time\DateTime::fromIso('2026-01-04', 'UTC')->isoWeek(), "\n";
+echo Core\Time\DateTime::fromIso('2026-01-05', 'UTC')->isoWeek(), "\n";
+
+// The middle of the year. This prints 27.
+echo Core\Time\DateTime::fromIso('2026-07-01', 'UTC')->isoWeek(), "\n";

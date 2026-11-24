@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to save a date and time as text and read the same value back.
+
+// On 27 October 2024, the clocks in Berlin go back one hour, so 02:30 happens twice.
+// The first 02:30 has the offset +02:00 and the second has +01:00.
+var $first = Core\Time\DateTime::fromIso('2024-10-27 02:30', 'Europe/Berlin');
+var $second = $first->toInstant()->plus(1h)->in(Core\Time\Zone::of('Europe/Berlin'));
+
+// `toIso` writes the offset, so the text names one exact moment.
+// This prints 2024-10-27T02:30:00+01:00[Europe/Berlin].
+string $saved = $second->toIso();
+echo $saved, "\n";
+
+// `fromIso` reads the text back with no second argument.
+// The value is the second 02:30, not the first. This prints "same moment", then "other moment".
+var $loaded = Core\Time\DateTime::fromIso($saved);
+echo $loaded == $second ? 'same moment' : 'other moment', "\n";
+echo $loaded == $first ? 'same moment' : 'other moment', "\n";

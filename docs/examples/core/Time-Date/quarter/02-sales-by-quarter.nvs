@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to add up sales for each quarter of a year.
+
+array<string> $days = ['2026-01-15', '2026-02-03', '2026-05-20', '2026-08-01', '2026-11-11', '2026-12-24'];
+array<int> $amounts = [120, 80, 200, 50, 90, 310];
+array<int> $totals = [0, 0, 0, 0];
+
+int $i = 0;
+while ($i < 6) {
+    // Quarter 1 goes into the first total, so the index is the quarter minus 1.
+    int $index = Core\Time\Date::fromIso($days[$i])->quarter() as int - 1;
+    $totals[$index] = $totals[$index] + $amounts[$i];
+    $i = $i + 1;
+}
+
+// This prints 200, 200, 50 and 400.
+echo 'Q1 ', $totals[0], "\n";
+echo 'Q2 ', $totals[1], "\n";
+echo 'Q3 ', $totals[2], "\n";
+echo 'Q4 ', $totals[3], "\n";

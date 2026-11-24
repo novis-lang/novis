@@ -3,8 +3,9 @@ property, an array element and a parameter all hold a reference to the object. A
 second variable gives that variable the same object. Passing it to a function gives the function the
 same object. A write through any one of them is seen through all of them.
 
-`==` on two objects tests whether they are the same object. Two separate objects are never equal,
-even when every property in them has the same value.
+`==` on two objects of your own class tests whether they are the same object. Two separate objects
+are never equal, even when every property in them has the same value. Six `Core\Time` classes, such
+as `Date` and `Duration`, are the exception: `==` compares their value.
 
 `clone` makes a new object of the same class and copies every property into it. The copy is one
 level deep. An array property is copied, so the two objects have two arrays. An object property is
