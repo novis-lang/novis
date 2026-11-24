@@ -15,7 +15,7 @@ documentation of that method. It renames methods and variables, fixes errors and
 you. It shows how often a method is used and where a value came from. It gets all of this from
 `nvs lsp`, the language server that is part of the `nvs` program.
 
-Each picture on this page shows what `nvs lsp` returned for the code next to it.
+Each editor view on this page shows the real result that `nvs lsp` returned for the code in it.
 
 ## Completion and errors
 
@@ -64,8 +64,8 @@ Other actions write the methods that an interface needs, and declare a method th
 did not write yet. They also add a missing `use` line, sort the `use` lines, and move code into a
 new method or variable.
 
-**Order class members** puts the members of each class in the file in one fixed order. Saving a file
-never runs it. You choose it from the list of source actions. `nvs code order` writes the same order
+**Order class members** puts the properties, constants and methods of each class in the file in one
+fixed order. The editor does not run this action when you save a file. You choose it from the list of source actions. `nvs code order` writes the same order
 from a terminal.
 
 ## Attribute declarations
@@ -80,14 +80,14 @@ The editor completes the words `attribute` and `repeatable`, and the type of eac
 editor supports snippets, `attribute` writes a whole declaration. You then type the name, choose
 the site and write the fields.
 
-A field and each key that uses it have the same name. Go to definition, find references and rename
+When you use the attribute, you write each field as a key, such as `path:`. Go to definition, find references and rename
 work on both. If you rename `path` below, the key `path:` in `#[Route(path: '/cart')]` changes too.
 
 <Snippet src="tools/editor/attribute-declaration.nvs" />
 
 Inside `#[Route(`, the editor shows the fields as signature help: `Route(path: string, verb?:
-string)`. The field you are writing is highlighted. Before you write a key, the first required field
-that is missing is highlighted.
+string)`. The field you are writing is highlighted. When the cursor is not on a key yet, the editor
+highlights the first required field that you have not written.
 
 An attribute that nothing declares has an error. The quick fix **Declare the attribute** writes a
 declaration in the same file. If you used the attribute on a method, the declaration says `on method`.
@@ -95,7 +95,7 @@ Each key you wrote becomes a field. The fix is not offered in a file that `autol
 that file may declare only one name.
 
 **Order class members** and `nvs code order` move an attribute declaration in a class to the top of
-the class. It goes with the `enum` and `type` declarations.
+the class. It goes next to the `enum` and `type` declarations.
 
 ## Links in doc comments
 
@@ -111,13 +111,13 @@ After `@see`, the editor completes the names of classes and methods. When you ty
 completes the files of your project. After `#`, type a letter or press **Ctrl+Space** to see the
 headings of the Markdown file.
 
-Find references lists each `@see` and `@throws` that names a method or a class. These lines are not
-counted in the code lens. When you rename a method or a class, its `@see` and `@throws` lines change
-too. When you move or rename a file or a folder in the Explorer, each `@see` and `@example` path to it
-changes. A heading after `#` stays the same.
+Find references lists each `@see` and `@throws` that names a method or a class. The usage count
+above the method does not include these lines. When you rename a method or a class, its `@see` and
+`@throws` lines change too. When you move or rename a file or a folder in the Explorer, each `@see`
+and `@example` path to it changes. The heading after `#` does not change.
 
-If a heading after `#` is not in the file, the line has an error. The quick fix changes it to the
-closest heading.
+The compiler checks that the heading after `#` is in the file. If it is not, the line has the error
+`E0323`. The quick fix changes it to the most similar heading of the file.
 
 ## How often a method is used
 
@@ -294,8 +294,9 @@ folder with a `!` at the start of the line:
 !/addons/
 ```
 
-When `.ignore` and `.gitignore` disagree about a file, the line in `.ignore` wins. Git does not read `.ignore`, so git still
-ignores the folder. Then run **Novis: Restart Language Server**.
+When `.ignore` and `.gitignore` disagree about a file, the editor uses the line in `.ignore`. Git does
+not read `.ignore`, so git still ignores the folder. After you create `.ignore`, run **Novis: Restart
+Language Server**.
 
 ## Change a Novis colour
 
@@ -323,7 +324,7 @@ The language server tells VS Code which variables are `tainted` and which are `s
 value comes from outside the program, such as a request. This works at every place where you use the
 variable.
 
-Your color theme decides how these variables look. In the themes that come with VS Code, a tainted
+Your colour theme decides how these variables look. In the themes that come with VS Code, a tainted
 variable is underlined and a secret variable is in italic. Some other themes show no difference.
 
 To choose the style yourself, add this to your `settings.json`:
@@ -338,7 +339,7 @@ To choose the style yourself, add this to your `settings.json`:
 }
 ```
 
-`"enabled": true` is needed for a theme that does not use the language server's colors.
+`"enabled": true` is needed for a theme that does not use the language server's colours.
 
 ### Where a tainted value came from
 

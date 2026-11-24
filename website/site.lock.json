@@ -3780,7 +3780,7 @@
     "lang:programs/comments": "3de243587c58b114"
   },
   "docs/examples/lang/programs/doc-comments/about.md": {
-    "lang:programs/doc-comments": "e2c000859a6a1d1b"
+    "lang:programs/doc-comments": "6b9f8617968b47be"
   },
   "docs/examples/lang/programs/ending-a-program/about.md": {
     "lang:programs/ending-a-program": "da557f190da41531"
@@ -9381,7 +9381,7 @@
     "tools:editor/nvs-dap": "b5dc0d14f31c3914"
   },
   "help:tools:editor/nvs-lsp": {
-    "tools:editor/nvs-lsp": "54d8cd041252df5e"
+    "tools:editor/nvs-lsp": "2c3f6c08d23da6f5"
   },
   "help:tools:editor/nvs-lsp-test": {
     "tools:editor/nvs-lsp-test": "cdbb8253b23e08ce"
@@ -9524,7 +9524,7 @@
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "09bf404ca5c6d9e7",
-    "lang:programs/doc-comments": "9b35ce05fd878409"
+    "lang:programs/doc-comments": "0333caaec670eaf6"
   },
   "syntax/basics/constants.mdx": {
     "lang:classes/constants-and-class": "798d0b87e518cc14"
@@ -9891,7 +9891,7 @@
     "tools:editor/nvs-dap": "e7529dc767e5836e"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "99d8abc5ea52fb91",
+    "tools:editor/nvs-lsp": "b2f8c4279869b2db",
     "tools:editor/the-vs-code-extension": "4a8700ac5275da6b"
   },
   "tools/formatter/index.mdx": {

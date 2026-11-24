@@ -6,8 +6,9 @@
 /// @see notes/refunds.md
 final class Refund
 {
+    // `#how-a-refund-is-calculated` names a heading of `notes/refunds.md`.
+    // The compiler checks that the file has this heading.
     /// Adds up the returned lines and returns the refund in cents.
-    /// The part after `#` is a heading of the file. The compiler checks that it exists.
     ///
     /// @see notes/refunds.md#how-a-refund-is-calculated
     public static function amount(array<int> $lines): int

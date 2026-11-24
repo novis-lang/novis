@@ -5,14 +5,14 @@
       "features": [
         "lang:programs/doc-comments"
       ],
-      "text": "`@see` in a doc comment can name a file in your project, and one heading of a Markdown file: `@see notes/refunds.md#who-can-get-a-refund`. The compiler checks that the file and the heading exist, and that the path stays inside the project. `nvs meta --json` and `nvs doc` write the path as a link."
+      "text": "`@see` in a doc comment can name a file in your project, and one heading of a Markdown file: `@see notes/refunds.md#who-can-get-a-refund`. The compiler checks that the file and the heading exist, and a path outside the project folder does not compile. The page that `nvs doc` writes links to the file."
     },
     {
       "kind": "changed",
       "features": [
         "tools:editor/nvs-lsp"
       ],
-      "text": "In a doc comment, go to definition, hover, completion, find references and rename work on each `@see` target, `@example` path and `@throws` class. When you move a file or a folder, each `@see` and `@example` path to it changes. If a `@see` heading is not in the file, the quick fix changes it to the closest heading."
+      "text": "In a doc comment, go to definition, hover, completion, find references and rename work on each `@see` target, `@example` path and `@throws` class. When you move a file or a folder, each `@see` and `@example` path to it changes. If a `@see` heading is not in the file, the quick fix changes it to the most similar heading."
     },
     {
       "kind": "changed",

@@ -1,8 +1,8 @@
 <?nvs
-// Measures a class with a doc comment on the class, its constant and its method,
-// as in a shared library. Its `@see` tags point at code and at a Markdown file.
-// Doc comments are read only when the program is compiled.
-// This loop should run as fast as the same loop without them.
+// Measures a loop in a class that has doc comments, as a shared library has.
+// The `@see` tags point at a method, a constant and a Markdown file.
+// The compiler reads doc comments, and the running program does not.
+// So this loop should run as fast as the same loop with no doc comments.
 // bench: iterations 4000000
 // bench: allocations 0
 // bench: complexity constant
@@ -13,7 +13,7 @@
 /// @see doc-comments/meter.md
 final class Meter
 {
-    /// Each round adds a remainder of a division by this number.
+    /// Each round adds the remainder of a division by this number.
     ///
     /// @see Meter::run
     /// @see doc-comments/meter.md#the-wrap

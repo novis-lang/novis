@@ -1396,12 +1396,12 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "70f266e1301492d2",
+    "hash": "2120ae482ac8bf81",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
       "See every method that calls this method in my editor",
-      "Which routes and tests use this method, and how do I run those tests?",
+      "Can I click a @see path in a doc comment to open the file?",
       "Where did this tainted value in my code come from?",
       "Why does my editor say a method cannot be used here?"
     ]
@@ -19322,11 +19322,11 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "22d3e205fa910313",
+    "hash": "e76f42181db64c93",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",
-      "How can I see which routes and tests use a method?",
+      "Does renaming a file update the @see paths that point at it?",
       "How do I change a colour of the Novis Dark theme?",
       "Which files does the editor read, and check again after an edit?",
       "Can I rename a field of an attribute declaration in every place it is used?"

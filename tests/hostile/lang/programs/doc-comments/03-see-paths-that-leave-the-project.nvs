@@ -5,7 +5,7 @@
 
 final class Archive
 {
-    // 1. Climbs above the folder of the project with `../`.
+    // 1. Uses `../` to name a file above the project folder.
     /// Opens the archive.
     ///
     /// @see ../../../../../../../secrets.md
@@ -32,7 +32,7 @@ final class Archive
         return 3;
     }
 
-    // 4. Adds a heading to a file that is not Markdown.
+    // 4. Adds a heading to a `.nvs` file. Only a Markdown file has headings.
     /// Counts the entries of the archive.
     ///
     /// @see 02-tags-that-point-at-code-that-is-not-there.nvs#report
