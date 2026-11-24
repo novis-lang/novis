@@ -36,7 +36,7 @@ The chain holds 1 goal(s). `allocation-accounting` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`allocation-accounting`](allocation-accounting.md) **live** | Reached when a test records how many allocations one served json-api and html-page request makes, the goal's standing decisions hold the per-request cost of the accounting those counts imply, and either the allocator's cache and counters share one thread-local lookup per allocation, or the measured figures show the saving is under 1% of every compare case's CPU and budget.rs records them. | **1 one served json-api and html-page request each make a recorded number of allocations, and the decision is written** · 2 only if stage 1 decided it pays: the cache and the counters share one thread-local, looked up once per allocation · 3 the goal is verified once, and every failure is fixed |
+| 1 | [`allocation-accounting`](allocation-accounting.md) **live** | Reached when Accounting's alloc, alloc_zeroed, dealloc and realloc each look up one merged thread-local holding the block cache and the memory counters, a timing probe shows the counted round trip got no slower, a test records how many allocations one served json-api and html-page request makes, and budget.rs's What it spends states the accounting's cost per allocation and per request. | **1 one served json-api and html-page request each make a recorded number of allocations** · 2 the cache and the counters share one thread-local, looked up once per allocation · 3 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md), [`zip-writer`](zip-writer.md).
 
