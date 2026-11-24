@@ -661,19 +661,21 @@ changes entries.
   - [x] the rate limit trio and the bare old names in rule prose rewritten
   - [x] the rule ids and conformance case names that held an old word renamed in one pass
   - [x] `bun nv rules --render` and `--check` green
-- [ ] Each moved `about.md` and its examples' comments rewritten for the new name; each help card in the
+- [x] Each moved `about.md` and its examples' comments rewritten for the new name; each help card in the
   registry rows reread.
   - [x] the 152 moved example, hostile and bench directories reread by four writing subagents
   - [x] the moved benches' `.nvsr` files moved with them
-  - [ ] each help card of a renamed member reread and stamped (the `help:` rows of `site --check stale`)
-- [ ] `website/src/data/changes.json:1`: one `changed` entry per class family in the renames table,
+  - [x] each help card of a renamed member reread and stamped (the `help:` rows of `site --check stale`)
+- [x] `website/src/data/changes.json:1`: one `changed` entry per class family in the renames table,
   each naming the new features and, in one sentence, the old names. Each page the sweep touched reread
   and stamped with `bun nv site --stamp`.
   - [x] 30 breaking `changed` entries, and every test-only move recorded as `unseen`
   - [x] `core.json` and `llms-full.txt` rendered, `site --check changes` green
-  - [ ] every page and `about.md` `site --check stale` names reread and stamped
-  - [ ] every text `site --check review` names reviewed and stamped
+  - [x] every page and `about.md` `site --check stale` names reread and stamped
+  - [x] every text `site --check review` names reviewed and stamped
 - [ ] `bun nv proofs --owed --goal clear-member-names` names nothing.
+  - [ ] the `intro` and `tests` rows it names paid (`Core\Router\Match`, `Core\Test\Response`, `Core\Http\Response`)
+  - [ ] the release binary rebuilt, and every `perf: stale` feature recorded in runs of 100
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -685,31 +687,40 @@ changes entries.
 
 ### State
 
-Stage 8 is half done. The rule prose names the new members, and `rules --check` is green. The rule
-ids `script-arguments`, `temporary-directory-sweep` and `temporary-directory-orphan-sweep` and 61
-conformance cases were renamed, with every citation. Four writing subagents reread the 152 moved
-example, hostile and bench directories, and the renamed Request and Response benches got their `.nvsr`
-files back. `changes.json` has 30 breaking `changed` entries, one per class family, and 292 `unseen`
-records. A new `bun nv site --changes --unseen` writes them, and a breaking `changed` entry now clears
-a rename (stage 8's decision). `core.json`, `llms-full.txt` and `80-concurrency.md` are rendered, and
-`site --check changes` is green. Build and clippy are green. Only `site-changes.test.ts` ran (13 pass).
-
-Expect red at stage 9 if anything was missed: `.lspt` completion cases, `nvs-test`'s
-`TOP_LEVEL_ONLY` cases, `crates/nvs-cli/tests/meta.rs`'s name lists and `ext_world.rs`'s
-`IMAGE_MEMBERS` (edited by hand, not run), `path.rs`'s renamed test helpers `file_name` and `parent`,
-and any `.out` of a renamed conformance case. `tests/hostile/core/Math/quotient/01-…nvs` renamed its own
-helper `intDiv` to `quotient`.
+Stage 8 has one item left: the owed proofs. `bun nv site --check stale review changes` is green.
+Nine writing subagents, one per class family, reread the 1192 stale texts and ran the newcomer review
+over the 953 unreviewed ones. The session then had readers review the 85 texts the lanes rewrote, and
+fixed every finding. Fixes beyond wording: old names left in the image and pdf `manifest.json` cards,
+`Image-Image/compare/about.md` (`Diff`), `Request/route/about.md` (`param`), `Metrics/increment` and
+`observe` (`gauge`), the `Router-Match.md`, `Request.md`, `Request-Files.md` and
+`Request-BodyStream.md` intros (`params`, `query`, `post`, `postAs`), `10-cli.md`, and three website
+snippets. Wrong facts were fixed on the cards of `Http\Event::id`, `IO::makeDirectory`, `File::tell`,
+`BigInt->remainder`, `Math::remainder` and two `DateTime` abouts. `bun nv prose` is clean over every
+touched file, and `api-rename --check` is green. `render` and `render --website` ran after the last
+edit, and build and clippy are green. No test ran.
 
 ### Next
 
-Stage 8, its remaining checkpoints. The work is wide, so it goes to writing subagents by directory.
-1. `bun nv site --check stale review` names 1192 stale stamps and 953 unreviewed texts. Most are the
-   renamed members' `help:` cards, their `about.md` and the pages that cover them. Write the list to
-   `.agent-tmp/`, split it by class family, and give each lane to a subagent that rereads each text
-   against AGENTS.md § *Text an end user reads* and runs `bun nv site --stamp <key>` and
-   `bun nv site --review --stamp <key>` for each. The session checks a sample of each lane.
-2. `bun nv proofs --owed --goal clear-member-names` names nothing; pay what it names.
-3. Tick stage 8, and set its status to done.
+Stage 8's last item, `bun nv proofs --owed --goal clear-member-names --limit 0`: it names 895
+features, 587 of them `perf` only.
+1. Pay the non-perf rows first: `tests` for `Core\Router\Match::parameters`, `parameter`,
+   `Core\Test\Response::bytes`, `Core\Http\Response::text` and `bytes`, and `intro` for the two
+   `Router\Match` members (`docs/reference/core/Router-Match.md:18` now names them; check it
+   clears). Any `reviewed` row left means a text changed after its stamp: rerun
+   `site --check review`.
+2. Make no further edit to a source or `about.md` after this point. Each edit makes a figure stale
+   again (playbook: "Run `bun nv render` before `--record-perf`").
+3. `bun nv relink --build`, then list every `perf: stale` id with
+   `bun nv proofs --gate --goal clear-member-names --limit 0 --nvs target/debug/nvs.exe`. Record them
+   with `xargs -d '\n' -n 100 -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
+   --only`, in the foreground, one run of 100 at a time. A full run is about two hours, so it may take
+   two sessions. Commit `data/perf/` after each run.
+4. Tick stage 8, and set its status to done.
+
+Expect red at stage 9 if anything was missed: `.lspt` completion cases, `nvs-test`'s
+`TOP_LEVEL_ONLY` cases, `crates/nvs-cli/tests/meta.rs`'s name lists and `ext_world.rs`'s
+`IMAGE_MEMBERS`, `path.rs`'s test helpers `file_name` and `parent`, any `.out` of a renamed
+conformance case, and any test that pins a help card's wording.
 
 ### Backlog
 
@@ -717,3 +728,10 @@ Stage 8, its remaining checkpoints. The work is wide, so it goes to writing suba
   them, so they are not this goal's.
 - `tests/hostile/core/Decimal/divideRounded/01-…nvs` says "refused" and "asked for" in its steps. The
   wording predates the rename, and a later prose pass can take it.
+- The `Core\Http\Client` option cards (`tlsVerify`, `tlsPin`, `redirectToHttp`, the long
+  `RuntimeError` text) and the `Request.md`, `Request-Files.md` and `Request-BodyStream.md` intros
+  are still in the dense essay voice. This goal changed only their names. Readers also found
+  "series", "label", "passkey", "challenge", "cron", "proxy" and "isolate" undefined on some cards and
+  pages. These predate the goal, so a later prose pass takes them.
+- `extensions/*/nvs/*.nvs` doc comments fail `proofs --comments`' step bound (`Image.nvs:59` and
+  others). The bound is for example programs, so the command should skip package sources.
