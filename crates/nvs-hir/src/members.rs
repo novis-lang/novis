@@ -1776,6 +1776,14 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 e!(value);
             }
         }
+        // `{ length: Length::Full }` at a call argument is the common place an
+        // enum case is written, and a field value is checked as it is anywhere
+        // else: a missed one reached `nvs-ir` with no case recorded.
+        ExprKind::AnonObject(fields) => {
+            for field in fields {
+                e!(&field.value);
+            }
+        }
         ExprKind::Unary { expr, .. }
         | ExprKind::PreIncDec { expr, .. }
         | ExprKind::PostIncDec { expr, .. }
@@ -2164,15 +2172,14 @@ fn check_member_ref(
     if record_member(&qname, name, kind, env) {
         return;
     }
-    let mut diag = Diagnostic::error(
-        code::E_UNDEFINED_MEMBER,
-        format!("`{qname}` has no {} named `{name}`", kind.describe()),
-    )
-    .with_primary(class_expr.span, "referenced here");
-    if let Some(nearest) = nearest_member(&qname, name, kind, env.table, env.graph) {
-        diag = diag.with_help(format!("did you mean `{nearest}`?"));
-    }
-    env.diags.report(diag);
+    let nearest = nearest_member(&qname, name, kind, env.table, env.graph);
+    env.diags.report(undefined_member(
+        &qname,
+        name,
+        kind.describe(),
+        class_expr.span,
+        nearest,
+    ));
 }
 
 /// The class a bare or qualified name on the left of a `::` names: inside an
@@ -2373,6 +2380,16 @@ fn nearest_member(
     let mut candidates = Vec::new();
     let mut seen = FxHashSet::default();
     collect_candidates(qname, kind, table, graph, &mut seen, &mut candidates);
+    nearest_name(name, candidates)
+}
+
+/// The candidate closest to `name` within [`suggestion_budget`], ties to the
+/// alphabetically first, so the answer does not depend on the candidates'
+/// order. Public because `nvs_types` reports an enum's unknown case from its
+/// own enum table and must suggest exactly what this module suggests, or the
+/// two reports of one mistake would differ and both be shown.
+#[must_use]
+pub fn nearest_name(name: &str, candidates: impl IntoIterator<Item = String>) -> Option<String> {
     let budget = suggestion_budget(name);
     candidates
         .into_iter()
@@ -2382,6 +2399,29 @@ fn nearest_member(
         })
         .min()
         .map(|(_, candidate)| candidate)
+}
+
+/// `E0309` for a member `qname` does not have, with the nearest name as its
+/// help. One constructor, because `nvs_types` reports an enum's unknown case
+/// too, and the diagnostic sink keeps one of two reports only when they are
+/// identical.
+#[must_use]
+pub fn undefined_member(
+    qname: &QName,
+    name: &str,
+    kind: &str,
+    span: Span,
+    nearest: Option<String>,
+) -> Diagnostic {
+    let diag = Diagnostic::error(
+        code::E_UNDEFINED_MEMBER,
+        format!("`{qname}` has no {kind} named `{name}`"),
+    )
+    .with_primary(span, "referenced here");
+    match nearest {
+        Some(nearest) => diag.with_help(format!("did you mean `{nearest}`?")),
+        None => diag,
+    }
 }
 
 /// How many edits a suggestion may sit from what was written: one for a short

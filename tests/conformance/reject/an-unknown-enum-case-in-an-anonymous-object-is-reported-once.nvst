@@ -1,0 +1,42 @@
+--TEST--
+An enum case that does not exist, written as a field value of an anonymous object, is `E0309` once, as it is anywhere else: at a call argument, with the nearest case as its help, nested in a second object, through a class-scoped enum and through a component's enum. It never reaches code generation
+--FILE--
+<?nvs
+enum Color { Red = 1 }
+
+class Shop {
+    enum Size { Small = 1 }
+
+    public static function paint({ color: Color } $options): int {
+        return 1;
+    }
+
+    public static function pack({ box: { size: Shop::Size } } $options): int {
+        return 2;
+    }
+}
+
+echo Shop::paint({ color: Color::Blue }), "\n";
+echo Shop::paint({ color: Color::Rd }), "\n";
+echo Shop::pack({ box: { size: Shop::Size::Large } }), "\n";
+echo Novis\Intl\DateFormat::dates([Core\Time\Date::at(2026, 1, 5)], 'en',
+    { length: Novis\Intl\DateFormat::Length::Huge })[0], "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0309]: `Color` has no constant named `Blue`
+   --> case.nvs:16:27
+%A
+error[E0309]: `Color` has no constant named `Rd`
+   --> case.nvs:17:27
+%A
+   = help: did you mean `Red`?
+%A
+error[E0309]: `Shop::Size` has no constant named `Large`
+   --> case.nvs:18:32
+%A
+error[E0309]: `Novis\Intl\DateFormat::Length` has no constant named `Huge`
+   --> case.nvs:20:15
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

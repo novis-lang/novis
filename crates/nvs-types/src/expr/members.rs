@@ -157,6 +157,18 @@ pub(crate) fn infer_class_const(
                 // this the mistake reaches `nvs-ir` as a `Class::CONST` with no
                 // value recorded, which panics.
                 report_unknown_member(class.span, &qname, &case, "case", env);
+            } else {
+                // Any other enum's unknown case is `nvs_hir::members`' `E0309`,
+                // and this is the same diagnostic, so the sink keeps one. It is
+                // reported here as well because a node kind that pass's walk
+                // misses would otherwise reach `nvs-ir` with no case recorded,
+                // which panics: a field value of an anonymous object once did.
+                let nearest = env.enums.get(&qname).and_then(|info| {
+                    nvs_hir::members::nearest_name(&case, info.cases.keys().cloned())
+                });
+                env.diags.report(nvs_hir::members::undefined_member(
+                    &qname, &case, "constant", class.span, nearest,
+                ));
             }
             let backing = env.enums.backing_of(&qname);
             // `rule:types/enum-case-type`: the case's own narrowed type where the position
