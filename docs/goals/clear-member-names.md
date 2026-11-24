@@ -6,7 +6,7 @@ context: [docs/rules/core-api/verb-lexicon.md, docs/rules/core-api/members-are-f
 stages:
   - id: 1
     title: "the naming rules are rewritten, and bun nv names --check lists every name that breaks them"
-    status: open
+    status: done
     context: [docs/rules/core-api/shape-rules.md, docs/rules/core-api/symmetric-names.md, crates/nvs-stdlib/src/registry.rs, tools/nv/cmd/ci.ts, tools/nv/renderers/website-core.ts]
   - id: 2
     title: "the moved-name tables are empty until pre-alpha ends, and bun nv api-rename sweeps the tree from this goal's renames block"
@@ -294,6 +294,23 @@ break the rule another way is renamed again by the same rule, recorded under thi
 user is told in the handoff. A name not in the table that the check lists is renamed in stage 7 by the
 same four parts, and recorded in this table and the `renames` block.
 
+**What stage 1 settled in the check's tables** (`tools/data/api-names.json`), each by the four parts:
+- `verify…`, `check…` and `assert…` are effect verbs: a check that throws when it fails stops the
+  program, so `Crypto::verify(): void` and `Password::verify(): bool` keep their names.
+- A participle ending in `en` counts only from `irregularParticiples`, since `flatten`, `sharpen` and
+  `open` end so too. A word ending in `ed` counts unless it is on `notParticiples` (`embed`).
+- `approx` joins the banned truncations (`approximately`), so `LdapFilter::approx` is stage 7's.
+- Drawing from a generator is a read: `Random::int`, `RandomSeeded->int`, `->bytes` and `->token`
+  are on `reads`. `NovisRest` is unchanged, so its nouns with arguments are on `reads` too.
+- `DateTime->next`, `previous`, `startOf`, `endOf`, `Dn->child` and `ObjectSet->union` compute a new
+  value rather than a changed copy, so they are `reads` rows and keep their names. So do the new names
+  the table gives a noun with an argument (`Arr::difference`, `Math::remainder`, `BigInt->remainder`,
+  `Decimal::power`, `RouterMatch->parameter`, `ObjectSet->intersection`, `difference`).
+- `query` is an effect verb (`DbConnection->query` runs a statement), which is why
+  `Request::query` moves.
+- The check labels part 2 for "a noun with an argument that is not on `reads`", since part 2 is the
+  rule that a noun has no effect.
+
 **Lanes.** Stages 1 and 2 land first: 3 to 6 need the check and the sweep. Stages 3 to
 6 change disjoint `crates/nvs-stdlib/src/` files but share callers across `docs/examples/`,
 `tests/conformance/`, `website/` and the Rust tests, so they run in order, never as side goals. Inside a
@@ -305,19 +322,19 @@ stage the sweep's leftovers go to writing subagents by directory.
 
 **Split:** none, one session. The check is expected to be red until stage 7.
 
-- [ ] `docs/rules/core-api/verb-lexicon.md:1`: the four parts, one word one meaning, the first-party
+- [x] `docs/rules/core-api/verb-lexicon.md:1`: the four parts, one word one meaning, the first-party
   packages, and the Declined items above; `data/rules/core-api/verb-lexicon.json:9`'s `guardedBy`.
-- [ ] `docs/rules/core-api/members-are-full-words.md:1`: the three lists by reference to
+- [x] `docs/rules/core-api/members-are-full-words.md:1`: the three lists by reference to
   `tools/data/api-names.json`, option fields and package class names included; its `guardedBy`.
-- [ ] `docs/rules/core-api/shape-rules.md:1`: R5 and R7's cells name the new parts; `bun nv rules
+- [x] `docs/rules/core-api/shape-rules.md:1`: R5 and R7's cells name the new parts; `bun nv rules
   --render` once.
-- [ ] `tools/data/api-names.json:1` and `tools/nv/cmd/names.ts:1`: the tables and the command, registered
+- [x] `tools/data/api-names.json:1` and `tools/nv/cmd/names.ts:1`: the tables and the command, registered
   in `tools/nv/main.ts:56`; `--check` exits non-zero naming each member, the rule part and, for a
   truncation, the full word.
-- [ ] `tools/nv/test/names.test.ts:1`: the seven tests the check `names-tool` names, on fixture
+- [x] `tools/nv/test/names.test.ts:1`: the seven tests the check `names-tool` names, on fixture
   signatures, run once.
-- [ ] `tools/nv/cmd/ci.ts:332`: `api names` joins the list after the build, with `NVS_BIN` set.
-- [ ] Run `bun nv names --check` once and paste its count by rule part into the handoff. Every name it
+- [x] `tools/nv/cmd/ci.ts:332`: `api names` joins the list after the build, with `NVS_BIN` set.
+- [x] Run `bun nv names --check` once and paste its count by rule part into the handoff. Every name it
   lists outside the renames table is stage 7's.
 
 ### 2. the moved-name tables are empty until pre-alpha ends, and bun nv api-rename sweeps the tree from this goal's renames block
@@ -436,13 +453,27 @@ changes entries.
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24. Nothing is
-built. The renames table was made from every signature in `website/src/data/core.json` that day, and
-every anchor above was read that day.
+Stage 1 is done (commit `feat(nv): bun nv names checks every Core and package name`). The rules
+`verb-lexicon` and `members-are-full-words` are rewritten, R5 and R7 name the new parts, and
+`bun nv names [--check]` (`tools/nv/cmd/names.ts`, tables `tools/data/api-names.json`) runs in
+`ci --check` as `api names` after the build. `bun test tools/nv/test/names.test.ts`: 8 pass.
+
+`bun nv names --check` lists 181 findings: full words 44, part 1: 15, part 2: 41, part 3: 48,
+part 4: 33. All but these are in the renames table, and these are stage 7's:
+`CoreProcess::run` and `spawn` option `cwd`; `CoreTimeInstant::fromEpoch` and
+`CoreTimeTimeOfDay::at` option `nanos`; `CoreQueue::push` option `args`; the class
+`NovisImageDiff`; `CoreRateLimit::shed` (it charges, an effect); `CoreCli::multiSelect` (it
+prompts); `CoreLdapFilter::approx`.
+
+Expected red until stage 7: `ci --check`'s `api names`, so `ci --check`, the floor's `ci-check` and
+`ci --push` are red until then. No push is due before this goal's close.
 
 ### Next
 
-Stage 1 from its first item, in `docs/rules/core-api/` and `tools/nv/`. Every check is red until its
-stage's tests exist, and `names` stays red until stage 7.
+Stage 2 from its first item: `crates/nvs-stdlib/src/moved.rs:70` and
+`crates/nvs-types/src/attributes.rs:1292` emptied, the two rules rewritten, then the `renames` block and
+`tools/nv/cmd/api-rename.ts` with `tools/nv/test/api-rename.test.ts`. Another interactive session had
+uncommitted Rust edits in `crates/nvs-runtime/`, `crates/nvs-lsp/` and `crates/nvs-cli/src/reload_endpoint.rs`
+when stage 1 ended; run `looper claims` before touching those.
 
 ### Backlog
