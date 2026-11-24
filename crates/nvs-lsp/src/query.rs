@@ -39,6 +39,8 @@ pub enum UseKind {
     Declared,
     /// A `use` line that imports the name.
     Import,
+    /// A doc comment tag that names it: a `@see` target or an `@throws` name.
+    Doc,
     /// Code that uses the name.
     Use,
 }
@@ -50,6 +52,7 @@ impl UseKind {
         match self {
             Self::Declared => "declared",
             Self::Import => "import",
+            Self::Doc => "doc",
             Self::Use => "use",
         }
     }
@@ -66,7 +69,8 @@ pub struct Reference<'a> {
 
 /// Every place `symbol` is written: the declaration first when
 /// `include_declaration` asks for it, then every import and use in path and
-/// then source order.
+/// then source order. A doc comment tag that names it is listed among the
+/// uses ([`SymbolIndex::mentions_of`]).
 ///
 /// A name the index holds and nothing uses answers its declaration alone, and
 /// a `Core` name answers the project's uses of it with no declaration. Only a
@@ -99,6 +103,15 @@ pub fn references<'a>(
                 .map(|import| Reference {
                     kind: UseKind::Import,
                     site: &import.site,
+                }),
+        )
+        .chain(
+            index
+                .mentions_of(symbol)
+                .into_iter()
+                .map(|mention| Reference {
+                    kind: UseKind::Doc,
+                    site: &mention.site,
                 }),
         )
         .collect();

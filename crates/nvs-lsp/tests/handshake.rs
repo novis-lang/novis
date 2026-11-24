@@ -168,7 +168,8 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // rather than a field of its own.
         "renameProvider",
         // `workspace/willRenameFiles`, declared under `fileOperations`: a
-        // moved file rewrites each `require` that names it.
+        // moved file rewrites each `require`, `@see` file target and
+        // `@example` path that names it.
         "workspace",
         // The one request `rule:ide/the-request-set-is-closed` admits only in
         // part, bounded to the two idioms `nvs_lsp::hints` answers.
@@ -187,6 +188,26 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         keys.difference(&expected).collect::<Vec<_>>(),
         expected.difference(&keys).collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn will_rename_files_is_declared_over_every_file_and_folder() {
+    // Any file may be a `@see` target, so a move of a Markdown or a SQL file
+    // must reach the server as a move of a `.nvs` file does.
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
+    let filters = declared["workspace"]["fileOperations"]["willRename"]["filters"]
+        .as_array()
+        .expect("`willRename` declares its filters");
+    let globs: Vec<(&str, &str)> = filters
+        .iter()
+        .map(|filter| {
+            (
+                filter["pattern"]["glob"].as_str().unwrap_or_default(),
+                filter["pattern"]["matches"].as_str().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(globs, [("**/*", "file"), ("**", "folder")], "{filters:?}");
 }
 
 #[test]

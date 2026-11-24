@@ -1533,7 +1533,8 @@ fn document_highlight(
 /// because the two halves spell one differently: the wire needs a range in the
 /// open document and a case needs a place it can name a file in.
 ///
-/// The declaration of a member or a type is not among them. `occurrences_in`
+/// A doc comment tag that names it is among them ([`SymbolIndex::mentions_in`]).
+/// The declaration of a member or a type is not. `occurrences_in`
 /// is uses only, and an editor asking this is asking what else on screen is
 /// this same name rather than where it came from — which is [`references`]'
 /// question, and the one request whose parameters carry a flag for it. A
@@ -1549,14 +1550,21 @@ fn uses_in(
         return Some(sites);
     }
     let symbol = symbol_at(analysed, offset)?;
-    Some(
-        index
-            .occurrences_in(here)
-            .iter()
-            .filter(|occurrence| occurrence.symbol == symbol)
-            .map(|occurrence| occurrence.site.clone())
-            .collect(),
-    )
+    let mut sites: Vec<Site> = index
+        .occurrences_in(here)
+        .iter()
+        .filter(|occurrence| occurrence.symbol == symbol)
+        .map(|occurrence| occurrence.site.clone())
+        .chain(
+            index
+                .mentions_in(here)
+                .iter()
+                .filter(|mention| mention.symbol == symbol)
+                .map(|mention| mention.site.clone()),
+        )
+        .collect();
+    sites.sort();
+    Some(sites)
 }
 
 /// Every site of the local at `offset` in the entry document, declaration
@@ -1812,10 +1820,11 @@ fn moving_edit(located: Vec<(Location, String)>, old_uri: Uri, new_uri: Uri) -> 
     }
 }
 
-/// `workspace/willRenameFiles` — every `require` literal that names a file the
-/// client is about to move, written again to name it at its new place.
+/// `workspace/willRenameFiles` — every `require` literal, `@see` file target
+/// and `@example` path that names a file the client is about to move, written
+/// again to name it at its new place.
 ///
-/// `null` when the move changes no literal, which is what a client expects
+/// `null` when the move changes nothing, which is what a client expects
 /// from a server with nothing to add. A URI that names no file is skipped.
 fn will_rename_files(
     documents: &Documents,

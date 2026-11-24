@@ -1,7 +1,10 @@
 `nvs-lsp` builds one workspace symbol index, and five features are each one query against it — none
 gets a walk of its own. `textDocument/references` is the index's read side, and it lists each `use` line
 that imports the name among its uses; the CodeLens count leaves those lines out, because an import brings
-a name into scope and uses nothing. `textDocument/documentHighlight`
+a name into scope and uses nothing. A `@see` target and an `@throws` name that resolved to a declaration
+are held the same way: references, highlight and rename list them, and neither the CodeLens count nor
+unused-member dimming counts them, because a doc comment points at a name and uses nothing. Each costs
+one name and one site for as long as its file is indexed. `textDocument/documentHighlight`
 is the same query narrowed to the open file, which is why it reads the index rather than the open
 document alone: it needs resolution applied to every occurrence, not to one.
 

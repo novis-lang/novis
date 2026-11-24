@@ -96,7 +96,9 @@
 //! before the next answer, and every other such entry when the server is idle.
 //! The whole is linear in the readers per edit, and the part a cursor waits for
 //! is linear in the open documents. The queue spends one path per waiting
-//! entry.
+//! entry. Each resolved doc comment tag argument keeps one name and one site,
+//! or one path and one site for a file target ([`Mention`], [`Linked`]), for
+//! as long as its file is indexed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -351,6 +353,34 @@ pub struct Import {
     pub site: Site,
 }
 
+/// One doc comment tag argument that names a declaration: a `@see` class or
+/// member target, the class half of a `@see Class::member`, or an `@throws`
+/// name.
+///
+/// Apart from [`Occurrence`] because a doc comment points at a name and uses
+/// nothing: *Find References*, highlight and rename read it, and the CodeLens
+/// count and unused-member dimming do not
+/// (`rule:ide/five-features-are-one-reference-index`).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Mention {
+    /// The name it resolved to, spelled as [`Declaration::symbol`] is.
+    pub symbol: String,
+    /// The bytes of the name a rename changes: a member's own name, `$`
+    /// included for a property, or the whole written class name.
+    pub site: Site,
+}
+
+/// One doc comment tag argument that names a file: a `@see` file target or an
+/// `@example` path.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Linked {
+    /// The file it names, under `nvs_diagnostics::canonical_key`.
+    pub target: PathBuf,
+    /// The bytes of the written path, without a `#` anchor, which a moved
+    /// file rewrites.
+    pub site: Site,
+}
+
 /// One file, as the analysis that reached it read it.
 ///
 /// Built by [`analyse_entry`] and filed by [`SymbolIndex::merge`], and read
@@ -364,6 +394,12 @@ pub(crate) struct Indexed {
     pub(crate) occurrences: Vec<Occurrence>,
     /// Every `use` import written here, in source order.
     pub(crate) imports: Vec<Import>,
+    /// Every doc comment tag argument written here that names a declaration,
+    /// in source order.
+    pub(crate) mentions: Vec<Mention>,
+    /// Every doc comment tag argument written here that names a file, in
+    /// source order.
+    pub(crate) linked: Vec<Linked>,
     /// Every `Core\Test::request` written here with a literal method and path
     /// that the route table matched, in source order: the symbol is the
     /// handler of the route it matched, and the site is the path's literal.
@@ -1899,6 +1935,36 @@ impl SymbolIndex {
             .collect()
     }
 
+    /// Every doc comment tag argument that names `symbol`, in file and then
+    /// source order.
+    ///
+    /// Apart from [`Self::occurrences`] because a doc comment points at a name
+    /// and uses nothing: *Find References* and rename read it, and the
+    /// CodeLens count and unused-member dimming do not.
+    #[must_use]
+    pub fn mentions_of(&self, symbol: &str) -> Vec<&Mention> {
+        self.files
+            .values()
+            .flat_map(|indexed| &indexed.mentions)
+            .filter(|mention| mention.symbol == symbol)
+            .collect()
+    }
+
+    /// Every doc comment tag argument `path` writes that names a declaration,
+    /// in source order, or nothing for a file the index does not hold.
+    #[must_use]
+    pub fn mentions_in(&self, path: &Path) -> &[Mention] {
+        self.files
+            .get(&canonical_key(path))
+            .map_or(&[], |indexed| indexed.mentions.as_slice())
+    }
+
+    /// Every doc comment tag argument of every file that names a file, in
+    /// path and then source order.
+    pub fn linked(&self) -> impl Iterator<Item = &Linked> {
+        self.files.values().flat_map(|indexed| &indexed.linked)
+    }
+
     /// Every name `path` declares, in source order, or nothing for a file the
     /// index does not hold.
     #[must_use]
@@ -2315,6 +2381,7 @@ fn record(
     let text = analysed.map.file(loaded.id).text();
     let scope = FileScope::of(analysed, loaded.id);
     let uses = occurrences(analysed, &scope, loaded, key);
+    let (mentions, linked) = doc_mentions(analysed, loaded, key);
     let in_file = |diag: &nvs_diagnostics::Diagnostic| {
         diag.primary_span()
             .is_some_and(|span| span.file == loaded.id)
@@ -2323,6 +2390,8 @@ fn record(
         decls: declarations(analysed, &scope, loaded, key),
         occurrences: uses.occurrences,
         imports: imports(analysed, loaded, key),
+        mentions,
+        linked,
         requests: uses.requests,
         unfollowed: uses.unfollowed,
         queries: uses.queries,
@@ -2389,8 +2458,25 @@ pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
     if let Some(key) = crate::attribute_decls::field_at(analysed, offset) {
         return Some(key.symbol());
     }
-    let (target, _) = named_at(analysed, offset)?;
-    Some(symbol_of(&target))
+    if let Some((target, _)) = named_at(analysed, offset) {
+        return Some(symbol_of(&target));
+    }
+    doc_symbol_at(analysed, offset)
+}
+
+/// The name a doc comment tag argument at `offset` resolved to, spelled the
+/// module doc's first decision's way: the class half of `Class::member`
+/// answers the class, and the rest of it the member. `None` for a file target.
+pub(crate) fn doc_symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+    use crate::definition::{DocNamed, MemberKind, doc_named_at};
+    match doc_named_at(analysed, offset)?.1 {
+        DocNamed::Class(class) => Some(class.to_string()),
+        DocNamed::Member { owner, name, kind } => Some(match kind {
+            MemberKind::Property => format!("{owner}::${name}"),
+            _ => format!("{owner}::{name}"),
+        }),
+        DocNamed::File { .. } => None,
+    }
 }
 
 /// The name a declaration of the entry document writes at `offset`, spelled the
@@ -3380,6 +3466,84 @@ fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
         site: site(path, found.import.span),
     })
     .collect()
+}
+
+/// Every doc comment tag argument one file of an analysis writes that the
+/// checker resolved (`nvs_hir::doc_targets`): the ones naming a declaration,
+/// and the ones naming a file.
+///
+/// A class is kept only where the written name ends with the class's own
+/// name, so `@see self::total` keeps the member and not `self`: a rename of
+/// the class has nothing to change there.
+fn doc_mentions(analysed: &Analysed, loaded: &Loaded, path: &Path) -> (Vec<Mention>, Vec<Linked>) {
+    use nvs_hir::doc_targets::{MemberKind, Resolved};
+    let file = analysed.map.file(loaded.id);
+    let mut mentions = Vec::new();
+    let mut linked = Vec::new();
+    let class_at = |mentions: &mut Vec<Mention>, class: &QName, span: Span| {
+        let symbol = class.to_string();
+        let short = symbol.rsplit('\\').next().unwrap_or(&symbol);
+        if text_of(file, span).rsplit('\\').next() == Some(short) {
+            mentions.push(Mention {
+                symbol: symbol.clone(),
+                site: site(path, span),
+            });
+        }
+    };
+    for target in analysed.module.doc_targets.in_file(loaded.id) {
+        match &target.resolved {
+            Resolved::Class(class) => class_at(&mut mentions, class, target.span),
+            Resolved::Member {
+                class,
+                owner,
+                name,
+                kind,
+            } => {
+                if let Some(span) = target.class_span {
+                    class_at(&mut mentions, class, span);
+                }
+                let written = text_of(file, target.span);
+                let Some(colons) = written.rfind("::") else {
+                    continue;
+                };
+                let after = &written[colons + 2..];
+                let Some(at) = after.find(name.as_str()) else {
+                    continue;
+                };
+                let property = matches!(kind, MemberKind::Prop | MemberKind::StaticProp);
+                let sigil = usize::from(property && after[..at].ends_with('$'));
+                let (Ok(start), Ok(end)) = (
+                    BytePos::try_from(colons + 2 + at - sigil),
+                    BytePos::try_from(colons + 2 + at + name.len()),
+                ) else {
+                    continue;
+                };
+                mentions.push(Mention {
+                    symbol: format!("{owner}::{}{name}", if property { "$" } else { "" }),
+                    site: Site {
+                        path: path.to_path_buf(),
+                        start: target.span.start + start,
+                        end: target.span.start + end,
+                    },
+                });
+            }
+            Resolved::File { path: there, .. } => {
+                let written = text_of(file, target.span);
+                let Ok(len) = BytePos::try_from(written.find('#').unwrap_or(written.len())) else {
+                    continue;
+                };
+                linked.push(Linked {
+                    target: canonical_key(there),
+                    site: Site {
+                        path: path.to_path_buf(),
+                        start: target.span.start,
+                        end: target.span.start + len,
+                    },
+                });
+            }
+        }
+    }
+    (mentions, linked)
 }
 
 /// The name a person types to find `symbol`: what follows its `::`, without a

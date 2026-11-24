@@ -280,7 +280,8 @@ pub enum Response {
     /// `textDocument/rename`: every edit and the file a type's rename moves,
     /// or the message the server refused with.
     Rename(Result<(Vec<Change>, Option<Moved>), String>),
-    /// `workspace/willRenameFiles`: every edit to a `require` literal. A move
+    /// `workspace/willRenameFiles`: every edit to a `require` literal, a
+    /// `@see` file target and an `@example` path. A move
     /// that changes none is `none`, which is the `null` the wire answers.
     WillRenameFiles(Vec<Change>),
     /// `textDocument/inlayHint`, as the walk produced it over the whole

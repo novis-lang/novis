@@ -226,9 +226,12 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             prepare_provider: Some(true),
             work_done_progress_options: WorkDoneProgressOptions::default(),
         })),
-        // A moved `.nvs` file or folder, so each `require` naming it is
-        // written again before the move. Nothing else about a file operation
-        // changes what this server answers.
+        // A moved file or folder, so each `require`, `@see` file target and
+        // `@example` path naming it is written again before the move. Any file
+        // may be a `@see` target, so the filter is every file. A move no
+        // recorded target names answers `null` from the index without reading
+        // a file. Nothing else about a file operation changes what this
+        // server answers.
         workspace: Some(WorkspaceServerCapabilities {
             workspace_folders: None,
             file_operations: Some(WorkspaceFileOperationsServerCapabilities {
@@ -237,7 +240,7 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
                         FileOperationFilter {
                             scheme: Some("file".to_owned()),
                             pattern: FileOperationPattern {
-                                glob: "**/*.nvs".to_owned(),
+                                glob: "**/*".to_owned(),
                                 matches: Some(FileOperationPatternKind::File),
                                 options: None,
                             },

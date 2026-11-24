@@ -68,8 +68,8 @@ use nvs_diagnostics::BytePos;
 use rustc_hash::FxHashMap;
 
 use crate::index::{
-    Construction, DeclKind, Declaration, Import, Indexed, LookedUp, Occurrence, Parameter, Site,
-    Visibility,
+    Construction, DeclKind, Declaration, Import, Indexed, Linked, LookedUp, Mention, Occurrence,
+    Parameter, Site, Visibility,
 };
 use crate::surface::{Kind, Row, Rows};
 
@@ -78,7 +78,7 @@ const MAGIC: &[u8; 6] = b"NVSIDX";
 
 /// The layout's version. A change to what is written raises it, and a file of
 /// another version is discarded.
-pub(crate) const FORMAT: u32 = 4;
+pub(crate) const FORMAT: u32 = 5;
 
 /// The length of a digest on disk.
 const DIGEST: usize = 32;
@@ -523,6 +523,16 @@ impl Writer {
             self.str(&import.symbol)?;
             self.site(&import.site)?;
         }
+        self.len(indexed.mentions.len())?;
+        for mention in &indexed.mentions {
+            self.str(&mention.symbol)?;
+            self.site(&mention.site)?;
+        }
+        self.len(indexed.linked.len())?;
+        for linked in &indexed.linked {
+            self.path(&linked.target)?;
+            self.site(&linked.site)?;
+        }
         self.occurrences(&indexed.requests)?;
         self.strs(&indexed.unfollowed)?;
         self.len(indexed.queries.len())?;
@@ -809,6 +819,22 @@ impl<'a> Reader<'a> {
                 site: self.site()?,
             });
         }
+        let n = self.count()?;
+        let mut mentions = Vec::with_capacity(n);
+        for _ in 0..n {
+            mentions.push(Mention {
+                symbol: self.string()?,
+                site: self.site()?,
+            });
+        }
+        let n = self.count()?;
+        let mut linked = Vec::with_capacity(n);
+        for _ in 0..n {
+            linked.push(Linked {
+                target: self.path()?,
+                site: self.site()?,
+            });
+        }
         let requests = self.occurrences()?;
         let unfollowed = self.strings()?;
         let n = self.count()?;
@@ -824,6 +850,8 @@ impl<'a> Reader<'a> {
             decls,
             occurrences,
             imports,
+            mentions,
+            linked,
             requests,
             unfollowed,
             queries,

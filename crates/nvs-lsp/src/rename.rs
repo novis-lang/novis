@@ -1,5 +1,6 @@
 //! Rename: a member at every site the index holds it, a local at every site
-//! its body writes it, and the `require` paths a moved file changes.
+//! its body writes it, and the `require` paths and doc comment file targets a
+//! moved file changes.
 //!
 //! The three requests `textDocument/prepareRename`, `textDocument/rename` and
 //! `workspace/willRenameFiles` are answered here as [`Rewrite`]s or as a
@@ -50,6 +51,10 @@
 //!   every key a payload writes for it. A read of the field on a retrieval's
 //!   result is not a site the index holds, so a file that writes `->field`
 //!   where the index holds no use refuses the rename ([`unresolved_reads`]).
+//! - **A `@see` target or an `@throws` name** that resolved to a type or a
+//!   member, as one more site of it ([`SymbolIndex::mentions_of`]). Only the
+//!   renamed segment changes, so `@see Shop\User::greet` keeps its class
+//!   when `greet` is renamed. A cursor on one renames what it names.
 //!
 //! # What is refused, each with a message the editor shows
 //!
@@ -78,14 +83,18 @@
 //! in every graph that read a moved file, and writes the literal again so it
 //! names the file at its new place: relative to the requiring file's new
 //! directory with `/` separators when it was relative, absolute when it was
-//! absolute, and in the same quotes.
+//! absolute, and in the same quotes. Each `@see` file target and `@example`
+//! path the index holds ([`SymbolIndex::linked`]) is written again the same
+//! way, its `#` anchor kept, and from the index alone.
 //!
 //! # What it costs
 //!
 //! Nothing is kept. A rename reads the index the server already holds and the
 //! text of each file a site is in, once per request. A parameter's rename also
 //! parses each file that calls its method once, per request. A file move
-//! analyses each entry point that read a moved file once, per request.
+//! analyses each entry point that read a moved file once, per request, and
+//! walks the index's doc comment file targets once. It reads the text of a
+//! file only where a tag in it names a moved path.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Component, Path, PathBuf};
@@ -248,12 +257,15 @@ pub fn rename(
     }
 }
 
-/// Every edit to a `require` literal that moving each `(old, new)` path makes
-/// necessary, in file and then source order.
+/// Every edit to a `require` literal, a `@see` file target and an `@example`
+/// path that moving each `(old, new)` path makes necessary, in file and then
+/// source order.
 ///
-/// A path that is a directory moves every indexed file under it. The edits
-/// are keyed by each file's current path, because a client applies them
-/// before it moves anything.
+/// A path that is a directory moves every file under it. The edits are keyed
+/// by each file's current path, because a client applies them before it moves
+/// anything. A doc comment tag is rewritten from the index alone
+/// ([`SymbolIndex::linked`]), and its `#` anchor stays as it is. A move that
+/// no `require` edge and no tag names analyses nothing and reads no file.
 #[must_use]
 pub fn moved(
     documents: &Documents,
@@ -273,6 +285,20 @@ pub fn moved(
         }
         renamed.insert(old, new);
     }
+    let roots: Vec<(PathBuf, PathBuf)> = moves
+        .iter()
+        .map(|(old, new)| (canonical_key(old), new_key(new)))
+        .collect();
+    let new_place = |path: &Path| -> Option<PathBuf> {
+        roots.iter().find_map(|(old, new)| {
+            let rest = path.strip_prefix(old).ok()?;
+            Some(if rest.as_os_str().is_empty() {
+                new.clone()
+            } else {
+                new.join(rest)
+            })
+        })
+    };
 
     let entries: BTreeSet<PathBuf> = renamed
         .keys()
@@ -318,7 +344,30 @@ pub fn moved(
             }
         }
     }
+
+    let mut texts = Texts::new(documents);
+    for linked in index.linked() {
+        let (from, to) = (new_place(&linked.site.path), new_place(&linked.target));
+        if from.is_none() && to.is_none() {
+            continue;
+        }
+        let Some(written) = texts.text(&linked.site) else {
+            continue;
+        };
+        let Some(text) = rewritten_path(
+            &written,
+            from.as_deref().unwrap_or(&linked.site.path),
+            to.as_deref().unwrap_or(&linked.target),
+        ) else {
+            continue;
+        };
+        found.push(Rewrite {
+            site: linked.site.clone(),
+            text,
+        });
+    }
     found.sort();
+    found.dedup();
     found
 }
 
@@ -388,6 +437,20 @@ fn subject(index: &SymbolIndex, analysed: &Analysed, offset: BytePos) -> Result<
     let file = analysed.map.file(analysed.entry);
     let entry = file.path().map(canonical_key).ok_or(NOTHING)?;
     let tokens = tokenize(file, &mut Diagnostics::new());
+    // A `@see` target or an `@throws` name is in a comment, so no token
+    // covers it either. Its site is the one the index holds for it.
+    if let Some(symbol) = crate::index::doc_symbol_at(analysed, offset) {
+        let here = index
+            .mentions_in(&entry)
+            .iter()
+            .find(|mention| {
+                mention.symbol == symbol
+                    && mention.site.start <= offset
+                    && offset <= mention.site.end
+            })
+            .ok_or(NOTHING)?;
+        return member(index, &symbol, here.site.clone());
+    }
     // The `$name` of an `@param` line is in a comment, so no token covers it.
     if let Some((target, param)) = locals::param_tag_at(analysed, offset) {
         let written = text_of(file, param.name);
@@ -641,7 +704,8 @@ fn lineage(index: &SymbolIndex, class: &str) -> BTreeSet<String> {
     found
 }
 
-/// Every declaration and occurrence of each of `symbols`, sorted.
+/// Every declaration, occurrence and doc comment tag of each of `symbols`,
+/// sorted.
 fn sites_of(index: &SymbolIndex, symbols: &[String]) -> Vec<Site> {
     let mut sites: Vec<Site> = symbols
         .iter()
@@ -655,6 +719,12 @@ fn sites_of(index: &SymbolIndex, symbols: &[String]) -> Vec<Site> {
                         .occurrences(symbol)
                         .into_iter()
                         .map(|used| used.site.clone()),
+                )
+                .chain(
+                    index
+                        .mentions_of(symbol)
+                        .into_iter()
+                        .map(|mentioned| mentioned.site.clone()),
                 )
         })
         .collect();
@@ -1265,18 +1335,25 @@ fn rewritten(written: &str, from: &Path, to: &Path) -> Option<String> {
     if inner.contains('\\') || (quote == '"' && inner.contains(['$', '{'])) {
         return None;
     }
+    rewritten_path(inner, from, to).map(|path| format!("{quote}{path}{quote}"))
+}
+
+/// `written`, a path as a `require` literal's text or a doc comment tag
+/// writes it in the file that will be at `from`, written again to name the
+/// file that will be at `to`, or `None` when it stays as it is.
+fn rewritten_path(written: &str, from: &Path, to: &Path) -> Option<String> {
     let target = plain(to);
-    let path = if Path::new(inner).is_absolute() || inner.starts_with('/') {
+    let path = if Path::new(written).is_absolute() || written.starts_with('/') {
         target.to_str()?.to_owned()
     } else {
         let relative = relative(&plain(from.parent()?), &target)?;
-        if inner.starts_with("./") && !relative.starts_with("../") {
+        if written.starts_with("./") && !relative.starts_with("../") {
             format!("./{relative}")
         } else {
             relative
         }
     };
-    (path != inner).then(|| format!("{quote}{path}{quote}"))
+    (path != written).then_some(path)
 }
 
 /// `path` without Windows' verbatim `\\?\` prefix, which
