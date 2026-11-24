@@ -17,7 +17,7 @@ stages:
     status: done
   - id: 4
     title: "Date::parse, Date::range, Duration::toClock and Duration::fromClock"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/duration.rs, docs/rules/types/duration.md, docs/rules/core-api/no-mode-strings.md]
   - id: 5
     title: "Novis\\Intl\\DateFormat takes a fields option, and every enum case of the component is documented"
@@ -368,17 +368,17 @@ the first edit, as `file.rs:NN` and one line each.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-types/src/intrinsics.rs:236`: the prepared-pattern row for `Date::parse`, refusing a
+- [x] `crates/nvs-types/src/intrinsics.rs:236`: the prepared-pattern row for `Date::parse`, refusing a
   time or zone letter; `crates/nvs-stdlib/src/time.rs:2898`: the member, through `cldr.rs`'s parser
   (`crates/nvs-stdlib/src/cldr.rs:1389`).
-- [ ] `crates/nvs-stdlib/src/time.rs:5742`: `Date::range` over `date_stepped`, with the step subset in
+- [x] `crates/nvs-stdlib/src/time.rs:5742`: `Date::range` over `date_stepped`, with the step subset in
   its signature.
-- [ ] `crates/nvs-stdlib/src/time.rs:1047`: `Duration::toClock` and `Duration::fromClock`, the reader
+- [x] `crates/nvs-stdlib/src/time.rs:1047`: `Duration::toClock` and `Duration::fromClock`, the reader
   in `crates/nvs-syntax/src/duration.rs:1` beside the duration grammar so one module owns duration
   text. `rule:types/duration` gains one paragraph on the clock form.
-- [ ] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the constructor table gains
+- [x] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the constructor table gains
   `Date::parse` and `Date::range`.
-- [ ] The tests the check `parse-range-clock` names, run once by name.
+- [x] The tests the check `parse-range-clock` names, run once by name.
 
 ### 5. Novis\Intl\DateFormat takes a fields option, and every enum case of the component is documented
 
@@ -438,30 +438,39 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 is one commit, `78580e9ab3`. `Date` gains `startOf` and `endOf`
-over `Week`, `Month`, `Quarter` and `Year`, `difference` over `Day` to `Year`, and `next` and
-`previous` by `Weekday`. `Date` and `DateTime` read `daysInMonth`, `quarter`, `isoWeek` and
-`isoWeekYear`. The unit subsets are two closed unions of `CoreTy::EnumCase` rows in `time.rs`,
-`DATE_PERIOD_UNITS` (`Week` and up) and `DATE_STEP_UNITS` (`Day` and up), so a smaller unit does not
-compile. `date_unit_of` throws a `LogicError` at run time for a call the checker did not see.
-`floored_date` is the calendar-only twin of `floored`, which now calls it for a day and every larger
-unit. `Date::plus` and `minus` still take the whole `Unit` enum and throw at run time for a unit below
-a day, as before. `Core\Unit`'s card names the units a `Date` takes. The check `date-calendar` ran
-once by name and is green: six tests. Build and clippy are green.
+Stages 1 to 4 are done. Stage 4 is one commit, `1925501b9d`.
+
+- `Date::parse(text, format)` is a prepared CLDR row: `Restriction::DateFields` in
+  `crates/nvs-types/src/intrinsics.rs`, `cldr::validate_date` and `cldr::date_parse_fields_only`,
+  and `(DATE_NAME, "parse")` on `PREPARED_MEMBERS`. A time or zone letter in a written pattern is
+  `E0769`, and a computed one throws `LogicError`. `cldr::read` now splits into `read_fields`,
+  shared with the new `cldr::read_date`, which builds a `civil::Date` with no zone.
+- `Date::range(from, to, {step?})` takes `DATE_STEP_UNITS` with the default `Unit::Day`. Entry `k`
+  is `from` plus `k` steps, so a month step from the 31st comes back to the 31st. The list is asked
+  of the memory ceiling once, with `date_whole_units` (taken out of `Date::difference`) as the bound.
+- `Duration::toClock({seconds?})` and `Duration::fromClock(text)` call
+  `nvs_syntax::duration::render_clock` and `parse_clock`. A sign is written only when what is left
+  is not zero, so `-30s` is `0:00` and never `-0:00`: a call this session made, recorded in
+  `rule:types/duration`'s new clock paragraph.
+- Both rules are updated: the constructor table and a `Date::parse`/`Date::range` paragraph, and
+  the `W1038` sentence now names `Date::parse` too.
+- The check `parse-range-clock` ran once by name and is green: eight tests. Build, clippy and
+  `cargo fmt --check` are green. A smoke run of the debug binary printed the expected range, parse
+  and clock text, and `nvs check` refused `HH:mm` at `Date::parse` and `Unit::Hour` as `step`.
 
 ### Next
 
-Stage 4, one session:
+Stage 5, one session, which touches only `extensions/intl/`, `wit/intl.wit` and its own tests. Its
+items in the stage list carry the anchors: `wit/intl.wit:87`, `:116` and `:204`,
+`extensions/intl/src/dates.rs:78`, `:137` and `:181`, `extensions/intl/manifest.json:144` and
+`extensions/intl/nvs/DateFormat.nvs:10` and `:31`. The ten `Fields` cases and their card wording are
+in § *Standing decisions*. Then the tests of check `intl-fields`.
 
-- `crates/nvs-types/src/intrinsics.rs:236`: the prepared-pattern row for `Date::parse`, refusing a
-  time or zone letter; the `Date` class rows end near `crates/nvs-stdlib/src/time.rs:3101`, and the
-  member goes through `cldr.rs`'s parser.
-- `Date::range` over `date_stepped` (`time.rs:6530`), with `DATE_STEP_UNITS` (`time.rs:3367`) as its
-  `step` option's type.
-- `Duration::toClock` and `Duration::fromClock` beside `nvs_core_time_duration_to_string`
-  (`time.rs:1049`), the reader in `crates/nvs-syntax/src/duration.rs`.
-- The constructor table of `docs/rules/core-classes/a-time-class-builds-its-own-values.md`, then the
-  tests of check `parse-range-clock`.
+Stage 6 also owes this: `rule:types/duration` still says "`90m == 1h30m` is `false`" in its literal
+paragraph. Stage 1 made that `true`, so the sentence is rewritten there.
+
+Stage 7 owes the proofs of the four stage 4 members: `Date::parse`, `Date::range`,
+`Duration::toClock` and `Duration::fromClock`.
 
 Tests that may go red in the gate: the `floored` refactor touched every `DateTime::startOf` and
 `endOf` call for a day and larger, and those tests did not run in stage 3
@@ -471,8 +480,9 @@ Tests that may go red in the gate: the `floored` refactor touched every `DateTim
 names one. A `.nvs` source with `format('Y…')` and no `w` now prints `W1038`. The `ObjectMap`,
 `ObjectSet`, `DateTime::fromIso`, `Instant::fromIso` and `Core\Unit` card texts changed, so
 `site --check stale` and `questions` will name their pages in stage 7. `nvs meta`'s snapshot, if a test
-pins it, gains three `toIso` rows, `fromIso`'s `?Zone $zone = null`, nine `Date` rows and four
-`DateTime` rows. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text, and
+pins it, gains three `toIso` rows, `fromIso`'s `?Zone $zone = null`, eleven `Date` rows, four
+`DateTime` rows and two `Duration` rows. A test that counts `PREPARED_MEMBERS` or the intrinsic
+rows sees one more of each. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text, and
 `docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` could show `[Europe/Berlin]`
 as the fix. Stage 6 also owes the proofs of the thirteen new stage 3 members.
 
