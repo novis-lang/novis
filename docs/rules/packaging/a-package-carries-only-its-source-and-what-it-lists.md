@@ -20,6 +20,12 @@ at the package root, and exactly the files `package.toml`'s `files` list names, 
   `COM9`, `LPT1` to `LPT9`, with any extension), contains a control character or one of `<>:"\|?*`, or
   ends in a dot or a space. 160 bytes leaves room under the Windows path limit for the folder a package
   is fetched into.
+- **A doc tag's file is in the set.** Every `@see` file target and every `@example` path a packed
+  `.nvs` file writes, resolved from that file's folder, must name a file the archive carries, or
+  `nvs pkg pack` and the registry's build refuse the package, naming the file, the line and the tag
+  (`rule:tooling/doc-comment-tags-are-closed-and-checked`). A consumer's check of the fetched package
+  then finds every file the tags name, and its hover and `nvs doc` link to a file that is there. A
+  document is listed in `files`; an example, being a `.nvs` file, goes under `src/`.
 - **`nvs pkg publish --dry-run` and `nvs pkg pack` print every file with its size, and the total,** so
   the publisher sees exactly what ships before it ships.
 - **A package reads its own files without a grant.** Code under a package's namespace may read, with

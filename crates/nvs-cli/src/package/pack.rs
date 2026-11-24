@@ -130,6 +130,7 @@ fn pack(dir: &Path, manifest: &Manifest, out: Option<&Path>) -> Result<(), Refus
         ));
     };
     let entries = file_set(dir, manifest)?;
+    check_doc_targets(&entries)?;
     check_component(&entries, name)?;
     let target = out.map_or_else(
         || {
@@ -329,6 +330,112 @@ pub(crate) fn check_component(
         source: extension.source.files,
         ..extension.manifest
     }))
+}
+
+/// Every `@see` file target and every `@example` path written in a doc comment of the packed
+/// `.nvs` files among `entries` names a file the archive carries
+/// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). The path is resolved
+/// from the writing file's folder, as the checker resolves it, and compared with the archive's
+/// paths exactly, so a consumer's check of the fetched package finds every file its tags name.
+/// [`nvs_syntax::doc_target::DocTarget::of`] decides which `@see` is a file. Whether an anchor
+/// names a heading is the checker's question, not this one.
+///
+/// Cost: each `.nvs` file read and lexed once more. Nothing here runs on the request path.
+///
+/// # Errors
+///
+/// A file that cannot be read, and a tag naming a file outside the set, each such tag named with
+/// its file and line.
+pub(crate) fn check_doc_targets(entries: &[Entry]) -> Result<(), Refusal> {
+    let carried: std::collections::HashSet<&str> =
+        entries.iter().map(|entry| entry.path.as_str()).collect();
+    let mut misses = Vec::new();
+    for entry in entries.iter().filter(|entry| entry.path.ends_with(".nvs")) {
+        let text = fs::read_to_string(&entry.source)
+            .map_err(|err| refuse(format!("cannot read `{}`: {err}", entry.path)))?;
+        let mut sources = SourceMap::new();
+        let id = sources.add(entry.path.clone(), text);
+        let file = sources.file(id);
+        let mut diags = nvs_diagnostics::Diagnostics::new();
+        let mut lexer = nvs_syntax::Lexer::with_trivia(file);
+        while lexer.next_token(&mut diags).kind != nvs_syntax::TokenKind::Eof {}
+        for trivium in lexer.trivia() {
+            if trivium.kind != nvs_syntax::TriviaKind::DocComment {
+                continue;
+            }
+            let Some((tag, written)) = file.span_text(trivium.span).and_then(doc_file_tag) else {
+                continue;
+            };
+            let named = in_package(&entry.path, written);
+            if named.as_deref().is_some_and(|path| carried.contains(path)) {
+                continue;
+            }
+            let line = file.line_col(trivium.span.start).0 + 1;
+            let at = format!("`{}`, line {line}: `{tag} {written}`", entry.path);
+            misses.push(match named {
+                None => format!("{at} names a file outside the package."),
+                Some(path) if path.ends_with(".nvs") => format!(
+                    "{at} names `{path}`, which the package does not carry. A `.nvs` file is \
+                     carried only under `src/`."
+                ),
+                Some(path) => format!(
+                    "{at} names `{path}`, which the package does not carry. Add `{path}` to \
+                     `[package] files` in `package.toml`."
+                ),
+            });
+        }
+    }
+    if misses.is_empty() {
+        return Ok(());
+    }
+    Err(refuse(format!(
+        "a doc comment names a file the package does not carry:\n  {}",
+        misses.join("\n  ")
+    )))
+}
+
+/// The tag and the written path of one doc comment line, when it is an `@example` or a `@see`
+/// whose target is a file. `line` is the line as written, its `///` first.
+fn doc_file_tag(line: &str) -> Option<(&'static str, &str)> {
+    let rest = line
+        .strip_prefix(nvs_syntax::DOC_MARKER)?
+        .trim_start()
+        .strip_prefix('@')?;
+    let name_len = rest.bytes().take_while(u8::is_ascii_alphabetic).count();
+    let (name, after) = rest.split_at(name_len);
+    let written = after.trim();
+    match name {
+        "see" => match nvs_syntax::doc_target::DocTarget::of(written) {
+            nvs_syntax::doc_target::DocTarget::File { path, .. } if !path.is_empty() => {
+                Some(("@see", written))
+            }
+            _ => None,
+        },
+        "example" if !written.is_empty() => Some(("@example", written)),
+        _ => None,
+    }
+}
+
+/// The archive path that `written`, a doc tag's target in the file at the archive path `writer`,
+/// names: joined to the writer's folder with every `.` and `..` part resolved, and any `#anchor`
+/// off. `None` for an absolute path, a drive, and a `..` that climbs past the package root.
+fn in_package(writer: &str, written: &str) -> Option<String> {
+    let path = written.split_once('#').map_or(written, |(path, _)| path);
+    if path.starts_with(['/', '\\']) || path.contains(':') {
+        return None;
+    }
+    let mut parts: Vec<&str> = writer.split('/').collect();
+    parts.pop();
+    for part in path.split(['/', '\\']) {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            part => parts.push(part),
+        }
+    }
+    Some(parts.join("/"))
 }
 
 /// Whether the root file `name` is packed, and if it is, whether it is a license file.
@@ -861,5 +968,100 @@ mod tests {
         assert_eq!(root_file("README-dev.md"), None);
         assert_eq!(root_file("CHANGELOG.md"), None);
         assert_eq!(root_file("nvs.toml"), None);
+    }
+
+    /// A package at a scratch folder named `name`, whose one class carries `doc` above it and
+    /// whose `[package] files` lists `listed`, each of which is written: its file set, checked.
+    fn doc_targets_of(name: &str, doc: &str, listed: &[&str]) -> Result<(), Refusal> {
+        let dir = nvs_repo::scratch(name);
+        fs::create_dir_all(dir.join("src/Shop")).expect("the test makes the package");
+        let files: Vec<String> = listed.iter().map(|file| format!("'{file}'")).collect();
+        fs::write(
+            dir.join("package.toml"),
+            format!(
+                "[package]\nname = 'Acme\\Shop'\nversion = \"1.0.0\"\nfiles = [{}]\n",
+                files.join(", ")
+            ),
+        )
+        .expect("the test writes the manifest");
+        fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
+        for file in listed {
+            let path = dir.join(file);
+            fs::create_dir_all(path.parent().expect("a listed file has a folder"))
+                .expect("the test makes the folder");
+            fs::write(path, "# Guide\n\n## Install\n").expect("the test writes the file");
+        }
+        fs::create_dir_all(dir.join("docs")).expect("the test makes the folder");
+        fs::write(dir.join("docs/unlisted.md"), "# Unlisted\n").expect("the test writes it");
+        fs::write(
+            dir.join("src/Shop/Cart.nvs"),
+            format!("<?nvs\nnamespace Acme\\Shop;\n\n{doc}\nfinal class Cart\n{{\n}}\n"),
+        )
+        .expect("the test writes the class");
+        let mut sources = SourceMap::new();
+        let read = manifest::read(&dir.join("package.toml"), &mut sources)
+            .expect("the test's manifest reads");
+        let entries = file_set(&dir, &read).expect("the test's file set is read");
+        check_doc_targets(&entries)
+    }
+
+    /// Before this check, each of these packed, and a consumer's `nvs check` of the fetched
+    /// package then failed on a file the archive did not carry. Each is now refused at the pack,
+    /// with the file, the line and the tag, and what to do.
+    #[test]
+    fn a_package_whose_doc_tag_names_a_file_it_does_not_carry_is_refused() {
+        let refusal = doc_targets_of(
+            "pack-doc-example",
+            "/// A cart.\n///\n/// @example examples/charge.nvs",
+            &[],
+        )
+        .expect_err("an `@example` the package does not carry");
+        assert!(
+            refusal.0.contains(
+                "`src/Shop/Cart.nvs`, line 6: `@example examples/charge.nvs` names \
+                 `src/Shop/examples/charge.nvs`, which the package does not carry. A `.nvs` \
+                 file is carried only under `src/`."
+            ),
+            "{refusal}"
+        );
+        let refusal = doc_targets_of(
+            "pack-doc-see",
+            "/// A cart.\n///\n/// @see ../../docs/unlisted.md#unlisted",
+            &[],
+        )
+        .expect_err("a `@see` file the package does not carry");
+        assert!(
+            refusal.0.contains(
+                "line 6: `@see ../../docs/unlisted.md#unlisted` names `docs/unlisted.md`, which \
+                 the package does not carry. Add `docs/unlisted.md` to `[package] files` in \
+                 `package.toml`."
+            ),
+            "{refusal}"
+        );
+        let refusal = doc_targets_of(
+            "pack-doc-out",
+            "/// A cart.\n///\n/// @see ../../../x.md",
+            &[],
+        )
+        .expect_err("a `@see` that leaves the package");
+        assert!(
+            refusal.0.contains("names a file outside the package."),
+            "{refusal}"
+        );
+    }
+
+    /// A `@see` file target the package lists, one in its default set, and a member target all
+    /// pack.
+    #[test]
+    fn a_package_whose_doc_tag_names_a_listed_file_packs() {
+        assert_eq!(
+            doc_targets_of(
+                "pack-doc-listed",
+                "/// A cart.\n///\n/// @see ../../docs/guide.md#install\n/// @see ../../LICENSE\n\
+                 /// @see Cart::total\n/// @see ./Cart.nvs",
+                &["docs/guide.md"],
+            ),
+            Ok(())
+        );
     }
 }

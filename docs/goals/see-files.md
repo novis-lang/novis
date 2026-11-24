@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-hir/src/members.rs, crates/nvs-hir/src/lenders.rs, crates/nvs-syntax/src/lib.rs, crates/nvs-diagnostics/src/code/names.rs, docs/rules/statements/require-is-the-only-inclusion-construct.md]
   - id: 2
     title: nvs pkg pack and the registry build refuse a doc tag naming a file the package does not carry
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/package/build.rs, docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md]
   - id: 3
     title: "the editor links, follows, hovers, completes and colours every @see target"
@@ -42,7 +42,7 @@ checks:
   - id: pack
     stage: 2
     name: "a package whose @see or @example names a file it does not carry does not pack, and one that lists the file packs"
-    run: [cargo, test, --lib, a_package_whose_doc_tag_names]
+    run: [cargo, test, --bin, nvs, a_package_whose_doc_tag_names]
     tests: [a_package_whose_doc_tag_names_a_file_it_does_not_carry_is_refused, a_package_whose_doc_tag_names_a_listed_file_packs]
     timeout: 1800
   - id: editor-read
@@ -281,16 +281,16 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 
 **Split:** none, one session.
 
-- [ ] First, a test that shows today's failure: a fixture package (`crates/nvs-cli/src/package/fixture.rs:167`)
+- [x] First, a test that shows today's failure: a fixture package (`crates/nvs-cli/src/package/fixture.rs:167`)
   whose class has `@example examples/charge.nvs` not in `[package] files`. Record in the handoff what a
   consumer's check printed before the fix.
-- [ ] `crates/nvs-cli/src/package/pack.rs:125`: after `file_set`, parse each packed `.nvs` file's doc
+- [x] `crates/nvs-cli/src/package/pack.rs:125`: after `file_set`, parse each packed `.nvs` file's doc
   comments and refuse a `@see` file target or `@example` target outside the set, as a `Refusal` naming
   file, line and tag. `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`.
-- [ ] `crates/nvs-cli/src/package/build.rs:177`: the registry build runs the same check.
-- [ ] `crates/nvs-cli/src/package/pack.rs:652`'s tests: the two tests the check `pack` names, then
-  `cargo test --lib a_package_whose_doc_tag_names` once.
-- [ ] `docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:1`: one paragraph
+- [x] `crates/nvs-cli/src/package/build.rs:177`: the registry build runs the same check.
+- [x] `crates/nvs-cli/src/package/pack.rs:652`'s tests: the two tests the check `pack` names, then
+  `cargo test --bin nvs a_package_whose_doc_tag_names` once.
+- [x] `docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md:1`: one paragraph
   saying a doc tag's target must be in the set.
 
 ### 3. the editor links, follows, hovers, completes and colours every @see target
@@ -377,34 +377,31 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Stage 1 is done, and its check `checker` is green (`looper check --name checker`).
+Stages 1 and 2 are done; `checker` and `pack` are green. `pack`'s `run` names `--bin nvs`, where
+`nvs-cli`'s unit tests live.
 
-- `nvs_syntax::doc_target` (`crates/nvs-syntax/src/doc_target.rs`) has `DocTarget::of` (the one
-  classifier: a `/` or `.` makes a file target, split at the first `#`), `is_markdown`,
-  `heading_slugs` and `slug`.
-- `crates/nvs-hir/src/members.rs` `check_see` sends a file target to `check_see_file`, which judges
-  the written path with `leaves_project`, finds the project with the new
-  `nvs_hir::lenders::project_of(folder)` (`project_root`'s walk without the top bound, sharing
-  `holds_a_project`), joins, canonicalizes, tests a regular file, then checks the anchor. A member
-  miss and a heading miss carry a safe fix from `closest_name` (within a third of the written length).
-  An anchor on a non-Markdown file carries a fix that deletes `#anchor`.
-- The record is `nvs_hir::doc_targets::DocTargets` (`crates/nvs-hir/src/doc_targets.rs`), on
-  `Module::doc_targets`, recording on the same road as `Module::uses`: only when
-  `resolve_program` gets a parse cache, which is the language server's path. Each `DocTarget` has the
-  argument's `span`, the `class_span` of a member target's class part, and `Resolved::{Class, Member
-  { class, owner, name, kind }, File { path, heading }}`. `@throws` records `Class`, `@example` records
-  `File` with no heading. `MemberKind` is now `pub`. `DocTargets::at(file, offset)` finds the target
-  under a cursor.
-- `check_recording` takes `(uses, targets)` as one tuple argument.
-- E0323's card covers both shapes.
+- `nvs_syntax::doc_target` has `DocTarget::of`, the one classifier (a `/` or `.` makes a file
+  target, split at the first `#`), `is_markdown`, `heading_slugs` and `slug`.
+- `crates/nvs-hir/src/members.rs` `check_see_file` resolves a file target inside the project found
+  by `nvs_hir::lenders::project_of`. A member or heading miss carries a fix from `closest_name`.
+- The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled only when
+  `resolve_program` gets a parse cache (the language server's path). Each `DocTarget` has `span`,
+  `class_span`, and `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`.
+  `@throws` records `Class`, `@example` a `File` with no heading. `DocTargets::at(file, offset)`
+  finds the target under a cursor.
+- `crates/nvs-cli/src/package/pack.rs` `check_doc_targets` lexes each packed `.nvs` file, resolves
+  each `@see` file and `@example` path from its folder (`in_package`), and refuses one not in the
+  archive, naming file, line and tag. `pack` and the registry build (`build.rs`) call it. Before it,
+  such a package packed and the consumer's check failed with `E_DOC_EXAMPLE_NOT_FOUND`.
 
 ### Next
 
-Stages 2, 3, 4 and 5 may run side by side (Lanes). The next session takes stage 2 from its first
-item, `crates/nvs-cli/src/package/fixture.rs:167`, reading `nvs_syntax::doc_target::DocTarget::of`
-for the classification. The editor stages read `Module::doc_targets`: find how `Analysed` keeps the
-`Module` (`crates/nvs-lsp/src/document.rs`) and read `module.doc_targets.in_file(analysed.entry)`.
+Stages 3, 4 and 5 may run side by side (Lanes). The next session takes stage 3 from its first item.
+The editor stages read `Module::doc_targets`: find how `Analysed` keeps the `Module`
+(`crates/nvs-lsp/src/document.rs`) and read `module.doc_targets.in_file(analysed.entry)`. Stage 5
+starts at `crates/nvs-cli/src/meta.rs:1515`, where `see` and `example` are written as text today.
 
-No test is expected to go red from stage 1: no existing `@see` in the corpus has a `/` or a `.`.
+No test is expected to go red from stages 1 and 2: no existing `@see` in the corpus has a `/` or a
+`.`, and no package source in the tree writes an `@example`.
 
 ### Backlog

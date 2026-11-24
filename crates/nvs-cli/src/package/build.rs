@@ -175,7 +175,10 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .expect("`checked` refuses a manifest with no name");
     let unpacked = Unpacked::new(&scratch, &cloned.archive)?;
     let component = pack::file_set(&unpacked.0, &cloned.manifest)
-        .and_then(|entries| pack::check_component(&entries, name))
+        .and_then(|entries| {
+            pack::check_doc_targets(&entries)?;
+            pack::check_component(&entries, name)
+        })
         .map_err(|refusal| fault(format!("`{name}` at the commit `{commit}`: {refusal}")))?;
     let (document, docs) = api::extract_counted(&unpacked.0, component).map_err(|_| {
         fault(format!(
