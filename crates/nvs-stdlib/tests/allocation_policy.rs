@@ -684,6 +684,7 @@ fn a_successful_call_by_name_allocates_nothing() {
     let mut classes = ClassTable::new();
     let id = classes.define("Counter", &[] as &[&str], &[]);
     classes.set_methods(id, vec![row("one", 1), row("sixteen", 16)]);
+    nvs_stdlib::build_descriptions(&mut classes);
     let classes = std::sync::Arc::new(classes);
     let desc = classes.desc(id);
     let mut ctx = Ctx::buffered();
@@ -740,4 +741,161 @@ fn a_successful_call_by_name_allocates_nothing() {
     }
     release(info);
     release(subject);
+}
+
+// ============================================================================
+// A description is built once, when the unit loads
+// ============================================================================
+
+/// A described unit: `Shop\Order` with two properties, an enum `Shop\Status`
+/// with two cases, a context that runs the unit, and two instances of
+/// `Shop\Order`.
+#[cfg(debug_assertions)]
+fn described_shop() -> (nvs_runtime::Ctx, [nvs_runtime::Value; 2]) {
+    use nvs_runtime::{ClassTable, Ctx, ErrorClass, NvsObj, Value};
+
+    let mut classes = ClassTable::new();
+    let id = classes.define("Shop\\Order", &["id", "total"], &[]);
+    classes.set_public_fields(id, vec![true, true]);
+    classes.define_enum(
+        "Shop\\Status",
+        false,
+        vec![("Open".to_owned(), 1), ("Paid".to_owned(), 2)],
+    );
+    nvs_stdlib::build_descriptions(&mut classes);
+    let classes = std::sync::Arc::new(classes);
+    let desc = classes.desc(id);
+    let mut ctx = Ctx::buffered();
+    ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+    let instances = [(); 2].map(|()| {
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context now holds for its whole \
+                      life; the slots start `null`, which no member here reads"
+        )]
+        Value::object(unsafe { NvsObj::new(desc) })
+    });
+    (ctx, instances)
+}
+
+/// The three doors onto a description, each with the argument it takes.
+#[cfg(debug_assertions)]
+fn description_doors(
+    order: nvs_runtime::Value,
+) -> [(&'static str, nvs_runtime::NvsFn, nvs_runtime::Value); 3] {
+    [
+        (
+            "forClass",
+            member("nvs_core_reflect_for_class"),
+            nvs_runtime::Value::text("Shop\\Order"),
+        ),
+        ("forObject", member("nvs_core_reflect_for_object"), order),
+        (
+            "EnumInfo::of",
+            member("nvs_core_reflect_enum_info_of"),
+            nvs_runtime::Value::text("Shop\\Status"),
+        ),
+    ]
+}
+
+/// Calls `door` `calls` times and returns the allocations it made, after
+/// checking that every call returned an object.
+#[cfg(debug_assertions)]
+fn description_allocations(
+    ctx: &mut nvs_runtime::Ctx,
+    door: nvs_runtime::NvsFn,
+    argument: nvs_runtime::Value,
+    calls: usize,
+) -> usize {
+    let before = nvs_runtime::budget::allocations();
+    for _ in 0..calls {
+        let info = nvs_runtime::call(door, ctx, &[argument]).expect("the door returns");
+        assert!(info.obj_ptr().is_some(), "the class is declared");
+        release(info);
+    }
+    nvs_runtime::budget::allocations() - before
+}
+
+/// `forClass` and `forObject` return the description built when the unit
+/// loaded, so a call allocates nothing, over 8 calls and over 64.
+// covers: Core\Reflect::forClass
+// covers: Core\Reflect::forObject
+#[cfg(debug_assertions)]
+#[test]
+fn a_description_allocates_nothing() {
+    let (mut ctx, [order, other]) = described_shop();
+    for (name, door, argument) in description_doors(order).into_iter().take(2) {
+        for calls in [8, 64] {
+            let spent = description_allocations(&mut ctx, door, argument, calls);
+            assert_eq!(
+                spent, 0,
+                "{calls} calls of `{name}` made {spent} allocations, and a description is built \
+                 once when the unit loads"
+            );
+        }
+    }
+    let [(_, _, name), ..] = description_doors(order);
+    release(name);
+    release(order);
+    release(other);
+}
+
+/// `EnumInfo::of` returns the description built when the unit loaded, so a
+/// call allocates nothing, over 8 calls and over 64.
+// covers: Core\Reflect\EnumInfo::of
+#[cfg(debug_assertions)]
+#[test]
+fn a_description_of_an_enum_allocates_nothing() {
+    let (mut ctx, [order, other]) = described_shop();
+    let [_, _, (_, door, argument)] = description_doors(order);
+    for calls in [8, 64] {
+        let spent = description_allocations(&mut ctx, door, argument, calls);
+        assert_eq!(
+            spent, 0,
+            "{calls} calls of `EnumInfo::of` made {spent} allocations, and a description is \
+             built once when the unit loads"
+        );
+    }
+    release(argument);
+    release(order);
+    release(other);
+}
+
+/// Two calls return the same object: `forClass` twice, `forObject` on two
+/// instances of the class, and `EnumInfo::of` twice.
+// covers: Core\Reflect::forClass
+// covers: Core\Reflect::forObject
+// covers: Core\Reflect\EnumInfo::of
+#[cfg(debug_assertions)]
+#[test]
+fn a_description_is_the_same_object_twice() {
+    let (mut ctx, [order, other]) = described_shop();
+    let [
+        (_, for_class, name),
+        (_, for_object, _),
+        (_, enum_of, status),
+    ] = description_doors(order);
+    let mut describe = |door: nvs_runtime::NvsFn, argument: nvs_runtime::Value| {
+        let info = nvs_runtime::call(door, &mut ctx, &[argument]).expect("the door returns");
+        let address = info.obj_ptr().expect("the class is declared");
+        release(info);
+        address
+    };
+    let by_name = describe(for_class, name);
+    assert_eq!(describe(for_class, name), by_name, "`forClass` twice");
+    assert_eq!(
+        describe(for_object, order),
+        by_name,
+        "`forObject` and `forClass`"
+    );
+    assert_eq!(
+        describe(for_object, other),
+        by_name,
+        "`forObject` on a second instance"
+    );
+    let enum_info = describe(enum_of, status);
+    assert_eq!(describe(enum_of, status), enum_info, "`EnumInfo::of` twice");
+    for value in [name, status, order, other] {
+        release(value);
+    }
 }

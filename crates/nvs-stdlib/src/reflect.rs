@@ -50,7 +50,11 @@
 //! **What it spends:** once per process for each loaded unit, one immortal
 //! object per class, property, method, parameter, constant, attach site and
 //! enum, and one immortal string per name, type and folded string, every class
-//! included, whether or not anything reflects on it. Per roster call, one array
+//! included, whether or not anything reflects on it. Counted on
+//! `benches/members/core/Reflect/forClass.nvs`: its `Order`, two typed public
+//! properties and nothing else, is 592 bytes. The whole unit, 31 classes and 44
+//! enums, most of them the prelude's own, is 45,481 bytes, and building it took
+//! 350 to 400 µs in a debug build, once per load. Per roster call, one array
 //! of the rows, charged to the request that asked.
 //! [`nvs_core_reflect_class_info_readable_properties`] spends one array of one
 //! string per name it returns, per call, because its answer depends on the
@@ -7621,5 +7625,92 @@ mod tests {
                 owned("summary", false)
             ],
         );
+    }
+
+    /// `description`, copied by the graph copy's live carrier into the unit
+    /// `ctx` runs, as a `spawn` copies an argument: a task's context shares
+    /// its parent's table, so the receiving side is that table.
+    fn copied(ctx: &Ctx, description: Value) -> Value {
+        let table = ctx.unit_table().expect("the fixture installed its unit");
+        let receiving =
+            nvs_runtime::Receiving::over(Some(table), Some(crate::instance::core_class_desc));
+        nvs_runtime::copy_graph_to(description, &receiving)
+            .expect("a description is plain data, so it crosses")
+    }
+
+    /// A copy of an immortal description is a new, ordinary object, and it
+    /// reads the same rows as the description it was copied from.
+    #[test]
+    fn a_copied_description_reads_its_own_unit() {
+        let (mut ctx, [post, _]) = modifier_family();
+        let copy = copied(&ctx, post);
+        assert_ne!(
+            copy.obj_ptr(),
+            post.obj_ptr(),
+            "an immortal description is copied, so the receiving side owns what it holds"
+        );
+        for member in [
+            super::nvs_core_reflect_property_info_is_late_init,
+            super::nvs_core_reflect_property_info_is_readonly,
+        ] {
+            assert_eq!(
+                modifier_rows(&mut ctx, copy, member),
+                modifier_rows(&mut ctx, post, member),
+                "the copy keeps the class index and the stamp, so it reads the same rows"
+            );
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference the copy returned"
+        )]
+        unsafe {
+            copy.release();
+        }
+    }
+
+    /// A copy kept after its unit is replaced throws a `LogicError`: its class
+    /// index would name a class of the new unit, and the stamp says so first.
+    #[test]
+    fn a_copied_description_of_a_reloaded_unit_throws() {
+        let (mut ctx, [post, _]) = modifier_family();
+        let copy = copied(&ctx, post);
+
+        // The reload: the context now runs a new unit that declares a class of
+        // the same name, and the old table, with `post` in it, is freed. The
+        // new unit declares `LogicError`, as every compiled unit does, so the
+        // throw is caught as that class.
+        let mut classes = ClassTable::new();
+        let id = classes.define("Post", &["title"], &[]);
+        classes.define("LogicError", &[] as &[&str], &[]);
+        ctx.set_runtime_error_class(ErrorClass::new(described(classes), id));
+
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_properties,
+                &mut ctx,
+                &[copy]
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "a description of the old unit is never read through the new one"
+        );
+        assert!(
+            ctx.pending_class()
+                .is_some_and(|class| class.ends_with("LogicError")),
+            "the throw is a `LogicError`, got {:?}",
+            ctx.pending_class()
+        );
+        assert!(
+            ctx.take_pending()
+                .is_some_and(|said| said.contains("another version of the program")),
+            "the message says why"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference the copy returned"
+        )]
+        unsafe {
+            copy.release();
+        }
     }
 }
