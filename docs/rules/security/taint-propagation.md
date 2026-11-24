@@ -38,8 +38,8 @@ So a member that answers `mixed` or `array<mixed>` accepts `tainted` text where 
 contagious: `Core\Json::decode` of a `tainted string` answers `mixed`, and the mark is on each
 string read out of it.
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
-subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
-`postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
+subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryParameters`,
+`formFields`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
 nothing of its keys and its elements are the evidence of where it was filled. A `Core\Arr` member that
 returns a key, or hands one to its callback, follows the same test: `keys`, `firstKey`, `lastKey`,
 `keyOf` and `findKey` over such an array answer `tainted string`, and so does the `$key` of a `map`,

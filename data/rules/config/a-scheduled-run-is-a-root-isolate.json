@@ -6,7 +6,7 @@
     "security/request-state-throws-in-an-isolate",
     "statements/no-host-populated-variables",
     "errors/escalation-ladder",
-    "core-classes/script-args",
+    "core-classes/script-arguments",
     "concurrency/a-job-runs-as-a-root-isolate",
     "config/a-schedule-entry-narrows-only"
   ],

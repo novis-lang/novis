@@ -9,8 +9,8 @@
   ],
   "guardedBy": [
     "tests/conformance/core/ratelimit-decision-readers-agree-with-the-sweep.nvst",
-    "tests/conformance/core/ratelimit-shed-weighs-a-call-and-bounds-a-burst.nvst",
-    "tests/conformance/core/ratelimit-shed-bounds-its-window-on-both-sides.nvst",
+    "tests/conformance/core/ratelimit-consume-locally-weighs-a-call-and-bounds-a-burst.nvst",
+    "tests/conformance/core/ratelimit-consume-locally-bounds-its-window-on-both-sides.nvst",
     "tests/conformance/core/ratelimit-refuses-a-limit-that-admits-nothing.nvst"
   ]
 }

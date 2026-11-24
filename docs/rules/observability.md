@@ -157,7 +157,7 @@ Core\Metrics::observe(string $name, float $value, {labels?: array<string, string
 Core\Metrics::setGauge(string $name, float $value, {labels?: array<string, string>}): void;
 ```
 
-`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value: three
+`increment` for a counter, `observe` for a histogram, `setGauge` for a point-in-time value: three
 verbs for three kinds. Each takes its subject first, the required value in dataflow order and one
 trailing options shape ([`core-api/shape-rules`](core-api.md#core-api-shape-rules)). A `$name` given
 as a string literal is validated at compile time against `[a-z][a-z0-9_]*`, by the same inspection
@@ -1083,10 +1083,10 @@ travels the throw path, because that is where every `finally` lives, so every `f
 caller and the root runs on the way out. No `catch` sees it: the class it raises,
 `Core\Script\Finished`, is a root of its own and not a `Throwable`, and a `catch` naming it is
 `E0814`. At the root it is not a failure, so the on-uncaught-throw handler does not run, and on the
-request path `afterResponse` work drains as it does after a normal end.
+request path `runAfterResponse` work drains as it does after a normal end.
 
 `finish()` exists because `exit` is the only other way to stop early, and `exit` runs no `finally` and
-hands `afterResponse` work back unrun. A program that has written its answer and still has cleanup to
+hands `runAfterResponse` work back unrun. A program that has written its answer and still has cleanup to
 run would otherwise reach for `echo $body; exit;`, a line that reads like a return and silently drops
 both halves of that cleanup. Running every `finally` is the whole difference between the two endings:
 one that reaches the root without running them is `exit` under another name. The member is on
@@ -1132,17 +1132,17 @@ failure: every `finally`, innermost first, then the queue, then teardown, and no
 other two endings there is no ladder step: the last statement (or the `exit`), the queue, teardown.
 
 Under every hook the heap is fully alive and output goes wherever the script's output was already
-going. The temporary-directory sweep ([`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep)) runs after the queue,
+going. The temporary-directory sweep ([`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep)) runs after the queue,
 because a hook is user code that may still hold a path.
 
 On the request path the queue is ordinary request code and delays the end of the response by what it
-costs. Work that should not delay the response is `afterResponse`
+costs. Work that should not delay the response is `runAfterResponse`
 ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)), unchanged; on a CLI run the queue runs
 before the deferred work, for the same reason. The four mechanisms route by one line each: `finally`
-is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
+is scoped cleanup, `runAfterResponse` is post-response work, `Core\Fatal` observes a failure the request
 cannot survive, `onExit` is the end of the script.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep).</sub>
 
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 

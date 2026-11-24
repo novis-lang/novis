@@ -1317,22 +1317,22 @@ mod tests {
         text.replace(SEPARATOR, "/")
     }
 
-    /// `basename`, with the option written out.
-    fn basename(path: &str, without_extension: bool) -> String {
+    /// `fileName`, with the option written out.
+    fn file_name(path: &str, without_extension: bool) -> String {
         taken(
             run(
                 super::nvs_core_path_file_name,
                 &[s(path), Value::bool(without_extension)],
             )
-            .expect("basename never fails"),
+            .expect("fileName never fails"),
         )
     }
 
-    /// `dirname`, with the option written out.
-    fn dirname(path: &str, levels: u64) -> String {
+    /// `parent`, with the option written out.
+    fn parent(path: &str, levels: u64) -> String {
         taken(
             run(super::nvs_core_path_parent, &[s(path), Value::uint(levels)])
-                .expect("dirname never fails"),
+                .expect("parent never fails"),
         )
     }
 
@@ -1387,52 +1387,52 @@ mod tests {
     /// module diverges on deliberately.
     // covers: Core\Path::fileName
     #[test]
-    fn basename_answers_the_last_components_name() {
-        assert_eq!(basename("/a/b/c.txt", false), "c.txt");
-        assert_eq!(basename("/a/b/", false), "b");
-        assert_eq!(basename("a", false), "a");
-        assert_eq!(basename(r"C:\x\y", false), "y");
+    fn file_name_answers_the_last_components_name() {
+        assert_eq!(file_name("/a/b/c.txt", false), "c.txt");
+        assert_eq!(file_name("/a/b/", false), "b");
+        assert_eq!(file_name("a", false), "a");
+        assert_eq!(file_name(r"C:\x\y", false), "y");
         // A root has no name, and neither has the empty path.
-        assert_eq!(basename("/", false), "");
-        assert_eq!(basename("", false), "");
+        assert_eq!(file_name("/", false), "");
+        assert_eq!(file_name("", false), "");
         // Both separators are read on every platform.
-        assert_eq!(basename("/a\\b", false), "b");
+        assert_eq!(file_name("/a\\b", false), "b");
     }
 
     // covers: Core\Path::fileName
     #[test]
-    fn basename_without_extension_drops_only_a_real_extension() {
-        assert_eq!(basename("/a/b/c.txt", true), "c");
-        assert_eq!(basename("a.b.c", true), "a.b");
-        assert_eq!(basename("plain", true), "plain");
+    fn file_name_without_extension_drops_only_a_real_extension() {
+        assert_eq!(file_name("/a/b/c.txt", true), "c");
+        assert_eq!(file_name("a.b.c", true), "a.b");
+        assert_eq!(file_name("plain", true), "plain");
         // A dotfile's whole name is its name, and a trailing dot is no
         // extension — the two divergences from PHP's `pathinfo`.
-        assert_eq!(basename(".gitignore", true), ".gitignore");
-        assert_eq!(basename("report.", true), "report.");
+        assert_eq!(file_name(".gitignore", true), ".gitignore");
+        assert_eq!(file_name("report.", true), "report.");
     }
 
     // covers: Core\Path::parent
     #[test]
-    fn dirname_walks_up_and_stops_at_a_root() {
-        assert_eq!(dirname("/a/b/c.txt", 1), "/a/b");
-        assert_eq!(dirname("/a/b/", 1), "/a");
-        assert_eq!(dirname("a/b", 1), "a");
-        assert_eq!(dirname("a.txt", 1), ".");
+    fn parent_walks_up_and_stops_at_a_root() {
+        assert_eq!(parent("/a/b/c.txt", 1), "/a/b");
+        assert_eq!(parent("/a/b/", 1), "/a");
+        assert_eq!(parent("a/b", 1), "a");
+        assert_eq!(parent("a.txt", 1), ".");
         // A root is its own parent; a relative path with nothing left is `.`.
-        assert_eq!(dirname("/", 1), "/");
-        assert_eq!(dirname("/a", 9), "/");
-        assert_eq!(dirname("a/b", 9), ".");
+        assert_eq!(parent("/", 1), "/");
+        assert_eq!(parent("/a", 9), "/");
+        assert_eq!(parent("a/b", 9), ".");
         // PHP answers `''` here, which is not a directory anything can use.
-        assert_eq!(dirname("", 1), ".");
+        assert_eq!(parent("", 1), ".");
     }
 
     /// PHP throws a `ValueError` for `levels < 1`; this answers the path
     /// itself, with its separators normalized. See the member's own docs.
     // covers: Core\Path::parent
     #[test]
-    fn dirname_at_zero_levels_is_the_path_normalized() {
-        assert_eq!(dirname("/a\\b/c", 0), "/a/b/c");
-        assert_eq!(dirname("a//b/", 0), "a/b");
+    fn parent_at_zero_levels_is_the_path_normalized() {
+        assert_eq!(parent("/a\\b/c", 0), "/a/b/c");
+        assert_eq!(parent("a//b/", 0), "a/b");
     }
 
     // covers: Core\Path::extension
@@ -1663,9 +1663,9 @@ mod tests {
         assert_eq!(normalize("//server/share//a/./../f"), "//server/share/f");
         assert_eq!(split(r"\\server\share\f"), ["//server/share/", "f"]);
         // The root is where walking up stops, and it has no name of its own.
-        assert_eq!(dirname(r"\\server\share\f", 1), "//server/share/");
+        assert_eq!(parent(r"\\server\share\f", 1), "//server/share/");
         assert_eq!(normalize(r"\\server\share\..\.."), "//server/share/");
-        assert_eq!(basename(r"\\server\share", false), "");
+        assert_eq!(file_name(r"\\server\share", false), "");
         // A server with no share is a root as well; three separators are an
         // ordinary absolute path rather than a host named nothing.
         assert_eq!(normalize(r"\\server"), "//server/");

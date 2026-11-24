@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::arguments()` keeps the two absences apart: a child spawned with `arguments: []` reads an array of zero, and one spawned with no option at all reads `null` — `rule:core-classes/script-args`
+`Core\Script::arguments()` keeps the two absences apart: a child spawned with `arguments: []` reads an array of zero, and one spawned with no option at all reads `null` — `rule:core-classes/script-arguments`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

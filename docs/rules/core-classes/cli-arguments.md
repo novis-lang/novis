@@ -9,7 +9,7 @@ uninterpreted.
 Within a request tree the answer is the same at every depth: it reflects how the **process** was
 invoked, which is a process-wide fact rather than a per-isolate one, so a spawned isolate neither
 fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
-supplied wants `rule:core-classes/script-args` instead.
+supplied wants `rule:core-classes/script-arguments` instead.
 
 Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
 point writes one.

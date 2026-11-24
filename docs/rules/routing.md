@@ -533,7 +533,7 @@ compiler-recognised attributes this table draws on has one home
 **Declined:**
 - **The server calls the matched method.** The program calls `dispatch`, and a program that does not
   is served as before ([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
-- **`params` as a shape per route, narrowed by `is`.** The checker has no such narrowing,
+- **`parameters` as a shape per route, narrowed by `is`.** The checker has no such narrowing,
   and it would save only one `as`. The generated jump binds typed parameters without it.
 
 <sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching).</sub>
@@ -1218,19 +1218,19 @@ published artifact.
 
 The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::formFieldsAs<T>()` call written
 directly in a route handler's body, and the route's row carries what it found: the body is `T`, as JSON
-for `jsonAs` and as a form for `postAs`. The API document writes it as the operation's `requestBody`,
+for `jsonAs` and as a form for `formFieldsAs`. The API document writes it as the operation's `requestBody`,
 with `T`'s schema under `application/json` or `application/x-www-form-urlencoded`
 ([`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table)). A JSON body is `required`, because
 `jsonAs` throws on an empty body. A form body is `required` when `T` has a required field, because
-`postAs` throws when one is missing.
+`formFieldsAs` throws when one is missing.
 
 There is no new syntax. The type is the one the handler already writes to decode its body, so the
 document cannot name a body the code does not decode ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)).
-A handler with a `jsonAs` and a `postAs` gets both media types. Two reads of one kind with different
-types give that media type a `oneOf` of the two schemas. A `postAs` call that writes its `name` option reads
+A handler with a `jsonAs` and a `formFieldsAs` gets both media types. Two reads of one kind with different
+types give that media type a `oneOf` of the two schemas. A `formFieldsAs` call that writes its `name` option reads
 one field of the form and not the whole body, so the document does not take a body from it.
 
-A body read inside a helper method is not seen. A handler that reaches a `jsonAs` or `postAs` call only
+A body read inside a helper method is not seen. A handler that reaches a `jsonAs` or `formFieldsAs` call only
 through methods it calls gets no `requestBody`, and `nvs check` warns at the route that the document does
 not describe its body (`W1027`). The warning follows the calls the checker resolved, through any number of
 methods, and does not follow a call through a `callable` or a `mixed` receiver. Moving the read into the

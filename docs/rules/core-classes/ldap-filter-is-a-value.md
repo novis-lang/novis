@@ -1,4 +1,4 @@
-An LDAP filter is an immutable `Ldap\Filter` value, encoded straight to BER, whose values are data and whose attribute names are a sink. It is made by static functions — `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approx` — and combined with `all`, `any` and `not`; there is no fluent chain, and no `<` or `>` because RFC 4511 has none. Base, scope, attributes and paging are search options, never part of the filter.
+An LDAP filter is an immutable `Ldap\Filter` value, encoded straight to BER, whose values are data and whose attribute names are a sink. It is made by static functions — `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approximately` — and combined with `all`, `any` and `not`; there is no fluent chain, and no `<` or `>` because RFC 4511 has none. Base, scope, attributes and paging are search options, never part of the filter.
 
 **The split follows `rule:security/sink-predicate`.** A filter on the wire is a BER structure, not
 text, so a value is a framed octet string the server compares against and never parses: it accepts

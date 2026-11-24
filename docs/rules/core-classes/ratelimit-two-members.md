@@ -1,5 +1,5 @@
-`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two verbs, and the verb says which one you
-are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
+`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two names, and the name says which one
+you are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
 limit — over the shared store, coherently, because a policy only approximately enforced is not
 enforced. `consumeLocally` drops load to keep a host up, from the serving process's own memory, and an
 approximate answer is entirely adequate for that because the goal is "less than the amount that
@@ -33,7 +33,7 @@ more machinery with no named use case yet.
 
 **Declined:**
 - **Only the shared tier.** The two names work only if both exist. With one, the first program that
-  needs approximate load shedding uses `consume` for it, and puts a round trip on a path that did not
+  needs to drop load approximately uses `consume` for it, and puts a round trip on a path that did not
   need one.
 - **One member with a `coherent: true` option.** The default is chosen once and copied, and the wrong
   choice fails silently — the reason `Core\Cache` has two members

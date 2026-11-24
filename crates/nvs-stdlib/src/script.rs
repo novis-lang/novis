@@ -79,7 +79,7 @@
 //!
 //! # `arguments()` answers `mixed`, and `null` for a script nobody spawned
 //!
-//! `rule:core-classes/script-args` is what
+//! `rule:core-classes/script-arguments` is what
 //! replaced `rule:security/isolate-shares-nothing`'s `$_ARGS` with a method call, and its body states the
 //! return type this module implements: **`mixed`**, not an array of anything.
 //! `spawn script`'s `arguments:` is checked against no expected type at all —
@@ -145,7 +145,7 @@ const HANDLE_CARD: ClassDoc = ClassDoc {
 /// `0` for a spawn that never started one.
 const PENDING: usize = 0;
 
-/// `Core\Script`'s registry row — the class `rule:core-classes/script-args` named when it
+/// `Core\Script`'s registry row — the class `rule:core-classes/script-arguments` named when it
 /// replaced `$_ARGS` with a method call. See [`crate::registry::CLASSES`].
 ///
 /// A class in its own right beside `Core\Script\Handle`, exactly as
@@ -153,7 +153,7 @@ const PENDING: usize = 0;
 /// answers with, and this is what the child asks.
 ///
 ///
-/// `rule:core-classes/script-args`'s `Core\Script::arguments()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
+/// `rule:core-classes/script-arguments`'s `Core\Script::arguments()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
 /// — the read half of `spawn script`'s `arguments:` option, and a class beside
 /// the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
 // rank: 540
@@ -1166,7 +1166,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script::arguments(): mixed` — `rule:core-classes/script-args`'s replacement for `$_ARGS`,
+    /// `Core\Script::arguments(): mixed` — `rule:core-classes/script-arguments`'s replacement for `$_ARGS`,
     /// and the read half of `spawn script <path> with(arguments: …)`.
     ///
     /// The module doc is the one home of what this answers and why the type is

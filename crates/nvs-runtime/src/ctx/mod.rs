@@ -1691,7 +1691,7 @@ pub struct Ctx {
     open_connections: Vec<(u64, OpenConnection)>,
     /// The temporary directories `Core\IO::createTemporaryDirectory` has handed this script,
     /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
-    /// `rule:core-classes/temporary-dir-sweep` for the sweep that reads it.
+    /// `rule:core-classes/temporary-directory-sweep` for the sweep that reads it.
     ///
     /// Unlike its neighbours this is a list and not a table: a directory
     /// is a path rather than a handle, nothing in Novis holds a key to one, and
@@ -1879,7 +1879,7 @@ impl Drop for Ctx {
                 }
             }
         }
-        // `rule:core-classes/temporary-dir-sweep`'s sweep, and this is the only place it is called from —
+        // `rule:core-classes/temporary-directory-sweep`'s sweep, and this is the only place it is called from —
         // `crate::sweep`'s module doc owns why a context's teardown *is* that
         // section's "after the last user code" for every ending at once.
         //

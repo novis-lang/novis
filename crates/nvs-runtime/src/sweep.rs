@@ -1,4 +1,4 @@
-//! `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep: the directories `Core\IO::createTemporaryDirectory` handed
+//! `rule:core-classes/temporary-directory-sweep`'s end-of-script sweep: the directories `Core\IO::createTemporaryDirectory` handed
 //! this script, deleted when the script ends.
 //!
 //! The program is never asked to clean up and never asked to remember. What it
@@ -7,7 +7,7 @@
 //!
 //! # It runs from [`Drop`], which is the whole of "after the last user code"
 //!
-//! `rule:core-classes/temporary-dir-sweep` puts the sweep after `rule:observability/script-on-exit`'s
+//! `rule:core-classes/temporary-directory-sweep` puts the sweep after `rule:observability/script-on-exit`'s
 //! `onExit` queue on a CLI ending and after
 //! `rule:concurrency/after-response-outlives-the-connection`'s
 //! `afterResponse` work on a request, and has it cover every ending the process
@@ -17,35 +17,35 @@
 //! ran them has already returned by the time this does. So [`at_script_end`] is
 //! called from `Ctx::drop` and from nowhere else, and there is no ending a
 //! caller can forget to wire up. A `FATAL` on the CLI kills the process without
-//! unwinding and leaves `rule:core-classes/temporary-dir-orphan-sweep`'s orphan case, which is the one this module cannot
+//! unwinding and leaves `rule:core-classes/temporary-directory-orphan-sweep`'s orphan case, which is the one this module cannot
 //! reach.
 //!
 //! # It never throws, and there is nothing for it to throw *into*
 //!
-//! `rule:core-classes/temporary-dir-sweep`'s "never throws and never alters a response" is not a rule this module
+//! `rule:core-classes/temporary-directory-sweep`'s "never throws and never alters a response" is not a rule this module
 //! remembers — by the time it runs there is no `Fault` to raise, no frame to
 //! raise it on and no response left to change. What is left is the log, so a
 //! refusal is one line naming the path and the error ([`at_script_end`]) and the
 //! directory waits in the owned root for the next sweep to try again. No retry
-//! loop and no accumulated error state: `rule:core-classes/temporary-dir-orphan-sweep`'s `nvs tmp clean` and the `nvs serve`
+//! loop and no accumulated error state: `rule:core-classes/temporary-directory-orphan-sweep`'s `nvs tmp clean` and the `nvs serve`
 //! boot are the next attempts.
 //!
 //! # The one thing that stops it, and it is the operator's
 //!
-//! `rule:core-classes/temporary-dir-sweep`'s `[debug] keep_temporary` turns every deletion into a log line naming
+//! `rule:core-classes/temporary-directory-sweep`'s `[debug] keep_temporary` turns every deletion into a log line naming
 //! the path that was kept ([`keep_temporary`], [`kept`]). The list is still
 //! drained, so the keeping is per script rather than a queue that grows: what
-//! is kept is on disk under the owned root, where `rule:core-classes/temporary-dir-orphan-sweep`'s `nvs tmp clean` is how
+//! is kept is on disk under the owned root, where `rule:core-classes/temporary-directory-orphan-sweep`'s `nvs tmp clean` is how
 //! a debugging session's keepings are cleared. There is no in-language setter
 //! and no per-call persist — a program able to exempt its own files from
 //! cleanup is a program that can be made to hoard them, which
 //! `rule:concurrency/cross-request-state-is-explicit` already
 //! answers with storage.
 //!
-//! # `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep decides here and acts elsewhere
+//! # `rule:core-classes/temporary-directory-orphan-sweep`'s orphan sweep decides here and acts elsewhere
 //!
 //! A script killed outright ran no [`Drop`] and so ran nothing above. What it
-//! left behind is `rule:core-classes/temporary-dir-orphan-sweep`'s, and that sweep runs from the `nvs serve` boot and from
+//! left behind is `rule:core-classes/temporary-directory-orphan-sweep`'s, and that sweep runs from the `nvs serve` boot and from
 //! `nvs tmp clean`, neither of which is in this crate. What *is* here is
 //! everything they share: [`owner_is_alive`], the predicate over one path, and
 //! [`orphans`], the walk over one root that applies it. The doors differ only
@@ -63,7 +63,7 @@ use nvs_render::Level;
 use crate::ctx::Ctx;
 
 /// Deletes every temporary directory this script was handed, and logs the ones
-/// the operating system refused — `rule:core-classes/temporary-dir-sweep`, called from `Ctx::drop`.
+/// the operating system refused — `rule:core-classes/temporary-directory-sweep`, called from `Ctx::drop`.
 ///
 /// Draining, so a second call has nothing to do: a request that died mid-flight
 /// and then ended ordinarily is swept once
@@ -97,11 +97,11 @@ pub fn at_script_end(ctx: &mut Ctx) {
     }
 }
 
-/// Whether `[debug] keep_temporary` is on — `rule:core-classes/temporary-dir-sweep`'s one escape hatch,
+/// Whether `[debug] keep_temporary` is on — `rule:core-classes/temporary-directory-sweep`'s one escape hatch,
 /// and the operator's alone.
 ///
 /// Read off the snapshot, like `capability`'s `temp_root` beside it, because
-/// `rule:core-classes/temporary-dir-sweep` gives the key no in-language setter: it is `System`-class, so no request
+/// `rule:core-classes/temporary-directory-sweep` gives the key no in-language setter: it is `System`-class, so no request
 /// has a spelling by which it could have written one, and a context carrying no
 /// configuration at all sweeps rather than keeps. `Reload` rather than `Boot`
 /// (`nvs_config::directive`), which is what makes "flipped on around one
@@ -115,7 +115,7 @@ fn keep_temporary(ctx: &Ctx) -> bool {
         .unwrap_or(false)
 }
 
-/// Builds the one record a *kept* directory writes — `rule:core-classes/temporary-dir-sweep`'s "always deliberate
+/// Builds the one record a *kept* directory writes — `rule:core-classes/temporary-directory-sweep`'s "always deliberate
 /// and always visible, never a silent leak".
 ///
 /// `info` and not `warn`, which is the whole difference from [`note`] beside
@@ -158,7 +158,7 @@ fn note(path: &std::path::Path, error: &std::io::Error) -> nvs_render::Record {
 /// Deletes each of `paths` and answers the ones that would not go, with the
 /// error each refused with.
 ///
-/// **A path that is already gone is not a refusal.** `rule:core-classes/temporary-dir-sweep` calls that the goal
+/// **A path that is already gone is not a refusal.** `rule:core-classes/temporary-directory-sweep` calls that the goal
 /// state reached early: a program may remove its own temporary directory
 /// whenever it likes, and a sweep that remarked on it would turn tidy programs
 /// into log noise. `NotFound` is therefore success, and it is the only error
@@ -188,11 +188,11 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 }
 
 /// Whether the process that created the entry at `path` is still running —
-/// `rule:core-classes/temporary-dir-orphan-sweep`'s predicate, and the only thing the orphan sweep decides on.
+/// `rule:core-classes/temporary-directory-orphan-sweep`'s predicate, and the only thing the orphan sweep decides on.
 ///
 /// **A function over a path and nothing else**: no context, no configuration,
 /// no directory walk and no clock. [`orphans`] is the walk that asks it of one
-/// entry at a time, and `rule:core-classes/temporary-dir-orphan-sweep`'s doors reach it through that, so the rule they
+/// entry at a time, and `rule:core-classes/temporary-directory-orphan-sweep`'s doors reach it through that, so the rule they
 /// share is one function rather than separate walks that agree today.
 ///
 /// **Liveness, never age.** An age rule is precisely what deletes a
@@ -206,7 +206,7 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 /// error the platform did not name: all of them read as alive, so the sweep
 /// may under-delete and can never over-delete. The one failure that remains is
 /// a recycled pid, which makes a dead owner's entry look alive and leaks it
-/// until a later sweep — `rule:core-classes/temporary-dir-orphan-sweep` takes that direction deliberately, and the goal's
+/// until a later sweep — `rule:core-classes/temporary-directory-orphan-sweep` takes that direction deliberately, and the goal's
 /// own standing decisions settle it rather than leaving it to a caller.
 ///
 #[must_use]
@@ -217,15 +217,15 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
     pid_is_alive(pid)
 }
 
-/// `rule:core-classes/temporary-dir-orphan-sweep`'s walk: the entries of the owned root whose owner is dead,
+/// `rule:core-classes/temporary-directory-orphan-sweep`'s walk: the entries of the owned root whose owner is dead,
 /// sorted, and nothing deleted.
 ///
-/// **It answers rather than acts**, because that is the whole of what `rule:core-classes/temporary-dir-orphan-sweep`'s
+/// **It answers rather than acts**, because that is the whole of what `rule:core-classes/temporary-directory-orphan-sweep`'s
 /// doors have in common. The `nvs serve` boot hands this list to [`refusals`];
 /// `nvs tmp clean` prints each path and hands over the same list, or, under
 /// `--dry-run`, prints it and hands over nothing. A walk that deleted as it went
 /// could not serve that dry run, and each door would grow its own predicate —
-/// which is the one thing `rule:core-classes/temporary-dir-orphan-sweep` cannot afford, since doors that disagree mean
+/// which is the one thing `rule:core-classes/temporary-directory-orphan-sweep` cannot afford, since doors that disagree mean
 /// over-deleting.
 ///
 /// **A root, not a context.** Each door knows its own root
@@ -236,7 +236,7 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
 /// **Every ambiguity skips, exactly as the predicate does.** A root that cannot
 /// be listed answers "nothing to sweep" — a root nothing has created yet is the
 /// ordinary state of a first boot, and one the platform refuses to read is an
-/// ambiguity, which `rule:core-classes/temporary-dir-orphan-sweep` resolves toward under-deleting like every other. An
+/// ambiguity, which `rule:core-classes/temporary-directory-orphan-sweep` resolves toward under-deleting like every other. An
 /// entry whose kind cannot be read is skipped. So is anything that is not a
 /// directory: `capability::temp_dir` creates directories and only directories,
 /// so a file or a symlink wearing the name is something this runtime did not
@@ -365,7 +365,7 @@ mod tests {
             .collect()
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s ordinary ending, through the only caller [`at_script_end`] has:
+    /// `rule:core-classes/temporary-directory-sweep`'s ordinary ending, through the only caller [`at_script_end`] has:
     /// the context's own teardown.
     ///
     /// The directory the program already removed is tracked **first** on
@@ -394,7 +394,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s goal state reached early: a program may remove its own temporary
+    /// `rule:core-classes/temporary-directory-sweep`'s goal state reached early: a program may remove its own temporary
     /// directory whenever it likes, and a sweep that remarked on it would turn
     /// tidy programs into log noise.
     ///
@@ -447,7 +447,7 @@ mod tests {
         })
     }
 
-    /// `rule:core-classes/temporary-dir-orphan-sweep`'s predicate over a name the runtime itself wrote — the agreement no
+    /// `rule:core-classes/temporary-directory-orphan-sweep`'s predicate over a name the runtime itself wrote — the agreement no
     /// hand-built fixture can make.
     ///
     /// `capability::temp_dir` is the only writer of these names and this reads
@@ -512,14 +512,14 @@ mod tests {
         assert_ne!(made, other, "each call makes a new directory");
     }
 
-    /// `rule:core-classes/temporary-dir-orphan-sweep`'s remaining answers, in one case because they are one rule read from
+    /// `rule:core-classes/temporary-directory-orphan-sweep`'s remaining answers, in one case because they are one rule read from
     /// two sides: a pid no process can hold is dead, and everything this module
     /// did not name is skipped.
     ///
     /// The skipped names are the half that matters. Each of them is a
     /// *deletion* if the parse is loose — an operator's own directory in the
     /// root, a name with no nonce, a name whose pid field is the Unix process
-    /// group — and over-deleting is the one failure `rule:core-classes/temporary-dir-orphan-sweep` does not allow.
+    /// group — and over-deleting is the one failure `rule:core-classes/temporary-directory-orphan-sweep` does not allow.
     #[cfg_attr(
         miri,
         ignore = "asks whether a process is alive with `kill`, which Miri does not emulate"
@@ -557,7 +557,7 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/temporary-dir-orphan-sweep`'s walk, asserted by **what the whole root came back as** rather than
+    /// `rule:core-classes/temporary-directory-orphan-sweep`'s walk, asserted by **what the whole root came back as** rather than
     /// by one path being in the answer.
     ///
     /// Every entry below is a *deletion* if the walk is one filter too loose,
@@ -605,10 +605,10 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s escape hatch, both halves in one case: **each** kept path is named
+    /// `rule:core-classes/temporary-directory-sweep`'s escape hatch, both halves in one case: **each** kept path is named
     /// and **none** of them is deleted.
     ///
-    /// Two directories rather than one, because `rule:core-classes/temporary-dir-sweep`'s promise is that the
+    /// Two directories rather than one, because `rule:core-classes/temporary-directory-sweep`'s promise is that the
     /// absence of cleanup is always visible — a sweep that logged the first and
     /// kept the rest silently would leave exactly the untraceable leftovers the
     /// key exists to make traceable, and would pass every assertion about one
@@ -649,7 +649,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s refusal, from the side [`refusals`] cannot show: what the *sweep*
+    /// `rule:core-classes/temporary-directory-sweep`'s refusal, from the side [`refusals`] cannot show: what the *sweep*
     /// does with one, which is a line and nothing else.
     ///
     /// The refusal is a path that is not a directory, because that is the one
@@ -685,22 +685,22 @@ mod tests {
         );
         assert!(
             ctx.pending().is_none(),
-            "and `rule:core-classes/temporary-dir-sweep`'s never-throws: there is no frame left to raise on: {:?}",
+            "and `rule:core-classes/temporary-directory-sweep`'s never-throws: there is no frame left to raise on: {:?}",
             ctx.pending()
         );
         assert!(
             not_a_directory.exists(),
-            "the entry waits in the owned root for `rule:core-classes/temporary-dir-orphan-sweep`'s next attempt"
+            "the entry waits in the owned root for `rule:core-classes/temporary-directory-orphan-sweep`'s next attempt"
         );
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s refusal, from the one side that is the same on every platform: a
+    /// `rule:core-classes/temporary-directory-sweep`'s refusal, from the one side that is the same on every platform: a
     /// path that is not a directory at all cannot be removed as one, and what
     /// the sweep does about it is answer rather than fail.
     ///
     /// The other paths in the same call are the point. A sweep that gave up at
     /// the first error would leave a script's remaining directories standing for
-    /// `rule:core-classes/temporary-dir-orphan-sweep` to find, and every deletion here would still look correct on its own.
+    /// `rule:core-classes/temporary-directory-orphan-sweep` to find, and every deletion here would still look correct on its own.
     #[test]
     fn a_refused_deletion_is_answered_rather_than_raised_and_the_rest_still_go() {
         let base = scratch("refused");

@@ -301,7 +301,7 @@ pub(crate) fn run(
         return report(diagnostic, &sources);
     }
 
-    // `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, the moment the root is knowable and long
+    // `rule:core-classes/temporary-directory-orphan-sweep`'s orphan sweep, the moment the root is knowable and long
     // before a socket exists. [`sweep_orphans`] owns why it is here, why no
     // other subcommand does it, and why nothing it finds can refuse this start.
     sweep_orphans(&snapshot.config);
@@ -2339,7 +2339,7 @@ impl nvs_server::Fires for Scheduled {
     }
 }
 
-/// `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep — run at a server boot and by hand from
+/// `rule:core-classes/temporary-directory-orphan-sweep`'s orphan sweep — run at a server boot and by hand from
 /// `nvs tmp clean`, and the reason a hard-killed script's leftovers ever go away.
 ///
 /// **Boot, and no other invocation.** A `nvs run` does not sweep and neither
@@ -4173,7 +4173,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/temporary-dir-orphan-sweep`'s boot sweep, asserted from both directions in one case
+    /// `rule:core-classes/temporary-directory-orphan-sweep`'s boot sweep, asserted from both directions in one case
     /// because the sweep has exactly one way to be wrong in each.
     ///
     /// The dead owner's entry going is the feature. The live owner's entry

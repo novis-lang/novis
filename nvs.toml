@@ -282,7 +282,7 @@ entry = "tests/hostile/core/Cap/has/01-names-that-try-to-win-a-yes.nvs"
 read = true
 
 # `tests/hostile/config/debug-keep_temporary/` exists to make
-# `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
+# `rule:core-classes/temporary-directory-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
 # walk until the program has been allowed to create the directories it hoards.
 # The `tests/hostile` block writes `read = []` and `write = []`, so this block writes both back.
 # `true` rather than a path: `Core\IO::createTemporaryDirectory` creates under the host's own temporary
@@ -1420,7 +1420,7 @@ url = "redis://127.0.0.1:16379"
 
 # The end-of-script sweep's one switch, written as the value an absent `[debug]`
 # block already means: `nvs_config::tree::Debug::keep_temporary` is `None` here
-# and `Some(false)` there, and `rule:core-classes/temporary-dir-sweep`'s sweep asks the same question
+# and `Some(false)` there, and `rule:core-classes/temporary-directory-sweep`'s sweep asks the same question
 # of both, so this line keeps nothing this checkout was deleting. It is here to be
 # *read*, by the attack on the key under `tests/hostile/config/`. `true` here
 # instead would leave every temporary directory of every run in this repository on

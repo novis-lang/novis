@@ -68,7 +68,7 @@ echo "rooted ", $kept, " relative ", $relative, " of ", Core\Arr::count($segment
 // they take apart, join puts back, for every path that names something inside
 // a directory. The total version of that claim — through the normal form, so
 // a bare name and a bare root stop being exceptions — is
-// path-dirname-and-basename-partition-a-path.nvst.
+// path-parent-and-file-name-partition-a-path.nvst.
 array<string> $files = ["/var/www/html/index.php", "a//b/./c", "C:/log/app.log", "/a", "x/y"];
 int $whole = 0;
 foreach ($files as string $f) {

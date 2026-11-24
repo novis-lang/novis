@@ -64,7 +64,7 @@ a package is checked against its own grant line alone
 names, in one boot line per app folder whose tree writes no `fs.read`, the folder its requests read.
 
 - **Memory:** the app folder is one path per context, and the temporary directories are the list
-  the context already keeps for its sweep (`rule:core-classes/temporary-dir-sweep`). It buys
+  the context already keeps for its sweep (`rule:core-classes/temporary-directory-sweep`). It buys
   **Simplicity**: a first program reads and writes its files with no `nvs.toml`, while a server
   never writes beside code it would run, never reads its own secrets, and one request cannot reach
   another's directory.

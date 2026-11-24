@@ -4240,7 +4240,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Removable, and removed without being asked:
     /// [`nvs_runtime::capability::temp_dir`] records what it created on the
-    /// context and `rule:core-classes/temporary-dir-sweep`'s sweep deletes it when the script ends. So this member has no
+    /// context and `rule:core-classes/temporary-directory-sweep`'s sweep deletes it when the script ends. So this member has no
     /// counterpart to call, no persist option to pass and nothing for the
     /// program to remember — which is why there is no `temporaryFile` either:
     /// a file that must outlive its script is storage.

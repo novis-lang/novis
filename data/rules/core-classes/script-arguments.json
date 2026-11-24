@@ -7,8 +7,8 @@
     "statements/an-isolate-has-its-own-statics"
   ],
   "guardedBy": [
-    "tests/conformance/core/script-args-are-read.nvst",
-    "tests/conformance/core/script-args-are-each-isolates-own.nvst",
-    "tests/conformance/core/script-args-tell-an-empty-array-from-no-option.nvst"
+    "tests/conformance/core/script-arguments-are-read.nvst",
+    "tests/conformance/core/script-arguments-are-each-isolates-own.nvst",
+    "tests/conformance/core/script-arguments-tell-an-empty-array-from-no-option.nvst"
   ]
 }

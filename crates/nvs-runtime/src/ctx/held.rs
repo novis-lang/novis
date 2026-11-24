@@ -6,7 +6,7 @@
 //! twice reads an empty slot rather than another request's resource.
 //!
 //! And one thing that is not a handle at all — the temporary directories
-//! `rule:core-classes/temporary-dir-sweep` has the runtime delete when the script ends. It is here for the second
+//! `rule:core-classes/temporary-directory-sweep` has the runtime delete when the script ends. It is here for the second
 //! half of this file's title rather than the first: nothing in Novis holds a key
 //! to one, but the request gives them back when it ends exactly as it gives back
 //! every table above. [`Ctx::track_temporary_dir`] is the one writer.
@@ -965,19 +965,19 @@ impl Ctx {
     }
 
     /// Records a directory `Core\IO::createTemporaryDirectory` has just created for this
-    /// script — `rule:core-classes/temporary-dir-sweep`'s per-script list, written by
+    /// script — `rule:core-classes/temporary-directory-sweep`'s per-script list, written by
     /// [`crate::capability::temp_dir`](crate::capability::temp_dir) and by
     /// nothing else.
     ///
     /// Recorded **after** the directory exists, so the list is what the runtime
     /// actually created rather than what it intended to: a call the capability
     /// check refused, or one the operating system did, leaves nothing on disk
-    /// and so leaves nothing here for `rule:core-classes/temporary-dir-sweep`'s sweep to fail to delete.
+    /// and so leaves nothing here for `rule:core-classes/temporary-directory-sweep`'s sweep to fail to delete.
     ///
     /// No handle and no key, unlike the tables above. A directory's name
     /// is the whole of it, a program never asks this context for one back, and
     /// a program that removes its own directory has reached the goal state early
-    /// (`rule:core-classes/temporary-dir-sweep`) — so there is nothing to take out of the middle of the list and the
+    /// (`rule:core-classes/temporary-directory-sweep`) — so there is nothing to take out of the middle of the list and the
     /// entry simply stays until the sweep drains all of them.
     ///
     /// **What it spends:** one `PathBuf` per `createTemporaryDirectory` call this script
@@ -1014,7 +1014,7 @@ impl Ctx {
         answer
     }
 
-    /// Takes the whole list, leaving this context with none — what `rule:core-classes/temporary-dir-sweep`'s sweep
+    /// Takes the whole list, leaving this context with none — what `rule:core-classes/temporary-directory-sweep`'s sweep
     /// calls once, after the last user code.
     ///
     /// Draining rather than borrowing, for two reasons the sweep depends on. It

@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/db_stream.rs",
-    "tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst",
-    "tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst"
+    "tests/conformance/core/db-query-each-as-answers-a-walk-and-not-a-buffered-result.nvst",
+    "tests/conformance/core/db-query-each-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst"
   ]
 }

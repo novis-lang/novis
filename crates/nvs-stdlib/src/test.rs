@@ -8799,7 +8799,7 @@ mod tests {
     /// tail of the queue the `Core\Cli` prompts read.
     // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::answerCli
     #[test]
-    fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
+    fn assert_true_expect_failure_and_answer_cli_write_the_ledger_and_the_queue() {
         /// How many failures [`fails_and_catches`] records. Twenty thousand
         /// shows that discharging them takes linear time. Under Miri, which
         /// checks no running time, two failures and the check that holds after

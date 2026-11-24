@@ -1119,7 +1119,7 @@ The child runs on the test's clock and environment, a copy of each taken when th
 What it spends, per call: the child's isolate and both captures, held until the result is freed.
 
 **Declined:**
-- **A `cwd` option.** A program reads no working directory but its grants, so the option would set
+- **A `workingDirectory` option.** A program reads no working directory but its grants, so the option would set
   nothing the program can observe.
 - **A fake for `Core\Process`.** A program that runs a command wraps it in its own class, and
   `Core\Test::double` replaces that class ([`testing/doubles`](testing.md#testing-doubles)).
@@ -3238,14 +3238,14 @@ in a `secret` property of `X` ([`security/secret-qualifier`](security.md#securit
 value with `[redacted]` in the stored body. A body the program read any other way is stored as it
 arrived, so a password in a development login form read as raw bytes is on disk until the index forgets
 it ([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)), in a directory only
-the service's account can open. The `nvs debug` reference page says so. A `jsonAs` or `postAs` that
+the service's account can open. The `nvs debug` reference page says so. A `jsonAs` or `formFieldsAs` that
 throws replaces the fields as well, because the bytes it read are recorded either way. Where those
 fields cannot be found, the record keeps no byte of the body and says `withheld`: a body that is not
 one JSON document or nests deeper than 128 levels, a multipart form, and a class that writes its own
 decoder, each where `X` can reach a `secret` property.
 
 A derived codec refuses a `secret` property ([`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers)), so a class
-`jsonAs` or `postAs` decodes reaches one only as a skipped property, which takes no value from the
+`jsonAs` or `formFieldsAs` decodes reaches one only as a skipped property, which takes no value from the
 body. A whole JSON document read that way is therefore stored as it arrived, and the replacement runs
 on no field of it. A class that reaches a skipped `secret` property still withholds a body whose
 fields cannot be found.

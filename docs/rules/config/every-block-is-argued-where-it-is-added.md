@@ -28,7 +28,7 @@ the operator names. Every other block's keys are closed.
 | `[server]`, `[[server.mount]]` | `rule:routing/a-request-reads-its-mount` |
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
 | `[image]` | `rule:core-classes/image-pipeline` |
-| `[io]` | `rule:core-classes/temporary-dir-sweep` |
+| `[io]` | `rule:core-classes/temporary-directory-sweep` |
 | `[mail.<name>]`, `[storage.<name>]` | `rule:programs/framework-core-half` |
 | `[session]` | `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` |
 | `[app.log]` | `rule:errors/handler-script` |

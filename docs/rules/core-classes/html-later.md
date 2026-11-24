@@ -47,7 +47,7 @@ compile error where the checker sees it. A session write is every `Core\Session`
 (`rule:concurrency/deferred-work-cannot-write-the-response`). Reading the request and the session is
 allowed. Every `Core\Request` member that reads the request line, a header, a cookie, the query, the
 route, the scheme or the client address returns in a slot what it returns in the main script. **The
-body is the main script's**: `body`, `bodyStream`, `files`, `post`, `json` and their walks throw
+body is the main script's**: `body`, `bodyStream`, `files`, `formField`, `formFields`, `json` and their walks throw
 `LogicError` in a slot, and the message says to read the body in the main script and pass the value
 in. The main script may have read it already, and two readers of one socket would each get part of it.
 A slot reads the request's session, also where the main script never used it: while the slots

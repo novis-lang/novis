@@ -14,7 +14,7 @@ the copy, so `spawn script Reports::monthly with(arguments: ["month" => $m])` ru
 signature, typed at the boundary and callable and testable directly. A name `arguments:` holds that the
 entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
 has no parameter list, which is why the path form reads `Core\Script::arguments()`
-(`rule:core-classes/script-args`) instead. What crosses in either form is compiled code, so the budget,
+(`rule:core-classes/script-arguments`) instead. What crosses in either form is compiled code, so the budget,
 grant and copy rules do not tell the two apart.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:

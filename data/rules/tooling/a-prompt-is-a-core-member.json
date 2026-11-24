@@ -9,8 +9,8 @@
     "core-api/options-bag"
   ],
   "guardedBy": [
-    "tests/conformance/core/cli-secret-originates-a-secret-no-sink-will-write.nvst",
-    "tests/conformance/core/cli-multiselect-answers-a-set-and-has-no-default.nvst",
+    "tests/conformance/core/cli-ask-secret-originates-a-secret-no-sink-will-write.nvst",
+    "tests/conformance/core/cli-select-many-answers-a-set-and-has-no-default.nvst",
     "tests/conformance/core/cli-prompt-defaults-are-answered-whatever-shape-they-take.nvst"
   ]
 }

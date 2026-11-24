@@ -4,7 +4,7 @@ Core\Metrics::observe(string $name, float $value, {labels?: array<string, string
 Core\Metrics::setGauge(string $name, float $value, {labels?: array<string, string>}): void;
 ```
 
-`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value: three
+`increment` for a counter, `observe` for a histogram, `setGauge` for a point-in-time value: three
 verbs for three kinds. Each takes its subject first, the required value in dataflow order and one
 trailing options shape (`rule:core-api/shape-rules`). A `$name` given
 as a string literal is validated at compile time against `[a-z][a-z0-9_]*`, by the same inspection

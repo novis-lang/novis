@@ -1874,11 +1874,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// One function for the same reason [`inbound_of`] is one: what the readers
 /// share is the rule, and [`nvs_runtime::Inbound::claim_body`] is where it
 /// lives — this is only the wording, and a second copy of the wording is how
-/// two members would come to describe one rule differently. **One function for
-/// `formField` as well**, which used to have its own: the outcomes that made it
-/// different — joining a `files` walk, and its own second call — are what the
-/// carrier answers now from what each member needs, so a second claim here
-/// would be that matrix written twice.
+/// two members would come to describe one rule differently. **`formField` uses
+/// it too**: what sets it apart — joining a `files` walk, and its own second
+/// call — the carrier decides from what each member needs, so a second claim
+/// here would be that matrix written twice.
 ///
 /// **The claim is taken where the reading is named, not where a byte moves.**
 /// `bodyStream` claims when the walk is built and pulls a chunk per `advance()`

@@ -8,6 +8,6 @@
   ],
   "guardedBy": [
     "tests/conformance/core/signature-a-lifetime-is-written-and-omitting-it-does-not-compile.nvst",
-    "tests/conformance/core/uri-sign-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
+    "tests/conformance/core/uri-signed-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
   ]
 }

@@ -20,12 +20,12 @@ uninterpreted.
 Within a request tree the answer is the same at every depth: it reflects how the **process** was
 invoked, which is a process-wide fact rather than a per-isolate one, so a spawned isolate neither
 fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
-supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-args) instead.
+supplied wants [`core-classes/script-arguments`](core-classes.md#core-classes-script-arguments) instead.
 
 Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
 point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
+<sub>See also [`core-classes/script-arguments`](core-classes.md#core-classes-script-arguments), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="core-classes-env-context"></a>
 
@@ -89,11 +89,11 @@ The tradeoffs:
 
 <sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
-<a id="core-classes-script-args"></a>
+<a id="core-classes-script-arguments"></a>
 
 ## `Core\Script::arguments` is the value the current isolate was spawned with, and `null` where there was none
 
-`rule:core-classes/script-args`
+`rule:core-classes/script-arguments`
 
 `Core\Script::arguments(): mixed` is the deep-copied value the current isolate was spawned with, and
 `null` where there was none — a child spawned without the option, and the root script, which nothing
@@ -193,11 +193,11 @@ a file to the same directive out of the same pair of methods, so the two answer 
 `rule:core-classes/process-options`
 
 `ProcessOptions` carries three fields and no more: a working directory, an environment, and a
-timeout. It is one options bag, `{cwd?: string, env?: array<string>, timeout?: Duration}`, and
+timeout. It is one options bag, `{workingDirectory?: string, env?: array<string>, timeout?: Duration}`, and
 `Core\Process::run` and `::spawn` both take it, because there is no reason for one of them to take a
 working directory the other does not.
 
-`cwd` is a path position: a relative path given as a string literal is joined to the folder of the file that wrote it, and a
+`workingDirectory` is a path position: a relative path given as a string literal is joined to the folder of the file that wrote it, and a
 relative value built at run time is refused, because the server's own working directory names a
 different place depending on how it was started. It needs no capability of its own — the child is the
 program `process.exec` approved, and it can change its own folder the moment it runs.
@@ -338,13 +338,13 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
+<sub>See also [`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
 
-<a id="core-classes-temporary-dir-sweep"></a>
+<a id="core-classes-temporary-directory-sweep"></a>
 
 ## A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws
 
-`rule:core-classes/temporary-dir-sweep`
+`rule:core-classes/temporary-directory-sweep`
 
 `Core\IO::createTemporaryDirectory()` is the whole temporary-file surface: it hands out an **owned directory**
 and the program names files inside it. There is no `temporaryFile`, because a program needing one
@@ -373,7 +373,7 @@ the script ends — after the exit queue on a CLI ending, after the after-respon
 and off the request path, so a response never waits on a deletion. It covers normal end, `exit`, an
 uncaught throw, and a request that died mid-flight, because the worker survives that request. A
 `FATAL` on the CLI ends the process without that sweep, and its directory is an orphan for
-[`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep). Each directory is named `nvs-<pid>-<nonce>`, and
+[`core-classes/temporary-directory-orphan-sweep`](core-classes.md#core-classes-temporary-directory-orphan-sweep). Each directory is named `nvs-<pid>-<nonce>`, and
 the pid is what that sweep reads. The pid is written at ten digits, so every name has one length
 and a counted run allocates the same bytes for its paths in every process.
 
@@ -404,19 +404,19 @@ the operator runs the cleanup command.
   leftovers grow with the scripts run, which is a leak. It also bills one request for another's
   deletions, on the request path.
 - **Wall-clock lifetimes, such as "delete after ten minutes".** They delete files a long-running
-  process still holds ([`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep)).
+  process still holds ([`core-classes/temporary-directory-orphan-sweep`](core-classes.md#core-classes-temporary-directory-orphan-sweep)).
 - **A per-call `persist:` option.** One forgotten argument ships the leak to production, and a
   temporary that outlives its script is cross-request state
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The operator-only key covers the one honest
   use, debugging, with no code change.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation).</sub>
+<sub>See also [`core-classes/temporary-directory-orphan-sweep`](core-classes.md#core-classes-temporary-directory-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
-<a id="core-classes-temporary-dir-orphan-sweep"></a>
+<a id="core-classes-temporary-directory-orphan-sweep"></a>
 
 ## The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places
 
-`rule:core-classes/temporary-dir-orphan-sweep`
+`rule:core-classes/temporary-directory-orphan-sweep`
 
 A process killed outright ran no end-of-script sweep. Its leftovers are reclaimed by the orphan
 sweep, which walks the owned root and deletes each entry **whose owning pid is not alive**.
@@ -440,7 +440,7 @@ Like the end-of-script sweep, this one never throws. A deletion the OS refuses i
 and a printed line under `nvs tmp clean`, the command still succeeds, and the entry waits for the
 next sweep.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep).</sub>
+<sub>See also [`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep).</sub>
 
 <a id="core-classes-regex-two-tiers"></a>
 
@@ -786,7 +786,7 @@ compile error where the checker sees it. A session write is every `Core\Session`
 ([`concurrency/deferred-work-cannot-write-the-response`](concurrency.md#concurrency-deferred-work-cannot-write-the-response)). Reading the request and the session is
 allowed. Every `Core\Request` member that reads the request line, a header, a cookie, the query, the
 route, the scheme or the client address returns in a slot what it returns in the main script. **The
-body is the main script's**: `body`, `bodyStream`, `files`, `post`, `json` and their walks throw
+body is the main script's**: `body`, `bodyStream`, `files`, `formField`, `formFields`, `json` and their walks throw
 `LogicError` in a slot, and the message says to read the body in the main script and pass the value
 in. The main script may have read it already, and two readers of one socket would each get part of it.
 A slot reads the request's session, also where the main script never used it: while the slots
@@ -3423,7 +3423,7 @@ returns `bool` and throws on an error.
 
 `rule:core-classes/ldap-filter-is-a-value`
 
-An LDAP filter is an immutable `Ldap\Filter` value, encoded straight to BER, whose values are data and whose attribute names are a sink. It is made by static functions — `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approx` — and combined with `all`, `any` and `not`; there is no fluent chain, and no `<` or `>` because RFC 4511 has none. Base, scope, attributes and paging are search options, never part of the filter.
+An LDAP filter is an immutable `Ldap\Filter` value, encoded straight to BER, whose values are data and whose attribute names are a sink. It is made by static functions — `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approximately` — and combined with `all`, `any` and `not`; there is no fluent chain, and no `<` or `>` because RFC 4511 has none. Base, scope, attributes and paging are search options, never part of the filter.
 
 **The split follows [`security/sink-predicate`](security.md#security-sink-predicate).** A filter on the wire is a BER structure, not
 text, so a value is a framed octet string the server compares against and never parses: it accepts
@@ -3669,12 +3669,12 @@ presented identifier the store does not hold is still never used for a write.
 
 <a id="core-classes-ratelimit-two-members"></a>
 
-## `consume` and `shed` are two jobs with two verbs, and neither is a tier of the other
+## `consume` and `consumeLocally` are two jobs with two names, and neither is a tier of the other
 
 `rule:core-classes/ratelimit-two-members`
 
-`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two verbs, and the verb says which one you
-are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
+`Core\RateLimit::consume` and `::consumeLocally` are two jobs with two names, and the name says which one
+you are doing. `consume` enforces a policy the application promised somebody — a plan quota, a login
 limit — over the shared store, coherently, because a policy only approximately enforced is not
 enforced. `consumeLocally` drops load to keep a host up, from the serving process's own memory, and an
 approximate answer is entirely adequate for that because the goal is "less than the amount that
@@ -3708,7 +3708,7 @@ more machinery with no named use case yet.
 
 **Declined:**
 - **Only the shared tier.** The two names work only if both exist. With one, the first program that
-  needs approximate load shedding uses `consume` for it, and puts a round trip on a path that did not
+  needs to drop load approximately uses `consume` for it, and puts a round trip on a path that did not
   need one.
 - **One member with a `coherent: true` option.** The default is chosen once and copied, and the wrong
   choice fails silently — the reason `Core\Cache` has two members

@@ -5,7 +5,7 @@
     "observability/three-endings-fire-the-exit-queue",
     "errors/on-uncaught-throw",
     "concurrency/after-response-outlives-the-connection",
-    "core-classes/temporary-dir-sweep"
+    "core-classes/temporary-directory-sweep"
   ],
   "guardedBy": [
     "tests/conformance/core/script-on-exit-carries-the-live-throwable-of-an-uncaught-throw.nvst",

@@ -863,7 +863,7 @@ fn server_version_answers_what_the_connection_kept() {
 /// asserted without one while every case above needs a server: what a row
 /// *becomes* is decided while compiling, out of the type argument, so a driver
 /// has no say in it at all. The rows themselves are
-/// `tests/conformance/core/db-stream-as-answers-the-class-it-was-written-with.nvst`,
+/// `tests/conformance/core/db-query-each-as-answers-the-class-it-was-written-with.nvst`,
 /// which runs the whole member against SQLite, and the walk under them is the
 /// `stream` this file already asserts on all five drivers —
 /// `rule:core-classes/db-statement-members` gives the two members one statement, so there is no second walk for a leg to prove.

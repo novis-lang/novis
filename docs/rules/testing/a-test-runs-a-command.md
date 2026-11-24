@@ -17,7 +17,7 @@ The child runs on the test's clock and environment, a copy of each taken when th
 What it spends, per call: the child's isolate and both captures, held until the result is freed.
 
 **Declined:**
-- **A `cwd` option.** A program reads no working directory but its grants, so the option would set
+- **A `workingDirectory` option.** A program reads no working directory but its grants, so the option would set
   nothing the program can observe.
 - **A fake for `Core\Process`.** A program that runs a command wraps it in its own class, and
   `Core\Test::double` replaces that class (`rule:testing/doubles`).

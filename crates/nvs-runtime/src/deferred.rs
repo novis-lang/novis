@@ -545,7 +545,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s ordering against `rule:concurrency/after-response-outlives-the-connection`
+    /// `rule:core-classes/temporary-directory-sweep`'s ordering against `rule:concurrency/after-response-outlives-the-connection`
     /// 's queue, asserted from the one side that can observe it: the last
     /// work the request registered still finds the directory it was handed,
     /// and the teardown behind it is what takes it away.
@@ -577,7 +577,7 @@ mod tests {
         assert_eq!(
             STILL_STANDING.with(Cell::get),
             Some(true),
-            "`rule:concurrency/after-response-outlives-the-connection`'s work is user code, and `rule:core-classes/temporary-dir-sweep` puts the sweep after all of it"
+            "`rule:concurrency/after-response-outlives-the-connection`'s work is user code, and `rule:core-classes/temporary-directory-sweep` puts the sweep after all of it"
         );
 
         drop(ctx);
@@ -592,7 +592,7 @@ mod tests {
         );
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s "a request that died mid-flight", which is only a sweep at all
+    /// `rule:core-classes/temporary-directory-sweep`'s "a request that died mid-flight", which is only a sweep at all
     /// because of `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`:
     /// the request goes, the worker does not, and the context it is left
     /// holding is what runs the sweep.

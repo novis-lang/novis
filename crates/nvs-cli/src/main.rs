@@ -69,7 +69,7 @@
 //!   with no source of truth of its own, shipped for a project that has no
 //!   documentation pipeline; see [`doc`].
 //! * `nvs tmp clean` —
-//!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
+//!   `rule:core-classes/temporary-directory-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of that rule, which is the same walk at boot.

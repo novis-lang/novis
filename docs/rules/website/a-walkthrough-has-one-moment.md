@@ -17,7 +17,7 @@ caption is gold, and the scene slows down for it.
 
 **Everything on the stage serves the moment.** A part, a motion or a caption that is no step toward it
 is cut, however true. What is cut is named in `leavesOut`, so the next author knows it was left out on
-purpose: the `afterResponse` walkthrough shows no memory or CPU meter, no limit and no failure case. A
+purpose: the `runAfterResponse` walkthrough shows no memory or CPU meter, no limit and no failure case. A
 second idea is a second walkthrough, and the whole feature is the page `then` names.
 
 A viewer remembers one thing from something they watch. Two moments compete for that one place, and the
@@ -37,6 +37,6 @@ surprises needs two walkthroughs. Nothing of it runs on the request path.
 **Declined:**
 - **A walkthrough that tours the whole feature.** It becomes a slower reference page, and the reference
   page exists.
-- **Memory and CPU meters in the `afterResponse` walkthrough.** They are true, and they pull the eye away
+- **Memory and CPU meters in the `runAfterResponse` walkthrough.** They are true, and they pull the eye away
   from the request that is still running.
 - **A moment on every step.** When every step is marked, none of them is.

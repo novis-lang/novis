@@ -25,7 +25,7 @@ the copy, so `spawn script Reports::monthly with(arguments: ["month" => $m])` ru
 signature, typed at the boundary and callable and testable directly. A name `arguments:` holds that the
 entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
 has no parameter list, which is why the path form reads `Core\Script::arguments()`
-([`core-classes/script-args`](core-classes.md#core-classes-script-args)) instead. What crosses in either form is compiled code, so the budget,
+([`core-classes/script-arguments`](core-classes.md#core-classes-script-arguments)) instead. What crosses in either form is compiled code, so the budget,
 grant and copy rules do not tell the two apart.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:
@@ -184,7 +184,7 @@ naming the directive, and never by a page fault at an address nobody chose
 - **A budget per isolate on top of its parent's.** Memory would stop being attributable to a request,
   so this is a hole in isolation and not a trade-off.
 - **An isolate that outlives its parent.** A job that survives the response needs its own lifetime and
-  accounting rules, because nobody's budget is left to spend once the parent is gone. `afterResponse`
+  accounting rules, because nobody's budget is left to spend once the parent is gone. `runAfterResponse`
   is not that case: the connection ends there and the request tree does not
   ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)).
 
@@ -1510,12 +1510,12 @@ message clean would rest on every future message leaving input out, which no che
 `Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
 fixed words.
 
-**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::post`
+**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::formField`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
-brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
+brackets — and `::queryParameters` and `::formFields` answer a bracketed name's one level of values as
 `array<tainted string>`, keyed as the brackets keyed them — so a `foreach` key over one is `tainted
 string` as well ([`security/taint-propagation`](security.md#security-taint-propagation)) — refusing a second level with a `ParseError`
-that names `queryAs`/`postAs`. A deeper shape is those two members' to validate into a written type,
+that names `queryParametersAs`/`formFieldsAs`. A deeper shape is those two members' to validate into a written type,
 so no request accessor answers a field as `mixed`. A value that is `mixed` by nature — a decoded
 document such as `json()`, a session or cache entry, a row's `get` — carries the qualifier the moment
 text is pulled out of it, because text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)).
@@ -1618,8 +1618,8 @@ So a member that answers `mixed` or `array<mixed>` accepts `tainted` text where 
 contagious: `Core\Json::decode` of a `tainted string` answers `mixed`, and the mark is on each
 string read out of it.
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
-subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
-`postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
+subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryParameters`,
+`formFields`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
 nothing of its keys and its elements are the evidence of where it was filled. A `Core\Arr` member that
 returns a key, or hands one to its callback, follows the same test: `keys`, `firstKey`, `lastKey`,
 `keyOf` and `findKey` over such an array answer `tainted string`, and so does the `$key` of a `map`,
@@ -2620,7 +2620,7 @@ rule. So an array literal written as an argument keeps the qualifier on its own 
 its element type is `mixed`, a `secret` element makes it `array<secret mixed>`. A `Core` sink reads
 that off the argument, a `Core` credential position takes it, and a parameter the program declares
 `mixed` or `array<mixed>` refuses it. A `Core` option declared `mixed`, such as `Core\Queue::push`'s
-`args`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
+`arguments`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
 
 **A `secret` value is never an array key.** An array's type records nothing about its keys, so
 `Core\Arr::keys`, a `foreach`, a dump and an error message all read a key back as plain text. No

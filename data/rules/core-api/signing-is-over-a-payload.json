@@ -9,9 +9,9 @@
   "guardedBy": [
     "crates/nvs-stdlib/src/uri.rs",
     "tests/conformance/core/signature-signs-the-canonical-form-so-two-orderings-agree.nvst",
-    "tests/conformance/core/uri-sign-signs-what-compare-to-normalizes-and-never-the-fragment.nvst",
-    "tests/conformance/core/uri-sign-covers-every-component-present-and-verify-answers-nothing.nvst",
-    "tests/conformance/core/uri-sign-replaces-the-reserved-parameter-and-two-of-them-fail.nvst",
+    "tests/conformance/core/uri-signed-signs-what-compare-to-normalizes-and-never-the-fragment.nvst",
+    "tests/conformance/core/uri-signed-covers-every-component-present-and-verify-answers-nothing.nvst",
+    "tests/conformance/core/uri-signed-replaces-the-reserved-parameter-and-two-of-them-fail.nvst",
     "tests/conformance/core/router-url-signed-covers-every-parameter-and-not-the-order-they-are-written-in.nvst"
   ]
 }

@@ -183,7 +183,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // write and enforced by forgetting entries, and a new wait by the next fill — neither re-creates
     // the map, which exists before the workers do, and neither re-dials anything.
     Directive { key: "cache.memory", apply: Apply::Reload },
-    // `rule:core-classes/temporary-dir-sweep`. Not settable, because the root is the runtime's and
+    // `rule:core-classes/temporary-directory-sweep`. Not settable, because the root is the runtime's and
     // not a request's: a request that could move it would be choosing where every *other* request's temporaries land. `Reload`
     // because `nvs_runtime::capability::temp_dir` reads it from the snapshot its request cloned,
     // so a new root applies to the next temporary directory. A directory made under the old root
@@ -194,7 +194,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // the component's caller reads it from the snapshot its request cloned. The row names the key
     // and not the block, so a second key in `[image]` has no row until a rule argues one.
     Directive { key: "image.max_pixels", apply: Apply::Reload },
-    // `rule:core-classes/temporary-dir-sweep` gives the key to the operator alone: a request that
+    // `rule:core-classes/temporary-directory-sweep` gives the key to the operator alone: a request that
     // could set it would be exempting its own files from cleanup, which is the hoarding the rule
     // refuses. `Reload` because it is read by the next script that ends and applying it
     // re-creates nothing, which is what lets it be flipped on around one problematic request.

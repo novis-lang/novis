@@ -12,10 +12,10 @@ travels the throw path, because that is where every `finally` lives, so every `f
 caller and the root runs on the way out. No `catch` sees it: the class it raises,
 `Core\Script\Finished`, is a root of its own and not a `Throwable`, and a `catch` naming it is
 `E0814`. At the root it is not a failure, so the on-uncaught-throw handler does not run, and on the
-request path `afterResponse` work drains as it does after a normal end.
+request path `runAfterResponse` work drains as it does after a normal end.
 
 `finish()` exists because `exit` is the only other way to stop early, and `exit` runs no `finally` and
-hands `afterResponse` work back unrun. A program that has written its answer and still has cleanup to
+hands `runAfterResponse` work back unrun. A program that has written its answer and still has cleanup to
 run would otherwise reach for `echo $body; exit;`, a line that reads like a return and silently drops
 both halves of that cleanup. Running every `finally` is the whole difference between the two endings:
 one that reaches the root without running them is `exit` under another name. The member is on

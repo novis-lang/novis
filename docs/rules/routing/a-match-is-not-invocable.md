@@ -41,5 +41,5 @@ compiler-recognised attributes this table draws on has one home
 **Declined:**
 - **The server calls the matched method.** The program calls `dispatch`, and a program that does not
   is served as before (`rule:routing/the-servers-match-dispatches-nothing`).
-- **`params` as a shape per route, narrowed by `is`.** The checker has no such narrowing,
+- **`parameters` as a shape per route, narrowed by `is`.** The checker has no such narrowing,
   and it would save only one `as`. The generated jump binds typed parameters without it.

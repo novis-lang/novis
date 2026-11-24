@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/db_stream.rs",
-    "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
-    "tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst"
+    "tests/conformance/core/db-query-each-is-checked-while-compiling-like-every-other-statement.nvst",
+    "tests/conformance/core/db-query-each-refuses-a-tainted-statement.nvst"
   ]
 }

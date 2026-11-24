@@ -4506,7 +4506,7 @@ mod tests {
         );
     }
 
-    /// A context granting every write and naming `root` as `rule:core-classes/temporary-dir-sweep`'s owned
+    /// A context granting every write and naming `root` as `rule:core-classes/temporary-directory-sweep`'s owned
     /// root, written the way an operator writes both — the grant because
     /// `Core\IO::createTemporaryDirectory` asks `fs.write` for the path it is about to
     /// create (`rule:security/capability-check-at-the-door`), and the root because the default is the platform
@@ -4533,7 +4533,7 @@ mod tests {
         ctx
     }
 
-    /// `rule:core-classes/temporary-dir-sweep` read end to end: a whole script asks for a temporary
+    /// `rule:core-classes/temporary-directory-sweep` read end to end: a whole script asks for a temporary
     /// directory, fills it, ends — and the owned root holds nothing.
     ///
     /// `-p nvs-runtime` already pins the sweep per context, which is the same
@@ -4547,7 +4547,7 @@ mod tests {
     /// — a member ignoring `[io] temp_root` leaves a root that was empty all
     /// along. The file written inside it is what makes the removal recursive
     /// rather than an `rmdir` that happened to succeed on an empty directory.
-    /// And the root *surviving* is `rule:core-classes/temporary-dir-sweep`'s: the sweep takes what `rule:core-api/one-temporary-directory-member` handed out,
+    /// And the root *surviving* is `rule:core-classes/temporary-directory-sweep`'s: the sweep takes what `rule:core-api/one-temporary-directory-member` handed out,
     /// never the root it created under, which is the one directory the next
     /// script on this host still needs.
     #[test]

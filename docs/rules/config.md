@@ -205,7 +205,7 @@ the operator names. Every other block's keys are closed.
 | `[server]`, `[[server.mount]]` | [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount) |
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
 | `[image]` | [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline) |
-| `[io]` | [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep) |
+| `[io]` | [`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep) |
 | `[mail.<name>]`, `[storage.<name>]` | [`programs/framework-core-half`](programs.md#programs-framework-core-half) |
 | `[session]` | [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot) |
 | `[app.log]` | [`errors/handler-script`](errors.md#errors-handler-script) |
@@ -391,7 +391,7 @@ a package is checked against its own grant line alone
 names, in one boot line per app folder whose tree writes no `fs.read`, the folder its requests read.
 
 - **Memory:** the app folder is one path per context, and the temporary directories are the list
-  the context already keeps for its sweep ([`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep)). It buys
+  the context already keeps for its sweep ([`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep)). It buys
   **Simplicity**: a first program reads and writes its files with no `nvs.toml`, while a server
   never writes beside code it would run, never reads its own secrets, and one request cannot reach
   another's directory.
@@ -2580,7 +2580,7 @@ entry is late. Everything downstream follows with nothing added:
 - Its grants are that snapshot's `[capabilities]`. The script must still lie under the global
   `script.spawn` roots for the configuration to resolve (`E0611`), so a block can narrow what a
   fire may do and never makes a script schedulable.
-- The script reads one map from `Core\Script::arguments()` ([`core-classes/script-args`](core-classes.md#core-classes-script-args)):
+- The script reads one map from `Core\Script::arguments()` ([`core-classes/script-arguments`](core-classes.md#core-classes-script-arguments)):
   `["name" => <entry name>, "on" => "cron"]` for a cron run, and the event's word under `"on"` for
   an event run ([`config/an-entry-runs-on-a-server-event`](config.md#config-an-entry-runs-on-a-server-event)), so every run reads its entry the
   same way. It answers with a top-level `return`, exactly as any `spawn script` target does. There
@@ -2596,7 +2596,7 @@ schedule is a property of a running deployment, not of executing a file. The scr
 fire, so an edited one is picked up at the next fire exactly as a request picks up an edited entry. A
 queued job is the same root shape ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)).
 
-<sub>See also [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`config/a-schedule-entry-narrows-only`](config.md#config-a-schedule-entry-narrows-only).</sub>
+<sub>See also [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`core-classes/script-arguments`](core-classes.md#core-classes-script-arguments), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`config/a-schedule-entry-narrows-only`](config.md#config-a-schedule-entry-narrows-only).</sub>
 
 <a id="config-a-fleet-entry-fires-at-most-once-under-a-lease"></a>
 

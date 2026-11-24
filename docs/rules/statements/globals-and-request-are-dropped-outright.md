@@ -8,7 +8,7 @@ frame (`rule:statements/storage-that-outlives-a-call`), so there is nothing left
 replacement would have to enumerate a frame's locals reflectively, which nothing else here does, or become
 a second informally-scoped static bag.
 
-`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::queryParameter()`, `::post()`
+`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::queryParameter()`, `::formField()`
 and `::cookie()` — already say which one a value came from. A merged accessor would either fix an order,
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.

@@ -4,7 +4,7 @@
   "seeAlso": [
     "programs/memory-priority",
     "security/isolate-budget-is-the-trees",
-    "core-classes/temporary-dir-sweep",
+    "core-classes/temporary-directory-sweep",
     "core-classes/html-later"
   ],
   "guardedBy": [

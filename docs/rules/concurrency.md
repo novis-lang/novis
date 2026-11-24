@@ -473,7 +473,7 @@ member says it is not one in its first paragraph.
   and an operator command, which is a subsystem and not one member; it is the job queue's
   ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)).
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-directory-sweep`](core-classes.md#core-classes-temporary-directory-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 

@@ -12,6 +12,6 @@
     "tests/conformance/core/signature-an-expired-signature-is-the-one-distinguishable-refusal.nvst",
     "tests/conformance/core/router-signed-route-refuses-every-forgery-with-one-sentence.nvst",
     "tests/conformance/core/router-signed-route-tells-an-expired-link-apart-and-nothing-else.nvst",
-    "tests/conformance/core/uri-sign-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
+    "tests/conformance/core/uri-signed-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
   ]
 }

@@ -6379,7 +6379,7 @@
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/02-two-files-at-the-same-time.nvs": "ab09f7cbb5727c8a",
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/03-work-on-the-page-while-the-report-is-built.nvs": "661493662a1861da",
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/04-print-the-child-s-output-and-await-once.nvs": "1f2a306ed083b784",
-  "docs/examples/lang/concurrency/isolates-spawn-script-and-await/05-give-the-child-a-value-with-args.nvs": "75f34caa51dd6bbb",
+  "docs/examples/lang/concurrency/isolates-spawn-script-and-await/05-give-the-child-a-value-with-arguments.nvs": "75f34caa51dd6bbb",
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/about.md": "5af34c0dcb132dda",
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/details.md": "5fdaf74a88d68049",
   "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs/add-up.nvs": "3cc62f7d8854c568",

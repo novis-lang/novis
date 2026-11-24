@@ -209,13 +209,13 @@ fn font(data: &[u8]) -> Result<FontRef<'_>, Error> {
 pub fn check(layout: &Layout<'_>) -> Result<(), Error> {
     if !(layout.size.is_finite() && layout.size > 0.0) {
         return Err(Error::Invalid(format!(
-            "`text` needs a finite `size` above 0, and was given {}",
+            "the text `size` must be a finite number above 0, and was given {}",
             layout.size
         )));
     }
     if layout.max_width == Some(0) {
         return Err(Error::Invalid(
-            "`text` needs a `maxWidth` above 0".to_owned(),
+            "the text `maxWidth` must be above 0".to_owned(),
         ));
     }
     font(layout.font).map(|_| ())

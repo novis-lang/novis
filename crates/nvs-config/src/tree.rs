@@ -91,7 +91,7 @@ pub struct Config {
     pub ext: BTreeMap<String, toml::Table>,
     /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,
-    /// `[io]` — the root the runtime creates temporary directories under (`rule:core-classes/temporary-dir-sweep`).
+    /// `[io]` — the root the runtime creates temporary directories under (`rule:core-classes/temporary-directory-sweep`).
     pub io: Option<Io>,
     /// `[image]` — the image component's pixel cap (`rule:core-classes/image-pixel-cap`).
     pub image: Option<Image>,
@@ -552,7 +552,7 @@ pub struct Debug {
     /// (`nvs_runtime::Ctx::flush_inline_debug`), because whether the body is HTML at all is a
     /// declaration the body member may not have made yet when the dump was written.
     pub inline: Option<bool>,
-    /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
+    /// `rule:core-classes/temporary-directory-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
     /// silent leak. Not on [`crate::settable::SETTABLE`], and reloadable per `crate::directive`, which is what lets an operator
     /// flip it on around one problematic request and off again; there is deliberately no
@@ -585,7 +585,7 @@ pub struct Debug {
     pub token_file: Option<String>,
 }
 
-/// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::createTemporaryDirectory` creates under.
+/// `[io]` — `rule:core-classes/temporary-directory-sweep`'s owned root: the one directory `Core\IO::createTemporaryDirectory` creates under.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Io {

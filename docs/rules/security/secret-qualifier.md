@@ -19,7 +19,7 @@ rule. So an array literal written as an argument keeps the qualifier on its own 
 its element type is `mixed`, a `secret` element makes it `array<secret mixed>`. A `Core` sink reads
 that off the argument, a `Core` credential position takes it, and a parameter the program declares
 `mixed` or `array<mixed>` refuses it. A `Core` option declared `mixed`, such as `Core\Queue::push`'s
-`args`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
+`arguments`, takes a `secret` value as a `Core` `mixed` parameter does, and its sink refuses it.
 
 **A `secret` value is never an array key.** An array's type records nothing about its keys, so
 `Core\Arr::keys`, a `foreach`, a dump and an error message all read a key back as plain text. No

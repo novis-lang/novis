@@ -9,6 +9,6 @@
   "guardedBy": [
     "tests/conformance/core/cli-prompts-are-not-interactive-without-a-terminal.nvst",
     "tests/conformance/core/cli-a-prompt-with-no-default-throws-rather-than-waiting.nvst",
-    "tests/conformance/core/test-script-answers-drain-into-every-prompt.nvst"
+    "tests/conformance/core/test-answer-cli-answers-drain-into-every-prompt.nvst"
   ]
 }

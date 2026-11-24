@@ -874,7 +874,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s ordering against `rule:observability/script-on-exit`'s
+    /// `rule:core-classes/temporary-directory-sweep`'s ordering against `rule:observability/script-on-exit`'s
     /// queue, asserted from the one side that can observe it: the last user
     /// code still finds the directory it was handed, and the teardown behind it
     /// is what takes it away.
@@ -898,7 +898,7 @@ mod tests {
         assert_eq!(
             STILL_STANDING.with(std::cell::Cell::get),
             Some(true),
-            "a hook is user code, and `rule:core-classes/temporary-dir-sweep` puts the sweep after all of it"
+            "a hook is user code, and `rule:core-classes/temporary-directory-sweep` puts the sweep after all of it"
         );
 
         drop(ctx);

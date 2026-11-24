@@ -911,7 +911,7 @@ fn every_shared_tier_key_is_not_settable_and_applied_at_reload() {
     }
 }
 
-/// `rule:core-classes/temporary-dir-sweep`: the one switch that stops the end-of-script sweep belongs to the
+/// `rule:core-classes/temporary-directory-sweep`: the one switch that stops the end-of-script sweep belongs to the
 /// operator, and it is read again by the next script that ends.
 ///
 /// Not settable because the rule gives the key to the operator alone: a request able to write it would
@@ -960,7 +960,7 @@ fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload(
         None,
         "`Core\\Config::set(\"debug.keep_temporary\", true)` has to refuse: a request that could \
          keep its own temporary directories would be exempting its own files from the sweep, which \
-         is the hoarding `rule:core-classes/temporary-dir-sweep` refuses",
+         is the hoarding `rule:core-classes/temporary-directory-sweep` refuses",
     );
     assert_eq!(
         row.apply,
@@ -2500,7 +2500,7 @@ fn every_key_of_an_include_entry_resolves_through_the_one_include_row() {
     }
 }
 
-/// `rule:core-classes/temporary-dir-sweep` rests the whole safety of its two sweeps on the runtime
+/// `rule:core-classes/temporary-directory-sweep` rests the whole safety of its two sweeps on the runtime
 /// owning the temporary root outright, so the root is the operator's (not settable). A new one reloads
 /// (`Reload`): the next temporary directory is made under it, and a directory made under the old
 /// one is deleted by path when its script ends. Asserted beside `[debug] keep_temporary`, which is
@@ -2542,7 +2542,7 @@ fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directo
         assert_eq!(
             settable::how(row.key),
             None,
-            "`Core\\Config::set(\"{}\", …)` has to refuse: `rule:core-classes/temporary-dir-sweep` \
+            "`Core\\Config::set(\"{}\", …)` has to refuse: `rule:core-classes/temporary-directory-sweep` \
              says there is no in-language setter for either half of this, because a program that \
              can exempt its own files can be made to hoard them",
             row.key,

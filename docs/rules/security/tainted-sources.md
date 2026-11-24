@@ -26,12 +26,12 @@ message clean would rest on every future message leaving input out, which no che
 `Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
 fixed words.
 
-**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::post`
+**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::formField`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
-brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
+brackets — and `::queryParameters` and `::formFields` answer a bracketed name's one level of values as
 `array<tainted string>`, keyed as the brackets keyed them — so a `foreach` key over one is `tainted
 string` as well (`rule:security/taint-propagation`) — refusing a second level with a `ParseError`
-that names `queryAs`/`postAs`. A deeper shape is those two members' to validate into a written type,
+that names `queryParametersAs`/`formFieldsAs`. A deeper shape is those two members' to validate into a written type,
 so no request accessor answers a field as `mixed`. A value that is `mixed` by nature — a decoded
 document such as `json()`, a session or cache entry, a row's `get` — carries the qualifier the moment
 text is pulled out of it, because text out of `mixed` is `tainted` (`rule:security/taint-propagation`).
