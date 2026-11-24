@@ -25,3 +25,10 @@ and before `allows`. It reads the query string through the parser `Core\Request:
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
 `BadCapture` and the match.
+
+**Declined:**
+- **A lenient mode, where a value that does not convert gives the default.** A stale link such as
+  `?page=abc` would then show page 1 with no sign that its input was wrong, and the same silent
+  fallback would hide a typo or a probe. A route that wants the fallback declares the parameter
+  `string` and converts it itself — `($page as ?uint) ?? 1` — so the choice is written where it is
+  made.

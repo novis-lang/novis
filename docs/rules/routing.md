@@ -377,6 +377,13 @@ request and only for a route that declares a `#[Query]` parameter, so a route wi
 more. An absent optional key gives the declared default. Every failure above is `refused` with
 `BadCapture` and the match.
 
+**Declined:**
+- **A lenient mode, where a value that does not convert gives the default.** A stale link such as
+  `?page=abc` would then show page 1 with no sign that its input was wrong, and the same silent
+  fallback would hide a typo or a probe. A route that wants the fallback declares the parameter
+  `string` and converts it itself — `($page as ?uint) ?? 1` — so the choice is written where it is
+  made.
+
 <sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
 <a id="routing-a-method-is-one-endpoint-everywhere"></a>
