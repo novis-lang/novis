@@ -131,6 +131,8 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Documentation links.** *Working on it now.* A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.
+2. **Faster reflection.** `Core\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.
+3. **Dates and times.** `==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.
 <!-- roadmap:end -->
 
 ## Contributing
