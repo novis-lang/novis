@@ -21,7 +21,7 @@ stages:
     context: [crates/nvs-syntax/src/duration.rs, docs/rules/types/duration.md, docs/rules/core-api/no-mode-strings.md]
   - id: 5
     title: "Novis\\Intl\\DateFormat takes a fields option, and every enum case of the component is documented"
-    status: open
+    status: done
     context: [extensions/intl/src/dates.rs, extensions/intl/nvs/DateFormat.nvs, extensions/intl/manifest.json, wit/intl.wit, docs/rules/core-classes/intl-roster.md]
   - id: 6
     title: "the rules hold every decision and every decline, and stages 1 to 3 have their feature proofs"
@@ -87,6 +87,7 @@ checks:
     stage: 5
     name: "every DateFormat::Fields case formats in every locale of the built-in data, on dates and on dateTimes"
     run: [cargo, test, --lib, date_format_fields_]
+    cwd: extensions/intl
     tests: [date_format_fields_every_case_formats_in_every_locale, date_format_fields_year_month_in_de, date_format_fields_weekday_in_de, date_format_fields_on_date_times]
     timeout: 1800
   - id: proofs
@@ -265,6 +266,29 @@ set keyed by them hashes those slots in place of the address. Nothing changes fo
 longer than the memory cap allows stops at the cap like any other array. Every other new member spends
 one result object or one string per call. Each module doc that records a cost says so.
 
+**Calls the stage 5 session made (2026-11-24).**
+
+- `Fields::Month`, `YearMonth` and `Year` on `DateFormat::dateTimes` throw `LogicError` before
+  anything is formatted, and the message names `DateFormat::dates`. ICU4X 2.4 has no field set that
+  writes a time beside a date with no day (`build_date_and_time` refuses `M`, `YM` and `Y`). Writing
+  the date alone and dropping the time would hide what the caller asked for. Both members keep one
+  options type, so the type does not exclude the three cases.
+- `format-dates` takes a `date-options` record, `{ length, fields }`, as `format-date-times` takes
+  its options, in place of a bare `length`. The Novis half passes `$options ?? {}`.
+- Each case of an intl enum is described in the enum's one `help` text, as the other intl enums
+  already do. The manifest format gains no per-case help field: that would change every
+  component's manifest and `nvs meta` for one card per case. `Style`, `Kind` and `Category` now
+  name every case too, so every enum of the component documents each of its cases.
+- ICU4X 2.4 does not load the number formatter for some calendar-period patterns, such as `pt`'s
+  long year and month. A debug build panics there, and a release build writes the year in ASCII
+  digits as an error part. `format_dates` loads the number formatter for `Month`, `YearMonth` and
+  `Year` through `DateTimeNames::include_decimal_formatter`. **What it spends:** one number
+  formatter load per call with those three cases, and nothing for the other seven.
+- The check `intl-fields` runs in `extensions/intl` (`cwd`), because that crate is outside the
+  workspace and a `cargo test` at the root never reaches its tests. The coverage test lists the
+  locales through `icu_datetime_data`'s macro on a probe type of its own, with dev-dependencies
+  whose versions `compiled_data` already locks.
+
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is recorded in the handoff with what failed, and the stage goes on. A count, never a timing,
 decides whether a cost changed.
@@ -384,14 +408,14 @@ the first edit, as `file.rs:NN` and one line each.
 
 **Split:** none, one session.
 
-- [ ] `wit/intl.wit:87`, `:116` and `:204`: a `fields` enum and option on dates and date-times.
-- [ ] `extensions/intl/src/dates.rs:78`, `:137` and `:181`: map each case to ICU4X 2.4's `DateFields`
+- [x] `wit/intl.wit:87`, `:116` and `:204`: a `fields` enum and option on dates and date-times.
+- [x] `extensions/intl/src/dates.rs:78`, `:137` and `:181`: map each case to ICU4X 2.4's `DateFields`
   (`D`, `MD`, `YMD`, `E`, `DE`, `MDE`, `YMDE`, `M`, `YM`, `Y`) with the given length.
-- [ ] `extensions/intl/manifest.json:144` and `extensions/intl/nvs/DateFormat.nvs:10` and `:31`: the
+- [x] `extensions/intl/manifest.json:144` and `extensions/intl/nvs/DateFormat.nvs:10` and `:31`: the
   `Fields` enum with one help text per case, and the option on `dates` and `dateTimes`. The `Length`
   help lists its three cases and says there is no longer one. The component is rebuilt by
   `crates/nvs-ext/build.rs:130`.
-- [ ] The tests the check `intl-fields` names: the coverage test walks every case over every locale the
+- [x] The tests the check `intl-fields` names: the coverage test walks every case over every locale the
   built-in data has and fails naming a case and a locale that formats nothing. Run once by name.
 
 ### 6. the rules hold every decision and every decline, and stages 1 to 3 have their feature proofs
@@ -438,39 +462,40 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 is one commit, `1925501b9d`.
+Stages 1 to 5 are done. Stage 4 is `1925501b9d`, and stage 5 is `6f5ec01ee0`.
 
-- `Date::parse(text, format)` is a prepared CLDR row: `Restriction::DateFields` in
-  `crates/nvs-types/src/intrinsics.rs`, `cldr::validate_date` and `cldr::date_parse_fields_only`,
-  and `(DATE_NAME, "parse")` on `PREPARED_MEMBERS`. A time or zone letter in a written pattern is
-  `E0769`, and a computed one throws `LogicError`. `cldr::read` now splits into `read_fields`,
-  shared with the new `cldr::read_date`, which builds a `civil::Date` with no zone.
-- `Date::range(from, to, {step?})` takes `DATE_STEP_UNITS` with the default `Unit::Day`. Entry `k`
-  is `from` plus `k` steps, so a month step from the 31st comes back to the 31st. The list is asked
-  of the memory ceiling once, with `date_whole_units` (taken out of `Date::difference`) as the bound.
-- `Duration::toClock({seconds?})` and `Duration::fromClock(text)` call
-  `nvs_syntax::duration::render_clock` and `parse_clock`. A sign is written only when what is left
-  is not zero, so `-30s` is `0:00` and never `-0:00`: a call this session made, recorded in
-  `rule:types/duration`'s new clock paragraph.
-- Both rules are updated: the constructor table and a `Date::parse`/`Date::range` paragraph, and
-  the `W1038` sentence now names `Date::parse` too.
-- The check `parse-range-clock` ran once by name and is green: eight tests. Build, clippy and
-  `cargo fmt --check` are green. A smoke run of the debug binary printed the expected range, parse
-  and clock text, and `nvs check` refused `HH:mm` at `Date::parse` and `Unit::Hour` as `step`.
+- `wit/intl.wit` has `enum date-fields` (ten cases), `record date-options { length, fields }`, and
+  `fields` on `date-time-options`. `format-dates` takes `date-options`. The host's typed mirror,
+  `crates/nvs-ext/src/typed/intl.rs`, and the guest glue in `extensions/intl/src/lib.rs` follow.
+- `extensions/intl/src/dates.rs`: `Fields` with `ALL`, `icu()` and `has_day()`, and `DateOptions`.
+  `format_dates` builds a date field set or a calendar period, and loads the number formatter for
+  the second (§ *Standing decisions*, stage 5). `format_date_times` returns `Invalid` for a case
+  with no day.
+- `extensions/intl/manifest.json`: the `Fields` enum owned by `DateFormat`, its help naming each
+  case with `de` examples at `Length::Long`. `Length`, `Style`, `Kind` and `Category` help now name
+  every case. `DateFormat.nvs` takes `fields?: Fields` on `dates` and `dateTimes`.
+- The check `intl-fields` ran once by name with its new `cwd: extensions/intl`: four tests, green.
+  The coverage test found the `pt` failure above before the fix. Build, clippy, `cargo fmt --check`
+  and the extension's own clippy are green. A smoke run of the debug binary printed `01/2026` for
+  `YearMonth` in `de` at `Medium`, `janeiro de 2026` in `pt` at `Long`, and the `LogicError` for
+  `Fields::Year` on `dateTimes`.
 
 ### Next
 
-Stage 5, one session, which touches only `extensions/intl/`, `wit/intl.wit` and its own tests. Its
-items in the stage list carry the anchors: `wit/intl.wit:87`, `:116` and `:204`,
-`extensions/intl/src/dates.rs:78`, `:137` and `:181`, `extensions/intl/manifest.json:144` and
-`extensions/intl/nvs/DateFormat.nvs:10` and `:31`. The ten `Fields` cases and their card wording are
-in § *Standing decisions*. Then the tests of check `intl-fields`.
+Stage 6, as its `**Split:**` line says: the session writes the rules, then three writing subagents
+take the proofs. Its items carry the anchors. Stage 6 adds to `rule:core-classes/intl-roster`
+(`docs/rules/core-classes/intl-roster.md:1`): the `Full` decline, the `Fields` option and the stage 5
+calls in § *Standing decisions* (`dateTimes` throws for a case with no day, one help text per enum).
 
 Stage 6 also owes this: `rule:types/duration` still says "`90m == 1h30m` is `false`" in its literal
 paragraph. Stage 1 made that `true`, so the sentence is rewritten there.
 
 Stage 7 owes the proofs of the four stage 4 members: `Date::parse`, `Date::range`,
-`Duration::toClock` and `Duration::fromClock`.
+`Duration::toClock` and `Duration::fromClock`. It also owes the `fields` examples of
+`Novis\Intl\DateFormat::dates` and `dateTimes`. The `DateFormat` cards, the `Length`, `Style`,
+`Kind` and `Category` enum cards and the new `Fields` card changed, so `site --check stale` and
+`questions` will name their pages. `website/public/llms-full.txt` still shows `formatDates` with a
+`length` parameter until `render --website` runs.
 
 Tests that may go red in the gate: the `floored` refactor touched every `DateTime::startOf` and
 `endOf` call for a day and larger, and those tests did not run in stage 3
@@ -481,7 +506,10 @@ names one. A `.nvs` source with `format('Y…')` and no `w` now prints `W1038`. 
 `ObjectSet`, `DateTime::fromIso`, `Instant::fromIso` and `Core\Unit` card texts changed, so
 `site --check stale` and `questions` will name their pages in stage 7. `nvs meta`'s snapshot, if a test
 pins it, gains three `toIso` rows, `fromIso`'s `?Zone $zone = null`, eleven `Date` rows, four
-`DateTime` rows and two `Duration` rows. A test that counts `PREPARED_MEMBERS` or the intrinsic
+`DateTime` rows and two `Duration` rows, plus the intl `Fields` enum. A test that pins the intl
+component's size (`crates/nvs-ext/tests/builtin.rs`, 5%) may move a little with the new field sets.
+`crates/nvs-ext/tests/intl.rs`'s `a_core_time_value_formats_in_its_zone_and_locale` now passes
+`formatDates` an options shape and did not run here. A test that counts `PREPARED_MEMBERS` or the intrinsic
 rows sees one more of each. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text, and
 `docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` could show `[Europe/Berlin]`
 as the fix. Stage 6 also owes the proofs of the thirteen new stage 3 members.
