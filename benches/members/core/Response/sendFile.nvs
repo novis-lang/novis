@@ -14,7 +14,7 @@ class Bench
 
     public static function run(uint $rounds): uint
     {
-        array<string> $paths = [Bench::file('text.nvs'), Bench::file('json.nvs'), Bench::file('html.nvs')];
+        array<string> $paths = [Bench::file('sendText.nvs'), Bench::file('sendJson.nvs'), Bench::file('sendHtml.nvs')];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -28,6 +28,6 @@ class Bench
 }
 
 // The result chooses the file that is sent last, so the loop cannot be skipped.
-array<string> $files = [Bench::file('text.nvs'), Bench::file('json.nvs'), Bench::file('html.nvs')];
+array<string> $files = [Bench::file('sendText.nvs'), Bench::file('sendJson.nvs'), Bench::file('sendHtml.nvs')];
 int $last = (Bench::run(20000) % 3) as int;
 Core\Response::sendFile($files[$last]);

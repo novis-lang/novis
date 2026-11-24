@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isAppQueryGroup` checks one group type, as a program does to skip application groups.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isSystemGroup` checks one group type, as a program does to leave out built-in groups.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

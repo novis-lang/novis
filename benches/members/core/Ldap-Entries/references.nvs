@@ -1,6 +1,6 @@
 <?nvs
 // Measures how fast `references` returns the other servers a search named, as a program does after the loop.
-// bench: iterations 200000
+// bench: iterations 4096 callgrind
 // bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
@@ -28,4 +28,4 @@ class Bench
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(4096), "\n";

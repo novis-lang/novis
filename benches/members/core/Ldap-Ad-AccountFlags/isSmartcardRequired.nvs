@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isSmartcardRequired` checks one account, as a program does before it offers a password login.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

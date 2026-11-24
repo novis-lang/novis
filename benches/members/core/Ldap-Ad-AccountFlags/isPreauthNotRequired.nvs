@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isPreauthNotRequired` checks one account, as a security check does when it looks for weak accounts.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

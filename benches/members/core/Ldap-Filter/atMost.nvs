@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Filter::atMost` builds a filter, as a report does to find the accounts below a limit.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

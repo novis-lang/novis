@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `allowsReversibleEncryption` checks one account, as a program does when it reviews password settings.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

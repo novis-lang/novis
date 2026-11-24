@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isMnsLogonAccount` checks one account, as a program does when it skips cluster accounts.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

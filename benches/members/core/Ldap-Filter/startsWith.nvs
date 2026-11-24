@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Filter::startsWith` builds a filter, as a search box does for each key press.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

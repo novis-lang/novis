@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `isWorkstationTrustAccount` checks one account, as a program does when it skips computer accounts.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

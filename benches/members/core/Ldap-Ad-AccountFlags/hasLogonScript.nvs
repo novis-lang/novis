@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `hasLogonScript` checks one account, as a program does when it lists accounts with a logon script.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 
