@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/identity_store.rs, crates/nvs-ir/src/lower/operator.rs, crates/nvs-types/src/expr/operators.rs, docs/rules/expressions/object-identity-equality.md, docs/rules/expressions/equality-semantics.md]
   - id: 2
     title: "Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cldr.rs, crates/nvs-types/src/intrinsics.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/classes/stringable.md]
   - id: 3
     title: "Date moves to the start and end of a unit, counts a difference and finds a weekday, and Date and DateTime read four more calendar parts"
@@ -329,23 +329,23 @@ the first edit, as `file.rs:NN` and one line each.
   - [x] `Date::toIso` and `TimeOfDay::toIso` (`date_iso_text`, `clock_iso_text`), with
     `to_iso_date_round_trips_through_from_iso` and `to_iso_time_of_day_round_trips_through_from_iso`.
   - [x] `DateTime::toIso` (`zoned_iso_text`), with `to_iso_datetime_writes_its_offset_and_zone`.
-  - [ ] `to_iso_round_trips_at_both_ends_of_the_range`, once `DateTime::fromIso` reads the zoned
+  - [x] `to_iso_round_trips_at_both_ends_of_the_range`, once `DateTime::fromIso` reads the zoned
     text (the next item).
-- [ ] `crates/nvs-stdlib/src/time.rs:4019` (`iso_datetime`) and `:3831` (`validate_iso`): the
+- [x] `crates/nvs-stdlib/src/time.rs:4019` (`iso_datetime`) and `:3831` (`validate_iso`): the
   `DateTime` grammar reads an optional offset and one `[Zone]`, and checks the offset against the
   zone at that local time. `crates/nvs-stdlib/src/time.rs:1807`: `DateTime::fromIso`'s `$zone`
   becomes `?Zone $zone = null`. `crates/nvs-types/src/intrinsics.rs:397`: a literal's zone name and
   offset are checked while compiling, and a literal with no `[Zone]` and no second argument does not
   compile. The cards at `time.rs:2528` (`DateTime::fromIso`) and `time.rs:1524` (`Instant::fromIso`,
   whose text names `DateTime::fromIso` with a zone) say what is true now.
-- [ ] The tests the check `iso-zone` names, run once by name. A failing test is written first.
-- [ ] `crates/nvs-types/src/expr/operators.rs:3172`: E0710's help for the three classes names `toIso()`
+- [x] The tests the check `iso-zone` names, run once by name. A failing test is written first.
+- [x] `crates/nvs-types/src/expr/operators.rs:3172`: E0710's help for the three classes names `toIso()`
   and `format(...)`.
-- [ ] `crates/nvs-types/src/intrinsics.rs:670` and `crates/nvs-stdlib/src/cldr.rs:392`: a written
+- [x] `crates/nvs-types/src/intrinsics.rs:670` and `crates/nvs-stdlib/src/cldr.rs:392`: a written
   pattern with `Y` and no `w` reports the new warning; its card in
   `crates/nvs-diagnostics/src/code/warnings.rs:396`'s neighbourhood.
-- [ ] The tests the checks `iso-text` and `week-year-warning` name, each run once by name.
-- [ ] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: § *One text format per class*
+- [x] The tests the checks `iso-text` and `week-year-warning` name, each run once by name.
+- [x] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: § *One text format per class*
   says each class writes the text it reads, and that a `DateTime`'s text carries its offset and zone
   (RFC 9557), with the reason: the offset names one moment in a repeated hour, and the zone lets the
   text cross a query string or a JSON document with no second argument.
@@ -438,32 +438,42 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stage 1 is done (`322968e6a2`): the `ObjectMap` and `ObjectSet` cards and module docs, the
-`identity_store` keying table, the serialize reason and the four rules say `==` finds a `Core\Time`
-value by value. `objmap.rs`'s `same` stays identity on purpose, and its doc says why.
+Stages 1 and 2 are done. Stage 2's commits: `6a8f7932b6` (`DateTime::fromIso` reads `±HH:MM[:SS]`
+and one `[Zone]`, `$zone` is `?Zone = null`, the literal row checks the zone, the offset and a missing
+zone), `18d37949ac` (E0710's help names `toIso()` and `format(...)` for the three civil classes),
+`e3488682b8` (warning `W1038` for a written `Y` with no `w`; it found `apps/telemetry/src/Limit.nvs`
+writing `YYYY-MM-dd`, now `yyyy`) and `82ee43de69` (the rule). The checks `iso-text`, `iso-zone` and
+`week-year-warning` each ran once by name and are green, and so did the three conformance cases the
+slice changed or added. Build and clippy are green.
 
-Stage 2's first item is in: `Date::toIso`, `TimeOfDay::toIso` and `DateTime::toIso`
-(`crates/nvs-stdlib/src/time.rs` `date_iso_text`, `clock_iso_text`, `zoned_iso_text`, beside
-`nvs_core_time_instant_to_iso`). Their three tests ran once by name and are green. Build and clippy
-are green.
+How the reader is built: `time.rs` `iso_datetime` returns an `IsoLocal` (civil, offset, zone id and
+zone), `place_local` places it and checks the offset by converting with it and comparing the zone's
+offset at that instant, and `validate_datetime_iso(text, zone_given)` is the checker's entry.
+`validate_iso(IsoForm::DateTime)` calls it with `zone_given = true`. The intrinsic arm in
+`crates/nvs-types/src/intrinsics.rs` (grep `Grammar::Iso(nvs_stdlib::time::IsoForm::DateTime)`) counts
+`$zone` as given when an argument fills it or a `...` may.
 
 ### Next
 
-Stage 2's second item: `DateTime::fromIso` reads the zoned text.
+Stage 3, one session:
 
-- `crates/nvs-stdlib/src/time.rs` `iso_datetime` (grep `fn iso_datetime`) and `validate_iso`: an
-  optional `+HH:MM` or `+HH:MM:SS` offset, then one `[Zone]`, the offset checked against the zone at
-  that local time. `nvs_core_time_datetime_from_iso` (grep) takes `?Zone $zone = null`; its row is
-  near `time.rs:1806` and its card is `DATETIME_FROM_ISO_DOC`.
-- `crates/nvs-types/src/intrinsics.rs:397`: the `DateTime` literal row checks the zone name and the
-  offset, and a literal with neither `[Zone]` nor a second argument does not compile.
-- Then the tests of check `iso-zone`, and `to_iso_round_trips_at_both_ends_of_the_range` for `iso-text`.
-- Then E0710's help (`operators.rs:3172`), the week-year warning, and the rule paragraph.
+- `crates/nvs-stdlib/src/time.rs:5469` (`floored`): a calendar-only twin over year, month and day, and
+  `Date::startOf` / `Date::endOf` over it. The `Date` class rows are near `time.rs:2898`.
+- `time.rs:5751` (`nvs_core_time_datetime_difference`): `Date::difference(Date, Unit)`.
+- `time.rs:5591` (`nvs_core_time_datetime_next`): `Date::next(Weekday)` and `Date::previous(Weekday)`.
+- `time.rs:6301` (`nvs_core_time_date_day_of_year`) neighbourhood: `daysInMonth`, `quarter`,
+  `isoWeek`, `isoWeekYear` on `Date`, then on `DateTime`.
+- `Core\Unit`'s card names the units a `Date` takes; then the tests of check `date-calendar`.
 
 Tests that may go red in the gate: a conformance case or example that prints `==` on two equal
 `Core\Time` values and expected `false`. Grep `tests/conformance` and `docs/examples` for
-`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one. The
-`ObjectMap`/`ObjectSet` card texts changed, so `site --check stale` and `questions` will name their
-pages in stage 7, and `nvs meta`'s snapshot, if a test pins it, gains three `toIso` rows.
+`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one. A
+`.nvs` source with `format('Y…')` and no `w` now prints `W1038`; a case that pins a check's whole
+output would show it (`tests/conformance/core/cldr-formats-a-week-based-year-beside-its-week.nvst`
+writes `Y|YY|YYYYY` and passed). The `ObjectMap`, `ObjectSet`, `DateTime::fromIso` and
+`Instant::fromIso` card texts changed, so `site --check stale` and `questions` will name their pages in
+stage 7, and `nvs meta`'s snapshot, if a test pins it, gains three `toIso` rows and `fromIso`'s
+`?Zone $zone = null`. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text,
+and the `docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` example could show `[Europe/Berlin]` as the fix.
 
 ### Backlog
