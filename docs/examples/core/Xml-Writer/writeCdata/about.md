@@ -9,5 +9,5 @@ A CDATA section ends at `]]>`, so the text cannot contain `]]>`. If it does, `wr
 `LogicError` and writes nothing. Use `writeText` for such a text. A CDATA section must be inside an
 element, so `writeCdata` also throws a `LogicError` when no element is open.
 
-**The examples below** compare `writeCdata` with `writeText`, show the two errors, and put HTML into a
-news feed.
+**The examples below** compare `writeCdata` with `writeText`, show the two errors, and put HTML into
+a news feed.

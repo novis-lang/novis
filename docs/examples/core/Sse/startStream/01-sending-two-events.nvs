@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to start an event stream and send two events on it.
 
-// `stream()` starts the event stream and returns the object that sends events.
+// `startStream()` starts the event stream and returns the object that sends events.
 Core\Sse $sse = Core\Sse::startStream();
 // Each `send()` writes one event. This prints `data: Loading` and then `data: Ready`.
 $sse->send('Loading');

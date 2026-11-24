@@ -7,8 +7,8 @@ may grow that far.
 The sign follows the usual rule: two numbers with the same sign give a positive product, and two
 with different signs give a negative one.
 
-Both numbers stay as they were. `multipliedBy` returns a new number, so a running product is the number you
-get back from it, not the one you called it on.
+Both numbers stay as they were. `multipliedBy` returns a new number, so a running product is the
+number you get back from it, not the one you called it on.
 
 **Good to know:** `$a * $b` does not work on two `Core\BigInt` values, because `*` is only for plain
 numbers. `multipliedBy` is how you write it.

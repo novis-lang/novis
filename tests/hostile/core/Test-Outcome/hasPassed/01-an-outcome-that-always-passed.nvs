@@ -9,7 +9,7 @@ use Core\Test\Outcome;
 // 1. A class extends `Outcome` and changes `hasPassed()`.
 class AlwaysPassed extends Outcome
 {
-    public function passed(): bool
+    public function hasPassed(): bool
     {
         return true;
     }
@@ -18,7 +18,7 @@ class AlwaysPassed extends Outcome
 // 2. A class implements `Outcome` and changes `hasPassed()`.
 class PretendPassed implements Outcome
 {
-    public function passed(): bool
+    public function hasPassed(): bool
     {
         return true;
     }

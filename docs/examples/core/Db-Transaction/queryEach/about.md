@@ -1,9 +1,9 @@
 Runs one statement that reads rows inside a transaction, and gives you the rows one at a time.
 
 Use `Core\Db\Transaction::queryEach` for a result that is too large for memory, inside the function
-you gave to `Core\Db\Connection::runTransaction`. It returns a `Core\Db\Stream`, and a `foreach` over
-it reads one row from the database in each round of the loop. Only the current row is in memory.
-The result includes the rows that the transaction has already written.
+you gave to `Core\Db\Connection::runTransaction`. It returns a `Core\Db\Stream`, and a `foreach`
+over it reads one row from the database in each round of the loop. Only the current row is in
+memory. The result includes the rows that the transaction has already written.
 
 The transaction is busy until the last row is read. While rows remain, a second statement through
 the transaction throws a `LogicError`, and the transaction cannot end. So read all the rows first,

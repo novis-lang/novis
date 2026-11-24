@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        // The query string is in the file `queryArray.nvsr` beside this one.
+        // The query string is in the file `queryParameters.nvsr` beside this one.
         array<string> $names = ['tag', 'filter', 'page'];
         uint $total = 0;
         uint $i = 0;

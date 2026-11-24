@@ -1,6 +1,6 @@
 Adds a signature to an address, so that nobody can change the address without the server noticing.
-`signed` returns a new `Uri` with a `_sig` parameter at the end of the query. Later, `verifySignature`
-checks it with the same keys.
+`signed` returns a new `Uri` with a `_sig` parameter at the end of the query. Later,
+`verifySignature` checks it with the same keys.
 
 The signature covers the scheme, the host, the port, the path and every query parameter. If somebody
 adds, removes or changes a parameter, the check fails. The order of the parameters and the fragment

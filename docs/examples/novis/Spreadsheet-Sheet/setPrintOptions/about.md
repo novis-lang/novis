@@ -6,9 +6,9 @@ tall (`height`) the sheet is printed on, and `0` means as many as needed. `margi
 `"1:1"`, prints those rows at the top of every page. `area` is the range to print.
 
 **Good to know:** set `fitToPage` before the first row of the sheet. After that, it throws a
-`LogicError`. Give all the options in one call. A second `setPrintOptions` call on the same sheet throws
-a `LogicError`. Any other `orientation` throws a `LogicError`. A CSV file has no page setup, so
-`setPrintOptions` does nothing there.
+`LogicError`. Give all the options in one call. A second `setPrintOptions` call on the same sheet
+throws a `LogicError`. Any other `orientation` throws a `LogicError`. A CSV file has no page setup,
+so `setPrintOptions` does nothing there.
 
 **The examples below** print a wide report on one page, repeat the header row on every page, and
 show the error for a fit set after the first row.

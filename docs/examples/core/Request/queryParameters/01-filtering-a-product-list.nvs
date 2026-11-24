@@ -4,7 +4,7 @@
 array<string> $products = ['red shirt' => 'red', 'blue shirt' => 'blue', 'red hat' => 'red'];
 
 // The address is `/products?filter[color]=red&filter[size]=M`.
-// `queryArray` returns the values under "filter" as an array with the keys "color" and "size".
+// `queryParameters` returns the values under "filter" as an array with the keys "color" and "size".
 array<tainted string> $filter = Core\Request::queryParameters('filter');
 tainted string $color = $filter['color'] ?? '';
 

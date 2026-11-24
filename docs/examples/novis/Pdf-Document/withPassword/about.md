@@ -6,6 +6,8 @@ and allows all changes to it. The same document with the same password always gi
 A PDF/A file cannot have a password, so `withPassword` with a PDF/A standard makes `render` throw a
 `LogicError`. `Reader` and `Pages` cannot open an encrypted file. They throw a `ParseError`.
 
+`withPassword` returns a new `Document` and does not change the one you called it on.
+
 **Good to know:** a password protects a file that travels, such as a statement sent by email. Send
 the password another way, never in the same email.
 

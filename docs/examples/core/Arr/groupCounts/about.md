@@ -8,9 +8,9 @@ An array key can only be a whole number or text, so a counted value has to be on
 number 1 and the text "1" name the same group, because that is how every array key works. A value
 that is neither a whole number nor text stops the program with an error.
 
-The `by` option changes what is counted. It is a function that receives an entry and returns the name
-of the group that entry belongs to. With it you can count by one field of a record, or by any rule
-you can write.
+The `by` option changes what is counted. It is a function that receives an entry and returns the
+name of the group that entry belongs to. With it you can count by one field of a record, or by any
+rule you can write.
 
-The examples show how often each value appears, how to count by a field, and how to build a report of
-orders per day.
+The examples show how often each value appears, how to count by a field, and how to build a report
+of orders per day.

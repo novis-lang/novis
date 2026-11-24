@@ -13,5 +13,7 @@ changes the height of its row. HTML that is too tall is cut off and listed in `R
 A table without a `width` is as wide as its content. Give it one, such as `width: 100%`, so the
 slot's column has room.
 
+`withSlots` returns a new `Document` and does not change the one you called it on.
+
 **The examples below** carry a total forward, add up the hours of each page, and find a fill that
 does not fit.

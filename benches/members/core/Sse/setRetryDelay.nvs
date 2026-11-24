@@ -18,6 +18,6 @@ class Bench
     }
 }
 
-// `retry()` writes to an open stream, so the program opens one first.
+// `setRetryDelay()` writes to an open stream, so the program opens one first.
 Core\Sse $sse = Core\Sse::startStream();
 echo Bench::run($sse, 256), "\n";

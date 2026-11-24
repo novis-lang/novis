@@ -1,6 +1,6 @@
 <?nvs
-// Attack: `raisedTo` is asked for answers far wider than the memory of the machine,
-// and then for hundreds of thousands of small ones. Every answer that is too
+// Attack: a program calls `raisedTo` for results far wider than the memory of the
+// machine, and then for hundreds of thousands of small ones. Every result that is too
 // wide should throw an error, and the program should run to its last line.
 // hostile: timeout-ms 20000
 

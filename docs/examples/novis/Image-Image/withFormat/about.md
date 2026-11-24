@@ -14,7 +14,7 @@ The second argument is optional, with these keys:
 A JPEG has no transparent pixels, so the alpha of each pixel is removed. A GIF has at most 256
 colours.
 
-Without `withFormat`, `encode` writes the format of the file you opened. A canvas from `create` and pixels
-from `fromRaw` are written as PNG.
+Without `withFormat`, `encode` writes the format of the file you opened. A canvas from `create` and
+pixels from `fromRaw` are written as PNG.
 
 `withFormat` returns a new `Image` and does not change the one you called it on.

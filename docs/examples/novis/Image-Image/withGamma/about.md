@@ -4,8 +4,8 @@ Makes the middle tones of an image lighter or darker, and keeps black and white.
 makes them darker. Black stays black and white stays white. This is useful for a photo that is too
 dark in the shadows but has a correct sky. Transparency does not change.
 
-`withGamma` returns a new `Image` and does not change the one you called it on. The work happens when
-`encode`, `encodeVariants` or `raw` runs.
+`withGamma` returns a new `Image` and does not change the one you called it on. The work happens
+when `encode`, `encodeVariants` or `raw` runs.
 
-**Good to know:** `withBrightness` changes every value by the same factor, so it can turn light parts
-white. `withGamma` does not change the lightest and the darkest values.
+**Good to know:** `withBrightness` changes every value by the same factor, so it can turn light
+parts white. `withGamma` does not change the lightest and the darkest values.

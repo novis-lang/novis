@@ -5,5 +5,5 @@ Such an account is called a temporary duplicate account. The user's main account
 domain, and this account gives the user access to this domain only. Few directories have such
 accounts. For an ordinary user account, `isNormalAccount` returns `true` instead.
 
-`isTemporaryDuplicateAccount` reads the bit `0x100` of `userAccountControl`. An account with only this
-flag is `256`.
+`isTemporaryDuplicateAccount` reads the bit `0x100` of `userAccountControl`. An account with only
+this flag is `256`.

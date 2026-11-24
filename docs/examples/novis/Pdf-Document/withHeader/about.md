@@ -10,6 +10,8 @@ margin before the body is placed on the pages. Without it, the margin is the one
 gives. A header taller than its margin is cut off at the margin. `Rendered::overflows` lists it with
 its page number.
 
+`withHeader` returns a new `Document` and does not change the one you called it on.
+
 **Good to know:** a header that needs no logic can be plain CSS. `@page { @top-right { content:
 counter(page) } }` writes the page number. When both are there, the function's header is drawn.
 

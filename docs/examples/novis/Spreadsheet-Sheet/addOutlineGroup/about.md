@@ -5,9 +5,9 @@ Excel shows a button beside the group, and a person can hide and show the group 
 show them in Excel.
 
 **Good to know:** the rows of a group are written with the group, so add a group of rows before you
-add its rows. Add a group of columns before the first row of the sheet. A group added too late throws
-a `LogicError`. A row can also get its group from the `level` option of `addRow`. A CSV file has no
-groups, so `addOutlineGroup` does nothing there.
+add its rows. Add a group of columns before the first row of the sheet. A group added too late
+throws a `LogicError`. A row can also get its group from the `level` option of `addRow`. A CSV file
+has no groups, so `addOutlineGroup` does nothing there.
 
 **The examples below** group the order lines under each order, hide a group of columns, and show
 the error for a group added after its rows.

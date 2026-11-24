@@ -10,7 +10,7 @@ class Bench
     {
         array<string> $fields = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'f' . ($n as string) . '=value+' . ($n as string));
         array<string> $lines = [
-            '// scaling: file postAs.nvsr',
+            '// scaling: file formFieldsAs.nvsr',
             '--METHOD--',
             'POST',
             '--PATH--',

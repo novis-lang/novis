@@ -1,5 +1,5 @@
 <?nvs
-// Attack: `remainder` is asked for remainders of numbers about a million bits wide, a
+// Attack: a program calls `remainder` on numbers about a million bits wide, a
 // thousand times over. A remainder that is never freed would use up the memory
 // of the machine. The program should run to its last line.
 
@@ -33,7 +33,7 @@ echo $wide->negated()->remainder($seven)->sign(), "\n";
 //    this prints 0.
 echo $wide->remainder($wide)->sign(), "\n";
 
-// 5. A divisor of zero is refused, however wide the number it divides is.
+// 5. A divisor of zero throws an error, however wide the number it divides is.
 try {
     $wide->remainder(Core\BigInt::of(0));
 } catch (ArithmeticError $error) {

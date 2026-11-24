@@ -10,7 +10,8 @@ A name with square brackets, such as `tag[]=red`, gives `null`. Read those value
 `Core\Request::queryParameters`.
 
 To get a number, convert the text with `as`, for example `as ?int`. A command-line program has no
-request, so `query` throws a `LogicError` there. When an escape in the query string is not valid
-UTF-8 text, `query` throws a `RuntimeError`.
+request, so `queryParameter` throws a `LogicError` there. When an escape in the query string is not
+valid UTF-8 text, `queryParameter` throws a `RuntimeError`.
+
 **The examples below** show a search page, a parameter that is missing or is not a number, and a
 name with brackets.

@@ -27,7 +27,7 @@ echo Core\Arr::count(Core\Arr::intersection($left, $right, {
     comparator: fn(int $a, int $b): int => 1,
 })), "\n";
 
-// 5. A `by` function answers the same text for every entry. All ten thousand
+// 5. A `by` function returns the same text for every entry. All ten thousand
 // entries are then compared as one value, and all of them are kept.
 echo Core\Arr::count(Core\Arr::intersection($wide, $left, {
     by: fn(int $value): string => 'same',

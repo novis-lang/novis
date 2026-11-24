@@ -2,7 +2,7 @@
 // Shows what happens when a value contains a number that JSON cannot write.
 
 // `Core\Math::divide(0.0, 0.0)` gives NaN, which has no JSON form.
-// So `json` throws a `LogicError` and sends nothing.
+// So `sendJson` throws a `LogicError` and sends nothing.
 float $average = Core\Math::divide(0.0, 0.0);
 try {
     Core\Response::sendJson({ average: $average });

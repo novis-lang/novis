@@ -4,5 +4,5 @@ Makes an image lighter or darker.
 nothing. `1.2` makes the image 20% brighter, and `0.5` makes it half as bright. A value can not go
 above 255, so very bright parts become white. Transparency does not change.
 
-`withBrightness` returns a new `Image` and does not change the one you called it on. The work happens
-when `encode`, `encodeVariants` or `raw` runs.
+`withBrightness` returns a new `Image` and does not change the one you called it on. The work
+happens when `encode`, `encodeVariants` or `raw` runs.

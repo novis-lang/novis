@@ -1,5 +1,5 @@
 <?nvs
-// Shows that `params()` returns an empty array when the path has no captures.
+// Shows that `parameters()` returns an empty array when the path has no captures.
 
 class Pages
 {

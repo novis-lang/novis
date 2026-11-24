@@ -2,7 +2,7 @@
 // Shows what `Core\Request::queryParameters` returns for a list, a single value and a missing name.
 
 // The address is `/search?tag[]=red&tag[]=new&color=blue`.
-// `queryArray` returns every value of "tag" as a list. This prints "red" and "new".
+// `queryParameters` returns every value of "tag" as a list. This prints "red" and "new".
 foreach (Core\Request::queryParameters('tag') as tainted string $tag) {
     echo $tag, "\n";
 }

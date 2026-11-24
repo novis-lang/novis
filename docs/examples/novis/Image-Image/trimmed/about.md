@@ -2,8 +2,8 @@ Removes the border around an image.
 
 The border is every row and column at the edge that has the colour of the top-left pixel. `trimmed`
 removes these rows and columns and keeps the rest. `threshold` is how far a colour may differ from
-the top-left pixel and still count as border. It goes from 0 to 255, and the default is 10. An
-image that is all border keeps its full size.
+the top-left pixel and still count as border. It goes from 0 to 255, and the default is 10. An image
+that is all border keeps its full size.
 
 `trimmed` returns a new `Image` and does not change the one you called it on. The work happens when
 `encode`, `encodeVariants` or `raw` runs.

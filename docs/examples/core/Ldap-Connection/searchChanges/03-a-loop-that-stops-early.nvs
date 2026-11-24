@@ -4,7 +4,7 @@
 
 class Count
 {
-    // Reads every entry of the changes and returns how many there were.
+    // Reads every entry in `$changes` and returns how many there were.
     public static function all(Core\Ldap\Changes $changes): uint
     {
         uint $count = 0;

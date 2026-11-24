@@ -4,5 +4,5 @@ When this flag is set, Active Directory accepts an empty password for the accoun
 the account name can then log in with it. This is a security risk, so it is good to check which
 accounts have this flag.
 
-`isPasswordNotRequired` reads the bit `0x20` of `userAccountControl`. A normal account with this flag
-is `544`.
+`isPasswordNotRequired` reads the bit `0x20` of `userAccountControl`. A normal account with this
+flag is `544`.

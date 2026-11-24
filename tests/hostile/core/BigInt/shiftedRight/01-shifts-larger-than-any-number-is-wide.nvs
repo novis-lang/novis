@@ -1,7 +1,7 @@
 <?nvs
-// Attack: `shiftedRight` is asked to shift by distances far larger than any number is
-// wide. It is also asked to shift the widest number away, one block of bits at
-// a time. Every shift should answer at once. The program should run to its
+// Attack: a program calls `shiftedRight` with distances far larger than any number is
+// wide. It also shifts the widest number away, one block of bits at a time.
+// Every shift should return at once. The program should run to its
 // last line.
 // hostile: timeout-ms 20000
 

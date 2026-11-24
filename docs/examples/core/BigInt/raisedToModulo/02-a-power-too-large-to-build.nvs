@@ -1,14 +1,13 @@
 <?nvs
-// Shows why `raisedToModulo` exists: it gives the remainder of a power that is far too
-// large to hold.
+// Shows how `raisedToModulo` gives the remainder of a power that is far too large to hold.
 
 // For a small power, `raisedToModulo` and `raisedTo` with `remainder` give the same answer. This
 // prints 445 twice.
 echo Core\BigInt::of(4)->raisedToModulo(Core\BigInt::of(13), Core\BigInt::of(497)), "\n";
 echo Core\BigInt::of(4)->raisedTo(13)->remainder(Core\BigInt::of(497)), "\n";
 
-// 7 to the power 1000000 is a number of 845099 digits. `raisedTo` refuses to build
-// it, and this prints the message.
+// 7 to the power 1000000 is a number of 845099 digits. `raisedTo` throws an
+// error for a number that wide, and this prints the message.
 try {
     Core\BigInt::of(7)->raisedTo(1000000);
 } catch (ArithmeticError $tooWide) {

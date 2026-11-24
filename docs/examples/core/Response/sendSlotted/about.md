@@ -13,8 +13,8 @@ Two small inline scripts put each part in place. If the page's `Content-Security
 scripts, Novis adds the hashes of both scripts to it for you.
 
 **Good to know:** call it before the main script ends. Inside a callable that `later` or
-`Core\Task::runAfterResponse` runs, it throws a `LogicError`. A failed part shows its `error` markup,
-and the status stays the same.
+`Core\Task::runAfterResponse` runs, it throws a `LogicError`. A failed part shows its `error`
+markup, and the status stays the same.
 
 **The examples below** show a page with two slow parts, a decision for one path only, and a part
 that fails.

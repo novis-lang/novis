@@ -4,10 +4,10 @@ Some programs that read XML look at this line to learn what kind of document the
 page is a common example: a browser reads `<!DOCTYPE html>` and shows the page in standards mode.
 The declaration names the document type, and usually that name is the name of the root element.
 
-`writeDoctype` writes only the name. It does not write a link to a DTD file or any entity definitions,
-so the document does not depend on any other file. A document has at most one declaration, and it
-must come before the root element. In other cases, `writeDoctype` throws a `LogicError` and writes
-nothing.
+`writeDoctype` writes only the name. It does not write a link to a DTD file or any entity
+definitions, so the document does not depend on any other file. A document has at most one
+declaration, and it must come before the root element. In other cases, `writeDoctype` throws a
+`LogicError` and writes nothing.
 
 The declaration is for programs outside Novis. `Core\Xml::parse` and `Core\Xml::reader` throw an
 error for any document that contains `<!DOCTYPE`.

@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a visitor sends a path with eight very long captures, full of escapes.
-// `params()` should return all of them or the match should throw an error, and nothing may crash.
+// `parameters()` should return all of them or the match should throw an error.
+// Nothing may crash.
 
 class Search
 {

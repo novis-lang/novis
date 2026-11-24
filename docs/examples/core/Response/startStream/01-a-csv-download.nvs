@@ -2,7 +2,7 @@
 // Shows how to send a CSV file that the browser saves as a download.
 
 // `Content-Disposition` tells the browser to save the body as the file `orders.csv`.
-// Set every header before you call `stream`, because `stream` sends the headers.
+// Set every header before you call `startStream`, because `startStream` sends the headers.
 Core\Response::setHeader('Content-Disposition', "attachment; filename=\"orders.csv\"");
 
 // `Core\Response::startStream` starts the body and sets its content type to `text/csv`.

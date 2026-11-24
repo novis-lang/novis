@@ -17,7 +17,7 @@ try {
     $sse->send('refused');
 }
 
-// 4. A number of weeks too large for a duration, which should throw an error before `retry` runs.
+// 4. A number of weeks too large for a duration. It should throw an error before `setRetryDelay` runs.
 try {
     $sse->setRetryDelay(Core\Time\Duration::weeks(9223372036854775807));
 } catch (Throwable $tooLarge) {

@@ -18,7 +18,7 @@ echo Core\Math::quotient(Core\Math::INT_MIN, Core\Math::INT_MIN), "\n";
 // 3. Divisions whose result does not exist or does not fit an `int`. Each one throws an error.
 class Attempt
 {
-    public static function intDiv(int $a, int $b): void
+    public static function quotient(int $a, int $b): void
     {
         try {
             echo Core\Math::quotient($a, $b), "\n";

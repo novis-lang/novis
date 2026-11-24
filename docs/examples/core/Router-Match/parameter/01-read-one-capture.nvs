@@ -14,7 +14,7 @@ class Profiles
 // The request is `GET /users/alice`.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    // `param("username")` returns the capture `{username}`. This prints `alice`.
+    // `parameter("username")` returns the capture `{username}`. This prints `alice`.
     echo $matched->parameter('username') as string, "\n";
 
     // The route has no capture called `id`, so the result is `null`.

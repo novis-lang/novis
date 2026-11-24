@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a page is sent early with `slotted`. A visitor sends text that looks like a part,
-// and the page calls `slotted` too late or starts thousands of parts.
+// Attack: a page is sent early with `sendSlotted`. A visitor sends text that looks like a part,
+// and the page calls `sendSlotted` too late or starts thousands of parts.
 // Every part must stay in its own place.
 use Core\Http\Method;
 
@@ -36,7 +36,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     );
     echo 'step 1 ', $fake->status(), "\n", $fake->body();
 
-    // 2. A part calls `slotted` after the main script ended. It throws a `LogicError`.
+    // 2. A part calls `sendSlotted` after the main script ended. It throws a `LogicError`.
     var $late = Core\Test::request(Method::Get, '/late');
     echo 'step 2 ', $late->status(), "\n", $late->body();
 

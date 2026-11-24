@@ -5,9 +5,9 @@ call it on does not change.
 The title, the axis titles, the legend and `labels` come from the chart you call `combinedWith` on.
 The options of `$other` are not used.
 
-**Good to know:** a combined chart has two different types of column, line and area. `Sheet::addChart`
-throws a `LogicError` for any other combination, such as a pie with a line, two lines, or three
-types.
+**Good to know:** a combined chart has two different types of column, line and area.
+`Sheet::addChart` throws a `LogicError` for any other combination, such as a pie with a line, two
+lines, or three types.
 
 **The examples below** draw columns of the sales with a line of the costs, show that the first
 chart does not change, and show the error for three types in one chart.

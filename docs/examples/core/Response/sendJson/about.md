@@ -7,8 +7,8 @@ can be a shape, an array, a number, a string, `null`, or an object of a class wi
 `#[Core\Json\Derive]`. Text from a visitor is allowed anywhere inside the value. Each string is
 written as a JSON string, so its quotes are escaped and it cannot change the JSON around it.
 
-If the value contains something JSON cannot write, such as a `float` that is NaN, `json` throws a
-`LogicError` and sends nothing.
+If the value contains something JSON cannot write, such as a `float` that is NaN, `sendJson` throws
+a `LogicError` and sends nothing.
 
 The examples show a small object, a value that JSON cannot write, and a list of products for an
 API.

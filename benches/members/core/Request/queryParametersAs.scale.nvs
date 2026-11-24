@@ -10,7 +10,7 @@ class Bench
     {
         array<string> $params = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => 'f' . ($n as string) . '=value+' . ($n as string));
         array<string> $lines = [
-            '// scaling: file queryAs.nvsr',
+            '// scaling: file queryParametersAs.nvsr',
             '--METHOD--',
             'GET',
             '--PATH--',

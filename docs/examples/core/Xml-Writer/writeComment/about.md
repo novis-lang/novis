@@ -5,8 +5,8 @@ closed. A program that reads the document skips comments, so they are notes for 
 
 XML has no way to escape anything inside a comment. The writer writes your text as it is. For this
 reason, the text cannot contain two dashes in a row (`--`), and it cannot end with a dash. If it
-does, `writeComment` throws a `LogicError` and writes nothing. A text with `<` or `&` is allowed, and it
-is written unchanged.
+does, `writeComment` throws a `LogicError` and writes nothing. A text with `<` or `&` is allowed,
+and it is written unchanged.
 
 **The examples below** add comments in three places, show the two errors, and put a header comment
 at the top of an exported file.

@@ -5,5 +5,5 @@ Delegation lets a service connect to another service in the name of a user. With
 service may do that even when the user did not log in with Kerberos, for example through a web
 form. An administrator also chooses which services it may connect to.
 
-`isTrustedToAuthenticateForDelegation` reads the bit `0x1000000` of `userAccountControl`. A normal account
-with this flag is `16777728`.
+`isTrustedToAuthenticateForDelegation` reads the bit `0x1000000` of `userAccountControl`. A normal
+account with this flag is `16777728`.

@@ -1,6 +1,5 @@
 <?nvs
-// Shows how to give a child a value with `arguments:`. A file reads it with
-// `Core\Script::arguments()`. A static method gets it as its arguments.
+// Shows how to give a child a value with `arguments:`.
 
 class Report
 {
@@ -10,10 +9,11 @@ class Report
     }
 }
 
-// The child gets a copy of the array.
+// The child gets a copy of the array. A file reads it with `Core\Script::arguments()`.
 var $sum = await spawn script 'jobs/add-up.nvs' with(arguments: [10, 20, 30]);
 echo 'total: ', $sum->value as int, "\n";
 
+// A static method gets the value as its arguments.
 // Each key of the array is the name of one parameter.
 var $report = await spawn script Report::title with(arguments: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";

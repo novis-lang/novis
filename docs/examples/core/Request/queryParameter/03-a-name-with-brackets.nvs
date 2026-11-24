@@ -5,7 +5,7 @@
 // "sort" has no brackets, so this prints "sort: price".
 echo 'sort: ', Core\Request::queryParameter('sort') ?? 'none', "\n";
 
-// "tag" was sent with brackets, so `query` returns `null` for it. This prints "tag: none".
+// "tag" was sent with brackets, so `queryParameter` returns `null` for it. This prints "tag: none".
 echo 'tag: ', Core\Request::queryParameter('tag') ?? 'none', "\n";
 
 // `Core\Request::queryParameters` returns the values of "tag". This prints "tags: 2".

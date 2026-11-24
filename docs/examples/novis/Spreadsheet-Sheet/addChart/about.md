@@ -1,5 +1,5 @@
-Puts the chart `$chart` at the cell `$cell`, and returns the sheet. You build the chart with `Chart`,
-such as `Chart::column()`, and add its series with `withSeries`.
+Puts the chart `$chart` at the cell `$cell`, and returns the sheet. You build the chart with
+`Chart`, such as `Chart::column()`, and add its series with `withSeries`.
 
 The top-left corner of the chart is at the cell. `width` and `height` are its size in pixels. The
 default size is 480 by 288 pixels.

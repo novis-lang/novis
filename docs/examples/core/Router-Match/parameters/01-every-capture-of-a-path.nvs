@@ -13,7 +13,7 @@ class Blog
 
 ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, '/blog/2026/hello%20world');
 if ($found != null) {
-    // `params()` returns an array. Each key is the name in the route's path.
+    // `parameters()` returns an array. Each key is the name in the route's path.
     // `%20` is already decoded, so this prints `year: 2026` and `slug: hello world`.
     foreach ($found->parameters() as tainted string $name => mixed $value) {
         echo $name, ': ', $value as string, "\n";

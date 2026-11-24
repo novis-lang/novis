@@ -1,6 +1,6 @@
-Returns one value that a route captured from the path, found by its name. You write the name
-without the braces: `param("id")` for `{id}`. The result is the same value that `params()` has
-under that key.
+Returns one value that a route captured from the path, found by its name. You write the name without
+the braces: `parameter("id")` for `{id}`. The result is the same value that `parameters()` has under
+that key.
 
 The value is already percent-decoded, and it has the type of its handler parameter. A text
 capture is `tainted`, because the visitor chose it.

@@ -6,7 +6,7 @@ a visitor is allowed. The server also sends the header `X-Content-Type-Options: 
 browser never reads the text as HTML. A `<script>` tag in the text is shown as text and does not
 run.
 
-Use `Core\Response::sendHtml` for a page, `json` for data that a program reads, and `bytes` for any
-other content type. Using `text` and `echo` in one response does not compile.
+Use `Core\Response::sendHtml` for a page, `sendJson` for data that a program reads, and `sendBytes`
+for any other content type. Using `sendText` and `echo` in one response does not compile.
 
 The examples show a health check, text from a visitor, and a `robots.txt` file built from a list.

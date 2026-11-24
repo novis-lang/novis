@@ -1,8 +1,8 @@
 `Core\Math::remainder` returns the remainder after dividing one `float` by another. For whole
 numbers, use the `%` operator.
 
-The remainder has the same sign as the first value. So `Core\Math::remainder(-7.5, 2.0)` is `-1.5`, and
-the sign of the second value does not change the result. To get a result that is never negative,
+The remainder has the same sign as the first value. So `Core\Math::remainder(-7.5, 2.0)` is `-1.5`,
+and the sign of the second value does not change the result. To get a result that is never negative,
 add the second value and take the remainder again.
 
 When the second value is an infinity, the result is the first value. When the first value is an

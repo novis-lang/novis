@@ -5,7 +5,7 @@
 // "note" has no brackets, so this prints "note: gift wrap".
 echo 'note: ', Core\Request::formField('note') ?? 'none', "\n";
 
-// "item" was sent with brackets, so `post` returns `null` for it. This prints "item: none".
+// "item" was sent with brackets, so `formField` returns `null` for it. This prints "item: none".
 echo 'item: ', Core\Request::formField('item') ?? 'none', "\n";
 
 // `Core\Request::formFields` returns the values of "item". This prints "items: 2".

@@ -4,5 +4,5 @@ A domain controller is a server that runs Active Directory. Each domain controll
 of this type, and it uses the account to work with the other domain controllers. No other account
 has this flag.
 
-`isServerTrustAccount` reads the bit `0x2000` of `userAccountControl`. An account with only this flag
-is `8192`.
+`isServerTrustAccount` reads the bit `0x2000` of `userAccountControl`. An account with only this
+flag is `8192`.

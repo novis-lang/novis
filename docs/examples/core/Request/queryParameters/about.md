@@ -7,7 +7,8 @@ Empty brackets give a list. Brackets with a key give that key: `filter[color]=re
 in the address gives an empty array, so you can loop over the result without a check for `null`.
 
 A name with two pairs of brackets, such as `filter[color][dark]=navy`, throws a `ParseError`. Read
-those values with `Core\Request::queryParametersAs` and a type that describes them. A command-line program
-has no request, so `queryArray` throws a `LogicError` there.
+those values with `Core\Request::queryParametersAs` and a type that describes them. A command-line
+program has no request, so `queryParameters` throws a `LogicError` there.
+
 **The examples below** filter a product list, read a list and a missing name, and show the error
 for two pairs of brackets.

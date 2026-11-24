@@ -28,7 +28,7 @@ echo Core\Arr::count(Core\Arr::difference($left, $right, {
     comparator: fn(int $a, int $b): int => 0,
 })), "\n";
 
-// 5. A `by` function that answers the same text for every entry, so ten
+// 5. A `by` function that returns the same text for every entry, so ten
 // thousand entries are compared as one value.
 echo Core\Arr::count(Core\Arr::difference($wide, $left, {
     by: fn(int $value): string => 'same',

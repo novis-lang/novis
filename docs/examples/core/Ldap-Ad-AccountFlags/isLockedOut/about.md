@@ -4,5 +4,5 @@ Active Directory locks an account after too many wrong passwords. Nobody can log
 the lockout time ends or an administrator unlocks it.
 
 Active Directory computes this flag. It does not store it in `userAccountControl`. A search that
-selects `userAccountControl` also reads `msDS-User-Account-Control-Computed`, and `isLockedOut` reads
-the bit `0x10` from there. So `bits` never includes it, and `with` cannot set or clear it.
+selects `userAccountControl` also reads `msDS-User-Account-Control-Computed`, and `isLockedOut`
+reads the bit `0x10` from there. So `bits` never includes it, and `with` cannot set or clear it.

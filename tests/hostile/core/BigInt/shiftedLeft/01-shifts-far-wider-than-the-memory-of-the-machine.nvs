@@ -1,6 +1,6 @@
 <?nvs
-// Attack: `shiftedLeft` is asked for numbers far wider than the memory of the machine,
-// and then for hundreds of thousands of small shifts. Every shift that is too
+// Attack: a program calls `shiftedLeft` for numbers far wider than the memory of the
+// machine, and then for hundreds of thousands of small shifts. Every shift that is too
 // wide should throw an error, and the program should run to its last line.
 // hostile: timeout-ms 20000
 

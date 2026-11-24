@@ -2,7 +2,7 @@
 // Shows what happens when the content type contains a character that is not allowed.
 
 // Every character of a content type must be printable ASCII. `é` is not,
-// so `bytes` throws a `LogicError` and sends nothing.
+// so `sendBytes` throws a `LogicError` and sends nothing.
 tainted string $answer = '';
 try {
     Core\Response::sendBytes('Hello' as bytes, 'text/plain; name=café');

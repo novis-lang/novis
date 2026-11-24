@@ -14,7 +14,7 @@ class Address
 
 var $prefix = Core\BigInt::parse('20010db8000000ff', { radix: 16 });
 
-// `shl(64)` moves the prefix above the interface part. This prints
+// `shiftedLeft(64)` moves the prefix above the interface part. This prints
 // 20010db8000000ff0000000000000042.
 var $iface = Core\BigInt::parse('42', { radix: 16 });
 echo Address::combine($prefix, $iface)->format({ radix: 16 }), "\n";

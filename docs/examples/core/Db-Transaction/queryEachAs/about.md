@@ -1,9 +1,9 @@
 Runs one statement inside a transaction and gives you each row as an object of your class, one row
 at a time.
 
-`Core\Db\Transaction::queryEachAs` works like `Core\Db\Transaction::queryEach`, and it builds an object
-from each row. You write the class in angle brackets, as in `queryEachAs<Note>`. Each round of a
-`foreach` reads one row and builds one `Note`. Only the current object is in memory.
+`Core\Db\Transaction::queryEachAs` works like `Core\Db\Transaction::queryEach`, and it builds an
+object from each row. You write the class in angle brackets, as in `queryEachAs<Note>`. Each round
+of a `foreach` reads one row and builds one `Note`. Only the current object is in memory.
 
 The class says how a row is read, as for `Core\Db\Transaction::queryAs`. A class with the
 `#[Db\Derive]` attribute gets one property for each column with the same name. A class with a

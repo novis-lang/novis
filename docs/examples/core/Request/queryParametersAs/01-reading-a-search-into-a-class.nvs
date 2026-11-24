@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the parameters of an address such as `/search?q=red+shoes&page=2` into your own class.
 
-// `#[Core\Json\Derive]` lets `queryAs` fill the class. Each public property reads the parameter with the same name.
+// With `#[Core\Json\Derive]`, each public property reads the parameter with the same name.
 // The address comes from the client, so a string property must be `tainted string`.
 #[Core\Json\Derive]
 class Search

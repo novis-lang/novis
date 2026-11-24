@@ -1,9 +1,9 @@
 Divides one number by another and rounds the answer to as many digits as you ask for.
 
-`Core\Decimal::divideRounded` takes four arguments: the value, the divisor, how many digits to keep after
-the point, and how to round. `100` divided by `3` at two digits is `33.33`. The answer always carries
-the scale you named, so `100` divided by `4` at two digits is `25.00`. Dividing by zero throws an
-`ArithmeticError`, and so does a scale above 28.
+`Core\Decimal::divideRounded` takes four arguments: the value, the divisor, how many digits to keep
+after the point, and how to round. `100` divided by `3` at two digits is `33.33`. The answer always
+carries the scale you named, so `100` divided by `4` at two digits is `25.00`. Dividing by zero
+throws an `ArithmeticError`, and so does a scale above 28.
 
 Use it where rounding is part of the rule your program follows: a bill split between people, a price
 converted into another currency, a rate applied to an amount. The fourth argument is a

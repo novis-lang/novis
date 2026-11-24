@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        // The form is in the file `postAs.nvsr` beside this one.
+        // The form is in the file `formFieldsAs.nvsr` beside this one.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

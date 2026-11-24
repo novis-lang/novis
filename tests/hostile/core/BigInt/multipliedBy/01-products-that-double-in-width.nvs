@@ -1,5 +1,5 @@
 <?nvs
-// Attack: `multipliedBy` is asked for products of very wide numbers, and then for a
+// Attack: a program calls `multipliedBy` on very wide numbers, and then builds a
 // number that doubles in width every round. A product that is never freed would
 // use up the memory of the machine. The program should run to its last line.
 

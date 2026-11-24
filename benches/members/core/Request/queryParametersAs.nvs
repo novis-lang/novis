@@ -8,7 +8,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        // The query string is in the file `queryAs.nvsr` beside this one.
+        // The query string is in the file `queryParametersAs.nvsr` beside this one.
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

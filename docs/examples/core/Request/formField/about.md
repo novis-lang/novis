@@ -7,10 +7,11 @@ The name must match exactly, and upper and lower case are different. A `+` in th
 returned as a space, and a percent escape such as `%40` is decoded. A name with square brackets,
 such as `item[]=pen`, gives `null`. Read those values with `Core\Request::formFields`.
 
-`post` reads both kinds of form: `application/x-www-form-urlencoded` and `multipart/form-data`. If
-you also need the uploaded files, call `Core\Request::files()` first.
+`formField` reads both kinds of form: `application/x-www-form-urlencoded` and `multipart/form-data`.
+If you also need the uploaded files, call `Core\Request::files()` first.
 
-A command-line program has no request, so `post` throws a `LogicError` there. When an escape in the
-form is not valid UTF-8 text, `post` throws a `RuntimeError`.
+A command-line program has no request, so `formField` throws a `LogicError` there. When an escape in
+the form is not valid UTF-8 text, `formField` throws a `RuntimeError`.
+
 **The examples below** read a contact form, show a field that is missing or empty, and show a field
 with brackets.

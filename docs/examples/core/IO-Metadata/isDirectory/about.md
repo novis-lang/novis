@@ -1,7 +1,7 @@
 Checks if a path was a folder.
 
-`$info->isDirectory()` works on the `Core\IO\Metadata` value that `Core\IO::metadata` returns. It returns
-`true` when the path was a folder, and `false` when it was a file or anything else.
+`$info->isDirectory()` works on the `Core\IO\Metadata` value that `Core\IO::metadata` returns. It
+returns `true` when the path was a folder, and `false` when it was a file or anything else.
 
 `isFile` checks for a regular file. A folder returns `true` for `isDirectory` and `false` for
 `isFile`. Some rare kinds of path, such as a device or a named pipe, return `false` for both.

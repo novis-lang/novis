@@ -11,4 +11,5 @@ not allowed.
 A name or a reference that breaks these rules throws a `LogicError`. If its sheet is not in the
 workbook, `finish()` throws a `LogicError`.
 
-**Good to know:** you can define a name before or after its sheet, and the whole workbook can use it.
+**Good to know:** you can define a name before or after its sheet, and the whole workbook can use
+it.

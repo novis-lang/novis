@@ -5,9 +5,10 @@ A command-line tool uses it for a file name the user typed, such as `report.txt`
 `fromWorkingDirectory` gives the full path of that file. `.` and `..` are removed from the result.
 A path that is already full is returned without the folder.
 
-**Good to know:** `fromWorkingDirectory` throws a `RuntimeError` while the program answers a web request. A
-server's working folder is not the folder of your app. Write the path in your program as a string
-in quotes instead. A path written in quotes starts at the folder of the file that contains it.
+**Good to know:** `fromWorkingDirectory` throws a `RuntimeError` while the program answers a web
+request. A server's working folder is not the folder of your app. Write the path in your program as
+a string in quotes instead. A path written in quotes starts at the folder of the file that contains
+it.
 
 **The examples below** turn a typed file name into a full path, show that `.` and `..` are
 removed, and build export paths below the starting folder.

@@ -1,8 +1,8 @@
 Asks for a password at the terminal, without showing what the person types.
 
-`Core\Cli::askSecret` writes the question and reads one line back. The terminal is told not to show the
-characters while they are typed, so they are never on the screen at all. Nothing is left behind in
-the scrollback buffer or in a screen recording.
+`Core\Cli::askSecret` writes the question and reads one line back. The terminal is told not to show
+the characters while they are typed, so they are never on the screen at all. Nothing is left behind
+in the scrollback buffer or in a screen recording.
 
 The answer is a `secret tainted string`. `secret` means the value cannot be printed, logged or put
 in an error message. A program that tries does not compile. `tainted` means a person typed it, so

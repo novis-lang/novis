@@ -1,5 +1,5 @@
-`Core\Task::runAfterResponse()` runs a callable after the response is sent, so the visitor does not wait
-for it.
+`Core\Task::runAfterResponse()` runs a callable after the response is sent, so the visitor does not
+wait for it.
 
 Use it for work the visitor does not need to see: a receipt email, a webhook, an audit log. The call
 only adds the callable to a list. The callables run when the request is finished, one at a time, in

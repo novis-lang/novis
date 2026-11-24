@@ -18,14 +18,14 @@ echo Core\Arr::count(Core\Arr::groupCounts($mixed)), "\n";
 array<int> $wide = Core\Arr::range(1, 10000);
 echo Core\Arr::count(Core\Arr::groupCounts($wide)), "\n";
 
-// 4. A `by` function that answers the same name for every entry, so ten
+// 4. A `by` function that returns the same name for every entry, so ten
 // thousand entries fall into one group.
 echo Core\Arr::count(Core\Arr::groupCounts($wide, {
     by: fn(int $value): string => 'same',
 })), "\n";
 
-// 5. A `by` function that answers the entry itself, so the callback runs ten
-// thousand times and every answer is a group of its own.
+// 5. A `by` function that returns the entry itself, so the callback runs ten
+// thousand times and every result is a group of its own.
 echo Core\Arr::count(Core\Arr::groupCounts($wide, {
     by: fn(int $value): int => $value,
 })), "\n";
