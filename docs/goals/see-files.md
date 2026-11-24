@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/doc.rs, docs/rules/tooling/meta-json-takes-a-program.md, docs/rules/tooling/nvs-doc-renders-and-decides-nothing.md]
   - id: 6
     title: "the rules, the reference, the editor page, the example, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/reference/lang/10-programs.md, docs/examples/lang/programs/doc-comments/about.md, docs/examples/lang/programs/doc-comments/details.md, website/src/content/docs/tools/editor/index.mdx]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -358,27 +358,27 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 **Split:** the example, the attack and the bench go to one writing subagent once the rule is rewritten;
 the session writes the rules, the reference, the editor page and the website entries.
 
-- [ ] `docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md:25`: the `@see` shape gains the
+- [x] `docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md:25`: the `@see` shape gains the
   file form, the project bound, the anchor rule and the suggestion; the Declined list gains URL, line
   anchor, HTML anchor and a sixth tag; § *Memory* says what the check reads.
-- [ ] `docs/rules/ide/the-request-set-is-closed.md:9`: `hover`, `definition`, `completion` and
+- [x] `docs/rules/ide/the-request-set-is-closed.md:9`: `hover`, `definition`, `completion` and
   `documentLink`'s lists gain doc-tag targets. `docs/rules/ide/five-features-are-one-reference-index.md:1`
   already says doc-tag occurrences are listed and renamed, not counted, with their memory (stage 4). The editor's Declined
   items above go into one of the two.
-- [ ] `crates/nvs-hir/src/members.rs:1250`: `check_see`'s doc says both shapes.
-- [ ] `docs/reference/lang/10-programs.md:411` and `:424`, `docs/examples/lang/programs/doc-comments/about.md:7`
+- [x] `crates/nvs-hir/src/members.rs:1250`: `check_see`'s doc says both shapes.
+- [x] `docs/reference/lang/10-programs.md:411` and `:424`, `docs/examples/lang/programs/doc-comments/about.md:7`
   and `details.md:4`: the file form, written to AGENTS.md § *Text an end user reads*.
-- [ ] `website/src/content/docs/tools/editor/index.mdx:1`: what the editor does with a `@see` target,
+- [x] `website/src/content/docs/tools/editor/index.mdx:1`: what the editor does with a `@see` target,
   in the page's own list.
-- [ ] `docs/examples/lang/programs/doc-comments/06-point-at-a-document-with-see.nvs:1` and its `.out`.
-- [ ] The attack and the bench `bun nv proofs --owed --goal see-files` names, at the paths it prints.
-- [ ] `website/src/data/changes.json:1`: one `changed` entry for the `@see` tag and one for the editor.
+- [x] `docs/examples/lang/programs/doc-comments/06-point-at-a-document-with-see.nvs:1` and its `.out`.
+- [x] The attack and the bench `bun nv proofs --owed --goal see-files` names, at the paths it prints.
+- [x] `website/src/data/changes.json:1`: one `changed` entry for the `@see` tag and one for the editor.
   Each page above reread and stamped with `bun nv site --stamp`.
-- [ ] `bun nv proofs --owed --goal see-files` names nothing.
 
 ### 7. the goal is verified once, and every failure is fixed
 
 - [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
+- [ ] Once the review's words are settled: `bun nv relink --build`, then `bun nv proofs --record-perf --nvs target/release/nvs.exe --only <id>` for each `lang:programs/*` feature `bun nv proofs --gate --goal see-files` names stale, then `bun nv site --review --stamp` each reviewed file, and `bun nv proofs --owed --goal see-files` names nothing.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -386,32 +386,31 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Stages 1 to 5 are done; `checker`, `pack`, `editor-read`, `editor-edit`, `handshake`, `meta` and
-`doc` are green.
+Stages 1 to 6 are done; `checker`, `pack`, `editor-read`, `editor-edit`, `handshake`, `meta` and
+`doc` are green, and `site --check stale changes` is green.
 
-- Stage 5: `meta.rs` `Declared::rebase_see` rewrites each program declaration's `doc.see` file target
-  from the writing file's folder to the entry's folder after `collect` (`from_root`,
-  `relative_path`); `put_doc` still writes tags as written. `doc.rs` `root_from` gives each `Page` the
-  prefix from the output folder to the root, and `see` links a file target through it.
-- Stage 5 found and fixed a checker bug: `members.rs` `check_see_file` read a bare entry name
-  (`nvs doc case.nvs`) as the empty folder and refused every file target as leaving the project.
-
-- The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled on the language
-  server's path only. `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`;
-  `@throws` records `Class`, `@example` a `File`. `nvs_syntax::doc_target` is the one classifier.
-- The editor reads it through `definition.rs` `doc_named_at`. The index keeps `index::Mention` and
-  `index::Linked` per file (`index::doc_mentions`), read by references, highlight, rename and
-  `rename::moved`; `disk_index::FORMAT` is 5, and `willRenameFiles` is declared over `**/*`.
-- The rule `five-features-are-one-reference-index` already says doc tags are listed, not counted.
+- Stage 6 rewrote `doc-comment-tags-are-closed-and-checked` (the file form, the project bound, the
+  slug rule, E0323 and its suggestion, packing, memory, the Declined items) and
+  `the-request-set-is-closed` (doc-tag targets in hover, definition, completion, semantic tokens,
+  documentLink and willRenameFiles; the editor's three Declined items). `bun nv rules --render` also
+  rendered stage 2's packaging fragment, which was never rendered.
+- The example is `06-point-at-a-document-with-see.nvs` with `notes/refunds.md` beside it; the attack
+  is `tests/hostile/lang/programs/doc-comments/03-see-paths-that-leave-the-project.nvs` (five E0323);
+  the bench's tags point at `benches/members/lang/programs/doc-comments/meter.md`, because that folder
+  has its own `nvs.toml`.
+- `details.md`, `about.md`, `nvs-lsp/about.md` (now under its 200 words), the editor page's
+  *Links in doc comments* section and two `changes.json` entries are written and stamped. The LSP
+  tests `see_targets` and `see_edits` carry `// covers: tools:editor/nvs-lsp`.
+- `bun nv proofs --gate --goal see-files` is red on two things only, both stage 7's: the
+  `lang:programs/*` perf records are stale because the chapter re-rendered, and eight files owe the
+  newcomer review (`bun nv site --check review` lists them).
 
 ### Next
 
-The next session takes stage 6 from its first item:
-`docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md:25`, then the IDE rules, the reference
-`docs/reference/lang/10-programs.md:411`, and the example, attack and bench by its `**Split:**` line.
-The `meta` and `doc` tests carry `// covers: lang:programs/doc-comments`.
+Stage 7 from its first item: the newcomer review over the files `bun nv site --check review` names,
+fixing every finding, then re-render (`bun nv render`, `bun nv render --website`), restamp, record
+perf last (playbook: every render makes the chapter's perf stale again), then the close.
 
-No test is expected to go red: the existing `meta` and `doc` tests name no file target, and a
-`.lspt` case or index file of an earlier format is unaffected.
+No test is expected to go red.
 
 ### Backlog
