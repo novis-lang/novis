@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [allocation-accounting]
+chain: [allocation-accounting, see-files]
 floor:
   - id: ci-check
     name: "every check the full gate's push runs is green"
@@ -32,11 +32,12 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `allocation-accounting` is live.
+The chain holds 2 goal(s). `allocation-accounting` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`allocation-accounting`](allocation-accounting.md) **live** | Reached when Accounting's alloc, alloc_zeroed, dealloc and realloc each look up one merged thread-local holding the block cache and the memory counters, a timing probe shows the counted round trip got no slower, a test records how many allocations one served json-api and html-page request makes, and budget.rs's What it spends states the accounting's cost per allocation and per request. | **1 one served json-api and html-page request each make a recorded number of allocations** · 2 the cache and the counters share one thread-local, looked up once per allocation · 3 the goal is verified once, and every failure is fixed |
+| 2 | [`see-files`](see-files.md) | Reached when @see accepts a path to a file inside the project with an optional #heading anchor checked against the Markdown file's headings, nvs pkg pack refuses a package whose @see or @example names a file it does not carry, the language server links, follows, completes and renames those targets, nvs meta --json and nvs doc write them as links, and the rule, the reference, the example and the feature proofs say so. | **1 the checker resolves a file target and its heading** · 2 nvs pkg pack and the registry build refuse a doc tag naming a file the package does not carry · 3 the language server links, follows, completes and renames file targets · 4 nvs meta --json and nvs doc write a file target as a link · 5 the rule, the reference, the example, the feature proofs and the website say so · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md), [`zip-writer`](zip-writer.md).
 
