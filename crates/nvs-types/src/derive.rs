@@ -1103,10 +1103,12 @@ impl Format {
         match self {
             Self::Json => {
                 "a JSON property's type is a scalar, `mixed`, an enum, a set of allowed values \
-                 such as `\"a\"|\"b\"`, or a shape. It may also be a class with its own \
-                 `#[Json\\Derive]`, or an `array<T>` or `?T` of any of these. A union such as \
+                 such as `\"a\"|\"b\"`, a shape or `Core\\Time\\Instant`. It may also be a class \
+                 with its own `#[Core\\Json\\Derive]`, or an `array<T>` or `?T` of any of these. \
+                 Other `Core` classes, such as `Core\\Time\\Date`, have no JSON form. Declare the \
+                 property `string`, and convert the text after the decode. A union such as \
                  `string|int` is not one: use `mixed` for a value of any type. Write \
-                 `#[Json\\Field(skip: true)]` to leave the property out"
+                 `#[Core\\Json\\Field(skip: true)]` to leave the property out"
             }
             Self::Db => {
                 "a column is a scalar, a `decimal`, `bytes`, an enum, a `Core\\Time` date or \
@@ -2120,6 +2122,20 @@ fn check_json_participation(
     }
     let class = &site.class;
     let member = &site.member;
+    // A `Core` class is declared by the runtime, so the attribute the other
+    // help names cannot be written on it.
+    let help = if class.to_string().starts_with(r"Core\") {
+        format!(
+            "`{class}` has no JSON form, and a `Core` class cannot take an attribute. Declare \
+             this value `string`, and convert the text after the decode"
+        )
+    } else {
+        "write `#[Core\\Json\\Derive]` on the class. It generates the `Core\\Json\\Codec` this \
+         call needs. Or implement `Core\\Json\\Codec` yourself, and build the object from the \
+         `mixed` value in `fromJson`. `#[Core\\Db\\Derive]` is for database rows only, and it \
+         does not read JSON"
+            .to_owned()
+    };
     diags.report(
         Diagnostic::error(
             code::E_DECODED_CLASS_HAS_NO_CODEC,
@@ -2129,12 +2145,7 @@ fn check_json_participation(
             ),
         )
         .with_primary(site.span, "written here")
-        .with_help(
-            "write `#[Json\\Derive]` on the class. It generates the `Core\\Json\\Codec` this \
-             call needs. Or implement `Core\\Json\\Codec` yourself, and build the object from \
-             the `mixed` value in `fromJson`. `#[Db\\Derive]` is for database rows only, and \
-             it does not read JSON",
-        ),
+        .with_help(help),
     );
 }
 
@@ -2680,18 +2691,25 @@ fn class_has_codec(
         Some(sig) => {
             sig.methods.contains_key(ENCODE)
                 || sig.methods.contains_key(DECODE)
-                // A `Core` value type — `rule:core-classes/derive-property-list`'s `Instant`, `Duration`, `Uuid`
-                // and their siblings — declares no member for this to find:
-                // which of them has a wire form is `nvs_stdlib::json`'s
-                // roster, not this pass's, and that crate's § *A value type
-                // crosses as text* is where the two that have one are named.
-                || label.starts_with(r"Core\")
+                // A `Core` value type declares no member for this to find, so
+                // the ones with a wire form are named: `nvs_stdlib::json`'s
+                // § *A value type crosses as text* reads `Instant` alone. A
+                // `Core` class off this list erases to a class label no
+                // descriptor answers, so admitting it here would stop the
+                // decode with an internal error instead of the `E0756` above.
+                || is_core_json_value(&label)
         }
         // A name with no signature is a name that did not resolve, and that
         // has already been reported where it was written; a second
         // diagnostic here would name the same property for the same reason.
         None => true,
     }
+}
+
+/// Whether `label` is a `Core` value type with a JSON wire form, which
+/// [`codec_ty`] erases to a wire type `nvs_stdlib::json` decodes.
+fn is_core_json_value(label: &str) -> bool {
+    label == nvs_stdlib::time::INSTANT_NAME
 }
 
 /// Records `decl`'s [`DerivedCodec`] for each of [`Format`]'s two values it

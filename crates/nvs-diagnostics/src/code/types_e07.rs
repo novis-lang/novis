@@ -368,7 +368,7 @@ codes! {
     /// has no common arithmetic type at all, which is the earlier objection.
     pub const E_FLOAT_MODULO: Code = Code::new("E0717").card(
         "`%` does not work on a `float`. For a whole-number remainder, write \
-         `($a as int) % ($b as int)`. For a floating-point remainder, call `Core\\Math::mod($a, $b)`.",
+         `($a as int) % ($b as int)`. For a floating-point remainder, call `Core\\Math::remainder($a, $b)`.",
     );
     /// A call that returns `void` used as an operator's operand.
     ///
@@ -1041,7 +1041,9 @@ codes! {
     pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756").card(
         "The derive attribute cannot convert a property of this type. For example, `bytes` can be \
          a database column but has no JSON form. A union of two kinds, such as `string|int` or \
-         two classes, has no form either. Use `mixed` for a value of any type, or a set of \
+         two classes, has no form either. Most `Core` classes, such as `Core\\Time\\Date`, have \
+         no JSON form. Declare such a property `string`, and convert the text after the decode. \
+         Use `mixed` for a value of any type, or a set of \
          allowed values such as `\"a\"|\"b\"`. Otherwise change the property's type, or write \
          the conversion methods yourself.",
     );

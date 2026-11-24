@@ -658,11 +658,11 @@ fn reject_dropped_static_return(
         )
         .with_primary(
             written.unwrap_or(decl.name.span),
-            "this answers a class of its own",
+            "this return type names one class",
         )
         .with_help(format!(
-            "write `: static` here — `{interface}::{method}` promises the class the call named, \
-             which a subclass may be"
+            "write `: static` here. `{interface}::{method}` returns the class the call names, \
+             and that may be a subclass"
         )),
     );
 }

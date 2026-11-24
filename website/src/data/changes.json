@@ -3,6 +3,13 @@
     {
       "kind": "fixed",
       "features": [
+        "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec"
+      ],
+      "text": "A `#[Core\\Json\\Derive]` class with a property of a `Core` class such as `Core\\Time\\Date` or `Core\\Uuid` stopped the program with an internal error. It is now the compile error `E0756` at that property, because only `Core\\Time\\Instant` has a JSON form. For the others, declare the property `string` and convert the text after the decode."
+    },
+    {
+      "kind": "fixed",
+      "features": [
         "tools:agents/nvs-agent"
       ],
       "text": "`nvs agent show` prints the help of a built-in name. For an enum of `Novis\\Image`, `Novis\\Intl`, `Novis\\Pdf` or `Novis\\Spreadsheet`, it now also lists the enum's cases."
