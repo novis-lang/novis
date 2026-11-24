@@ -1673,6 +1673,9 @@ pub struct Ctx {
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<(u64, Option<OpenFile>)>,
+    /// `Core\Reflect`'s roster arrays this request has built, one owned
+    /// reference each — see [`Ctx::kept_roster`].
+    rosters: std::collections::HashMap<RosterKey, Value>,
     /// The children this task has spawned, by the key its `Core\Process\Handle`
     /// carries — see [`Ctx::hold_spawned_child`], and [`HeldChild`] for the
     /// kill that makes none of them outlive this context.
@@ -1805,6 +1808,9 @@ impl Drop for Ctx {
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.
         self.set_isolate_argument(Value::null());
+        // `Core\Reflect`'s roster arrays are the request's, and are released
+        // with its other roots — `Ctx::kept_roster` owns why they are kept.
+        self.release_rosters();
         // `rule:errors/on-limit`'s handler is request-local, so the request ending is
         // what unregisters it — see `Ctx::set_limit_handler`.
         self.set_limit_handler(Value::null());

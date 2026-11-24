@@ -1028,6 +1028,77 @@ impl Ctx {
     pub fn take_temporary_dirs(&mut self) -> Vec<std::path::PathBuf> {
         std::mem::take(&mut self.temporary_dirs)
     }
+
+    /// The roster array this request built under `key`, with one new reference
+    /// for the caller, or `None` before the first [`Self::keep_roster`] of it.
+    ///
+    /// `nvs_stdlib::reflect`'s roster members build an array of a
+    /// description's rows on the first call in a request, and every later call
+    /// returns the same array. A program that writes to the array it got
+    /// separates by copy-on-write, so the kept array never changes. The memo is
+    /// per request, never per process: an array's borrow flag is written by
+    /// every read, so no array is shared by two cores.
+    ///
+    /// **What it spends:** one map entry and one array per roster a request
+    /// reads, O(classes described), never O(traffic), released when the request
+    /// ends ([`Self::release_rosters`]).
+    #[must_use]
+    pub fn kept_roster(&self, key: &RosterKey) -> Option<Value> {
+        let kept = *self.rosters.get(key)?;
+        #[expect(
+            unsafe_code,
+            reason = "the memo owns one reference to every array it holds, so the array is live, \
+                      and the new reference is the caller's"
+        )]
+        unsafe {
+            kept.retain();
+        }
+        Some(kept)
+    }
+
+    /// Keeps `array` under `key` for the rest of the request. **Takes over one
+    /// reference to `array`**: the caller retains it first if it also returns it.
+    /// A key already kept is left as it is, and `array`'s reference is given back.
+    pub fn keep_roster(&mut self, key: RosterKey, array: Value) {
+        if self.rosters.contains_key(&key) {
+            #[expect(unsafe_code, reason = "the caller handed this function the reference")]
+            unsafe {
+                array.release();
+            }
+            return;
+        }
+        self.rosters.insert(key, array);
+    }
+
+    /// Gives back every roster array [`Self::keep_roster`] kept. The request's
+    /// end calls it, and so may a test.
+    pub fn release_rosters(&mut self) {
+        for (_, array) in std::mem::take(&mut self.rosters) {
+            #[expect(
+                unsafe_code,
+                reason = "the memo owned exactly this one reference, and the entry is gone"
+            )]
+            unsafe {
+                array.release();
+            }
+        }
+    }
+}
+
+/// What a roster array is kept under in [`Ctx::kept_roster`]: the unit's stamp
+/// and the class's index, or `0` and a `Core` descriptor's address, then which
+/// roster and, for a roster of a row, the row's position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RosterKey {
+    /// The stamp of the unit whose descriptions hold the rows, or `0` for a
+    /// `Core` class.
+    pub unit: u64,
+    /// The class's or enum's index in that unit, or a `Core` descriptor's address.
+    pub class: u64,
+    /// Which roster: `nvs_stdlib::reflect` numbers them.
+    pub roster: u32,
+    /// The method or attribute whose roster it is, and `0` for a class's own.
+    pub at: u32,
 }
 
 #[cfg(test)]

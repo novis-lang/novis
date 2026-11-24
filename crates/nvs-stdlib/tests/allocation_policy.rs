@@ -899,3 +899,127 @@ fn a_description_is_the_same_object_twice() {
         release(value);
     }
 }
+
+// ============================================================================
+// A roster is built once per request
+// ============================================================================
+
+/// `Shop\Order`'s description in the request `ctx` runs.
+#[cfg(debug_assertions)]
+fn order_info(ctx: &mut nvs_runtime::Ctx) -> nvs_runtime::Value {
+    let name = nvs_runtime::Value::text("Shop\\Order");
+    let info = nvs_runtime::call(member("nvs_core_reflect_for_class"), ctx, &[name])
+        .expect("`forClass` returns");
+    release(name);
+    info
+}
+
+/// `properties()` in `ctx`, as the array it returned. The member is resolved
+/// once, because a lookup by name builds the list of every symbol.
+#[cfg(debug_assertions)]
+fn properties_of(ctx: &mut nvs_runtime::Ctx, info: nvs_runtime::Value) -> nvs_runtime::Value {
+    static PROPERTIES: std::sync::OnceLock<nvs_runtime::NvsFn> = std::sync::OnceLock::new();
+    let properties = *PROPERTIES.get_or_init(|| member("nvs_core_reflect_class_info_properties"));
+    let listed = nvs_runtime::call(properties, ctx, &[info]).expect("the roster always returns");
+    assert!(
+        listed.array_ptr().is_some(),
+        "`properties` returns an array"
+    );
+    listed
+}
+
+/// The first `properties()` call in a request builds its array, and every
+/// later call in that request returns the same array and allocates nothing,
+/// over 8 calls and over 64. A second request builds its own array.
+// covers: Core\Reflect\ClassInfo::properties
+#[cfg(debug_assertions)]
+#[test]
+fn a_roster_is_built_once_per_request() {
+    let (mut ctx, [order, other]) = described_shop();
+    let info = order_info(&mut ctx);
+    let first = properties_of(&mut ctx, info);
+    for calls in [8, 64] {
+        // The values are released after the window, so it counts the calls.
+        let mut returned = Vec::with_capacity(calls);
+        let before = nvs_runtime::budget::allocations();
+        for _ in 0..calls {
+            returned.push(properties_of(&mut ctx, info));
+        }
+        let spent = nvs_runtime::budget::allocations() - before;
+        for again in returned {
+            assert_eq!(
+                again.array_ptr(),
+                first.array_ptr(),
+                "a later call in the request returns the same array"
+            );
+            release(again);
+        }
+        assert_eq!(
+            spent, 0,
+            "{calls} later calls of `properties` made {spent} allocations, and the array is \
+             built once per request"
+        );
+    }
+
+    // A second request of the same unit.
+    let mut second = nvs_runtime::Ctx::buffered();
+    second.set_runtime_error_class(ctx.class_table().expect("the unit is installed"));
+    let before = nvs_runtime::budget::allocations();
+    let own = properties_of(&mut second, info);
+    assert!(
+        nvs_runtime::budget::allocations() > before,
+        "the first call of a request builds its array"
+    );
+    assert_ne!(
+        own.array_ptr(),
+        first.array_ptr(),
+        "no array is shared by two requests"
+    );
+    for value in [own, first, info, order, other] {
+        release(value);
+    }
+}
+
+/// A program that writes to the roster it got changes its own copy. The
+/// array the request keeps is unchanged, and the next call returns it.
+// covers: Core\Reflect\ClassInfo::properties
+#[cfg(debug_assertions)]
+#[test]
+fn a_roster_written_by_the_program_separates() {
+    let (mut ctx, [order, other]) = described_shop();
+    let info = order_info(&mut ctx);
+    let listed = properties_of(&mut ctx, info);
+    let kept = listed.array_ptr();
+    #[expect(
+        unsafe_code,
+        reason = "`properties` returned one reference to this array, and the handle takes it over"
+    )]
+    let mut written = unsafe { nvs_runtime::NvsArray::from_raw(kept.expect("an array")) };
+    written.append(nvs_runtime::Value::int(7));
+    assert_eq!(written.count(), 3, "the program's copy has the new entry");
+    let written = nvs_runtime::Value::array(written);
+    assert_ne!(
+        written.array_ptr(),
+        kept,
+        "the write separated, because the request still keeps the array"
+    );
+
+    let again = properties_of(&mut ctx, info);
+    assert_eq!(
+        again.array_ptr(),
+        kept,
+        "the next call returns the kept array"
+    );
+    #[expect(
+        unsafe_code,
+        reason = "`again` is a live array this frame owns, and the handle only borrows it"
+    )]
+    let count = std::mem::ManuallyDrop::new(unsafe {
+        nvs_runtime::NvsArray::from_raw(again.array_ptr().expect("an array"))
+    })
+    .count();
+    assert_eq!(count, 2, "the kept array still lists the two properties");
+    for value in [written, again, info, order, other] {
+        release(value);
+    }
+}

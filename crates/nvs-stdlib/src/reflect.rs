@@ -54,8 +54,14 @@
 //! `benches/members/core/Reflect/forClass.nvs`: its `Order`, two typed public
 //! properties and nothing else, is 592 bytes. The whole unit, 31 classes and 44
 //! enums, most of them the prelude's own, is 45,481 bytes, and building it took
-//! 350 to 400 µs in a debug build, once per load. Per roster call, one array
-//! of the rows, charged to the request that asked.
+//! 350 to 400 µs in a debug build, once per load. A roster's array is built
+//! on its first call in a request and kept for the rest of it ([`memoized`],
+//! `nvs_runtime::Ctx::kept_roster`), so every later call allocates nothing:
+//! one array and one map entry per roster a request reads, O(classes
+//! described), freed when the request ends. So is a `Core` instance's
+//! description. The arrays are per request because an array read writes its
+//! borrow flag, and a write to one separates by copy-on-write, so the kept
+//! array never changes.
 //! [`nvs_core_reflect_class_info_readable_properties`] spends one array of one
 //! string per name it returns, per call, because its answer depends on the
 //! calling site. An acting call spends one decoded [`nvs_render::Source`] on
@@ -2389,6 +2395,118 @@ fn rows_of<'a>(
         .ok_or_else(|| another_unit(owner, member))
 }
 
+/// The roster numbers a [`nvs_runtime::RosterKey`] carries, one per member
+/// that returns a roster, and one for a `Core` class's whole description.
+mod roster_kind {
+    pub(super) const DESCRIPTION: u32 = 0;
+    pub(super) const PROPERTIES: u32 = 1;
+    pub(super) const METHODS: u32 = 2;
+    pub(super) const CONSTANTS: u32 = 3;
+    pub(super) const ATTRIBUTES: u32 = 4;
+    pub(super) const FIELDS: u32 = 5;
+    pub(super) const PARAMETERS: u32 = 6;
+    pub(super) const CASES: u32 = 7;
+}
+
+/// The address of a `Core` descriptor, as a [`nvs_runtime::RosterKey`] names
+/// it. The process keeps every `Core` descriptor, so the address never names
+/// another class.
+fn core_key(desc: *const ClassDesc) -> u64 {
+    u64::try_from(desc.addr()).unwrap_or(u64::MAX)
+}
+
+/// What the roster `roster` of the row at `receiver` is kept under, with
+/// `slots` its class-index and stamp slots and `at` the row's own position.
+///
+/// The stamp is checked here, before the memo is read, so a description of
+/// another unit throws whether or not its roster was kept. A `Core` class's
+/// row, stamp `0`, is keyed by the descriptor `name` finds, or `0` where the
+/// row names no class and every roster of it is empty.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each argument is one slot or one name of the row being keyed, and a struct of \
+              them would be built at every call for this call alone"
+)]
+fn roster_key(
+    ctx: &nvs_runtime::Ctx,
+    receiver: *mut nvs_runtime::ObjHeader,
+    slots: (usize, usize),
+    name: Option<&str>,
+    roster: u32,
+    at: usize,
+    owner: &str,
+    member: &str,
+) -> Result<nvs_runtime::RosterKey, Fault> {
+    let at = u32::try_from(at).map_err(|_| another_unit(owner, member))?;
+    let stamp = crate::instance::slot(receiver, slots.1);
+    if stamp.as_uint() == Some(0) {
+        let class = name
+            .and_then(|name| ctx.class_desc(name))
+            .map_or(0, core_key);
+        return Ok(nvs_runtime::RosterKey {
+            unit: 0,
+            class,
+            roster,
+            at,
+        });
+    }
+    let unit = unit_descriptions(ctx, stamp, owner, member)?.stamp();
+    let class = crate::instance::slot(receiver, slots.0)
+        .as_int()
+        .and_then(|index| u64::try_from(index).ok())
+        .ok_or_else(|| another_unit(owner, member))?;
+    Ok(nvs_runtime::RosterKey {
+        unit,
+        class,
+        roster,
+        at,
+    })
+}
+
+/// [`roster_key`] for one of a [`CLASS_INFO`]'s own rosters.
+fn class_roster_key(
+    ctx: &nvs_runtime::Ctx,
+    value: Value,
+    roster: u32,
+    member: &str,
+) -> Result<nvs_runtime::RosterKey, Fault> {
+    let receiver = crate::instance::receiver(value, &CLASS_INFO, member)?;
+    let name = crate::instance::slot(receiver, NAME_SLOT);
+    roster_key(
+        ctx,
+        receiver,
+        (CLASS_INDEX_SLOT, STAMP_SLOT),
+        name.as_text(),
+        roster,
+        0,
+        CLASS_INFO_NAME,
+        member,
+    )
+}
+
+/// The roster array kept under `key` in this request, or `build`'s array,
+/// kept for every later call — the module doc's § *every description is built
+/// once*. The caller gets one reference either way.
+fn memoized(
+    ctx: &mut nvs_runtime::Ctx,
+    key: nvs_runtime::RosterKey,
+    build: impl FnOnce(&nvs_runtime::Ctx) -> Result<Value, Fault>,
+) -> Result<Value, Fault> {
+    if let Some(kept) = ctx.kept_roster(&key) {
+        return Ok(kept);
+    }
+    let built = build(ctx)?;
+    #[expect(
+        unsafe_code,
+        reason = "`build` returned an owned reference, and the new one is the memo's"
+    )]
+    unsafe {
+        built.retain();
+    }
+    ctx.keep_roster(key, built);
+    Ok(built)
+}
+
 /// A new array of `rows`, each retained, as a roster member returns it.
 fn roster(rows: impl Iterator<Item = Value>) -> Value {
     let mut out = NvsArray::new();
@@ -2789,7 +2907,11 @@ nvs_runtime::nvs_helper! {
     /// The walk is the module doc's first decision, and [`class_rows`] is where
     /// it is written: the object's descriptor names every slot, and its
     /// visibility bit says which of them a description is allowed to name.
-    fn nvs_core_reflect_for_object(_ctx, args: [1]) {
+    ///
+    /// A `Core` instance's description is built on the first call in a request
+    /// and kept for the rest of it ([`memoized`]), because a `Core` descriptor
+    /// is in no unit's table.
+    fn nvs_core_reflect_for_object(ctx, args: [1]) {
         let ptr = args[0].obj_ptr().ok_or_else(|| {
             Fault::thrown(format!(
                 "{NAME}::forObject() expected an object, got a `{}`",
@@ -2808,7 +2930,17 @@ nvs_runtime::nvs_helper! {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
             &*object.class()
         };
-        description_of(desc, "Core\\Reflect::forObject")
+        let member = "Core\\Reflect::forObject";
+        if desc.is_core() && desc.description().is_none() {
+            let key = nvs_runtime::RosterKey {
+                unit: 0,
+                class: core_key(desc),
+                roster: roster_kind::DESCRIPTION,
+                at: 0,
+            };
+            return memoized(ctx, key, |_| description_of(desc, member));
+        }
+        description_of(desc, member)
     }
 }
 
@@ -2860,8 +2992,11 @@ nvs_runtime::nvs_helper! {
     /// is [`nvs_core_reflect_class_info_readable_properties`], which is a
     /// question about the site rather than about the class.
     fn nvs_core_reflect_class_info_properties(ctx, args: [1]) {
-        let rows = class_rows_of(ctx, args[0], "properties")?;
-        Ok(roster(rows.properties.iter().copied()))
+        let member = "properties";
+        let key = class_roster_key(ctx, args[0], roster_kind::PROPERTIES, member)?;
+        memoized(ctx, key, |ctx| {
+            Ok(roster(class_rows_of(ctx, args[0], member)?.properties.iter().copied()))
+        })
     }
 }
 
@@ -2956,8 +3091,11 @@ nvs_runtime::nvs_helper! {
     /// through [`nvs_core_reflect_class_info_call`]'s check. Answered off the
     /// rows [`class_rows`] built once, so a call walks no declaration.
     fn nvs_core_reflect_class_info_methods(ctx, args: [1]) {
-        let rows = class_rows_of(ctx, args[0], "methods")?;
-        Ok(roster(rows.methods.iter().map(|method| method.info)))
+        let member = "methods";
+        let key = class_roster_key(ctx, args[0], roster_kind::METHODS, member)?;
+        memoized(ctx, key, |ctx| {
+            Ok(roster(class_rows_of(ctx, args[0], member)?.methods.iter().map(|method| method.info)))
+        })
     }
 }
 
@@ -2971,8 +3109,11 @@ nvs_runtime::nvs_helper! {
     /// through [`nvs_core_reflect_class_info_constant`]'s check. Answered off
     /// the rows [`class_rows`] built once.
     fn nvs_core_reflect_class_info_constants(ctx, args: [1]) {
-        let rows = class_rows_of(ctx, args[0], "constants")?;
-        Ok(roster(rows.constants.iter().copied()))
+        let member = "constants";
+        let key = class_roster_key(ctx, args[0], roster_kind::CONSTANTS, member)?;
+        memoized(ctx, key, |ctx| {
+            Ok(roster(class_rows_of(ctx, args[0], member)?.constants.iter().copied()))
+        })
     }
 }
 
@@ -3071,8 +3212,12 @@ nvs_runtime::nvs_helper! {
     /// an attach site reads the program's shape, and reading a payload value is
     /// [`nvs_core_reflect_attribute_info_field`]'s.
     fn nvs_core_reflect_class_info_attributes(ctx, args: [1]) {
-        let rows = class_rows_of(ctx, args[0], "attributes")?;
-        Ok(roster(rows.attributes.iter().map(|attribute| attribute.info)))
+        let member = "attributes";
+        let key = class_roster_key(ctx, args[0], roster_kind::ATTRIBUTES, member)?;
+        memoized(ctx, key, |ctx| {
+            let rows = class_rows_of(ctx, args[0], member)?;
+            Ok(roster(rows.attributes.iter().map(|attribute| attribute.info)))
+        })
     }
 }
 
@@ -3140,9 +3285,23 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_reflect_attribute_info_fields(ctx, args: [1]) {
         let member = "fields";
         let receiver = crate::instance::receiver(args[0], &ATTRIBUTE_INFO, member)?;
-        let rows = attribute_rows_of(ctx, receiver, member)?;
-        let fields = attribute_fields(&rows, receiver, member)?;
-        Ok(roster(fields.iter().map(|(name, _)| *name)))
+        let at = position(receiver, ATTRIBUTE_INDEX_SLOT)
+            .ok_or_else(|| another_unit(ATTRIBUTE_INFO_NAME, member))?;
+        let key = roster_key(
+            ctx,
+            receiver,
+            (ATTRIBUTE_CLASS_SLOT, ATTRIBUTE_STAMP_SLOT),
+            None,
+            roster_kind::FIELDS,
+            at,
+            ATTRIBUTE_INFO_NAME,
+            member,
+        )?;
+        memoized(ctx, key, |ctx| {
+            let rows = attribute_rows_of(ctx, receiver, member)?;
+            let fields = attribute_fields(&rows, receiver, member)?;
+            Ok(roster(fields.iter().map(|(name, _)| *name)))
+        })
     }
 }
 
@@ -3291,23 +3450,38 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_reflect_method_info_parameters(ctx, args: [1]) {
         let member = "parameters";
         let receiver = crate::instance::receiver(args[0], &METHOD_INFO, member)?;
-        let rows = rows_of(
+        let at = position(receiver, METHOD_INDEX_SLOT)
+            .ok_or_else(|| another_unit(METHOD_INFO_NAME, member))?;
+        let key = roster_key(
             ctx,
             receiver,
             (METHOD_CLASS_SLOT, METHOD_STAMP_SLOT),
             None,
+            roster_kind::PARAMETERS,
+            at,
             METHOD_INFO_NAME,
             member,
         )?;
-        // A `Core` class's method declares no parameter name, so its roster is
-        // empty, as `class_rows` would build it.
-        if matches!(rows, Rows::Core(_)) {
-            return Ok(Value::array(NvsArray::new()));
-        }
-        let method = position(receiver, METHOD_INDEX_SLOT)
-            .and_then(|at| rows.methods.get(at))
-            .ok_or_else(|| another_unit(METHOD_INFO_NAME, member))?;
-        Ok(roster(method.parameters.iter().copied()))
+        memoized(ctx, key, |ctx| {
+            let rows = rows_of(
+                ctx,
+                receiver,
+                (METHOD_CLASS_SLOT, METHOD_STAMP_SLOT),
+                None,
+                METHOD_INFO_NAME,
+                member,
+            )?;
+            // A `Core` class's method declares no parameter name, so its roster
+            // is empty, as `class_rows` would build it.
+            if matches!(rows, Rows::Core(_)) {
+                return Ok(Value::array(NvsArray::new()));
+            }
+            let method = rows
+                .methods
+                .get(at)
+                .ok_or_else(|| another_unit(METHOD_INFO_NAME, member))?;
+            Ok(roster(method.parameters.iter().copied()))
+        })
     }
 }
 
@@ -3385,8 +3559,22 @@ nvs_runtime::nvs_helper! {
     /// `Core\Reflect\EnumInfo::cases(): array<string>` — every declared case's
     /// name, in the order [`enum_rows`] built them in.
     fn nvs_core_reflect_enum_info_cases(ctx, args: [1]) {
-        let (_, rows) = enum_rows_of(ctx, args[0], "cases")?;
-        Ok(roster(rows.cases.iter().map(|(name, _)| *name)))
+        let member = "cases";
+        let receiver = crate::instance::receiver(args[0], &ENUM_INFO, member)?;
+        let key = roster_key(
+            ctx,
+            receiver,
+            (ENUM_INDEX_SLOT, ENUM_STAMP_SLOT),
+            None,
+            roster_kind::CASES,
+            0,
+            ENUM_INFO_NAME,
+            member,
+        )?;
+        memoized(ctx, key, |ctx| {
+            let (_, rows) = enum_rows_of(ctx, args[0], member)?;
+            Ok(roster(rows.cases.iter().map(|(name, _)| *name)))
+        })
     }
 }
 

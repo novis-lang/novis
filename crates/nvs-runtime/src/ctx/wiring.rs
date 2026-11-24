@@ -412,6 +412,7 @@ impl Ctx {
             snapshot_mismatches: Vec::new(),
             started_scripts: Vec::new(),
             open_files: Vec::new(),
+            rosters: std::collections::HashMap::new(),
             spawned_children: Vec::new(),
             open_sockets: Vec::new(),
             open_readers: Vec::new(),
