@@ -3113,6 +3113,11 @@ fn document_link(
         .filter_map(|link| {
             let target = if link.directory {
                 directory_uri_of(&link.target)?
+            } else if let Some(line) = link.line {
+                // `#L<n>` is the 1-based line a client opens a `file:` URI at.
+                format!("{}#L{}", uri_of(&link.target)?.as_str(), line + 1)
+                    .parse()
+                    .ok()?
             } else {
                 uri_of(&link.target)?
             };

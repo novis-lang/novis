@@ -679,6 +679,9 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
             if link.directory {
                 target.push('/');
             }
+            if let Some(line) = link.line {
+                target.push_str(&format!("#L{}", line + 1));
+            }
             Link {
                 range: link.range,
                 target,

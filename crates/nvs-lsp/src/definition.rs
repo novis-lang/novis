@@ -122,11 +122,12 @@
 
 use std::borrow::Cow;
 use std::cell::OnceCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, SourceId, Span};
 use nvs_hir::QName;
+use nvs_hir::doc_targets::Resolved as DocResolved;
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Stmt, StmtKind, Type, TypeAtom,
     TypeKind,
@@ -166,6 +167,9 @@ pub fn at(
     offset: BytePos,
     encoding: PositionEncoding,
 ) -> Option<Declared> {
+    if let Some((_, named)) = doc_named_at(analysed, offset) {
+        return doc_declared(analysed, &named, encoding);
+    }
     if let Some(located) = file_value(analysed, files, offset) {
         return located;
     }
@@ -196,6 +200,119 @@ pub fn at(
     }
     let (target, _) = named_at(analysed, offset)?;
     declared(analysed, &target, encoding)
+}
+
+/// What a doc comment tag's argument names, as the checker recorded it.
+#[derive(Clone, Copy)]
+pub(crate) enum DocNamed<'a> {
+    /// A class: a `@see Class` target, the class half of `Class::member`, or
+    /// an `@throws` name.
+    Class(&'a QName),
+    /// A member of `owner`, the class that declares it.
+    Member {
+        /// The declaring class.
+        owner: &'a QName,
+        /// The bare name, without a `$` or `()`.
+        name: &'a str,
+        /// Which kind of member it is.
+        kind: MemberKind,
+    },
+    /// A file, and the 0-based line of the heading an anchor named.
+    File {
+        /// The file, absolute and canonical.
+        path: &'a Path,
+        /// The heading's line, when an anchor was written.
+        heading: Option<u32>,
+    },
+}
+
+/// The doc comment tag argument the cursor at `offset` is on, as
+/// `nvs_hir::doc_targets` recorded it, with the span the cursor is in: the
+/// class half of a `Class::member` target answers the class, and the rest of
+/// it the member.
+///
+/// `None` for a cursor on no recorded argument. A tag that did not resolve
+/// has no record and carries its diagnostic instead.
+pub(crate) fn doc_named_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, DocNamed<'_>)> {
+    let target = analysed.module.doc_targets.at(analysed.entry, offset)?;
+    if let DocResolved::Member { class, .. } = &target.resolved
+        && let Some(span) = target
+            .class_span
+            .filter(|span| span.start <= offset && offset <= span.end)
+    {
+        return Some((span, DocNamed::Class(class)));
+    }
+    Some((target.span, doc_named_at_target(target)))
+}
+
+/// What one recorded tag argument names as a whole: a `Class::member` target
+/// names the member.
+pub(crate) fn doc_named_at_target(target: &nvs_hir::doc_targets::DocTarget) -> DocNamed<'_> {
+    match &target.resolved {
+        DocResolved::Class(class) => DocNamed::Class(class),
+        DocResolved::Member {
+            owner, name, kind, ..
+        } => DocNamed::Member {
+            owner,
+            name,
+            kind: member_kind_of(*kind),
+        },
+        DocResolved::File { path, heading } => DocNamed::File {
+            path,
+            heading: *heading,
+        },
+    }
+}
+
+/// The kind [`site_of`] looks a member up by, for the kind the checker
+/// recorded.
+const fn member_kind_of(kind: nvs_hir::doc_targets::MemberKind) -> MemberKind {
+    use nvs_hir::doc_targets::MemberKind as Recorded;
+    match kind {
+        Recorded::Method => MemberKind::Method,
+        Recorded::Const => MemberKind::Constant,
+        Recorded::StaticProp | Recorded::Prop => MemberKind::Property,
+    }
+}
+
+/// Where a doc comment tag's argument goes: a class or member to its
+/// declaration, or the stub of a `Core` one, and a file to the start of the
+/// heading's line, or to its first line.
+pub(crate) fn doc_declared(
+    analysed: &Analysed,
+    named: &DocNamed<'_>,
+    encoding: PositionEncoding,
+) -> Option<Declared> {
+    match *named {
+        DocNamed::Class(class) => declared(analysed, &Target::Type(Cow::Borrowed(class)), encoding),
+        DocNamed::Member { owner, name, kind } => {
+            if let Some(site) = site_of(analysed, owner, Some((name, kind))) {
+                let file = analysed.map.file(site.span.file);
+                return Some(Declared {
+                    path: file.path()?.to_path_buf(),
+                    range: range_at(file, site.span, encoding),
+                });
+            }
+            let (path, line) = analysed
+                .stubs
+                .as_ref()?
+                .locate(&owner.to_string(), Some(name))?;
+            Some(Declared {
+                path,
+                range: Range::new(
+                    Position::new(line.line, line.character),
+                    Position::new(line.line, line.character + line.length),
+                ),
+            })
+        }
+        DocNamed::File { path, heading } => {
+            let start = Position::new(heading.unwrap_or(0), 0);
+            Some(Declared {
+                path: path.to_path_buf(),
+                range: Range::new(start, start),
+            })
+        }
+    }
 }
 
 /// The route of another module that the cursor at `offset` is on: the route

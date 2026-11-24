@@ -254,7 +254,7 @@ pub(crate) fn namespace_card(namespace: &str) -> Option<String> {
 
 /// A `Core` member's reference card, a constant's sentence, or a case's line
 /// — and for a case nobody described on its own, its enum's line.
-fn core_member(owner: &str, member: &str) -> Option<String> {
+pub(crate) fn core_member(owner: &str, member: &str) -> Option<String> {
     nvs_footprint::card(owner);
     if let Some(class) = registry::class(owner) {
         if let Some(row) = class.members().find(|row| row.name == member) {

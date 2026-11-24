@@ -27,6 +27,12 @@
 //!   a `require`, nothing was loaded through this edge, so whether the target
 //!   exists, and which kind it is, is asked of the disk when the link is made.
 //!
+//! - **A `@see` file target and an `@example` path link to the file they
+//!   name**, and an anchored `@see` target to the line of its heading. The
+//!   checker resolved each tag and recorded it
+//!   (`nvs_hir::doc_targets::DocTargets`), and that record is read here. A
+//!   tag that named no file has no record, and its diagnostic says why.
+//!
 //! **The entry file only**, on [`crate::symbols::for_document`]'s terms: a
 //! required file's own `require` is a link in *its* document.
 //!
@@ -70,6 +76,9 @@ pub struct PathLink {
     /// a `discover` glob's base, where a `require` names a file, and a path
     /// argument either.
     pub directory: bool,
+    /// The 0-based line the link opens at: the heading a `@see` file
+    /// target's anchor named. `None` opens the file at its top.
+    pub line: Option<u32>,
 }
 
 /// Every link the entry document of `analysed` carries, in `encoding`.
@@ -96,6 +105,7 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Path
                 // shows no link rather than taking the server down.
                 target: analysed.map.file(*target).path()?.to_path_buf(),
                 directory: false,
+                line: None,
             })
         })
         .collect();
@@ -108,6 +118,7 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Path
                 range: range_at(file, span, encoding),
                 target,
                 directory: true,
+                line: None,
             }),
     );
     links.extend(
@@ -121,7 +132,24 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Path
                     range: range_at(file, argument.span, encoding),
                     target,
                     directory: metadata.is_dir(),
+                    line: None,
                 })
+            }),
+    );
+    links.extend(
+        analysed
+            .module
+            .doc_targets
+            .in_file(analysed.entry)
+            .iter()
+            .filter_map(|target| match &target.resolved {
+                nvs_hir::doc_targets::Resolved::File { path, heading } => Some(PathLink {
+                    range: range_at(file, target.span, encoding),
+                    target: path.clone(),
+                    directory: false,
+                    line: *heading,
+                }),
+                _ => None,
             }),
     );
     links.sort_by_key(|link| link.range.start);

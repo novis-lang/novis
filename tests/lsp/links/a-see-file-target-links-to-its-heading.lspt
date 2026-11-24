@@ -1,0 +1,25 @@
+--TEST--
+a `@see` file target in a doc comment links to the Markdown file it names, at the line of the heading its anchor names, and an `@example` path links to its file, both read from the checker's record of each tag, `rule:ide/the-request-set-is-closed`, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+/// A shop.
+///
+/// @see guide.md#refunds
+/// @example examples/run.nvs
+class Shop { }
+--FILE guide.md--
+# Guide
+
+How the shop works.
+
+## Refunds
+
+Refunds take a week.
+--FILE examples/run.nvs--
+<?nvs
+echo 1;
+--REQUEST--
+documentLink
+--EXPECT--
+4:10-4:26 -> guide.md#L5
+5:14-5:30 -> examples/run.nvs

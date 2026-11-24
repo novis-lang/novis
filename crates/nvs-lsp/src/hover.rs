@@ -84,13 +84,14 @@
 //! shows it as no popup at all; a `Hover` carrying an empty string is a box
 //! that opens onto nothing every time a name is passed over.
 //!
-//! **A `@see` line is prose here, not a link.** Rendering its target as a link
-//! needs a URI: the target is a member, and the
-//! `file:` URI of its declaration is what a client would follow. That is
-//! [`crate::definition`]'s answer pointed at a name written in a comment rather
-//! than in code, which is a resolution of its own and so a slice of its own.
-//! Until then the tag renders as what was written, which is readable and not
-//! wrong.
+//! **A `@see` or `@example` line is a link.** The checker resolved each tag
+//! and recorded what it named (`nvs_hir::doc_targets`), so a declaration's
+//! card writes the tag's argument as a link to the `file:` URI of that
+//! declaration or file, at the line of a heading an anchor named
+//! ([`see_link`]). A tag the record does not hold stays as written. A cursor
+//! on the tag's argument itself answers what it names ([`doc_tag_target`]):
+//! a member's card, a class's card, or a file's path and the section under
+//! its heading.
 //!
 //! **`textDocument/signatureHelp` is the same reading asked of the call rather
 //! than of the name.** [`help_at`] walks outward to the call the cursor is
@@ -123,11 +124,11 @@ use lsp_types::{
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
     ParameterLabel, SignatureHelp, SignatureInformation,
 };
-use nvs_diagnostics::{BytePos, PositionEncoding, Span};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, Span};
 use nvs_hir::autoload::SiteKind;
 use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
-use nvs_syntax::ast::DocComment;
+use nvs_syntax::ast::{DocComment, DocTag, DocTagKind};
 use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::deprecated::Member;
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
@@ -135,8 +136,8 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    Target, attribute_at, clause_at, import_at, site, target_of, type_member_at, type_name_at,
-    written_class_name_at,
+    DocNamed, MemberKind, Target, attribute_at, clause_at, import_at, site, target_of,
+    type_member_at, type_name_at, written_class_name_at,
 };
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -178,7 +179,8 @@ pub fn answer(
         .iter()
         .map(|node| node.span)
         .collect();
-    let answered = route(analysed, offset, data)
+    let answered = doc_tag_target(analysed, offset)
+        .or_else(|| route(analysed, offset, data))
         .or_else(|| linked_route(analysed, offset))
         .or_else(|| autoload_prefix(analysed, offset))
         .or_else(|| written_class_name(analysed, offset))
@@ -229,6 +231,86 @@ pub fn answer(
         // written in.
         range: Some(range_at(analysed.map.file(analysed.entry), node, encoding)),
     })
+}
+
+/// The most lines a file target's hover shows of the heading's section.
+const SECTION_LINES: usize = 20;
+
+/// What a doc comment tag's argument names, for a cursor on it, and the span
+/// the cursor is on ([`crate::definition::doc_named_at`]).
+///
+/// A class answers its card and a member the hover it has where it is used.
+/// A file answers its path and, when an anchor named a heading, the heading's
+/// section up to the next heading, at most [`SECTION_LINES`] lines. The
+/// section is read from disk when the hover is asked.
+fn doc_tag_target(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (span, named) = crate::definition::doc_named_at(analysed, offset)?;
+    let value = match named {
+        DocNamed::Class(class) => {
+            let target = Target::Type(Cow::Borrowed(class));
+            core(analysed, &target)
+                .or_else(|| owned_enum(analysed, &target))
+                .or_else(|| run(analysed, &target))
+                .unwrap_or_else(|| format!("```nvs\n{class}\n```"))
+        }
+        DocNamed::Member { owner, name, kind } => member_card(analysed, owner, name, kind),
+        DocNamed::File { path, heading } => file_card(path, heading),
+    };
+    Some((value, span))
+}
+
+/// The hover of one member a `@see` target names: a `Core` member's reference
+/// card, or the `///` run above a program's member, under a line naming it.
+fn member_card(analysed: &Analysed, owner: &QName, name: &str, kind: MemberKind) -> String {
+    let spelled = match kind {
+        MemberKind::Method => format!("{owner}::{name}()"),
+        MemberKind::Property => format!("{owner}::${name}"),
+        MemberKind::Constant | MemberKind::TypeAlias => format!("{owner}::{name}"),
+    };
+    let line = format!("```nvs\n{spelled}\n```");
+    let card = crate::card::core_member(&owner.to_string(), name).or_else(|| {
+        let site = crate::definition::site_of(analysed, owner, Some((name, kind)))?;
+        Some(markdown(
+            analysed.map.file(site.span.file).text(),
+            site.doc?,
+        ))
+    });
+    match card {
+        Some(card) if !card.trim().is_empty() => format!("{line}\n\n{card}"),
+        _ => line,
+    }
+}
+
+/// The hover of a file a `@see` or `@example` tag names: its path, and the
+/// section under the heading at the 0-based line `heading`.
+fn file_card(path: &Path, heading: Option<u32>) -> String {
+    let shown = path.display().to_string();
+    let shown = shown.strip_prefix(r"\\?\").unwrap_or(&shown);
+    let mut out = format!("```text\n{shown}\n```");
+    if let Some(line) = heading
+        && let Ok(text) = std::fs::read_to_string(path)
+    {
+        let end = nvs_syntax::doc_target::heading_slugs(&text)
+            .into_iter()
+            .map(|(_, at)| at)
+            .find(|&at| at > line)
+            .map_or(usize::MAX, |at| at as usize);
+        let section: Vec<&str> = text
+            .lines()
+            .enumerate()
+            .skip(line as usize)
+            .take_while(|(index, _)| *index < end)
+            .take(SECTION_LINES)
+            .map(|(_, text)| text)
+            .collect();
+        let section = section.join("\n");
+        let section = section.trim_end();
+        if !section.is_empty() {
+            out.push_str("\n\n");
+            out.push_str(section);
+        }
+    }
+    out
 }
 
 /// The route argument of a link to another module, answered with the handler
@@ -510,15 +592,39 @@ fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
         Target::Method(call) => call.param_names.iter().map(String::as_str).collect(),
         _ => Vec::new(),
     };
+    let file = declared.span.file;
+    let link = |tag: &DocTag| see_link(analysed, file, tag);
     let doc = declared
         .doc
-        .map(|doc| markdown_in(analysed.map.file(declared.span.file).text(), doc, &order));
+        .map(|doc| markdown_linked(analysed.map.file(file).text(), doc, &order, &link));
     let parts: Vec<String> = deprecation(analysed, target)
         .into_iter()
         .chain(restriction(analysed, target))
         .chain(doc)
         .collect();
     (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
+/// The `file:` URL a `@see` or `@example` tag written in `file` links to, read
+/// off the checker's record of what it resolved to
+/// (`nvs_hir::doc_targets`): the declaration of a class or member, or the
+/// file, at the line of the heading an anchor named. `None` for a tag the
+/// record does not hold, which then stays as written.
+fn see_link(analysed: &Analysed, file: SourceId, tag: &DocTag) -> Option<String> {
+    let target = analysed
+        .module
+        .doc_targets
+        .in_file(file)
+        .iter()
+        .find(|target| target.span == tag.argument)?;
+    let named = crate::definition::doc_named_at_target(target);
+    let declared = crate::definition::doc_declared(analysed, &named, PositionEncoding::Utf16)?;
+    let uri = crate::document::uri_of(&declared.path)?;
+    Some(format!(
+        "{}#L{}",
+        uri.as_str(),
+        declared.range.start.line + 1
+    ))
 }
 
 /// The `[[restrict]]` entries on the declaration `target` resolves to, as
@@ -1260,6 +1366,18 @@ pub(crate) fn markdown(text: &str, doc: &DocComment) -> String {
 /// consumer is what decides where the prose starts. A `@see` or `@example`
 /// line stays in the prose, as written, and a `/// TODO:` line is left out.
 pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> String {
+    markdown_linked(text, doc, order, &|_| None)
+}
+
+/// [`markdown_in`], with the argument of each `@see` and `@example` line
+/// written as a Markdown link to the URL `link` gives for its tag. A tag
+/// `link` gives no URL for stays as written.
+pub(crate) fn markdown_linked(
+    text: &str,
+    doc: &DocComment,
+    order: &[&str],
+    link: &dyn Fn(&DocTag) -> Option<String>,
+) -> String {
     let mut out = doc
         .lines
         .iter()
@@ -1269,7 +1387,17 @@ pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> Strin
                     .tag_of_line(**line)
                     .is_none_or(|tag| !tag.kind.has_text())
         })
-        .map(|line| prose(text.get(line.range()).unwrap_or_default()))
+        .map(|line| {
+            let written = text.get(line.range()).unwrap_or_default();
+            let linked = doc
+                .tag_of_line(*line)
+                .filter(|tag| matches!(tag.kind, DocTagKind::See | DocTagKind::Example))
+                .and_then(|tag| linked_line(text, *line, tag, link(tag)?));
+            match linked {
+                Some(linked) => prose(&linked).to_owned(),
+                None => prose(written).to_owned(),
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n");
     let mut card = String::new();
@@ -1297,6 +1425,22 @@ pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> Strin
         out.push_str(&card);
     }
     out
+}
+
+/// One `@see` or `@example` line of `text` with its argument written as a
+/// Markdown link to `url`, its name in backticks. `None` where the argument is
+/// not inside the line.
+fn linked_line(text: &str, line: Span, tag: &DocTag, url: String) -> Option<String> {
+    if tag.argument.start < line.start || tag.argument.end > line.end {
+        return None;
+    }
+    let before = text.get(line.start as usize..tag.argument.start as usize)?;
+    let argument = text.get(tag.argument.range())?;
+    let after = text.get(tag.argument.end as usize..line.end as usize)?;
+    if argument.is_empty() {
+        return None;
+    }
+    Some(format!("{before}[`{argument}`]({url}){after}"))
 }
 
 /// A tag's text as the body of a list item: every line after the first is
