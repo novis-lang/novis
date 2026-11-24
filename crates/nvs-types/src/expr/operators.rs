@@ -3231,16 +3231,26 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
     };
     if qname.is_core() {
         if !core_class_renders(&qname) {
+            // The three civil `Core\Time` classes have one text each that
+            // `fromIso` reads back, and a locale's text through `format`, so the
+            // help names both (`rule:classes/stringable`'s Declined list).
+            let help = match qname.to_string().as_str() {
+                r"Core\Time\Date" | r"Core\Time\TimeOfDay" | r"Core\Time\DateTime" => {
+                    "call `toIso()` for the ISO 8601 text, which `fromIso` reads back, or \
+                     `format(...)` with a pattern for any other text"
+                }
+                _ => {
+                    "a `Core` class can be converted to `string` only if it has a `toString` \
+                     method. Call the method that returns the text you want"
+                }
+            };
             env.diags.report(
                 Diagnostic::error(
                     code::E_CORE_CLASS_NOT_STRINGABLE,
                     format!("`{qname}` cannot be converted to `string`; it has no `toString`"),
                 )
                 .with_primary(span, "converted to `string` here")
-                .with_help(
-                    "a `Core` class can be converted to `string` only if it has a `toString` \
-                     method. Call the method that returns the text you want",
-                ),
+                .with_help(help),
             );
             return;
         }

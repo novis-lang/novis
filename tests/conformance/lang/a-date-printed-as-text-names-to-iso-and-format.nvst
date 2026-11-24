@@ -1,0 +1,32 @@
+--TEST--
+a `Date`, a `TimeOfDay` and a `DateTime` printed as text are `E0710`, and its help names `toIso()` and `format(...)` — `rule:classes/stringable`
+--FILE--
+<?nvs
+class Render {
+    public static function date(Core\Time\Date $day): string {
+        return "on $day";
+    }
+
+    public static function time(Core\Time\TimeOfDay $at): string {
+        return "at " . $at;
+    }
+
+    public static function dateTime(Core\Time\DateTime $at): string {
+        return $at as string;
+    }
+}
+--EXPECTF-ERROR--
+error[E0710]: `Core\Time\Date` cannot be converted to `string`; it has no `toString`
+%A
+  = help: call `toIso()` for the ISO 8601 text, which `fromIso` reads back, or `format(...)` with a pattern for any other text
+
+error[E0710]: `Core\Time\TimeOfDay` cannot be converted to `string`; it has no `toString`
+%A
+  = help: call `toIso()` for the ISO 8601 text, which `fromIso` reads back, or `format(...)` with a pattern for any other text
+
+error[E0710]: `Core\Time\DateTime` cannot be converted to `string`; it has no `toString`
+%A
+   = help: call `toIso()` for the ISO 8601 text, which `fromIso` reads back, or `format(...)` with a pattern for any other text
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
