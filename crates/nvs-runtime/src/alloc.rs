@@ -96,22 +96,40 @@ struct Class {
     len: Cell<u32>,
 }
 
-thread_local! {
-    /// The calling thread's cache. `const`-initialized and `Drop`-free, per the
-    /// module doc's *The one trap*.
+/// One thread's cache: a free list per class.
+///
+/// It is a field of `budget`'s per-thread storage, beside the memory
+/// counters, so the registered allocator looks the thread's storage up once
+/// and hands this to the free lists and the counters to the arithmetic. That
+/// thread-local's doc carries the module doc's *The one trap*.
+/// [`budget::with_cache`](crate::budget::with_cache) is how [`Pooled`] and the
+/// functions below reach it.
+#[derive(Debug)]
+pub(crate) struct Cache([Class; CLASS_COUNT]);
+
+impl std::fmt::Debug for Class {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Class").field("len", &self.len.get()).finish_non_exhaustive()
+    }
+}
+
+impl Cache {
+    /// An empty cache, for a `const`-initialized thread-local.
     ///
-    /// The empty class is an inline `const` block rather than a named constant:
-    /// a `Class` holds `Cell`s, and a named constant with interior mutability
-    /// is copied at each use, which is what `clippy::declare_interior_mutable_
-    /// const` refuses.
-    static CACHE: [Class; CLASS_COUNT] = const {
-        [const {
-            Class {
-                head: Cell::new(ptr::null_mut()),
-                len: Cell::new(0),
-            }
-        }; CLASS_COUNT]
-    };
+    /// The empty class is an inline `const` block rather than a named
+    /// constant: a `Class` holds `Cell`s, and a named constant with interior
+    /// mutability is copied at each use, which is what
+    /// `clippy::declare_interior_mutable_const` refuses.
+    pub(crate) const fn new() -> Self {
+        Self(
+            [const {
+                Class {
+                    head: Cell::new(ptr::null_mut()),
+                    len: Cell::new(0),
+                }
+            }; CLASS_COUNT],
+        )
+    }
 }
 
 /// The class that serves `layout`, or `None` when the platform heap does.
@@ -143,10 +161,11 @@ fn block_layout(class: usize) -> Layout {
     }
 }
 
-/// Takes a block off `class`'s free list, or null when it is empty.
-fn pop(class: usize) -> *mut u8 {
-    CACHE.with(|cache| {
-        let entry = &cache[class];
+impl Cache {
+    /// Takes a block off `class`'s free list, or null when it is empty.
+    #[inline]
+    fn pop(&self, class: usize) -> *mut u8 {
+        let entry = &self.0[class];
         let head = entry.head.get();
         if head.is_null() {
             return head;
@@ -161,23 +180,22 @@ fn pop(class: usize) -> *mut u8 {
         entry.head.set(next);
         entry.len.set(entry.len.get().saturating_sub(1));
         head
-    })
-}
+    }
 
-/// Puts `block` on `class`'s free list, or answers `false` when it is full.
-///
-/// # Safety
-///
-/// `block` must be a live allocation made with `block_layout(class)` that the
-/// caller is giving up ownership of.
-#[expect(
-    unsafe_code,
-    reason = "the caller's ownership of `block` is what makes writing the next \
-              pointer into its first word sound"
-)]
-unsafe fn push(class: usize, block: *mut u8) -> bool {
-    CACHE.with(|cache| {
-        let entry = &cache[class];
+    /// Puts `block` on `class`'s free list, or answers `false` when it is full.
+    ///
+    /// # Safety
+    ///
+    /// `block` must be a live allocation made with `block_layout(class)` that the
+    /// caller is giving up ownership of.
+    #[expect(
+        unsafe_code,
+        reason = "the caller's ownership of `block` is what makes writing the next \
+                  pointer into its first word sound"
+    )]
+    #[inline]
+    unsafe fn push(&self, class: usize, block: *mut u8) -> bool {
+        let entry = &self.0[class];
         if entry.len.get() >= CLASS_CAPACITY {
             return false;
         }
@@ -192,7 +210,7 @@ unsafe fn push(class: usize, block: *mut u8) -> bool {
         entry.head.set(block);
         entry.len.set(entry.len.get() + 1);
         true
-    })
+    }
 }
 
 /// How many freed blocks the calling thread's cache holds in the class that
@@ -201,7 +219,9 @@ unsafe fn push(class: usize, block: *mut u8) -> bool {
 /// Reads the length `push` and `pop` already keep, so it costs the allocation
 /// path nothing. [`crate::budget::pooled_blocks`] is its public face.
 pub(crate) fn cached_blocks(layout: Layout) -> u32 {
-    class_of(layout).map_or(0, |class| CACHE.with(|cache| cache[class].len.get()))
+    class_of(layout).map_or(0, |class| {
+        crate::budget::with_cache(|cache| cache.0[class].len.get())
+    })
 }
 
 /// Hands every block the calling thread's cache keeps back to [`System`].
@@ -211,36 +231,70 @@ pub(crate) fn cached_blocks(layout: Layout) -> u32 {
 /// that ended stay allocated and no other thread can use them, because the
 /// cache holds no `Drop` type (the module doc's *The one trap*).
 pub(crate) fn release_cache() {
-    for class in 0..CLASS_COUNT {
-        loop {
-            let block = pop(class);
-            if block.is_null() {
-                break;
-            }
-            #[expect(
-                unsafe_code,
-                reason = "every cached block of `class` was allocated with \
-                          `block_layout(class)`, which is what `System` requires"
-            )]
-            unsafe {
-                System.dealloc(block, block_layout(class));
+    crate::budget::with_cache(|cache| {
+        for class in 0..CLASS_COUNT {
+            loop {
+                let block = cache.pop(class);
+                if block.is_null() {
+                    break;
+                }
+                #[expect(
+                    unsafe_code,
+                    reason = "every cached block of `class` was allocated with \
+                              `block_layout(class)`, which is what `System` requires"
+                )]
+                unsafe {
+                    System.dealloc(block, block_layout(class));
+                }
             }
         }
-    }
+    });
 }
 
-/// [`System`], with the per-thread size-class cache above in front of it.
+/// [`System`], with the calling thread's size-class cache in front of it.
+///
+/// Each method looks the thread's [`Cache`] up once and runs the cache's own
+/// method on it. The registered allocator, `budget::Accounting`, takes the
+/// cache from the same lookup as its counters and does not come through here.
 #[derive(Debug)]
 pub(crate) struct Pooled;
 
 #[expect(
     unsafe_code,
     reason = "a global allocator's contract is inherently unsafe to implement; \
-              every method below either forwards to `System` unchanged or \
-              serves the request from a block of the same class this allocator \
-              itself took from `System`"
+              every method below forwards to the calling thread's `Cache` \
+              unchanged"
 )]
 unsafe impl GlobalAlloc for Pooled {
+    #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        crate::budget::with_cache(|cache| unsafe { cache.alloc(layout) })
+    }
+
+    #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        crate::budget::with_cache(|cache| unsafe { cache.dealloc(ptr, layout) });
+    }
+
+    #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        crate::budget::with_cache(|cache| unsafe { cache.alloc_zeroed(layout) })
+    }
+
+    #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        crate::budget::with_cache(|cache| unsafe { cache.realloc(ptr, layout, new_size) })
+    }
+}
+
+#[expect(
+    unsafe_code,
+    reason = "a global allocator's contract is inherently unsafe to implement; \
+              every method below either forwards to `System` unchanged or \
+              serves the request from a block of the same class this cache \
+              itself took from `System`"
+)]
+unsafe impl GlobalAlloc for Cache {
     #[expect(
         unsafe_code,
         reason = "the caller's `layout` obligations are forwarded to `System` \
@@ -251,7 +305,7 @@ unsafe impl GlobalAlloc for Pooled {
             #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
             return unsafe { System.alloc(layout) };
         };
-        let cached = pop(class);
+        let cached = self.pop(class);
         if !cached.is_null() {
             return cached;
         }
@@ -284,7 +338,7 @@ unsafe impl GlobalAlloc for Pooled {
             reason = "the caller has given up `ptr`, and it is a block of this \
                       class because `alloc` allocated it from `block_layout`"
         )]
-        let cached = unsafe { push(class, ptr) };
+        let cached = unsafe { self.push(class, ptr) };
         if !cached {
             #[expect(
                 unsafe_code,
@@ -308,7 +362,7 @@ unsafe impl GlobalAlloc for Pooled {
             #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
             return unsafe { System.alloc_zeroed(layout) };
         };
-        let cached = pop(class);
+        let cached = self.pop(class);
         if !cached.is_null() {
             #[expect(
                 unsafe_code,
@@ -379,7 +433,7 @@ mod tests {
 
     /// How many blocks `class` is currently caching.
     fn cached(class: usize) -> u32 {
-        CACHE.with(|cache| cache[class].len.get())
+        crate::budget::with_cache(|cache| cache.0[class].len.get())
     }
 
     /// Allocates and immediately frees one block, answering its address — two

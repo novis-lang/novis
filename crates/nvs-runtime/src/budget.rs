@@ -256,8 +256,9 @@ pub use gauge::{
     process_limit, publish_held, set_process_limit,
 };
 
-/// What [`Accounting`] forwards to: Novis's own pooled allocator wherever it is
-/// registered, and the platform heap everywhere else.
+/// What [`Accounting`] forwards to: the calling thread's block cache wherever
+/// the pool is used, taken from the same lookup as its counters, and the
+/// platform heap everywhere else.
 ///
 /// The split is `crate::alloc`'s, not this module's — a debug build is left
 /// on the platform heap so a recycled block is never a block valgrind fails to
@@ -265,9 +266,17 @@ pub use gauge::{
 /// reason. Counting is orthogonal to both: it sits outside whichever backing
 /// allocator is chosen, so [`live_bytes`] means the same thing in every build.
 #[cfg(all(any(test, not(debug_assertions)), not(feature = "sanitizer")))]
-use crate::alloc::Pooled as Backing;
+#[inline]
+fn backing(thread: &PerThread) -> &crate::alloc::Cache {
+    &thread.cache
+}
+
+/// [`backing`] where the pool is not used: the platform heap.
 #[cfg(not(all(any(test, not(debug_assertions)), not(feature = "sanitizer"))))]
-use std::alloc::System as Backing;
+#[inline]
+fn backing(_: &PerThread) -> &'static std::alloc::System {
+    &std::alloc::System
+}
 
 /// The cells every allocation and every free on this thread reads or writes,
 /// in one thread-local so the allocation path looks the thread's storage up
@@ -351,11 +360,43 @@ const HOT_SPAN: usize =
     std::mem::offset_of!(Counters, detaching) + std::mem::size_of::<Cell<bool>>();
 const _: () = assert!(HOT_SPAN <= 64);
 
+/// Everything the allocation path reads or writes on this thread: the memory
+/// counters and, where `crate::alloc` is compiled, its block cache.
+///
+/// They share one thread-local so [`Accounting`]'s `alloc`, `alloc_zeroed`,
+/// `dealloc` and `realloc` each look the thread's storage up once, and hand
+/// the cache to the free list and the counters to [`add_to`]. Two
+/// thread-locals cost two lookups per allocation for the same work.
+///
+/// `#[repr(C)]` keeps [`Counters`] first, so [`HOT_SPAN`] still measures from
+/// the start of the storage. The cache's 16 classes follow, 256 bytes.
+#[repr(C)]
+#[derive(Debug)]
+struct PerThread {
+    counters: Counters,
+    #[cfg(any(test, not(debug_assertions)))]
+    cache: crate::alloc::Cache,
+}
+
+impl PerThread {
+    const fn new() -> Self {
+        Self {
+            counters: Counters::new(),
+            #[cfg(any(test, not(debug_assertions)))]
+            cache: crate::alloc::Cache::new(),
+        }
+    }
+}
+
 thread_local! {
-    /// Const-initialized and holding no `Drop` type, for `crate::alloc`'s
-    /// *one trap*: a lazily-initialized thread local allocates its own state
-    /// from inside the allocator.
-    static COUNTERS: Counters = const { Counters::new() };
+    /// The calling thread's [`PerThread`].
+    ///
+    /// It **must** be `const`-initialized and hold no `Drop` type, which is
+    /// `crate::alloc`'s *one trap*. A lazily-initialized thread-local
+    /// allocates its own state, and one with a destructor registers that
+    /// destructor. Both happen from inside the allocator, which recurses.
+    /// `Cell`s of integers and pointers are neither.
+    static THREAD: PerThread = const { PerThread::new() };
     /// How far the thread's live balance stands from the running tree's own
     /// balance: the module doc's *per request tree across switches*. [`live_bytes`]
     /// subtracts it, and [`ArmedStack`] carries it with the stack.
@@ -459,13 +500,13 @@ impl Detached {
     /// Opens the bracket, and answers the guard that closes it again.
     #[must_use]
     pub fn begin() -> Self {
-        Self(COUNTERS.with(|c| c.detaching.replace(true)))
+        Self(with_counters(|c| c.detaching.replace(true)))
     }
 }
 
 impl Drop for Detached {
     fn drop(&mut self) {
-        COUNTERS.with(|c| c.detaching.set(self.0));
+        with_counters(|c| c.detaching.set(self.0));
     }
 }
 
@@ -487,12 +528,12 @@ pub fn keep_footprint_outside() {
     static INSTALLED: std::sync::Once = std::sync::Once::new();
     INSTALLED.call_once(|| {
         nvs_footprint::keep_outside(|write| {
-            let before = COUNTERS.with(|c| (c.requests.get(), c.total.get()));
+            let before = with_counters(|c| (c.requests.get(), c.total.get()));
             {
                 let _process = Detached::begin();
                 write();
             }
-            COUNTERS.with(|c| {
+            with_counters(|c| {
                 c.requests.set(before.0);
                 c.total.set(before.1);
             });
@@ -626,7 +667,7 @@ pub(crate) fn arm(next: Armed) {
             raw => raw,
         }
     };
-    COUNTERS.with(|c| c.ceiling.set(ceiling));
+    with_counters(|c| c.ceiling.set(ceiling));
     POLLED.with(|polled| polled.set(next.word));
 }
 
@@ -721,7 +762,7 @@ impl ArmedStack {
             foreign: FOREIGN.with(|cell| cell.replace(0)),
             peak: 0,
         };
-        let peak = COUNTERS.with(|c| c.peak.replace(live));
+        let peak = with_counters(|c| c.peak.replace(live));
         Self {
             peak: peak.wrapping_sub(taken.foreign),
             ..taken
@@ -736,7 +777,7 @@ impl ArmedStack {
     /// the task left.
     pub fn restore(self) {
         self.resume();
-        COUNTERS.with(|c| c.peak.set(c.peak.get().max(c.live.get())));
+        with_counters(|c| c.peak.set(c.peak.get().max(c.live.get())));
     }
 
     /// Puts back what [`take`](ArmedStack::take) answered, in the units of
@@ -757,7 +798,7 @@ impl ArmedStack {
         arm(self.armed);
         restore_refusal(self.refused);
         REPORTING.with(|open| open.set(self.reporting));
-        COUNTERS.with(|c| c.peak.set(self.peak.wrapping_add(foreign)));
+        with_counters(|c| c.peak.set(self.peak.wrapping_add(foreign)));
     }
 
     /// The instant a park of this stack ends at: the open handler slice's
@@ -932,7 +973,7 @@ pub(crate) fn running_turn() -> *const crate::TreeState {
 /// balance moves.
 pub(crate) fn credit_turn(bytes: isize) {
     FOREIGN.with(|cell| cell.set(cell.get().wrapping_add(bytes)));
-    COUNTERS.with(|c| {
+    with_counters(|c| {
         c.peak.set(c.peak.get().wrapping_add(bytes));
         let raw = c.ceiling.get();
         if raw != 0 {
@@ -1183,7 +1224,7 @@ pub fn live_bytes() -> isize {
 /// on one core hold together.
 #[must_use]
 pub fn thread_live_bytes() -> isize {
-    COUNTERS.with(|c| c.live.get())
+    with_counters(|c| c.live.get())
 }
 
 /// How many bytes this thread has allocated inside a [`Detached`] bracket and
@@ -1196,7 +1237,7 @@ pub fn thread_live_bytes() -> isize {
 /// `Core\Cache::memory()`.
 #[must_use]
 pub fn detached_bytes() -> isize {
-    COUNTERS.with(|c| c.detached.get())
+    with_counters(|c| c.detached.get())
 }
 
 /// The highest [`live_bytes`] has reached since the innermost live
@@ -1211,8 +1252,7 @@ pub fn detached_bytes() -> isize {
 /// balance.
 #[must_use]
 pub fn peak_bytes() -> isize {
-    COUNTERS
-        .with(|c| c.peak.get())
+    with_counters(|c| c.peak.get())
         .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
@@ -1224,8 +1264,7 @@ pub fn peak_bytes() -> isize {
 /// carries the enclosing value, so it measures its own allocation and no
 /// caller's.
 pub(crate) fn rebase_peak() -> isize {
-    COUNTERS
-        .with(|c| c.peak.replace(c.live.get()))
+    with_counters(|c| c.peak.replace(c.live.get()))
         .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
@@ -1235,7 +1274,7 @@ pub(crate) fn rebase_peak() -> isize {
 /// [`Ctx::rebase_memory`](crate::Ctx::rebase_memory)'s half: the context's
 /// baseline moves, so the mark it measures from moves with it.
 pub(crate) fn restart_peak() {
-    COUNTERS.with(|c| c.peak.set(c.live.get()));
+    with_counters(|c| c.peak.set(c.live.get()));
 }
 
 /// Restores `enclosing` as the mark, keeping whichever of the two is higher.
@@ -1245,7 +1284,7 @@ pub(crate) fn restart_peak() {
 /// request that spawned it.
 pub(crate) fn publish_peak(enclosing: isize) {
     let enclosing = enclosing.saturating_add(FOREIGN.with(Cell::get));
-    COUNTERS.with(|c| c.peak.set(c.peak.get().max(enclosing)));
+    with_counters(|c| c.peak.set(c.peak.get().max(enclosing)));
 }
 /// How many allocation requests this thread has made, never decreasing.
 ///
@@ -1255,7 +1294,7 @@ pub(crate) fn publish_peak(enclosing: isize) {
 /// before it returns balances to zero and still made the allocation.
 #[must_use]
 pub fn allocations() -> usize {
-    COUNTERS.with(|c| c.requests.get())
+    with_counters(|c| c.requests.get())
 }
 
 #[cfg(debug_assertions)]
@@ -1345,7 +1384,7 @@ pub fn membership_walks() -> usize {
 /// everything" from "never ran".
 #[must_use]
 pub fn allocated_bytes() -> usize {
-    COUNTERS.with(|c| c.total.get())
+    with_counters(|c| c.total.get())
 }
 
 /// Takes `bytes` off [`allocated_bytes`]'s total: what a debug build allocates
@@ -1354,7 +1393,7 @@ pub fn allocated_bytes() -> usize {
 /// balance keeps them, because they are held, so a ceiling still sees them.
 #[cfg(debug_assertions)]
 pub(crate) fn uncount_debug_bytes(bytes: usize) {
-    COUNTERS.with(|c| c.total.set(c.total.get().saturating_sub(bytes)));
+    with_counters(|c| c.total.set(c.total.get().saturating_sub(bytes)));
 }
 
 /// Hands every block this thread's allocator cache keeps back to the platform
@@ -1428,7 +1467,7 @@ pub(crate) fn wrote(bytes: usize) {
 /// parks reads the same threshold when it resumes.
 #[must_use]
 pub fn armed_ceiling() -> isize {
-    match COUNTERS.with(|c| c.ceiling.get()) {
+    match with_counters(|c| c.ceiling.get()) {
         0 => 0,
         raw => raw.wrapping_sub(FOREIGN.with(Cell::get)),
     }
@@ -1455,7 +1494,7 @@ pub fn armed_ceiling() -> isize {
 /// [`Detached`] bracket, whose bytes are not the request's to be refused.
 #[must_use]
 pub fn affords(bytes: usize) -> bool {
-    let Some((ceiling, live)) = COUNTERS.with(|c| {
+    let Some((ceiling, live)) = with_counters(|c| {
         let ceiling = c.ceiling.get();
         if ceiling == 0 || c.detaching.get() {
             return None;
@@ -1492,7 +1531,7 @@ pub fn affords(bytes: usize) -> bool {
 #[must_use]
 pub fn headroom() -> Option<usize> {
     let (ceiling, detaching, live) =
-        COUNTERS.with(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
+        with_counters(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
     if ceiling == 0 || REPORTING.with(Cell::get) || detaching {
         return None;
     }
@@ -1509,7 +1548,7 @@ pub fn headroom() -> Option<usize> {
 #[must_use]
 pub fn over_ceiling() -> bool {
     let (ceiling, detaching, live) =
-        COUNTERS.with(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
+        with_counters(|c| (c.ceiling.get(), c.detaching.get(), c.live.get()));
     ceiling != 0 && !REPORTING.with(Cell::get) && !detaching && live > ceiling
 }
 
@@ -1939,8 +1978,19 @@ pub fn watch_allocations(hook: Option<fn(usize)>) {
 
 /// Charges `bytes` to this thread's counters — negative for a release.
 ///
-/// `pub(crate)`, and called from [`Accounting`] below and from
-/// `counting_alloc`'s own arithmetic in a test build. A positive delta is one
+/// `counting_alloc`'s own arithmetic calls it in a test build, where that
+/// allocator is registered in place of [`Accounting`]. It looks the thread's
+/// [`Counters`] up once and hands them to [`add_to`].
+#[cfg(test)]
+pub(crate) fn add(bytes: isize) {
+    with_counters(|counters| add_to(counters, bytes));
+}
+
+/// Charges `bytes` to `counters`, which the caller has already looked up —
+/// negative for a release.
+///
+/// [`Accounting`] calls it with the counters from the lookup that also gave
+/// it the block cache, and [`add`] in a test build. A positive delta is one
 /// allocation *request*, which is why the memory counters move together here
 /// rather than at each allocating call site — the high-water mark among them,
 /// so the mark is exact for every allocation rather than approximate between
@@ -1951,15 +2001,25 @@ pub fn watch_allocations(hook: Option<fn(usize)>) {
 /// Inside a [`Detached`] bracket the delta lands on the process's balance
 /// instead, and every question this asks of the request — its mark, its
 /// ceiling — is one the bytes are not the request's to answer.
-///
-/// It looks the thread's [`Counters`] up once and hands them to both halves.
-pub(crate) fn add(bytes: isize) {
-    COUNTERS.with(|counters| {
-        if bytes > 0 {
-            record(counters, bytes);
-        }
-        shift(counters, bytes);
-    });
+#[inline]
+fn add_to(counters: &Counters, bytes: isize) {
+    if bytes > 0 {
+        record(counters, bytes);
+    }
+    shift(counters, bytes);
+}
+
+/// Runs `f` on the calling thread's [`Counters`].
+#[inline]
+fn with_counters<R>(f: impl FnOnce(&Counters) -> R) -> R {
+    THREAD.with(|thread| f(&thread.counters))
+}
+
+/// Runs `f` on the calling thread's block cache: `crate::alloc`'s way to it.
+#[cfg(any(test, not(debug_assertions)))]
+#[inline]
+pub(crate) fn with_cache<R>(f: impl FnOnce(&crate::alloc::Cache) -> R) -> R {
+    THREAD.with(|thread| f(&thread.cache))
 }
 
 /// Moves `bytes` onto this thread's balance without counting an allocation —
@@ -1980,11 +2040,11 @@ pub(crate) fn add(bytes: isize) {
 /// the registered allocator. Thin LTO otherwise decides that per build.
 #[inline]
 pub fn carry(bytes: isize) {
-    COUNTERS.with(|counters| shift(counters, bytes));
+    with_counters(|counters| shift(counters, bytes));
 }
 
-/// [`carry`] on counters the caller has already looked up: [`add`] and
-/// [`carry`] each take [`COUNTERS`] once and pass them here.
+/// [`carry`] on counters the caller has already looked up: [`add_to`] and
+/// [`carry`] each take [`THREAD`] once and pass its counters here.
 #[inline]
 fn shift(counters: &Counters, bytes: isize) {
     if counters.detaching.get() {
@@ -2037,64 +2097,75 @@ pub(crate) struct Accounting;
 #[expect(
     unsafe_code,
     reason = "a global allocator's contract is inherently unsafe to implement; \
-              every method below forwards to `Backing` unchanged and only adds \
+              every method below forwards to `backing` unchanged and only adds \
               arithmetic on a thread-local Cell"
 )]
 unsafe impl GlobalAlloc for Accounting {
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `Backing` \
+        reason = "the caller's `layout` obligations are forwarded to `backing` \
                   verbatim"
     )]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { Backing.alloc(layout) };
-        if !ptr.is_null() {
-            add(charge(layout.size()));
-        }
-        ptr
+        THREAD.with(|thread| {
+            #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+            let ptr = unsafe { backing(thread).alloc(layout) };
+            if !ptr.is_null() {
+                add_to(&thread.counters, charge(layout.size()));
+            }
+            ptr
+        })
     }
 
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout` obligations are forwarded to \
-                  `Backing` verbatim"
+                  `backing` verbatim"
     )]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        add(-charge(layout.size()));
-        #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        unsafe {
-            Backing.dealloc(ptr, layout);
-        }
+        THREAD.with(|thread| {
+            add_to(&thread.counters, -charge(layout.size()));
+            #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+            unsafe {
+                backing(thread).dealloc(ptr, layout);
+            }
+        });
     }
 
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `Backing` \
+        reason = "the caller's `layout` obligations are forwarded to `backing` \
                   verbatim"
     )]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { Backing.alloc_zeroed(layout) };
-        if !ptr.is_null() {
-            add(charge(layout.size()));
-        }
-        ptr
+        THREAD.with(|thread| {
+            #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+            let ptr = unsafe { backing(thread).alloc_zeroed(layout) };
+            if !ptr.is_null() {
+                add_to(&thread.counters, charge(layout.size()));
+            }
+            ptr
+        })
     }
 
+    /// Charges the new size first and then gives the old one back, so the
+    /// mark rises by the new size exactly as an allocation followed by a free
+    /// would raise it.
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout`/`new_size` obligations are \
-                  forwarded to `Backing` verbatim"
+                  forwarded to `backing` verbatim"
     )]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let fresh = unsafe { Backing.realloc(ptr, layout, new_size) };
-        if !fresh.is_null() {
-            add(charge(new_size));
-            add(-charge(layout.size()));
-        }
-        fresh
+        THREAD.with(|thread| {
+            #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+            let fresh = unsafe { backing(thread).realloc(ptr, layout, new_size) };
+            if !fresh.is_null() {
+                add_to(&thread.counters, charge(new_size));
+                add_to(&thread.counters, -charge(layout.size()));
+            }
+            fresh
+        })
     }
 }
 

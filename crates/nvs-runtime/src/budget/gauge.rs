@@ -63,7 +63,7 @@
 //! tree's park pays two relaxed loads, a swap and a compare. Each tree carries three words for it.
 //! [`SHARES`] is one more thread-local cell, and admitting or ending a request one more publish.
 
-use super::{COUNTERS, POLLED, REFUSED, Refusal};
+use super::{POLLED, REFUSED, Refusal, with_counters};
 use std::cell::Cell;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
@@ -168,7 +168,7 @@ pub(super) fn far_from(now: isize, mark: isize) -> bool {
 #[cold]
 #[inline(never)]
 pub(super) fn report(grew: bool) {
-    let (live, detached) = COUNTERS.with(|c| {
+    let (live, detached) = with_counters(|c| {
         let live = c.live.get();
         let detached = c.detached.get();
         c.live_mark.set(live);
