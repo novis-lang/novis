@@ -28,7 +28,7 @@ stages:
     status: done
   - id: 7
     title: "stages 4 and 5 have their feature proofs, and the website says what changed"
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/operators/comparison.mdx, website/src/data/changes.json]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -442,15 +442,15 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 **Split:** the examples of `Date::parse` and `Date::range` go to one writing subagent, those of
 `Duration` to another, and those of `Novis\Intl\DateFormat` to a third; the session writes the website.
 
-- [ ] The proofs `bun nv proofs --owed --goal time-values` names for stage 4 and 5's members, at the
+- [x] The proofs `bun nv proofs --owed --goal time-values` names for stage 4 and 5's members, at the
   paths it prints. `docs/examples/novis/Intl-DateFormat/dates/` and `dateTimes/` gain a `fields`
   example each.
-- [ ] `website/src/content/docs/syntax/operators/comparison.mdx:1`: `==` on the time values, and
+- [x] `website/src/content/docs/syntax/operators/comparison.mdx:1`: `==` on the time values, and
   `<` on a `DateTime`. Reread and stamped with `bun nv site --stamp`.
-- [ ] `website/src/data/changes.json:1`: a `changed` entry for `==` on the time values, for `ObjectMap`
+- [x] `website/src/data/changes.json:1`: a `changed` entry for `==` on the time values, for `ObjectMap`
   and `ObjectSet`, for `Novis\Intl\DateFormat` and for `Core\Time\DateTime::fromIso`, whose `$zone` is
   optional for a text with `[Zone]`; a `new` entry for each new member.
-- [ ] `bun nv proofs --owed --goal time-values` names nothing.
+- [x] `bun nv proofs --owed --goal time-values` names nothing.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -462,41 +462,31 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 is `60df6ca00f` (the rules) and `ca36b2cca2` (the proofs).
+Stages 1 to 7 are done. Stage 7 is `026cf7a6b8` (changelog and pages), `26ce9d1e9e` (the
+`Date::range` fix), `3c71d32443` (the proofs), `d37ff0666c` (review and search questions) and
+`8499339ba5` (perf).
 
-- The rules: `rule:types/duration` says `90m == 1h30m` is `true`. `rule:types/ordering` and
-  `rule:classes/comparable` order a `DateTime` by its moment. `collections-drop-revoked-objects` has
-  § *A key is found with `==`*. `a-time-class-builds-its-own-values` has the `Date` calendar members
-  and three declines, `stringable` the `Date` decline and E0710, `no-mode-strings` and `intl-roster`
-  the skeleton and `Full` declines, and `intl-roster` the `Fields` option and the stage 5 calls.
-- The proofs: every stage 1 to 3 member owes only `perf` now. New conformance cases:
-  `tests/conformance/core/date-*.nvst` (four), `datetime-*.nvst` (four),
-  `time-of-day-to-iso-*.nvst` and `time-values-compare-by-value.nvst`. Each ran green by name with
-  the debug binary. `time-duration-compare-to-*` and `time-a-written-zone-is-checked-and-shared`
-  expected identity and now expect equality; both ran green.
-- Help texts rewritten and stamped: `Date::next`, `previous`, `DateTime::compareTo` (its strings
-  had lost their `\` continuations), `DateTime::fromIso`, `Duration::compareTo`, `ObjectSet::add`
-  and every `Core\Unit` case. `docs/reference/core/ObjectMap.md` and `ObjectSet.md` say a key is
-  found with `==`. `DateTime::compareTo`'s Rust test carries its `covers:` marker.
-- Build, clippy and `cargo fmt --check` are green.
+- `bun nv proofs --gate --goal time-values` is green: nothing owed over 1321 features, `perf`
+  included. `bun nv site --check stale changes review questions` is green after
+  `render --website`.
+- The `Date::range` attack found two bugs, fixed in `crates/nvs-stdlib/src/time.rs`
+  `nvs_core_time_date_range`. A month or quarter list across the calendar ended early, because a
+  jiff span's month field stops at 239,976; `calendar_span` now writes a month count as years and
+  months (jiff 0.2.38 adds them as one count before it clamps the day). And the memory ask counted
+  only the list's slots, so a whole-calendar day list held about 760 MB; it now counts each `Date`
+  too. New test `time_gaps_date_range_spans_the_whole_calendar` ran green by name. The rule's cost
+  line says so.
+- New conformance case `tests/conformance/novis/intl-date-fields-choose-the-parts-of-a-date.nvst`
+  was diffed by hand against the debug binary's output, not run through the harness.
+- The intl help texts (`manifest.json`, `nvs/DateFormat.nvs`) were rewritten and the debug binary
+  rebuilt before their review stamp. Build, clippy and `cargo fmt` are green.
 
 ### Next
 
-Stage 7, as its `**Split:**` line says. Its items carry the anchors.
+Stage 8, the gate stage, as the pack says (a full gate or a close). Its items carry the anchors.
 
-- The proofs of `Date::parse`, `Date::range`, `Duration::toClock`, `Duration::fromClock` and
-  `Novis\Intl\DateFormat::Fields`, plus the help reviews of `DateFormat::dates`, `dateTimes` and
-  `Length`. `bun nv site --check review` lists the eight `help:` entries still unstamped.
-- **`perf` is owed by about a hundred `Core\Time` members**, because `time.rs` changed since they
-  were measured. It clears with `bun nv proofs --record-perf` on a proof build, once no more
-  `time.rs` change is coming. Stage 7's last item, `proofs --owed` names nothing, needs it. Pass
-  `--nvs target/debug/nvs.exe` to `--bless` and `--run`: without it, `proofs` builds the proof
-  profile and waits on another session's build lock.
-- The website: `comparison.mdx` and `changes.json` as the items say. `render --website` first, then
-  `site --check stale` and `questions` (playbook: run the render before reading the questions).
-  `website/public/llms-full.txt` still shows `formatDates` with a `length` parameter until then.
-
-Tests that may go red in the gate: `datetime_start_of_*` and `datetime_end_of_*` in `time.rs` (the
+Tests that may go red in the gate: the new intl conformance case above (first harness run), and
+`time_gaps_date_range_*` if the memory ask moved a test's count. `datetime_start_of_*` and `datetime_end_of_*` in `time.rs` (the
 `floored` refactor of stage 3, not run since). Examples still using `compareTo(...) == 0` where `==`
 now works give the same output and are left alone:
 `docs/examples/core/IO-Metadata/modifiedAt/02-the-time-is-kept.nvs:15`,
@@ -507,7 +497,11 @@ enum. `crates/nvs-ext/tests/builtin.rs` pins the intl component's size (5%).
 `crates/nvs-ext/tests/intl.rs`'s `a_core_time_value_formats_in_its_zone_and_locale` did not run since
 stage 5. A test that counts `PREPARED_MEMBERS` or the intrinsic rows sees one more of each.
 `data/proofs/review-baseline.json` still names the old
-`Time-Duration/compareTo/02-same-length-is-not-the-same-object.nvs`; `proofs --gate` may name it.
+`Time-Duration/compareTo/02-same-length-is-not-the-same-object.nvs`. `proofs --gate` passed with
+it, and `close` may still name it.
+`benches/members/core/Time-Duration/toClock.nvs` writes `5m` every round, because each text is 4 or
+5 characters and its `$total % 4` stays 0. Its comment now says so. Cycling through all four
+durations would measure more cases, and is left to the gate.
 
 ### Backlog
 

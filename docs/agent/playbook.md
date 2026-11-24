@@ -27,6 +27,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`site --review --stamp help:<id>` hashes the help text of the built binary, not the source.**
+  In `time-values` stage 7, three subagents rewrote help texts in `time.rs` and the intl
+  `manifest.json` and stamped them with a stale `target/debug/nvs.exe`. Each stamp recorded the old
+  text, and the review went red again. Edit every help text first, run `cargo build` once, which
+  also rebuilds a built-in component's manifest, and then stamp. A writing subagent that may not
+  build lists its help keys for the session to stamp. See `tools/nv/lib/texts.ts` `card()`.
 - **A goal check over a crate under `extensions/` needs `cwd: extensions/<name>`.** The workspace
   excludes `extensions`, so `cargo test --lib <filter>` at the root runs green with none of the
   check's tests, and `looper check` finds none of the names it needs. ICU4X's baked `Baked` providers do
