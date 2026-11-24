@@ -1,5 +1,11 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": ["allocation-accounting"],
-  "themes": []
+  "themes": [
+    {
+      "title": "Documentation links",
+      "text": "A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.",
+      "goals": ["see-files"]
+    }
+  ]
 }
