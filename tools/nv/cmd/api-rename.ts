@@ -46,15 +46,25 @@ export interface Rename {
 }
 
 /** The files the sweep reads. */
-export const TEXT_EXTENSIONS = new Set([".nvs", ".nvst", ".lspt", ".md", ".mdx", ".astro", ".rs", ".ts"]);
+export const TEXT_EXTENSIONS = new Set([
+  ".nvs", ".nvst", ".lspt", ".md", ".mdx", ".astro", ".rs", ".ts", ".json", ".toml", ".out",
+]);
 const NOVIS = new Set([".nvs", ".nvst", ".lspt"]);
 const PROSE = new Set([".md", ".mdx", ".astro"]);
 
-/** Directories never swept, beside `NOT_INPUTS`: build output and generated pages. */
-const SKIPPED = new Set(["dist", ".astro", "public"]);
+/** Directories never swept, beside `NOT_INPUTS`: build output, generated pages and the loop's own state. */
+const SKIPPED = new Set(["dist", ".astro", "public", ".looper"]);
 
-/** The files `--check` ignores, repo-relative: the changelog entries, and the goal file itself. */
-const ALLOWED = ["website/src/data/changes.json"];
+/**
+ * The files `--check` ignores, repo-relative, beside the goal file itself: the changelog entries, the
+ * reference data a build writes, and the record of what a release shipped, which is history.
+ */
+const ALLOWED = [
+  "website/src/data/changes.json",
+  "website/src/data/core.json",
+  "website/src/data/core-changelog.json",
+  "data/proofs/released.json",
+];
 
 const PAIR = /^(\\?[A-Z][\w\\]*)(::|->)(\w+)$/;
 
@@ -153,12 +163,15 @@ export function rewrite(text: string, ext: string, renames: Rename[]): { text: s
   return { text: out, count };
 }
 
-/** Each `->old(` call of an instance rename in `text`, which only a reader of the receiver can rename. */
+/**
+ * Each `->old(` or `->old<T>(` call of an instance rename in `text`, which only a reader of the receiver
+ * can rename.
+ */
 export function instanceCalls(text: string, renames: Rename[]): Hit[] {
   const out: Hit[] = [];
   for (const r of renames) {
     if (!r.instance) continue;
-    const re = new RegExp(`(?<!(?<![\\w$\\\\])[A-Z]\\w*)\\??->\\s*${escape(r.oldMember)}\\s*\\(`, "g");
+    const re = new RegExp(`(?<!(?<![\\w$\\\\])[A-Z]\\w*)\\??->\\s*${escape(r.oldMember)}\\s*(?:<[^<>()]*>\\s*)?\\(`, "g");
     for (const m of text.matchAll(re)) out.push({ line: lineOf(text, m.index!), text: m[0], rename: r });
   }
   return out.sort((a, b) => a.line - b.line);

@@ -969,11 +969,11 @@
 [deferred]
 # Only `nvs.toml` sets this. A request may not change it.
 # The most requests on one CPU core that may have work waiting to run after the response
-# is sent. When this number is reached, `Core\Task::afterResponse` throws an error in the request
+# is sent. When this number is reached, `Core\Task::runAfterResponse` throws an error in the request
 # that made the call.
 #max_concurrent = 256                 # default
 # A request may change this with `Core\Config::set`.
-# The deadline of a `Core\Task::afterResponse` call that does not give its own deadline. When
+# The deadline of a `Core\Task::runAfterResponse` call that does not give its own deadline. When
 # this key is not written, such a call has no deadline. `30s` is an example value.
 #deadline = "30s"                     # default: none
 

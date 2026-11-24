@@ -1,1 +1,1 @@
-Core\Sse::stream(): this request set the status `202` and an event stream is `200` by protocol, so the two cannot both be answered
+Core\Sse::startStream(): this request set the status `202` and an event stream is `200` by protocol, so the two cannot both be answered
