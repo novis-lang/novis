@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "the memory accounting in front of each allocation is measured per request, and made one lookup if that pays"
-summary: "Reached when a test records how many allocations one served json-api and html-page request makes, the goal's standing decisions hold the per-request cost of the accounting those counts imply, and either the allocator's cache and counters share one thread-local lookup per allocation with a release guard on the saving, or the measured figures show the saving is under 1% of every compare case's CPU and budget.rs records them."
+summary: "Reached when a test records how many allocations one served json-api and html-page request makes, the goal's standing decisions hold the per-request cost of the accounting those counts imply, and either the allocator's cache and counters share one thread-local lookup per allocation, or the measured figures show the saving is under 1% of every compare case's CPU and budget.rs records them."
 context: [crates/nvs-runtime/src/alloc.rs, docs/rules/programs/memory-priority.md]
 stages:
   - id: 1
@@ -88,23 +88,29 @@ do not change, and `counting_alloc` (the `cfg(test)` allocator) keeps forwarding
 The fallback, if the merge needs `unsafe` the audited blocks do not already cover: keep two
 thread-locals and merge only `realloc`'s two lookups.
 
-**If stage 2 runs: the guard is a ratio in `nvs-runtime`.** `Pooled` is `pub(crate)`, so the guard
-that times it lives in `alloc.rs`'s tests, release-only
-(`#[cfg_attr(debug_assertions, ignore = ...)]`), as the WSL measurement above did: the counted round
-trip against `System`'s. Its soft bound is the figure stage 2 reaches in WSL, and its hard bound is
-the figure before the change (0.82x of `System`), so losing the merge fails it. Read the spread
-across CI runners before trusting a bound: commit 9b2aacda5f is what a bound set on one machine cost.
+**If stage 2 runs: the timing is a probe, not a guard.** `Pooled` is `pub(crate)`, so the test that
+times it lives in `alloc.rs`'s tests, `#[ignore]`d and run by name with `--ignored`, as the WSL
+measurement above did: the counted round trip against `System`'s, printed, with no bound. A bound
+would have to sit past every CI runner's spread, which is wider than the gain, so it could neither
+hold the gain nor stay green (commit 9b2aacda5f is what a bound set on one machine cost). The
+existing `an_allocation_round_trip_stays_in_the_pooled_cost_class` in
+`benches/abi-probe/tests/perf_guards.rs` keeps catching a change of kind. The one lookup is held by
+the merged `thread_local!`'s doc, which says why the cache and the counters share it.
 
-**The change is kept only if it measures.** Stage 2 times the counted round trip before and after,
-five WSL runs each (`bun nv linux-test --release -p nvs-runtime --lib <name> -- --nocapture`). If the
-median does not fall by at least 0.3 ns, the change is reverted, the figures are recorded as the
-"not taken" case, and the goal goes to its gate.
+**The lookup count decides, and the timing only catches a regression (the user's call).** One lookup
+in place of two is less work on every allocation, so the merge is kept once it lands, whatever size
+of gain the timing shows: a gain under the noise is still a lookup less. Stage 2 times the counted
+round trip before and after, five WSL runs each (`bun nv linux-test --release -p nvs-runtime --lib
+<name> -- --nocapture`), only to catch a merge that made it slower, such as a worse layout of the
+merged cells or a lost inline. If the median after is slower than the slowest run before, the cause
+is found and fixed in the one attempt; if it cannot be, the change is reverted and the figures
+recorded.
 
 **No feature moves.** This goal changes no `Core` member, no diagnostic and no page, so it owes no
 feature proofs, no `changes.json` entry and no website page.
 
-**What stops it.** One attempt per item and two sessions per stage. A stage 2 that misses its
-0.3 ns after one attempt is reverted, not tuned.
+**What stops it.** One attempt per item and two sessions per stage. A merge that measures slower and
+whose cause one attempt does not fix is reverted, not tuned.
 
 **Lanes.** None: stage 2 depends on stage 1's verdict, and both stages are one session each.
 
@@ -134,15 +140,15 @@ stage 3.
 
 **Split:** none, one session.
 
-- [ ] Before any edit: add the release-only ratio test in `crates/nvs-runtime/src/alloc.rs:376`'s test
-  module, and record five WSL runs of it in the handoff.
+- [ ] Before any edit: add the `#[ignore]`d timing probe in `crates/nvs-runtime/src/alloc.rs:376`'s
+  test module, and record five WSL runs of it in the handoff.
 - [ ] `crates/nvs-runtime/src/alloc.rs:99` and `crates/nvs-runtime/src/budget.rs:355`: one merged
   `thread_local!`, its doc carrying § *The one trap*, and `alloc.rs`'s and `budget.rs`'s
   § *What it spends* rewritten for one lookup.
 - [ ] `crates/nvs-runtime/src/budget.rs:2048`: `alloc`, `alloc_zeroed`, `dealloc` and `realloc` each
   take the merged storage once.
-- [ ] Five WSL runs after the change. Keep it only if the median falls by 0.3 ns or more, then set the
-  guard's bounds as the standing decision says; otherwise revert and record the figures.
+- [ ] Five WSL runs after the change, recorded beside the five before. Keep it unless the median after
+  is slower than the slowest run before.
 - [ ] Build, clippy, and `cargo test --lib` over `nvs-runtime`'s budget and alloc tests by name, which
   the merge touches.
 
