@@ -519,6 +519,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **`allocation_policy.rs`'s `member(symbol)` allocates, because it builds the list of every
+  registered symbol on each call.** A roster test that called it inside the counting window counted
+  10 allocations per call, and the member under test spent none. Resolve every member before the
+  window opens, or once in a `OnceLock`. See `crates/nvs-stdlib/tests/allocation_policy.rs`
+  `properties_of`.
 - **A directory of programs run by `nvs test <dir>` has the folder above `<dir>` as its program
   folder, because the snapshot's entry is the directory and `app::folder` takes its parent.** A
   `--since` case expected a file beside the directory to count as outside the program's folder,

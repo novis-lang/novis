@@ -10,11 +10,11 @@ stages:
     context: [crates/nvs-cli/src/meta.rs, docs/rules/classes/lateinit.md, docs/rules/tooling/meta-json-takes-a-program.md]
   - id: 2
     title: "every description is built once when the unit loads, as immortal objects"
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-stdlib/src/instance.rs, crates/nvs-runtime/src/graph.rs, docs/rules/security/no-cross-request-state.md]
   - id: 3
     title: "every roster array is built at most once per request"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-runtime/src/ctx/held.rs, crates/nvs-stdlib/tests/allocation_policy.rs]
   - id: 4
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
@@ -207,19 +207,19 @@ to `:50`) to this file's design, then build to them.
 - [x] `reflect.rs:2306`, `:2424`, `:2968`: `forClass`, `forObject` and `EnumInfo::of` return the
   built description; every roster member and `AttributeInfo::field` read the Rust-side rows and check
   the stamp.
-- [ ] `crates/nvs-stdlib/tests/allocation_policy.rs:142`: the three tests the check `once` names; the
+- [x] `crates/nvs-stdlib/tests/allocation_policy.rs:142`: the three tests the check `once` names; the
   two tests the check `copy` names beside `reflect.rs`'s tests. Each run once by name.
-- [ ] The bytes per class and the load time on `benches/members/core/Reflect/forClass.nvs`'s class,
+- [x] The bytes per class and the load time on `benches/members/core/Reflect/forClass.nvs`'s class,
   written into the module doc's *What it spends*.
 
 ### 3. every roster array is built at most once per request
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/ctx/mod.rs:1662`: the memo list on `Ctx`, freed with the request.
-- [ ] `reflect.rs:2495`, `:2598`, `:2612`, `:2711`, `:2930` and `EnumInfo`'s rosters: build on the
+- [x] `crates/nvs-runtime/src/ctx/mod.rs:1662`: the memo list on `Ctx`, freed with the request.
+- [x] `reflect.rs:2495`, `:2598`, `:2612`, `:2711`, `:2930` and `EnumInfo`'s rosters: build on the
   first call, retain afterwards. A `Core` descriptor's whole description goes through the same memo.
-- [ ] `crates/nvs-stdlib/tests/allocation_policy.rs`: the two tests the check `rosters` names, run
+- [x] `crates/nvs-stdlib/tests/allocation_policy.rs`: the two tests the check `rosters` names, run
   once by name.
 
 ### 4. the rules, the reference, the examples, the feature proofs and the website say so
@@ -250,41 +250,33 @@ rewritten; the session writes the rules and the website entries.
 
 ### State
 
-Stage 2's first four items landed in one commit (`feat(reflect): every description is built once…`).
-`crates/nvs-runtime/src/descriptions.rs` is the storage: an `ImmortalArena` (one allocation per
-immortal object or string, freed with the table), `ClassRows`/`MethodRows`/`AttributeRows`/`EnumRows`,
-and a process-wide `next_stamp()`. `ClassTable::set_descriptions` stores them and points each
-`ClassDesc::description()` at its `ClassInfo`, so `forObject` needs no lookup. `Ctx::unit_table()`
-(`ctx/error.rs`) is how a member reaches the rows. `nvs_stdlib::build_descriptions` (`reflect.rs`,
-`@build_descriptions`) runs in both codegen builders (`into_unit` and `finish`).
+Stages 2 and 3 are done; the checks `once`, `copy` and `rosters` pass. The module doc's figures:
+592 bytes for the bench's `Order`, 45,481 for its whole unit, built in under 0.4 ms (debug).
 
-`ClassInfo`, `MethodInfo`, `AttributeInfo` and `EnumInfo` hold a class or enum index and a stamp in
-place of arrays (`SLOT_TYPES` in `instance.rs`). One builder, `class_rows`, runs through a `Maker`:
-`Immortal` at unit load, `Mortal` per call for a `Core` class (class `-1`, stamp `0`,
-`description_of` and `rows_of`). A stamp that is not the calling unit's throws a `LogicError`
-(`another_unit`). The module doc's second decision states this design.
+The memo: `Ctx::kept_roster`, `keep_roster` and `release_rosters` (`ctx/held.rs`), keyed by
+`nvs_runtime::RosterKey` (unit stamp, class index or a `Core` descriptor's address, roster number,
+row position), released in `Ctx`'s drop beside the isolate argument. In `reflect.rs`, `roster_key`
+checks the stamp before the memo is read, `memoized` builds on a miss, and `roster_kind` numbers the
+rosters. Every roster member and `forObject` on a `Core` instance go through it;
+`readableProperties` does not. The five `reflect.rs` tests the last handoff called red are green
+again. A spawned task's context clones its parent's table (`ctx/isolate.rs:449`), so a copied
+description reads the same rows there; the test copies into the same table.
 
-**Red until stage 3, by design:** five `reflect.rs` tests assert that a roster array is the same
-object on a second call, and stage 3's per-request memo restores exactly that:
-`class_info_methods_is_one_row_per_declared_method_in_name_order`,
-`class_info_constants_is_one_row_per_constant_with_its_own_visibility_and_fold`,
-`class_info_properties_is_one_row_per_slot_and_lists_the_private_ones`,
-`enum_info_cases_is_every_case_ascending_by_constant_then_by_name`,
-`method_info_parameters_are_in_declaration_order_and_empty_where_nothing_was_written`. Every other
-reflect unit test is green.
+The storage is `crates/nvs-runtime/src/descriptions.rs`, filled by `nvs_stdlib::build_descriptions`
+in both codegen builders. A hand-built `ClassTable` in a test calls it too, or every `Core\Reflect`
+door onto it is a `FATAL`. The module doc's second decision states the whole design.
 
 ### Next
 
-Stage 2's last two items, then stage 3 in the same session if it fits.
-- `crates/nvs-stdlib/tests/allocation_policy.rs` (`@allocations_of`): the check `once`'s three tests.
-  They need a ctx with a described table: build a `ClassTable` by hand, call
-  `nvs_stdlib::build_descriptions` (now public), and install it with `set_runtime_error_class`.
-  Count with `allocations_of`'s window: `forClass`, `forObject` and `EnumInfo::of` must spend 0.
-- `reflect.rs`'s tests: the check `copy`'s two. Copy a description with the graph copy
-  (`nvs_runtime::graph`, `@walk`'s live carrier) into the same unit and call `properties`; then
-  install a second described table on the ctx and expect `THROWN` with a `LogicError`.
-- Measure `Descriptions::bytes()` for `benches/members/core/Reflect/forClass.nvs`'s class and the
-  build time, and write both figures into the module doc's new § *every description is built once*.
+Stage 4, split as its `**Split:**` line says.
+- `docs/rules/core-classes/reflect.md:23`: rewrite § *Memory* from `reflect.rs`'s module doc
+  (§ *every description is built once*, its figures and the memo), add the identity sentence
+  (`forClass('A') === forClass('A')`), why `rule:security/no-cross-request-state` does not apply,
+  and the Declined items from this file's Standing decisions. Add `isLateInit` and `isReadonly`,
+  and the signature's modifiers to `docs/rules/tooling/meta-json-takes-a-program.md`.
+- Then one writing subagent: `docs/examples/core/Reflect-PropertyInfo/isLateInit/` and
+  `isReadonly/`, and the bench and attack `bun nv proofs --owed --goal reflect-once` names.
+- `website/src/data/changes.json`, `bun nv site --stamp`, and `bun nv proofs --owed` empty.
 - Expect red at the gate as well: any golden that pins a `readonly` or `lateinit` property's
   `nvs meta --json` or `nvs code` signature (`crates/nvs-cli/src/meta.rs`, `@property_signature`), a
   test anywhere that hand-builds a `MethodInfo`, `AttributeInfo` or `EnumInfo` with the old slots,
