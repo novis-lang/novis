@@ -32,6 +32,18 @@ part of a unit reads one less than a reader that truncates toward zero gives.
 
 `Date::at` names its parameters `year`, `month` and `day`, the names of its readers.
 
+**A `Date` moves on the calendar as a `DateTime` does, with no unit below a day.** `Date::startOf` and
+`endOf` take `Week`, `Month`, `Quarter` and `Year`, and a week starts on Monday, as
+`DateTime::startOf(Unit::Week)` does. `Date::difference(Date, Unit)` counts whole `Day`, `Week`,
+`Month`, `Quarter` or `Year` steps as `DateTime::difference` counts them, and `next(Weekday)` and
+`previous(Weekday)` find the nearest such day after or before, never the day itself. Each unit list is
+a closed subset in the signature (`rule:types/single-value-types`), so a unit below a day does not
+compile on a `Date`. `Date` and `DateTime` both read four calendar parts no `with` option sets:
+`daysInMonth(): uint` (the name most libraries use, not `lengthOfMonth`), `quarter(): uint` from 1 to
+4, and ISO 8601's `isoWeek(): uint` and `isoWeekYear(): int`, where Monday is first and week 1 holds
+the year's first Thursday. So no program reads a part by parsing `format`'s output. **What it
+spends:** a reader allocates nothing, and every other member one `Date` or one `int` per call.
+
 **One text format per class, the ISO 8601 extended form, and nothing else.** Each class writes the
 text its `fromIso` reads: `Date::toIso`, `TimeOfDay::toIso`, `DateTime::toIso` and `Instant::toIso`,
 and `fromIso($v->toIso())` is `$v` at both ends of the range.
@@ -143,3 +155,12 @@ unknown name (`rule:core-api/no-deprecation-window-before-a-release`).
   measured before anything changed: one lookup of a name already loaded is about 21 ns and allocates
   nothing, so the two an `->in($zone)` makes are about 2% of its recorded 1,823 ns. A cache would be
   state on the request path for no saving a request sees.
+- **`Date::today()`, `DateTime::now()` and a configured default zone.** `now` stays on `Core\Time`,
+  which reads the world and is faked in tests, and a second way to one value was already declined for
+  `atStartOfDay`. A hidden default zone gives a server a different day than its user's.
+  `Core\Time::now()->in('Europe/Berlin')->date()` is the short form.
+- **A date as an array key.** An array key stays `int` or `string`. `ObjectMap` and `ObjectSet` find a
+  key with `==`, so an equal `Date` is already one key there
+  (`rule:core-api/collections-drop-revoked-objects`).
+- **A `DateRange` value.** `$from <= $d && $d <= $to` already says "contains", and two such tests say
+  "overlaps". `Date::range` lists the dates when a program needs each one.

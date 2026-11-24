@@ -18,8 +18,8 @@ untyped-until-placed about it (`rule:types/numeric-literal-placement`). A durati
 folded at compile time to a single nanosecond count, so the grammar is never read at run time, and a
 duration beyond `Duration`'s range is a compile error, not a wrap. The compiled program carries each
 written duration as one finished `Duration` object, the value `Duration::nanoseconds` builds from that
-count. Each written duration is its own object, so `90m == 1h30m` is `false`
-(`rule:expressions/object-identity-equality`).
+count. Each written duration is its own object, and `==` compares a `Duration` by its nanosecond
+count, so `90m == 1h30m` is `true` (`rule:expressions/object-identity-equality`).
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
 does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is

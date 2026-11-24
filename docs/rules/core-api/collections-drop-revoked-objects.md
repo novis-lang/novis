@@ -3,6 +3,13 @@
 running loop skips an entry revoked during the loop. `count()` is always exact. A `Heap` skips a
 revoked entry on `pop` and `peek`, and its count drops at the `revoke()`.
 
+**A key is found with `==`.** An `ObjectMap` key and an `ObjectSet` member are found by the same
+comparison `==` makes, and hashed from the same slots. So a `Core\Time` value that compares by value
+is one key with every equal value built elsewhere, and the same moment as a `DateTime` in two zones is
+one key. Every other object is found by identity alone
+(`rule:expressions/object-identity-equality`). **What it spends:** a key of one of those six classes
+hashes one to four slots in place of its address, and nothing changes for any other key.
+
 **Removal is eager.** Only a revocable class has the hidden slot, the first slot of its root class
 (inherited fields come first in the layout), so it has one offset in every class of the tree. It is
 null until the object first enters a collection. Then it points to the object's memberships, one entry

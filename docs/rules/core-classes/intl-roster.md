@@ -40,6 +40,23 @@ also reads a region, so `pt-PT` may differ from `Core\Cldr`'s `pt`. Neither is d
 is the one a template reaches without the sandbox, and `PluralRules` is the one that knows every
 locale.
 
+**`DateFormat` picks its parts with `Fields`, and the locale picks their order.** `dates` and
+`dateTimes` take `fields?: Fields` beside `length`. Its ten cases name the parts from the largest to
+the smallest: `Day`, `MonthDay`, `YearMonthDay` (the default), `Weekday`, `DayWeekday`,
+`MonthDayWeekday`, `YearMonthDayWeekday`, `Month`, `YearMonth` and `Year`. A name says which parts
+appear, never their order, so `YearMonth` in `de` is `Januar 2026`. `Month`, `YearMonth` and `Year` on
+`dateTimes` throw `LogicError` naming `dates` before anything is formatted, because ICU4X has no field
+set that writes a time beside a date with no day, and dropping the time would hide what the caller
+asked for. Both members keep one options type. `format-dates` takes a `date-options` record,
+`{ length, fields }`, as `format-date-times` takes its options. **What it spends:** `Month`,
+`YearMonth` and `Year` load the number formatter once per call, because ICU4X does not load it for
+some calendar-period patterns, such as `pt`'s long year and month. The other seven cases spend
+nothing more.
+
+Each case of an intl enum is described in the enum's one `help` text, so every enum of the component
+names each of its cases. The manifest has no help field per case: that would change every
+component's manifest and `nvs meta` for one card per case.
+
 - **Memory:** nothing until a process first calls the component; then the compiled module, shared by
   every core, and each calling request's instance under that request's cap. The CLDR data is in the
   binary, and the component's module doc states its size. If that size is too large, the answer is a
@@ -54,3 +71,7 @@ is the interface it exports.
   carry what one string already carries exactly.
 - **`RelativeTime` from a `Duration`.** A month and a year are not a fixed number of nanoseconds, so the
   unit would be a guess. The program chooses the unit and the count.
+- **A `Full` length on `DateFormat`.** ICU4X 2.4 has `Long`, `Medium` and `Short` only.
+  `YearMonthDayWeekday` with `Long` is the long form with the weekday.
+- **CLDR skeleton strings in place of `Fields`.** A fifth grammar beside the closed four
+  (`rule:core-api/no-mode-strings`).

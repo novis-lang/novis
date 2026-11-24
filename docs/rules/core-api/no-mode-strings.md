@@ -19,3 +19,6 @@ one enum declaration per mode family, which is also what makes them documentable
   `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
   in the literal grammar (`rule:types/duration`). A date or a time read from text has one ISO form
   per class, read by that class's `fromIso` (`rule:core-classes/a-time-class-builds-its-own-values`).
+- **CLDR skeleton strings such as `'yMMMM'` at `Novis\Intl\DateFormat`.** A skeleton is a fifth
+  grammar, and the four are a closed list. `DateFormat::Fields` names each set of parts as an enum case,
+  which the checker checks and the editor completes (`rule:core-classes/intl-roster`).

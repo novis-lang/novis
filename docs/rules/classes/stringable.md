@@ -17,3 +17,11 @@ is decided by their registry entries, and one with no `toString` is refused wher
 
 What it costs is one ordinary method call at each rendering site. PHP's own fallback for an object
 with no `__toString` is a fatal error, so the diagnostic takes nothing permissive away.
+
+`Core\Time`'s `Date`, `TimeOfDay` and `DateTime` do not render. Rendering one is `E0710`, whose help
+names `toIso()` for the one ISO text and `format(...)` for a pattern
+(`rule:core-classes/a-time-class-builds-its-own-values`).
+
+**Declined:**
+- **`Date` as `Stringable`.** It is a second way to the ISO text, and a page that shows a date usually
+  wants the locale's text, which `Novis\Intl\DateFormat` writes. `E0710` names both ways.

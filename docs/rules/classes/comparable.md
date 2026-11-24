@@ -7,7 +7,9 @@ implementation.
 `compareTo` is also what every member with a natural ordering reads: `Core\Arr::sort`, `Core\Arr::min`
 and `max`, `Core\Math::min`, `max` and `clamp`, and a `Core\Heap` built without a comparator all order
 two objects by it and throw for a pair whose class does not implement it. A `Core`-owned instance — a
-`Core\BigInt`, a `Core\Time\Instant` — is ordered the same way and through the same one entry point.
+`Core\BigInt`, a `Core\Time\Instant`, a `Core\Time\DateTime` — is ordered the same way and through the same one entry
+point. A `DateTime`'s `compareTo` reads its moment alone, so two values in different zones order as
+the instants they name (`rule:types/ordering`).
 An ordering a class states once is the only one anything in the language reads.
 
 No ordering walks two same-class objects' declared properties in order and takes the first

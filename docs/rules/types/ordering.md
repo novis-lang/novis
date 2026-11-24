@@ -21,4 +21,8 @@ two objects behind two `mixed`s throw, because `compareTo` is dispatched from th
 named, and an enum case orders as the integer it is even though the written spelling is still refused
 — which is where the author is told to say `as int`.
 
+A `Core\Time\DateTime` orders by its moment, to the nanosecond, and its zone does not count, so
+10:00 in `Europe/Berlin` is before 09:30 in `Europe/London` on one day. It is the same rule `==` uses
+for it (`rule:expressions/object-identity-equality`), so `$a <= $b && $b <= $a` and `$a == $b` agree.
+
 `==` and `!=` are a different question and are unaffected by any of this.
