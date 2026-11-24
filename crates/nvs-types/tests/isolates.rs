@@ -60,7 +60,7 @@ $h = $undefined;",
 #[test]
 fn spawn_script_accepts_limits_grants_and_on_and_checks_their_types() {
     let accepted = check_in_method(
-        "var $h = spawn script \"c.nvs\" with(args: 7, output: \"capture\", \
+        "var $h = spawn script \"c.nvs\" with(arguments: 7, output: \"capture\", \
          limits: {memory: \"64M\", max_tasks: 8}, grants: [\"net.connect\"], on: \"worker\");",
     );
     assert!(!accepted.has_errors(), "{accepted:?}");

@@ -5725,7 +5725,7 @@ fn a_fall_through_seals_with_one_for_a_require_and_null_for_the_entry_frame() {
 #[test]
 fn a_spawn_lowers_to_a_task_on_the_current_core() {
     let (f, map, file) =
-        lower_script_src("<?nvs\nvar $job = spawn script 'child.nvs' with(args: [1, 2]);\n");
+        lower_script_src("<?nvs\nvar $job = spawn script 'child.nvs' with(arguments: [1, 2]);\n");
     let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
     let spawns: Vec<&Inst> = insts()
         .filter(|i| {

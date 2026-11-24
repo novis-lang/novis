@@ -180,7 +180,7 @@ pub(crate) fn check_spawn_script(
             // walk is what decides whether a given graph may cross and that is
             // a run-time question for everything a declared type does not
             // already settle.
-            SpawnOptionKey::Args => None,
+            SpawnOptionKey::Arguments => None,
             SpawnOptionKey::Output => Some(string),
             SpawnOptionKey::Limits => Some(sub_caps(env)),
             SpawnOptionKey::Grants => Some(env.interner.array(string)),
@@ -195,10 +195,10 @@ pub(crate) fn check_spawn_script(
             // refusal `Core\Serialize::encode` reports and not a spawn-specific
             // rule — `super::quals::reject_secret_crossing` owns the sentence, and
             // only the clause naming where the copy went differs.
-            SpawnOptionKey::Args => reject_secret_crossing(
+            SpawnOptionKey::Arguments => reject_secret_crossing(
                 &opt.value,
                 ty,
-                "`spawn script`'s `args:` copies it into a child whose arena this request \
+                "`spawn script`'s `arguments:` copies it into a child whose arena this request \
                  cannot reach into",
                 None,
                 env,
@@ -210,7 +210,7 @@ pub(crate) fn check_spawn_script(
     }
     let args = options
         .iter()
-        .find(|opt| matches!(opt.key, SpawnOptionKey::Args))
+        .find(|opt| matches!(opt.key, SpawnOptionKey::Arguments))
         .map(|opt| &opt.value);
     check_literal_args(path, args, env);
     script_handle(env)
@@ -278,7 +278,7 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
             )
             .with_primary(*span, "no such parameter")
             .with_help(format!(
-                "`args:` gives each entry to the parameter with the same name. {declared}"
+                "`arguments:` gives each entry to the parameter with the same name. {declared}"
             )),
         );
     }
@@ -295,19 +295,19 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
     }
     let (span, label) = match map {
         Some(map) => (map.span, "this map has no entry for it"),
-        None => (path.span, "this spawn has no `args:`"),
+        None => (path.span, "this spawn has no `arguments:`"),
     };
     env.diags.report(
         Diagnostic::error(
             code::E_ARITY_MISMATCH,
             format!(
-                "`args:` has no entry for the parameter(s) {}",
+                "`arguments:` has no entry for the parameter(s) {}",
                 missing.join(", ")
             ),
         )
         .with_primary(span, label)
         .with_help(format!(
-            "`{entry}` gets each argument from the `args:` entry with its name. \
+            "`{entry}` gets each argument from the `arguments:` entry with its name. \
              Add one entry for each parameter."
         )),
     );
@@ -448,7 +448,7 @@ fn reject_instance_method_entry(path: &Expr, form: &str, env: &mut Env<'_>) {
 /// **Two rules, because such a call is two things.** The entry takes `rule:security/isolate-shares-nothing`'s
 /// operand rule, [`entry_operand`]'s. Every *other* argument is what crosses
 /// into the child, so it takes `rule:security/secret-sinks-refuse`'s refusal at the graph copy —
-/// [`reject_secret_crossing`], the same one `spawn script`'s `args:` reaches
+/// [`reject_secret_crossing`], the same one `spawn script`'s `arguments:` reaches
 /// from [`check_spawn_script`], with only the clause naming the carrier
 /// differing. The mark identifies the member for both: an isolate opener is
 /// what a row declaring an entry *is*, so the second rule needs no second

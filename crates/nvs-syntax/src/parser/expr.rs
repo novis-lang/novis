@@ -2684,7 +2684,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let key_span = self.expect(TokenKind::Ident, "a `with(...)` option name");
         let key_text = self.ident_text(key_span);
         let key = match key_text {
-            "args" => SpawnOptionKey::Args,
+            "arguments" => SpawnOptionKey::Arguments,
             "limits" => SpawnOptionKey::Limits,
             "grants" => SpawnOptionKey::Grants,
             "output" => SpawnOptionKey::Output,
@@ -2697,10 +2697,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                     )
                     .with_primary(
                         key_span,
-                        "expected one of `args`, `limits`, `grants`, `output`, `on`",
+                        "expected one of `arguments`, `limits`, `grants`, `output`, `on`",
                     ),
                 );
-                SpawnOptionKey::Args
+                SpawnOptionKey::Arguments
             }
         };
         self.expect(TokenKind::Colon, "`:`");

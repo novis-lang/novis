@@ -15,7 +15,7 @@ try {
         $i = $i + 1;
     }
     // The path starts at the folder of this file.
-    var $large = spawn script 'scripts/reader.nvs' with(args: $rows);
+    var $large = spawn script 'scripts/reader.nvs' with(arguments: $rows);
     var $result = await $large;
     echo 'large: ', $result->ok ? 'read' : 'failed', "\n";
 } catch (Throwable $error) {
@@ -30,7 +30,7 @@ try {
         $deep = [$deep];
         $level = $level + 1;
     }
-    var $nested = spawn script 'scripts/reader.nvs' with(args: $deep);
+    var $nested = spawn script 'scripts/reader.nvs' with(arguments: $deep);
     var $read = await $nested;
     echo 'deep: ', $read->ok ? 'read' : 'failed', "\n";
 } catch (Throwable $error) {
@@ -48,7 +48,7 @@ try {
     array<Core\Script\Handle> $jobs = [];
     int $n = 0;
     while ($n < 100) {
-        $jobs[] = spawn script 'scripts/reader.nvs' with(args: $shared);
+        $jobs[] = spawn script 'scripts/reader.nvs' with(arguments: $shared);
         $n = $n + 1;
     }
     int $ok = 0;

@@ -998,7 +998,7 @@ same handle throws `LogicError`.
 
 The entry is a path or a static method. An anonymous function is `E0802`.
 
-`with(…)` takes the options `args`, `limits`, `grants`, `output` and `on`. Another name is `E0101`, and
+`with(…)` takes the options `arguments`, `limits`, `grants`, `output` and `on`. Another name is `E0101`, and
 its help lists the five.
 
 `on:` must be the word `"worker"` or `"here"`, written at the spawn. Another word is `E0818`, and so is
@@ -1455,11 +1455,11 @@ class Report
 }
 
 // The child gets a copy of the array.
-var $sum = await spawn script 'jobs/add-up.nvs' with(args: [10, 20, 30]);
+var $sum = await spawn script 'jobs/add-up.nvs' with(arguments: [10, 20, 30]);
 echo 'total: ', $sum->value as int, "\n";
 
 // Each key of the array is the name of one parameter.
-var $report = await spawn script Report::title with(args: ['month' => 'July', 'year' => 2026]);
+var $report = await spawn script Report::title with(arguments: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";
 ```
 
@@ -2113,7 +2113,7 @@ var $file = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 
 // The second kind is a static method, written `Class::method`. `args:` gives it
 // the values its parameters need.
-var $method = spawn script Report::build with(args: ['days' => 7]);
+var $method = spawn script Report::build with(arguments: ['days' => 7]);
 
 // An anonymous function is not allowed as the entry, because it captures variables.
 // A spawned file shares nothing with your program except compiled code.

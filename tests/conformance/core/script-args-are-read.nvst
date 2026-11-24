@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::args()` is the read half of `spawn script … with(args: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
+`Core\Script::args()` is the read half of `spawn script … with(arguments: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -29,7 +29,7 @@ echo "root got ", Core\Script::args() == null ? "null" : "a value", "\n";
 
 // The value crossed once, at the spawn (`rule:security/isolate-shares-nothing`). Reading it in
 // the child is a read of the child's own arena and copies nothing further.
-var $passed = spawn script "reader.nvs" with(args: "alpha", output: "capture");
+var $passed = spawn script "reader.nvs" with(arguments: "alpha", output: "capture");
 var $done = await $passed;
 echo "ok=", $done->ok ? "true" : "false", "\n";
 echo $done->output;

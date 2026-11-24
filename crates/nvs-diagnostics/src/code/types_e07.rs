@@ -1298,7 +1298,7 @@ codes! {
     /// walk that puts a credential into bytes on disk is the walk that puts it
     /// into another arena, and a developer who learns the rule at one carrier
     /// has learned it at the other. The call sites that report it are
-    /// `Core\Serialize::encode`, `spawn script`'s `args:`,
+    /// `Core\Serialize::encode`, `spawn script`'s `arguments:`,
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`
     /// 's `Core\Socket::upgrade` — an `args:` that opens a connection
     /// isolate rather than a script one — and `rule:core-classes/topic`'s
@@ -1321,7 +1321,7 @@ codes! {
     /// what a call site sees and its properties are not.
     pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775").card(
         "A `secret` value cannot be copied to another isolate or turned into bytes, for example \
-         with `Core\\Serialize::encode`, the `args:` of `spawn script` or \
+         with `Core\\Serialize::encode`, the `arguments:` of `spawn script` or \
          `Core\\Topic::publish`. Pass a value that is not `secret`, or get the plain text with \
          `Core\\Secret::reveal` first.",
     );

@@ -26,7 +26,7 @@ while ($level < 300) {
     $level = $level + 1;
 }
 try {
-    var $refused = spawn script "depth.nvs" with(args: $deep);
+    var $refused = spawn script "depth.nvs" with(arguments: $deep);
     echo "not reached\n";
 } catch (LogicError $error) {
     echo "refused: ", Core\Str::contains($error->message, "nests deeper") ? "too deep" : $error->message, "\n";
@@ -48,13 +48,13 @@ while ($cut < 100) {
     $shallow = ($shallow as array<mixed>)[0];
     $cut = $cut + 1;
 }
-var $sent = spawn script "depth.nvs" with(args: $shallow, output: "capture");
+var $sent = spawn script "depth.nvs" with(arguments: $shallow, output: "capture");
 echo (await $sent)->output;
 
 // A callable is refused as the object it is, one level down.
 array<mixed> $withCallable = ["label", fn (): int => 1];
 try {
-    var $task = spawn script "depth.nvs" with(args: $withCallable);
+    var $task = spawn script "depth.nvs" with(arguments: $withCallable);
     echo "not reached\n";
 } catch (LogicError $error) {
     echo "refused: a callable\n";

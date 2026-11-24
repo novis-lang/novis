@@ -92,7 +92,7 @@ echo 'built=', $built, "\n";
 // relinking an adopted object to the destination's live list, is pinned in
 // Rust by `nvs-runtime`'s `an_adopted_object_moves_to_the_destinations_live_list`.
 var $child = spawn script 'cycles/child.nvs' with(
-    args: ['crossed'],
+    arguments: ['crossed'],
     output: 'capture',
 );
 var $crossed = await $child;

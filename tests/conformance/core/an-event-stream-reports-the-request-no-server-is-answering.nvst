@@ -19,7 +19,7 @@ try {
 
 // The second parameter is optional, and omitting it above is not what was
 // refused -- an entry declaring no parameter needs no `args:`, exactly as
-// `spawn script` with no `with(args:)` clause does. So the same report arrives
+// `spawn script` with no `with(arguments:)` clause does. So the same report arrives
 // either way, which is what says the refusal is about the missing request and
 // not about the call's shape.
 try {

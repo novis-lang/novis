@@ -4376,7 +4376,7 @@ impl<'a> Lowering<'a> {
         // The option values in the order they lower, which is not the order
         // they were written: what each earlier operand is read after.
         let lowered_options: Vec<&Expr> = [
-            SpawnOptionKey::Args,
+            SpawnOptionKey::Arguments,
             SpawnOptionKey::Output,
             SpawnOptionKey::On,
             SpawnOptionKey::Limits,
@@ -4415,7 +4415,7 @@ impl<'a> Lowering<'a> {
             );
         self.account_for_arg(path_v, path_ty, ArgOwnership::Borrowed, aliasing, *cur);
 
-        let args_v = match written(SpawnOptionKey::Args) {
+        let args_v = match written(SpawnOptionKey::Arguments) {
             Some(opt) => {
                 let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Tagged), env, cur);
                 // Transferred, so it is retained at its read and needs no hold.

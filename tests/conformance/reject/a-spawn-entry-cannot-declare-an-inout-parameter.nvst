@@ -15,7 +15,7 @@ class Job {
     }
 
     public static function pass(inout int $x): void {
-        var $handle = spawn script "child.nvs" with(args: $x);
+        var $handle = spawn script "child.nvs" with(arguments: $x);
         echo (await $handle)->ok ? "ok" : "failed", "\n";
     }
 }
@@ -25,7 +25,7 @@ int $n = 1;
 Job::pass(inout $n);
 
 // An entry with an `inout` parameter does not compile.
-var $refused = spawn script Job::bump with(args: ["x" => 1]);
+var $refused = spawn script Job::bump with(arguments: ["x" => 1]);
 --EXPECT--
 
 --EXPECTF-ERROR--

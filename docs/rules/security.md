@@ -20,7 +20,7 @@ The operand is decided syntactically at the spawn site — a `string` expression
 `Class::method` reference written there — and nothing else. A `callable` variable is refused,
 because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
 naming the method form. A method entry is called with `args:`'s entries as **named arguments**, after
-the copy, so `spawn script Reports::monthly with(args: ["month" => $m])` runs
+the copy, so `spawn script Reports::monthly with(arguments: ["month" => $m])` runs
 `Reports::monthly(month: $m)` in the fresh isolate: the entry is an ordinary function with an ordinary
 signature, typed at the boundary and callable and testable directly. A name `args:` holds that the
 entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file

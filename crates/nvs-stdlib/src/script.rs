@@ -82,10 +82,10 @@
 //! `rule:core-classes/script-args` is what
 //! replaced `rule:security/isolate-shares-nothing`'s `$_ARGS` with a method call, and its body states the
 //! return type this module implements: **`mixed`**, not an array of anything.
-//! `spawn script`'s `args:` is checked against no expected type at all —
+//! `spawn script`'s `arguments:` is checked against no expected type at all —
 //! `nvs_types::expr::isolate`'s `check_spawn_script` says why, and it is
 //! `rule:classes/graph-copy`'s rule that whether a graph may cross is a run-time question —
-//! so `with(args: 5)` is accepted where it is written, and an `array<mixed>`
+//! so `with(arguments: 5)` is accepted where it is written, and an `array<mixed>`
 //! return type would be a lie at the one position anybody reads it from.
 //!
 //! A child that was passed nothing reads **`null`** rather than an empty array.
@@ -154,7 +154,7 @@ const PENDING: usize = 0;
 ///
 ///
 /// `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
-/// — the read half of `spawn script`'s `args:` option, and a class beside
+/// — the read half of `spawn script`'s `arguments:` option, and a class beside
 /// the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
 // rank: 540
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -426,7 +426,7 @@ const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
 /// `Core\Script::args`'s reference card — `rule:core-api/reference-card`.
 const ARGS_DOC: MethodDoc = MethodDoc {
     short: "Returns the value that this script was started with. The parent script writes it as \
-            `spawn script … with(args: …)`, and this script receives a copy.",
+            `spawn script … with(arguments: …)`, and this script receives a copy.",
     params: &[],
     ret: "The value the parent passed, with the same shape. It is `null` when the parent gave no \
           `args:`, and in the first script, which no other script started.",
@@ -841,7 +841,7 @@ pub(crate) fn grants_of(value: &Value) -> Result<Option<Vec<String>>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `spawn script <path> with(args: …, output: …)` — starts the isolate and
+    /// `spawn script <path> with(arguments: …, output: …)` — starts the isolate and
     /// answers the handle that `await` collects.
     ///
     /// Six arguments in the order the lowering builds them: the path as
@@ -989,7 +989,7 @@ pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Res
         .collect();
     if !missing.is_empty() {
         return Err(format!(
-            "`{site}`: `args:` has no entry for parameter(s) `{}`",
+            "`{site}`: `arguments:` has no entry for parameter(s) `{}`",
             missing.join("`, `")
         ));
     }
@@ -1000,7 +1000,7 @@ pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Res
         .collect();
     if !unknown.is_empty() {
         return Err(format!(
-            "`{site}`: `args:` holds `{}`, which the entry does not declare",
+            "`{site}`: `arguments:` holds `{}`, which the entry does not declare",
             unknown.join("`, `")
         ));
     }
@@ -1167,7 +1167,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Script::args(): mixed` — `rule:core-classes/script-args`'s replacement for `$_ARGS`,
-    /// and the read half of `spawn script <path> with(args: …)`.
+    /// and the read half of `spawn script <path> with(arguments: …)`.
     ///
     /// The module doc is the one home of what this answers and why the type is
     /// `mixed`. What is here is only the accounting: the isolate's context

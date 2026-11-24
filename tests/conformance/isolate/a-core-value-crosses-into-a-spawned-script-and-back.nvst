@@ -14,7 +14,7 @@ final class Links {
 }
 
 var $base = Core\Uri::parse("https://example.test/a/b");
-var $done = await spawn script Links::next with(args: ["base" => $base], output: "capture");
+var $done = await spawn script Links::next with(arguments: ["base" => $base], output: "capture");
 echo "ok=", $done->ok ? "true" : "false", "\n";
 echo $done->output;
 

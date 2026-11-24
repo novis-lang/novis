@@ -24,8 +24,8 @@ if ($a == null) {
 // The distinction this case exists for: `args: []` is a value and no `args:`
 // is not one. An empty array for both would collapse them, and a parent that
 // writes `args: []` is saying something a parent that writes nothing did not.
-var $two = spawn script "shape.nvs" with(args: ["alpha", "beta"], output: "capture");
-var $none = spawn script "shape.nvs" with(args: [], output: "capture");
+var $two = spawn script "shape.nvs" with(arguments: ["alpha", "beta"], output: "capture");
+var $none = spawn script "shape.nvs" with(arguments: [], output: "capture");
 var $absent = spawn script "shape.nvs" with(output: "capture");
 
 echo "two: ", (await $two)->output;
@@ -36,7 +36,7 @@ echo "absent: ", (await $absent)->output;
 // root's own `null` crosses at `args:` and comes back as the absence it was.
 // A member answering something the option could not carry would fail here
 // rather than at the read.
-var $relay = spawn script "shape.nvs" with(args: Core\Script::args(), output: "capture");
+var $relay = spawn script "shape.nvs" with(arguments: Core\Script::args(), output: "capture");
 echo "relayed: ", (await $relay)->output;
 --EXPECT--
 two: array of 2

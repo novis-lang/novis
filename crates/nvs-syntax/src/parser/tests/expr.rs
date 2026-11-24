@@ -861,12 +861,12 @@ fn a_tag_hole_is_the_same_part_as_a_brace_hole_and_takes_a_static_call() {
 
 #[test]
 fn spawn_script_with_options() {
-    let e = parse_ok("spawn script 'jobs/report.nvs' with(args: $a, grants: $g)");
+    let e = parse_ok("spawn script 'jobs/report.nvs' with(arguments: $a, grants: $g)");
     let ExprKind::SpawnScript { options, .. } = e.kind else {
         panic!("expected spawn script: {e:?}");
     };
     assert_eq!(options.len(), 2);
-    assert_eq!(options[0].key, SpawnOptionKey::Args);
+    assert_eq!(options[0].key, SpawnOptionKey::Arguments);
     assert_eq!(options[1].key, SpawnOptionKey::Grants);
 }
 

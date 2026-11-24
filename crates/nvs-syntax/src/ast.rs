@@ -829,7 +829,7 @@ pub struct AnonClassDecl {
     reason = "each variant is exactly its `with(...)` key spelling"
 )]
 pub enum SpawnOptionKey {
-    Args,
+    Arguments,
     Limits,
     Grants,
     Output,

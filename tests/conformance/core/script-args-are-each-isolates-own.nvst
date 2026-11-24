@@ -29,8 +29,8 @@ echo "  outer again: ", Core\Script::args() as string, "\n";
 // Two children, spawned from the same statement in the same parent, differing
 // only in the value written at `args:`. A `Core\Script::args()` that read
 // anything ambient would answer the same thing for both.
-var $left = spawn script "outer.nvs" with(args: "left", output: "capture");
-var $right = spawn script "outer.nvs" with(args: "right", output: "capture");
+var $left = spawn script "outer.nvs" with(arguments: "left", output: "capture");
+var $right = spawn script "outer.nvs" with(arguments: "right", output: "capture");
 
 echo "left\n";
 echo (await $left)->output;

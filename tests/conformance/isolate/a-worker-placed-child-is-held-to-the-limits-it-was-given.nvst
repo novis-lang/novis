@@ -35,7 +35,7 @@ final class Greedy
 // own. A limit breach is `rule:errors/on-limit`'s `FATAL`, which no `catch` in
 // the child would see — it arrives here as `ok = false` instead.
 var $capped = spawn script Greedy::fill
-    with(args: ["rows" => 400000], limits: {memory: "1M"}, output: "capture", on: "worker");
+    with(arguments: ["rows" => 400000], limits: {memory: "1M"}, output: "capture", on: "worker");
 var $stopped = await $capped;
 echo "capped ok=", $stopped->ok ? "true" : "false", "\n";
 
@@ -43,7 +43,7 @@ echo "capped ok=", $stopped->ok ? "true" : "false", "\n";
 // negative control, without which the line above would read the same on a worker
 // core that could not run this at all.
 var $wide = spawn script Greedy::fill
-    with(args: ["rows" => 400000], output: "capture", on: "worker");
+    with(arguments: ["rows" => 400000], output: "capture", on: "worker");
 var $done = await $wide;
 echo "uncapped ok=", $done->ok ? "true" : "false", "\n";
 echo "uncapped held ", $done->value as string, "\n";
