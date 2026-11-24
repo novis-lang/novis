@@ -943,6 +943,7 @@ pub(crate) fn object_comparison_result(
     };
     if lhs_q != rhs_q {
         report_comparable_diagnostic(
+            None,
             span,
             format!(
                 "`{lhs_q}` and `{rhs_q}` are different classes; `<`/`<=`/`>`/`>=`/`<=>` never \
@@ -955,6 +956,7 @@ pub(crate) fn object_comparison_result(
     let comparable = QName::parse(nvs_hir::interfaces::COMPARABLE);
     if !reaches_comparable(&lhs_q, &comparable, env) {
         report_comparable_diagnostic(
+            Some(&lhs_q),
             span,
             format!(
                 "`{lhs_q}` does not implement `Comparable`; ordering two objects with \
@@ -1006,12 +1008,44 @@ fn reaches_comparable(qname: &QName, comparable: &QName, env: &Env<'_>) -> bool 
             .is_some()
 }
 
-pub(crate) fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) {
+/// `E0411` for ordering two `class_` values. The help says to write a
+/// `compareTo` only where the program can: a `Core` or component class is not
+/// the program's to change, so its help names what to compare instead.
+pub(crate) fn report_comparable_diagnostic(
+    class_: Option<&QName>,
+    span: Span,
+    message: String,
+    env: &mut Env<'_>,
+) {
+    let built_in = class_.filter(|q| q.is_core() || env.symbols.is_extension(q));
+    let help = if let Some(class_) = built_in {
+        built_in_order_help(class_)
+    } else {
+        "implement `Comparable`'s `compareTo(self $other): int` on the class".to_owned()
+    };
     env.diags.report(
         Diagnostic::error(code::E_COMPARISON_REQUIRES_COMPARABLE, message)
             .with_primary(span, "compared here")
-            .with_help("implement `Comparable`'s `compareTo(self $other): int` on the class"),
+            .with_help(help),
     );
+}
+
+/// What to compare in place of two values of a built-in class with no order.
+fn built_in_order_help(class_: &QName) -> String {
+    if class_.segments() == ["Core", "Time", "DateTime"] {
+        // `nvs_stdlib::time`'s module doc owns why a `DateTime` has no
+        // order, and names these two readers as the ways to get one.
+        format!(
+            "`{class_}` is a built-in class, and it has no order. Compare \
+             `$a->toInstant()` with `$b->toInstant()` for the moment, or `$a->date()` \
+             with `$b->date()` for the day"
+        )
+    } else {
+        format!(
+            "`{class_}` is a built-in class, and it has no order. Compare a value one of \
+             its methods returns, such as a number or a string"
+        )
+    }
 }
 
 /// Which of [`reject_unordered_operand`]'s three wordings an offending operand
@@ -1220,6 +1254,7 @@ fn reject_unordered_operand(
         // name no class to ask `Comparable` about, which is what the two
         // arms above this one report when the class *is* named.
         report_comparable_diagnostic(
+            None,
             span,
             format!(
                 "`{}` names no class to check `Comparable` on; ordering two objects with \
