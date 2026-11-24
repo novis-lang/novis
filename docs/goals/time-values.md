@@ -32,7 +32,7 @@ stages:
     context: [website/src/content/docs/syntax/operators/comparison.mdx, website/src/data/changes.json]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: value-equality
@@ -454,58 +454,56 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 6 and 7 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 6 and 7 touched.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 7 is `026cf7a6b8` (changelog and pages), `26ce9d1e9e` (the
-`Date::range` fix), `3c71d32443` (the proofs), `d37ff0666c` (review and search questions) and
-`8499339ba5` (perf).
+Every stage is done, and the full gate is green. `looper verify` is green over everything since the
+last full gate (this goal, `allocation-accounting`, `clear-member-names`, `see-files` and
+`reflect-once`). `bun nv close --goal time-values`, `bun nv verify --doc` and `bun nv ci --check`
+are green.
 
-- `bun nv proofs --gate --goal time-values` is green: nothing owed over 1321 features, `perf`
-  included. `bun nv site --check stale changes review questions` is green after
-  `render --website`.
-- The `Date::range` attack found two bugs, fixed in `crates/nvs-stdlib/src/time.rs`
-  `nvs_core_time_date_range`. A month or quarter list across the calendar ended early, because a
-  jiff span's month field stops at 239,976; `calendar_span` now writes a month count as years and
-  months (jiff 0.2.38 adds them as one count before it clamps the day). And the memory ask counted
-  only the list's slots, so a whole-calendar day list held about 760 MB; it now counts each `Date`
-  too. New test `time_gaps_date_range_spans_the_whole_calendar` ran green by name. The rule's cost
-  line says so.
-- New conformance case `tests/conformance/novis/intl-date-fields-choose-the-parts-of-a-date.nvst`
-  was diffed by hand against the debug binary's output, not run through the harness.
-- The intl help texts (`manifest.json`, `nvs/DateFormat.nvs`) were rewritten and the debug binary
-  rebuilt before their review stamp. Build, clippy and `cargo fmt` are green.
+The gate stops at its first red step, so it took seven runs to reach the end. The fix pass is
+`0e5ed8420a` (tool selftest), `e72e74445f` (tests and code), `40c722da91` (rendered files, stamps)
+and `ed1ff246a9` (naming tables).
+
+- Generated files were stale: the rendered reference chapters, the rule chapters and the website
+  data. All are rendered again.
+- One real bug: the checker matched `Core\Queue::push`'s old `args` option, so a secret value in
+  `arguments` compiled. `crates/nvs-types/src/expr/quals.rs` matches `arguments`, and E0791 holds.
+- The rest were tests and cases that pinned old member names, old columns, or identity for `==`
+  on a `Core\Time` value. Each now expects the renamed member or the by-value answer.
+- Eleven new conformance cases call `Date::parse`, `Date::range`, `Duration::toClock`,
+  `fromClock` and `PropertyInfo::isLateInit` and `isReadonly`, so each class has its floor of three.
+- `Date::startOf`, `endOf`, `difference`, `next`, `previous` and `range` are on the naming tables'
+  `reads` list beside their `DateTime` twins (`tools/data/api-names.json`).
+- The newcomer review reread four texts the fix pass changed (`BigInt::dividedBy`, `Date::range`,
+  `Duration::toClock`, the agents page's worked session). Each finding is fixed and stamped.
 
 ### Next
 
-Stage 8, the gate stage, as the pack says (a full gate or a close). Its items carry the anchors.
+The goal is reached. The loop retires it and runs the `after_gate` hooks: `relink --build`, and
+`vsix --hook`, which builds nothing because `editors/vscode/` did not change.
 
-Tests that may go red in the gate: the new intl conformance case above (first harness run), and
-`time_gaps_date_range_*` if the memory ask moved a test's count. `datetime_start_of_*` and `datetime_end_of_*` in `time.rs` (the
-`floored` refactor of stage 3, not run since). Examples still using `compareTo(...) == 0` where `==`
-now works give the same output and are left alone:
-`docs/examples/core/IO-Metadata/modifiedAt/02-the-time-is-kept.nvs:15`,
-`Time-DateTime/date/03-orders-per-day-in-the-shop-time-zone.nvs:20`,
-`Time-Duration/toString/02-a-negative-duration.nvs:10`. A `.nvs` with `format('Y…')` and no `w`
-prints `W1038`. `nvs meta`'s snapshot, if a test pins it, gains the new rows and the intl `Fields`
-enum. `crates/nvs-ext/tests/builtin.rs` pins the intl component's size (5%).
-`crates/nvs-ext/tests/intl.rs`'s `a_core_time_value_formats_in_its_zone_and_locale` did not run since
-stage 5. A test that counts `PREPARED_MEMBERS` or the intrinsic rows sees one more of each.
-`data/proofs/review-baseline.json` still names the old
-`Time-Duration/compareTo/02-same-length-is-not-the-same-object.nvs`. `proofs --gate` passed with
-it, and `close` may still name it.
-`benches/members/core/Time-Duration/toClock.nvs` writes `5m` every round, because each text is 4 or
-5 characters and its `$total % 4` stays 0. Its comment now says so. Cycling through all four
-durations would measure more cases, and is left to the gate.
+No test is expected to go red.
 
 ### Backlog
 
+None of these has an owner goal on the chain, so each needs a goal or a gap record of its own.
+
 - A mixed `int` and `uint` expression compiled and then threw at run time: `$at * 3 < ($begins->month()
   - 1) / 3 + 1`, with `month()` a `uint`, gave "`int` and `uint` have no representable common type".
-  The checker should refuse it while compiling. Found in stage 6's `DateTime::quarter` attack, which
-  writes around it. It is outside this goal.
+  The checker should refuse it while compiling. Found in stage 6's `DateTime::quarter` attack.
+- `Date::parse` throws `ParseError` with jiff's own text, such as "1 characters of trailing text"
+  and "parameter 'day' for `2026-02` is invalid". The message is not written to the prose rules.
+  `DateTime::parse` likely shares it. The conformance case checks only the class.
+- `crates/nvs-cli/tests/reload_command.rs:342` `a_timer_swap_fires_the_reload_event_too` failed
+  beside the other test binaries and passed alone. It shares a resource or leans on a 30 s timeout.
+- Two runtime messages use wording the prose rules do not allow: the body stream's "refused rather
+  than answered empty" and "hand the octets over" (see the cases
+  `tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst` and
+  `request-query-and-post-read-one-field-as-tainted-text.nvst`).
