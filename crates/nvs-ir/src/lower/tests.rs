@@ -7615,3 +7615,39 @@ fn a_method_that_returns_one_property_is_the_property_read() {
     assert_eq!(insts_where(&off, getter_call), 1);
     assert_eq!(insts_where(&off, name_read), 1);
 }
+
+/// `rule:expressions/equality-semantics`' value-class row: two written
+/// durations compare through `Helper::Identical`, which reads their value
+/// slots, so `30s == 30s` is `true` although each literal builds its own
+/// object. A `match` arm over a `Date` takes the same helper.
+#[test]
+fn time_value_written_durations_are_equal() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+Core\\Time\\Duration $a = 30s;
+bool $same = $a == 30s;
+bool $other = $a != 1m;
+Core\\Time\\Date $d = Core\\Time\\Date::at(2026, 1, 5);
+string $day = match ($d) { Core\\Time\\Date::at(2026, 1, 5) => \"that day\", default => \"another\" };
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("helper.identical").count(), 3, "{text}");
+}
+
+/// Two instances of a program's own class still compare by identity: the pair
+/// keeps the inline address compare and calls no helper.
+#[test]
+fn time_value_a_user_class_still_compares_by_identity() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+final class Blog { public function constructor(public int $id) {} }
+Blog $a = new Blog(1);
+Blog $b = new Blog(1);
+bool $same = $a == $b;
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("helper.identical").count(), 0, "{text}");
+    assert!(text.contains("= eq "), "{text}");
+}

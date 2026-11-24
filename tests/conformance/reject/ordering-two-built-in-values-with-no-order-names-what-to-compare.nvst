@@ -2,8 +2,8 @@
 Ordering two values of a built-in class that has no order is `E0411`, and its help names what to compare. A program cannot give a built-in class a `compareTo`, so the help never says to write one
 --FILE--
 <?nvs
-Core\Time\DateTime $first = Core\Time\DateTime::fromIso('2026-01-05 08:30', 'UTC');
-Core\Time\DateTime $second = Core\Time\DateTime::fromIso('2026-01-05 09:30', 'UTC');
+Core\Uri $first = Core\Uri::parse('https://example.com/a');
+Core\Uri $second = Core\Uri::parse('https://example.com/b');
 echo $first < $second ? "earlier\n" : "later\n";
 
 Core\Time\Zone $here = Core\Time\Zone::of('UTC');
@@ -12,9 +12,9 @@ echo $here < $there ? "before\n" : "after\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0411]: `Core\Time\DateTime` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
+error[E0411]: `Core\Uri` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
 %A
-  = help: `Core\Time\DateTime` is a built-in class, and it has no order. Compare `$a->toInstant()` with `$b->toInstant()` for the moment, or `$a->date()` with `$b->date()` for the day
+  = help: `Core\Uri` is a built-in class, and it has no order. Compare a value one of its methods returns, such as a number or a string
 %A
 error[E0411]: `Core\Time\Zone` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
 %A

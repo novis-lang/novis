@@ -618,6 +618,7 @@ pub(crate) fn binary_result(
         }
         BinaryOp::Eq | BinaryOp::NotEq => {
             reject_disjoint_equality(lhs, rhs, span, env);
+            record_value_equality(lhs, rhs, span, env);
             // `rule:security/secret-comparison-is-constant-time`: a comparison
             // with a `secret` operand runs in constant time, and an operand
             // carries `secret` when any member of its type does — a
@@ -696,6 +697,45 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
             .with_primary(span, "compared here")
             .with_help(help),
     );
+}
+
+/// `rule:expressions/equality-semantics`' value-class row: records the
+/// equality at `span` for `nvs-ir` when either operand may hold an instance of
+/// a `Core\Time` value class, so two objects there compare by their value
+/// slots. Called from a written `==`/`!=`, a `match` arm and a `switch` label,
+/// the three places [`reject_disjoint_equality`] is. An equality of two other
+/// objects keeps its inline address compare and pays nothing.
+pub(crate) fn record_value_equality(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) {
+    if may_hold_a_value_object(lhs, env) || may_hold_a_value_object(rhs, env) {
+        env.exprs.record_value_equality(span);
+    }
+}
+
+/// Whether a value of static type `ty` may be an instance of one of the six
+/// `Core\Time` value classes (`nvs_stdlib::registry::compares_by_value`): the
+/// class itself, `object`, or one of the reserved interfaces a `Core` class
+/// satisfies by its members, `Comparable`, `Stringable` and `Parses`. A union
+/// or an intersection may when one of its members may. `mixed` is not
+/// recorded, because a tagged operand already compares through
+/// `nvs_runtime::identity`.
+pub(crate) fn may_hold_a_value_object(ty: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(ty) {
+        Ty::Object => true,
+        Ty::Class(qname, _) => {
+            let name = qname.to_string();
+            nvs_stdlib::registry::compares_by_value(&name)
+                || [
+                    nvs_hir::interfaces::COMPARABLE,
+                    nvs_hir::interfaces::STRINGABLE,
+                    nvs_hir::interfaces::PARSES,
+                ]
+                .contains(&name.as_str())
+        }
+        Ty::Union(members) | Ty::Intersection(members) => members
+            .iter()
+            .any(|member| may_hold_a_value_object(*member, env)),
+        _ => false,
+    }
 }
 
 /// `rule:expressions/a-match-has-at-least-one-arm`: a `match` or a `switch`
@@ -1032,20 +1072,10 @@ pub(crate) fn report_comparable_diagnostic(
 
 /// What to compare in place of two values of a built-in class with no order.
 fn built_in_order_help(class_: &QName) -> String {
-    if class_.segments() == ["Core", "Time", "DateTime"] {
-        // `nvs_stdlib::time`'s module doc owns why a `DateTime` has no
-        // order, and names these two readers as the ways to get one.
-        format!(
-            "`{class_}` is a built-in class, and it has no order. Compare \
-             `$a->toInstant()` with `$b->toInstant()` for the moment, or `$a->date()` \
-             with `$b->date()` for the day"
-        )
-    } else {
-        format!(
-            "`{class_}` is a built-in class, and it has no order. Compare a value one of \
-             its methods returns, such as a number or a string"
-        )
-    }
+    format!(
+        "`{class_}` is a built-in class, and it has no order. Compare a value one of \
+         its methods returns, such as a number or a string"
+    )
 }
 
 /// Which of [`reject_unordered_operand`]'s three wordings an offending operand

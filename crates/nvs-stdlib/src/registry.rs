@@ -4655,6 +4655,17 @@ pub fn implements_comparable(class: &str) -> bool {
         .is_some_and(comparable)
 }
 
+/// Whether `==` compares an instance of `class` by value: one of the six
+/// `Core\Time` value classes, whose slots `crate::time::VALUE_SLOTS` lists.
+/// Every other class, user or `Core`, compares by identity
+/// (`rule:expressions/object-identity-equality`).
+#[must_use]
+pub fn compares_by_value(class: &str) -> bool {
+    crate::time::VALUE_SLOTS
+        .iter()
+        .any(|(name, _)| *name == class)
+}
+
 /// [`implements_comparable`] for a class already in hand.
 fn comparable(class: &CoreClass) -> bool {
     class.instance.iter().any(|member| {

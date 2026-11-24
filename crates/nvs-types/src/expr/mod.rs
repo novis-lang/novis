@@ -99,7 +99,8 @@ pub(crate) use self::{
         reject_uncatchable_arm, resolve_class_expr,
     },
     operators::{
-        reject_carrier_as_text, reject_disjoint_equality, reject_second_default, require_stringable,
+        record_value_equality, reject_carrier_as_text, reject_disjoint_equality,
+        reject_second_default, require_stringable,
     },
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
@@ -952,6 +953,7 @@ fn infer_kind(
                         // is unaffected — every arm there is a `bool` too.
                         let cond_ty = check_expr(c, None, live, scope, ctx, env);
                         reject_disjoint_equality(subject_ty, cond_ty, c.span, env);
+                        record_value_equality(subject_ty, cond_ty, c.span, env);
                     }
                     if labels_are_conditions && let [only] = &conds[..] {
                         narrowed = crate::locals::narrow(only, true, scope, env);

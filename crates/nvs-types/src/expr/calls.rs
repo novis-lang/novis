@@ -1343,7 +1343,9 @@ pub(crate) fn infer_new(
 /// are resolved: the two types whose every value is a key an array compares
 /// as `==` does (`rule:types/arrays`). A type whose every value is an object
 /// is `Object` ([`is_always_an_object`]), because an object is identical only
-/// to itself (`rule:expressions/equality-semantics`). Every other type keeps
+/// to itself (`rule:expressions/equality-semantics`). A type that may hold a
+/// `Core\Time` value class keeps the chain, because `==` compares those by
+/// value, and the chain finds a key by `==`. Every other type keeps
 /// the chain: a union, a nullable, `mixed`, `uint`, `tainted string`, an
 /// array and an enum.
 fn keying_of(target_ty: TypeId, env: &Env<'_>) -> nvs_stdlib::registry::Keying {
@@ -1364,7 +1366,11 @@ fn keying_of(target_ty: TypeId, env: &Env<'_>) -> nvs_stdlib::registry::Keying {
     match env.interner.get(*first) {
         Ty::String => Keying::Str,
         Ty::Int => Keying::Int,
-        _ if is_always_an_object(*first, env) => Keying::Object,
+        _ if is_always_an_object(*first, env)
+            && !super::operators::may_hold_a_value_object(*first, env) =>
+        {
+            Keying::Object
+        }
         _ => Keying::Chain,
     }
 }

@@ -765,6 +765,13 @@ pub struct ClassDesc {
     /// [`ClassTable::set_core`] writes it. **Cost:** one `bool` per class,
     /// once per process, not per instance.
     is_core: bool,
+    /// The field slots `==` compares on an instance of this class, in place of
+    /// the object's address, and the hash that agrees with it reads. Empty for
+    /// every class but the six `Core\Time` value classes, which
+    /// `nvs_stdlib::instance` gives theirs through
+    /// [`ClassTable::set_value_slots`]; [`crate::identity`] owns what it means.
+    /// **Cost:** one slice (two words) per class, once per process.
+    value_slots: &'static [usize],
     /// This class's `Core\Reflect\ClassInfo`, an immortal object owned by
     /// the table's [`crate::descriptions::Descriptions`], or `null` before
     /// [`ClassTable::set_descriptions`] ran. `forObject` returns it, so a
@@ -1841,6 +1848,13 @@ impl ClassDesc {
         self.is_core
     }
 
+    /// The slots `==` compares on an instance of this class, empty for a class
+    /// compared by identity — see the field.
+    #[must_use]
+    pub fn value_slots(&self) -> &'static [usize] {
+        self.value_slots
+    }
+
     /// This class's `Core\Reflect\ClassInfo`, built once when the unit was
     /// finished, or `None` for a descriptor no unit table described: a `Core`
     /// class's, and one a native test built by hand.
@@ -2830,6 +2844,7 @@ impl ClassTable {
             keyed_stores: None,
             keys_private: None,
             collection: None,
+            value_slots: &[],
         }));
         id
     }
@@ -2903,6 +2918,20 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.is_core = true;
+    }
+
+    /// Gives `id` the slots `==` compares on its instances — see
+    /// [`ClassDesc::value_slots`]. A setter on [`ClassTable::set_core`]'s terms.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_value_slots(&mut self, id: ClassId, slots: &'static [usize]) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.value_slots = slots;
     }
 
     /// States the type of each of `id`'s slots, for a `Core` class: fills the
@@ -4694,6 +4723,19 @@ impl NvsObj {
     #[must_use]
     pub fn class(&self) -> *const ClassDesc {
         self.header().class
+    }
+
+    /// The slots `==` compares on this object — [`ClassDesc::value_slots`] of
+    /// its class, empty for an object compared by identity.
+    #[must_use]
+    pub fn value_slots(&self) -> &'static [usize] {
+        #[expect(
+            unsafe_code,
+            reason = "an object's descriptor outlives it by `NvsObj::new`'s own                       safety contract"
+        )]
+        unsafe {
+            (*self.class()).value_slots
+        }
     }
 
     /// How many field slots this instance has.

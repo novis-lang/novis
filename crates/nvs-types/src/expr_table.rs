@@ -1709,6 +1709,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     proven_callbacks: FxHashSet<Span>,
+    value_equalities: FxHashSet<Span>,
     /// Call arguments that are arrays holding no object. See
     /// [`Self::is_plain_array`].
     plain_arrays: FxHashSet<Span>,
@@ -1912,6 +1913,7 @@ impl ExprTypeTable {
             types,
             float_widened,
             proven_callbacks,
+            value_equalities,
             plain_arrays,
             run_time_classes,
             guarded_target_reads,
@@ -1982,6 +1984,7 @@ impl ExprTypeTable {
         self.types.extend(types);
         self.float_widened.extend(float_widened);
         self.proven_callbacks.extend(proven_callbacks);
+        self.value_equalities.extend(value_equalities);
         self.plain_arrays.extend(plain_arrays);
         self.run_time_classes |= run_time_classes;
         self.guarded_target_reads.extend(guarded_target_reads);
@@ -2078,6 +2081,7 @@ impl ExprTypeTable {
         section("types", sorted(&self.types));
         section("float_widened", sorted(&self.float_widened));
         section("proven_callbacks", sorted(&self.proven_callbacks));
+        section("value_equalities", sorted(&self.value_equalities));
         section("plain_arrays", sorted(&self.plain_arrays));
         if self.run_time_classes {
             section("run_time_classes", vec!["true".to_owned()]);
@@ -3601,6 +3605,26 @@ impl ExprTypeTable {
     #[must_use]
     pub fn callback_is_proven(&self, span: Span) -> bool {
         self.proven_callbacks.contains(&span)
+    }
+
+    /// Records that the equality at `span` has an operand whose static type
+    /// may hold an instance of a `Core\Time` value class
+    /// (`crate::expr::operators::may_hold_a_value_object`). See
+    /// [`Self::compares_by_value`].
+    pub(crate) fn record_value_equality(&mut self, span: Span) {
+        self.value_equalities.insert(span);
+    }
+
+    /// Whether the equality at `span` — a written `==` or `!=`, a `match` arm
+    /// or a `switch` label — may compare two instances of a value class. Two
+    /// objects there compare through `nvs_runtime::identity`, which reads the
+    /// value slots, in place of the inline address compare. A set beside the
+    /// entries, because the span of a `match` arm is its expression's and
+    /// already holds that expression's entry. One span per such equality,
+    /// held for the compile.
+    #[must_use]
+    pub fn compares_by_value(&self, span: Span) -> bool {
+        self.value_equalities.contains(&span)
     }
 
     /// Records that the call argument at `span` is an array that holds no

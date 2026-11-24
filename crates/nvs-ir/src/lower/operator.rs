@@ -771,6 +771,7 @@ impl<'a> Lowering<'a> {
         op: BinaryOp,
         lhs: (ValueId, Ty),
         rhs: (ValueId, Ty),
+        site: Span,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
@@ -780,7 +781,14 @@ impl<'a> Lowering<'a> {
             let (answer, _) = self.lower_decimal_binary(op, lv, rv, env, cur);
             return answer;
         }
-        if lty == Ty::Tagged || rty == Ty::Tagged {
+        // `rule:expressions/equality-semantics`' value-class row: two objects
+        // where the checker saw that either may be a `Core\Time` value class
+        // (`nvs_types::ExprTypeTable::compares_by_value`) compare through
+        // `nvs_runtime::identity`, which reads the value slots. The helper
+        // convention stores each object as a tagged `Value`, so nothing is
+        // widened. Every other object pair keeps the inline address compare.
+        let by_value = lty == Ty::Object && rty == Ty::Object && self.exprs.compares_by_value(site);
+        if lty == Ty::Tagged || rty == Ty::Tagged || by_value {
             let (equal, _) = self.emit_fallible(
                 *cur,
                 Ty::Bool,
@@ -1165,7 +1173,7 @@ impl<'a> Lowering<'a> {
         // than per pair: the two sides may hold two representations, which is
         // what the rows above the `BinOp` are for.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) {
-            let answer = self.emit_equality(op, (lv, lty), (rv, rty), env, cur);
+            let answer = self.emit_equality(op, (lv, lty), (rv, rty), whole.span, env, cur);
             for (borrowed, value, ty) in [(lb, lv, lty), (rb, rv, rty)] {
                 if ty.is_refcounted() && !borrowed {
                     self.emit_release(*cur, value);

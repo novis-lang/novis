@@ -716,6 +716,7 @@ impl<'a> Lowering<'a> {
                 BinaryOp::Eq,
                 (cmp_subj_v, cmp_subj_ty),
                 (cmp_cond_v, cmp_cond_ty),
+                cond.span,
                 &mut entry_env,
                 &mut test_cur,
             );

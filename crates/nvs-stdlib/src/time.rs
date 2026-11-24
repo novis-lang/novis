@@ -128,13 +128,14 @@
 //! names this class and `nvs_stdlib::instance`'s descriptor renderer where it
 //! names none.
 //!
-//! **Decision: a `DateTime` has no `compareTo`, so `<` does not compile on one.** Two
-//! values in different zones can be the same instant with every civil field different,
-//! so "which comes first" has two answers, and a `compareTo` would pick one silently.
-//! The caller names the one meant: `$a->toInstant() < $b->toInstant()` orders instants,
-//! and `$a->date() < $b->date()` orders calendar days. `==` on any of these classes is
-//! identity, as `rule:expressions/object-identity-equality` says for every class
-//! instance; `$a->compareTo($b) == 0` is the value test.
+//! **Decision: a `DateTime` compares and orders by its moment.** Its `compareTo` reads
+//! the epoch second and then the nanosecond, and never the zone, so 10:00 in
+//! `Europe/Berlin` and 09:00 in `Europe/London` on one day are equal, and `<` orders
+//! two values in different zones by when they happen. Two equal values may print
+//! different text, because their zones differ. `$a->date() < $b->date()` still orders
+//! calendar days. `==` on `Date`, `TimeOfDay`, `Instant`, `Duration`, `Zone` and
+//! `DateTime` compares by value, through [`VALUE_SLOTS`], and a `DateTime`'s value is
+//! its moment (`rule:expressions/object-identity-equality`).
 //!
 //! # A written pattern is prepared, an assembled one is not
 //!
@@ -688,9 +689,8 @@ const DURATION_CARD: ClassDoc = ClassDoc {
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two durations by length and sign, as `Comparable` requires, so a \
             shorter duration compares below a longer one and a negative one below every \
-            positive one. Use it to compare two durations by value. `==` on two objects \
-            tests identity, so `90m == 1h30m` is `false`. To test that two durations are \
-            equal, write `$a->compareTo($b) == 0`.",
+            positive one. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. \
+            `==` compares two durations by length, so `90m == 1h30m` is `true`.",
     params: &[ParamDoc {
         name: "other",
         desc: "The duration to compare against.",
@@ -1467,9 +1467,8 @@ const INSTANT_CARD: ClassDoc = ClassDoc {
 /// `Core\Time\Instant::compareTo`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Checks which of two instants comes first, as `Comparable` requires. The operators \
-            `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two instants checks \
-            whether they are the same object, so test for the same moment with \
-            `$a->compareTo($b) == 0`.",
+            `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` is `true` for two \
+            instants at the same moment.",
     params: &[ParamDoc {
         name: "other",
         desc: "The instant to compare against.",
@@ -1940,6 +1939,16 @@ pub const DATETIME: CoreClass = CoreClass {
             doc: Some(&DATETIME_TO_INSTANT_DOC),
         },
         CoreMethod {
+            name: "compareTo",
+            names: &["other"],
+            params: &[CoreTy::Instance(DATETIME_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_datetime_compare_to",
+            doc: Some(&DATETIME_COMPARE_TO_DOC),
+        },
+        CoreMethod {
             name: "date",
             names: &[],
             params: &[],
@@ -2321,6 +2330,18 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
 };
 
 /// `Core\Time\DateTime::toInstant`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\DateTime::compareTo`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_COMPARE_TO_DOC: MethodDoc = MethodDoc {
+    short: "Checks which of two date-times is earlier, as `Comparable` requires. It compares             the moment, to the nanosecond. The zone does not count, so 10:00 in             `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The             operators `<`, `>`, `<=`, `>=` and `<=>` use this method too.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The date-time to compare against.",
+        shape: &[],
+    }],
+    ret: "`-1` when this date-time is earlier than `$other`, `0` when both are the same           moment, `1` when it is later.",
+    errors: &[],
+};
+
 const DATETIME_TO_INSTANT_DOC: MethodDoc = MethodDoc {
     short: "Returns the exact point in time of this value. This is fast, because a `DateTime` \
             already contains its `Instant`.",
@@ -2576,6 +2597,9 @@ fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         }
         "nvs_core_time_datetime_to_instant" => {
             (nvs_core_time_datetime_to_instant as *const ()).cast()
+        }
+        "nvs_core_time_datetime_compare_to" => {
+            (nvs_core_time_datetime_compare_to as *const ()).cast()
         }
         "nvs_core_time_datetime_date" => (nvs_core_time_datetime_date as *const ()).cast(),
         "nvs_core_time_datetime_time_of_day" => {
@@ -3510,9 +3534,8 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\TimeOfDay::compareTo`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Checks which of two times comes first in the day, as `Comparable` requires. \
-            The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two \
-            times checks whether they are the same object, so test for the same time with \
-            `$a->compareTo($b) == 0`.",
+            The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` is \
+            `true` for two times with the same hour, minute, second and nanosecond.",
     params: &[ParamDoc {
         name: "other",
         desc: "The time to compare against.",
@@ -3563,6 +3586,28 @@ const CLOCK_MINUTE_SLOT: usize = 1;
 const CLOCK_SECOND_SLOT: usize = 2;
 /// See [`CLOCK_HOUR_SLOT`].
 const CLOCK_NANOS_SLOT: usize = 3;
+
+/// The six value classes, and the slots `==` compares on each in place of the
+/// object's address (`nvs_runtime::identity` owns what that means). A
+/// `DateTime` compares its moment and skips its zone slot, so one moment in two
+/// zones is one value. `crate::instance` puts each list on the class's
+/// descriptor, and [`crate::registry::compares_by_value`] tells the checker.
+pub(crate) const VALUE_SLOTS: [(&str, &[usize]); 6] = [
+    (DATE.name, &[DATE_YEAR_SLOT, DATE_MONTH_SLOT, DATE_DAY_SLOT]),
+    (
+        TIME_OF_DAY.name,
+        &[
+            CLOCK_HOUR_SLOT,
+            CLOCK_MINUTE_SLOT,
+            CLOCK_SECOND_SLOT,
+            CLOCK_NANOS_SLOT,
+        ],
+    ),
+    (INSTANT.name, &[INSTANT_SECONDS_SLOT, INSTANT_NANOS_SLOT]),
+    (DURATION.name, &[NANOS_SLOT]),
+    (ZONE.name, &[ZONE_ID_SLOT]),
+    (DATETIME.name, &[DATETIME_SECONDS_SLOT, DATETIME_NANOS_SLOT]),
+];
 
 /// [`TIME_OF_DAY`]'s symbols.
 fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
@@ -5420,6 +5465,44 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_datetime_to_instant(_ctx, args: [1]) {
         Ok(instant_built(zoned_of(args, 0, "toInstant")?.timestamp()))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->compareTo(DateTime $other): int` — `Comparable`'s member
+    /// (`rule:classes/comparable`), by the moment alone: the seconds, then the
+    /// nanoseconds. The zone slot is not read, so no zone is looked up.
+    fn nvs_core_time_datetime_compare_to(_ctx, args: [2]) {
+        let left = moment_of(args, 0, "compareTo")?;
+        let right = moment_of(args, 1, "compareTo")?;
+        Ok(Value::int(match left.cmp(&right) {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }))
+    }
+}
+
+/// The moment the `DateTime` in argument slot `at` holds, as its epoch second
+/// and its nanosecond, read without its zone.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
+fn moment_of(args: &[Value], at: usize, member: &str) -> Result<(i64, i64), Fault> {
+    let object = crate::instance::receiver(args[at], &DATETIME, member)?;
+    let read = |index: usize, what: &str| {
+        crate::instance::slot(object, index)
+            .as_int()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Time\\DateTime::{member} found a non-`int` `{what}` slot"
+                ))
+            })
+    };
+    Ok((
+        read(DATETIME_SECONDS_SLOT, "seconds")?,
+        read(DATETIME_NANOS_SLOT, "nanos")?,
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -9790,5 +9873,239 @@ mod tests {
         let now = Timestamp::now();
         let resolved = resolve_zone(&id).expect("the id `system` wrote resolves");
         assert_eq!(resolved.to_offset(now), host.to_offset(now), "{id}");
+    }
+
+    /// Gives up this frame's reference to each of `values`.
+    fn released(values: &[Value]) {
+        for value in values {
+            #[expect(unsafe_code, reason = "this frame built each value it releases")]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// `value`'s hash under one fixed hasher.
+    fn hashed(value: Value) -> u64 {
+        use std::hash::Hasher;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        nvs_runtime::value_hash(value, &mut hasher);
+        hasher.finish()
+    }
+
+    /// Whether `==` finds `left` and `right` equal, through the comparison
+    /// every equality path reaches. Where it does, the two hash alike, because
+    /// a map finds a key by that hash. Both values are released.
+    fn equal(left: Value, right: Value) -> bool {
+        let same = nvs_runtime::value_identical(left, right);
+        if same {
+            assert_eq!(hashed(left), hashed(right), "two equal values hash alike");
+        }
+        released(&[left, right]);
+        same
+    }
+
+    /// The `DateTime` at `second` past the epoch in the zone `id`.
+    fn moment(second: i64, nanos: i32, id: &str) -> Value {
+        let zone = TimeZone::get(id).expect("the zone is in the database");
+        let at = Timestamp::new(second, nanos).expect("the moment is in range");
+        datetime_built(&at.to_zoned(zone))
+    }
+
+    /// Two dates built apart are one value when their year, month and day are.
+    #[test]
+    fn time_value_equal_dates_are_equal() {
+        let day = || date_built(civil::date(2026, 1, 5));
+        assert!(equal(day(), day()));
+        assert!(!equal(day(), date_built(civil::date(2026, 1, 6))));
+        let one = day();
+        assert!(nvs_runtime::value_identical(one, one));
+        released(&[one]);
+    }
+
+    /// Two durations of the same length are one value, and a different length
+    /// or sign is another.
+    #[test]
+    fn time_value_equal_durations_are_equal() {
+        assert!(equal(
+            duration_of(90 * 60 * 1_000_000_000),
+            duration_of(5_400_000_000_000)
+        ));
+        assert!(!equal(duration_of(1), duration_of(-1)));
+    }
+
+    /// A time of day compares its hour, minute, second and nanosecond, and an
+    /// instant its second and nanosecond.
+    #[test]
+    fn time_value_equal_times_and_instants_are_equal() {
+        let clock = |nanos| clock_built(civil::time(8, 30, 0, nanos));
+        assert!(equal(clock(0), clock(0)));
+        assert!(!equal(clock(0), clock(1)));
+        let instant =
+            |nanos| instant_built(Timestamp::new(1_767_600_000, nanos).expect("in range"));
+        assert!(equal(instant(5), instant(5)));
+        assert!(!equal(instant(5), instant(6)));
+    }
+
+    /// Two zones built apart with one id are one value.
+    #[test]
+    fn time_value_zones_with_one_id_are_equal() {
+        assert!(equal(
+            zone_built("Europe/Vienna"),
+            zone_built("Europe/Vienna")
+        ));
+        assert!(!equal(
+            zone_built("Europe/Vienna"),
+            zone_built("Europe/Berlin")
+        ));
+    }
+
+    /// A `DateTime` is its moment: 10:00 in Berlin and 09:00 in London on one
+    /// winter day are one value, and one nanosecond apart they are not.
+    #[test]
+    fn time_value_datetimes_at_one_moment_in_two_zones_are_equal() {
+        let second = 1_767_603_600;
+        assert!(equal(
+            moment(second, 0, "Europe/Berlin"),
+            moment(second, 0, "Europe/London")
+        ));
+        assert!(!equal(
+            moment(second, 0, "Europe/Berlin"),
+            moment(second, 1, "Europe/Berlin")
+        ));
+    }
+
+    /// A `mixed` pair reaches the same comparison: two value classes with the
+    /// same slots are still two classes, and a value class never equals a
+    /// scalar or `null`.
+    #[test]
+    fn time_value_mixed_operands_compare_by_value() {
+        let at = Timestamp::new(1_767_600_000, 0).expect("in range");
+        assert!(!equal(instant_built(at), moment(1_767_600_000, 0, "UTC")));
+        assert!(!equal(duration_of(5), Value::int(5)));
+        assert!(!equal(date_built(civil::date(2026, 1, 5)), Value::null()));
+    }
+
+    /// An array of dates compares each date by value.
+    #[test]
+    fn time_value_arrays_of_dates_compare_by_value() {
+        let list = |last: i8| {
+            let mut array = nvs_runtime::NvsArray::new();
+            array.append(date_built(civil::date(2026, 1, 5)));
+            array.append(date_built(civil::date(2026, 1, last)));
+            Value::array(array)
+        };
+        assert!(equal(list(6), list(6)));
+        assert!(!equal(list(6), list(7)));
+    }
+
+    /// `compareTo` on two date-times, as an `int`.
+    fn order(left: Value, right: Value) -> Option<i64> {
+        let mut ctx = Ctx::buffered();
+        nvs_runtime::call(nvs_core_time_datetime_compare_to, &mut ctx, &[left, right])
+            .expect("compareTo does not throw")
+            .as_int()
+    }
+
+    /// `compareTo` orders two date-times by their moment, whatever their zones.
+    #[test]
+    fn datetime_orders_by_its_moment_across_zones() {
+        // 09:30 in London is 10:30 in Berlin, so it is later than 10:00 in Berlin.
+        let berlin = moment(1_767_603_600, 0, "Europe/Berlin");
+        let london = moment(1_767_605_400, 0, "Europe/London");
+        let same = moment(1_767_603_600, 0, "Europe/London");
+        assert_eq!(order(berlin, london), Some(-1));
+        assert_eq!(order(london, berlin), Some(1));
+        assert_eq!(order(berlin, same), Some(0));
+        released(&[berlin, london, same]);
+    }
+
+    /// `compareTo` reads the nanosecond after the second.
+    #[test]
+    fn datetime_orders_to_the_nanosecond() {
+        let early = moment(1_767_603_600, 1, "UTC");
+        let late = moment(1_767_603_600, 2, "Europe/Vienna");
+        assert_eq!(order(early, late), Some(-1));
+        assert_eq!(order(late, early), Some(1));
+        released(&[early, late]);
+    }
+
+    /// Runs a collection `member` with `args` as its arguments.
+    fn on(member: nvs_runtime::NvsFn, args: &[Value]) -> Value {
+        let mut ctx = Ctx::buffered();
+        nvs_runtime::call(member, &mut ctx, args).expect("a collection member does not throw")
+    }
+
+    /// A map keyed by `Date` finds a key with an equal date built elsewhere.
+    #[test]
+    fn a_map_keyed_by_a_date_finds_an_equal_date() {
+        use crate::objmap::{
+            nvs_core_object_map_get, nvs_core_object_map_new, nvs_core_object_map_set,
+        };
+        let map = on(nvs_core_object_map_new, &[]);
+        let key = date_built(civil::date(2026, 1, 5));
+        on(nvs_core_object_map_set, &[map, key, Value::int(7)]);
+        let other = date_built(civil::date(2026, 1, 5));
+        assert_eq!(on(nvs_core_object_map_get, &[map, other]).as_int(), Some(7));
+        released(&[map, key, other]);
+    }
+
+    /// A map keyed by `DateTime` finds the same moment written in another zone.
+    #[test]
+    fn a_map_keyed_by_a_datetime_finds_the_same_moment_in_another_zone() {
+        use crate::objmap::{
+            nvs_core_object_map_count, nvs_core_object_map_get, nvs_core_object_map_new,
+            nvs_core_object_map_set,
+        };
+        let map = on(nvs_core_object_map_new, &[]);
+        let berlin = moment(1_767_603_600, 0, "Europe/Berlin");
+        let london = moment(1_767_603_600, 0, "Europe/London");
+        on(nvs_core_object_map_set, &[map, berlin, Value::int(1)]);
+        on(nvs_core_object_map_set, &[map, london, Value::int(2)]);
+        assert_eq!(on(nvs_core_object_map_count, &[map]).as_uint(), Some(1));
+        assert_eq!(
+            on(nvs_core_object_map_get, &[map, berlin]).as_int(),
+            Some(2)
+        );
+        released(&[map, berlin, london]);
+    }
+
+    /// An object of a class with no value slots, as every class a program
+    /// declares is, is found by itself alone. Two empty sets stand in for two
+    /// such objects.
+    #[test]
+    fn a_map_keyed_by_a_user_object_finds_only_that_object() {
+        use crate::objmap::{
+            nvs_core_object_map_get, nvs_core_object_map_has, nvs_core_object_map_new,
+            nvs_core_object_map_set,
+        };
+        use crate::objset::nvs_core_object_set_new;
+        let map = on(nvs_core_object_map_new, &[]);
+        let first = on(nvs_core_object_set_new, &[]);
+        let second = on(nvs_core_object_set_new, &[]);
+        on(nvs_core_object_map_set, &[map, first, Value::int(1)]);
+        assert_eq!(on(nvs_core_object_map_get, &[map, first]).as_int(), Some(1));
+        assert_eq!(
+            on(nvs_core_object_map_has, &[map, second]).as_bool(),
+            Some(false)
+        );
+        released(&[map, first, second]);
+    }
+
+    /// A set of durations finds an equal duration built elsewhere.
+    #[test]
+    fn a_map_keyed_by_a_set_finds_an_equal_duration() {
+        use crate::objset::{
+            nvs_core_object_set_add, nvs_core_object_set_has, nvs_core_object_set_new,
+        };
+        let set = on(nvs_core_object_set_new, &[]);
+        let member = duration_of(30_000_000_000);
+        on(nvs_core_object_set_add, &[set, member]);
+        let other = duration_of(30_000_000_000);
+        assert_eq!(
+            on(nvs_core_object_set_has, &[set, other]).as_bool(),
+            Some(true)
+        );
+        released(&[set, member, other]);
     }
 }

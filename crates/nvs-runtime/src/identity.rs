@@ -75,6 +75,19 @@
 //!   property-walk fallback that rule refuses. A callable is an object
 //!   ([`crate::callable`]), so two anonymous functions are never identical and
 //!   one callable value is identical to a copy of itself.
+//! * **An instance of a value class is identical to an instance of the same
+//!   class whose value slots are identical.** The six `Core\Time` value
+//!   classes (`Date`, `TimeOfDay`, `Instant`, `Duration`, `Zone` and
+//!   `DateTime`) carry their slots on their descriptor
+//!   ([`crate::ClassDesc::value_slots`]), and every other class carries none.
+//!   A `DateTime`'s slots are its moment and not its zone, so one moment in
+//!   two zones is one value. This is not the property walk the row above
+//!   refuses: the class is `Core`'s, the slots are a fixed list of scalars
+//!   and strings, and the cost is bounded by four slots
+//!   (`rule:expressions/object-identity-equality`). **What it spends:** a
+//!   pair that is not one object reads each class's slot list and name, and
+//!   then one to four slot pairs, a few nanoseconds per comparison. The hash
+//!   reads the same slots.
 //!
 //! # Why this terminates, and what it costs
 //!
@@ -236,6 +249,12 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
             };
             std::ptr::eq(a, b) || entries_identical(a, b, worklist)
         }
+        // An object is identical to itself, and an instance of a value class
+        // also to another instance of that class whose value slots are
+        // identical. The slots are queued, as an array's entries are.
+        (Some(Tag::Object), Some(Tag::Object)) => {
+            left.bits() == right.bits() || value_slots_identical(left, right, worklist)
+        }
         // Every remaining representation is an opaque handle: identical to
         // itself and to nothing else. That covers an object (this module's
         // docs say why pointer identity is the answer `rule:classes/comparable` leaves room
@@ -243,6 +262,23 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
         // miscompile can produce.
         _ => left.tag_byte() == right.tag_byte() && left.bits() == right.bits(),
     }
+}
+
+/// Whether two distinct objects are one value: both are instances of one value
+/// class ([`crate::ClassDesc::value_slots`]), queueing each value-slot pair
+/// rather than comparing it here. Two objects of any other class are not.
+fn value_slots_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value)>) -> bool {
+    let (Some(left), Some(right)) = (borrowed_object(left), borrowed_object(right)) else {
+        return false;
+    };
+    let slots = left.value_slots();
+    if slots.is_empty() || left.class_name() != right.class_name() {
+        return false;
+    }
+    for &slot in slots {
+        worklist.push((left.field(slot), right.field(slot)));
+    }
+    true
 }
 
 /// Whether two distinct array allocations hold the same entries in the same
@@ -351,6 +387,18 @@ fn hash_shallow<H: Hasher>(value: Value, state: &mut H) -> Option<ManuallyDrop<N
             let array = borrowed(value.array_ptr()?);
             state.write_usize(array.count());
             return Some(array);
+        }
+        // An instance of a value class hashes its class and its value slots,
+        // which are scalars and strings, so an identical instance hashes alike.
+        Some(Tag::Object)
+            if borrowed_object(value).is_some_and(|object| !object.value_slots().is_empty()) =>
+        {
+            let object = borrowed_object(value)?;
+            state.write_u8(8);
+            state.write(object.class_name().as_bytes());
+            for &slot in object.value_slots() {
+                let _ = hash_shallow(object.field(slot), state);
+            }
         }
         _ => {
             state.write_u8(6);
@@ -639,6 +687,19 @@ fn integer(value: Value) -> i128 {
 /// Never dropped: the value the pointer came out of owns the reference, and
 /// this handle is only borrowing it for the comparison — the same rule
 /// `nvs_stdlib::arr`'s own `borrowed` states, for the same reason.
+/// `value`'s object, borrowed for the length of one comparison, or `None` for a
+/// value that is not an object.
+fn borrowed_object(value: Value) -> Option<ManuallyDrop<crate::object::NvsObj>> {
+    let ptr = value.obj_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Object value owns a reference to a live allocation                   (see `Value`'s Ownership section), so it is live for this                   comparison, and the handle is never dropped"
+    )]
+    Some(ManuallyDrop::new(unsafe {
+        crate::object::NvsObj::from_raw(ptr)
+    }))
+}
+
 fn borrowed(ptr: *mut ArrayHeader) -> ManuallyDrop<NvsArray> {
     #[expect(
         unsafe_code,

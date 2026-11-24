@@ -1325,6 +1325,14 @@ fn descriptors() -> &'static Descriptors {
                 }
             }
         }
+        // The value classes `==` compares by their slots
+        // (`nvs_runtime::ClassDesc::value_slots`).
+        for (name, slots) in crate::time::VALUE_SLOTS {
+            let ids: Vec<_> = found.ids_named(name).collect();
+            for id in ids {
+                found.table.set_value_slots(id, slots);
+            }
+        }
         Box::leak(Box::new(found))
     })
 }

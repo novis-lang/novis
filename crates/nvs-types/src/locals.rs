@@ -1732,6 +1732,7 @@ pub(crate) fn check_stmt(
                     // without the operator.
                     let label_ty = check_expr(c, None, live, scope, ctx, env);
                     crate::expr::reject_disjoint_equality(subject_ty, label_ty, c.span, env);
+                    crate::expr::record_value_equality(subject_ty, label_ty, c.span, env);
                     if labels_are_conditions {
                         narrowed = narrow(c, true, scope, env);
                     }
