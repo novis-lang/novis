@@ -45,6 +45,7 @@ const ALLOWED = [
   "comment.line.documentation.nvs",
   "keyword.other.documentation.nvs",
   "variable.parameter.nvs",
+  "markup.underline.link.nvs",
   "comment.line.number-sign.nvs",
   "comment.block.nvs",
   "meta.attribute.nvs",

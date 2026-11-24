@@ -7,6 +7,7 @@ class Cards
     /// @return the ledger id of the charge
     /// @throws CardDeclined when the bank declines the card
     /// @see Cards::refund
+    /// @see docs/cards.md#refunds
     /// @example examples/charge.nvs
     /// mail me at someone@example.com
     /// @todo is not a tag

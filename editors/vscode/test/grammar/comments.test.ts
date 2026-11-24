@@ -65,9 +65,12 @@ describe("the tags of a doc comment", () => {
 
   it("colours each of the five tags first on its line, inside the doc comment", () => {
     for (const text of ["@param", "@return", "@throws", "@see", "@example"]) {
-      const found = span(spans, text);
-      assert.ok(found.scopes.includes(TAG), `${text} is not a tag`);
-      assert.ok(found.scopes.includes(DOC), `${text} left the doc comment`);
+      const found = spans.filter((s) => s.text === text);
+      assert.ok(found.length > 0, `${text} is not in the fixture`);
+      for (const tag of found) {
+        assert.ok(tag.scopes.includes(TAG), `${text} is not a tag`);
+        assert.ok(tag.scopes.includes(DOC), `${text} left the doc comment`);
+      }
     }
   });
 
@@ -75,6 +78,14 @@ describe("the tags of a doc comment", () => {
     const name = spans.find((s) => s.text === "$cents");
     assert.ok(name?.scopes.includes("variable.parameter.nvs"), "$cents is not a parameter");
     assert.ok(span(spans, "CardDeclined").scopes.includes("entity.name.type.class.nvs"));
+  });
+
+  it("colours an @example path and a @see file target as a link, and a @see member target not", () => {
+    for (const text of ["examples/charge.nvs", "docs/cards.md#refunds"]) {
+      assert.ok(span(spans, text).scopes.includes("markup.underline.link.nvs"), `${text} is not a link`);
+    }
+    const member = spans.find((s) => s.text.includes("Cards::refund"));
+    assert.ok(member && !member.scopes.includes("markup.underline.link.nvs"), "Cards::refund is a link");
   });
 
   it("leaves an @ inside the prose and a tag outside the five as plain documentation", () => {

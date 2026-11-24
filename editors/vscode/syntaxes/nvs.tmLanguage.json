@@ -119,7 +119,7 @@
       ]
     },
     "doc-tags": {
-      "comment": "The five tags of rule:tooling/doc-comment-tags-are-closed-and-checked, read where the parser reads one (crates/nvs-syntax/src/parser/mod.rs's doc comment run): first on the line after the `///` and its indentation. The `$name` after `@param` is a parameter and the class after `@throws` a class, so both carry the colour they have in code. An `@` anywhere else in the prose is just a character, and a tag outside the five is E0128, so neither is coloured (rule:ide/rejected-syntax-gets-no-colour).",
+      "comment": "The five tags of rule:tooling/doc-comment-tags-are-closed-and-checked, read where the parser reads one (crates/nvs-syntax/src/parser/mod.rs's doc comment run): first on the line after the `///` and its indentation. The `$name` after `@param` is a parameter and the class after `@throws` a class, so both carry the colour they have in code. The path after `@example`, and a `@see` target with a `/` or a `.` in it, which is a file target (crates/nvs-syntax/src/doc_target.rs), is a link, so a theme shows it as one before the server answers; a `@see` member target is coloured by the server's semantic tokens. An `@` anywhere else in the prose is just a character, and a tag outside the five is E0128, so neither is coloured (rule:ide/rejected-syntax-gets-no-colour).",
       "patterns": [
         {
           "match": "(?<=///)\\s*(@param)(?:\\s+(\\$[A-Za-z_][A-Za-z0-9_]*))?(?=\\s|$)",
@@ -136,7 +136,21 @@
           }
         },
         {
-          "match": "(?<=///)\\s*(@(?:return|see|example))(?=\\s|$)",
+          "match": "(?<=///)\\s*(@example)(?:\\s+(\\S+))?(?=\\s|$)",
+          "captures": {
+            "1": { "name": "keyword.other.documentation.nvs" },
+            "2": { "name": "markup.underline.link.nvs" }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@see)(?:\\s+(\\S*[/.]\\S*))?(?=\\s|$)",
+          "captures": {
+            "1": { "name": "keyword.other.documentation.nvs" },
+            "2": { "name": "markup.underline.link.nvs" }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@(?:return|see))(?=\\s|$)",
           "captures": {
             "1": { "name": "keyword.other.documentation.nvs" }
           }
