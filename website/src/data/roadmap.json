@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Clearer method names",
-      "text": "Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. A method that returns a changed copy says so, such as `resized`. The changelog lists each old name and its new name.",
-      "goals": [
-        "clear-member-names"
-      ]
-    },
-    {
       "title": "Documentation links",
       "text": "A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.",
       "goals": [

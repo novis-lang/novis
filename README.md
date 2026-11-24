@@ -130,14 +130,13 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Clearer method names.** *Working on it now.* Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. A method that returns a changed copy says so, such as `resized`. The changelog lists each old name and its new name.
-2. **Documentation links.** A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.
-3. **Faster reflection.** `Core\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.
-4. **Dates and times.** `==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.
-5. **Dates and optional values in routes.** A query parameter with the default `null` is optional. Dates and times can be route parameters and query values, and `Core\Router::url` writes them as ISO text. Dates, times, durations and UUIDs are written to JSON as text.
-6. **Extending classes you do not own.** An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.
-7. **Callbacks for the calling class.** A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.
-8. **Enums as keys.** A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.
+1. **Documentation links.** *Working on it now.* A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.
+2. **Faster reflection.** `Core\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.
+3. **Dates and times.** `==` compares two dates, times or durations by their value. `Date` gets methods for the start and end of a period, the difference between two dates and a range of days. `Duration` reads and writes clock text such as `01:30:00`.
+4. **Dates and optional values in routes.** A query parameter with the default `null` is optional. Dates and times can be route parameters and query values, and `Core\Router::url` writes them as ISO text. Dates, times, durations and UUIDs are written to JSON as text.
+5. **Extending classes you do not own.** An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.
+6. **Callbacks for the calling class.** A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.
+7. **Enums as keys.** A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.
 <!-- roadmap:end -->
 
 ## Contributing
