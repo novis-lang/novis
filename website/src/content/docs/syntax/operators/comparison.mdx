@@ -12,6 +12,16 @@ converts a value to another type. `&&`, `||` and `!` combine conditions.
 
 <FeatureSection examples="lang/expressions/logical-operators-and-truth" heading="Logic" id="logic" />
 
+## Dates, times and durations
+
+`==` compares a value from `Core\Time` by its value. Two `Date` objects for the same day are equal,
+and `90m == 1h30m` is `true`. This works for `Date`, `TimeOfDay`, `Instant`, `Duration`, `Zone` and
+`DateTime`. Objects of your own classes are equal only when they are the same object.
+
+A `DateTime` is compared by its moment. 10:00 in `Europe/Berlin` and 09:00 in `Europe/London` on the
+same day are equal, even though they print different text. `<`, `<=`, `>` and `>=` also work
+on two `DateTime` values, so you can put events from different time zones in order.
+
 ## Use this when you compare strings
 
 `<` and `>` do not work on strings. `Core\Str::compare($a, $b)` returns `-1`, `0` or `1`.

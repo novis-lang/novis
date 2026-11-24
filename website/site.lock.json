@@ -9568,7 +9568,7 @@
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "33f2b2b1930580fe",
     "lang:classes/object-the-top-of-every-class-type": "31838345f5d25b32",
-    "lang:classes/objects-are-handles": "5e50d70650452f53",
+    "lang:classes/objects-are-handles": "e7dc8c7c96b9f243",
     "lang:classes/what-a-class-cannot-declare": "01e5f31f2f8f17b1",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "4fd6e3c93f62cc2b",
     "lang:types/callable-classes-object-shapes": "1057b5090c434c25"
@@ -9597,7 +9597,7 @@
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
-    "lang:classes/comparable": "01153e733acc148d",
+    "lang:classes/comparable": "566491695cbe2ab4",
     "lang:classes/parses": "57519de72d2364a1",
     "lang:classes/stringable": "33fdc04b0d92eee6",
     "Parses": "82f5bbcdc026fb73",
@@ -9718,7 +9718,7 @@
     "lang:expressions/assignment": "33f3aaae2c729096"
   },
   "syntax/operators/comparison.mdx": {
-    "lang:expressions/comparison-and-equality": "0fd3b779fb410c4e",
+    "lang:expressions/comparison-and-equality": "6481e2295596f398",
     "lang:expressions/logical-operators-and-truth": "bf369eceeafcd944"
   },
   "syntax/operators/null-coalescing.mdx": {
@@ -9817,7 +9817,7 @@
     "Core\\Script\\ExitReport::Reason": "a3ba547dcb0c3621",
     "Core\\Str::NormalForm": "5fa90e7daf202774",
     "Core\\Time\\Weekday": "c84fb624df1e8d7f",
-    "Core\\Unit": "b42a32234fd37789",
+    "Core\\Unit": "0db465e7ec947f57",
     "Core\\Xml\\Node::Kind": "c6438bce56d85dd1",
     "lang:enums/a-case-is-its-integer": "9bf45dc29ff63bab",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "9c37687a05c2f300",
@@ -9842,7 +9842,8 @@
     "Novis\\Image\\QrCode::Level": "ee1857df36425732",
     "Novis\\Intl\\Collator::CaseFirst": "875bb62beea906ff",
     "Novis\\Intl\\Collator::Strength": "f1c4080deaca800b",
-    "Novis\\Intl\\DateFormat::Length": "780a512f37fd2506",
+    "Novis\\Intl\\DateFormat::Fields": "10737023eb4a5c49",
+    "Novis\\Intl\\DateFormat::Length": "a285dc664bd55dd6",
     "Novis\\Intl\\DateFormat::ZoneStyle": "fd6815e70c223b59",
     "Novis\\Intl\\ListFormat::Type": "619e845bbdcd86b3",
     "Novis\\Intl\\Locale::Service": "ae8eb0d8a1d112b9",
@@ -9872,7 +9873,7 @@
   },
   "syntax/values/strings.mdx": {
     "lang:types/text-string-and-bytes": "aa89eec649a4e5cb",
-    "lang:types/values-written-in-the-code": "aeae8d2aae9002ce"
+    "lang:types/values-written-in-the-code": "562081a7f9aaae26"
   },
   "syntax/values/tainted-and-secret.mdx": {
     "lang:types/qualifiers-tainted-and-secret": "14f5cadffab584f1"

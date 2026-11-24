@@ -1,6 +1,102 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "lang:expressions/comparison-and-equality",
+        "Core\\Time\\Duration::compareTo",
+        "Core\\Time\\Zone::fixed"
+      ],
+      "text": "`==` and `!=` now compare a `Date`, `TimeOfDay`, `Instant`, `Duration`, `Zone` or `DateTime` by its value, so `90m == 1h30m` is `true`. Two `DateTime` values are equal when they name the same moment, even in different time zones. Objects of every other class are still equal only when they are the same object."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\DateTime::compareTo"
+      ],
+      "text": "`Core\\Time\\DateTime::compareTo` returns `-1`, `0` or `1`, by the moment of each value. So `<`, `<=`, `>` and `>=` now work on two `DateTime` values, also in different time zones."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\ObjectSet::has",
+        "Core\\ObjectSet::remove"
+      ],
+      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` find a key with `==`. A `Core\\Time` value that is equal to a key is the same key, so `Date::at(2026, 3, 9)` finds the entry of another `Date` for that day. Objects of your own classes are still found only by identity."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Time\\DateTime::fromIso"
+      ],
+      "text": "`Core\\Time\\DateTime::fromIso` reads a text with an offset and a time zone name, such as `2026-01-05T08:30:00+01:00[Europe/Vienna]`. For such a text, the `$zone` argument is optional. An offset that the zone does not have at that time throws a `ParseError`."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\Date::toIso",
+        "Core\\Time\\TimeOfDay::toIso",
+        "Core\\Time\\DateTime::toIso"
+      ],
+      "text": "`toIso()` writes a `Date`, `TimeOfDay` or `DateTime` as ISO 8601 text, such as `2026-01-05` or `08:30:00`. A `DateTime` also writes its offset and time zone: `2026-01-05T08:30:00+01:00[Europe/Vienna]`. `fromIso` reads each text back to an equal value."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\Date::startOf",
+        "Core\\Time\\Date::endOf",
+        "Core\\Time\\Date::difference",
+        "Core\\Time\\Date::next",
+        "Core\\Time\\Date::previous"
+      ],
+      "text": "`Core\\Time\\Date::startOf` and `endOf` return the first or last day of its week, month, quarter or year. `difference` counts whole days, weeks, months, quarters or years between two dates. `next` and `previous` find the nearest date on a given weekday."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\Date::daysInMonth",
+        "Core\\Time\\Date::quarter",
+        "Core\\Time\\Date::isoWeek",
+        "Core\\Time\\Date::isoWeekYear",
+        "Core\\Time\\DateTime::daysInMonth",
+        "Core\\Time\\DateTime::quarter",
+        "Core\\Time\\DateTime::isoWeek",
+        "Core\\Time\\DateTime::isoWeekYear"
+      ],
+      "text": "A `Date` and a `DateTime` return four more calendar parts. `daysInMonth()` is the number of days in the month, and `quarter()` is `1` to `4`. `isoWeek()` and `isoWeekYear()` are the week number and its year in ISO 8601, where a week starts on Monday."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\Date::parse",
+        "Core\\Time\\Date::range"
+      ],
+      "text": "`Core\\Time\\Date::parse` reads a date with a pattern, such as `dd.MM.yyyy`. `Core\\Time\\Date::range` returns every date from one date to another, both included. Its `step` option can be a day, week, month, quarter or year."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Time\\Duration::toClock",
+        "Core\\Time\\Duration::fromClock"
+      ],
+      "text": "`Core\\Time\\Duration::toClock` writes a duration as hours and minutes, such as `25:30` or `-1:15`. With `seconds: true` it also writes the seconds. `Core\\Time\\Duration::fromClock` reads such a text back to a `Duration`."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Novis\\Intl\\DateFormat::Fields"
+      ],
+      "text": "`Novis\\Intl\\DateFormat::Fields` selects which parts of a date are shown, such as only the month and the year. The locale decides their order, so `YearMonth` shows `Januar 2026` in `de`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Novis\\Intl\\DateFormat::dates",
+        "Novis\\Intl\\DateFormat::dateTimes"
+      ],
+      "text": "`Novis\\Intl\\DateFormat::dates` and `Novis\\Intl\\DateFormat::dateTimes` take a `fields` option, a case of `DateFormat::Fields`. On `dateTimes`, the cases without a day throw a `LogicError`. Use `dates` to show only a month or a year."
+    },
+    {
       "kind": "new",
       "features": [
         "Core\\Reflect\\PropertyInfo::isLateInit",
@@ -1683,10 +1779,6 @@
       "hash": "64f882b5dd5564e3",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Time\\DateTime::fromIso": {
-      "hash": "4f70c65ec5c2bfae",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
-    },
     "Core\\Time\\DateTime::hour": {
       "hash": "03fbeb9f4d162708",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
@@ -1756,16 +1848,16 @@
       "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::plus` does is unchanged."
     },
     "Core\\Time\\TimeOfDay::at": {
-      "hash": "fc00ab56ac352ff3",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "7c05991de2225bdf",
+      "why": "Its tests now also check `toIso` and `==` on a `TimeOfDay`, which their own entries cover. What this feature does is unchanged."
     },
     "Core\\Time\\TimeOfDay::compareTo": {
       "hash": "31428adfbd88c0f0",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\TimeOfDay::fromIso": {
-      "hash": "1acf343f55bc3b3b",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "6412985b724e8073",
+      "why": "Its tests now also check `toIso` and `==` on a `TimeOfDay`, which their own entries cover. What this feature does is unchanged."
     },
     "Core\\Time\\TimeOfDay::hour": {
       "hash": "bcb6ad572ab084b0",
@@ -1882,6 +1974,10 @@
     "Novis\\Image\\Image::measureText": {
       "hash": "a20d5e018c808a83",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Intl\\DateFormat::times": {
+      "hash": "2cb162dd00f86125",
+      "why": "Its tests now also cover the new `fields` option of `dates` and `dateTimes`. What `times` does is unchanged."
     },
     "Novis\\Pdf\\Document::Standard": {
       "hash": "d68dcc850671c5c1",

@@ -26,4 +26,5 @@ it.
 - Do use `clone` when you need a separate copy to change.
 - Do use `?->` and `??` for an object that can be `null`.
 - Don't use `object` when you know the class. A class type lets the compiler check every call.
-- Don't expect `==` to compare properties. It checks if both sides are the same object.
+- Don't expect `==` to compare properties. It checks if both sides are the same object. Only the
+  date, time and duration values of `Core\Time` are compared by their value.
