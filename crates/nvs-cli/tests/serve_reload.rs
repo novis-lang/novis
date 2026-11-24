@@ -1,7 +1,7 @@
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart` on a
 //! connection that stays open: the built `nvs serve`, one keep-alive
 //! connection that sends a request as soon as the last one is answered, and an
-//! entry file rewritten many times while it does.
+//! entry file replaced many times while it does, each time by a rename.
 //!
 //! The connection speaks HTTP/1.1 and keeps one request in flight. Each answer
 //! is read to the end its `content-length` or its chunked framing names, so the
@@ -118,6 +118,28 @@ fn write(path: &Path, text: &str) {
         .unwrap_or_else(|error| panic!("`{}` could not be written: {error}", path.display()));
 }
 
+/// Replaces `path` with `text` whole: written beside it, then renamed over it.
+///
+/// [`CONFIG`] sets `settle` to zero, so the server compiles whatever the file
+/// holds when its check runs. Written in place, the file is empty between the
+/// truncate and the write, and a check landing there compiles an empty program
+/// that prints no version, as
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` says a
+/// write that pauses longer than `settle` can be seen half done. A rename
+/// swaps the whole file at once, so the server sees the old version or the
+/// new one, never a part of either.
+fn replace(path: &Path, text: &str) {
+    let part = path.with_extension("nvs.part");
+    write(&part, text);
+    std::fs::rename(&part, path).unwrap_or_else(|error| {
+        panic!(
+            "`{}` could not be renamed over `{}`: {error}",
+            part.display(),
+            path.display()
+        )
+    });
+}
+
 #[test]
 fn a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads() {
     let dir =
@@ -152,7 +174,7 @@ fn a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads() {
     let mut answers = 0_u32;
     for edit in 0..=EDITS {
         if edit > 0 {
-            write(&app, &entry(edit));
+            replace(&app, &entry(edit));
         }
         let started = Instant::now();
         loop {
