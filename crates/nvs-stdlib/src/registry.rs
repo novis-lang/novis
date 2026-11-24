@@ -4150,6 +4150,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::regex::NAME, "compile"),
     (crate::time::DATETIME_NAME, "format"),
     (crate::time::DATETIME_NAME, "parse"),
+    (crate::time::DATE_NAME, "parse"),
     (crate::config::NAME, "get"),
     (crate::config::NAME, "set"),
     (crate::config::NAME, "restore"),

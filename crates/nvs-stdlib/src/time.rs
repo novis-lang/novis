@@ -8,8 +8,9 @@
 //!
 //! `rule:core-classes/a-time-class-builds-its-own-values` places every constructor on the
 //! class it returns. `Core\Time` keeps `now`, `monotonic` and `sleep`, the members that read
-//! the outside world. `Instant` builds with `fromEpoch` and `fromIso`, `Date` with `at` and
-//! `fromIso`, `TimeOfDay` with `at` and `fromIso`, and `DateTime` with
+//! the outside world. `Instant` builds with `fromEpoch` and `fromIso`, `Date` with `at`,
+//! `fromIso`, `parse(text, pattern)` and `range`, `TimeOfDay` with `at` and `fromIso`, and
+//! `DateTime` with
 //! `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)` and `parse(text, pattern, Zone)`. Each
 //! `fromIso` reads the one ISO 8601 extended form of its class through [`validate_iso`]'s
 //! readers, and `nvs_types::intrinsics` checks a literal text with the same function while
@@ -52,7 +53,9 @@
 //! [`nvs_syntax::duration`], which the lexer calls for a duration in the source and
 //! `nvs.toml` will call for a duration-valued directive. `rule:types/duration` requires
 //! the three to share one implementation, and that module's own docs own why
-//! it sits in the syntax crate rather than this one.
+//! it sits in the syntax crate rather than this one. The clock form `toClock` writes
+//! and `fromClock` reads, `25:30`, lives in that module too, so one module owns
+//! every text form of a duration.
 //!
 //! # What a value here spends
 //!
@@ -330,6 +333,16 @@ pub const DURATION: CoreClass = CoreClass {
             symbol: "nvs_core_time_duration_parse",
             doc: Some(&DURATION_PARSE_DOC),
         },
+        CoreMethod {
+            name: "fromClock",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DURATION_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_duration_from_clock",
+            doc: Some(&DURATION_FROM_CLOCK_DOC),
+        },
     ],
     instance: &[
         CoreMethod {
@@ -431,6 +444,20 @@ pub const DURATION: CoreClass = CoreClass {
             text: TextOrigin::Derived,
             symbol: "nvs_core_time_duration_to_string",
             doc: Some(&DURATION_TO_STRING_DOC),
+        },
+        CoreMethod {
+            name: "toClock",
+            names: &[],
+            params: &[CoreTy::Options(&[CoreOption {
+                name: "seconds",
+                ty: CoreTy::Bool,
+                default: Const::Bool(false),
+            }])],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_time_duration_to_clock",
+            doc: Some(&DURATION_TO_CLOCK_DOC),
         },
     ],
     slots: &["nanos"],
@@ -713,6 +740,40 @@ const DURATION_TO_STRING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Time\Duration::toClock`'s reference card — `rule:core-api/reference-card`.
+const DURATION_TO_CLOCK_DOC: MethodDoc = MethodDoc {
+    short: "Writes the duration as hours and minutes, such as `1:30`. The hours do not stop at \
+            24, so 25 hours and 30 minutes is `25:30`.",
+    params: &[ParamDoc {
+        name: "options",
+        desc: "Set `seconds` to `true` to add the seconds, such as `25:30:00`. Without it, the \
+               seconds are dropped.",
+        shape: &[],
+    }],
+    ret: "The text. A part smaller than the last one written is dropped. A negative duration \
+          starts with `-`, such as `-1:15`. `Duration::fromClock` reads the text back.",
+    errors: &[],
+};
+
+/// `Core\Time\Duration::fromClock`'s reference card — `rule:core-api/reference-card`.
+const DURATION_FROM_CLOCK_DOC: MethodDoc = MethodDoc {
+    short: "Reads a duration written as hours and minutes, such as `1:30`, or as hours, minutes \
+            and seconds, such as `1:30:15`.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The hours, then `:` and two digits of minutes, then an optional `:` and two digits \
+               of seconds. The hours may have any number of digits. A `-` at the start makes the \
+               duration negative.",
+        shape: &[],
+    }],
+    ret: "A new `Duration`. `Duration::fromClock('25:30')` is 25 hours and 30 minutes.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not in this form, or the minutes or the seconds are larger than `59`. \
+               It is also thrown when the duration is longer than a `Duration` can hold.",
+    }],
+};
+
 /// [`DURATION`]'s one slot, by index — see `crate::regex`'s own slot constants
 /// for why this is a constant rather than a lookup per call.
 const NANOS_SLOT: usize = 0;
@@ -774,6 +835,10 @@ fn duration_address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_time_duration_to_string" => {
             (nvs_core_time_duration_to_string as *const ()).cast()
+        }
+        "nvs_core_time_duration_to_clock" => (nvs_core_time_duration_to_clock as *const ()).cast(),
+        "nvs_core_time_duration_from_clock" => {
+            (nvs_core_time_duration_from_clock as *const ()).cast()
         }
         _ => return None,
     })
@@ -1051,6 +1116,33 @@ nvs_runtime::nvs_helper! {
         Ok(duration::render_with(nanos, |text| {
             Value::text(text)
         }))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->toClock(?{ seconds?: bool } $options = null): string` — the clock
+    /// form [`duration::render_clock`] writes, `25:30` or `25:30:00`.
+    ///
+    /// **What it spends:** one string per call.
+    fn nvs_core_time_duration_to_clock(_ctx, args: [2]) {
+        let nanos = nanos_of(args, 0, "toClock")?;
+        let seconds = args[1].as_bool().unwrap_or(false);
+        Ok(Value::text(&duration::render_clock(nanos, seconds)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Duration::fromClock(string $text): Duration` — [`duration::parse_clock`]'s
+    /// `H:MM[:SS]`, so every text `toClock` writes reads back.
+    ///
+    /// A text that does not match is the input's failure, so it throws a
+    /// `ParseError`, as [`nvs_core_time_duration_parse`] does.
+    fn nvs_core_time_duration_from_clock(_ctx, args: [1]) {
+        let label = r"Core\Time\Duration::fromClock";
+        let text = text_of(args, 0, label)?;
+        duration::parse_clock(text)
+            .map(built)
+            .map_err(|why| Fault::thrown_as(ThrownClass::Parse, format!("{label}(): {why}")))
     }
 }
 
@@ -2925,6 +3017,34 @@ pub const DATE: CoreClass = CoreClass {
             symbol: "nvs_core_time_date_from_iso",
             doc: Some(&DATE_FROM_ISO_DOC),
         },
+        CoreMethod {
+            name: "parse",
+            names: &["text", "format"],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_parse",
+            doc: Some(&DATE_PARSE_DOC),
+        },
+        CoreMethod {
+            name: "range",
+            names: &["from", "to"],
+            params: &[
+                CoreTy::Instance(DATE_NAME),
+                CoreTy::Instance(DATE_NAME),
+                CoreTy::Options(&[CoreOption {
+                    name: "step",
+                    ty: CoreTy::Union(DATE_STEP_UNITS),
+                    default: Const::EnumCase(UNIT.name, "Day"),
+                }]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(DATE_NAME)),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_range",
+            doc: Some(&DATE_RANGE_DOC),
+        },
     ],
     instance: &[
         CoreMethod {
@@ -3195,6 +3315,72 @@ const DATE_FROM_ISO_DOC: MethodDoc = MethodDoc {
                as `2024-02-30`. The year `-0000` also throws. The error says which part is \
                wrong.",
     }],
+};
+
+/// `Core\Time\Date::parse`'s reference card — `rule:core-api/reference-card`.
+const DATE_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads a date with a CLDR pattern, such as `dd.MM.yyyy`. A `$format` written directly \
+            in the code is checked when the program compiles. A part the pattern does not \
+            contain is set to the start of its range.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "The text to read. The result does not keep a qualifier of the text, such as \
+                   `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "format",
+            desc: "A CLDR pattern with date letters only, such as `d MMMM yyyy`. A time or zone \
+                   letter is not allowed, because a `Date` has no time and no zone. A pattern is \
+                   a small language, so a `tainted` pattern is not allowed.",
+            shape: &[],
+        },
+    ],
+    ret: "The `Date`. `Date::parse('05.01.2026', 'dd.MM.yyyy')` is `2026-01-05`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$format` is not valid, or it has a time or zone letter. For a `$format` \
+                   written directly in the code, this is error `E0769` and the program does not \
+                   compile.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$text` does not match `$format`. Fixed text differs, a number has no digits, \
+                   there is extra text at the end, or the parts together are not a real date, \
+                   such as `30.02.2026`.",
+        },
+    ],
+};
+
+/// `Core\Time\Date::range`'s reference card — `rule:core-api/reference-card`.
+const DATE_RANGE_DOC: MethodDoc = MethodDoc {
+    short: "Lists the dates from `$from` to `$to`, one per day or per `step`. Both ends are in \
+            the list. When `$from` is after `$to`, the list counts down.",
+    params: &[
+        ParamDoc {
+            name: "from",
+            desc: "The first date in the list.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "to",
+            desc: "The last date the list may reach. It is in the list when a step lands on it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "options",
+            desc: "`step` is the distance between two dates: `Unit::Day` (the default), \
+                   `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit \
+                   does not compile. A month step from the 31st gives the last day of each \
+                   shorter month.",
+            shape: &[],
+        },
+    ],
+    ret: "A list of new `Date` values. `Date::range(Date::at(2026, 1, 30), Date::at(2026, 2, 1))` \
+          is `2026-01-30`, `2026-01-31` and `2026-02-01`.",
+    errors: &[],
 };
 
 /// `Core\Time\Date::format`'s reference card — `rule:core-api/reference-card`.
@@ -3534,6 +3720,8 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_time_date_at" => (nvs_core_time_date_at as *const ()).cast(),
         "nvs_core_time_date_from_iso" => (nvs_core_time_date_from_iso as *const ()).cast(),
+        "nvs_core_time_date_parse" => (nvs_core_time_date_parse as *const ()).cast(),
+        "nvs_core_time_date_range" => (nvs_core_time_date_range as *const ()).cast(),
         "nvs_core_time_date_format" => return Some(nvs_core_time_date_format::entry()),
         "nvs_core_time_date_plus" => (nvs_core_time_date_plus as *const ()).cast(),
         "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
@@ -6789,20 +6977,108 @@ nvs_runtime::nvs_helper! {
         let from = date_of(args, 0, "difference")?;
         let to = date_of(args, 1, "difference")?;
         let (unit, scale) = date_unit_of(args, 2, label, true)?;
-        let counted = |largest| from.until(civil::DateDifference::new(to).largest(largest));
-        let span = match counted(unit) {
-            Ok(span) => span,
-            Err(_) if unit == jiff::Unit::Month => counted(jiff::Unit::Year)
-                .map_err(|_| out_of_range(label, TOO_MANY_TO_COUNT))?,
-            Err(_) => return Err(out_of_range(label, TOO_MANY_TO_COUNT)),
-        };
-        let whole = match unit {
-            jiff::Unit::Year => i64::from(span.get_years()),
-            jiff::Unit::Month => i64::from(span.get_years()) * 12 + i64::from(span.get_months()),
-            jiff::Unit::Week => i64::from(span.get_weeks()),
-            _ => i64::from(span.get_days()),
-        };
-        Ok(Value::int(whole / scale))
+        date_whole_units(from, to, unit, label).map(|whole| Value::int(whole / scale))
+    }
+}
+
+/// Whole `unit`s from `from` to `to`, negative when `to` is earlier. A month
+/// count past jiff's month span is counted in years and months instead.
+fn date_whole_units(
+    from: civil::Date,
+    to: civil::Date,
+    unit: jiff::Unit,
+    label: &str,
+) -> Result<i64, Fault> {
+    let counted = |largest| from.until(civil::DateDifference::new(to).largest(largest));
+    let span = match counted(unit) {
+        Ok(span) => span,
+        Err(_) if unit == jiff::Unit::Month => {
+            counted(jiff::Unit::Year).map_err(|_| out_of_range(label, TOO_MANY_TO_COUNT))?
+        }
+        Err(_) => return Err(out_of_range(label, TOO_MANY_TO_COUNT)),
+    };
+    Ok(match unit {
+        jiff::Unit::Year => i64::from(span.get_years()),
+        jiff::Unit::Month => i64::from(span.get_years()) * 12 + i64::from(span.get_months()),
+        jiff::Unit::Week => i64::from(span.get_weeks()),
+        _ => i64::from(span.get_days()),
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Date::range(Date $from, Date $to, ?{ step?: Unit } $options = null):
+    /// array<Date>` — every date from `$from` to `$to`, both ends included, as
+    /// `Core\Arr::range` lists integers. A `$from` after `$to` counts down.
+    ///
+    /// Entry `k` is `$from` plus `k` steps, computed from `$from` each time and
+    /// not from the entry before it, so a month step from the 31st lands on
+    /// each month's last day and comes back to the 31st where a month has one,
+    /// as `Date::plus` does.
+    ///
+    /// **What it spends:** one `Date` per entry and the list, charged to the
+    /// request. The list's length is known before the loop, so it is asked of
+    /// the request's memory ceiling once, as `Core\Arr::range` asks it, and a
+    /// range past the ceiling stops there.
+    fn nvs_core_time_date_range(_ctx, args: [3]) {
+        let label = r"Core\Time\Date::range";
+        let from = date_of(args, 0, "range")?;
+        let to = date_of(args, 1, "range")?;
+        let (unit, scale) = date_unit_of(args, 2, label, true)?;
+        let sign: i64 = if from <= to { 1 } else { -1 };
+        // The whole units between the ends bound the entries: a step can land
+        // on `$to` one unit past what `until` counts, at a month's end, so the
+        // bound is one more than the count and one more for `$from` itself.
+        let whole = date_whole_units(from, to, unit, label)?.unsigned_abs() / scale.unsigned_abs();
+        let count = usize::try_from(whole).ok().and_then(|whole| whole.checked_add(2));
+        let count = nvs_runtime::affordable(
+            count.and_then(|count| count.checked_mul(size_of::<Value>())),
+            label,
+        )? / size_of::<Value>();
+        let mut out = nvs_runtime::NvsArray::with_capacity(count);
+        let mut steps: i64 = 0;
+        loop {
+            // A step past either end of the date range ends the list, as a
+            // step past `$to` does.
+            let Ok(next) = span_of(unit, steps).and_then(|span| from.checked_add(span)) else {
+                break;
+            };
+            if (sign > 0 && next > to) || (sign < 0 && next < to) {
+                break;
+            }
+            out.append(date_built(next));
+            let Some(after) = scale.checked_mul(sign).and_then(|step| steps.checked_add(step))
+            else {
+                break;
+            };
+            steps = after;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Date::parse(string $text, string $format): Date` — [`crate::cldr`]'s
+    /// patterns read into a date, with date letters only.
+    ///
+    /// **Argument 0 is [`crate::registry::PREPARED_MEMBERS`]' word**, read as
+    /// [`nvs_core_time_datetime_parse`] reads it. A time or zone letter is
+    /// refused by [`crate::cldr::date_parse_fields_only`] before the text is
+    /// read, so it is a `LogicError`, and text that does not match is a
+    /// `ParseError`, on that member's split.
+    ///
+    /// **What it spends:** one `Date`, and the compiled pattern once per call
+    /// whose pattern was not written in the code.
+    fn nvs_core_time_date_parse(_ctx, args: [3]) {
+        let label = r"Core\Time\Date::parse";
+        let ready = crate::cldr::prepared_arg(&args[0]);
+        let text = text_of(args, 1, label)?;
+        let pattern = text_of(args, 2, label)?;
+        let pieces = crate::cldr::compiled(pattern, ready)
+            .and_then(|pieces| crate::cldr::date_parse_fields_only(&pieces).map(|()| pieces))
+            .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{label}(): {why}")))?;
+        crate::cldr::read_date(&pieces, text)
+            .map(date_built)
+            .map_err(|why| Fault::thrown_as(ThrownClass::Parse, format!("{label}(): {why}")))
     }
 }
 
@@ -11625,5 +11901,295 @@ mod tests {
                 "{zoned}"
             );
         }
+    }
+
+    /// `member` called with `args` the way a compiled call site calls it. It
+    /// answers what `read` makes of the returned value, or the sentence it
+    /// threw. The arguments and the value are released.
+    fn time_gaps_called<T>(
+        member: nvs_runtime::NvsFn,
+        args: &[Value],
+        read: impl FnOnce(Value) -> T,
+    ) -> Result<T, String> {
+        let mut ctx = Ctx::buffered();
+        let answer = match nvs_runtime::call(member, &mut ctx, args) {
+            Ok(value) => {
+                let read = read(value);
+                #[expect(unsafe_code, reason = "this frame owns the value the member returned")]
+                unsafe {
+                    value.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        released(args);
+        answer
+    }
+
+    /// `Date::parse` with a computed pattern, as the date it built.
+    fn time_gaps_parsed(text: &str, format: &str) -> Result<civil::Date, String> {
+        let args = [Value::null(), Value::text(text), Value::text(format)];
+        time_gaps_called(nvs_core_time_date_parse, &args, |built| {
+            date_of(&[built], 0, "parse").expect("`parse` answers a `Date`")
+        })
+    }
+
+    /// `Date::range` from `from` to `to` by the `Core\Unit` case `step`, as the
+    /// dates of the list.
+    fn time_gaps_ranged(
+        from: civil::Date,
+        to: civil::Date,
+        step: i64,
+    ) -> Result<Vec<civil::Date>, String> {
+        let args = [date_built(from), date_built(to), Value::int(step)];
+        time_gaps_called(nvs_core_time_date_range, &args, |list| {
+            let list = list.as_array().expect("`range` answers an array");
+            (0..)
+                .map_while(|index| list.get_index(index))
+                .map(|entry| date_of(&[entry], 0, "range").expect("each entry is a `Date`"))
+                .collect()
+        })
+    }
+
+    /// `Duration::toClock` of `nanos`, with or without the seconds.
+    fn time_gaps_clock(nanos: i64, seconds: bool) -> String {
+        let args = [built(nanos), Value::bool(seconds)];
+        time_gaps_called(nvs_core_time_duration_to_clock, &args, |text| {
+            text.as_text()
+                .expect("`toClock` answers a string")
+                .to_owned()
+        })
+        .expect("`toClock` throws nothing")
+    }
+
+    /// `Duration::fromClock` of `text`, as its nanoseconds.
+    fn time_gaps_from_clock(text: &str) -> Result<i64, String> {
+        let args = [Value::text(text)];
+        time_gaps_called(nvs_core_time_duration_from_clock, &args, |read| {
+            nanos_of(&[read], 0, "fromClock").expect("`fromClock` answers a `Duration`")
+        })
+    }
+
+    const HOUR: i64 = 3_600_000_000_000;
+    const MINUTE: i64 = 60_000_000_000;
+
+    /// `Date::parse` reads a date through a pattern of date letters, with a
+    /// month name, a two-digit year and a sign, and a part the pattern does
+    /// not name starts at the start of its range. Text that does not match,
+    /// or a date that does not exist, throws a `ParseError` sentence.
+    // covers: Core\Time\Date::parse
+    #[test]
+    fn time_gaps_date_parse_reads_a_written_pattern() {
+        assert_eq!(
+            time_gaps_parsed("05.01.2026", "dd.MM.yyyy"),
+            Ok(civil::date(2026, 1, 5))
+        );
+        assert_eq!(
+            time_gaps_parsed("5 January 2026", "d MMMM yyyy"),
+            Ok(civil::date(2026, 1, 5))
+        );
+        assert_eq!(
+            time_gaps_parsed("29/02/24", "dd/MM/yy"),
+            Ok(civil::date(2024, 2, 29))
+        );
+        assert_eq!(
+            time_gaps_parsed("-0044-03-15", "uuuu-MM-dd"),
+            Ok(civil::date(-44, 3, 15))
+        );
+        assert_eq!(
+            time_gaps_parsed("2026-03", "yyyy-MM"),
+            Ok(civil::date(2026, 3, 1))
+        );
+        assert_eq!(crate::cldr::validate_date("EEEE, d MMMM yyyy"), Ok(()));
+        let refused = time_gaps_parsed("30.02.2026", "dd.MM.yyyy").expect_err("no 30 February");
+        assert!(
+            refused.starts_with(r"Core\Time\Date::parse(): "),
+            "{refused}"
+        );
+        let refused = time_gaps_parsed("2026-01-05 extra", "yyyy-MM-dd").expect_err("extra text");
+        assert!(refused.contains("trailing text"), "{refused}");
+    }
+
+    /// A time or zone letter in a `Date::parse` pattern is refused before the
+    /// text is read, by the run-time member and by the check a written
+    /// pattern gets while compiling, which is `cldr::validate_date`.
+    // covers: Core\Time\Date::parse
+    #[test]
+    fn time_gaps_date_parse_refuses_a_time_letter() {
+        for pattern in [
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd a",
+            "yyyy-MM-dd VV",
+            "yyyy-MM-dd XXX",
+        ] {
+            let said = crate::cldr::validate_date(pattern).expect_err(pattern);
+            assert!(said.contains("only date letters"), "{pattern}: {said}");
+            assert_eq!(
+                time_gaps_parsed("2026-01-05 08:30", pattern),
+                Err(format!(r"Core\Time\Date::parse(): {said}")),
+                "{pattern}"
+            );
+        }
+        assert!(crate::cldr::validate_date("yyyy-MM-'").is_err());
+    }
+
+    /// `Date::range` lists both ends, a single date when the two are equal,
+    /// and steps by a week without passing `$to`.
+    // covers: Core\Time\Date::range
+    #[test]
+    fn time_gaps_date_range_includes_both_ends() {
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 1, 30), civil::date(2026, 2, 2), 6),
+            Ok(vec![
+                civil::date(2026, 1, 30),
+                civil::date(2026, 1, 31),
+                civil::date(2026, 2, 1),
+                civil::date(2026, 2, 2),
+            ])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 1, 5), civil::date(2026, 1, 5), 6),
+            Ok(vec![civil::date(2026, 1, 5)])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 1, 1), civil::date(2026, 1, 20), 7),
+            Ok(vec![
+                civil::date(2026, 1, 1),
+                civil::date(2026, 1, 8),
+                civil::date(2026, 1, 15),
+            ])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(9999, 12, 30), civil::Date::MAX, 6),
+            Ok(vec![civil::date(9999, 12, 30), civil::Date::MAX])
+        );
+    }
+
+    /// A `$from` after `$to` counts down to `$to`, by a day and by a quarter.
+    // covers: Core\Time\Date::range
+    #[test]
+    fn time_gaps_date_range_counts_down() {
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 3, 2), civil::date(2026, 2, 27), 6),
+            Ok(vec![
+                civil::date(2026, 3, 2),
+                civil::date(2026, 3, 1),
+                civil::date(2026, 2, 28),
+                civil::date(2026, 2, 27),
+            ])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 12, 31), civil::date(2026, 1, 1), 9),
+            Ok(vec![
+                civil::date(2026, 12, 31),
+                civil::date(2026, 9, 30),
+                civil::date(2026, 6, 30),
+                civil::date(2026, 3, 31),
+            ])
+        );
+    }
+
+    /// A month step from the 31st gives each shorter month's last day and the
+    /// 31st again where a month has one. A step below a day throws.
+    // covers: Core\Time\Date::range
+    #[test]
+    fn time_gaps_date_range_steps_by_month() {
+        assert_eq!(
+            time_gaps_ranged(civil::date(2024, 1, 31), civil::date(2024, 5, 31), 8),
+            Ok(vec![
+                civil::date(2024, 1, 31),
+                civil::date(2024, 2, 29),
+                civil::date(2024, 3, 31),
+                civil::date(2024, 4, 30),
+                civil::date(2024, 5, 31),
+            ])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(2024, 2, 29), civil::date(2027, 1, 1), 10),
+            Ok(vec![
+                civil::date(2024, 2, 29),
+                civil::date(2025, 2, 28),
+                civil::date(2026, 2, 28),
+            ])
+        );
+        assert_eq!(
+            time_gaps_ranged(civil::date(2026, 1, 1), civil::date(2026, 1, 2), 5),
+            Err(r"Core\Time\Date::range(): a date takes `Unit::Day` or a larger unit".into())
+        );
+    }
+
+    /// `toClock` writes hours past a day, at least one hour digit and two
+    /// minute digits, drops a part below the last one written, and adds the
+    /// seconds on request.
+    // covers: Core\Time\Duration::toClock
+    #[test]
+    fn time_gaps_to_clock_writes_hours_past_a_day() {
+        assert_eq!(time_gaps_clock(25 * HOUR + 30 * MINUTE, false), "25:30");
+        assert_eq!(time_gaps_clock(25 * HOUR + 30 * MINUTE, true), "25:30:00");
+        assert_eq!(time_gaps_clock(5 * MINUTE, false), "0:05");
+        assert_eq!(time_gaps_clock(0, false), "0:00");
+        assert_eq!(time_gaps_clock(0, true), "0:00:00");
+        assert_eq!(time_gaps_clock(MINUTE + 59_999_999_999, false), "0:01");
+        assert_eq!(time_gaps_clock(MINUTE + 59_999_999_999, true), "0:01:59");
+        assert_eq!(time_gaps_clock(1_000 * HOUR, true), "1000:00:00");
+        assert_eq!(time_gaps_clock(i64::MAX, true), "2562047:47:16");
+    }
+
+    /// A negative duration writes a `-` and reads back with it, at both ends
+    /// of the range. A negative part too small to write has no sign.
+    // covers: Core\Time\Duration::toClock, Core\Time\Duration::fromClock
+    #[test]
+    fn time_gaps_clock_text_keeps_its_sign() {
+        assert_eq!(time_gaps_clock(-(HOUR + 15 * MINUTE), false), "-1:15");
+        assert_eq!(time_gaps_from_clock("-1:15"), Ok(-(HOUR + 15 * MINUTE)));
+        assert_eq!(time_gaps_clock(-30_000_000_000, false), "0:00");
+        assert_eq!(time_gaps_clock(-30_000_000_000, true), "-0:00:30");
+        assert_eq!(time_gaps_from_clock("-0:00:30"), Ok(-30_000_000_000));
+        assert_eq!(time_gaps_from_clock("-0:00"), Ok(0));
+        for nanos in [
+            25 * HOUR + 30 * MINUTE + 15_000_000_000,
+            -(48 * HOUR + 59_000_000_000),
+            i64::MAX / 1_000_000_000 * 1_000_000_000,
+            i64::MIN / 1_000_000_000 * 1_000_000_000,
+        ] {
+            let text = time_gaps_clock(nanos, true);
+            assert_eq!(time_gaps_from_clock(&text), Ok(nanos), "{text}");
+        }
+        let past = time_gaps_from_clock("2562048:00").expect_err("past the range");
+        assert!(past.contains("longer than"), "{past}");
+    }
+
+    /// `fromClock` throws a `ParseError` sentence for a minute or second past
+    /// 59, and for text that is not `H:MM` or `H:MM:SS`.
+    // covers: Core\Time\Duration::fromClock
+    #[test]
+    fn time_gaps_from_clock_refuses_a_minute_past_59() {
+        let said = time_gaps_from_clock("1:60").expect_err("a minute past 59");
+        assert!(
+            said.starts_with(r"Core\Time\Duration::fromClock(): "),
+            "{said}"
+        );
+        assert!(said.contains("the largest is 59"), "{said}");
+        let said = time_gaps_from_clock("1:00:75").expect_err("a second past 59");
+        assert!(said.contains("seconds"), "{said}");
+        for text in [
+            "",
+            "1",
+            "1:5",
+            "1:005",
+            ":30",
+            "+1:30",
+            "1:30:00:00",
+            "1h30m",
+            "1:3x",
+            "-",
+        ] {
+            assert!(time_gaps_from_clock(text).is_err(), "{text:?}");
+        }
+        assert_eq!(time_gaps_from_clock("007:05"), Ok(7 * HOUR + 5 * MINUTE));
     }
 }

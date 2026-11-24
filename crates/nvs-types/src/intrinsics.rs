@@ -240,6 +240,11 @@ enum Restriction {
     /// `Core\Time\DateTime::parse` itself makes before it reads a byte of text, so this
     /// stays a refusal the runtime also makes.
     CivilFields,
+    /// `Core\Time\Date::parse` names date letters only: a `Date` has no time
+    /// of day and no zone to keep a read one in. Narrows
+    /// [`Grammar::DateFormat`], and the refusal is
+    /// `nvs_stdlib::cldr::validate_date`'s, the walk the member makes too.
+    DateFields,
 }
 
 /// `rule:expressions/intrinsic-list-is-closed`'s
@@ -360,6 +365,14 @@ const INTRINSICS: &[Intrinsic] = &[
         at: 1,
         field: None,
         restriction: Some(Restriction::CivilFields),
+        grammar: Grammar::DateFormat,
+    },
+    Intrinsic {
+        owner: r"Core\Time\Date",
+        member: "parse",
+        at: 1,
+        field: None,
+        restriction: Some(Restriction::DateFields),
         grammar: Grammar::DateFormat,
     },
     // One row per `fromIso`, each reading its class's one form with the parser
@@ -667,6 +680,7 @@ pub(crate) fn check_call(
         Grammar::DateFormat => {
             let refused = match row.restriction {
                 Some(Restriction::CivilFields) => nvs_stdlib::cldr::validate_civil(&text),
+                Some(Restriction::DateFields) => nvs_stdlib::cldr::validate_date(&text),
                 None => nvs_stdlib::cldr::validate(&text),
             };
             match refused {

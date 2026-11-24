@@ -5,7 +5,7 @@ is a static member of the class it returns, so the class a reader looks up is th
 |---|---|
 | `Core\Time` | `now()`, `monotonic()`, `sleep(Duration)` |
 | `Core\Time\Instant` | `fromEpoch(int, {nanoseconds?})`, `fromIso(text)` |
-| `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)` |
+| `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)`, `parse(text, pattern)`, `range(Date, Date, {step?})` |
 | `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, ?Zone)`, `parse(text, pattern, Zone)` |
 
@@ -16,6 +16,14 @@ determinism rules fake the clock through it (`rule:testing/determinism-declared-
 `TimeOfDay::at`'s option bag holds only finer parts of the same value. There is no
 `Date::atStartOfDay`: `DateTime::at($date, TimeOfDay::at(0, 0), $zone)` is the same value, resolved
 the same way, and `DateTime::fromIso('2024-03-01', $zone)` is its short form.
+
+`Date::parse` reads a date through a CLDR pattern of date letters only, because a `Date` has no time
+of day and no zone to keep. `Date::range` lists the dates from its first argument to its second, both
+included, and counts down when the first is later, as `Core\Arr::range` does with its option name
+`step`. The step is `Day`, `Week`, `Month`, `Quarter` or `Year`, a closed subset in the signature
+(`rule:types/single-value-types`). Entry `k` is the first date plus `k` steps, so a month step from
+the 31st gives each shorter month's last day, as `Date::plus` does. **What it spends:** one `Date`
+per entry and the list, charged to the request, and the list is asked of the memory ceiling once.
 
 **An epoch reader floors.** `toEpochSeconds`, `toEpochMillis` and `toEpochMicros` give the largest
 whole count at or before the instant, so `fromEpoch` of the count and the remainder builds the same
@@ -68,11 +76,11 @@ is a `rule:expressions/intrinsic-constant-arguments` intrinsic, one `Grammar::Is
 and its offset are checked too, and a literal with no `[Zone]` in a call that writes no `$zone` does
 not compile. The run-time path runs the same parser
 (`rule:expressions/preparation-preserves-behaviour`). `DateTime::parse` keeps its prepared CLDR
-pattern row under its new owner.
+pattern row under its new owner, and `Date::parse` has one too, which refuses a time or zone letter.
 
 **A written pattern with `Y` and no `w` warns.** `Y` is the year of the ISO week, which differs from
 the calendar year `y` on a few days around New Year: on 2024-12-30, `YYYY` writes `2025`. So a literal
-pattern at `DateTime::format` or `DateTime::parse` with a `Y` and no `w` is warning `W1038`, whose
+pattern at `DateTime::format`, `DateTime::parse` or `Date::parse` with a `Y` and no `w` is warning `W1038`, whose
 help names `y`. A warning and not an error, because `YYYY` beside `ww` is correct and a program may
 mean `Y` alone. A pattern built at run time is not judged.
 

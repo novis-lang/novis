@@ -847,6 +847,18 @@ pub fn validate_civil(pattern: &str) -> Result<(), String> {
     civil_fields_only(&compile(pattern)?)
 }
 
+/// [`validate`] plus `Core\Time\Date::parse`'s own restriction: a pattern the
+/// grammar reads, naming only date letters. The same walk the member makes
+/// before it reads the text, [`date_parse_fields_only`].
+///
+/// # Errors
+///
+/// [`compile`]'s sentence where the pattern is not one, and
+/// [`date_parse_fields_only`]'s where it names a time of day or a zone.
+pub fn validate_date(pattern: &str) -> Result<(), String> {
+    date_parse_fields_only(&compile(pattern)?)
+}
+
 /// `true` where `pattern` is one the grammar reads, and it writes the
 /// week-based year `Y` with no week of the year `w`. The checker warns on such
 /// a written pattern, because `Y` differs from the calendar year `y` on a few
@@ -900,6 +912,34 @@ pub(crate) fn date_fields_only(pieces: &[Piece]) -> Result<(), String> {
         if field.is_zonal() {
             return Err(
                 "a pattern rendering a date names no zone — a `Core\\Time\\Date` is zone-free"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Refuses a pattern that names a time of day or a zone, for
+/// `Core\Time\Date::parse`.
+///
+/// [`date_fields_only`]'s twin on the reading side, with its own sentence: a
+/// `Date` has no time of day to fill and no zone to place it in, so an `HH` or
+/// a `VV` in the pattern would read text the value cannot keep. The refusal is
+/// about the pattern, so it is a `LogicError` and not a `ParseError`, for
+/// [`civil_fields_only`]'s reason.
+///
+/// # Errors
+///
+/// A one-sentence reason, in [`compile`]'s shape.
+pub(crate) fn date_parse_fields_only(pieces: &[Piece]) -> Result<(), String> {
+    for piece in pieces {
+        let Piece::Field(field, _) = piece else {
+            continue;
+        };
+        if field.is_time_of_day() || field.is_zonal() {
+            return Err(
+                "a pattern that parses a date names only date letters — a `Core\\Time\\Date` has \
+                 no time of day and no zone"
                     .to_owned(),
             );
         }
@@ -1244,6 +1284,30 @@ fn pad(out: &mut String, value: u64, width: usize) {
 /// digits where it needs them, trailing text nothing consumed, or a
 /// combination that is not a real civil time.
 pub(crate) fn read(pieces: &[Piece], text: &str, zone: &TimeZone) -> Result<Zoned, String> {
+    read_fields(pieces, text)?.into_zoned(zone)
+}
+
+/// [`read`] for `Core\Time\Date::parse`: the civil date the text names, with
+/// no zone to place it in. The caller has already refused a time or zone
+/// letter, so every field read here is a date field.
+///
+/// # Errors
+///
+/// [`read`]'s sentences, except the one about the timestamp range: a date is
+/// read over the whole year range `Date::at` takes.
+pub(crate) fn read_date(pieces: &[Piece], text: &str) -> Result<civil::Date, String> {
+    let fields = read_fields(pieces, text)?;
+    civil::Date::new(
+        fields.year.unwrap_or(1970),
+        fields.month.unwrap_or(1),
+        fields.day.unwrap_or(1),
+    )
+    .map_err(|err| err.to_string())
+}
+
+/// The walk [`read`] and [`read_date`] share: every piece matched against the
+/// text, and nothing left over.
+fn read_fields(pieces: &[Piece], text: &str) -> Result<Fields, String> {
     let mut fields = Fields::default();
     let bytes = text.as_bytes();
     let mut at = 0;
@@ -1274,7 +1338,7 @@ pub(crate) fn read(pieces: &[Piece], text: &str, zone: &TimeZone) -> Result<Zone
     if at != bytes.len() {
         return Err(format!("{} characters of trailing text", bytes.len() - at));
     }
-    fields.into_zoned(zone)
+    Ok(fields)
 }
 
 /// What [`read`] accumulates before it has enough to build a value.

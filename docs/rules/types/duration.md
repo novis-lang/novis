@@ -32,6 +32,16 @@ renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** 
 positive value out of it. Sharing one parser means a grammar change cannot land in one place and miss
 the others, the property `rule:expressions/intrinsic-constant-arguments` requires of every intrinsic.
 
+**The clock form is a second text, for a reader and not for the source.** `Duration::toClock()`
+writes hours and minutes, `25:30`, and `toClock({ seconds: true })` adds the seconds, `25:30:00`. The
+hours do not wrap at a day and have at least one digit, so five minutes is `0:05`. A part below the
+last one written is dropped, and the sign is written only when what is left is not zero, so `-1:15`
+and never `-0:00`. `Duration::fromClock` reads `H:MM` or `H:MM:SS` with an optional `-` and any number
+of hour digits, and throws `ParseError` on a minute or second past 59. It is not a literal and not a
+directive form: a timesheet, a video length and a time-tracking export write durations this way,
+and the duration grammar cannot read them. Both live in the same syntax module as the grammar, so one
+module owns every text form of a duration.
+
 The literal exists because `rule:core-api/units-are-types` sends its cost to the call site:
 `Duration::seconds(30)` at every timeout, TTL, sleep and retry is the pressure under which untyped
 `int $seconds` parameters grow back. `rule:core-api/no-methods-on-scalars-or-arrays` rules out `30.seconds`,

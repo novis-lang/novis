@@ -26,8 +26,16 @@
 //! `Duration`'s range is a compile error, not a wrap", and the same throw at
 //! run time.
 //!
-//! No sign is accepted anywhere, so every value this produces is
+//! The grammar accepts no sign, so every value [`parse`] produces is
 //! non-negative; a backwards step is `->minus(7d)` or `->negated()`.
+//!
+//! # The clock form
+//!
+//! [`render_clock`] and [`parse_clock`] are `Duration::toClock` and
+//! `Duration::fromClock`: `25:30` and `-1:15:00`, hours that do not wrap at a
+//! day. It is a text for a reader, not a second grammar for the source, so the
+//! lexer never reads it, and it takes a sign because a negative clock text is
+//! one a reader writes.
 
 use std::fmt::{self, Write as _};
 
@@ -246,6 +254,100 @@ pub fn render_with<R>(nanos: i64, then: impl FnOnce(&str) -> R) -> R {
     }
     written.expect("every duration's rendering fits the buffer");
     then(out.text())
+}
+
+/// One hour, one minute and one second in nanoseconds, the three parts of the
+/// clock form.
+const CLOCK_PARTS: [u64; 3] = [3_600_000_000_000, 60_000_000_000, 1_000_000_000];
+
+/// `nanos` in the clock form `Core\Time\Duration::toClock` writes: `H:MM`, or
+/// `H:MM:SS` when `seconds` is true.
+///
+/// The hours are not wrapped at a day, so 25 hours and a half is `25:30`, and
+/// they have at least one digit, so five minutes is `0:05`. A part smaller than
+/// the last one written is dropped, which truncates toward zero. The sign is
+/// written only when what is left is not zero, so `-30s` without seconds is
+/// `0:00` and never `-0:00`, which [`parse_clock`] would read as the same value.
+#[must_use]
+pub fn render_clock(nanos: i64, seconds: bool) -> String {
+    let magnitude = nanos.unsigned_abs();
+    let hours = magnitude / CLOCK_PARTS[0];
+    let minutes = magnitude % CLOCK_PARTS[0] / CLOCK_PARTS[1];
+    let second = magnitude % CLOCK_PARTS[1] / CLOCK_PARTS[2];
+    let written_zero = hours == 0 && minutes == 0 && (!seconds || second == 0);
+    let sign = if nanos < 0 && !written_zero { "-" } else { "" };
+    if seconds {
+        format!("{sign}{hours}:{minutes:02}:{second:02}")
+    } else {
+        format!("{sign}{hours}:{minutes:02}")
+    }
+}
+
+/// `text` in the clock form as a count of nanoseconds, or why it is not one:
+/// an optional `-`, one or more hour digits, then `:MM` and an optional `:SS`,
+/// each exactly two digits and at most `59`.
+///
+/// It is `Core\Time\Duration::fromClock`'s reader, and it reads every text
+/// [`render_clock`] writes. It lives beside [`parse`] so one module owns every
+/// text form of a duration.
+///
+/// # Errors
+///
+/// A sentence with no leading capital and no trailing period, in
+/// [`DurationError::message`]'s shape.
+pub fn parse_clock(text: &str) -> Result<i64, String> {
+    let (negative, body) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, text),
+    };
+    let mut parts = body.split(':');
+    let hours = parts.next().unwrap_or_default();
+    let minutes = parts.next();
+    let second = parts.next();
+    if parts.next().is_some() {
+        return Err(format!(
+            "`{text}` has more than three parts, and clock text is `H:MM` or `H:MM:SS`"
+        ));
+    }
+    let Some(minutes) = minutes else {
+        return Err(format!(
+            "`{text}` has no minutes, and clock text is `H:MM` or `H:MM:SS`"
+        ));
+    };
+    if hours.is_empty() || !hours.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "`{text}` does not start with the hours, such as `1:30`"
+        ));
+    }
+    let two_digits = |part: &str, what: &str| -> Result<u64, String> {
+        if part.len() != 2 || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(format!(
+                "the {what} in `{text}` are not two digits, such as `05`"
+            ));
+        }
+        let value: u64 = part
+            .parse()
+            .map_err(|_| format!("the {what} in `{text}` are not a number"))?;
+        if value > 59 {
+            return Err(format!(
+                "the {what} in `{text}` are {value}, and the largest is 59"
+            ));
+        }
+        Ok(value)
+    };
+    let minutes = two_digits(minutes, "minutes")?;
+    let second = second
+        .map(|part| two_digits(part, "seconds"))
+        .transpose()?
+        .unwrap_or(0);
+    let too_long = || DurationError::Overflow.message();
+    let hours: u64 = hours.parse().map_err(|_| too_long())?;
+    let magnitude = hours
+        .checked_mul(CLOCK_PARTS[0])
+        .and_then(|total| total.checked_add(minutes * CLOCK_PARTS[1] + second * CLOCK_PARTS[2]))
+        .ok_or_else(too_long)?;
+    let magnitude = i64::try_from(magnitude).map_err(|_| too_long())?;
+    Ok(if negative { -magnitude } else { magnitude })
 }
 
 /// The stack buffer [`render_with`] writes into.
