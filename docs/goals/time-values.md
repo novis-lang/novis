@@ -158,6 +158,26 @@ Many programs do each of these many times. The user agreed to the design below o
   User's call of 2026-11-24.
 - **Everything else in the list below**, which the user agreed to as one plan.
 
+**Calls the stage 1 session made (2026-11-24).**
+
+- The value slots live in one roster, `crates/nvs-stdlib/src/time.rs` `VALUE_SLOTS`, and not as a
+  field on each of the 198 `CoreClass` literals. `crate::instance` copies each list onto the runtime
+  descriptor (`ClassDesc::value_slots`), as it already does for `HOST_HANDLE_CLASSES` and
+  `SLOT_TYPES`, and `registry::compares_by_value` answers the checker. Simplicity: one table, beside
+  the slot constants it names.
+- A typed `==` takes the helper when either operand's static type *may* hold a value class: the class
+  itself, `object`, `Comparable`, `Stringable` or `Parses`, or a union or intersection with one of
+  them. Two `Comparable` values that are both `Date`s would otherwise compare by address on the typed
+  path and by value on the `mixed` path, which is two answers to one `==`. The checker records the
+  site in `ExprTypeTable::compares_by_value`, a span set beside the entries, because a `match` arm's
+  span already holds its expression's entry. A map or set keyed by such a type takes the chain keying
+  for the same reason. **What it spends:** one helper call in place of one pointer compare on those
+  pairs only. Two user objects typed `Comparable` pay it too.
+- The goal's tests are lib tests at two levels, because no lib test in the tree runs a whole program:
+  `nvs-stdlib`'s `time.rs` tests compare built instances through `value_identical`, `value_hash`,
+  `compareTo` and the collection helpers, and `nvs-ir`'s `lower/tests.rs` checks what a typed `==` and
+  a `match` arm lower to. The conformance case of the whole program is stage 6's.
+
 **Calls the session made and the user did not change.**
 
 - The reader is `daysInMonth(): uint`, not `lengthOfMonth`: it is the name most libraries use.
@@ -252,15 +272,15 @@ to 4. Stages 6 and 7 run after the code stages they prove.
 **Split:** one `Explore` subagent lists every reader of the equality table and of `value_hash` before
 the first edit, as `file.rs:NN` and one line each.
 
-- [ ] `crates/nvs-stdlib/src/registry.rs:1952`: `CoreClass` gains its list of value slots, empty for
+- [x] `crates/nvs-stdlib/src/registry.rs:1952`: `CoreClass` gains its list of value slots, empty for
   every class but the six; the rows set in `crates/nvs-stdlib/src/time.rs:716` (`Duration`), `:1206`
   (`Zone`), `:1494` (`Instant`), `:2442` (`DateTime`), `:3123` (`Date`) and `:3556` (`TimeOfDay`).
-- [ ] `crates/nvs-runtime/src/identity.rs:210` and `:298`: the object arm of `shallow_identical` and
+- [x] `crates/nvs-runtime/src/identity.rs:210` and `:298`: the object arm of `shallow_identical` and
   `hash_shallow` compare and hash a value class by its slots; the module doc at `identity.rs:8` says so.
-- [ ] `crates/nvs-ir/src/lower/operator.rs:1115` and `crates/nvs-types/src/expr/operators.rs:926`: a
+- [x] `crates/nvs-ir/src/lower/operator.rs:1115` and `crates/nvs-types/src/expr/operators.rs:926`: a
   typed `==` or `!=` whose operands name one value class lowers to the helper; a nullable operand keeps
   its null test first.
-- [ ] `crates/nvs-stdlib/src/time.rs:2078`: `DateTime::compareTo(DateTime $other): int` by seconds then
+- [x] `crates/nvs-stdlib/src/time.rs:2078`: `DateTime::compareTo(DateTime $other): int` by seconds then
   nanos, registered beside the other `compareTo` rows (`time.rs:413`); the decision at `time.rs:131` is
   rewritten to say what is true now. `report_comparable_diagnostic`
   (`crates/nvs-types/src/expr/operators.rs:1014`) loses its `DateTime` branch naming `toInstant()` or
@@ -269,7 +289,13 @@ the first edit, as `file.rs:NN` and one line each.
 - [ ] `crates/nvs-stdlib/src/objmap.rs:639` and `crates/nvs-stdlib/src/identity_store.rs:184`: `same`
   and the hash read the equality row; `ObjectMap`'s and `ObjectSet`'s cards and module docs say "a key
   is found with `==`" (`crates/nvs-stdlib/src/instance.rs:247`'s `BY_IDENTITY` reason rewritten).
-- [ ] The tests the checks `value-equality`, `datetime-order` and `map-by-value` name, beside the code
+  - [x] A map or set whose key type may hold a value class takes the chain keying, which already
+    reads `value_identical` and `value_hash` (`crates/nvs-types/src/expr/calls.rs` `keying_of`).
+  - [ ] `crates/nvs-stdlib/src/identity_store.rs:1`'s *An object key is its identity* section and its
+    keying table say a value-class key takes the chain.
+  - [ ] `ObjectMap`'s and `ObjectSet`'s cards and module docs (`objmap.rs:1`, `objset.rs:1`) say a key
+    is found with `==`, and `instance.rs:247`'s `BY_IDENTITY` reason is rewritten.
+- [x] The tests the checks `value-equality`, `datetime-order` and `map-by-value` name, beside the code
   they test, each run once by name.
 - [ ] `docs/rules/expressions/object-identity-equality.md:1` and
   `docs/rules/expressions/equality-semantics.md:12`: the class-instance row gains the six value classes,
@@ -277,6 +303,12 @@ the first edit, as `file.rs:NN` and one line each.
   `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the written-zone paragraph's "so
   `==` stays identity" and the Declined item "One shared instance per zone name" rewritten, because two
   written zones with one id are now `==`.
+  - [ ] `equality-semantics.md`'s class-instance row and its closing paragraph.
+  - [ ] `object-identity-equality.md`: the six classes, why the decline of a property walk does not
+    reach them, and the cost.
+  - [ ] `a-time-class-builds-its-own-values.md`: the written-zone paragraph and the Declined item.
+  - [ ] `bun nv brief --where equality` and `--where compareTo`: every other rule that says `==` on an
+    object is identity, or that a `DateTime` has no order, is rewritten.
 
 ### 2. Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns
 
@@ -392,12 +424,19 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24. Nothing is
-built. Every anchor above was read on that day.
+Stage 1's code is committed (`ccae85161d`): the runtime, the checker's mark, the lowering, the map
+keying, `DateTime::compareTo`, the four rewritten `compareTo` cards and the moved reject case. The
+checks `value-equality`, `datetime-order` and `map-by-value` ran once by name and are green (15
+tests). Build and clippy are green.
 
 ### Next
 
-Stage 1 from its first item, after the `Explore` list of equality readers. Every check is red until its
-stage's tests exist.
+Stage 1's last two items, docs only: the checkpoints under the `ObjectMap` item (`identity_store.rs`,
+`objmap.rs`, `objset.rs`, `instance.rs:247`) and under the rules item. Then mark stage 1 done in the
+front matter and take stage 2 (`time.rs`'s `toIso` members, `intrinsics.rs:397`'s `DateTime` row).
+
+Tests that may go red in the gate: a conformance case or example that prints `==` on two equal
+`Core\Time` values and expected `false`. Grep `tests/conformance` and `docs/examples` for
+`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one.
 
 ### Backlog
