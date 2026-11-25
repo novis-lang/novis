@@ -7,7 +7,10 @@
 //! attribute or namespace, and the [`crate::package::Packages`] of the
 //! program, to refuse a block of a type its own package declares. Each
 //! refused member is one [`code::E_EXTEND_MEMBER_NOT_ADDABLE`] at the member,
-//! and the rest of the block is still checked.
+//! and the rest of the block is still checked. An added method named like a
+//! member of a compiler-declared interface is [`code::E_ADDED_NAME_RUNTIME_CALLS`]
+//! and an added name that meets another member is
+//! [`code::E_ADDED_MEMBER_COLLIDES`], both in [`check_collisions`].
 //!
 //! Cost: one walk of a block's members, and one scan of the `Core` type roster
 //! per block whose target is under `Core`. All of it is compile time.
@@ -128,6 +131,23 @@ fn check_collisions(decl: &ExtendDecl, block: &QName, target: &QName, env: &mut 
             continue;
         };
         let what = kind.word();
+        if kind == Kind::Method
+            && let Some(interface) = runtime_calls(&name, env)
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ADDED_NAME_RUNTIME_CALLS,
+                    format!("an `extend` block cannot add a method named `{name}`"),
+                )
+                .with_primary(at, format!("`{name}` is a method of `{interface}`"))
+                .with_help(format!(
+                    "give the method a different name. Novis calls `{name}` by its name, and it \
+                     never calls an added method that way. To give a class of your own this \
+                     method, write `implements {interface}`"
+                )),
+            );
+            continue;
+        }
         let own = nvs_hir::find_in_ancestors(target, env.graph, |class| {
             declares(class, kind, &name, env).then(|| class.clone())
         })
@@ -186,6 +206,22 @@ fn check_collisions(decl: &ExtendDecl, block: &QName, target: &QName, env: &mut 
             );
         }
     }
+}
+
+/// The compiler-declared interface that has a method named `name`, if one
+/// has. An operator, a conversion, `foreach` and a route call these methods by
+/// name, so an added method may not take one (`E1012`). The names are read
+/// from the members [`crate::iter_lib`] seeds for each interface on
+/// [`nvs_hir::interfaces::RESERVED`], so the list has one home.
+fn runtime_calls(name: &str, env: &Env<'_>) -> Option<&'static str> {
+    nvs_hir::interfaces::RESERVED
+        .iter()
+        .map(|(interface, _)| *interface)
+        .find(|interface| {
+            env.signatures
+                .get(&QName::parse(interface))
+                .is_some_and(|sig| sig.methods.contains_key(name))
+        })
 }
 
 fn collide(at: Span, message: String, other: Option<(Span, String)>, env: &mut Env<'_>) {

@@ -49,7 +49,8 @@ instead: a constructor (a static factory), a `protected`, `abstract` or `final` 
 `private` one), a `static` property (a static property of a class of your own), `readonly` on an added
 property, a stored property that has no default, no `?` type and no `lateinit`, a new enum case, and
 a member the table above leaves out, such as a `type` alias. An `implements` or `extends` clause on the block does not parse. In
-a body, `parent` is `E0338` and `static::` is `E0338` whose help says to write `self::`. A member that
+a body, `parent` is `E0338`, and `static::` and `new static` are `E0338` whose help says to write
+`self`. An added static method, or any method of a block on an enum, that uses `yield` is `E0338`. A member that
 replaces or overrides anything is `rule:classes/an-added-member-never-changes-a-type`.
 
 **Inside the body.** `$this` is a value of the extended type, and `self` names that type. A block's

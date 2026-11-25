@@ -137,4 +137,18 @@ codes! {
          class that extends the type declares it. An added member cannot replace another \
          member. Give the added member a different name.",
     );
+
+    /// A method an `extend` block adds whose name is a member of a
+    /// compiler-declared interface, such as `compareTo` or `toString`
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). An operator, a
+    /// conversion, `foreach` or a route calls such a method by its name on an
+    /// object of any class, and an added method is reached only by a call the
+    /// compiler resolves. The roster is `nvs_hir::interfaces::RESERVED`, and the
+    /// names are the members `nvs_types::iter_lib` seeds for it.
+    pub const E_ADDED_NAME_RUNTIME_CALLS: Code = Code::new("E1012").card(
+        "An `extend` block adds a method with a name that Novis itself calls, such as \
+         `compareTo` or `toString`. Novis calls these methods by name, for example for `<` \
+         or for a conversion to `string`. It never calls an added method this way, so the \
+         method would not work as expected. Give the added method a different name.",
+    );
 }

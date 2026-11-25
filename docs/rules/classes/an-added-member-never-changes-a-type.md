@@ -15,9 +15,14 @@ The descendant check runs over the whole compiled program, because the program i
 body is checked. It is never a per-file check: a per-file check would let a call on a subclass reach
 the subclass's member in one file and the added one in another.
 
-**Names the runtime calls by name.** An added method may not take a name a `Core` interface requires
-or an operator dispatches by name, such as `compareTo`, `equals` or `toString`. That is **`E1012`**,
-whose help says a class of your own implements the interface instead. An added method never satisfies
+**Names the runtime calls by name.** An added method, instance or static, may not take the name of a
+member of a compiler-declared interface (`Comparable`, `Stringable`, `Parses`, `Iterable`,
+`Iterator`, their keyed pair, `PropertyObserver`, `PropertyGuard`, `LateInit` and `Revocable`). An
+operator, a conversion to `string`, `foreach` and a route call these by name: `compareTo`,
+`toString`, `parse`, `tryParse`, `format`, `iterate`, `advance`, `current`, `key` and the rest. That
+is **`E1012`**, checked before the collisions above, and its help says a class of your own implements
+the interface instead. The names are read from the interfaces' seeded members, so the list has one
+home (`nvs_types::iter_lib`). An added method never satisfies
 an interface obligation, so `$x is Comparable` returns what it returned before the block existed.
 
 **Only a statically typed call.** A `mixed` or `object` receiver, a dynamic member name, `Core\Reflect`,

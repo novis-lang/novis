@@ -1,0 +1,46 @@
+--TEST--
+an `extend` block cannot add a method named like a member of a compiler-declared interface, because Novis calls those by name: `compareTo`, `toString`, `iterate` and a static `parse` are each `E1012` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+use Core\Time\Date;
+use Core\Audience;
+
+extend Date as Ordering {
+    public function compareTo(Date $other): int {
+        return 0;
+    }
+
+    public function toString(): string {
+        return "a date";
+    }
+}
+
+extend Audience as Audiences {
+    public function iterate(): array<string> {
+        return [];
+    }
+
+    public static function parse(string $s): Audience {
+        return Audience::Public;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1012]: an `extend` block cannot add a method named `compareTo`
+  --> %s:6:21
+  |
+6 |     public function compareTo(Date $other): int {
+  |                     ^^^^^^^^^ `compareTo` is a method of `Comparable`
+  = help: give the method a different name. Novis calls `compareTo` by its name, and it never calls an added method that way. To give a class of your own this method, write `implements Comparable`
+
+error[E1012]: an `extend` block cannot add a method named `toString`
+%A
+error[E1012]: an `extend` block cannot add a method named `iterate`
+%A
+error[E1012]: an `extend` block cannot add a method named `parse`
+%A
+error: aborting due to 4 errors
+%A
