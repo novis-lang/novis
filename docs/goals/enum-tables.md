@@ -30,7 +30,7 @@ stages:
     context: [docs/examples/lang/enums, website/src/data/changes.json]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: covers
@@ -487,47 +487,35 @@ rewritten. The session writes the rules, the docs and the website entry.
 ### 7. the goal is verified once, and every failure is fixed
 
 - [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, and the checks `editor` and `proofs` are green (`bun nv proofs --gate --goal
-enum-tables`: nothing owed over 753 features). The nightly CI failures of run `45609291264` ran on
-`origin/main` at `53e94a9181`. Every failure in its log, the nine zone tests, the Miri timeout, the
-quotient attack and the macOS count, is fixed by `1c3196b0e8` and `8ca2f09e1b` on local `main`,
-which are not pushed yet.
+Every stage is done, and the goal is closed. `cargo build` and `cargo clippy --all-targets -- -D
+warnings` are clean, `cargo test --test enum_tables` passes 24 of 24, and the lowering test
+`a_match_over_every_case_lowers_no_fallback_throw` passes. `bun nv close --goal enum-tables` is
+green after two fixes:
+- `49218d49c6`: rustfmt over four stage-5 files in `crates/nvs-lsp/src/`.
+- `9acc5dc0f4`: the search questions of `/syntax/values/enums/` and the five `KEEPS_KEYS` member
+  pages, rewritten for the enum key and stamped.
 
-What stage 6 landed:
-- `711f8a98d7`: the rules. `rule:expressions/a-match-over-an-enum-covers-every-case` (new),
-  `rule:classes/a-constant-value-is-folded-when-the-program-compiles` (new), `rule:types/arrays`'s
-  `array<E, T>` section and Declined items, and `rule:enums/no-class-machinery`'s key sentence, job
-  table and Declined list. A stale render of `docs/rules/ide.md` from stage 5 rode along.
-- `7a4635d89b`: the new feature `lang:enums/an-enum-as-an-array-key` (about, details, three
-  examples, two attacks, a bench), example 04 of the covering `match`, example 05 of
-  `lang:types/properties-and-constants`, the stale texts in four other features and `enums.mdx`,
-  four `changes.json` entries (the keyed array, the `match`, the constants and the editor), and the
-  `ExitReport` members recorded as `unseen`. Every text passed the newcomer review and is stamped.
-- `d5942d1084`: the cards of the five `KEEPS_KEYS` members say the enum key is kept.
-- The last commit records 90 perf figures on the release binary, built by `bun nv relink --build`.
+`1926e79563` moved the last decisions only this file held: the two editor Declined items into
+`rule:ide/completion-is-asked-where-a-spelling-ends`, and why the match fix inserts no `default`
+into `missing_arms`'s doc (`crates/nvs-types/src/expr/cover.rs`). Every other standing decision is
+in a rule or a module doc, so this file can be deleted at `DONE`.
+
+The nightly CI failures of run `45609291264` ran on `origin/main` at `53e94a9181`. Every failure in
+its log (the zone tests and the Miri timeout under `miri units (nvs-stdlib)`, the quotient attack in
+every `proofs` job, the macOS count) is fixed by `1c3196b0e8` and `8ca2f09e1b` on local `main`,
+which are not pushed yet. The next nightly on a pushed `main` clears them.
 
 ### Next
 
-Stage 7, a close, since this goal is not the chain's full gate unless the pack says so.
-
-1. Its first item, the newcomer review, is done and ticked: stage 6 reviewed every text it touched.
-2. `cargo build`, `cargo clippy --all-targets -- -D warnings`, then the goal's tests by name: the
-   checks `covers`, `no-fallback`, `folds`, `keyed`, `arr`, `cases` and `editor`
-   (`looper check --name <text>`).
-3. `bun nv close --goal enum-tables`, every red fixed. Then move each decision only this file
-   holds into its rule (most are there now), and the file is deleted at `DONE`.
-
-Expected red: none known. Any edit to `arr.rs`, a chapter or an `about.md` makes perf figures stale
-again: edit and render first, then `bun nv proofs --record-perf` last. The attack
-`tests/hostile/lang/enums/match-and-switch-over-an-enum/01-…nvs` timed out once on the debug binary
-in the subagent's run and passed in this session's.
+The goal's `DONE` runs its checks. A check that comes back red is rerun alone with
+`looper check --name <its id>`. Expected red: none known.
 
 ### Backlog
 
