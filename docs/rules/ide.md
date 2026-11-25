@@ -2532,6 +2532,12 @@ case already written there is left out, and so is `null` at an arm over `?E` onc
 - **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
   the lexer's open tags in a package that holds no language logic
   ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+- **`[` or `=>` as a trigger character, to open an enum's cases** at a keyed subscript or a `match` arm.
+  The cases are offered first among the rows a typed letter already asks for, and a trigger at `[` would
+  open a list at every subscript and every array literal in the file.
+- **A code action that writes an `array<E, T>` constant table from an enum.** It is generated code no
+  diagnostic asks for
+  ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
 
 <sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 

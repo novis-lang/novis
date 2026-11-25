@@ -185,7 +185,8 @@ fn written_prefix(conditions: &[(Span, TypeId)], enum_: &QName, env: &Env<'_>) -
 /// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`): an empty span after the last arm, and
 /// one arm per missing case that throws a `LogicError` naming it. Each new arm is on its own line,
 /// indented as the last arm is, or on the same line where the last arm shares its line. `None`
-/// where the source is not the file the `match` is in.
+/// where the source is not the file the `match` is in. The fix never inserts a `default` arm:
+/// one would switch the check off for every case the enum gains later.
 fn missing_arms(
     match_span: Span,
     arms: &[MatchArm],
