@@ -220,8 +220,26 @@ already, so `array<T>` is the way to write that.
   every other such member) returns `array<E, U>` for an `array<E, T>` subject. The signature
   mechanism, `CoreTy::Var` (`crates/nvs-stdlib/src/registry.rs:589`), gains a key variable bound to
   the string key or to `E`.
+- **What stage 4 built for keeping keys.** Not a `CoreTy` variant: about forty walks over the
+  registry's types match `CoreTy::Array` without being exhaustive, the taint walks among them, and
+  each would miss a second array form (the stage-3 reason). Instead the roster
+  `nvs_stdlib::arr::KEEPS_KEYS` names the members by symbol, and `nvs_types::core_lib::keep_keys`
+  keys their subject and result by the variable `ARRAY_KEY_VAR`. An `array<E, T>` subject binds it,
+  and `generics::substitute` keeps a key only when it substituted to an enum, so a string-keyed
+  subject gives the plain `array<T>`. `slice`, `reverse` and `sort` keep keys only under
+  `preserveKeys`, so they stay `array<T>`: a type cannot follow an option's value, and
+  `as array<E, T>` converts the result back.
+- **`as array<E, T>` (built in stage 4).** `nvs_to_enum_keyed` runs after the element walk, with a
+  list of the enum's cases the IR builds per conversion. A list's key is its position, and a map's
+  key must be the case's decimal exactly, so `"08"` is not the case `8`. A miss throws
+  `RuntimeError`, or gives `null` under `as ?`.
 - `keys`, `firstKey`, `lastKey`, `keyOf` and `findKey` return `E` or `array<E>`, and a callback's key
-  parameter is `E`.
+  parameter is `E`. **Soundness:** the runtime gives every key as a string, so the key variable
+  `KEY_VAR` must not bind `E` until both halves exist. A returned key is converted in the IR after
+  the call (`lower_enum_key_at` for `?E`, and a walk for `keys`'s `array<E>`). A callback's key is
+  built in `arr.rs` as the integer when the callable's parameter check at the key position is an
+  enum's `SlotCheck::Values`, so an unproven callable's case check still runs, and a proven one was
+  proven against `E`.
 - `flip` of `array<E, string>` returns `array<E>`: the strings become the keys and the cases the
   values. `flip` of an `array<E>` returns `array<E, string>`.
 - `groupBy` (`crates/nvs-stdlib/src/arr.rs:178`) and `groupCounts` (`:719`) with a callback that
@@ -347,14 +365,28 @@ last on the chain.
 
 ### 4. Core\Arr keeps and returns enum keys, and as array<E, T> checks each key
 
-- [ ] `crates/nvs-stdlib/src/registry.rs:589`: a key variable for `CoreTy`, bound at the call to the
+- [x] `crates/nvs-stdlib/src/registry.rs:589`: a key variable for `CoreTy`, bound at the call to the
   string key or to `E`.
+  - [x] `ARRAY_KEY_VAR` and the roster `nvs_stdlib::arr::KEEPS_KEYS`
+  - [x] `nvs_types::core_lib::keep_keys` keys the subject and result, in the base and in `method_sig`
+  - [x] `generics` mentions, binds and substitutes an array's key
 - [ ] `crates/nvs-stdlib/src/arr.rs:178`, `:223`, `:295`, `:315`, `:355`, `:365`, `:516`, `:719` and
   every member whose result keeps keys: the signatures of the standing decision.
-- [ ] `crates/nvs-ir/src/lower/convert.rs:1651`: `as array<E, T>` and `as ?array<E, T>` check every
+  - [x] the keep-keys members: `filter`, `map`, `unique`, `withoutNull`, `sortByKey`
+  - [ ] `keys`, `firstKey`, `lastKey`, `keyOf`, `findKey` give `E`, converted in the IR
+  - [ ] a callback's key parameter declared `E` gets the case (`arr.rs` `call_with_key` and the
+    other key builders)
+  - [ ] `flip`, `groupBy`, `groupCounts`
+- [x] `crates/nvs-ir/src/lower/convert.rs:1651`: `as array<E, T>` and `as ?array<E, T>` check every
   key.
+  - [x] runtime `nvs_to_enum_keyed` and `nvs_to_enum_keyed_or_null`, and their unit test
+  - [x] `Helper::ToEnumKeyed`/`ToEnumKeyedOrNull`, codegen symbols, `lower_enum_key_check`
 - [ ] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `arr` names, then `cargo test
   --test enum_tables` once.
+  - [x] `a_member_that_keeps_keys_keeps_the_enum_key`
+  - [x] `a_string_keyed_array_converts_with_as_and_checks_each_key`
+  - [ ] `keys_and_first_key_return_the_enum`, `flip_turns_enum_keys_into_enum_values`,
+    `group_by_a_case_returns_an_enum_keyed_array`
 - [ ] `tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst:1` (new):
   a table, a `foreach`, `groupBy` by a case, `keys`, a JSON round trip through `as`.
 - [ ] `tests/conformance/reject/an-enum-keyed-array-takes-only-its-own-cases.nvst:1` (new): an `int`,
@@ -432,24 +464,31 @@ Stages 1, 2 and 3 are done, and the check `keyed` is green. The nightly CI failu
 Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are on local `main` and not pushed yet, so the next push
 clears them. Nothing new to fix for them.
 
-What this session built: `foreach ($a as Priority $k => …)` and `foreach ($a as var $k => …)` over
-an `array<Priority, T>` give `$k` as the case. `lower_foreach` (`crates/nvs-ir/src/lower/control.rs:995`)
-takes a key typed `Ty::Enum`, and `lower_enum_key_at` (`crates/nvs-ir/src/lower/convert.rs`) parses
-the stored key and relabels it, with no membership check. The lib test
-`a_foreach_key_over_an_enum_keyed_array_lowers_no_membership_check` pins that. A program that
-iterates an `array<Priority, string>` and matches on its keys runs and prints the right cases.
+Stage 4 is under way (`8b4a761980`, `dc94bc18c8`). `filter`, `map`, `unique`, `withoutNull` and
+`sortByKey` over an `array<E, T>` return an array keyed by `E`. `as array<E, T>` and
+`as ?array<E, T>` check every key at run time. The standing decisions say how each is built. Tests
+run once by name and green: `a_member_that_keeps_keys_keeps_the_enum_key`,
+`a_string_keyed_array_converts_with_as_and_checks_each_key`, and the runtime's
+`an_enum_key_is_a_case_written_as_its_decimal`. A program that filters and maps an
+`array<Priority, string>`, converts JSON and a list with `as`, and throws on a stray key runs right.
 
 ### Next
 
-Stage 4, from its first item:
-1. `crates/nvs-stdlib/src/registry.rs:589`: a key variable for `CoreTy`, bound at the call to the
-   string key or to `E`. Read how `CoreTy::Var` binds the element first, and where the checker
-   instantiates a `Core` signature against the argument types.
-2. `crates/nvs-stdlib/src/arr.rs`: the signatures of the standing decision (keep-keys members,
-   `keys`/`firstKey`/`lastKey`/`keyOf`/`findKey`, `flip`, `groupBy`, `groupCounts`). A callback's
-   key parameter there gives `E`, so the IR reads it back with `lower_enum_key_at` too.
-3. `crates/nvs-ir/src/lower/convert.rs:1651`: `as array<E, T>` checks each key.
-Then the `arr` tests, the two conformance cases and the check `cases`.
+Stage 4, its second item:
+1. A returned key as `E`. `KEY_VAR` (`crates/nvs-types/src/expr/args.rs:2069`) binds `E` when an
+   argument at the member's first parameter is an `array<E, T>`. Do it in the same commit as the IR
+   conversion of the result, after the `Core` call in `crates/nvs-ir/src/lower/call.rs`:
+   `lower_enum_key_at`'s parse for `firstKey`/`lastKey`/`keyOf`/`findKey`, and for `keys` either a
+   walk or a runtime twin `nvs_core_arr_keys` that gives integers. Never bind `E` without the
+   conversion: the runtime gives a string, and the IR would read its payload as an integer.
+2. A callback's key as `E`: in `crates/nvs-stdlib/src/arr.rs` `call_with_key` (`:5620`) and the
+   other key builders (`filter` `:2510`, `map` `:2595`, `reduce` `:4903`), build the key as the
+   integer when the callable's key parameter check is `SlotCheck::Values`. A runtime accessor in
+   `crates/nvs-runtime/src/callable.rs` reads it off the `invoke` row's `param_checks`.
+3. `flip`, `groupBy`, `groupCounts` (`arr.rs` `:520`, `:187`, `:728`), with the standing decision's
+   types.
+4. The three remaining `arr` tests, then `cargo test --test enum_tables` once.
+5. The two conformance cases the stage names, then the check `cases`.
 
 Expected red: none. The new codes `E1017` and `E1018` have cards, and stage 6 owes their reference
 entries and the rule `rule:types/arrays` text that their doc comments cite.
@@ -457,6 +496,9 @@ entries and the rule `rule:types/arrays` text that their doc comments cite.
 ### Backlog
 
 For stage 6:
+- `rule:types/arrays` says which `Core\Arr` members keep an enum key (`KEEPS_KEYS`), that `slice`,
+  `reverse` and `sort` do not, and what `as array<E, T>` checks. The reference cards of the five
+  keep-keys members say that the result keeps an enum key.
 - `docs/reference/lang/20-types.md:4756` and
   `docs/examples/lang/types/properties-and-constants/details.md:20` still say that an enum case and
   another class's constant in a constant do not compile. Both must say what stage 2 made true.
