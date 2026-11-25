@@ -713,13 +713,13 @@ website.
 ### State
 
 Every stage is done, and the goal claims `DONE`. Stage 11 closed it: `cargo build` and
-`cargo clippy --all-targets -- -D warnings` are green, and `bun nv close --goal route-values` named
-two reds, both fixed. Five files were not rustfmt-clean, and `website/public/llms-full.txt` was
-stale (`489d715341`). That formatting made the 23 `Core\Uri` perf records and the
-`Core\Uuid::format` stamps stale, so they were measured on a rebuilt `target/release/nvs` and
-stamped again (`e2fe0fbcce`). Both reds of the refused `DONE` came from another session's LSP
-work, and both are green on rerun: `bool-query-document` and `rules --render --check`. The latest
-close's one red is rustfmt on `crates/nvs-lsp/tests/autoload.rs`, that session's uncommitted edit. Each Standing decision already has its home: the rules the decisions
+`cargo clippy --all-targets -- -D warnings` are green, and every red `bun nv close` named of this
+goal's own is fixed. Every red of the two refused `DONE`s came from a concurrent session's
+uncommitted `crates/nvs-lsp/` work: a half-written `generate.rs` broke the `cargo test` checks,
+and its `completion.rs` changing mid-run voided the others. Rerun alone with `looper check
+--name`, all four are green. The latest close's one red is rustfmt on
+`crates/nvs-lsp/tests/completion_edits.rs`, that session's uncommitted edit, left to it because
+it was still editing the file. Each Standing decision already has its home: the rules the decisions
 table names, `rule:expressions/try-parse` for `format(): tainted string`, and
 `crates/nvs-cli/src/openapi.rs`'s comment for the API formats. The driver retires this file.
 
