@@ -149,6 +149,10 @@ fn intern_core_types(interner: &mut TypeInterner) -> Vec<(String, Vec<String>)> 
                 lower(bound, interner);
             }
             let returns = lower(&method.return_ty, interner);
+            if let Some(first) = method.params.first() {
+                let mut slots = [lower(first, interner), returns];
+                keep_keys(method, &mut slots, interner);
+            }
             if crate::expr::type_contains_secret(returns, interner) {
                 secret.push(method.name.to_owned());
             }
@@ -473,17 +477,45 @@ fn return_of(method: &nvs_stdlib::registry::CoreMethod, interner: &mut TypeInter
 }
 
 /// One registry row as the checker's own signature.
+/// Keys `slots`, a member's subject and its result, by one variable when the
+/// member keeps its subject's keys, which an `array<E, T>` subject then binds
+/// to `E`. `nvs_stdlib::arr::KEEPS_KEYS` owns why. [`intern_core_types`] and
+/// [`method_sig`] both call it, so the frozen base has every type a signature
+/// names.
+fn keep_keys(
+    method: &nvs_stdlib::registry::CoreMethod,
+    slots: &mut [TypeId; 2],
+    interner: &mut TypeInterner,
+) {
+    if !nvs_stdlib::arr::KEEPS_KEYS.contains(&method.symbol) {
+        return;
+    }
+    let key = interner.type_var(nvs_stdlib::registry::ARRAY_KEY_VAR);
+    for slot in slots {
+        if let Some(elem) = interner.array_element(*slot) {
+            *slot = interner.array_keyed(elem, Some(key));
+        }
+    }
+}
+
 fn method_sig(
     method: &nvs_stdlib::registry::CoreMethod,
     is_static: bool,
     interner: &mut TypeInterner,
 ) -> MethodSig {
+    let mut params: Vec<TypeId> = method
+        .params
+        .iter()
+        .map(|param| lower(param, interner))
+        .collect();
+    let mut return_ty = return_of(method, interner);
+    if let Some(first) = params.first().copied() {
+        let mut slots = [first, return_ty];
+        keep_keys(method, &mut slots, interner);
+        [params[0], return_ty] = slots;
+    }
     MethodSig {
-        params: method
-            .params
-            .iter()
-            .map(|param| lower(param, interner))
-            .collect(),
+        params,
         // No `Core` member returns `static`: the registry has no
         // spelling for it, and a `Core` class is never extended —
         // see `MethodSig::returns_static`.
@@ -522,7 +554,7 @@ fn method_sig(
             .into_iter()
             .map(|(name, bound)| (name.to_owned(), lower(bound, interner)))
             .collect(),
-        return_ty: return_of(method, interner),
+        return_ty,
         contagious_return: None,
         // A `Core` member is reachable exactly one way (`rule:core-api/shape-rules`
         // R20): a static one through its class name, an instance

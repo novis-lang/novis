@@ -110,6 +110,26 @@ const CARD: ClassDoc = ClassDoc {
             a new array, and the array you pass in does not change.",
 };
 
+/// The members whose result keeps every key of the subject, their first
+/// parameter, by symbol.
+///
+/// For each, `nvs_types` writes the key of the subject and of the result as
+/// [`crate::registry::ARRAY_KEY_VAR`], so a call over an `array<E, T>`
+/// returns an `array<E, U>`, and a call over a string-keyed array the plain
+/// `array<U>` the row writes (`rule:types/arrays`). A roster beside the rows,
+/// and not a `CoreTy` variant, so no walk over the registry's types has a
+/// second array form to miss. A member that keeps the keys only under an
+/// option, such as `slice` or `sort` with `preserveKeys`, is not here: its
+/// result type cannot follow an option's value, so it stays `array<T>`, which
+/// `as array<E, T>` converts back. **What it spends:** nothing at run time.
+pub const KEEPS_KEYS: &[&str] = &[
+    "nvs_core_arr_filter",
+    "nvs_core_arr_map",
+    "nvs_core_arr_without_null",
+    "nvs_core_arr_sort_by_key",
+    "nvs_core_arr_unique",
+];
+
 /// `Core\Arr`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, so

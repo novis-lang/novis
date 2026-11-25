@@ -454,3 +454,31 @@ fn a_constant_of_an_enum_keyed_array_folds() {
         ]
     );
 }
+
+#[test]
+fn a_member_that_keeps_keys_keeps_the_enum_key() {
+    let diags = check_src(&keyed(
+        "",
+        &format!(
+            "{LABELS}\n\
+             \x20 array<Priority, string> $kept = Core\\Arr::filter($labels, fn($v) => $v != '');\n\
+             \x20 array<Priority, int> $lengths = Core\\Arr::map($labels, fn($v) => 1);\n\
+             \x20 array<Priority, string> $once = Core\\Arr::unique($labels);\n\
+             \x20 array<string> $plain = Core\\Arr::filter($strings, fn($v) => true);\n\
+             \x20 array<string> $read = Core\\Arr::filter($labels, fn($v) => true);"
+        ),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // A string-keyed subject gives string keys, and a member that renumbers
+    // keeps no key at all.
+    for from in [
+        "Core\\Arr::filter($strings, fn($v) => true)",
+        "Core\\Arr::values($labels)",
+    ] {
+        let diags = check_src(&keyed(
+            "",
+            &format!("{LABELS}\n  array<Priority, string> $back = {from};"),
+        ));
+        assert!(diags.has_errors(), "{from}: {diags:?}");
+    }
+}

@@ -104,7 +104,12 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         // it from its own argument — so a signature carrying one needs this
         // machinery to run even where nothing else in it mentions a variable.
         Ty::TypeVar(_) | Ty::ShapeOfCallables(_) => true,
-        Ty::Array(elem, _)
+        // A `Core\Arr` member that keeps its subject's keys writes its key as
+        // a variable (`nvs_stdlib::arr::KEEPS_KEYS`).
+        Ty::Array(elem, Some(key)) => {
+            mentions_type_var(*elem, interner) || mentions_type_var(*key, interner)
+        }
+        Ty::Array(elem, None)
         | Ty::PropertyKey(elem)
         | Ty::PropertyPath(elem)
         | Ty::StringHoles { key: elem, .. } => mentions_type_var(*elem, interner),
@@ -237,6 +242,11 @@ pub(crate) fn bind(
         (Ty::TypeVar(name), _) => {
             out.entry(name.clone()).or_insert(actual);
             Vec::new()
+        }
+        // The keys pair only when both are written: a string-keyed argument
+        // binds no key variable, which `substitute` then reads as string keys.
+        (Ty::Array(declared_elem, Some(declared_key)), Ty::Array(actual_elem, Some(actual_key))) => {
+            vec![(*declared_key, *actual_key), (*declared_elem, *actual_elem)]
         }
         (Ty::Array(declared_elem, _), Ty::Array(actual_elem, _))
         | (Ty::PropertyKey(declared_elem), Ty::PropertyKey(actual_elem))
@@ -429,6 +439,11 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         Ty::ShapeOfCallables(_) => id,
         Ty::Array(elem, key) => {
             let elem = substitute(elem, bindings, interner);
+            // A key variable bound to an enum keys the array by it. One left
+            // unbound, or bound to anything else, is string keys.
+            let key = key
+                .map(|key| substitute(key, bindings, interner))
+                .filter(|key| matches!(interner.get(*key), Ty::Enum(..)));
             interner.array_keyed(elem, key)
         }
         Ty::PropertyKey(inner) => {

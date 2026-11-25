@@ -1052,6 +1052,12 @@ pub const OPTIONS_NAME: &str = "options";
 /// a type variable in source is a name and this is not one.
 pub const KEY_VAR: &str = "#key";
 
+/// The type variable the key of a member on [`crate::arr::KEEPS_KEYS`]
+/// interns as, in its subject and its result. A call binds it to the enum `E`
+/// of an `array<E, T>` subject, and leaves it unbound for an array keyed by
+/// strings, whose result is then a plain `array<T>`.
+pub const ARRAY_KEY_VAR: &str = "#arraykey";
+
 /// One option inside a [`CoreTy::Options`] bag: its name, its type, and the
 /// value a call that leaves it out passes.
 ///
