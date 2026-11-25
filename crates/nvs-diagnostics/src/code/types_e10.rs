@@ -123,4 +123,18 @@ codes! {
          read the link, so the program does not compile. Give a value of the parameter's type. \
          A `string` value is also allowed: the route checks its text when the link is followed.",
     );
+
+    /// A member an `extend` block adds whose name is already a member of the
+    /// same kind on its type or an ancestor, is added by another block to a
+    /// related type, or is declared by a class or interface of the program that
+    /// extends or implements the type
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). An added member
+    /// never replaces or overrides anything, so a call reaches the same member
+    /// whatever the receiver's static type is.
+    pub const E_ADDED_MEMBER_COLLIDES: Code = Code::new("E1011").card(
+        "An `extend` block adds a member whose name is already used. The type or one of its \
+         parent types has a member with this name, or another `extend` block adds it, or a \
+         class that extends the type declares it. An added member cannot replace another \
+         member. Give the added member a different name.",
+    );
 }

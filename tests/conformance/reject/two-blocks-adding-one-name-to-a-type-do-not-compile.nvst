@@ -1,0 +1,36 @@
+--TEST--
+two `extend` blocks in one program may not add one name to one type: the second block's member is `E1011`, and the error shows where the first block adds the name — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isWeekend(): bool {
+        return $this->day() == 6;
+    }
+}
+
+extend Date as Weekdays {
+    public function isWeekend(): bool {
+        return $this->day() == 7;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1011]: the `extend` block `App\BusinessDays` already adds a method named `isWeekend`
+   --> %s:7:21
+   |
+ 7 |     public function isWeekend(): bool {
+   |                     --------- `App\BusinessDays` adds `isWeekend` here
+...
+13 |     public function isWeekend(): bool {
+   |                     ^^^^^^^^^ this name is already used
+   = help: give the added member a different name. An added member never replaces or overrides another member
+
+error: aborting due to 1 error
+%A

@@ -1,0 +1,51 @@
+--TEST--
+a class of the program that extends a type may not declare a name an `extend` block adds to that type, so a call never reaches a different member through a different static type: the added member is `E1011`, and the error shows the subclass's method — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    public function isLarge(): bool {
+        return $this->total > 100;
+    }
+}
+
+final class BigOrder extends Order
+{
+    public function isLarge(): bool
+    {
+        return true;
+    }
+}
+
+echo "unreachable\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1011]: `App\BigOrder` extends `Acme\Shop\Order` and declares a method named `isLarge`
+   --> %s:9:21
+   |
+ 9 |     public function isLarge(): bool {
+   |                     ^^^^^^^ this name is already used
+...
+16 |     public function isLarge(): bool
+   |                     ------- `App\BigOrder::isLarge` is declared here
+   = help: give the added member a different name. An added member never replaces or overrides another member
+
+error: aborting due to 1 error
+%A

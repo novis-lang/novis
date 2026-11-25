@@ -60,6 +60,190 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
     for member in &decl.members {
         check_member(member, kind, env);
     }
+    check_collisions(decl, &block, &target, env);
+}
+
+/// Which name table an added member is looked up in: a method, a constant
+/// (an enum case is one), or a property.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Method,
+    Const,
+    Property,
+}
+
+impl Kind {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Method => "method",
+            Self::Const => "constant",
+            Self::Property => "property",
+        }
+    }
+}
+
+/// The added name of `member`, with the table it is looked up in. A nested
+/// enum or attribute is named through the type, and is not a member here.
+fn added_name(
+    member: &ClassMember,
+    src: &nvs_diagnostics::SourceFile,
+) -> Option<(Kind, String, Span)> {
+    let (kind, span) = match &member.kind {
+        ClassMemberKind::Method(m) => (Kind::Method, m.name),
+        ClassMemberKind::Const(c) => (Kind::Const, c.name),
+        ClassMemberKind::Property(p) => (Kind::Property, p.name),
+        _ => return None,
+    };
+    let name = span_text(src, span).trim_start_matches('$').to_owned();
+    Some((kind, name, span))
+}
+
+/// Whether the signatures of `class` itself declare `name` of `kind`.
+fn declares(class: &QName, kind: Kind, name: &str, env: &Env<'_>) -> bool {
+    let enum_case = kind == Kind::Const && env.enums.case(class, name).is_some();
+    enum_case
+        || env.signatures.get(class).is_some_and(|sig| match kind {
+            Kind::Method => sig.methods.contains_key(name),
+            Kind::Const => sig.constants.contains_key(name),
+            Kind::Property => {
+                sig.properties.contains_key(name)
+                    || sig.static_properties.iter().any(|(own, _)| own == name)
+            }
+        })
+}
+
+/// Refuses every added name that meets another member, `E1011`: a member of
+/// the target or an ancestor, a member another block adds to a related type,
+/// and a member a class or interface of the program declares below the
+/// target. Both places are in the error. Two blocks that meet are reported
+/// once, at the block whose name sorts last.
+///
+/// The whole program is in [`Env::graph`] and [`Env::signatures`] before any
+/// body is checked, so this never depends on which file asks. Cost: per added
+/// member, one ancestor walk, one pass over the program's blocks and one over
+/// its declared classes. All of it is compile time.
+fn check_collisions(decl: &ExtendDecl, block: &QName, target: &QName, env: &mut Env<'_>) {
+    for member in &decl.members {
+        let Some((kind, name, at)) = added_name(member, env.src) else {
+            continue;
+        };
+        let what = kind.word();
+        let own = nvs_hir::find_in_ancestors(target, env.graph, |class| {
+            declares(class, kind, &name, env).then(|| class.clone())
+        })
+        .or_else(|| declares(target, kind, &name, env).then(|| target.clone()));
+        if let Some(owner) = own {
+            let found = member_span(&owner, kind, &name, env);
+            collide(
+                at,
+                format!("`{owner}` already has a {what} named `{name}`"),
+                found.map(|span| (span, format!("`{owner}::{name}` is declared here"))),
+                env,
+            );
+            continue;
+        }
+        let other = env
+            .graph
+            .blocks()
+            .filter(|(other, other_target)| {
+                *other != block
+                    && other.to_string() < block.to_string()
+                    && (reaches(target, other_target, env.graph)
+                        || reaches(other_target, target, env.graph))
+                    && declares(other, kind, &name, env)
+            })
+            .map(|(other, _)| other.clone())
+            .min_by_key(ToString::to_string);
+        if let Some(other) = other {
+            let found = member_span(&other, kind, &name, env);
+            collide(
+                at,
+                format!("the `extend` block `{other}` already adds a {what} named `{name}`"),
+                found.map(|span| (span, format!("`{other}` adds `{name}` here"))),
+                env,
+            );
+            continue;
+        }
+        let below = env
+            .signatures
+            .iter()
+            .filter(|(class, _)| {
+                !class.is_core()
+                    && *class != target
+                    && env.graph.block_target(class).is_none()
+                    && reaches(class, target, env.graph)
+                    && declares(class, kind, &name, env)
+            })
+            .map(|(class, _)| class.clone())
+            .min_by_key(ToString::to_string);
+        if let Some(class) = below {
+            let found = member_span(&class, kind, &name, env);
+            collide(
+                at,
+                format!("`{class}` extends `{target}` and declares a {what} named `{name}`"),
+                found.map(|span| (span, format!("`{class}::{name}` is declared here"))),
+                env,
+            );
+        }
+    }
+}
+
+fn collide(at: Span, message: String, other: Option<(Span, String)>, env: &mut Env<'_>) {
+    let mut diag = Diagnostic::error(code::E_ADDED_MEMBER_COLLIDES, message)
+        .with_primary(at, "this name is already used")
+        .with_help(
+            "give the added member a different name. An added member never replaces or \
+             overrides another member"
+                .to_owned(),
+        );
+    if let Some((span, label)) = other {
+        diag = diag.with_secondary(span, label);
+    }
+    env.diags.report(diag);
+}
+
+/// Where `owner`, a class, interface, enum or block of the program, declares
+/// `name` of `kind`, or `None` for a `Core` type, which has no source.
+fn member_span(owner: &QName, kind: Kind, name: &str, env: &Env<'_>) -> Option<Span> {
+    let at = env.symbols.get(owner)?.decl_span;
+    let file = env.files.iter().find(|file| file.src.id() == at.file)?;
+    find_member(file.stmts, at, kind, name, file.src)
+}
+
+fn find_member(
+    stmts: &[nvs_syntax::ast::Stmt],
+    at: Span,
+    kind: Kind,
+    name: &str,
+    src: &nvs_diagnostics::SourceFile,
+) -> Option<Span> {
+    use nvs_syntax::ast::StmtKind;
+    stmts.iter().find_map(|stmt| {
+        let (decl_name, members, cases) = match &stmt.kind {
+            StmtKind::NamespaceDecl(ns) => {
+                return find_member(&ns.body.as_ref()?.stmts, at, kind, name, src);
+            }
+            StmtKind::ClassDecl(d) => (d.name.span, &d.members, &[][..]),
+            StmtKind::InterfaceDecl(d) => (d.name.span, &d.members, &[][..]),
+            StmtKind::EnumDecl(d) => (d.name.span, &d.members, &d.cases[..]),
+            StmtKind::ExtendDecl(d) => (d.name.span, &d.members, &[][..]),
+            _ => return None,
+        };
+        if decl_name != at {
+            return None;
+        }
+        let case = cases
+            .iter()
+            .find(|case| kind == Kind::Const && span_text(src, case.name.span) == name)
+            .map(|case| case.name.span);
+        case.or_else(|| {
+            members
+                .iter()
+                .filter_map(|member| added_name(member, src))
+                .find(|(k, n, _)| *k == kind && n == name)
+                .map(|(_, _, span)| span)
+        })
+    })
 }
 
 /// What `target` is: a class, an interface or an enum, or `None` for a `Core`

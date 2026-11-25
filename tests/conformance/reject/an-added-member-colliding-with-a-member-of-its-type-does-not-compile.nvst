@@ -1,0 +1,71 @@
+--TEST--
+an added member may not take the name of a member its type or one of its parent types already has: a block on a `Core` class adding `year`, and a block on another package's subclass adding a method its parent class declares, are each `E1011` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Time\Date;
+use Acme\Shop\GiftOrder;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Date as Years {
+    public function year(): int {
+        return 2000;
+    }
+}
+
+extend GiftOrder as GiftTools {
+    public function label(): string {
+        return "present";
+    }
+}
+
+echo "unreachable\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+
+    public function label(): string
+    {
+        return "order";
+    }
+}
+--FILE vendor/acme/shop/src/GiftOrder.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class GiftOrder extends Order
+{
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1011]: `Core\Time\Date` already has a method named `year`
+   --> %s:10:21
+   |
+10 |     public function year(): int {
+   |                     ^^^^ this name is already used
+   = help: give the added member a different name. An added member never replaces or overrides another member
+
+error[E1011]: `Acme\Shop\Order` already has a method named `label`
+   --> %s:16:21
+   |
+16 |     public function label(): string {
+   |                     ^^^^^ this name is already used
+   |
+   --> %sOrder.nvs:8:21
+   |
+ 8 |     public function label(): string
+   |                     ----- `Acme\Shop\Order::label` is declared here
+   = help: give the added member a different name. An added member never replaces or overrides another member
+
+error: aborting due to 2 errors
+%A
