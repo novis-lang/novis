@@ -1,0 +1,135 @@
+<?nvs
+// Attack: a visitor guesses order ids to find out which orders exist. A missing
+// order and another person's order should both get the same `404` and the same body.
+// hostile: timeout-ms 20000
+// covers: lang:classes/parses
+
+use Core\Http\Method;
+
+final class Order implements Parses
+{
+    public function constructor(public uint $id, public string $owner)
+    {}
+
+    // The orders this program has stored. Order 1 is the visitor's own order.
+    public static function find(uint $id): ?Order
+    {
+        return match ($id) {
+            1 => new Order(1, 'ann'),
+            2 => new Order(2, 'bob'),
+            500 => new Order(500, 'carol'),
+            default => null,
+        };
+    }
+
+    public static function parse(tainted string $s): static
+    {
+        ?uint $id = $s as ?uint;
+        ?Order $order = $id == null ? null : Order::find($id);
+        if ($order != null) {
+            return $order;
+        }
+        throw new ParseError('no such order');
+    }
+
+    public function format(): string
+    {
+        return "{$this->id}";
+    }
+}
+
+class Orders
+{
+    #[Core\Route(path: '/orders/{order}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+
+    #[Core\Route(path: '/order', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function find(#[Core\Query] Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+}
+
+// The visitor is always `ann`.
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        var $value = $route->parameter('order');
+        if ($value == null) {
+            return false;
+        }
+        Order $order = $value as Order;
+        return $order->owner == 'ann';
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        Core\Response::setStatus(404);
+        echo 'not found';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Visitor
+{
+    // Sends each path and returns how many answers are not exactly `404 not found`.
+    public static function differentAnswers(array<string> $paths): uint
+    {
+        uint $different = 0;
+        foreach ($paths as string $path) {
+            var $response = Core\Test::request(Method::Get, $path);
+            if ($response->status() != 404 || $response->body() != 'not found') {
+                echo 'BAD: ', $path, ' got ', $response->status(), ' ', $response->body(), "\n";
+                $different = $different + 1;
+            }
+        }
+        return $different;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // 1. Guesses every id from 2 to 2000 in the path. Two of them exist, and both belong to others.
+    array<string> $guesses = [];
+    uint $id = 2;
+    while ($id <= 2000) {
+        $guesses[] = "/orders/{$id}";
+        $id = $id + 1;
+    }
+    echo '1: ', Visitor::differentAnswers($guesses), " answers differ\n";
+
+    // 2. Guesses the same ids in the query string.
+    array<string> $queries = [];
+    $id = 2;
+    while ($id <= 2000) {
+        $queries[] = "/order?order={$id}";
+        $id = $id + 1;
+    }
+    echo '2: ', Visitor::differentAnswers($queries), " answers differ\n";
+
+    // 3. Sends ids that are not plain numbers: negative, too large, with spaces, and empty.
+    array<string> $odd = [
+        '/orders/-1', '/orders/18446744073709551616', '/orders/2%20', '/orders/%202',
+        '/order?order=-2', '/order?order=', '/order?order=2.0', '/order?order[]=2', '/order',
+    ];
+    echo '3: ', Visitor::differentAnswers($odd), " answers differ\n";
+
+    // 4. Sends an id of one hundred thousand digits.
+    string $long = Core\Str::repeat('9', 100000);
+    echo '4: ', Visitor::differentAnswers(["/orders/{$long}", "/order?order={$long}"]), " answers differ\n";
+
+    // 5. Checks that the visitor's own order still works after all the guesses.
+    var $own = Core\Test::request(Method::Get, '/orders/1');
+    echo '5: ', $own->status(), ' ', $own->body(), "\n";
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows that in a `final` class, `static` means that class, so a method may return a stored object.
+
+final class Color
+{
+    // The first call to `named('red')` stores the color here.
+    private static ?Color $red = null;
+
+    public function constructor(public string $name)
+    {}
+
+    // `Color` is `final`, so it has no subclass, and `static` is always `Color`.
+    // That is why this method may return the stored color.
+    public static function named(string $name): static
+    {
+        if ($name != 'red') {
+            return new static($name);
+        }
+        ?Color $stored = Color::$red;
+        if ($stored != null) {
+            return $stored;
+        }
+        Color $made = new Color('red');
+        Color::$red = $made;
+        return $made;
+    }
+}
+
+// Both calls return the same stored object, so this prints `true`.
+echo Color::named('red') == Color::named('red') ? 'true' : 'false', "\n";
+echo Color::named('blue')->name, "\n";

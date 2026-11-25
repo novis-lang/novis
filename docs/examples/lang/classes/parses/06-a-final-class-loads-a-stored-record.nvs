@@ -1,0 +1,103 @@
+<?nvs
+// Shows a `final` class whose `parse` loads a stored order by its id.
+// The gate checks the order before the route method runs.
+use Core\Http\Method;
+
+final class Order implements Parses
+{
+    public function constructor(public uint $id, public string $owner)
+    {}
+
+    // The orders this program has stored. An unknown id gives `null`.
+    public static function find(uint $id): ?Order
+    {
+        return match ($id) {
+            1 => new Order(1, 'ann'),
+            2 => new Order(2, 'bob'),
+            default => null,
+        };
+    }
+
+    // `Order` is `final`, so `parse` may return an order that already exists.
+    // An id with no stored order throws `ParseError`.
+    public static function parse(tainted string $s): static
+    {
+        ?uint $id = $s as ?uint;
+        ?Order $order = $id == null ? null : Order::find($id);
+        if ($order != null) {
+            return $order;
+        }
+        throw new ParseError('no such order');
+    }
+
+    // `format` returns the id, which is the text `parse` reads.
+    public function format(): string
+    {
+        return "{$this->id}";
+    }
+}
+
+class Orders
+{
+    // The order comes from the path, as in `/orders/1`.
+    #[Core\Route(path: '/orders/{order}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+
+    // The order comes from the query string, as in `/order?order=1`.
+    #[Core\Route(path: '/order', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function find(#[Core\Query] Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+}
+
+// In this example the person signed in is always `ann`.
+class Gate implements Core\Router\Gate
+{
+    // `parse` has already run, so `parameter` returns the stored order.
+    // This works the same for both routes.
+    public function allows(Core\Router\Match $route): bool
+    {
+        var $value = $route->parameter('order');
+        if ($value == null) {
+            return false;
+        }
+        Order $order = $value as Order;
+        return $order->owner == 'ann';
+    }
+
+    // A missing order gives `BadCapture`, and another person's order gives `Denied`.
+    // Both get status `404`, so a visitor cannot find out which ids exist.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {
+            Core\Response::setStatus(404);
+        }
+        echo 'not found';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
+    // This prints `200` once and then `404` twice, for each address.
+    var $paths = [
+        '/orders/1', '/orders/9', '/orders/2',
+        '/order?order=1', '/order?order=9', '/order?order=2',
+    ];
+    foreach ($paths as string $path) {
+        var $response = Core\Test::request(Method::Get, $path);
+        echo $path, ': ', $response->status(), ' ', $response->body(), "\n";
+    }
+}
