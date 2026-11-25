@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-runtime/src/commands.rs, crates/nvs-types/src/commands.rs, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/tooling/commands-are-compiled.md]
   - id: 7
     title: "Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid cross JSON as text"
-    status: open
+    status: done
     context: [crates/nvs-types/src/derive.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/object.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-classes/derive-property-list.md, docs/rules/core-classes/db-column-types.md]
   - id: 8
     title: "a Parses class writes itself with format, Core\\Router::url calls it, and url checks the type of each value written in its call"
@@ -567,23 +567,23 @@ each, before the first edit.
 
 **Gate:** `docs/goals/time-values.md` is gone, and stage 5 is done. **Split:** none, one session.
 
-- [ ] The failing cases first: the tests the check `json-text` names, beside `crates/nvs-stdlib/src/json.rs:9385`'s
+- [x] The failing cases first: the tests the check `json-text` names, beside `crates/nvs-stdlib/src/json.rs:9385`'s
   `Instant` test, and the cases the check `json-cases` names. Each run once by name and red.
   `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst:1`
   is expected red: its fields move to `Core\Uri`, which still has no JSON form, and the commit says why.
-- [ ] `crates/nvs-types/src/derive.rs:2711`: `is_core_json_value` becomes `JSON_TEXT_CLASSES` beside
+- [x] `crates/nvs-types/src/derive.rs:2711`: `is_core_json_value` becomes `JSON_TEXT_CLASSES` beside
   `DB_COLUMN_CLASSES` (`:2619`); `derive.rs:1439` erases every listed class to `CodecTy::ValueText`;
   `crates/nvs-runtime/src/object.rs:1161` renames the arm; the comment at `derive.rs:2694` follows.
-- [ ] `crates/nvs-stdlib/src/json.rs:1944` (the encoder's `Instant` branch) and `:6346` (the decoder's):
+- [x] `crates/nvs-stdlib/src/json.rs:1944` (the encoder's `Instant` branch) and `:6346` (the decoder's):
   one table from class label to writer and reader, the seven rows of § *Standing decisions*, with
   `crates/nvs-runtime/src/iso.rs` for the four time grammars; `json.rs:6590` describes each wire form.
   `Duration`'s and `Zone`'s readers are the ones `Duration::parse` and `Zone`'s constructor use, and
   `Core\Uuid`'s is `crates/nvs-runtime/src/uuid.rs:44`.
-- [ ] `crates/nvs-cli/src/openapi.rs:317`: a `CodecTy::ValueText` field's schema follows the class, with
+- [x] `crates/nvs-cli/src/openapi.rs:317`: a `CodecTy::ValueText` field's schema follows the class, with
   the formats § *Standing decisions* gives.
-- [ ] The `E0756` card (`crates/nvs-diagnostics/src/code/types_e07.rs:1041`) and the `E0821` card
+- [x] The `E0756` card (`crates/nvs-diagnostics/src/code/types_e07.rs:1041`) and the `E0821` card
   (`crates/nvs-diagnostics/src/code/types_e08.rs:374`) name the `Core` classes that cross as text.
-- [ ] `crates/nvs-stdlib/src/json.rs:150` (§ *A value type crosses as text*) names the seven classes and
+- [x] `crates/nvs-stdlib/src/json.rs:150` (§ *A value type crosses as text*) names the seven classes and
   their texts. `docs/rules/core-classes/derive-property-list.md:26` names the `Core` value types that
   are reachable. `docs/rules/core-classes/db-column-types.md:1` does not change, and its list stays the
   row door's.
@@ -704,41 +704,37 @@ website.
 
 ### State
 
-Stages 1 to 6 are done, and their eleven checks are green (the nine of stages 1 to 5, `time-links`
-and `time-document`). `crate::time::route_iso` (`crates/nvs-stdlib/src/time.rs`) writes the `toIso`
-text of a `Date`, `TimeOfDay`, `Instant` or `DateTime` value, and `is_route_time` asks the class
-alone. `segment_text` and `crate::uri::scalar_text` call `route_iso` first, so `Core\Router::url`,
-`Core\Uri::buildQuery`, the signed payload and the computed-key check all write and read the one
-text. `verbatim_segment` (`router.rs`) writes a time path value unencoded when every byte is a
-letter, a digit, `-`, `:`, `.` or `+`; a `DateTime` is encoded, and only a `string` capture takes it.
-`openapi::schema` gives `Date` `format: date`, `Instant` `format: date-time`, and `TimeOfDay` and
-`DateTime` a bare string. A command argument has four new `ArgConv` arms in both crates
-(`time_conversion` in `crates/nvs-types/src/commands.rs`), lowered in `crates/nvs-cli/src/main.rs`,
-converted in `crates/nvs-stdlib/src/command.rs` with a usage error naming the form
-(`a_time_command_argument_refuses_a_word_with_the_form_it_needs`). The `Core\Router::url` and
-`Core\Uri::buildQuery` cards and the three rules say so.
+Stages 1 to 7 are done, and their thirteen checks are green. `CodecTy::ValueText` replaces
+`CodecTy::Instant`, and the field's class label picks the text. `nvs_types::derive::JSON_TEXT_CLASSES`
+and `nvs_stdlib::json::VALUE_TEXT_NAMES` are one list, and a test in `crates/nvs-types/tests/derive.rs`
+holds them equal. `nvs_stdlib::json::VALUE_TEXT` holds each class's writer, reader and wording. A
+row codec erases the value types to `ValueText` too, and `db/row.rs` reads it by label. A negative
+`Duration` refuses to encode. A shape field of a value type no longer records an `E0821` site
+(`crates/nvs-types/src/expr/args.rs`); a value type at the root of `decodeAs` stays `E0821`. A
+`ValueText` field in the API document gets `openapi::schema`'s format, and no `--test openapi` case
+pins it yet: stage 10 owes one.
 
-**Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url` and `buildQuery`
-cards, quoted in `website/src/data/core.json` and `website/public/llms-full.txt`.
+**Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url`, `buildQuery`, `E0756`
+and `E0821` cards, quoted in `website/src/data/core.json` and `website/public/llms-full.txt`.
 
-**For stage 8:** its link-type code goes in `types_e10.rs` (`E1010`). Expected red once stage 7 lands:
-`tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`.
+**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, and a test asserting
+`CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field.
+
+**For stage 8:** its link-type code goes in `types_e10.rs` (`E1010`).
 
 ### Next
 
-Stage 7, one session. Anchors have moved since the stage was written:
+Stage 8, one session, as the stage's items say. Anchors have moved:
 
-- [ ] The failing tests of `json-text` beside the `Instant` test at `crates/nvs-stdlib/src/json.rs:9385`,
-  and the three cases of `json-cases`, each run once by name.
-- [ ] `crates/nvs-types/src/derive.rs:2711` (`is_core_json_value`) becomes `JSON_TEXT_CLASSES` beside
-  `DB_COLUMN_CLASSES` (`:2619`); `crates/nvs-runtime/src/object.rs:1212` renames
-  `CodecTy::Instant` to `CodecTy::ValueText`.
-- [ ] `crates/nvs-stdlib/src/json.rs:1945` (encoder), `:6346` (decoder), `:6024`, `:3385` and `:6590`
-  (wire form): one table from class label to writer and reader. `crate::time::route_iso` already
-  writes the four time texts.
-- [ ] `crates/nvs-cli/src/openapi.rs:352`: a `CodecTy::ValueText` field's schema follows the class,
-  with the formats `openapi::schema` gives a route parameter.
-- [ ] The `E0756` and `E0821` cards, `json.rs:150` and `docs/rules/core-classes/derive-property-list.md:26`.
+- [ ] `crates/nvs-types/src/links.rs:1057`: first the failing cases of `parses-links` and `link-types`.
+- [ ] `crates/nvs-types/src/iter_lib.rs:134` (the seeded `Parses`) gains `format(): string`.
+- [ ] `crates/nvs-stdlib/src/registry.rs:4729` (`implements_parses`) needs `format`; the roster
+  tests are at `:5840` and `:5875`.
+- [ ] `crates/nvs-stdlib/src/router.rs:1400` (`segment_text`) and `crates/nvs-stdlib/src/uri.rs:2488`
+  (`scalar_text`) write a `Parses` value as its `format()` text.
+- [ ] `crates/nvs-types/src/links.rs:482` (`literal_args`) and a check beside `converts` (`:1057`).
+- [ ] `docs/rules/routing/link-target-and-params-are-checked.md:25` and two other rules, once every
+  `Parses` class in the tree declares `format()` (a writing subagent).
 
 ### Backlog
 
