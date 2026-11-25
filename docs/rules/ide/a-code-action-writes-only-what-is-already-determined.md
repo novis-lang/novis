@@ -40,6 +40,16 @@ analyse the text they write and are offered only when it reports no error, which
 text compile and makes a second application offer nothing: the class then reports no `E0449`, and
 declares every method an override would write.
 
+Override a method is also a completion row, the same generator reached by typing
+(`crate::completion`'s `overrides`). Where a member of a class is being written — a name, with any of
+`public`, `protected` and `function` before it and nothing after it on the line — each method the
+action would offer is a row, and accepting it replaces what was written with the whole method. The
+rows are offered when the text of every one, written in place of what was typed, reports no error
+inside that text: an error elsewhere is the half-written document's own. After any other modifier,
+such as `static` or `private`, nothing is offered, since the override would drop it. It costs one
+analysis of the entry's graph per completion request at such a cursor in a class that has a method to
+override.
+
 Declare the method you just called is a `quickfix` on the `E0405` of `$obj->name(...)`, offered when the
 entry document declares the receiver's class. The checker records the argument types and the type the
 context expects beside that diagnostic (`nvs_types::expr_table::UnresolvedCall`), and records nothing for

@@ -103,6 +103,7 @@ fn rendered_with(
     let index = SymbolIndex::build(documents, CheckScope::Open, None);
     Response::Completion(completion::at(
         analysis,
+        documents,
         &index,
         files,
         at,
@@ -573,7 +574,11 @@ fn sources() -> Vec<Source> {
 /// An `@param` target reads the parameters of the method the parser attached
 /// the comment to, and an `@throws` target the hierarchy walk the checker holds
 /// that tag to.
-const SOURCED: [(&str, &str); 53] = [
+///
+/// A method offered to override is read from the bodies of the classes
+/// `nvs_hir::ClassGraph` puts above the class, through
+/// `generate::overridable_at`, and its text is checked by analysing it.
+const SOURCED: [(&str, &str); 54] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -604,6 +609,7 @@ const SOURCED: [(&str, &str); 53] = [
     ("values_beside", "file_values(cursor"),
     ("position", "words("),
     ("member", "MEMBER_WORDS"),
+    ("overrides", "generate::overridable_at("),
     ("statement_words", "STATEMENT_WORDS"),
     ("site_words", "PROGRAM_SITES"),
     ("declaration_words", "PROGRAM_SITES"),

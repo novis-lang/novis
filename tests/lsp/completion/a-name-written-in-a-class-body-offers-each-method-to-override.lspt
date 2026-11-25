@@ -1,0 +1,57 @@
+--TEST--
+a name written between the members of a class offers each method a class above may have overridden, and accepting one writes the whole method with its call to `parent::` (`rule:ide/a-code-action-writes-only-what-is-already-determined`)
+--FILE--
+<?nvs
+class Page
+{
+    public function title(): string
+    {
+        return "page";
+    }
+
+    protected function build(string $name, int ...$sizes): void
+    {
+        echo $name;
+    }
+
+    private function hidden(): void
+    {
+    }
+
+    final public function fixed(): int
+    {
+        return 1;
+    }
+
+    public static function make(): void
+    {
+    }
+}
+
+class Report extends Page
+{
+    public function title(): string
+    {
+        return "report";
+    }
+
+    bu<|>
+}
+
+echo new Report()->title();
+--REQUEST--
+completion
+--EXPECT--
+abstract keyword
+attribute keyword
+build(string $name, int ...$sizes) method    void
+const   keyword
+final   keyword
+function keyword
+lateinit keyword
+private keyword
+protected keyword
+public  keyword
+readonly keyword
+repeatable keyword
+static  keyword

@@ -19623,11 +19623,11 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "e76f42181db64c93",
+    "hash": "444cfc452a69aabf",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",
-      "Does renaming a file update the @see paths that point at it?",
+      "Write a method that overrides a parent method and calls parent::",
       "How do I change a colour of the Novis Dark theme?",
       "Which files does the editor read, and check again after an edit?",
       "Can I rename a field of an attribute declaration in every place it is used?"

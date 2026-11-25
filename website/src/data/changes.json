@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "In a class, completion lists the methods of the parent classes that you can override. When you choose one, the editor writes the whole method. Its body calls `parent::name(...)` with the same parameters."
+    },
+    {
       "kind": "changed",
       "features": [
         "lang:attributes/core-route-and-core-access-the-route-table"

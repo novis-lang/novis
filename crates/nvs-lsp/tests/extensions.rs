@@ -62,6 +62,7 @@ fn offered(documents: &Documents, analysis: &Analysed, at: u32) -> String {
     let index = SymbolIndex::build(documents, CheckScope::Open, None);
     Response::Completion(completion::at(
         analysis,
+        documents,
         &index,
         &CompletionFiles::default(),
         at,

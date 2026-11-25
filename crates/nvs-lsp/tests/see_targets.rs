@@ -221,6 +221,7 @@ fn completion_offers_files_and_headings_after_see() {
         let index = SymbolIndex::build(&documents, CheckScope::Open, None);
         completion::at(
             &analysed,
+            &documents,
             &index,
             &CompletionFiles::default(),
             u32::try_from(at).expect("short"),

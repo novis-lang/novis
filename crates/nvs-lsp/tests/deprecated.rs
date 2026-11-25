@@ -141,6 +141,7 @@ fn a_deprecated_member_completion_item_is_tagged_deprecated() {
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
     let items = completion::at(
         &analysed,
+        &documents,
         &index,
         &CompletionFiles::default(),
         u32::try_from(source.len()).expect("the document is short"),

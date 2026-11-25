@@ -2748,6 +2748,7 @@ pub(crate) fn items_of_case(
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     completion::at(
         analysed,
+        documents,
         &index,
         &CompletionFiles::default(),
         offset,
@@ -2910,6 +2911,7 @@ fn completion(
     CompletionResponse::Array(card::keyed_to(
         completion::at(
             &analysed,
+            documents,
             index,
             completion_files,
             offset,
@@ -3693,6 +3695,7 @@ mod work {
         let before = nvs_diagnostics::work::so_far();
         let items = crate::completion::at(
             &analysed,
+            &documents,
             &index,
             &CompletionFiles::default(),
             at,

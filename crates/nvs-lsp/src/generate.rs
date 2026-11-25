@@ -73,6 +73,11 @@
 //! are written into one text and analysed once, and none is offered if that
 //! text reports an error.
 //!
+//! The same list is a completion row where a member of the class is being
+//! written ([`overridable_at`], read by `crate::completion`). There the
+//! document is half-written, so the text is checked for an error inside what
+//! it writes ([`writes_cleanly`]) and not for an error anywhere.
+//!
 //! # What it spends
 //!
 //! Nothing at runtime, since it only edits source. Per
@@ -459,11 +464,104 @@ fn overrides(analysed: &Analysed, documents: &Documents, offset: BytePos) -> Vec
     {
         return Vec::new();
     }
+    let offered: Vec<(String, String)> = overridable(analysed, &class, decl, place.at, None)
+        .into_iter()
+        .map(|method| {
+            let from = method.parent.segments().last().map_or("", String::as_str);
+            (
+                format!("Override `{}` from `{from}`", method.name),
+                place.method(&method.signature(), &method.body),
+            )
+        })
+        .collect();
+    if offered.is_empty() {
+        return Vec::new();
+    }
+    let every: Vec<String> = offered.iter().map(|(_, text)| text.clone()).collect();
+    let all = [(place.span(analysed), place.joined(&every))];
+    if compiles(analysed, documents, &all).is_none() {
+        return Vec::new();
+    }
+    offered
+        .into_iter()
+        .map(|(title, text)| Offer {
+            title,
+            kind: OVERRIDE_KIND,
+            edits: vec![(place.span(analysed), place.joined(&[text]))],
+        })
+        .collect()
+}
+
+/// One method a class may override, with its signature written the way the
+/// class's own file names each type.
+pub(crate) struct Override {
+    /// The method's name.
+    pub(crate) name: String,
+    /// The class above that declares the method.
+    pub(crate) parent: QName,
+    /// `public` or `protected`, as the parent declares it.
+    visibility: &'static str,
+    /// Each parameter as its declaration writes it.
+    pub(crate) params: Vec<String>,
+    /// The return type, where the parent declares one.
+    pub(crate) returns: Option<String>,
+    /// The body's one statement: the call to `parent::`, returned unless the
+    /// return type is `void` or `never`.
+    body: String,
+}
+
+impl Override {
+    /// `public function name(params): type`.
+    fn signature(&self) -> String {
+        let returns = self
+            .returns
+            .as_ref()
+            .map(|ty| format!(": {ty}"))
+            .unwrap_or_default();
+        format!(
+            "{} function {}({}){returns}",
+            self.visibility,
+            self.name,
+            self.params.join(", ")
+        )
+    }
+
+    /// The whole method, its first line not indented and every other line
+    /// at `indent`, which is where the first one already starts.
+    pub(crate) fn text(&self, indent: &str) -> String {
+        format!(
+            "{}\n{indent}{{\n{indent}{INDENT}{}\n{indent}}}",
+            self.signature(),
+            self.body
+        )
+    }
+}
+
+/// The methods `decl`, the class `class` of the entry document, may override
+/// and does not declare, nearest first and each name once, with every type
+/// written the way the entry document writes it at `at`.
+///
+/// A method with a body that a class above declares, and that is not
+/// `private`, `final`, `static`, the constructor, or one with an `inout`
+/// parameter, whose argument the call would have to choose a form for. A
+/// method of `decl` whose name lies inside `writing` is not counted as
+/// declared: it is the one a completion is about to replace.
+pub(crate) fn overridable(
+    analysed: &Analysed,
+    class: &QName,
+    decl: &ClassDecl,
+    at: BytePos,
+    writing: Option<(BytePos, BytePos)>,
+) -> Vec<Override> {
+    let entry = analysed.map.file(analysed.entry);
     let mut taken: FxHashSet<&str> = methods_of(&decl.members)
+        .filter(|method| {
+            writing.is_none_or(|(start, end)| method.name.start < start || method.name.end > end)
+        })
         .map(|method| text_of(entry, method.name))
         .collect();
-    let mut offered: Vec<(String, String)> = Vec::new();
-    for (parent, stmt, file) in parents(analysed, &class) {
+    let mut found = Vec::new();
+    for (parent, stmt, file) in parents(analysed, class) {
         let Some((_, members)) = body_of(stmt) else {
             continue;
         };
@@ -499,29 +597,62 @@ fn overrides(analysed: &Analysed, documents: &Documents, offset: BytePos) -> Vec
             } else {
                 format!("{call};")
             };
-            let from = parent.segments().last().map_or("", String::as_str);
-            offered.push((
-                format!("Override `{name}` from `{from}`"),
-                place.method(&signature(analysed, file, method, place.at), &body),
-            ));
+            let (visibility, params, returns) = parts(analysed, file, method, at);
+            found.push(Override {
+                name: name.to_owned(),
+                parent: parent.clone(),
+                visibility,
+                params,
+                returns,
+                body,
+            });
         }
     }
-    if offered.is_empty() {
+    found
+}
+
+/// The class the entry document declares around `offset`, with the methods it
+/// may override ([`overridable`]), for a completion that replaces `writing`.
+pub(crate) fn overridable_at(
+    analysed: &Analysed,
+    offset: BytePos,
+    writing: (BytePos, BytePos),
+) -> Vec<Override> {
+    let Some((class, decl)) = class_named(analysed, offset) else {
         return Vec::new();
+    };
+    overridable(analysed, &class, decl, writing.0, Some(writing))
+}
+
+/// Whether the entry document with `[start, end)` replaced by `text` analyses
+/// with no error inside the text written.
+///
+/// An error elsewhere is the document's own, such as a half-written line
+/// further down, and does not say anything about `text`.
+pub(crate) fn writes_cleanly(
+    analysed: &Analysed,
+    documents: &Documents,
+    (start, end): (BytePos, BytePos),
+    text: &str,
+) -> bool {
+    let mut rewritten = analysed.map.file(analysed.entry).text().to_owned();
+    if rewritten.get(start as usize..end as usize).is_none() {
+        return false;
     }
-    let every: Vec<String> = offered.iter().map(|(_, text)| text.clone()).collect();
-    let all = [(place.span(analysed), place.joined(&every))];
-    if compiles(analysed, documents, &all).is_none() {
-        return Vec::new();
-    }
-    offered
-        .into_iter()
-        .map(|(title, text)| Offer {
-            title,
-            kind: OVERRIDE_KIND,
-            edits: vec![(place.span(analysed), place.joined(&[text]))],
-        })
-        .collect()
+    rewritten.replace_range(start as usize..end as usize, text);
+    let Some(checked) = analyse_rewritten(documents, analysed, rewritten) else {
+        return false;
+    };
+    let Ok(len) = BytePos::try_from(text.len()) else {
+        return false;
+    };
+    let written = start..start + len;
+    !checked.diags.iter().any(|diagnostic| {
+        diagnostic.is_error()
+            && diagnostic
+                .primary_span()
+                .is_some_and(|span| span.file == checked.entry && written.contains(&span.start))
+    })
 }
 
 /// The class declared in the entry document whose declaration `offset` is in.
@@ -611,6 +742,23 @@ fn signature(
     method: &MethodMember,
     offset: BytePos,
 ) -> String {
+    let (visibility, params, returns) = parts(analysed, file, method, offset);
+    let returns = returns.map(|ty| format!(": {ty}")).unwrap_or_default();
+    format!(
+        "{visibility} function {}({}){returns}",
+        text_of(file, method.name),
+        params.join(", "),
+    )
+}
+
+/// [`signature`]'s three parts: the visibility, each parameter, and the
+/// return type where one is declared.
+fn parts(
+    analysed: &Analysed,
+    file: &SourceFile,
+    method: &MethodMember,
+    offset: BytePos,
+) -> (&'static str, Vec<String>, Option<String>) {
     let typed = |span: Span| {
         written_at(
             analysed,
@@ -640,16 +788,8 @@ fn signature(
             }
         })
         .collect();
-    let returns = method
-        .return_type
-        .as_ref()
-        .map(|ty| format!(": {}", typed(ty.span)))
-        .unwrap_or_default();
-    format!(
-        "{visibility} function {}({}){returns}",
-        text_of(file, method.name),
-        params.join(", "),
-    )
+    let returns = method.return_type.as_ref().map(|ty| typed(ty.span));
+    (visibility, params, returns)
 }
 
 /// Where a class's new methods are written, and how they are indented.

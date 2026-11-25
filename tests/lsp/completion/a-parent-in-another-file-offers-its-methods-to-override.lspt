@@ -1,0 +1,42 @@
+--TEST--
+a class whose parent another file declares is offered that parent's methods to override, each type written the way this file names it (`rule:ide/a-code-action-writes-only-what-is-already-determined`)
+--FILE--
+<?nvs
+namespace Shop\Admin;
+
+use Framework\Blueprint;
+
+autoload 'Framework' from './lib';
+
+class ProductBlueprint extends Blueprint
+{
+    <|>
+}
+--FILE lib/Blueprint.nvs--
+<?nvs
+namespace Framework;
+
+class Blueprint
+{
+    public function columns(): array<Column>
+    {
+        return [];
+    }
+
+    public function fields(): array<string>
+    {
+        return [];
+    }
+}
+--FILE lib/Column.nvs--
+<?nvs
+namespace Framework;
+
+class Column
+{
+}
+--REQUEST--
+completion prefix=c
+--EXPECT--
+columns() method    array<Framework\Column>
+const   keyword

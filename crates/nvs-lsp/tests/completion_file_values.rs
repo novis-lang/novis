@@ -113,6 +113,7 @@ fn offered(
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
     let items = completion::at(
         &analysis,
+        &documents,
         &index,
         files,
         at,

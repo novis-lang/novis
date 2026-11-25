@@ -37,6 +37,8 @@
 //! that declaration's `{ … }`, a field's type is offered the types and its
 //! name nothing ([`field_at`]), and where a declaration may start,
 //! `attribute` and `repeatable` write a whole one ([`declaration_words`]).
+//! Where a member of a class is being written, each method a class above it
+//! may override is a row that writes the whole method ([`overrides`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -388,7 +390,7 @@ use crate::definition::{
     ClassBound, class_at, declared_type, imports_of, namespace_at, owned_enum_decl, resolved_name,
     supertype_names, text_of, written_class_name,
 };
-use crate::document::Analysed;
+use crate::document::{Analysed, Documents};
 use crate::index::{DeclKind, Declaration, SymbolIndex, visibility_of};
 use crate::position::range_at;
 use crate::regions::half_written_tag;
@@ -426,6 +428,7 @@ enum Reach {
 #[must_use]
 pub fn at(
     analysed: &Analysed,
+    documents: &Documents,
     symbols: &SymbolIndex,
     files: &CompletionFiles,
     offset: BytePos,
@@ -435,6 +438,7 @@ pub fn at(
     let path = analysed.index.at(offset);
     let cursor = Cursor {
         analysed,
+        documents,
         symbols,
         path: &path,
         offset,
@@ -567,6 +571,9 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
 /// the cursor is in both.
 struct Cursor<'a> {
     analysed: &'a Analysed,
+    /// The open buffers, which the text an override row writes is analysed
+    /// over before it is offered.
+    documents: &'a Documents,
     symbols: &'a SymbolIndex,
     path: &'a NodePath,
     offset: BytePos,
@@ -3306,6 +3313,7 @@ fn member(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
                 .collect();
             let mut items = words(&unwritten);
             items.extend(in_reach(cursor, Spelled::Shortest));
+            items.extend(overrides(cursor));
             items
         }
         _ => {
@@ -3314,9 +3322,103 @@ fn member(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             if !matches!(before.last(), Some(T::Keyword(_))) {
                 items.extend(declaration_words(cursor, DECLARATION_WORDS));
             }
+            items.extend(overrides(cursor));
             items
         }
     }
+}
+
+/// The words a member written as an override may start with: the two
+/// visibilities an override can have, and `function`.
+const OVERRIDE_WORDS: &[Keyword] = &[Keyword::Public, Keyword::Protected, Keyword::Function];
+
+/// One row per method a class above may have overridden, where a member of
+/// the class is being written ([`crate::generate::overridable_at`]).
+///
+/// Accepting a row writes the whole method: the parent's signature and a body
+/// that calls `parent::` with every parameter, so the program does what it did
+/// before. The row replaces the member written so far, which is a name and
+/// any of `public`, `protected` and `function` before it, so `pu`, `build`
+/// and `public function bu` each end as one method. Its filter text is that
+/// written text followed by the method's name, because a client matches a row
+/// against the text the row replaces. Nothing is offered where the line goes
+/// on after the name, since that is a member already written.
+///
+/// Every method is written once into the document and the text is analysed
+/// before a row is offered. Where that text reports an error, no row is
+/// offered, as the *Override a method* code action does.
+///
+/// **What it spends:** one analysis of the entry's graph per request at such a
+/// cursor in a class with a method to override, dropped with the answer.
+fn overrides(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let analysed = cursor.analysed;
+    let file = analysed.map.file(analysed.entry);
+    let text = file.text();
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
+    if upto[stem..].contains('\\') {
+        return Vec::new();
+    }
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before: Vec<&Token> = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem)
+        .filter(|token| token.kind != TokenKind::Eof)
+        .collect();
+    let written = before
+        .iter()
+        .rev()
+        .take_while(|token| matches!(token.kind, TokenKind::Keyword(word) if OVERRIDE_WORDS.contains(&word)))
+        .count();
+    let (earlier, member) = before.split_at(before.len() - written);
+    // The member starts after the one before it, or after the class's `{`
+    // or an attribute: any other word before it, such as `static`, is a
+    // modifier the override would drop.
+    if !matches!(
+        earlier.last().map(|token| token.kind),
+        Some(TokenKind::LBrace | TokenKind::RBrace | TokenKind::Semicolon | TokenKind::RBracket)
+    ) {
+        return Vec::new();
+    }
+    let start = member
+        .first()
+        .map_or(stem, |token| token.span.start as usize);
+    let line_start = text[..start].rfind('\n').map_or(0, |at| at + 1);
+    let indent = &text[line_start..start];
+    let rest = cursor.after_the_name();
+    let end = text.len() - rest.len();
+    let line_rest = rest.split('\n').next().unwrap_or_default();
+    if !indent.chars().all(|ch| ch == ' ' || ch == '\t') || !line_rest.trim().is_empty() {
+        return Vec::new();
+    }
+    let (Ok(from), Ok(to)) = (BytePos::try_from(start), BytePos::try_from(end)) else {
+        return Vec::new();
+    };
+    let methods = crate::generate::overridable_at(analysed, cursor.offset, (from, to));
+    if methods.is_empty() {
+        return Vec::new();
+    }
+    let every: Vec<String> = methods.iter().map(|method| method.text(indent)).collect();
+    let joined = every.join(&format!("\n\n{indent}"));
+    if !crate::generate::writes_cleanly(analysed, cursor.documents, (from, to), &joined) {
+        return Vec::new();
+    }
+    let written = &text[start..stem];
+    let range = range_at(file, Span::new(analysed.entry, from, to), cursor.encoding);
+    methods
+        .into_iter()
+        .zip(every)
+        .map(|(method, new_text)| {
+            let owner = method.parent.to_string();
+            let params = format!("({})", method.params.join(", "));
+            let row = method_row(&owner, method.name.clone(), params, method.returns);
+            Tier::Override.ranks(CompletionItem {
+                filter_text: Some(format!("{written}{}", method.name)),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit { range, new_text })),
+                ..row
+            })
+        })
+        .collect()
 }
 
 /// The modifiers a property's type may follow.
@@ -3917,7 +4019,8 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 ///
 /// A client orders a list by how well each label matches what was typed and
 /// breaks a tie on `sortText`, so this decides the order of an empty prefix and
-/// of every tie: at the route argument of a link the routed methods, then what
+/// of every tie: in a class body the methods it may override, at the route
+/// argument of a link the routed methods, then what
 /// this body declared, then the types this file already reaches — imported, in
 /// its own namespace, written somewhere in it — then the rest of `Core`, the
 /// rest of the workspace, and last the reserved words. Every input is a table
@@ -3925,6 +4028,7 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 /// as likely as the next, and its order is its labels'.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tier {
+    Override,
     Route,
     Variable,
     Imported,

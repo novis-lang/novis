@@ -71,6 +71,7 @@ fn offered_in(path: &std::path::Path, client: Client, source: &str) -> Vec<Compl
     let at = u32::try_from(cursor).expect("a test document is short");
     completion::at(
         &analysis,
+        &documents,
         &index,
         &CompletionFiles::default(),
         at,
@@ -173,6 +174,7 @@ fn offered_with_routes(source: &str) -> Vec<CompletionItem> {
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
     completion::at(
         &analysis,
+        &documents,
         &index,
         &CompletionFiles::default(),
         u32::try_from(cursor).expect("a test document is short"),
@@ -1032,6 +1034,7 @@ fn card_of(source: &str, label: &str) -> Option<String> {
     let items = card::keyed_to(
         completion::at(
             &analysis,
+            &documents,
             &index,
             &CompletionFiles::default(),
             at,
@@ -1318,4 +1321,109 @@ fn an_attribute_declaration_word_writes_the_whole_declaration() {
             ("repeatable".to_owned(), None)
         );
     }
+}
+
+/// A parent with one method that returns a value and one that returns
+/// nothing, and a child whose body the [`CURSOR`] in `member` is written in.
+fn overriding(member: &str) -> String {
+    format!(
+        "<?nvs\nnamespace Shop;\nclass Page\n{{\n    public function title(string $lang = 'en'): string\n    {{\n        return $lang;\n    }}\n\n    protected function build(int ...$sizes): void\n    {{\n    }}\n}}\n\nclass Report extends Page\n{{\n{member}\n}}\necho new Report()->title();"
+    )
+}
+
+/// The edit the item labelled `label` makes, with the text a client filters
+/// it by.
+fn override_edit(items: &[CompletionItem], label: &str) -> (Option<String>, TextEdit) {
+    let item = named(items, label);
+    let Some(CompletionTextEdit::Edit(edit)) = item.text_edit.clone() else {
+        panic!("`{label}` names the text it replaces");
+    };
+    (item.filter_text.clone(), edit)
+}
+
+/// Accepting an override writes the parent's whole signature and a body that
+/// calls `parent::` with every parameter, returning what it returns, over the
+/// name written so far.
+#[test]
+fn an_override_row_writes_the_whole_method_with_its_parent_call() {
+    let items = offered(&overriding("    ti<|>"));
+    assert_eq!(
+        override_edit(&items, "title"),
+        (
+            Some("title".to_owned()),
+            TextEdit {
+                range: Range {
+                    start: Position {
+                        line: 16,
+                        character: 4,
+                    },
+                    end: Position {
+                        line: 16,
+                        character: 6,
+                    },
+                },
+                new_text: "public function title(string $lang = 'en'): string\n    {\n        return parent::title($lang);\n    }".to_owned(),
+            }
+        )
+    );
+    let (_, build) = override_edit(&items, "build");
+    assert_eq!(
+        build.new_text,
+        "protected function build(int ...$sizes): void\n    {\n        parent::build(...$sizes);\n    }"
+    );
+}
+
+/// The words written before the name are replaced too, so `public function`
+/// is not written twice, and the row is filtered by everything it replaces.
+#[test]
+fn an_override_row_replaces_the_visibility_and_function_written_before_it() {
+    let items = offered(&overriding("    public function ti<|>"));
+    let (filter, edit) = override_edit(&items, "title");
+    assert_eq!(filter.as_deref(), Some("public function title"));
+    assert_eq!(
+        edit.range.start,
+        Position {
+            line: 16,
+            character: 4
+        }
+    );
+    assert_eq!(
+        edit.range.end,
+        Position {
+            line: 16,
+            character: 22
+        }
+    );
+    assert!(
+        edit.new_text.starts_with("public function title("),
+        "{}",
+        edit.new_text
+    );
+}
+
+/// No override is offered after a modifier an override would drop, on a line
+/// that goes on after the name, or for a method the class already declares.
+#[test]
+fn an_override_is_not_offered_where_its_text_would_change_the_member() {
+    for member in [
+        "    static ti<|>",
+        "    private ti<|>",
+        "    ti<|>(): string { return ''; }",
+    ] {
+        let items = offered(&overriding(member));
+        assert!(items.iter().all(|item| item.label != "title"), "{member}");
+    }
+    let declared = "    public function title(string $lang = 'en'): string\n    {\n        return 'report';\n    }\n\n    <|>";
+    let items = offered(&overriding(declared));
+    assert!(items.iter().all(|item| item.label != "title"));
+    assert!(items.iter().any(|item| item.label == "build"));
+}
+
+/// An error elsewhere in the document is the document's own, and the rows are
+/// still offered.
+#[test]
+fn an_override_is_offered_beside_an_error_elsewhere_in_the_document() {
+    let source = overriding("    ti<|>").replace("echo new Report()->title();", "echo $missing;");
+    let items = offered(&source);
+    assert!(items.iter().any(|item| item.label == "title"));
 }

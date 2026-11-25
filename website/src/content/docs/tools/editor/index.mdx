@@ -60,6 +60,12 @@ change its body.
 
 <Replay src="tools/editor/override.nvs" />
 
+The completion list can also write an override. In a class, start to type the name of a parent
+method, such as `bu` for `build`. The list shows `build` with its parameters. When you choose it, the
+editor writes the whole method. The method has the same parameters as the parent method. Its body
+calls `parent::build(...)` with them, so the new method does what the parent method does until you
+change the body.
+
 Other actions write the methods that an interface needs, and declare a method that you called but
 did not write yet. They also add a missing `use` line, sort the `use` lines, and move code into a
 new method or variable.
