@@ -914,7 +914,7 @@ const FILTER_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The kept entries under their own keys, never renumbered; an empty array when nothing \
-          passes.",
+          passes. For an `array<E, T>`, the result is an `array<E, T>` too.",
     errors: &[],
 };
 
@@ -934,7 +934,8 @@ const MAP_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "One entry per entry of `$a`, under the same key. Its value is the callback's result.",
+    ret: "One entry per entry of `$a`, under the same key. Its value is the callback's result. \
+          For an `array<E, T>`, the result is an `array<E, U>`.",
     errors: &[],
 };
 
@@ -1419,7 +1420,7 @@ const WITHOUT_NULL_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "The other entries under their own keys, never renumbered. `Core\\Arr::values` \
-          renumbers them.",
+          renumbers them. For an `array<E, T>`, the result is an `array<E, T>` too.",
     errors: &[],
 };
 
@@ -1642,7 +1643,8 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The same entries under the same keys, ordered by key; the natural order is bytewise, \
-          so `\"10\"` precedes `\"9\"`.",
+          so `\"10\"` precedes `\"9\"`. For an `array<E, T>`, the result is an `array<E, T>` \
+          too.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1990,7 +1992,8 @@ const UNIQUE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The first occurrence of each value, under its own key and in its own position.",
+    ret: "The first occurrence of each value, under its own key and in its own position. For an \
+          `array<E, T>`, the result is an `array<E, T>` too.",
     errors: &[],
 };
 

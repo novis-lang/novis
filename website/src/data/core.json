@@ -100,7 +100,7 @@
                 "descHtml": "Called as <code>($value, $key)</code> per entry. A truthy result keeps the entry. Truthy means the same here as in an <code>if</code> test."
               }
             ],
-            "returnHtml": "The kept entries under their own keys, never renumbered; an empty array when nothing passes."
+            "returnHtml": "The kept entries under their own keys, never renumbered; an empty array when nothing passes. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, T&gt;</code> too."
           },
           "slug": "filter",
           "url": "/reference/core/arr/filter/",
@@ -145,7 +145,7 @@
                 "descHtml": "Called as <code>($value, $key)</code> per entry, and may declare fewer parameters; its return type is the result's <code>U</code>."
               }
             ],
-            "returnHtml": "One entry per entry of <code>$a</code>, under the same key. Its value is the callback's result."
+            "returnHtml": "One entry per entry of <code>$a</code>, under the same key. Its value is the callback's result. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, U&gt;</code>."
           },
           "slug": "map",
           "url": "/reference/core/arr/map/",
@@ -1255,7 +1255,7 @@
                 "descHtml": "The array to remove <code>null</code> values from."
               }
             ],
-            "returnHtml": "The other entries under their own keys, never renumbered. <code>Core\\Arr::values</code> renumbers them."
+            "returnHtml": "The other entries under their own keys, never renumbered. <code>Core\\Arr::values</code> renumbers them. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, T&gt;</code> too."
           },
           "slug": "withoutnull",
           "url": "/reference/core/arr/withoutnull/",
@@ -1706,7 +1706,7 @@
                 "descHtml": "The keys to put first, in this order. The other keys follow in their current order. A listed key that <code>$a</code> does not have is skipped. With <code>Desc</code>, the other keys come first, then the listed keys from last to first."
               }
             ],
-            "returnHtml": "The same entries under the same keys, ordered by key; the natural order is bytewise, so <code>&quot;10&quot;</code> precedes <code>&quot;9&quot;</code>.",
+            "returnHtml": "The same entries under the same keys, ordered by key; the natural order is bytewise, so <code>&quot;10&quot;</code> precedes <code>&quot;9&quot;</code>. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, T&gt;</code> too.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -2381,7 +2381,7 @@
                 "descHtml": "Called once per entry as <code>($value, $key)</code>, and may declare fewer parameters. Its result is compared by identity, but the entry itself is what is kept."
               }
             ],
-            "returnHtml": "The first occurrence of each value, under its own key and in its own position."
+            "returnHtml": "The first occurrence of each value, under its own key and in its own position. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, T&gt;</code> too."
           },
           "slug": "unique",
           "url": "/reference/core/arr/unique/",

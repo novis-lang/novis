@@ -34491,7 +34491,7 @@ Returns the entries for which `$predicate` returns a truthy value. The callback 
 | `$a` | `array<T>` | The array to filter. |
 | `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry. A truthy result keeps the entry. Truthy means the same here as in an `if` test. |
 
-**Returns** `array<T>` — The kept entries under their own keys, never renumbered; an empty array when nothing passes.
+**Returns** `array<T>` — The kept entries under their own keys, never renumbered; an empty array when nothing passes. For an `array<E, T>`, the result is an `array<E, T>` too.
 
 <a id="core-core-arr-map"></a>
 #### `Core\Arr::map`
@@ -34507,7 +34507,7 @@ Replaces every value with the result of `$fn` for it. The keys stay the same.
 | `$a` | `array<T>` | The array to map. |
 | `$fn` | `callable(T, string): U` | Called as `($value, $key)` per entry, and may declare fewer parameters; its return type is the result's `U`. |
 
-**Returns** `array<U>` — One entry per entry of `$a`, under the same key. Its value is the callback's result.
+**Returns** `array<U>` — One entry per entry of `$a`, under the same key. Its value is the callback's result. For an `array<E, T>`, the result is an `array<E, U>`.
 
 <a id="core-core-arr-mapkeys"></a>
 #### `Core\Arr::mapKeys`
@@ -34920,7 +34920,7 @@ Returns every entry whose value is not `null`. The type of the values no longer 
 |---|---|---|
 | `$a` | `array<?T>` | The array to remove `null` values from. |
 
-**Returns** `array<T>` — The other entries under their own keys, never renumbered. `Core\Arr::values` renumbers them.
+**Returns** `array<T>` — The other entries under their own keys, never renumbered. `Core\Arr::values` renumbers them. For an `array<E, T>`, the result is an `array<E, T>` too.
 
 <a id="core-core-arr-padstart"></a>
 #### `Core\Arr::padStart`
@@ -35075,7 +35075,7 @@ Returns the entries in key order. The sort is stable, and every key is kept.
 | `{ comparator: … }` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s. It returns a negative number, zero or a positive number. It replaces the natural order. |
 | `{ keys: … }` | `array<int\|string>` (default `null`) | The keys to put first, in this order. The other keys follow in their current order. A listed key that `$a` does not have is skipped. With `Desc`, the other keys come first, then the listed keys from last to first. |
 
-**Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`.
+**Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`. For an `array<E, T>`, the result is an `array<E, T>` too.
 
 **Throws** `RuntimeError` — The comparator returned `NaN`.; `LogicError` — The call gives both `keys` and `comparator`.
 
@@ -35302,7 +35302,7 @@ Returns the entries whose value has not appeared before. Values are compared by 
 | `$a` | `array<T>` | The array to deduplicate. |
 | `{ by: … }` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. Its result is compared by identity, but the entry itself is what is kept. |
 
-**Returns** `array<T>` — The first occurrence of each value, under its own key and in its own position.
+**Returns** `array<T>` — The first occurrence of each value, under its own key and in its own position. For an `array<E, T>`, the result is an `array<E, T>` too.
 
 <a id="core-core-arr-min"></a>
 #### `Core\Arr::min`

@@ -234,7 +234,7 @@
     "Core\\Arr::fillKeys": "80c80c57175a87bf"
   },
   "docs/examples/core/Arr/filter/about.md": {
-    "Core\\Arr::filter": "fc2a18946797ea45"
+    "Core\\Arr::filter": "9aee482326d70d5a"
   },
   "docs/examples/core/Arr/find/about.md": {
     "Core\\Arr::find": "57e299ee4da26402"
@@ -294,7 +294,7 @@
     "Core\\Arr::lastKey": "499c8755eb4ca399"
   },
   "docs/examples/core/Arr/map/about.md": {
-    "Core\\Arr::map": "06d1148aeadf0800"
+    "Core\\Arr::map": "efbb6743e11f3840"
   },
   "docs/examples/core/Arr/mapKeys/about.md": {
     "Core\\Arr::mapKeys": "f671e5923ff60454"
@@ -345,7 +345,7 @@
     "Core\\Arr::sort": "e7b93f9c51400baa"
   },
   "docs/examples/core/Arr/sortByKey/about.md": {
-    "Core\\Arr::sortByKey": "adb640f9bda08e89"
+    "Core\\Arr::sortByKey": "ff4d7249a7e40772"
   },
   "docs/examples/core/Arr/sum/about.md": {
     "Core\\Arr::sum": "83f7726a3b7f0add"
@@ -354,7 +354,7 @@
     "Core\\Arr::underlay": "df8b69a376c1f9b2"
   },
   "docs/examples/core/Arr/unique/about.md": {
-    "Core\\Arr::unique": "8e9af7c389ec678b"
+    "Core\\Arr::unique": "4f4f8fd5f3880baa"
   },
   "docs/examples/core/Arr/values/about.md": {
     "Core\\Arr::values": "84c888ce3c07c9b7"
@@ -366,7 +366,7 @@
     "Core\\Arr::withoutLast": "c73861f32f58bb8e"
   },
   "docs/examples/core/Arr/withoutNull/about.md": {
-    "Core\\Arr::withoutNull": "961a88e315fe7421"
+    "Core\\Arr::withoutNull": "e3466adaedca920a"
   },
   "docs/examples/core/Ast/parse/about.md": {
     "Core\\Ast::parse": "4cdcdbcd2a9598d2"
