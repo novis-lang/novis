@@ -467,27 +467,10 @@ last full gate (this goal, `allocation-accounting`, `clear-member-names`, `see-f
 `reflect-once`). `bun nv close --goal time-values`, `bun nv verify --doc` and `bun nv ci --check`
 are green.
 
-The first `DONE` was refused because the floor check `no-probe-overshoot` was red:
-`Duration::fromClock` on an 8 MiB bad text held 32 MiB, because each `ParseError` message quoted
-the whole text. `duration::parse_clock` now takes the text as its message shows it, and
-`fromClock` passes `nvs_runtime::quoted(text)`, which shows at most 64 bytes. The check is green.
-
-The gate stops at its first red step, so it took seven runs to reach the end. The fix pass is
-`0e5ed8420a` (tool selftest), `e72e74445f` (tests and code), `40c722da91` (rendered files, stamps)
-and `ed1ff246a9` (naming tables).
-
-- Generated files were stale: the rendered reference chapters, the rule chapters and the website
-  data. All are rendered again.
-- One real bug: the checker matched `Core\Queue::push`'s old `args` option, so a secret value in
-  `arguments` compiled. `crates/nvs-types/src/expr/quals.rs` matches `arguments`, and E0791 holds.
-- The rest were tests and cases that pinned old member names, old columns, or identity for `==`
-  on a `Core\Time` value. Each now expects the renamed member or the by-value answer.
-- Eleven new conformance cases call `Date::parse`, `Date::range`, `Duration::toClock`,
-  `fromClock` and `PropertyInfo::isLateInit` and `isReadonly`, so each class has its floor of three.
-- `Date::startOf`, `endOf`, `difference`, `next`, `previous` and `range` are on the naming tables'
-  `reads` list beside their `DateTime` twins (`tools/data/api-names.json`).
-- The newcomer review reread four texts the fix pass changed (`BigInt::dividedBy`, `Date::range`,
-  `Duration::toClock`, the agents page's worked session). Each finding is fixed and stamped.
+- `Duration::fromClock` quotes at most 64 bytes of a bad text in its `ParseError`, so the floor
+  check `no-probe-overshoot` is green.
+- That fix changed `time.rs`, so its benches were measured again with `bun nv proofs
+  --record-perf --goal time-values`. `bun nv proofs --gate --goal time-values` is green.
 
 ### Next
 
