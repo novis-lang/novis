@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/symbols.rs, crates/nvs-lsp/src/order.rs, crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: "the rules ship, and the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [data/reference/lang/50-classes.json, website/src/content/docs/syntax/classes/interfaces.mdx, website/src/data/changes.json, docs/rules/testing/feature-proofs.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -619,23 +619,23 @@ disjoint. The session builds once both end and runs each check once.
 **Split:** the examples, the attack and the bench go to one writing subagent once the rules are
 flipped; the session writes the rules, the reference and the website entries.
 
-- [ ] The four rule fragments of stage 1 flip to `shipped`, each `guardedBy` the cases above.
+- [x] The four rule fragments of stage 1 flip to `shipped`, each `guardedBy` the cases above.
   `docs/rules/core-api/core-classes-are-sealed.md:32`: its Declined list points at `extend`.
   `bun nv rules --render`.
-- [ ] `data/reference/lang/50-classes.json:1`: an `extend` block section; the enum chapter's
+- [x] `data/reference/lang/50-classes.json:1`: an `extend` block section; the enum chapter's
   record says enums take methods and constants.
-- [ ] `docs/examples/lang/classes/extend-blocks/about.md:1`, `details.md` and three examples: methods on
+- [x] `docs/examples/lang/classes/extend-blocks/about.md:1`, `details.md` and three examples: methods on
   `Core\Time\Date`, a stored property on a request set by one function and read by another, and
   `[[restrict]]` with a block giving one API. Written to AGENTS.md § *Text an end user reads*, with
   neutral names (`BusinessDays`, `Shop`).
-- [ ] The bench and the attack `bun nv proofs --owed --goal extend-blocks` names. The attack tries to
+- [x] The bench and the attack `bun nv proofs --owed --goal extend-blocks` names. The attack tries to
   read a private member through a block, to replace a `Core` method, and to call a restricted member
   from an extend body; each must fail to compile.
-- [ ] `website/src/content/docs/syntax/classes/extend-blocks.mdx:1` (`covers:` the new feature id), the
+- [x] `website/src/content/docs/syntax/classes/extend-blocks.mdx:1` (`covers:` the new feature id), the
   enum page updated for methods, `website/src/content/docs/syntax/classes/interfaces.mdx:1` linking it.
   `website/src/data/changes.json:1`: `new` for `extend` blocks, `new` for enum methods and constants.
   Each page reread and stamped with `bun nv site --stamp`.
-- [ ] `bun nv proofs --owed --goal extend-blocks` names nothing.
+- [x] `bun nv proofs --owed --goal extend-blocks` names nothing.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -647,46 +647,37 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 6 is done. The `editor`, `meta` and `agent` checks are green, each run once, and so are the
-re-run `added-visibility` check and the new case
-`tests/lsp/diagnostics/an-import-of-a-block-is-read-by-a-call-of-its-member.lspt`. `cargo build`,
-`cargo clippy --all-targets -- -D warnings` and `cargo fmt --all --check` are clean.
+Stage 7 is done. `bun nv proofs --gate --goal extend-blocks` is green (nothing owed), and so are
+`bun nv site --check stale changes review`, `bun nv reference --only classes` / `--only enums` and the
+31 conformance cases that gained `// covers: lang:classes/extend-blocks`, each run once.
 
-- **Editor**: `definition::body_of`, `declared_span` and `doc_of` know `ExtendDecl`, so `site` finds a
-  block's members by the block's name; `definition::target_in` reads an added property's block off
-  its accessor label. The index records added members under `Block::member`, so references and
-  rename cover the declaration and every call. Hover (`hover.rs` `added`) names the block.
-  Completion (`completion.rs` `added_members`, `unloaded_blocks`) offers added members after the
-  type's own, with ` [Block]` after the label and the `use` as an additional edit, from loaded
-  blocks and from the index's unloaded ones (`HierarchyResolver::written_blocks`). The outline
-  shows a block as a class symbol; `order.rs` orders its members; the file letter `X` is in
-  `editors/vscode/src/kinds.ts`.
-- **The quick fix**: `E0405` (`report_unknown_member`) and `E0309` (`check_member_ref`,
-  `crates/nvs-hir/src/members.rs`) carry the `use` line as `with_fix`.
-- **`W1026`**: `index::reads` takes `index::added_names`, and `diagnostics::unused_uses` takes every
-  loaded file and the module.
-- **meta/agent**: `meta.rs` `user_block_json` writes `program.blocks`; `agent.rs`
-  `push_added_members` and `member_row` index and show added members of a program document.
-- The `agent` check now runs `cargo test --bin nvs`: `nvs-cli` is a binary crate, so `--lib` ran none.
+- **Rules**: the three `docs/rules/classes/` fragments are `shipped` with `guardedBy` lists.
+- **Reference**: `# \`extend\` blocks` in `docs/examples/lang/classes/chapter.md` gives the id
+  `lang:classes/extend-blocks`; both chapters' front matter name extend blocks and enum methods.
+- **Proofs**: `docs/examples/lang/classes/extend-blocks/` (03 is a `[[restrict]]` package under
+  `packages/acme-billing/`), the attack under `tests/hostile/lang/classes/extend-blocks/`, the bench
+  `benches/members/lang/classes/extend-blocks.nvs`. Perf is recorded for 73 features.
+- **Enum pages**: example 08 in `declaring-an-enum`; `what-an-enum-does-not-have` shows enum methods.
+- **Website**: `syntax/classes/extend-blocks.mdx` (sidebar in `website/astro.config.ts`), linked from
+  `interfaces.mdx` and `values/enums.mdx`. `changes.json`: `new` for extend blocks, and `changed`
+  for the two enum features, because `site --check changes` needs `changed` when tests moved.
+  Every text is reviewed by two `reader` subagents, fixed and stamped.
 
 ### Next
 
-Stage 7, by its `**Split:**` line: the session flips the rules and writes the reference and the
-website entries; one writing subagent writes the examples, the attack and the bench once the rules
-are flipped.
+Stage 8 closes the goal. This goal is not the chain's full gate, so the gate stage runs `cargo build`,
+`cargo clippy --all-targets -- -D warnings`, the goal's checks by name, and
+`bun nv close --goal extend-blocks`, and fixes each red. The newcomer review item is done for every
+text stage 7 touched (stamped in `data/proofs/reviewed.json`). Before `DONE`, move each standing
+decision only this file holds into a rule fragment or a module doc, and turn each Backlog item into a
+rule's open point or another goal's item.
 
-1. Flip the four stage-1 rule fragments to `shipped` with `guardedBy` the cases of every check
-   above, and the Declined line in `docs/rules/core-api/core-classes-are-sealed.md:32`.
-   `bun nv rules --render`.
-2. `data/reference/lang/50-classes.json:1`: the `extend` section; the enum chapter says enums take
-   methods and constants (Backlog: the enum pages).
-3. The examples, attack and bench (`bun nv proofs --owed --goal extend-blocks`), the website page
-   `website/src/content/docs/syntax/classes/extend-blocks.mdx`, `changes.json`, and the stamps.
-
-Tests that may go red: none known. Nothing outside the checks named above was run.
+Tests that may go red: none known. No Rust changed in stage 7.
 
 ### Backlog
 
+- The bench `extend-blocks.nvs` measures 3677 ns/op: its loop is dominated by `Date` arithmetic in the
+  added method, not the call. A bench of a bare added call would show the direct call's cost better.
 - The completion case `tests/lsp/completion/an-added-method-is-offered-and-writes-its-use.lspt`
   pins the row and that a private member is left out, not the `use` edit or the order: the `.lspt`
   renderer prints neither for a completion item, and printing edits changes about nine existing
@@ -698,26 +689,21 @@ Tests that may go red: none known. Nothing outside the checks named above was ru
   indexed, as class constants are not.
 - `index::imports` calls `added_names` once per indexed file. One call per analysis would do.
 - A computed added property read inside its own `get` hook calls the hook again, and the
-  recursion error stops it at run time. A class's hook reads its backing slot there instead.
-  Refusing the read at compile time would be clearer. Stage 7's newcomer review may want it.
-- `docs/rules/classes/an-added-property-lives-in-one-hidden-slot.md` names `Core\Html\Markup` as
-  the immortal example. Stage 7 adds the seven `Core\Reflect` descriptions, which
-  `added_slot.rs` also leaves without a slot.
-- Stage 7 owes the enum pages: `docs/examples/lang/enums/declaring-an-enum/about.md:10` and
-  `details.md:19`, `what-an-enum-does-not-have/details.md` and `an-enum-inside-a-class/details.md`
-  still say an enum has no method or constant. `data/proofs/review-baseline.json:5917` still names
-  the old example file `06-a-constant-in-an-enum.nvs`; the review restamps it.
-  `docs/reference/lang/55-enums.md:215` (generated) still shows example 06 as a refused constant.
-- `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst` now keeps every
-  member in the enum. Stage 7 may rename it to match; `guardedBy` lists name it.
-- A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with stage 4's
-  deprecation item.
+  recursion error stops it at run time. Refusing the read at compile time would be clearer.
+- `data/proofs/review-baseline.json` still names the old enum example paths (`03-a-class-that-…`,
+  `06-a-constant-in-an-enum.nvs`). A baseline line for a gone file excuses nothing.
+- `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst` keeps every
+  member in the enum now. A rename to match would update the `guardedBy` lists that name it.
+- A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with the
+  deprecation work.
 - `check_type_params` accepts any bare name, so `extend ObjectMap<Tag, Item>` binds two new names
   that shadow the classes `Tag` and `Item` inside the block. Refusing a name the block's file
-  resolves to a type needs the file's `use` map in `check_block`. Stage 7's newcomer review may
-  want it.
+  resolves to a type needs the file's `use` map in `check_block`.
 - An added enum's `#[Core\Deprecated]` is not read: `crates/nvs-types/src/deprecated.rs:621`
   walks only class and interface bodies. It belongs with the deprecation work.
 - A block's enum whose name a `Core` type already owns (`Core\Arr::Order`) is not refused: the
   symbol table wins over the registry's enum table in `crate::lower::owned_enum`. `check_collisions`
   should compare against `env.enums` for a `Core` target.
+- Enum reader findings left as they are: `what-an-enum-does-not-have/about.md` uses "name" for both a
+  case's name and `->name`, and `values/enums.mdx`'s "Don't use a case as an array key" gives no
+  reason. Both predate this goal.
