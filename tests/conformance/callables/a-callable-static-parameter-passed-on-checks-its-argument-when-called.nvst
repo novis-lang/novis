@@ -1,0 +1,40 @@
+--TEST--
+A function from a `callable(static)` parameter that is stored and called later with another class throws a `LogicError` that names the class — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+class Model {
+    public array<callable> $rules = [];
+
+    public function keep(callable(static): bool $rule): void {
+        // The stored function is a plain `callable`.
+        $this->rules[] = $rule;
+    }
+
+    public function runAll(Model $target): void {
+        foreach ($this->rules as callable $rule) {
+            try {
+                echo $rule($target) ? "yes" : "no", "\n";
+            } catch (LogicError $e) {
+                echo $e->message, "\n";
+            }
+        }
+    }
+}
+
+class Order extends Model {
+    public int $total = 5;
+}
+
+class Invoice extends Model {}
+
+Order $order = new Order();
+$order->keep(fn (Order $o): bool => $o->total > 0);
+
+// The function takes only `Order`, so this call works.
+$order->runAll(new Order());
+
+// An `Invoice` is not an `Order`, so the call throws a `LogicError`.
+$order->runAll(new Invoice());
+--EXPECT--
+yes
+argument 1 to a `callable` does not accept an object of class `Invoice`

@@ -1,0 +1,41 @@
+--TEST--
+A call through a `callable(static)` parameter needs an object of the class the call names, and a base-class call does not take a function for a subclass — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+class Model {
+    public function other(callable(static): bool $rule): bool {
+        // A `Model` may not be the class the call named. This does not compile.
+        return $rule(new Model());
+    }
+
+    public function stored(callable(static): bool $rule): bool {
+        // A variable may contain any `Model`. This does not compile either.
+        Model $model = new Model();
+        return $rule($model);
+    }
+
+    public static function check(callable(static): bool $rule): bool {
+        return true;
+    }
+}
+
+class Order extends Model {
+    public int $total = 0;
+}
+
+// `Model::check` needs a function that takes every `Model`.
+// This function takes only `Order`, so the call does not compile.
+Model::check(fn (Order $o): bool => $o->total > 0);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1015]: this argument may not be the class the call named
+%A
+error[E1015]: this argument may not be the class the call named
+%A
+error[E0401]: expected `callable(Model): bool`, found `callable(Order): bool`
+%A
+   = help: This function takes only `Order`. Call the method on `Order`, for example `Order::check(...)`.
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

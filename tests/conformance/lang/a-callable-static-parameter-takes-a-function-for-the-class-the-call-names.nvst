@@ -1,0 +1,56 @@
+--TEST--
+A `callable(static)` parameter takes a function for the class the call names, at a static call and at an instance call, and the method may call it with `$this`, `new static()` or a call that returns `static` — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+// `static` in a `callable` parameter is the class that the call names.
+// `Order::check` takes a function for `Order`.
+class Model {
+    public string $id = "m1";
+
+    public static function make(): static {
+        return new static();
+    }
+
+    public static function check(callable(static): bool $rule): string {
+        // `new static()` is an object of the class the call names.
+        return $rule(new static()) ? "yes" : "no";
+    }
+
+    public static function checkMade(callable(static): bool $rule): string {
+        // `static::make()` returns `static`, so this call compiles too.
+        return $rule(static::make()) ? "yes" : "no";
+    }
+
+    public function test(callable(static, int): string $rule): string {
+        return $rule($this, 2);
+    }
+
+    public static function maybe(?callable(static): bool $rule): string {
+        if ($rule == null) {
+            return "no rule";
+        }
+        return $rule(new static()) ? "yes" : "no";
+    }
+}
+
+class Order extends Model {
+    public int $total = 5;
+}
+
+// The function takes an `Order` and reads its `total`.
+echo Order::check(fn (Order $o): bool => $o->total > 0), "\n";
+echo Order::checkMade(fn (Order $o): bool => $o->total > 10), "\n";
+
+// At an instance call, `static` is the class of the object.
+Order $order = new Order();
+echo $order->test(fn (Order $o, int $times): string => ($o->total * $times) as string), "\n";
+
+// A nullable parameter takes a function or `null`.
+echo Order::maybe(fn (Order $o): bool => $o->id == "m1"), "\n";
+echo Order::maybe(null), "\n";
+--EXPECT--
+yes
+no
+10
+yes
+no rule
