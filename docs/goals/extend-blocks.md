@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/enums.md]
   - id: 3
     title: "added methods, static methods and constants resolve where their block is used, and run as direct calls"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-hir/src/members.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/call.rs, crates/nvs-diagnostics/src/code/names.rs]
   - id: 4
     title: "an added member never changes a type: collisions, unions, interfaces, generics, nested types, restrictions and every dynamic path"
@@ -487,7 +487,7 @@ classes are the ones that goal makes compare by value.
   members lower as functions labelled `<Block>::<name>`; calls are direct. The IR test the check
   `direct-call` names, run once by name.
 - [x] `crates/nvs-diagnostics/src/code/names.rs:254`: `E0329`'s help points at `extend`.
-- [ ] The five cases the check `added-calls` names and the two the check `added-visibility` names,
+- [x] The five cases the check `added-calls` names and the two the check `added-visibility` names,
   each run once by name. `another-package` cases write a `--FILE package.toml--` and a file under it.
 
 ### 4. an added member never changes a type: collisions, unions, interfaces, generics, nested types, restrictions and every dynamic path
@@ -496,7 +496,7 @@ classes are the ones that goal makes compare by value.
 (question, `crates/nvs-types/src/conformance.rs` and `crates/nvs-types/src/expr/operators.rs`,
 `file:line` and the name each) before the item that refuses them.
 
-- [ ] `crates/nvs-hir/src/hierarchy.rs:424`: the program-wide collision check: type member, other block,
+- [x] `crates/nvs-hir/src/hierarchy.rs:424`: the program-wide collision check: type member, other block,
   descendant member, with both places in the error. The three cases the check `collisions` names.
 - [ ] `crates/nvs-types/src/conformance.rs:445`: an added member discharges no obligation;
   `crates/nvs-types/src/expr/operators.rs:976`: ordering never reads one; the refused-name list in the
@@ -583,53 +583,44 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's code is in, in the `feat(lang): an added method …` commit,
-with build and clippy green. `added_method_lowers_to_a_direct_call` passes. The five `added-calls`
-cases pass, and so does
-`reject/an-added-method-cannot-read-a-private-member-of-its-type.nvst`, each run once with
-`target/debug/nvs.exe test <case>`. One case is red:
-`reject/an-added-method-without-its-use-names-the-use-to-add.nvst`. The compiler prints exactly
-the two errors and helps the case expects, but the EXPECTF match fails. The cause is not found
-yet. It may be that a `%A` followed directly by a `  = help:` line needs a different pattern, or
-it may be the `\B` inside `Shop\BusinessDays`.
+Stages 1 to 3 are done. Stage 4 is open, with its first item done and two refusals in.
 
-How it works:
+- **Collisions, `E1011`** (`E_ADDED_MEMBER_COLLIDES`, `types_e10.rs`). The check is
+  `check_collisions` in `crates/nvs-types/src/extend.rs`, not in `hierarchy.rs`: it needs the
+  signature table, and `Env::graph` and `Env::signatures` hold the whole program before any body
+  is checked. Per added method, constant or property it looks in three places, in this order: the
+  target and its ancestors (an enum case counts as a constant), another block whose target is
+  related either way (reported once, at the block whose name sorts last), and a class or interface
+  of the program below the target. `member_span` finds the other place through the symbol's
+  `decl_span` and the file's statements, so the error shows both places. A `Core` member has no
+  source and gets no second label. The three `collisions` cases pass, and `looper check --name
+  collisions` is green.
+- **`static::` and `parent::` in a block are `E0338`**, in `check_member_ref`
+  (`crates/nvs-hir/src/members.rs`), through the new `Env::in_block` flag that the `ExtendDecl` arm
+  sets around `check_members`. `new static` is not refused yet.
+- **`yield` in an added static method, or in any method of a block on an enum, is `E0338`**, in
+  `extend.rs` `check_member`. Case:
+  `reject/an-extend-block-uses-self-and-no-yield-in-a-static-method.nvst`, run once.
 
-- **Lookup.** `crates/nvs-types/src/extend.rs` has `used_blocks`, `added_method`, `added_const`,
-  `unused_block_adding` and `imports_with_block`. A file's used blocks are the values of its
-  `ctx.imports` that `ClassGraph::block_target` knows. The block's own body gets the block added to
-  its imports. `crates/nvs-hir/src/members.rs` has `added_member` and `block_adding`, with the same
-  rule for `::` (E0309) and `$this->prop`.
-- **Signatures.** `collect_stmts` (`signatures.rs`) has an `ExtendDecl` arm. It stores members
-  under the block's key with `ctx.current_class` = target, and sets `ClassSignature::added_to`.
-  `resolved_call` copies that field into `ResolvedCall::added_to`, and `ResolvedCall::receiver_class()`
-  gives the target.
-- **Checking bodies.** `check.rs` has an `ExtendDecl` arm. `Ctx::current_class` is the target,
-  so `$this` and `self` name it, and `class_of_ctx` now also returns a `Core` enum. The new
-  `Env::extend_block` is the place `is_visible_here` and the E0471 label judge from, and the
-  label `check_method` records (`<Block>::<name>`). `called_class_set_at` makes `self::` inside a
-  block name the target.
-- **IR.** `ExprTypeTable::extend_target` (keyed by the block's name span) gives the walk in
-  `lower_program_as` the target. An added method lowers through `lower_method_of`, with the
-  enum's representation as the receiver, or `Some(EnumRepr::Int)` for a static method on a class
-  target. Calls are direct.
-- `E0329`'s card and its diagnostic (`hierarchy.rs`) point at `extend`. Its help key needs a
-  restamp in stage 7.
+How stage 3 works is in the module docs of `extend.rs` and in the commits `d5fed477e7` and
+`0b7af366fc`: the used blocks come from the file's `use` map, the block's members sit in the
+signature table under the block's name with `added_to`, and calls lower as direct calls.
 
 ### Next
 
-1. Fix the red case above. Run it alone with
-   `target/debug/nvs.exe test tests/conformance/reject/an-added-method-without-its-use-names-the-use-to-add.nvst`,
-   and compare it with `tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst:34`.
-   That case matches a help line that has backslashes. Then tick stage 3's last item, run
-   `looper check --name added-visibility` and `added-calls` once, and set stage 3 done.
-2. Stage 4, starting with collisions (`crates/nvs-types/src/extend.rs` `check_block`), `static::`
-   refused in a block, and `yield` refused in an added static method and in a block on an enum.
-   The lowering asserts against both: a static added method takes `0`, not a descriptor.
-   Then unions: `infer_union_method_call` (`calls.rs:~395`) does not consult blocks yet.
+1. `new static` inside a block: refuse it with the same `E0338` as `static::`. The class side of
+   `new` is resolved in `crates/nvs-types/src/expr/calls.rs` (`resolve_class_expr`, `:~1114`), and
+   `Env::extend_block` is `Some` there.
+2. Stage 4's second item: the refused-name list. An `Explore` subagent lists the names a `Core`
+   interface or an operator dispatches by name (`conformance.rs`, `expr/operators.rs:976`) as the
+   stage's **Split** line says. Refuse each as `E1012` in `extend.rs`. Then the `dynamic-paths`
+   cases.
+3. Unions: `infer_union_method_call` (`calls.rs:~395`) does not consult blocks yet. Then the
+   interface case and the generic `Core` block (`class_type_params`) for `reach`.
 
 Tests that may go red: any case pinning E0329's diagnostic with no `%A` after its primary label,
-because the diagnostic now has a help line.
+because the diagnostic now has a help line. A program that declares two blocks adding one name to
+related types now fails with `E1011`.
 
 ### Backlog
 
