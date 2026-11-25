@@ -1,0 +1,14 @@
+# The `jobs` database is kept in memory. It is deleted when the program ends.
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open the `jobs` database itself, to create the tables.
+[capabilities.db]
+connect = ["jobs"]
+
+# `Core\Queue` saves its jobs in the `jobs` database.
+# `workers = 0` starts no workers, so every job stays `Pending`.
+[queue]
+connection = "jobs"
+workers = 0

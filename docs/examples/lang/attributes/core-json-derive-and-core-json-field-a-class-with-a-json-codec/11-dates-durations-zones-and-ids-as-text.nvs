@@ -1,0 +1,50 @@
+<?nvs
+// Shows how dates, times, durations, time zones and ids are written to JSON as strings.
+
+use Core\Json;
+use Core\Time\Date;
+use Core\Time\DateTime;
+use Core\Time\Duration;
+use Core\Time\TimeOfDay;
+use Core\Time\Zone;
+use Core\Uuid;
+
+#[Core\Json\Derive]
+class Meeting
+{
+    public function constructor(
+        public Uuid $id,
+        public Date $day,
+        public TimeOfDay $opens,
+        public DateTime $starts,
+        public Duration $length,
+        public Zone $zone,
+    ) {}
+}
+
+var $meeting = new Meeting(
+    Uuid::parse("0190f3a2-7b1c-7def-8a12-3456789abcde"),
+    Date::fromIso("2026-03-02"),
+    TimeOfDay::fromIso("09:00"),
+    DateTime::fromIso("2026-03-02T09:00:00+01:00[Europe/Vienna]"),
+    Duration::parse("1h30m"),
+    Zone::of("Europe/Vienna"),
+);
+
+// Each property is one JSON string.
+// The duration is written as `1h30m` and the zone as its name.
+string $json = Json::encode($meeting);
+echo $json, "\n";
+
+// A decode reads the same strings back into the classes.
+// This prints `2026-03-02 5400`.
+var $back = Json::decodeAs<Meeting>($json);
+echo $back->day->toIso(), " ", $back->length->toSeconds(), "\n";
+
+// A string that is not a valid date throws a `ParseError`.
+// The error names the field.
+try {
+    Json::decodeAs<Meeting>(Core\Str::replace($json, "\"2026-03-02\"", "\"02.03.2026\""));
+} catch (ParseError $bad) {
+    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+}

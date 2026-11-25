@@ -7,10 +7,11 @@ constructor parameter of the same name and type, because a decode calls your con
 `#[Core\Json\Field]` renames one property's key or leaves it out.
 
 A property can have a set of allowed values, such as `"draft"|"live"`. A `mixed` property takes any
-JSON value.
+JSON value. A `Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` property
+is written as a JSON string, such as `"2026-01-05"` or `"1h30m"`.
 
 A decode checks the whole document before it builds anything. If a field is missing or has the
 wrong type, the decode throws a `ParseError`. The error lists every bad field at once.
 
 The examples show an encode, a renamed key, a request body and each check of a decode. They also
-show an enum, a fixed key order, a subclass, a set of allowed values and a `mixed` property.
+show an enum, a fixed key order, a subclass, a set of allowed values, a `mixed` property and dates written as strings.

@@ -1,0 +1,65 @@
+<?nvs
+// Shows a date and a moment in the path, a date and time with its zone in the query, and their links.
+use Core\Http\Method;
+use Core\Time\Date;
+use Core\Time\DateTime;
+use Core\Time\Instant;
+
+class Calendar
+{
+    // `{day}` is a `Date` such as `2026-01-05`. `{since}` is an `Instant` such as
+    // `2026-01-05T07:30:00Z`. A `DateTime` has its zone, so it can only be a query value.
+    #[Core\Route(path: '/days/{day}/since/{since}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function day(Date $day, Instant $since, #[Core\Query] ?DateTime $meeting = null): void
+    {
+        echo 'day ', $day->toIso(), ', since ', $since->toIso();
+        echo ', meeting ', $meeting?->toIso() ?? 'none';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $day = Date::fromIso('2026-01-05');
+    var $since = Instant::fromIso('2026-01-05T08:30:00+01:00');
+    var $meeting = DateTime::fromIso('2026-01-05T14:00:00+01:00[Europe/Vienna]');
+
+    // The path has the ISO text of each value. An `Instant` is written in UTC.
+    // This prints `/days/2026-01-05/since/2026-01-05T07:30:00Z`.
+    echo Core\Router::url(Calendar::day, ['day' => $day, 'since' => $since]), "\n";
+
+    // In the query string, `:`, `+`, `/` and the brackets are percent-encoded.
+    string $link = Core\Router::url(Calendar::day, ['day' => $day, 'since' => $since, 'meeting' => $meeting]);
+    echo $link, "\n";
+
+    // The route reads the link it built. This prints `200` and the three values.
+    var $answer = Core\Test::request(Method::Get, $link);
+    echo $answer->status(), ' ', $answer->body(), "\n";
+
+    // February has no day 30, so no route matches. This prints `404`.
+    var $bad = Core\Test::request(Method::Get, '/days/2026-02-30/since/2026-01-05T07:30:00Z');
+    echo $bad->status(), ' ', $bad->body(), "\n";
+
+    // A `DateTime` needs its zone in brackets. This prints `400`.
+    var $noZone = Core\Test::request(Method::Get, '/days/2026-01-05/since/2026-01-05T07:30:00Z?meeting=2026-01-05T14:00:00');
+    echo $noZone->status(), ' ', $noZone->body(), "\n";
+}

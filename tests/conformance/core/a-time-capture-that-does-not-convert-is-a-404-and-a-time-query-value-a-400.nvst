@@ -2,6 +2,7 @@
 A path capture declared `Core\Time\Date`, `TimeOfDay` or `Instant` converts from its ISO text, and a segment that is not one is not a match, a `404`; a `#[Core\Query]` value of any of the four time classes, `DateTime` included, converts the same way, and a value that is not one is a `400` — `rule:security/route-capture-is-laundered-by-its-type`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-route-and-core-access-the-route-table
 // covers: Core\Router::dispatch
 class Calendar {
     #[Core\Route(path: "/days/{day}", method: Core\Http\Method::Get)]

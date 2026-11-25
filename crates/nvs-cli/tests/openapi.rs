@@ -1060,6 +1060,7 @@ fn core_uuid_keeps_its_named_format_over_that_schema() {
 /// because a query string cannot carry `null` and a present key converts as `T`.
 /// A schema allowing `null` would tell a client it may send a `null` it has no
 /// way to write.
+// covers: lang:attributes/core-api-and-the-openapi-document
 #[test]
 fn a_nullable_query_value_is_optional_and_typed_by_its_inner_type() {
     let (doc, err, ok) = build(&fixture("nullable-query"));
@@ -1091,6 +1092,7 @@ fn a_nullable_query_value_is_optional_and_typed_by_its_inner_type() {
 
 /// A `bool` query value is written `1` or `0`, so the document gives a client
 /// those two integers and never `"type": "boolean"`, whose `true` is a `400`.
+// covers: lang:attributes/core-api-and-the-openapi-document
 #[test]
 fn a_bool_query_value_is_the_integer_0_or_1() {
     let (doc, err, ok) = build(&fixture("bool-query"));
@@ -1119,6 +1121,7 @@ fn a_bool_query_value_is_the_integer_0_or_1() {
 /// `TimeOfDay` and a `DateTime` have no format, because a validator would
 /// refuse their text under JSON Schema's `time` and `date-time`
 /// (`rule:security/route-capture-is-laundered-by-its-type`).
+// covers: lang:attributes/core-api-and-the-openapi-document
 #[test]
 fn a_time_parameter_has_the_format_json_schema_defines_for_it() {
     let (doc, err, ok) = build(&fixture("time-params"));

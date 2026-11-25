@@ -47,8 +47,10 @@ while ($level < 10000) {
     $nested = ['x' => $nested];
     $level = $level + 1;
 }
+// The value is `mixed`, so the program compiles, and the link is checked when it runs.
+mixed $value = $nested;
 try {
-    string $link = Core\Router::url(Files::show, ['name' => 'n', 'q' => $nested]);
+    string $link = Core\Router::url(Files::show, ['name' => 'n', 'q' => $value]);
     echo 'nested: ', Core\Str::length($link), "\n";
 } catch (RuntimeError $e) {
     echo 'nested: error', "\n";

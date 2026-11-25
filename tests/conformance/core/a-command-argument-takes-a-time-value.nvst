@@ -2,6 +2,7 @@
 `Core\Command::run` converts a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` argument from its ISO text, the text each class's `fromIso` reads — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-command-and-core-option-the-command-table
 // Each argument arrives as a time value, so the handler can call `toIso` on it.
 class Planner {
     #[Core\Command(name: "plan", about: "Plan one meeting")]

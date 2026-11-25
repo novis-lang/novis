@@ -903,7 +903,8 @@ codes! {
         "A command line argument arrives as text, so each parameter of a `#[Command]` method needs \
          a type that text can be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an \
          enum, a set of allowed values like `\"asc\"|\"desc\"`, or a class that implements \
-         `Parses`, like `Core\\Uuid`. The last parameter without `#[Option]` can also be \
+         `Parses`, like `Core\\Uuid`. A `Core\\Time\\Date`, `TimeOfDay`, `Instant` or \
+         `DateTime` also works. The last parameter without `#[Option]` can also be \
          `array<string>`. It gets all the remaining words.",
     );
 

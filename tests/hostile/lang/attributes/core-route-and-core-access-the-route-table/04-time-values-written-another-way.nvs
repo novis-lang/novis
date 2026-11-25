@@ -1,0 +1,124 @@
+<?nvs
+// Attack: a request writes dates and times in ways other tools accept, or makes the zone name very long.
+// A path value should get `404`, a query value should get `400`, and the route method should never run.
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+
+class Calendar
+{
+    #[Core\Route(path: '/days/{day}/since/{since}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function day(Core\Time\Date $day, Core\Time\Instant $since): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: '/opens/{at}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function opens(Core\Time\TimeOfDay $at): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: '/meetings', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function meetings(#[Core\Query] Core\Time\DateTime $starts, #[Core\Query] ?Core\Time\Instant $until = null): void
+    {
+        echo 'the method ran';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Attack
+{
+    // This returns 1 when the request got the expected status and the method did not run.
+    public static function held(string $target, int $status): uint
+    {
+        var $answer = Core\Test::request(Method::Get, $target);
+        if ($answer->status() == $status && $answer->body() == 'refused') {
+            return 1;
+        }
+        echo 'not refused: ', $target, ', status ', $answer->status(), "\n";
+        return 0;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // 1. Good values. The method runs, so the refusals below come from the bad values.
+    array<string> $good = [
+        '/days/2026-01-05/since/2026-01-05T07:30:00Z',
+        '/opens/08:30',
+        '/meetings?starts=2026-01-05T08:30:00%2B01:00[Europe/Vienna]',
+    ];
+    foreach ($good as string $target) {
+        var $answer = Core\Test::request(Method::Get, $target);
+        echo $answer->status(), ' ', $answer->body(), "\n";
+    }
+
+    string $longZone = Core\Str::repeat('Europe/', 5000) . 'Vienna';
+
+    array<string> $paths = [
+        // 2. `:` written as `%3A`. A path value is read as it arrived, so this is not a time.
+        '/opens/08%3A30',
+        '/days/2026-01-05/since/2026-01-05T07%3A30%3A00Z',
+        // 3. A fraction of a second with ten digits. Nine is the most.
+        '/days/2026-01-05/since/2026-01-05T07:30:00.1234567890Z',
+        // 4. A day that does not exist, a date with no dashes, and a time with no offset.
+        '/days/2026-02-30/since/2026-01-05T07:30:00Z',
+        '/days/20260105/since/2026-01-05T07:30:00Z',
+        '/days/2026-01-05/since/2026-01-05T07:30:00',
+    ];
+
+    array<string> $queries = [
+        // 5. A zone name with a `!` in front of it. Some tools write a zone this way.
+        '/meetings?starts=2026-01-05T08:30:00%2B01:00[!Europe/Vienna]',
+        // 6. A `+` typed into the value. It is read as a space.
+        '/meetings?starts=2026-01-05T08:30:00+01:00[Europe/Vienna]',
+        '/meetings?starts=2026-01-05T08:30:00[Europe/Vienna]&until=2026-01-05T08:30:00+01:00',
+        // 7. A zone name of many thousand bytes.
+        "/meetings?starts=2026-01-05T08:30:00[{$longZone}]",
+        // 8. A date and time with no zone, and one whose zone does not exist.
+        '/meetings?starts=2026-01-05T08:30:00%2B01:00',
+        '/meetings?starts=2026-01-05T08:30:00[Mars/Olympus]',
+        // 9. A ten-digit fraction in a query value.
+        '/meetings?starts=2026-01-05T08:30:00.1234567890[Europe/Vienna]',
+    ];
+
+    // 10. Every request again, many times, to check that each round gives the same result.
+    uint $held = 0;
+    uint $sent = 0;
+    uint $round = 0;
+    while ($round < 100) {
+        foreach ($paths as string $target) {
+            $held = $held + Attack::held($target, 404);
+            $sent = $sent + 1;
+        }
+        foreach ($queries as string $target) {
+            $held = $held + Attack::held($target, 400);
+            $sent = $sent + 1;
+        }
+        $round = $round + 1;
+    }
+    echo $held, ' of ', $sent, " requests were refused\n";
+    echo "still standing\n";
+}

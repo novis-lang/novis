@@ -458,7 +458,8 @@ const URL_DOC: MethodDoc = MethodDoc {
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
           as they are. A `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime` value is \
           written as its `toIso` text. In the path that text is not encoded, so `08:30` stays \
-          `08:30`.",
+          `08:30`. An object of a class that implements `Parses` is written as the text its \
+          `format` method returns.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "When `$route` is a variable and not a method reference written in the call. When `$params` has no \
@@ -2682,7 +2683,10 @@ fn capture_value(
 /// does owes `parse` to `nvs_types::conformance` before a route row naming it
 /// is ever built.
 fn parsed(ctx: &mut nvs_runtime::Ctx, class: &str, text: Value) -> Result<Value, Fault> {
-    let outcome = nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[text]);
+    let outcome = match crate::registry::core_parse(class, text) {
+        Some(parsed) => parsed.map(Some),
+        None => nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[text]),
+    };
     #[expect(
         unsafe_code,
         reason = "this frame owns the one reference `text` holds, and `call_static` \

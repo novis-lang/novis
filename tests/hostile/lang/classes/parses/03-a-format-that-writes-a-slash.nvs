@@ -1,0 +1,118 @@
+<?nvs
+// Attack: a `format` method returns text with `/`, `..`, `?` and `#` to make a link reach another route.
+// Each link should stay on its own route, and the admin page should never run.
+// hostile: timeout-ms 30000
+// covers: lang:classes/parses, Core\Router::url
+
+use Core\Http\Method;
+
+final class Name implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
+
+    public static function parse(tainted string $s): static
+    {
+        return new static($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
+}
+
+class Pages
+{
+    #[Core\Route(path: '/files/{name}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(Name $name): void
+    {
+        echo 'file ', Core\Str::length($name->text);
+    }
+
+    #[Core\Route(path: '/search', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(#[Core\Query] Name $q): void
+    {
+        echo 'search ', Core\Str::length($q->text);
+    }
+
+    #[Core\Route(path: '/admin', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function admin(#[Core\Query] string $x = ''): void
+    {
+        echo 'ADMIN';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Attack
+{
+    // This returns 1 when the link reached the route it was built for.
+    // Each route prints the length of the text, so the length must be the same.
+    public static function held(string $link, string $expected): uint
+    {
+        var $answer = Core\Test::request(Method::Get, $link);
+        if ($answer->body() == $expected) {
+            return 1;
+        }
+        echo 'escaped: ', $link, ', status ', $answer->status(), ' ', $answer->body(), "\n";
+        return 0;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $texts = [
+        // 1. A path that climbs out of `/files` and adds a query string.
+        '../admin?x=1',
+        // 2. The same path with more `..` segments and a `#`.
+        '../../../admin#top',
+        // 3. A `/` at the start and an `&` that tries to start a second query key.
+        '/admin&x=1',
+        // 4. Text that is already percent-encoded.
+        '..%2Fadmin%3Fx%3D1',
+        // 5. A backslash, which some servers read as `/`.
+        '..\\admin',
+    ];
+
+    // 6. Builds each link in the path and in the query string, many times, and follows it.
+    uint $held = 0;
+    uint $sent = 0;
+    uint $round = 0;
+    while ($round < 100) {
+        foreach ($texts as string $text) {
+            var $name = new Name($text);
+            string $path = Core\Router::url(Pages::file, ['name' => $name]);
+            string $query = Core\Router::url(Pages::search, ['q' => $name]);
+            if ($round == 0) {
+                echo $path, "\n", $query, "\n";
+            }
+            uint $length = Core\Str::length($text);
+            $held = $held + Attack::held($path, "file {$length}") + Attack::held($query, "search {$length}");
+            $sent = $sent + 2;
+        }
+        $round = $round + 1;
+    }
+    echo $held, ' of ', $sent, " links stayed on their route\n";
+    echo "still standing\n";
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how `Core\Json::encode` writes dates, durations and time zones.
+
+use Core\Json;
+use Core\Time\Date;
+use Core\Time\Duration;
+use Core\Time\Zone;
+
+// Each value is written as one JSON string.
+// This prints `{"day":"2026-05-14","length":"1h30m","zone":"Europe/Vienna"}`.
+echo Json::encode([
+    'day' => Date::fromIso('2026-05-14'),
+    'length' => Duration::parse('1h30m'),
+    'zone' => Zone::of('Europe/Vienna'),
+]), "\n";

@@ -1,3 +1,29 @@
+Novis collects every route into one table at compile time. You write the method for
+`Core\Router::url` without brackets, such as `Shop::show`. An unknown method, a method with no route
+or a missing capture is a compile error. The server matches each request to a route before your program runs. A program can read the
+match with `Core\Request::route()`.
+
+A parameter written `?uint $page = null` is optional. When the key is missing, the value is `null`.
+When the key is there, its value converts as a `uint`, and a bad value is a `400`. This works for
+every type that a query parameter can have, such as a class that implements `Parses`.
+
+A `bool` query value is `1` for `true` and `0` for `false`. Any other text, such as `true` or `on`,
+is a `400`. A checkbox in a form sends `on`, so give it `value="1"`.
+
+A capture or a query value may be a `Core\Time\Date`, `TimeOfDay` or `Instant`. A `#[Core\Query]`
+value may also be a `Core\Time\DateTime`. Each is read from the text its `toIso` method writes, such
+as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. A `DateTime` needs its zone in brackets, such
+as `2026-01-05T14:00:00+01:00[Europe/Vienna]`. The offset may be left out. A `DateTime` path capture
+is `E0752`, because the server does not accept a path with `%2F` in it. Use an `Instant` in the path
+instead.
+
+A time capture is read as it arrived, so `08%3A30` is not `08:30`. A capture that does not convert is
+a `404`, and a query value that does not convert is a `400`. In a query string, a `+` that you type
+is read as a space, so that value is a `400`. Write it as `%2B`.
+
+`Core\Router::url` writes a time value as its ISO text. In the path the text is not encoded. In the
+query string, `:`, `+`, `/` and the brackets are percent-encoded, and the route reads that link.
+
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
 `Core\Http\Method` is `E0401`.

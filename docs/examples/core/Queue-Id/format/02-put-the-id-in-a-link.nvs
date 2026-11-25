@@ -1,0 +1,24 @@
+<?nvs
+// Shows how `Core\Router::url` writes a job id into a link.
+use Core\Queue\Id;
+
+class Exports
+{
+    #[Core\Route(path: '/exports/{job}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Id $job): void
+    {
+        echo 'Export ', $job->format(), "\n";
+    }
+}
+
+// An earlier request saved this id.
+var $job = Id::parse('42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw');
+
+// `Core\Router::url` calls `format` to write the id into the path.
+// This prints `/exports/42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw`.
+string $link = Core\Router::url(Exports::show, ['job' => $job]);
+echo $link, "\n";
+
+// The string has no character that a URL must escape. This prints `unchanged`.
+echo $link == '/exports/' . $job->format() ? 'unchanged' : 'changed', "\n";

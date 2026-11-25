@@ -1,0 +1,15 @@
+<?nvs
+// Shows how `Core\Uri::buildQuery` writes a job id into a query string.
+use Core\Queue\Id;
+
+// An earlier request saved this id.
+var $job = Id::parse('42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw');
+
+// `buildQuery` calls `format` for the id. Other values are written as they are.
+// This prints `job=42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw&tab=status`.
+string $query = Core\Uri::buildQuery(['job' => $job, 'tab' => 'status']);
+echo $query, "\n";
+
+// A later request reads the id back with `Id::parse`. This prints `same`.
+string $sent = Core\Str::split(Core\Str::split($query, '&')[0], '=')[1];
+echo Id::parse($sent)->format() == $job->format() ? 'same' : 'different', "\n";

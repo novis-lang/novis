@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `Core\Uri::buildQuery` writes a UUID into a query string.
+
+var $customer = Core\Uuid::parse('F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4');
+
+// `buildQuery` calls `format` for the UUID. Other values are written as they are.
+// This prints customer=f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4&page=2.
+string $query = Core\Uri::buildQuery(['customer' => $customer, 'page' => 2]);
+echo $query, "\n";
+
+// The text has no character that a URL must escape, so it is not changed.
+// This prints "unchanged".
+echo Core\Uri::encodeComponent($customer->format()) == $customer->format() ? 'unchanged' : 'changed', "\n";

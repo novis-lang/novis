@@ -10,7 +10,8 @@ returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\
 string. It has only letters, digits, `.`, `-` and `_`, so you can put it in a URL, a cookie or JSON
 as it is. In a later request, `Core\Queue\Id::parse($text)` reads the string back into an `Id`. It
 throws a `RuntimeError` when the text is not a job id. `Core\Queue\Id::tryParse($text)` returns
-`null` instead.
+`null` instead. `$id->format()` returns the same string as `toString`. `Core\Router::url` and
+`Core\Uri::buildQuery` call it to write an id into a link.
 
 The string contains a random part. If somebody changes or guesses the string, it finds no job:
 `status` throws a `RuntimeError`, as for a deleted job, and `cancel` returns `false`. The string does

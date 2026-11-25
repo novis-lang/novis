@@ -619,11 +619,13 @@ class the code is written in. `static` is the class the call was made on, which 
 `parent` is the class this one extends, so `parent::format()` calls the parent's version.
 
 **Good to know:** a method that says it returns `static` must return the object it was called on, or
-a new object of the same class.
+a new object of the same class. In a `final` class, `static` is that class, so the method may return
+any object of it, such as a stored one.
 
 **The examples below** show the two kinds of method, `self` beside `static` in a subclass, and a
-subclass that calls its parent's version. The last two show a chain of calls with an anonymous
-function that keeps `$this`, and a return type `static` that does not compile.
+subclass that calls its parent's version. Then come a chain of calls with an anonymous function that
+keeps `$this`, and a return type `static` that does not compile. The last one shows a `final` class
+whose method returns a stored object.
 
 An anonymous function written inside a method keeps that method's `$this`. It may read the class's
 `private` properties and call its `private` methods.
@@ -853,6 +855,47 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+## Example 06: static in a final class
+
+```nvs
+<?nvs
+// Shows that in a `final` class, `static` means that class, so a method may return a stored object.
+
+final class Color
+{
+    // The first call to `named('red')` stores the color here.
+    private static ?Color $red = null;
+
+    public function constructor(public string $name)
+    {}
+
+    // `Color` is `final`, so it has no subclass, and `static` is always `Color`.
+    // That is why this method may return the stored color.
+    public static function named(string $name): static
+    {
+        if ($name != 'red') {
+            return new static($name);
+        }
+        ?Color $stored = Color::$red;
+        if ($stored != null) {
+            return $stored;
+        }
+        Color $made = new Color('red');
+        Color::$red = $made;
+        return $made;
+    }
+}
+
+// Both calls return the same stored object, so this prints `true`.
+echo Color::named('red') == Color::named('red') ? 'true' : 'false', "\n";
+echo Color::named('blue')->name, "\n";
+```
+
+```output
+true
+blue
 ```
 
 # Constants and `::class`
@@ -3649,21 +3692,41 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 `Parses` is the interface for a class that is built out of a piece of text.
 
-A class that implements it writes one method,
-`public static function parse(tainted string $s): static`. The method returns an object of the class,
-or throws an error when the text is not valid. `tainted` says the text came from outside your
-program, such as a web request or a command line.
+A class that implements it writes two methods. The static method `parse(tainted string $s): static`
+returns an object of the class, or throws an error when the text is not valid. `tainted` says the
+text came from outside your program. The method `format()` returns the text that `parse` reads.
+`Core\Router::url` calls `format` to write the value into a link.
+
+Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or a command argument
+has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`.
+
+**The examples below** show a product code built from text, what a subclass gets back, values from a
+form, a class used in a route, a route that does not compile, and a `final` class that loads a
+stored order.
+
+The two methods are `public static function parse(tainted string $s): static` and
+`public function format(): tainted string`. `tainted` text comes from outside your program, such as
+a web request or a command line.
 
 Novis needs this interface everywhere text from outside becomes a value: a piece of a route path, a
-`#[Core\Query]` parameter, a command argument and a command option. You declare the parameter at your
-own class, and Novis calls `parse` for you. A parameter typed at a class that does not implement
-`Parses` does not compile, and the error says so.
+`#[Core\Query]` parameter, a command argument and a command option. A parameter typed at a class that
+does not implement `Parses` does not compile, and the error says so.
 
-**Good to know:** the return type `static` means the class the call named, so a subclass that
-inherits `parse` gets an object of the subclass back.
+In a route, `parse` runs before `Core\Router\Gate::allows`. So `allows` can check the object with
+`$route->parameter('name')`, and this works the same for a path capture and a query value. If
+`parse` throws, the gate's `refused` method gets `Core\Router\Refusal::BadCapture`, and the default
+status is `400`.
 
-**The examples below** show a product code built from text, what a subclass gets back, a list of
-values from a form checked one by one, a class used in a route, and a route that does not compile.
+The return type `static` means the class the call named, so a subclass that inherits `parse` gets an
+object of the subclass back. In a `final` class, `static` is that class. There, `parse` may return an
+object that already exists, such as a record it loads by its id.
+
+`parse` runs for every request that matches the route, before `allows`. It runs whether the visitor
+is signed in or not. Sometimes even the time of a lookup must not show whether a record exists. Then
+declare the parameter as `string` and load the record after `allows`.
+
+`Core\Router::url` puts the text that `format` returns into its own path segment and percent-encodes
+it. A `/`, `?` or `#` in that text cannot reach another route or start the query string.
 
 A class that implements `Parses` must have two methods: `parse` and `format`. A class without one of
 them is the error `E0449`. In a class that is not `final`, a `parse` method with a return type other
@@ -3933,6 +3996,123 @@ error[E0752]: `Tag` is not a type `{tag}` can arrive at
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+## Example 06: a final class loads a stored record
+
+```nvs
+<?nvs
+// Shows a `final` class whose `parse` loads a stored order by its id.
+// The gate checks the order before the route method runs.
+use Core\Http\Method;
+
+final class Order implements Parses
+{
+    public function constructor(public uint $id, public string $owner)
+    {}
+
+    // The orders this program has stored. An unknown id gives `null`.
+    public static function find(uint $id): ?Order
+    {
+        return match ($id) {
+            1 => new Order(1, 'ann'),
+            2 => new Order(2, 'bob'),
+            default => null,
+        };
+    }
+
+    // `Order` is `final`, so `parse` may return an order that already exists.
+    // An id with no stored order throws `ParseError`.
+    public static function parse(tainted string $s): static
+    {
+        ?uint $id = $s as ?uint;
+        ?Order $order = $id == null ? null : Order::find($id);
+        if ($order != null) {
+            return $order;
+        }
+        throw new ParseError('no such order');
+    }
+
+    // `format` returns the id, which is the text `parse` reads.
+    public function format(): string
+    {
+        return "{$this->id}";
+    }
+}
+
+class Orders
+{
+    // The order comes from the path, as in `/orders/1`.
+    #[Core\Route(path: '/orders/{order}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+
+    // The order comes from the query string, as in `/order?order=1`.
+    #[Core\Route(path: '/order', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function find(#[Core\Query] Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+}
+
+// In this example the person signed in is always `ann`.
+class Gate implements Core\Router\Gate
+{
+    // `parse` has already run, so `parameter` returns the stored order.
+    // This works the same for both routes.
+    public function allows(Core\Router\Match $route): bool
+    {
+        var $value = $route->parameter('order');
+        if ($value == null) {
+            return false;
+        }
+        Order $order = $value as Order;
+        return $order->owner == 'ann';
+    }
+
+    // A missing order gives `BadCapture`, and another person's order gives `Denied`.
+    // Both get status `404`, so a visitor cannot find out which ids exist.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {
+            Core\Response::setStatus(404);
+        }
+        echo 'not found';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
+    // This prints `200` once and then `404` twice, for each address.
+    var $paths = [
+        '/orders/1', '/orders/9', '/orders/2',
+        '/order?order=1', '/order?order=9', '/order?order=2',
+    ];
+    foreach ($paths as string $path) {
+        var $response = Core\Test::request(Method::Get, $path);
+        echo $path, ': ', $response->status(), ' ', $response->body(), "\n";
+    }
+}
+```
+
+```output
+/orders/1: 200 order 1 of ann
+/orders/9: 404 not found
+/orders/2: 404 not found
+/order?order=1: 200 order 1 of ann
+/order?order=9: 404 not found
+/order?order=2: 404 not found
 ```
 
 # Revocable objects

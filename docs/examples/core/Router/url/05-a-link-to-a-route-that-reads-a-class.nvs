@@ -1,0 +1,65 @@
+<?nvs
+// Shows the link to a route whose capture is a class that implements `Parses`.
+
+// An ISBN is a book number. `Isbn::parse` removes the dashes. It throws an error if 13 digits do not remain.
+final class Isbn implements Parses
+{
+    public function constructor(public tainted string $digits)
+    {}
+
+    public static function parse(tainted string $s): static
+    {
+        tainted string $digits = Core\Str::replace($s, '-', '');
+        if (Core\Str::length($digits) != 13 || ($digits as ?uint) == null) {
+            throw new ParseError('an ISBN has 13 digits');
+        }
+        return new static($digits);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->digits;
+    }
+}
+
+class Books
+{
+    #[Core\Route(path: '/books/{isbn}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Isbn $isbn): void
+    {
+        echo 'the book ', $isbn->digits;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `Core\Router::url` calls `format` for the capture. This prints `/books/9780306406157`.
+    var $isbn = Isbn::parse('978-0-306-40615-7');
+    string $link = Core\Router::url(Books::show, ['isbn' => $isbn]);
+    echo $link, "\n";
+
+    // The route calls `Isbn::parse` with the text of the link. This prints `200` and the digits.
+    var $answer = Core\Test::request(Core\Http\Method::Get, $link);
+    echo $answer->status(), ' ', $answer->body(), "\n";
+}

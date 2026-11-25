@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a date and a moment in time are written into a query string.
+
+array<mixed> $range = [
+    'from' => Core\Time\Date::fromIso('2026-01-05'),
+    'until' => Core\Time\Instant::fromIso('2026-01-31T18:00:00Z'),
+];
+
+// Each value is written as its ISO text, and `:` becomes `%3A`.
+// This prints from=2026-01-05&until=2026-01-31T18%3A00%3A00Z.
+echo Core\Uri::buildQuery($range), "\n";
+
+// A `DateTime` has an offset and a zone. The `+` becomes `%2B`, so it is not read as a space.
+var $meeting = Core\Time\DateTime::fromIso('2026-01-05T14:00:00+01:00[Europe/Vienna]');
+echo Core\Uri::buildQuery(['meeting' => $meeting]), "\n";

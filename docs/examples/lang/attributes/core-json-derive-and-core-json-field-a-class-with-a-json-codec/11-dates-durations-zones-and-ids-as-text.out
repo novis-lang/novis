@@ -1,0 +1,3 @@
+{"id":"0190f3a2-7b1c-7def-8a12-3456789abcde","day":"2026-03-02","opens":"09:00:00","starts":"2026-03-02T09:00:00+01:00[Europe/Vienna]","length":"1h30m","zone":"Europe/Vienna"}
+2026-03-02 5400
+day: expected a date as a string such as 2026-01-05, found a string

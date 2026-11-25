@@ -1,0 +1,28 @@
+<?nvs
+// Shows a command whose argument is a date and whose option is a moment in time.
+// Each is written as ISO text on the command line.
+
+class Report
+{
+    // `report 2026-03-14 --since 2026-03-14T09:00:00Z` on the command line runs this
+    // command. A word that is not a date is a usage error.
+    #[Core\Command(name: 'report', about: 'Count the orders of one day')]
+    public static function report(
+        Core\Time\Date $day,
+        #[Core\Option(about: 'Count only the orders after this moment')] Core\Time\Instant $since,
+    ): uint
+    {
+        echo 'orders of ', $day->toIso(), ' since ', $since->toIso(), "\n";
+        return 0;
+    }
+}
+
+// The help page shows the type of each value.
+echo Core\Command::help('report');
+
+// The command is a static method. You can call it yourself with the same values.
+uint $status = Report::report(
+    Core\Time\Date::fromIso('2026-03-14'),
+    Core\Time\Instant::fromIso('2026-03-14T09:00:00Z'),
+);
+echo 'exit status ', $status, "\n";

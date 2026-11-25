@@ -1,0 +1,46 @@
+<?nvs
+// Shows how `Core\Router::url` writes a UUID into a link.
+
+class Orders
+{
+    #[Core\Route(path: "/orders/{order}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Core\Uuid $order): void
+    {
+        echo 'Order ', $order->format(), "\n";
+    }
+}
+
+// The gate lets every request through.
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'no page here';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'something went wrong';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Open());
+} else {
+    var $order = Core\Uuid::parse('0190D1E6-8E3C-7C2A-9A4B-1F2E3D4C5B6A');
+
+    // `Core\Router::url` calls `format` to write the UUID into the path.
+    // This prints /orders/0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a.
+    string $link = Core\Router::url(Orders::show, ['order' => $order]);
+    echo $link, "\n";
+
+    // The route reads the same UUID from the link. This prints 200 and the order.
+    var $answer = Core\Test::request(Core\Http\Method::Get, $link);
+    echo $answer->status(), ' ', $answer->body();
+}

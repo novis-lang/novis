@@ -1,0 +1,25 @@
+--TEST--
+`Core\Queue\Id::format` returns the string `Core\Queue\Id::parse` reads back to the same id, and it is the string `toString` gives; the string has only letters, digits, `.`, `-` and `_` — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// covers: Core\Queue\Id::format
+use Core\Queue\Id;
+
+array<string> $texts = [
+    "1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM",
+    "42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw",
+    "90817.Zm9vYmFyYmF6cXV4cXV1eA.bWFpbA",
+];
+foreach ($texts as string $text) {
+    var $id = Id::parse($text);
+    string $formatted = $id->format();
+    echo $formatted;
+    echo $formatted == $text ? " unchanged" : " CHANGED";
+    echo $formatted == $id->toString() ? " same" : " DIFFERENT";
+    echo Id::parse($formatted)->format() == $formatted ? " round-trips" : " LOST";
+    echo Core\Regex::matches($formatted, '^[A-Za-z0-9._-]+$') ? " safe" : " NOT SAFE", "\n";
+}
+--EXPECT--
+1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM unchanged same round-trips safe
+42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw unchanged same round-trips safe
+90817.Zm9vYmFyYmF6cXV4cXV1eA.bWFpbA unchanged same round-trips safe

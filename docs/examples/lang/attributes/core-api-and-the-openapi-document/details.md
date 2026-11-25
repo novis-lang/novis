@@ -22,7 +22,10 @@ Each capture is a parameter with `"in": "path"`, and it is always required. Each
 parameter is a parameter with `"in": "query"`. It is required when it has no default value. Each type
 has its own schema. An `int` is `integer`, and a `uint` is `integer` with a `minimum` of `0`. A
 `decimal` is a `string` with the format `decimal`. An enum lists the names of its cases, and a set of
-allowed values such as `'x'|'y'` lists those values.
+allowed values such as `'x'|'y'` lists those values. A `bool` query value is `integer` with the
+`enum` `[0, 1]`. A `Core\Time\Date` is a `string` with the format `date`, and a `Core\Time\Instant`
+is a `string` with the format `date-time`. A `TimeOfDay` or a `DateTime` is a `string` with no
+format, and a `Core\Uuid` is a `string` with the format `uuid`.
 
 The `200` response has the schema of the return type when it is `string`, `int`, `uint`, `float`,
 `bool` or `decimal`. Every other return type has the empty schema `{}`. This includes a class, an

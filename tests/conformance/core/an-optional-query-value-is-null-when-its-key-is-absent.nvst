@@ -2,6 +2,7 @@
 A `#[Core\Query]` parameter declared `?T $x = null` is optional: an absent key gives `null`, a present key converts as `T`, and a value that does not convert is a `400` — `rule:routing/a-query-parameter-is-declared-like-a-capture`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-route-and-core-access-the-route-table
 // covers: Core\Router::dispatch
 // `parse` throws an error for the text `bad`.
 class Tag implements Parses {

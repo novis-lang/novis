@@ -1,0 +1,36 @@
+--TEST--
+`Core\Router::url` writes a `Core\Queue\Id` route value as its `format()` string, in its path segment and in the query string with no escaping, and each written string reads back to the same id; `Core\Uri::buildQuery` writes the same string — `rule:routing/link-target-and-params-are-checked`, `rule:routing/a-leftover-link-key-is-a-query-string`
+--FILE--
+<?nvs
+// covers: Core\Queue\Id::format
+use Core\Queue\Id;
+
+class Exports {
+    #[Core\Route(path: "/exports/{job}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Id $job, #[Core\Query] ?Id $previous = null): void {
+        echo "job ", $job->format(), " previous ", $previous?->format() ?? "none", "\n";
+    }
+}
+
+var $job = Id::parse("42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw");
+var $previous = Id::parse("1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM");
+
+string $link = Core\Router::url(Exports::show, ["job" => $job, "previous" => $previous]);
+echo $link, "\n";
+
+// The link has no escaped character, so each part reads back with `Id::parse` as it is.
+array<string> $halves = Core\Str::split($link, "?");
+string $segment = Core\Str::split($halves[0], "/")[2];
+string $query = Core\Str::split($halves[1], "=")[1];
+echo Id::parse($segment)->format() == $job->format() ? "job same" : "job DIFFERENT", "\n";
+echo Id::parse($query)->format() == $previous->format() ? "previous same" : "previous DIFFERENT", "\n";
+
+echo Core\Router::url(Exports::show, ["job" => $job]), "\n";
+echo Core\Uri::buildQuery(["job" => $job]), "\n";
+--EXPECT--
+/exports/42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw?previous=1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM
+job same
+previous same
+/exports/42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw
+job=42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw

@@ -1,0 +1,38 @@
+<?nvs
+// Shows how the API document describes a date, an optional query value and a
+// `bool` query value. `nvs build --openapi` reads each one from the parameter's
+// type.
+
+class Reports
+{
+    /// List the orders of one day.
+    #[Core\Route(path: '/reports/{day}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ['Reports'])]
+    public function orders(
+        // In the document, `day` is a string with the format `date`.
+        Core\Time\Date $day,
+        // `?Core\Time\Instant` with `= null` is optional, so the document says it is not
+        // required. Its schema is a string with the format `date-time`.
+        #[Core\Query] ?Core\Time\Instant $since = null,
+        // A `bool` query value is written `1` or `0`. The document gives it as an
+        // integer with the values `0` and `1`.
+        #[Core\Query] bool $shipped = false,
+    ): string
+    {
+        string $from = $since?->toIso() ?? 'the start of the day';
+        return 'orders of ' . $day->toIso() . ' since ' . $from . ($shipped ? ', shipped only' : '');
+    }
+}
+
+// A link to the route writes each value as text. This prints
+// `/reports/2026-03-14?since=2026-03-14T09%3A00%3A00Z&shipped=1`.
+echo Core\Router::url(Reports::orders, [
+    'day' => Core\Time\Date::fromIso('2026-03-14'),
+    'since' => Core\Time\Instant::fromIso('2026-03-14T09:00:00Z'),
+    'shipped' => true,
+]), "\n";
+
+// A route is an ordinary method. You can call it directly.
+Reports $reports = new Reports();
+echo $reports->orders(Core\Time\Date::fromIso('2026-03-14')), "\n";

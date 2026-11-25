@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program writes UUIDs into links and query strings very many times, in every letter case.
+// Each text should be 36 lower-case characters, read back to the same UUID, and be freed.
+
+class Orders
+{
+    #[Core\Route(path: "/orders/{order}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Core\Uuid $order): void
+    {
+        echo $order->format(), "\n";
+    }
+}
+
+// 1. The nil UUID and the max UUID, read in upper case.
+// This prints 36 zeros and hyphens, and then 36 of "f" and hyphens.
+echo Core\Uuid::parse('00000000-0000-0000-0000-000000000000')->format(), "\n";
+echo Core\Uuid::parse('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')->format(), "\n";
+
+// 2. The text of one UUID is asked for one million times. Each copy is freed.
+// This prints 36000000.
+var $id = Core\Uuid::v7();
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = $total + Core\Str::length($id->format());
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+// 3. A link is built for 100000 new UUIDs. Each link should end with the lower-case text.
+// Each text should read back to the same UUID. This prints 100000 and then 100000.
+int $links = 0;
+int $same = 0;
+$i = 0;
+while ($i < 100000) {
+    var $drawn = Core\Uuid::v4();
+    string $link = Core\Router::url(Orders::show, ['order' => $drawn]);
+    if ($link == '/orders/' . Core\Str::lower($drawn->format())) {
+        $links = $links + 1;
+    }
+    if (Core\Uuid::parse($drawn->format())->toBytes() == $drawn->toBytes()) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $links, "\n";
+echo $same, "\n";
+
+// 4. A query string with 10000 UUIDs in it. Its length should be exact.
+// Each pair is a key, "=" and 36 characters, and "&" joins the pairs. This prints 428889.
+array<mixed> $pairs = [];
+$i = 0;
+while ($i < 10000) {
+    $pairs['k' . $i] = Core\Uuid::v4();
+    $i = $i + 1;
+}
+echo Core\Str::length(Core\Uri::buildQuery($pairs)), "\n";

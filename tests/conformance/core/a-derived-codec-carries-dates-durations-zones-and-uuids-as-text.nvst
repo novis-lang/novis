@@ -2,6 +2,7 @@
 A `#[Core\Json\Derive]` class writes and reads `Date`, `TimeOfDay`, `DateTime`, `Duration`, `Zone` and `Core\Uuid` properties as the text each class reads back, and a text the class does not read is one issue at its path — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
+// covers: Core\Json::encode, Core\Json::decodeAs
 // covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
 // Each of these `Core` classes is written as one JSON string.
 // Decoding reads the same text back into the class.

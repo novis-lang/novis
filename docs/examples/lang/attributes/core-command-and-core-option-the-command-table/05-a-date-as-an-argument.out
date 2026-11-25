@@ -1,0 +1,11 @@
+usage: report <day> [--since]
+
+Count the orders of one day
+
+arguments:
+  <day>  Core\Time\Date
+
+options:
+  --since  Core\Time\Instant  Count only the orders after this moment
+orders of 2026-03-14 since 2026-03-14T09:00:00Z
+exit status 0

@@ -1,0 +1,38 @@
+--TEST--
+`Core\Uuid::format` returns the text `Core\Uuid::parse` reads back to the same sixteen bytes, and it is the text `toString` gives: always 36 characters in lower case, whatever case `parse` read — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// covers: Core\Uuid::format
+array<string> $texts = [
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
+    "00000000-0000-0000-0000-000000000000",
+    "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+];
+foreach ($texts as string $text) {
+    var $id = Core\Uuid::parse($text);
+    string $formatted = $id->format();
+    echo $formatted, " ", Core\Str::length($formatted);
+    echo $formatted == $id->toString() ? " same" : " DIFFERENT";
+    echo Core\Uuid::parse($formatted)->toBytes() == $id->toBytes() ? " round-trips" : " LOST", "\n";
+}
+
+// A drawn value of each version round-trips too.
+int $kept = 0;
+int $i = 0;
+while ($i < 1000) {
+    var $a = Core\Uuid::v4();
+    var $b = Core\Uuid::v7();
+    if (Core\Uuid::parse($a->format())->toBytes() == $a->toBytes()
+        && Core\Uuid::parse($b->format())->toBytes() == $b->toBytes()) {
+        $kept = $kept + 1;
+    }
+    $i = $i + 1;
+}
+echo "kept ", $kept, "\n";
+--EXPECT--
+f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4 36 same round-trips
+f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4 36 same round-trips
+00000000-0000-0000-0000-000000000000 36 same round-trips
+ffffffff-ffff-ffff-ffff-ffffffffffff 36 same round-trips
+kept 1000

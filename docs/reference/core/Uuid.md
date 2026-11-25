@@ -7,8 +7,10 @@ A `Uuid` is an opaque 128-bit value, not a string: `v4` draws a random one, `v7`
 whose leading bits are a millisecond timestamp — the right database key and the wrong public
 identifier, since it tells the reader when the row was made. `parse` reads only the canonical
 hyphenated `8-4-4-4-12` form, in either letter case, and refuses the unhyphenated, braced and
-`urn:uuid:` spellings; asking whether text is a UUID is `tryParse($s) != null`. `toString` — and
-`echo` — is the only way text comes back out, always lower-case. Two `Uuid` objects compare by
+`urn:uuid:` spellings; asking whether text is a UUID is `tryParse($s) != null`. `toString` and
+`echo` give the text back, always in lower case. `format` returns the same text. It is the method of
+the `Parses` interface that `Core\Router::url` and `Core\Uri::buildQuery` call to write a UUID into a
+link. Two `Uuid` objects compare by
 identity under `==`, so two values are compared through their text.
 
 ```nvs
