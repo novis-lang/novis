@@ -113,7 +113,7 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, DocComment, DocTag, DocTagKind, Expr, ExprKind, FnBody, MemberName,
-    MethodMember, Modifier, NamespaceDecl, Param, Stmt, StmtKind, StringPart, TestOperand, Type,
+    MethodMember, Modifier, NamespaceDecl, NewTarget, Param, Stmt, StmtKind, StringPart, TestOperand, Type,
     TypeKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -2262,7 +2262,27 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 e!(index);
             }
         }
-        ExprKind::New { args, .. } => walk_args(args, src, ctx, env),
+        ExprKind::New { target, args, .. } => {
+            if env.in_block && matches!(target, NewTarget::StaticTy | NewTarget::ParentTy) {
+                let written = if matches!(target, NewTarget::StaticTy) {
+                    "static"
+                } else {
+                    "parent"
+                };
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_EXTEND_MEMBER_NOT_ADDABLE,
+                        format!("an `extend` block cannot use `new {written}`"),
+                    )
+                    .with_primary(expr.span, "not allowed in an `extend` block")
+                    .with_help(
+                        "write `new self`. In an `extend` block, `self` is the extended type, and \
+                         an added member is never inherited",
+                    ),
+                );
+            }
+            walk_args(args, src, ctx, env);
+        }
         ExprKind::Fn(fn_expr) => {
             for param in &fn_expr.params {
                 if let Some(default) = &param.default {

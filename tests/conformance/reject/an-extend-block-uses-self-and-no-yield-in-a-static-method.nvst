@@ -1,5 +1,5 @@
 --TEST--
-an `extend` block names its type with `self::`: `static::` and `parent::` in its body are `E0338`, and so is `yield` in an added static method or in a block on an enum — `rule:classes/an-extend-block-adds-members-to-a-type`
+an `extend` block names its type with `self::`: `static::`, `parent::` and `new static` in its body are `E0338`, and so is `yield` in an added static method or in a block on an enum — `rule:classes/an-extend-block-adds-members-to-a-type`
 --FILE--
 <?nvs
 use Core\Time\Date;
@@ -8,6 +8,10 @@ use Core\Audience;
 extend Date as Days {
     public static function first(): Date {
         return static::at(2026, 1, 1);
+    }
+
+    public static function copy(): Date {
+        return new static();
     }
 
     public function before(): Date {
@@ -36,24 +40,31 @@ error[E0338]: an `extend` block cannot use `static::`
   |                ^^^^^^ not allowed in an `extend` block
   = help: write `self::`. In an `extend` block, `self` is the extended type, and an added member is never inherited
 
-error[E0338]: an `extend` block cannot use `parent::`
+error[E0338]: an `extend` block cannot use `new static`
    --> %s:11:16
    |
-11 |         return parent::at(2026, 1, 1);
+11 |         return new static();
+   |                ^^^^^^^^^^^^ not allowed in an `extend` block
+   = help: write `new self`. In an `extend` block, `self` is the extended type, and an added member is never inherited
+%A
+error[E0338]: an `extend` block cannot use `parent::`
+   --> %s:15:16
+   |
+15 |         return parent::at(2026, 1, 1);
    |                ^^^^^^ not allowed in an `extend` block
 %A
 error[E0338]: an `extend` block cannot add a method that uses `yield` here
-   --> %s:14:28
+   --> %s:18:28
    |
-14 |     public static function months(): Iterator<int> {
+18 |     public static function months(): Iterator<int> {
    |                            ^^^^^^ not allowed in an `extend` block
    = help: return an array from the method. An added static method, and an added method of an enum, cannot use `yield`
 
 error[E0338]: an `extend` block cannot add a method that uses `yield` here
-   --> %s:20:21
+   --> %s:24:21
    |
-20 |     public function names(): Iterator<string> {
+24 |     public function names(): Iterator<string> {
    |                     ^^^^^ not allowed in an `extend` block
 %A
-error: aborting due to 4 errors
+error: aborting due to 6 errors
 %A
