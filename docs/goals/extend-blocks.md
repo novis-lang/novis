@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-hir/src/members.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/call.rs, crates/nvs-diagnostics/src/code/names.rs]
   - id: 4
     title: "an added member never changes a type: collisions, unions, interfaces, generics, nested types, restrictions and every dynamic path"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/conformance.rs, crates/nvs-types/src/restrict.rs, crates/nvs-types/src/attributes.rs, crates/nvs-types/src/expr/operators.rs, docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md]
   - id: 5
     title: "added properties: get hooks on every type, stored values in one hidden slot"
@@ -515,7 +515,7 @@ classes are the ones that goal makes compare by value.
 - [x] `crates/nvs-hir/src/resolve.rs:157`: a block's nested enum declared as `<Type>::<Enum>`;
   `crates/nvs-types/src/attributes.rs:975`: a block's nested attribute is owned by the extended type,
   and one on a sealed `Core` class does not compile. The two cases the check `nested` names.
-- [ ] `crates/nvs-types/src/restrict.rs:709` and `crates/nvs-config/src/restrict.rs:45`: the block as
+- [x] `crates/nvs-types/src/restrict.rs:709` and `crates/nvs-config/src/restrict.rs:45`: the block as
   the place; an entry naming `<Block>::<member>`; an entry on a type not holding added members. Edit
   `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:13` and `:62`. The two cases
   the check `restrict` names.
@@ -591,36 +591,35 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 is open: items 1 to 4 and 6 are done, and `collisions`,
-`dynamic-paths`, `reach` and `nested` are green. How it works is in `crates/nvs-types/src/extend.rs`'s
-module docs, the rule fragments and the standing decisions.
+Stages 1 to 4 are done, and every stage-4 check (`collisions`, `dynamic-paths`, `reach`, `nested`,
+`restrict`) is green. How it works is in `crates/nvs-types/src/extend.rs`'s module docs, the rule
+fragments and the standing decisions.
 
-- **Nested enums and attributes** are keyed `<Target>::<Name>`. `Resolver::collect_in`
-  (`crates/nvs-hir/src/resolve.rs`), `members.rs`, `aliases.rs` and `enums.rs` read the target
-  through a `use` map of their own, since they collect before the graph exists.
-  `SymbolTable::note_added` and `AttributeDef::block` record the block. The compiler's lookups go
-  through `owned_enum_using`, `owned_enum_in_scope_using` and `crate::lower::owned_enum(…, imports,
-  …)`, which hide one whose block the file does not use (`added_enum_hidden`, `attributes.rs`
-  `block_used`). `extend::nothing_extends` refuses an attribute on a `Core` class, `E0338`. The
-  language server still calls the unfiltered `owned_enum`.
+- **Restrictions**: an added call resolves to the block, so `Restricted::holding` already keyed it
+  `<Block>::<member>` and never by the extended type. The one change is the place:
+  `crate::deprecated::window` passes `env.extend_block` as the place's class, so an extend body is
+  in its block, not in its type. `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`
+  has the paragraph *An `extend` block is its own place*.
+- **Nested enums and attributes** are keyed `<Target>::<Name>`, looked up through
+  `owned_enum_using` and `crate::lower::owned_enum(…, imports, …)`. The language server still calls
+  the unfiltered `owned_enum`.
 - **Unions** (`infer_union_method_call`, `calls.rs:381`), **interfaces** (`extend::reaches`) and
   **generic `Core` blocks** (`Env::extend_type_params`, `substitute_receiver_args` in
   `expr/args.rs`) are as the standing decisions say.
 
 ### Next
 
-1. Stage 4's fifth and last item, `restrict` (`crates/nvs-types/src/restrict.rs:709`,
-   `crates/nvs-config/src/restrict.rs:45`): the block is the place, and an entry names
-   `<Block>::<member>`. Edit `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`
-   `:13` and `:62`. Then stage 4 is done: set its status in the front matter once `restrict` is
-   green.
-2. Stage 5 (properties) waits on the gate: `docs/goals/time-values.md` must be gone first.
+1. Stage 5 (properties). Its gate is met: `docs/goals/time-values.md` is gone. Follow its
+   `**Split:**` line first: an `Explore` subagent lists the `Core` classes with instance slots
+   (`crates/nvs-stdlib/src/classes.rs:14`), then the registry item
+   (`crates/nvs-stdlib/src/registry.rs:1952`, `CoreClass`), then the descriptor's added-slot index
+   (`crates/nvs-runtime/src/object.rs:466`, `:2519`) and `crates/nvs-types/src/layout.rs`. The block
+   shape check refuses a stored property today (`extend::check_property`,
+   `crates/nvs-types/src/extend.rs:454`); stage 5 lifts that for a class that takes the slot.
+2. Stage 6 after it: the LSP half and the `meta`/`agent` half are disjoint files.
 
-Tests that may go red: a case where a union call meets a method one class declares and a used block
-adds to another class is now `E1013`, not `E0881`. No case in the tree does. A block on
-`Core\ObjectMap`, `ObjectSet`, `Heap`, `Task\Channel` or `Db\Rows` with no `<…>` list is now
-`E0338`. No case should change from the nested-enum work: an enum no block declares is never
-hidden.
+Tests that may go red: none new. A use inside an `extend` body that an entry on the extended type
+used to allow as "its own class" is now `E0664`; no case in the tree had one.
 
 ### Backlog
 
