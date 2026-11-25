@@ -21,7 +21,9 @@
 //! its memory, and `nvs_ext::call::reservation` makes that reservation smaller when the pool
 //! would pass half of the address space. A reload that raises
 //! `max_in_flight` or adds a class cannot grow a pool that exists: past the boot's size, a call
-//! that needs a new instance throws `ExtensionError`, and the next boot takes the new size.
+//! that needs a new instance throws `ExtensionError`, and the next boot takes the new size. Only
+//! `nvs serve` sizes the pool this way. `nvs run`, a program's tests and the shared test worker run
+//! one request at a time and keep the small pool of [`ONE_REQUEST_SLOTS`].
 //!
 //! **A call** (`rule:packaging/extension-calls-are-statically-typed`). [`Calls`] implements
 //! `nvs_runtime::extension::Extensions` over one `nvs_ext::call::Request`, made at the run's first
@@ -138,13 +140,25 @@ use nvs_stdlib::ext_record::Part;
 
 use crate::cache::Cache;
 
-/// The slots of a host made before any configuration was read, as `nvs ext build` makes one to
-/// check what it packs. Such a process serves no requests, so a few instances at once are enough.
-const UNSIZED_SLOTS: u32 = 64;
+/// The slots of a host in a process that runs one request at a time: `nvs run`, a program's tests,
+/// the shared test worker, and `nvs ext build` checking what it packs. A few instances at once are
+/// enough there. **What it spends:** the table pool commits about 20 MiB at the engine's start,
+/// where a pool sized for the default `max_in_flight` commits 1.25 GiB, and many test processes
+/// at once run out of the page file on Windows.
+const ONE_REQUEST_SLOTS: u32 = 64;
 
-/// How many slots [`host`] makes the pool with: [`UNSIZED_SLOTS`] until [`size_pool`] reads a
-/// configuration.
-static SLOTS: AtomicU32 = AtomicU32::new(UNSIZED_SLOTS);
+/// How many slots [`host`] makes the pool with: [`ONE_REQUEST_SLOTS`] until [`size_pool`] reads a
+/// served configuration.
+static SLOTS: AtomicU32 = AtomicU32::new(ONE_REQUEST_SLOTS);
+
+/// What a process loads its extensions for, which decides how large the host's pool is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Requests {
+    /// `nvs serve` and its reload: room for every request `max_in_flight` admits ([`pool_size`]).
+    Served,
+    /// A process that runs one request at a time: [`ONE_REQUEST_SLOTS`].
+    One,
+}
 
 /// The process's one host, made by the first [`loaded`] that has an entry to load, or by the first
 /// call into a built-in component.
@@ -242,7 +256,8 @@ pub(crate) fn load_built_in<'a>(
         .collect()
 }
 
-/// Every entry of `config`'s `[[extension]]` array, loaded into one set.
+/// Every entry of `config`'s `[[extension]]` array, loaded into one set. A [`Requests::Served`]
+/// load sizes the host's pool from `config`, and a [`Requests::One`] load keeps the small pool.
 ///
 /// `origins` and `sources` are the resolved tree's, so a refusal points at the entry's line.
 ///
@@ -256,8 +271,11 @@ pub(crate) fn loaded(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
     sources: &SourceMap,
+    requests: Requests,
 ) -> Result<Set, Diagnostic> {
-    size_pool(config);
+    if requests == Requests::Served {
+        size_pool(config);
+    }
     let mut set = Set::default();
     let mut cached: Option<Loader> = None;
     for (index, written) in config.extension.iter().enumerate() {

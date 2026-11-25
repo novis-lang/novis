@@ -289,7 +289,12 @@ pub(crate) fn run(
     }
     // Every `[[extension]]` file, read and verified against its pin before
     // anything listens: one that does not load stops the boot, naming its line.
-    match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
+    match crate::extensions::loaded(
+        &snapshot.config,
+        &origins,
+        &sources,
+        crate::extensions::Requests::Served,
+    ) {
         Ok(set) => crate::extensions::install(set),
         Err(diagnostic) => return report(diagnostic, &sources),
     }

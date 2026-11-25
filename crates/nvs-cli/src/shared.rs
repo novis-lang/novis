@@ -154,8 +154,13 @@ impl Serving {
         // one program. Each case's calls run in its own request tree, as a
         // served request's do, so its budget and its instances are its own and
         // end with the case.
-        let set = crate::extensions::loaded(&snapshot.config, &origins, &sources)
-            .map_err(|diagnostic| diagnostic.message)?;
+        let set = crate::extensions::loaded(
+            &snapshot.config,
+            &origins,
+            &sources,
+            crate::extensions::Requests::One,
+        )
+        .map_err(|diagnostic| diagnostic.message)?;
         let calling = nvs_runtime::extension::install(std::rc::Rc::new(crate::extensions::Tested(
             std::sync::Arc::new(set),
         )));

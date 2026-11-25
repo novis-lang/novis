@@ -2815,7 +2815,12 @@ fn run_run(
     // The loaded extensions, which a compiled call into one reaches through
     // `nvs_runtime::extension` while the run's tasks run. The set is the one the
     // tree read at the top of the run names, so `E0652` points at that tree's line.
-    let calls = match extensions::loaded(&for_compiler.config, &origins, &config_sources) {
+    let calls = match extensions::loaded(
+        &for_compiler.config,
+        &origins,
+        &config_sources,
+        extensions::Requests::One,
+    ) {
         Ok(set) => std::rc::Rc::new(extensions::Calls::new(set)),
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();
@@ -3381,7 +3386,13 @@ impl TestSetup {
         let config = &tree.snapshot.config;
         let manifests =
             extensions::manifests(config, &tree.origins, &tree.sources).map_err(refuse)?;
-        let set = extensions::loaded(config, &tree.origins, &tree.sources).map_err(refuse)?;
+        let set = extensions::loaded(
+            config,
+            &tree.origins,
+            &tree.sources,
+            extensions::Requests::One,
+        )
+        .map_err(refuse)?;
         Ok(Self {
             manifests,
             backtracking: nvs_types::Backtracking::of_config(config),

@@ -335,6 +335,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **An `nvs-suite` check runs every case the change reaches, not only its `--case` list.** In
+  `enum-tables`' DONE, `cases` went red on three `image-*` cases, which passed when run alone.
+  Run with `nvs test tests/conformance/novis/`, one printed os error 1455: each process's
+  WebAssembly engine committed a 1.25 GiB table pool, and the page file ran out. Run the red
+  cases' directory with `nvs test` to read the error. See `crates/nvs-cli/src/extensions.rs`
+  `Requests`.
 - **`looper check --name <check>` can wait for a heavy-job slot that another project holds, and
   print nothing.** In `enum-tables` stage 4, the check `cases` started no child for ten minutes
   while another project ran a release build. The check's own `run:` line, run directly as

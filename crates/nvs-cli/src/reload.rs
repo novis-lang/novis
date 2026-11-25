@@ -453,8 +453,13 @@ impl Process {
         // Every extension file read and verified again, before anything moves:
         // one that does not load refuses the reload, and the set loaded with the
         // running tree stays live.
-        let extensions = crate::extensions::loaded(&next.config, &origins, &sources)
-            .map_err(|refusal| rendered(&refusal, &sources))?;
+        let extensions = crate::extensions::loaded(
+            &next.config,
+            &origins,
+            &sources,
+            crate::extensions::Requests::Served,
+        )
+        .map_err(|refusal| rendered(&refusal, &sources))?;
         // The boot's line about where log records go, for the tree serving now: printed again
         // below when the reload moves the target, because the reload's own record goes to the
         // new target and a reader of standard error would otherwise see nothing.
