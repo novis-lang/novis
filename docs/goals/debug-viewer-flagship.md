@@ -30,7 +30,7 @@ stages:
     context: [viewer/src/views/request.tsx, viewer/src/views/timeline.tsx, viewer/src/views/value-tree.tsx, viewer/src/views/compare.tsx, viewer/test/request.browser.test.ts]
   - id: 7
     title: the Routes view, the Queries view, the lost-records state and the settings page
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/api.rs, viewer/src/views/saved.tsx, viewer/src/views/editor.tsx, viewer/src/views/stream.tsx]
   - id: 8
     title: nvs debug link prints the link, and the page is served under a token path that only the editor may frame
@@ -298,6 +298,27 @@ Stage 4:
   a body that is binary, cut or withheld, and its toast says so.
 - `RECORD_KINDS` has all eight event kinds, and `stream.css` has `.rk-cache`, `.rk-session` and
   `.rk-file`.
+
+**The names stage 7 gave, which later stages use.**
+
+- `router.ts` reads the views whose path is their name from `NAMED`; `/routes`, `/queries` and
+  `/settings` are three of them. Stage 8's base path goes in front of each.
+- `views/routes.tsx` exports `RoutesView({ query })` and `routeSort()`. The sort is
+  `?sort=<method|route|count|errors|p50|p95|queries|last>&dir=asc|desc`. The view draws its own
+  header row of `button.routes-sort` above `List`, because `List`'s `cols` is `aria-hidden`.
+  Stage 10's route lens opens `viewLink("requests", listQuery({ method, route }))`, as a row does.
+- `views/statements.tsx` exports `StatementsView`. A row is `.statements-grid`, `.repeated` when a
+  request repeated a statement there, and opens `/search?q=<statement>`. `Repeat` takes `title`.
+- `views/health.tsx`: `LivePill` (`.live`, `.live.stopped` *Recording stopped*, `a.live.warn`
+  *N lost* to `/settings#lost`) and `createErrorCount()`, the rail's `.rail-count` on Errors. Both
+  read again on a watermark, at most once a second. The lost count is dropped records, unreadable
+  lines and quarantined files together, and its `title` names each.
+- `views/settings.tsx`: `SettingsView`, one page of `.settings-part` sections: the theme radios, the
+  editor (`EditorSettings` in `editor.tsx`, now a form with no dialog, filled from `saved()`), the
+  saved filters (`SavedFilters` in `saved.tsx`), `#lost` with `.lost-counts` and `.quarantined`,
+  and `.discard`. The rail's Settings item is `a.editor-open` to `/settings`. The rail's saved
+  filters are links only; the settings page deletes them. Stage 9's panel sends a theme with
+  `setTheme()`, as the radios do.
 
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
@@ -582,18 +603,18 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 **Split:** two writing subagents side by side after the session adds the routes to `router.ts`:
 `views/routes.tsx` and `views/statements.tsx`.
 
-- [ ] `viewer/src/router.ts:66`: `/routes`, `/queries` and `/settings`.
-- [ ] `viewer/src/views/routes.tsx:1`: one row per method and route with count, error share, p50,
+- [x] `viewer/src/router.ts:66`: `/routes`, `/queries` and `/settings`.
+- [x] `viewer/src/views/routes.tsx:1`: one row per method and route with count, error share, p50,
   p95, mean queries and last seen, sorted by a clicked column. `Enter` opens the list filtered to
   the route.
-- [ ] `viewer/src/views/statements.tsx:1`: one row per call site with the statement, count, total
+- [x] `viewer/src/views/statements.tsx:1`: one row per call site with the statement, count, total
   and max time and how many requests repeated it. `Enter` opens the search for that statement.
-- [ ] The live pill reads `/api/health`: its three states, and a click on the lost count opens the
+- [x] The live pill reads `/api/health`: its three states, and a click on the lost count opens the
   list of what was lost, moved out of `viewer/src/views/stream.tsx:508`.
-- [ ] `viewer/src/views/settings.tsx:1`: the theme, the editor and its path mappings
+- [x] `viewer/src/views/settings.tsx:1`: the theme, the editor and its path mappings
   (`viewer/src/views/editor.tsx`), the saved filters and *Discard the index*, as one page. The
   dialogs that held them are gone.
-- [ ] `viewer/test/routes.browser.test.ts:1` and `settings.browser.test.ts:1`, run by name.
+- [x] `viewer/test/routes.browser.test.ts:1` and `settings.browser.test.ts:1`, run by name.
 
 ### 8. nvs debug link prints the link, and the page is served under a token path that only the editor may frame
 
@@ -677,32 +698,33 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 6 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+Stages 1 to 7 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
 `testing/the-viewer-wears-the-websites-palette` and
 `testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
 record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
 `path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3 to 6 gave are under Standing decisions.
+The names stages 3 to 7 gave are under Standing decisions.
 
-Stage 6 is the commit after `2208290491`. The request page has the drawing's header with
-*Copy as curl* and *Replay* as the primary action, four tiles, the time split with its legend, and
-tabs in the link: a waterfall Timeline, Request, Response, Queries, Dumps, Logs, Coverage and
-Exception. The browser tests `request` (8 cases), `hostile`, `exceptions`, `requests` (13),
-`stream`, `replay`, `frame` and `search` are green, as are `tsc`, `bun nv viewer --check` and the
-new unit test `viewer/test/curl.test.ts`. The exceptions and request-list tests now read the
-tabbed page. The bundle is 151,509 bytes of JavaScript and 43,237 of CSS. The nightly failures
-the sweep named ran at `53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`.
+Stage 7 is commit `97949cbf8b`. The rail has Routes and Queries, the live pill reads
+`/api/health` and `/api/replay` and links lost records to `/settings#lost`, Errors counts the
+groups thrown since the tab opened, and `/settings` is one page in place of the editor dialog and
+the stream's quarantine panel. The new browser tests `routes` (4 cases) and `settings` (4) are
+green, as are `exceptions`, `stream`, `frame`, `hostile`, `requests`, `request` and `replay`, `tsc`
+and `bun nv viewer --check`. The exceptions test now saves the editor on `/settings`, and the
+stream test lost its quarantine case and its delete step to the settings test. The bundle is
+164,153 bytes of JavaScript and 47,307 of CSS. The nightly failures the sweep named ran at
+`53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`, so they needed no change.
 
 ### Next
 
-Stage 7 from its first item, at `viewer/src/router.ts:66` (check the anchor): `/routes`,
-`/queries` and `/settings`, then the split's two subagents for `views/routes.tsx` and
-`views/statements.tsx`. They read `routes()` and `statements()` in `viewer/src/api.ts` and draw
-with `List` (`viewer/src/ui/list.tsx`). A route opens the filtered list with
-`viewLink("requests", listQuery({ method, route }))`, and the statements view can reuse
-`Repeat` and the gold wash of `.query-group.repeated` (`viewer/src/styles/request-tabs.css`).
-Routes and Queries join the rail (`viewer/src/app.tsx`) with their views. `bun nv site --check
-shots` stays red until stage 11 takes the screenshots again. No test is expected to go red.
+Stage 8 from its first item, at `crates/nvs-cli/src/debug.rs:140` (check the anchor): the `link`
+subcommand. Read `docs/agent/coding.md` first, because the stage changes a listener. Then the
+`/embed/<token>/` prefix in `crates/nvs-cli/src/debug/listen.rs`, and the base path in
+`viewer/src/router.ts` (`here()`, `navigate()`, `route()` and every link the views build, which
+start with `/`) and in `get()`, `send()`, `watermarks()` and `profileDownload()` of
+`viewer/src/api.ts`. The frame's click handler in `viewer/src/app.tsx` (`onClick`) reads hrefs
+that start with `/`. `bun nv site --check shots` stays red until stage 11 takes the screenshots
+again. No test is expected to go red.
 
 ### Backlog
 
