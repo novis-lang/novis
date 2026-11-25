@@ -341,7 +341,12 @@ static property of your own class), `readonly` on an added property, a stored pr
 
 Each new code is the highest plus one of the area file it belongs to
 (`crates/nvs-diagnostics/src/code/mod.rs:1`): declaration-shape and target errors in `names.rs`
-(E0336 onward), type errors in `types_e10.rs` (E1009 onward). The rule fragments name each code.
+(E0336 onward), type errors in `types_e10.rs` (E1011 onward: E1009 and E1010 were already taken). The
+rule fragments name each code: E0336 target not a type, E0337 own type, E0338 member not addable,
+E1011 collision, E1012 a name the runtime calls, E1013 union, E1014 stored property where no slot is.
+A target nothing declares is the ordinary undeclared-name error with its `use` fix, not E0336 (mine:
+the fix is worth more than a second code). A stored added property is refused only when it has no
+default, no `?` type and no `lateinit` (the stage 5 `lateinit` case needs it allowed).
 
 ### Declined
 
@@ -387,25 +392,25 @@ classes are the ones that goal makes compare by value.
 
 **Split:** none, one session. Write the rules first, then build to them.
 
-- [ ] `docs/rules/classes/an-extend-block-adds-members-to-a-type.md:1` and
+- [x] `docs/rules/classes/an-extend-block-adds-members-to-a-type.md:1` and
   `data/rules/classes/an-extend-block-adds-members-to-a-type.json:1`, `status: designed`,
   `goal: extend-blocks`: the syntax, the name, the file, `use` visibility, the own-package error, the
   table of what may be added, the refused members, `$this`/`self`, and the generic binding. Inserted in
   `data/rules/classes.json` beside `delegation-by-property` (conventions.md § *Where a rule sits*).
-- [ ] `docs/rules/classes/an-added-member-never-changes-a-type.md:1` and its JSON, `designed`: collisions,
+- [x] `docs/rules/classes/an-added-member-never-changes-a-type.md:1` and its JSON, `designed`: collisions,
   unions, every dynamic path, names the runtime calls, restrictions, deprecation, the direct call and
   its cost, and the Declined list above.
-- [ ] `docs/rules/classes/an-added-property-lives-in-one-hidden-slot.md:1` and its JSON, `designed`:
+- [x] `docs/rules/classes/an-added-property-lives-in-one-hidden-slot.md:1` and its JSON, `designed`:
   computed and stored properties, which classes take the slot, clone and task copy, and *What it spends*.
-- [ ] `docs/rules/enums/an-enum-body-takes-methods-and-constants.md:1` and its JSON, `designed`. Then
+- [x] `docs/rules/enums/an-enum-body-takes-methods-and-constants.md:1` and its JSON, `designed`. Then
   `bun nv rules --render`.
-- [ ] `crates/nvs-syntax/src/ast.rs:1558`: `StmtKind::ExtendDecl(ExtendDecl)` with `target`,
+- [x] `crates/nvs-syntax/src/ast.rs:1558`: `StmtKind::ExtendDecl(ExtendDecl)` with `target`,
   `name`, `type_params`, `attrs`, `doc` and `members: Vec<ClassMember>` (`ast.rs:2082`), and the kind
   name beside `ast.rs:2415`.
-- [ ] `crates/nvs-syntax/src/parser/stmt.rs:354` and `decl.rs:2161`: the contextual `extend` dispatch,
+- [x] `crates/nvs-syntax/src/parser/stmt.rs:354` and `decl.rs:2161`: the contextual `extend` dispatch,
   with and without a leading `#[`; the body through `parse_class_body` (`decl.rs:1284`). The two parser
   tests the check `parse` names, in `crates/nvs-syntax/src/parser/tests/decl.rs:493`, run once by name.
-- [ ] `crates/nvs-syntax/src/walk.rs:191`, `:585`, `:617`, `crates/nvs-syntax/src/visit.rs:1` and
+- [x] `crates/nvs-syntax/src/walk.rs:191`, `:585`, `:617`, `crates/nvs-syntax/src/visit.rs:1` and
   `crates/nvs-syntax/src/index.rs:1`: the new kind. `crates/nvs-fmt/src/chain.rs:244`, `blank.rs:120`,
   `doc_tags.rs:82`, `brace.rs:52`, `modifiers.rs:1` and the contextual-word gap through the mechanism
   `attribute` uses (`gap.rs:80`). `cargo test --test layout_coverage` once.
@@ -413,10 +418,10 @@ classes are the ones that goal makes compare by value.
   `as <Name>` as the declared name; then `bun nv render` for `website/config/novis.tmLanguage.json`.
   `crates/nvs-lsp/src/completion.rs:1822`: `extend` offered at statement start
   (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`).
-- [ ] `crates/nvs-hir/src/symbol.rs:21`: `SymbolKind::Extend`; `crates/nvs-hir/src/resolve.rs:123`:
+- [x] `crates/nvs-hir/src/symbol.rs:21`: `SymbolKind::Extend`; `crates/nvs-hir/src/resolve.rs:123`:
   collected under its name; `crates/nvs-hir/src/hierarchy.rs:352`: the target resolved through
   `resolve_ref` (`:579`) and `CoreRoster::holds` (`:161`), never through `seals`.
-- [ ] `crates/nvs-hir/src/autoload.rs:1449` and `:1525`: an autoloaded file may hold one block named as
+- [x] `crates/nvs-hir/src/autoload.rs:1449` and `:1525`: an autoloaded file may hold one block named as
   the map found it; `sole_declaration` (`:1505`) returns it. Edit
   `docs/rules/programs/one-declaration-per-autoloaded-file.md:1` and
   `docs/rules/classes/a-type-is-declared-at-file-scope.md:1` to say so.
@@ -554,14 +559,44 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24. Nothing is
-built. The anchors were read that day by four read-only subagents and are pointers to check, not
-evidence. Expected to go red in stage 2:
-`tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst`.
+Stage 1 is nine items of eleven in. Two commits: the four designed rules (`89d477a014`), and the
+parse, walk, formatter, symbol, target resolution, autoload shape and checker shape errors
+(`0066fd29bb`). Build and clippy are green. The `parse` tests and `layout_coverage` pass, run once by
+name. What exists:
+
+- `ExtendDecl` (`crates/nvs-syntax/src/ast.rs`, `@ExtendDecl`) with `target`, `type_params:
+  Vec<Type>`, `name`, `attributes`, `doc`, `members`. The parser is `at_extend_decl`,
+  `parse_extend_decl` and `parse_extend_decl_body` in `crates/nvs-syntax/src/parser/decl.rs`. A block
+  in a class body is E0233 there, and in a function body E0233 through `nvs_types::locals`.
+- `Core\Ast\ExtendDecl` is in the walk's `KINDS` and `nvs_stdlib::ast`'s productions.
+- `SymbolKind::Extend` and `DeclKind::Extend` (disk index tag 10, the outline's `CLASS`, file word
+  `extend`). `ClassGraph::block_target` and `blocks()` give block → target. `resolve_extend_target`
+  in `crates/nvs-hir/src/hierarchy.rs` never asks `seals`. The `requires` walk loads the target.
+- `crates/nvs-types/src/extend.rs` `check_block`, called from `check.rs`'s file-scope walk: E0336
+  for a `Core` name that is no class, interface or enum, E0337 own type through `Packages::of`, and
+  E0338 for a constructor, a `protected`/`abstract`/`final` member, a `static` or `readonly` property,
+  a stored property with no start value, a `type` alias, and a nested enum or attribute on an enum.
+
+Nothing yet reads a block's members for calls, and no conformance case exists. Expected to go red
+in stage 2: `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst`. The
+VS Code extension writes no letter for the new file word `extend` until stage 6.
 
 ### Next
 
-Stage 1 from its first item: the four rule fragments, then the parse. Every check is red until its
-stage's tests exist.
+Finish stage 1, then stage 2.
+
+1. `editors/vscode/syntaxes/nvs.tmLanguage.json:270` and `:161`: `extend` as a declaration word and
+   `as <Name>` as the declared name, then `bun nv render` for `website/config/novis.tmLanguage.json`.
+   `crates/nvs-lsp/src/completion.rs:1822`: `extend` offered at statement start.
+2. The three reject cases the check `shape` names, under `tests/conformance/reject/`: an own-package
+   type (a class declared in the same file is enough, since a file with no package is the
+   application), a target that is a `type` alias (E0336), and a block with a `constructor` and a
+   `protected` method (E0338 twice). Run `looper check --name shape` once. Then set stage 1 `done`.
+3. Stage 2 from its first item (`crates/nvs-syntax/src/parser/decl.rs:2013`).
 
 ### Backlog
+
+- A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with stage 4's
+  deprecation item.
+- `HierarchyResolver::written` (the editor's graph for an unloaded file) does not carry blocks. Stage
+  6 needs it for completion in a file the program has not loaded.
