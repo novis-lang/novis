@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/json.rs]
   - id: 5
     title: "the editor offers the cases where an enum is expected, and a quick fix adds the arms a match is missing"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/actions.rs, docs/rules/ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows.md, docs/rules/ide/completion-is-asked-where-a-spelling-ends.md]
   - id: 6
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
@@ -441,12 +441,12 @@ and `docs/agent/conventions.md` § *An `.lspt` case*.
   message. `crates/nvs-lsp/src/actions.rs:287` offers it with no new code
   (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). The arm text is held to
   AGENTS.md § *Text an end user reads*.
-- [ ] Rename of a case (`crates/nvs-lsp/src/rename.rs:28`) reaches a case inside a constant table and
+- [x] Rename of a case (`crates/nvs-lsp/src/rename.rs:28`) reaches a case inside a constant table and
   a key of a keyed literal. Hover and signature help print `array<E, T>` from stage 3's display. A
   failing case is fixed at its cause.
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:362` already colours a name before `,` in a type
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json:362` already colours a name before `,` in a type
   argument. The highlight case pins it, and the grammar changes only if the case is red.
-- [ ] The nine `.lspt` cases the check `editor` names, then the check run once.
+- [x] The nine `.lspt` cases the check `editor` names, then the check run once.
 - [x] The completion rule gains one sentence on the expected-type rows, in
   `docs/rules/ide/completion-is-asked-where-a-spelling-ends.md:1` or the fragment `bun nv brief
   --where completion` names as the home of what a list offers.
@@ -485,41 +485,40 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 is all but one item. The nightly CI failures the sweep names ran on
-`origin/main` at `53e94a9181` (run `45609291264`). Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are
-on local `main` and not pushed yet, so the next push clears them.
+Stages 1 to 5 are done, and the check `editor` is green. The nightly CI failures the sweep names
+ran on `origin/main` at `53e94a9181` (run `45609291264`). Their fixes, `1c3196b0e8` and
+`8ca2f09e1b`, are on local `main` and not pushed yet, so the next push clears them.
 
-What stage 5 landed:
-- `543615e749`: `E1016` carries an unsafe fix that inserts one arm per missing case after the last
-  arm, indented as it is, each `Priority::High => throw new LogicError('Priority::High is not
-  handled yet.'),`. The case prefix is the one an arm already writes (`cover::written_prefix`).
-- `4ebe427eca`: `crates/nvs-lsp/src/expected.rs` finds the enum expected at the cursor (a `match`
-  arm, a subscript, a keyed literal's key, an argument), read off the tokens at the node's depth.
-  `completion::expected_cases` offers the rows under the new first `Tier::Expected`. The checker
-  records a keyed literal's enum (`ExprTypeTable::keyed_literal`, set in `check_array_literal`).
-  `arguments::param_at` is the slot lookup `route_argument_at` now uses too.
-- The nine `.lspt` cases of the check `editor` are written. The whole `tests/lsp` run: 733 green,
-  one red, the rename case below. The completion rule has its sentence.
+What the last stage-5 session landed:
+- `7368ff1343`: `defaults::record_default_use` walks an array literal's keys and elements and an
+  `as` operand, and `check::check_members` calls it for a class constant's value too, inside a
+  `Member::Const` window. So rename, references and highlight reach a case in a constant table, a
+  constant's value and a static property's default. A side effect: a deprecated or restricted
+  constant read inside another constant is now a recorded use, and may warn there.
+- `ad57f202ed`: the grammar colours both names of `array<Priority, Label>`, matched as a pair, and
+  `editors/vscode/test/grammar/types.test.ts` pins it. The headless suites are green (386).
+- `c2bccc9f13`: at an arm over `?E`, the expected `null` row replaces the keyword's row, so `null`
+  is offered once. `completion::tests::an_expected_case_sorts_before_every_other_row` pins the tier
+  order, and `tests/lsp/completion/a-match-arm-over-a-nullable-enum-offers-null-once.lspt` the `null`.
+- Before that: `E1016`'s fix (`543615e749`) and the expected-case completion, `crates/nvs-lsp/src/expected.rs`
+  (`4ebe427eca`).
 
 ### Next
 
-1. **Rename misses a case read inside a class constant or a property default.** Renaming `High` in
-   `tests/lsp/rename/renaming-a-case-renames-it-inside-a-constant-table-and-a-keyed-literal.lspt`
-   gives 2:30, 9:45 and 10:23 and misses 6:78, the key in `const array<Priority, string> LABELS`.
-   `const Priority DEFAULT = Priority::High;` and a static property's default are missed too, so
-   the reference index does not walk constant and property initializers. Fix it at the index
-   (`crates/nvs-lsp/src/index.rs` or `references`), so references and highlight gain it too. Then
-   tick the rename item and run the check `editor` once.
-2. The grammar item: the case `tests/lsp/highlight/an-enum-keyed-array-type-colours-both-arguments.lspt`
-   is a `documentHighlight` case, not a colour. Check whether a grammar case exists for
-   `editors/vscode/syntaxes/nvs.tmLanguage.json:362` (`bun nv brief --where tmLanguage`) and pin
-   `array<Priority, string>` there, or tick the item if the grammar has no case suite.
-3. The `.lspt` renderer sorts rows by label (`crates/nvs-lsp/src/render.rs:466`), so no case shows
-   that the case rows come first. A unit test in `completion.rs` on `sort_text` starting with `0`
-   pins it. No case covers `null` at an arm over `?Priority` yet.
-4. Then stage 6 from the backlog.
+Stage 6, by its `**Split:**` line: the session writes the rules, the docs and the website entry,
+then one writing subagent takes the examples, the attack and the bench.
 
-Expected red: the rename case above, and nothing else.
+1. Run `bun nv proofs --owed --goal enum-tables` first, and keep its list as the stage's to-do.
+2. The rules: `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md` (new, with stage
+   1's Declined list), a sentence in `docs/rules/expressions/a-match-has-at-least-one-arm.md:1`,
+   `docs/rules/enums/no-class-machinery.md:1` (its "is not an array key" sentence is now false),
+   `docs/rules/types/arrays.md:1`, and the constants rule (`bun nv brief --where constant`).
+3. The backlog's two stale docs, then the reference pages rebuilt by their command.
+4. The examples, the attack and the bench to the subagent, at the paths `proofs --owed` prints.
+5. `website/src/data/changes.json`: one entry per feature, then `site --check stale` and the stamps.
+
+Expected red: none known. A test that reads a deprecated or restricted constant inside another
+constant may gain a warning from `7368ff1343`; fix it at the gate if so.
 
 ### Backlog
 
