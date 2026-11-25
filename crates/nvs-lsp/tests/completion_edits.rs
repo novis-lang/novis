@@ -553,6 +553,34 @@ fn the_use_line_joins_the_imports_the_file_already_has() {
 }
 
 #[test]
+fn a_type_this_file_writes_qualified_is_offered_qualified_without_a_use_line() {
+    let items = offered(
+        "<?nvs\nnamespace Shop;\n\nuse Shop\\Blueprint;\n\nfunction f(): void {\n    \
+         array<int> $a = Core\\Arr::map([1], fn(int $n): int => $n);\n    Arr<|>\n}\n",
+    );
+    let item = named(&items, r"Core\Arr");
+    assert_eq!(
+        item.additional_text_edits, None,
+        "the line above writes `Core\\Arr`, so a `use` line would mix two spellings"
+    );
+    assert_eq!(item.filter_text.as_deref(), Some(r"Arr Core\Arr"));
+    assert!(
+        items.iter().all(|item| item.label != "Arr"),
+        "the short name is not offered beside the qualified one"
+    );
+    assert_eq!(
+        named(&items, r"Core\Arr::Order").additional_text_edits,
+        None,
+        "an enum declared inside `Core\\Arr` keeps the spelling of its owner"
+    );
+    let other = named(&items, "Str");
+    assert!(
+        other.additional_text_edits.is_some(),
+        "a type this file does not write yet still gets its `use` line"
+    );
+}
+
+#[test]
 fn a_short_name_this_file_already_uses_is_offered_qualified_instead() {
     let items = offered("<?nvs\nnamespace App;\nclass Str {}\nS");
     assert_eq!(named(&items, "Str").detail.as_deref(), Some(r"App\Str"));

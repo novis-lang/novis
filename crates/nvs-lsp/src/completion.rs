@@ -4042,8 +4042,9 @@ fn in_scope(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
 /// the same bar, met by an edit. Its `filterText` is both
 /// spellings, so `Str` and `Core\Str` both find it, and so do the initials a
 /// client's own fuzzy match reads across the separator. Where the short name
-/// is already taken in this file, or there is nowhere to write the line, the
-/// item is the qualified name and edits nothing else. After `use`
+/// is already taken in this file, where the file already writes the type by
+/// its qualified name, or where there is nowhere to write the line, the item
+/// is the qualified name and edits nothing else. After `use`
 /// ([`Spelled::Qualified`]) every type is its qualified name, because that is
 /// the only spelling a `use` declaration takes.
 ///
@@ -4074,6 +4075,7 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         .collect();
     let candidates = every_type(symbols);
     let taken = taken_among(&candidates, &imports, &here);
+    let qualified = written_qualified(file);
     let site = crate::imports::entry_stmts(analysed)
         .and_then(|stmts| nvs_hir::import_site(stmts, file, offset));
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
@@ -4093,17 +4095,25 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
             type_row(symbol.clone(), kind, symbol.clone())
         } else if reached != symbol || last == symbol {
             type_row(reached, kind, symbol.clone())
-        } else if let Some(site) = site
-            .as_ref()
-            .filter(|_| spelled == Spelled::Shortest && !taken.contains(&last))
-        {
+        } else if let Some(site) = site.as_ref().filter(|_| {
+            spelled == Spelled::Shortest
+                && !taken.contains(&last)
+                && !qualified.contains(
+                    symbol
+                        .split_once("::")
+                        .map_or(symbol.as_str(), |(owner, _)| owner),
+                )
+        }) {
             CompletionItem {
                 filter_text: Some(format!("{last} {symbol}")),
                 additional_text_edits: Some(vec![importing(file, *site, &symbol, encoding)]),
                 ..type_row(last, kind, symbol.clone())
             }
         } else {
-            type_row(symbol.clone(), kind, symbol.clone())
+            CompletionItem {
+                filter_text: Some(format!("{last} {symbol}")),
+                ..type_row(symbol.clone(), kind, symbol.clone())
+            }
         };
         found.entry(symbol).or_insert_with(|| tier.ranks(offered));
     }
@@ -4191,6 +4201,57 @@ fn taken_among(
             .then(|| segments[here.len()].clone())
     }));
     taken
+}
+
+/// Every qualified name `file` writes, without a leading `\`:
+/// `\Core\Arr::map(…)` gives `Core\Arr`. A type this file already writes this
+/// way is offered the same way, and so is a type declared inside it, such as
+/// `Core\Arr::Order`. No `use` line is added for either.
+///
+/// It is read off the buffer's tokens, because the workspace index records no
+/// use of a `Core` class and is only as new as its last build.
+///
+/// - **Memory:** one lexing of the document and one string per qualified name
+///   written, built and dropped with the answer.
+fn written_qualified(file: &SourceFile) -> FxHashSet<String> {
+    fn is_name(token: &Token, file: &SourceFile) -> bool {
+        token.kind == TokenKind::Ident
+            || (matches!(token.kind, TokenKind::Keyword(_))
+                && text_of(file, token.span).chars().all(is_name_char))
+    }
+    fn is_name_char(ch: char) -> bool {
+        ch.is_alphanumeric() || ch == '_'
+    }
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let mut found = FxHashSet::default();
+    let mut index = 0;
+    while index < tokens.len() {
+        let mut at = index;
+        if tokens[at].kind == TokenKind::Backslash {
+            at += 1;
+        }
+        let mut run = String::new();
+        let mut segments = 0;
+        while at < tokens.len() && is_name(&tokens[at], file) {
+            if segments > 0 {
+                run.push('\\');
+            }
+            run.push_str(text_of(file, tokens[at].span));
+            segments += 1;
+            let separated =
+                tokens.get(at + 1).map(|token| token.kind) == Some(TokenKind::Backslash);
+            if !separated {
+                at += 1;
+                break;
+            }
+            at += 2;
+        }
+        if segments >= 2 {
+            found.insert(run);
+        }
+        index = at.max(index + 1);
+    }
+    found
 }
 
 /// The edit that imports `symbol` at `site` in `file`, which is

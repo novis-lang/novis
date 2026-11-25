@@ -10,7 +10,11 @@ other type is offered by its last segment, with the qualified name beside it, an
 edit: `use Qualified\Name;` after the last `use` the cursor's namespace has, failing that after the
 `namespace Name;` line in force, failing that after the open tag. Where the short name is already taken in
 the file, or there is no such line to write after — a bracketed namespace with no `use` in it, a shebang
-script with no open tag — the item is the qualified name and edits nothing else. After `use`, every type is
+script with no open tag — the item is the qualified name and edits nothing else. **A type the file already
+writes by its qualified name keeps that spelling.** Where `Core\Arr::map(…)` is written, `Arr` is offered as
+`Core\Arr` with no `use` line, and so is a type declared inside it, `Core\Arr::Order`: a `use` line would
+leave the file with two spellings of one class. That set is read off the buffer's tokens, because the
+index records no use of a `Core` class and is only as new as its last build. After `use`, every type is
 its qualified name, because a declaration's name is absolute
 (`rule:statements/a-qualified-name-is-absolute`).
 
@@ -28,8 +32,9 @@ members of a class that does not resolve. A cursor past the member name with a `
 and itself is in the arguments or past the call, so `Core\Debug::dump(|)` is offered what `f(|)` is,
 although the access node spans its own arguments.
 
-- **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
-  one more lexing of the document. Both are built and dropped with the answer.
+- **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, two
+  more lexings of the document, and one string per qualified name it writes. All are built and dropped
+  with the answer.
 
 **Declined:**
 - **Accepting a type writes its qualified name.** It edits nothing else, but it is not what the developer
