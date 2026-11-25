@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Dates and optional values in routes",
-      "text": "A query parameter with the default `null` is optional. Dates and times can be route parameters and query values, and `Core\\Router::url` writes them as ISO text. Dates, times, durations and UUIDs are written to JSON as text.",
-      "goals": [
-        "route-values"
-      ]
-    },
-    {
       "title": "Extending classes you do not own",
       "text": "An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.",
       "goals": [
