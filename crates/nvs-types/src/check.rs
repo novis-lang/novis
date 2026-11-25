@@ -1317,6 +1317,16 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     },
                 );
             }
+            ClassMemberKind::Const(c) => {
+                let name = span_text(env.src, c.name).to_owned();
+                window(
+                    ctx.namespace,
+                    ctx.current_class,
+                    Some(Member::Const(name)),
+                    env,
+                    |env| crate::defaults::record_default_use(&c.value, ctx, env),
+                );
+            }
             _ => {}
         }
     }

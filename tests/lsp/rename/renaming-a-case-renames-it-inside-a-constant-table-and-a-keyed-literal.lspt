@@ -1,5 +1,5 @@
 --TEST--
-an enum case renamed at its declaration is renamed as a key inside a class constant table, as a key of a keyed literal and in a subscript, and the other cases are left alone, `rule:ide/no-refactoring-introduces-an-alias`, `rule:types/arrays`
+an enum case renamed at its declaration is renamed as a key inside a class constant table, as a key of a keyed literal, in a subscript, as a constant's value and inside a static property's default, and the other cases are left alone, `rule:ide/no-refactoring-introduces-an-alias`, `rule:types/arrays`
 --FILE--
 <?nvs
 enum Priority { Low, Normal, Hi<|>gh }
@@ -11,10 +11,18 @@ final class Labels
 
 array<Priority, string> $short = [Priority::High => 'h', Priority::Low => 'l'];
 echo $short[Priority::High];
+
+final class Queue
+{
+    const Priority FIRST = Priority::High;
+    static array<Priority> $order = [Priority::High, Priority::Low];
+}
 --REQUEST--
 rename to=Urgent
 --EXPECT--
 case.nvs:2:30 Urgent
-case.nvs:6:78 Urgent
+case.nvs:6:79 Urgent
 case.nvs:9:45 Urgent
 case.nvs:10:23 Urgent
+case.nvs:14:38 Urgent
+case.nvs:15:48 Urgent

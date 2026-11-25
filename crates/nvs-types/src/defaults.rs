@@ -680,14 +680,32 @@ pub(crate) fn fold_const_reference(
 /// folded in the signatures pass, before those checks are built, which is why it is recorded a
 /// second time here. Reports nothing: the signatures pass already reported what is wrong, and a
 /// default that does not fold records nothing. `static::NAME` has no compile-time value and was
-/// refused there. Memory: one table entry per named default, per check, never per request.
+/// refused there. A class constant's value is recorded the same way. Each key and element of an
+/// array literal and the operand of an `as` are recorded too, at any depth, since the folder reads
+/// a case or a constant there (`rule:enums/representation`). So rename, references and highlight
+/// reach a case written inside a constant table. Memory: one table entry per named default,
+/// per check, never per request.
 ///
 /// [`ExprInfo::EnumCase`]: crate::expr_table::ExprInfo::EnumCase
 /// [`ExprInfo::ClassConst`]: crate::expr_table::ExprInfo::ClassConst
 pub(crate) fn record_default_use(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     use crate::expr_table::ExprInfo;
-    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
-        return;
+    let (class, name) = match &expr.kind {
+        ExprKind::ClassConstAccess { class, name } => (class, name),
+        ExprKind::ArrayLiteral(items) => {
+            for item in items {
+                if let Some(key) = &item.key {
+                    record_default_use(key, ctx, env);
+                }
+                record_default_use(&item.value, ctx, env);
+            }
+            return;
+        }
+        ExprKind::Conversion { expr, .. } => {
+            record_default_use(expr, ctx, env);
+            return;
+        }
+        _ => return,
     };
     if matches!(class.kind, ExprKind::StaticExpr) {
         return;
