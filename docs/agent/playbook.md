@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`cargo test --lib <name>` never runs a unit test of `nvs-cli`, because it is a binary crate.**
+  In `extend-blocks` stage 6, the check `agent` reported "did not run" for a test that passed. Every
+  test filtered out, and the result still said `ok`. A goal check over a test in `crates/nvs-cli/src/`
+  runs `cargo test --bin nvs <name>`. See `crates/nvs-cli/Cargo.toml`'s `[[bin]]`.
 - **A reread that adds a goal's facts to an `about.md` can push it past 200 words.** In
   `route-values` stage 10, nine files went over after a stale-stamp pass, and only
   `bun nv proofs --gate` caught it, after they were stamped. Tell a writing subagent the bound

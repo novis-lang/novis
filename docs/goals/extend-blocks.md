@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-types/src/layout.rs, crates/nvs-runtime/src/revoke.rs, crates/nvs-runtime/src/graph.rs, docs/rules/classes/revocable-objects.md]
   - id: 6
     title: "the editor, nvs meta and nvs agent know every added member"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/symbols.rs, crates/nvs-lsp/src/order.rs, crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: "the rules ship, and the reference, the examples, the feature proofs and the website say so"
@@ -130,7 +130,7 @@ checks:
   - id: agent
     stage: 6
     name: "nvs agent find names an added member under its type and its block"
-    run: [cargo, test, --lib, agent_find_names_an_added_member]
+    run: [cargo, test, --bin, nvs, agent_find_names_an_added_member]
     tests: [agent_find_names_an_added_member]
     timeout: 1800
   - id: proofs
@@ -374,12 +374,27 @@ static property of your own class), `readonly` on an added property, a stored pr
   members, with the block in its `detail`. Choosing one from a block the file does not use writes the
   `use` line, as completing a class name does. Hover names the block. Definition goes to the block's
   member. Rename of an added member renames every call and the member. References find every call. The
-  outline shows a block as a class-like symbol named `<Name>` with detail `extend <Type>`. The file
+  outline shows a block as a class-like symbol named `<Name>` with its members as children, and no
+  `detail` (mine, stage 6, replacing "detail `extend <Type>`"): no symbol in the outline sets one,
+  because the `.lspt` rendering has no column to pin it. The file
   letter for a block is `X` (`rule:ide/a-file-shows-what-it-declares`). Member order inside a block is
   the class order (`rule:tooling/class-members-have-one-order`, `crates/nvs-lsp/src/order.rs:443`).
-- **`nvs meta --json` writes a block as its own row** with `kind: "extend"`, `target` and `members`
-  (mine), and `nvs agent find` indexes each added member under `<Type>::<member>`, its card saying
-  which block adds it.
+- **A block's `use` is read by a call of a member it adds** (mine, stage 6). A block is never written
+  by name outside its `use`, so `W1026` (`crate::index::reads`, `crates/nvs-lsp/src/index.rs`) also
+  counts an identifier after `->`, `?->` or `::` that spells a name the block adds
+  (`index::added_names`). It errs the way the token reading already errs: a member of another type
+  with the same name counts as a read.
+- **`E0405` and `E0309` carry the missing block `use` as their fix** (mine, stage 6), so the editor's
+  quick fix and `nvs check --fix` write it, and the text output prints `= suggestion: import …`.
+- **`nvs meta --json <entry>` writes each block as its own row under `program.blocks`** with
+  `kind: "extend"`, `name`, `target` and the class body keys (mine). A block declares no type, so it is
+  not in `classes`.
+- **`nvs agent` stays the installed language's surface** (mine, stage 6). Its renderer indexes each
+  added member of a program document under `<Type>::<member>`, its line ending `added by <Block>`, but
+  `nvs agent find`, `index` and `show` take no entry and read the registry alone
+  (`rule:tooling/an-agent-asks-the-binary`). A project's own blocks are project code, and `nvs code`
+  answers them from the editor's index, which now holds every added member under its block. Giving
+  `nvs agent` a program argument is a change to that rule, and not this goal's.
 
 ### New error codes
 
@@ -587,16 +602,16 @@ or is extended by another `Core` class (`file:line` and one line each), before t
 letter) and the `meta`/`agent` half go to two writing subagents side by side; their files are
 disjoint. The session builds once both end and runs each check once.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:648` and `:4382`: added members from every project block, sorted
+- [x] `crates/nvs-lsp/src/completion.rs:648` and `:4382`: added members from every project block, sorted
   after the type's own, the block in `detail`, the `use` written on accept.
-- [ ] `crates/nvs-lsp/src/hover.rs:167`, `crates/nvs-lsp/src/definition.rs:528`,
+- [x] `crates/nvs-lsp/src/hover.rs:167`, `crates/nvs-lsp/src/definition.rs:528`,
   `crates/nvs-lsp/src/rename.rs:157`, `crates/nvs-lsp/src/query.rs:76`: hover names the block,
   definition reaches it, rename and references cover every call.
-- [ ] `crates/nvs-lsp/src/symbols.rs:76`: a block in the outline; `crates/nvs-lsp/src/order.rs:121`:
+- [x] `crates/nvs-lsp/src/symbols.rs:76`: a block in the outline; `crates/nvs-lsp/src/order.rs:121`:
   member order in a block; the file letter `X` beside `sole_declaration`'s users. The quick fix that
   writes a missing block `use` from `E0405`'s help.
-- [ ] The six `.lspt` cases the check `editor` names, run once.
-- [ ] `crates/nvs-cli/src/meta.rs:1105`: the block row; `crates/nvs-cli/src/agent.rs:626`: added members
+- [x] The six `.lspt` cases the check `editor` names, run once.
+- [x] `crates/nvs-cli/src/meta.rs:1105`: the block row; `crates/nvs-cli/src/agent.rs:626`: added members
   indexed. The tests the checks `meta` and `agent` name, run once by name.
 
 ### 7. the rules ship, and the reference, the examples, the feature proofs and the website say so
@@ -632,53 +647,62 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 5 is done. A stored added property runs the hooks its block writes, and its accessors read
-and write the entry. The `slot`, `properties` and `property-refusals` checks are green, and the new
-case `tests/conformance/class/an-added-stored-property-runs-its-hooks.nvst` is green, each run once.
+Stage 6 is done. The `editor`, `meta` and `agent` checks are green, each run once, and so are the
+re-run `added-visibility` check and the new case
+`tests/lsp/diagnostics/an-import-of-a-block-is-read-by-a-call-of-its-member.lspt`. `cargo build`,
+`cargo clippy --all-targets -- -D warnings` and `cargo fmt --all --check` are clean.
 
-- **Computed**: `added_property_access` (`crates/nvs-types/src/expr/members.rs:2741`) records
-  `ExprInfo::HookedProperty` with the block's `get` label; a write is `E0787` (`assign.rs:1947`).
-- **Stored**: the same record with a `set` label too. `extend::record_stored`
-  (`crates/nvs-types/src/extend.rs`) records `expr_table::AddedStored` (the `#entry` labels from
-  `signatures::entry_label`, index, default, `lateinit`) at the property's name span, and
-  `extend::added_index` gives the index from `ClassSignature::added_stored`.
-  `nvs_ir::lower::lower_added_accessors` (`crates/nvs-ir/src/lower/mod.rs`) compiles the two
-  functions; they call `Helper::AddedHas`, `AddedGet` and `AddedSet` (`nvs_added_*`,
-  `crates/nvs-runtime/src/object.rs` after `nvs_clone_guard`). `refuse_stored` reports `E1014`
-  only where `has_added_slot` is false.
-- **Hooks on a stored one**: `added_property_access` takes `inside_own_hook`; inside the block's own
-  hooks it records the `#entry` labels, elsewhere a written hook's label or the `#entry` one.
-  `lower_property_hook` lowers a short `set => expr;` of an added property as a call of the
-  `set#entry` accessor (`entry_set`).
-- **The slot**: `nvs_runtime::ADDED_SLOT_NAME` (`object.rs:1076`), hidden from JSON, bytes,
-  Reflect and copies. It holds an array keyed by index; an entry never written has no key, and a
-  slot that is not an array (`null`, or an error object's `unset`) has no added values.
+- **Editor**: `definition::body_of`, `declared_span` and `doc_of` know `ExtendDecl`, so `site` finds a
+  block's members by the block's name; `definition::target_in` reads an added property's block off
+  its accessor label. The index records added members under `Block::member`, so references and
+  rename cover the declaration and every call. Hover (`hover.rs` `added`) names the block.
+  Completion (`completion.rs` `added_members`, `unloaded_blocks`) offers added members after the
+  type's own, with ` [Block]` after the label and the `use` as an additional edit, from loaded
+  blocks and from the index's unloaded ones (`HierarchyResolver::written_blocks`). The outline
+  shows a block as a class symbol; `order.rs` orders its members; the file letter `X` is in
+  `editors/vscode/src/kinds.ts`.
+- **The quick fix**: `E0405` (`report_unknown_member`) and `E0309` (`check_member_ref`,
+  `crates/nvs-hir/src/members.rs`) carry the `use` line as `with_fix`.
+- **`W1026`**: `index::reads` takes `index::added_names`, and `diagnostics::unused_uses` takes every
+  loaded file and the module.
+- **meta/agent**: `meta.rs` `user_block_json` writes `program.blocks`; `agent.rs`
+  `push_added_members` and `member_row` index and show added members of a program document.
+- The `agent` check now runs `cargo test --bin nvs`: `nvs-cli` is a binary crate, so `--lib` ran none.
 
 ### Next
 
-Stage 6, by its `**Split:**` line: two writing subagents side by side, then one build and each
-check once.
+Stage 7, by its `**Split:**` line: the session flips the rules and writes the reference and the
+website entries; one writing subagent writes the examples, the attack and the bench once the rules
+are flipped.
 
-1. The LSP half: completion of added members (`crates/nvs-lsp/src/completion.rs:648`, `:4382`), and
-   `ExtendDecl` sent to `member()` at `completion.rs:3235` for completion inside a block body;
-   `HierarchyResolver::written` carries blocks for a file the program has not loaded; hover,
-   definition, rename, references, symbols, order, the file letter `X`, and the quick fix for a
-   missing block `use`. The six `.lspt` cases the check `editor` names.
-2. The `meta`/`agent` half: the block row in `crates/nvs-cli/src/meta.rs:1105`, added members in
-   `crates/nvs-cli/src/agent.rs:626`, and the tests the checks `meta` and `agent` name.
+1. Flip the four stage-1 rule fragments to `shipped` with `guardedBy` the cases of every check
+   above, and the Declined line in `docs/rules/core-api/core-classes-are-sealed.md:32`.
+   `bun nv rules --render`.
+2. `data/reference/lang/50-classes.json:1`: the `extend` section; the enum chapter says enums take
+   methods and constants (Backlog: the enum pages).
+3. The examples, attack and bench (`bun nv proofs --owed --goal extend-blocks`), the website page
+   `website/src/content/docs/syntax/classes/extend-blocks.mdx`, `changes.json`, and the stamps.
 
-Tests that may go red: none. Every test this session wrote was run once, by name, and is green.
-`cargo clippy --all-targets -- -D warnings` is clean.
+Tests that may go red: none known. Nothing outside the checks named above was run.
 
 ### Backlog
 
+- The completion case `tests/lsp/completion/an-added-method-is-offered-and-writes-its-use.lspt`
+  pins the row and that a private member is left out, not the `use` edit or the order: the `.lspt`
+  renderer prints neither for a completion item, and printing edits changes about nine existing
+  completion cases.
+- Completion does not offer block names in a `use` line, and `self::` inside a block does not
+  complete the target's members (`class_word` / `class_at` do not know blocks).
+- A block's target is not in the index's `supertypes`, so the type hierarchy does not show blocks.
+- `nvs agent`'s block lines carry no line for the block itself, and added constants are not
+  indexed, as class constants are not.
+- `index::imports` calls `added_names` once per indexed file. One call per analysis would do.
 - A computed added property read inside its own `get` hook calls the hook again, and the
   recursion error stops it at run time. A class's hook reads its backing slot there instead.
   Refusing the read at compile time would be clearer. Stage 7's newcomer review may want it.
 - `docs/rules/classes/an-added-property-lives-in-one-hidden-slot.md` names `Core\Html\Markup` as
   the immortal example. Stage 7 adds the seven `Core\Reflect` descriptions, which
   `added_slot.rs` also leaves without a slot.
-
 - Stage 7 owes the enum pages: `docs/examples/lang/enums/declaring-an-enum/about.md:10` and
   `details.md:19`, `what-an-enum-does-not-have/details.md` and `an-enum-inside-a-class/details.md`
   still say an enum has no method or constant. `data/proofs/review-baseline.json:5917` still names
@@ -688,8 +712,6 @@ Tests that may go red: none. Every test this session wrote was run once, by name
   member in the enum. Stage 7 may rename it to match; `guardedBy` lists name it.
 - A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with stage 4's
   deprecation item.
-- `HierarchyResolver::written` (the editor's graph for an unloaded file) does not carry blocks. Stage
-  6 needs it for completion in a file the program has not loaded.
 - `check_type_params` accepts any bare name, so `extend ObjectMap<Tag, Item>` binds two new names
   that shadow the classes `Tag` and `Item` inside the block. Refusing a name the block's file
   resolves to a type needs the file's `use` map in `check_block`. Stage 7's newcomer review may
@@ -699,5 +721,3 @@ Tests that may go red: none. Every test this session wrote was run once, by name
 - A block's enum whose name a `Core` type already owns (`Core\Arr::Order`) is not refused: the
   symbol table wins over the registry's enum table in `crate::lower::owned_enum`. `check_collisions`
   should compare against `env.enums` for a `Core` target.
-- Completion inside an `extend` body offers nothing yet: `completion.rs:3235` sends only
-  `ClassDecl`/`InterfaceDecl` nodes to `member()`. Stage 6 adds `ExtendDecl`.
