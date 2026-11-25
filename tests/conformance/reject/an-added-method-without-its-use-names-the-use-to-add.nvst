@@ -44,8 +44,10 @@ extend Date as BusinessDays {
 error[E0405]: `Core\Time\Date` has no method named `isBusinessDay`
 %A
   = help: the `extend` block `Shop\BusinessDays` adds `isBusinessDay`. Write `use Shop\BusinessDays;` at the top of this file to call it
+
 error[E0405]: `Core\Time\Date` has no member named `newYear`
 %A
   = help: the `extend` block `Shop\BusinessDays` adds `newYear`. Write `use Shop\BusinessDays;` at the top of this file to call it
+
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
