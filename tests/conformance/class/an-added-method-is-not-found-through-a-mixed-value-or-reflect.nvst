@@ -1,0 +1,61 @@
+--TEST--
+an added method is reached only by a call the compiler resolves: a `mixed` receiver, `Core\Reflect`'s method list and `ClassInfo::call` do not find it, while the statically typed call in the same file does — `rule:classes/an-added-member-never-changes-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use App\OrderTools;
+use LogicError;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    public function isLarge(): bool {
+        return $this->total > 100;
+    }
+}
+
+var $order = new Order(250);
+echo $order->isLarge() ? "large" : "small", "\n";
+
+mixed $erased = $order;
+try {
+    var $large = $erased->isLarge();
+    echo "found\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+var $described = Core\Reflect::forObject($order);
+foreach ($described->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), "\n";
+}
+try {
+    var $called = $described->call($order, "isLarge", []);
+    echo "found\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+
+    public function label(): string
+    {
+        return "order";
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+large
+`Acme\Shop\Order` has no method `isLarge()`
+constructor
+label
+`Acme\Shop\Order` has no method `isLarge()`
