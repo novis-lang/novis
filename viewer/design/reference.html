@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Novis Debug: design reference</title>
+<!-- The design reference of the goal `debug-viewer-flagship`. It is a drawing, not the viewer: the
+     viewer's own stylesheet is `viewer/src/style.css`, and the goal's last content stage deletes this
+     file. The palette block is the website's (`website/src/styles/custom.css`), and every other colour
+     is mixed from it. -->
+<style>
+.nv {
+  --crimson: #b20038; --orange: #ef6c01; --gold: #ffb703; --blue: #11a7d7;
+  --ink: #0a0a0a; --fog: #fafafa; --ground: #111111;
+  --bg: var(--ground);
+  --surface: color-mix(in oklab, var(--fog) 4%, var(--ground));
+  --surface-2: color-mix(in oklab, var(--fog) 8%, var(--ground));
+  --line: color-mix(in oklab, var(--fog) 11%, var(--ground));
+  --line-2: color-mix(in oklab, var(--fog) 22%, var(--ground));
+  --text: #fff;
+  --text-2: color-mix(in oklab, var(--fog) 78%, var(--ground));
+  --muted: color-mix(in oklab, var(--fog) 58%, var(--ground));
+  --faint: color-mix(in oklab, var(--fog) 44%, var(--ground));
+  --hover: color-mix(in oklab, var(--fog) 7%, transparent);
+  --link: color-mix(in oklab, var(--blue) 55%, white);
+  --wash: color-mix(in oklab, var(--blue) 18%, transparent);
+  --ok: #4cc38a; --warn: color-mix(in oklab, var(--orange) 69%, white);
+  --bad: #ff6b81; --violet: #b69cf5; --gold-text: var(--gold);
+  --grad: linear-gradient(90deg, color-mix(in oklab, var(--crimson) 60%, white), color-mix(in oklab, var(--orange) 80%, white));
+  --shadow: 0 2px 4px rgb(0 0 0 / .3), 0 18px 40px -12px rgb(0 0 0 / .7);
+  --sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  font: 13px/1.45 var(--sans); color: var(--text-2); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-color-scheme: light) {
+  .nv {
+    --bg: var(--fog);
+    --surface: color-mix(in oklab, white 70%, var(--fog));
+    --surface-2: color-mix(in oklab, var(--ink) 3%, white);
+    --line: color-mix(in oklab, var(--ink) 10%, var(--fog));
+    --line-2: color-mix(in oklab, var(--ink) 20%, var(--fog));
+    --text: var(--ink);
+    --text-2: color-mix(in oklab, var(--fog) 19%, var(--ink));
+    --muted: color-mix(in oklab, var(--fog) 38%, var(--ink));
+    --faint: color-mix(in oklab, var(--fog) 52%, var(--ink));
+    --hover: color-mix(in oklab, var(--ink) 5%, transparent);
+    --link: color-mix(in oklab, var(--blue) 62%, black);
+    --wash: color-mix(in oklab, var(--blue) 12%, transparent);
+    --ok: #177a4c; --warn: color-mix(in oklab, var(--orange) 76%, black);
+    --bad: #c0193d; --violet: #6b46c9; --gold-text: color-mix(in oklab, var(--gold) 58%, black);
+    --grad: linear-gradient(90deg, var(--crimson), color-mix(in oklab, var(--orange) 94%, black));
+    --shadow: 0 2px 4px rgb(10 10 10 / .06), 0 20px 44px -16px rgb(10 10 10 / .18);
+  }
+}
+.cap { font: 600 11px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; opacity: .6; margin: 22px 2px 8px; }
+.cap:first-child { margin-top: 0; }
+.nv * { box-sizing: border-box; }
+.nv svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.dim { color: var(--muted); }
+
+/* top bar */
+.top { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); position: relative; }
+.top::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--grad); opacity: .75; }
+.logo { width: 22px; height: 22px; border-radius: 6px; background: var(--grad); display: grid; place-items: center; color: #fff; font: 800 12px var(--sans); }
+.brand { color: var(--text); font-weight: 700; letter-spacing: -.01em; }
+.brand span { color: var(--muted); font-weight: 500; }
+.find { flex: 1; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--faint); min-width: 0; }
+.find span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+kbd { font: 500 10.5px var(--mono); padding: 1px 5px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--muted); }
+.live { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: color-mix(in oklab, var(--ok) 14%, transparent); color: var(--ok); font-weight: 600; font-size: 12px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 25%, transparent); }
+.ico { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+
+/* frame */
+.frame { display: grid; grid-template-columns: 62px 1fr; }
+.rail { border-right: 1px solid var(--line); padding: 8px 6px; display: flex; flex-direction: column; gap: 2px; background: var(--surface); }
+.rail a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px; border-radius: 8px; color: var(--muted); font-size: 10px; font-weight: 600; position: relative; text-decoration: none; }
+.rail a.on { background: var(--wash); color: var(--link); }
+.rail a.on::before { content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--blue); }
+.rail .n { position: absolute; top: 3px; right: 6px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--bad); color: var(--bg); font-size: 9.5px; line-height: 15px; text-align: center; }
+.rail .end { margin-top: auto; }
+.main { min-width: 0; }
+
+/* stat tiles */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px; }
+.tile { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; min-width: 0; }
+.tile h4 { margin: 0; font-size: 11px; font-weight: 600; color: var(--muted); }
+.tile b { display: block; margin-top: 2px; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
+.tile b small { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-top: 6px; }
+.spark i { flex: 1; border-radius: 1.5px; background: color-mix(in oklab, var(--blue) 60%, transparent); }
+.spark i.e { background: var(--bad); }
+.meter { height: 5px; border-radius: 3px; background: var(--surface-2); margin-top: 10px; overflow: hidden; display: flex; }
+.meter i { display: block; height: 100%; }
+
+/* filters */
+.bar { display: flex; align-items: center; gap: 6px; padding: 0 14px 10px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.chip.set { border-color: color-mix(in oklab, var(--blue) 55%, transparent); background: var(--wash); color: var(--link); }
+.chip.add { border-style: dashed; color: var(--muted); }
+.sp { flex: 1; }
+
+/* list */
+.rows { border-top: 1px solid var(--line); }
+.row, .head { display: grid; grid-template-columns: 54px minmax(0, 1fr) 46px 150px 58px 62px 44px; gap: 10px; align-items: center; padding: 0 14px; }
+.head { height: 28px; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--line); }
+.row { height: 38px; border-bottom: 1px solid var(--line); position: relative; }
+.row.sel { background: var(--wash); }
+.row.sel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--blue); }
+.r { text-align: right; }
+.m { font: 600 10.5px var(--mono); padding: 2px 0; width: 46px; text-align: center; border-radius: 5px; }
+.m.get { color: var(--link); background: color-mix(in oklab, var(--blue) 14%, transparent); }
+.m.post { color: var(--ok); background: color-mix(in oklab, var(--ok) 14%, transparent); }
+.m.put { color: var(--warn); background: color-mix(in oklab, var(--orange) 15%, transparent); }
+.m.del { color: var(--bad); background: color-mix(in oklab, var(--bad) 14%, transparent); }
+.path { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-family: var(--mono); font-size: 12px; }
+.path small { color: var(--faint); font-size: 11px; margin-left: 8px; }
+.st { font: 600 12px var(--mono); }
+.s2 { color: var(--ok); } .s3 { color: var(--link); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
+.dur { display: flex; align-items: center; gap: 8px; }
+.dur span { width: 52px; text-align: right; color: var(--text-2); font-family: var(--mono); font-size: 12px; }
+.dur .seg { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); display: flex; overflow: hidden; }
+.seg i { display: block; height: 100%; }
+.db { background: var(--blue); } .http { background: var(--violet); } .own { background: var(--faint); } .cache { background: var(--ok); } .gc { background: var(--orange); }
+.tag { font: 600 10px var(--sans); padding: 1px 6px; border-radius: 999px; background: color-mix(in oklab, var(--gold) 20%, transparent); color: var(--gold-text); margin-left: 5px; }
+.err { color: var(--bad); font-size: 11.5px; margin-left: 8px; font-family: var(--sans); }
+
+/* one request */
+.hd { padding: 14px 16px 0; }
+.title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.title h2 { margin: 0; font: 600 16px var(--mono); color: var(--text); letter-spacing: -.01em; }
+.pill { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; }
+.pill.ok { color: var(--ok); background: color-mix(in oklab, var(--ok) 14%, transparent); }
+.crumb { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.crumb a { color: var(--link); text-decoration: none; }
+.acts { display: flex; gap: 6px; margin-left: auto; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 8px; font-weight: 600; font-size: 12px; color: var(--text-2); background: var(--surface); white-space: nowrap; }
+.btn.go { border: 0; color: #fff; background: color-mix(in oklab, var(--crimson) 92%, white); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 7px; font-size: 11.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); margin-top: 4px; overflow: hidden; }
+.tabs a { padding: 9px 10px; font-weight: 600; font-size: 12.5px; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs a.on { color: var(--text); border-color: var(--blue); }
+.tabs em { font-style: normal; font-size: 10.5px; margin-left: 5px; padding: 0 5px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+.wf { padding: 6px 0 4px; }
+.axis, .ev { display: grid; grid-template-columns: 270px 1fr 62px; gap: 10px; align-items: center; padding: 0 16px; }
+.axis { height: 24px; color: var(--faint); font: 10.5px var(--mono); }
+.axis div { display: flex; justify-content: space-between; }
+.ev { height: 28px; }
+.ev.grp { background: color-mix(in oklab, var(--gold) 9%, transparent); }
+.ev .lab { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ev .lab i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.ev .lab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: 11.5px var(--mono); color: var(--text-2); }
+.lane { height: 100%; position: relative; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), var(--line) calc(25% - 1px) 25%); }
+.lane i { position: absolute; top: 9px; height: 10px; border-radius: 3px; min-width: 3px; }
+.note { margin: 6px 16px 14px; padding: 9px 12px; border: 1px solid color-mix(in oklab, var(--gold) 40%, transparent); background: color-mix(in oklab, var(--gold) 9%, transparent); border-radius: 10px; color: var(--text-2); display: flex; gap: 10px; align-items: center; }
+.note svg { color: var(--gold-text); }
+.note a { color: var(--link); text-decoration: none; }
+
+/* editor strip */
+.vs { display: grid; grid-template-columns: 1fr 1fr; }
+.vs .pane { min-width: 0; }
+.vs .pane + .pane { border-left: 1px solid var(--line); }
+.tabsbar { display: flex; align-items: center; height: 34px; background: var(--surface); border-bottom: 1px solid var(--line); padding-right: 8px; }
+.tab { height: 100%; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-right: 1px solid var(--line); font-size: 12px; color: var(--text); background: var(--bg); }
+.tool { margin-left: auto; display: flex; gap: 2px; }
+.tool .ico.hot { color: var(--link); background: var(--wash); position: relative; }
+.code { padding: 10px 14px; font: 12px/1.75 var(--mono); color: var(--text-2); white-space: pre; overflow: hidden; }
+.code .lens { color: var(--faint); font-family: var(--sans); font-size: 11px; }
+.code .k { color: var(--bad); } .code .s { color: var(--ok); } .code .t { color: var(--link); } .code .a { color: var(--gold-text); }
+</style>
+</head>
+<body>
+
+<div class="cap">1 &middot; The request list</div>
+<div class="nv">
+  <div class="top">
+    <div class="logo">N</div>
+    <div class="brand">Novis <span>Debug</span></div>
+    <div class="find"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><span>Search requests, queries, logs, or paste a trace id</span><kbd>Ctrl K</kbd></div>
+    <div class="live"><span class="dot"></span>Live &middot; :8080</div>
+    <div class="ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></div>
+  </div>
+  <div class="frame">
+    <nav class="rail">
+      <a class="on"><svg viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h8"/></svg>Requests</a>
+      <a><svg viewBox="0 0 16 16"><path d="M3 13V3M3 5h6l-1.5 2L9 9H3M11 13h2"/></svg>Routes</a>
+      <a><svg viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/></svg>Queries</a>
+      <a><svg viewBox="0 0 16 16"><path d="M8 2 1.5 13.5h13zM8 6.5v3.5M8 12h.01"/></svg>Errors<span class="n">3</span></a>
+      <a><svg viewBox="0 0 16 16"><path d="M3 2.5h10v11H3zM5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>Logs</a>
+      <a><svg viewBox="0 0 16 16"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></svg>Stream</a>
+      <a class="end"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5 5 5M11 11l1.5 1.5M3.5 12.5 5 11M11 5l1.5-1.5"/></svg>Settings</a>
+    </nav>
+    <div class="main">
+      <div class="tiles">
+        <div class="tile"><h4>Requests, last 5 min</h4><b>1,284</b><div class="spark"><i style="height:30%"></i><i style="height:42%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:72%"></i><i style="height:64%"></i><i style="height:80%"></i><i style="height:58%"></i><i style="height:92%"></i><i style="height:76%"></i><i style="height:100%"></i></div></div>
+        <div class="tile"><h4>Duration</h4><b>4.1 <small>ms p50</small></b><div class="dim" style="margin-top:8px">48 ms p95 &middot; 212 ms max</div></div>
+        <div class="tile"><h4>Errors</h4><b>0.9 <small>%</small></b><div class="spark"><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i class="e" style="height:60%"></i><i style="height:8%"></i><i style="height:8%"></i><i class="e" style="height:35%"></i><i style="height:8%"></i><i style="height:8%"></i><i style="height:8%"></i><i class="e" style="height:90%"></i><i style="height:8%"></i></div></div>
+        <div class="tile"><h4>Memory peak</h4><b>3.1 <small>MiB of 64</small></b><div class="meter"><i class="db" style="width:5%"></i></div></div>
+      </div>
+      <div class="bar">
+        <span class="chip set">Status: 4xx, 5xx, slow</span>
+        <span class="chip">Method</span><span class="chip">Route</span><span class="chip">Slower than</span>
+        <span class="chip add">+ Filter</span>
+        <span class="sp"></span>
+        <span class="chip"><span class="dot" style="color:var(--ok)"></span>Following</span>
+      </div>
+      <div class="rows">
+        <div class="head"><span>Method</span><span>Path</span><span>Status</span><span>Duration</span><span class="r">Queries</span><span class="r">Memory</span><span class="r">Age</span></div>
+        <div class="row"><span class="m get">GET</span><span class="path">/api/notes<small>/api/notes</small></span><span class="st s2">200</span><span class="dur"><span>3.2 ms</span><span class="seg"><i class="db" style="width:4%"></i><i class="own" style="width:2%"></i></span></span><span class="r mono">2</span><span class="r mono dim">1.2 MiB</span><span class="r dim">2 s</span></div>
+        <div class="row sel"><span class="m get">GET</span><span class="path">/api/notes/42<small>/api/notes/{id}</small></span><span class="st s2">200</span><span class="dur"><span>48.2 ms</span><span class="seg"><i class="db" style="width:30%"></i><i class="http" style="width:9%"></i><i class="own" style="width:7%"></i></span></span><span class="r mono">7<span class="tag">5&times;</span></span><span class="r mono dim">3.1 MiB</span><span class="r dim">4 s</span></div>
+        <div class="row"><span class="m post">POST</span><span class="path">/api/notes<small>/api/notes</small></span><span class="st s2">201</span><span class="dur"><span>6.9 ms</span><span class="seg"><i class="db" style="width:6%"></i><i class="own" style="width:3%"></i></span></span><span class="r mono">3</span><span class="r mono dim">1.4 MiB</span><span class="r dim">9 s</span></div>
+        <div class="row"><span class="m get">GET</span><span class="path">/invoices/9001<span class="err">RuntimeError: There is no such invoice</span></span><span class="st s5">500</span><span class="dur"><span>11.8 ms</span><span class="seg"><i class="db" style="width:8%"></i><i class="own" style="width:5%"></i></span></span><span class="r mono">1</span><span class="r mono dim">0.9 MiB</span><span class="r dim">14 s</span></div>
+        <div class="row"><span class="m put">PUT</span><span class="path">/api/notes/42<small>/api/notes/{id}</small></span><span class="st s4">422</span><span class="dur"><span>1.1 ms</span><span class="seg"><i class="own" style="width:2%"></i></span></span><span class="r mono">0</span><span class="r mono dim">0.6 MiB</span><span class="r dim">31 s</span></div>
+        <div class="row"><span class="m get">GET</span><span class="path">/reports/monthly<small>/reports/{period}</small></span><span class="st s2">200</span><span class="dur"><span>212 ms</span><span class="seg"><i class="db" style="width:62%"></i><i class="cache" style="width:3%"></i><i class="gc" style="width:6%"></i><i class="own" style="width:29%"></i></span></span><span class="r mono">24</span><span class="r mono dim">18 MiB</span><span class="r dim">48 s</span></div>
+        <div class="row"><span class="m del">DELETE</span><span class="path">/api/notes/17<small>/api/notes/{id}</small></span><span class="st s2">204</span><span class="dur"><span>2.4 ms</span><span class="seg"><i class="db" style="width:3%"></i><i class="own" style="width:1%"></i></span></span><span class="r mono">1</span><span class="r mono dim">0.7 MiB</span><span class="r dim">1 min</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cap">2 &middot; One request</div>
+<div class="nv">
+  <div class="hd">
+    <div class="title">
+      <span class="m get">GET</span><h2>/api/notes/42</h2><span class="pill ok">200 OK</span>
+      <div class="acts"><span class="btn">Compare</span><span class="btn">Make a test</span><span class="btn">Copy as curl</span><span class="btn go">Replay</span></div>
+    </div>
+    <div class="crumb">Route <span class="mono">/api/notes/{id}</span> &middot; handled by <a class="mono">Notes::show</a> at <a class="mono">app/Notes.nvs:41</a> &middot; 4 seconds ago</div>
+    <div class="tiles" style="padding:14px 0 10px">
+      <div class="tile"><h4>Duration</h4><b>48.2 <small>ms</small></b></div>
+      <div class="tile"><h4>Memory peak</h4><b>3.1 <small>MiB of 64</small></b></div>
+      <div class="tile"><h4>Queries</h4><b>7 <small>&middot; 5 repeated</small></b></div>
+      <div class="tile"><h4>Response</h4><b>2.4 <small>KiB json</small></b></div>
+    </div>
+    <div class="meter" style="height:8px;margin:0"><i class="db" style="width:64%"></i><i class="http" style="width:19%"></i><i class="cache" style="width:2%"></i><i class="own" style="width:15%"></i></div>
+    <div class="legend"><span><i class="db"></i>Database 31.0 ms</span><span><i class="http"></i>HTTP calls 9.1 ms</span><span><i class="cache"></i>Cache 0.9 ms</span><span><i class="own"></i>Your code 7.2 ms</span></div>
+  </div>
+  <div class="tabs"><a class="on">Timeline</a><a>Request</a><a>Response</a><a>Queries<em>7</em></a><a>Dumps<em>1</em></a><a>Logs<em>3</em></a><a>Coverage</a></div>
+  <div class="wf">
+    <div class="axis"><span></span><div><span>0</span><span>12 ms</span><span>24 ms</span><span>36 ms</span><span>48 ms</span></div><span></span></div>
+    <div class="ev"><div class="lab"><i class="cache"></i><span>session read user</span></div><div class="lane"><i class="cache" style="left:1%;width:1.5%"></i></div><span class="r mono dim">0.4 ms</span></div>
+    <div class="ev"><div class="lab"><i class="db"></i><span>select * from notes where id = ?</span></div><div class="lane"><i class="db" style="left:4%;width:9%"></i></div><span class="r mono dim">4.3 ms</span></div>
+    <div class="ev grp"><div class="lab"><i class="db"></i><span>select name from tags where note_id = ?<span class="tag">5&times;</span></span></div><div class="lane"><i class="db" style="left:15%;width:10%"></i><i class="db" style="left:26%;width:11%"></i><i class="db" style="left:38%;width:10%"></i><i class="db" style="left:49%;width:12%"></i><i class="db" style="left:62%;width:11%"></i></div><span class="r mono dim">26.2 ms</span></div>
+    <div class="ev"><div class="lab"><i class="http"></i><span>GET api.example.com/avatars/7</span></div><div class="lane"><i class="http" style="left:74%;width:19%"></i></div><span class="r mono dim">9.1 ms</span></div>
+    <div class="ev"><div class="lab"><i class="cache"></i><span>cache put note:42</span></div><div class="lane"><i class="cache" style="left:94%;width:2%"></i></div><span class="r mono dim">0.5 ms</span></div>
+  </div>
+  <div class="note"><svg viewBox="0 0 16 16"><path d="M8 2 1.5 13.5h13zM8 6.5v3.5M8 12h.01"/></svg><span>The same query ran 5 times at <a class="mono">app/Notes.nvs:58</a>. One query with <span class="mono">in (...)</span> can load all tags.</span></div>
+</div>
+
+<div class="cap">3 &middot; In the editor</div>
+<div class="nv">
+  <div class="vs">
+    <div class="pane">
+      <div class="tabsbar"><div class="tab">Notes.nvs</div><div class="tool"><div class="ico hot" title="Open the debug viewer"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></svg></div><div class="ico"><svg viewBox="0 0 16 16"><path d="M5 3.5v9l7-4.5z"/></svg></div></div></div>
+      <div class="code"><span class="lens">312 requests &middot; 4.1 ms p50 &middot; last 500 2 min ago</span>
+<span class="a">#[Route('/api/notes/{id}')]</span>
+<span class="k">public function</span> show(<span class="t">int</span> $id): <span class="t">Note</span> {
+    $note = <span class="t">Note</span>::find($id);
+    <span class="lens">ran 5&times; in the last request &middot; 26.2 ms</span>
+    $tags = $this-&gt;tagsOf($note);
+    <span class="lens">last value: Note { id: 42, title: "Hello" }</span>
+    <span class="t">Debug</span>::dump($note);</div>
+    </div>
+    <div class="pane">
+      <div class="tabsbar"><div class="tab"><svg viewBox="0 0 16 16"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></svg>Novis Debug</div></div>
+      <div class="rows" style="border:0">
+        <div class="row sel" style="grid-template-columns:46px minmax(0,1fr) 34px 58px"><span class="m get">GET</span><span class="path">/api/notes/42</span><span class="st s2">200</span><span class="r mono dim">48.2 ms</span></div>
+        <div class="row" style="grid-template-columns:46px minmax(0,1fr) 34px 58px"><span class="m post">POST</span><span class="path">/api/notes</span><span class="st s2">201</span><span class="r mono dim">6.9 ms</span></div>
+        <div class="row" style="grid-template-columns:46px minmax(0,1fr) 34px 58px"><span class="m get">GET</span><span class="path">/invoices/9001</span><span class="st s5">500</span><span class="r mono dim">11.8 ms</span></div>
+        <div class="row" style="grid-template-columns:46px minmax(0,1fr) 34px 58px;border:0"><span class="m put">PUT</span><span class="path">/api/notes/42</span><span class="st s4">422</span><span class="r mono dim">1.1 ms</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
