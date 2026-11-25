@@ -6,7 +6,7 @@ context: [viewer/design/reference.html, docs/rules/testing/the-viewer-shows-the-
 stages:
   - id: 1
     title: the rules say how the viewer looks, what its new views answer, and how the editor opens it
-    status: open
+    status: done
     context: [docs/agent/doc-style.md, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md, docs/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.md, docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md, website/src/styles/custom.css]
   - id: 2
     title: the viewer has the website's palette in the system's fonts, a frame with a rail and a command palette, and one set of shared components
@@ -320,35 +320,35 @@ stage that crossed it says in the rule what the bytes buy.
 
 ### 1. the rules say how the viewer looks, what its new views answer, and how the editor opens it
 
-- [ ] `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:28`: *The
+- [x] `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:28`: *The
   baseline every view has* gains the frame, the one key map and the command palette. The paragraph
   on the front end gains `viewer/src/ui/` and the split stylesheet, and says that the viewer ships
   no font.
-- [ ] `docs/rules/testing/the-viewer-wears-the-websites-palette.md:1`: the palette block copied
+- [x] `docs/rules/testing/the-viewer-wears-the-websites-palette.md:1`: the palette block copied
   once and checked equal, the role names, one meaning per colour, the tone of each event kind, where
   the gradient and crimson may appear, the two system font stacks and the type scale, motion.
   Declined: Starlight's variable names, an icon package, an embedded or fetched font, a colour
   picked per view.
-- [ ] `docs/rules/testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it.md:1`: the tabs,
+- [x] `docs/rules/testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it.md:1`: the tabs,
   the tab in the link, bodies as text, JSON as a tree, the repeated-statement mark, *Copy as curl*.
   Declined: an HTML body in a frame, an image body drawn.
-- [ ] `docs/rules/testing/the-viewer-answers-per-route-and-per-statement.md:1`: the five API answers
+- [x] `docs/rules/testing/the-viewer-answers-per-route-and-per-statement.md:1`: the five API answers
   and each bound from the table above, the eight `requests` columns and their trigger, the percentile
   in Rust. Declined: an aggregate with no bound, a second store for aggregates.
-- [ ] `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:7`: the
+- [x] `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:7`: the
   `requests` row lists the new columns, and the new index is named.
-- [ ] `docs/rules/testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path.md:1`: the
+- [x] `docs/rules/testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path.md:1`: the
   embed prefix, why a cookie cannot work in a frame, the two `frame-ancestors` values, the three
   messages and who checks each, `nvs debug link`. Its Declined list is the one above.
-- [ ] `docs/rules/ide/the-debug-viewer-opens-from-one-button.md:1`: the two commands, the setting,
+- [x] `docs/rules/ide/the-debug-viewer-opens-from-one-button.md:1`: the two commands, the setting,
   the button's place, the panel as a frame, `nvs/debugViewer`, the start offer, the stop rule.
-- [ ] `docs/rules/ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded.md:1`: the three lenses,
+- [x] `docs/rules/ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded.md:1`: the three lenses,
   their keys, the newer-file rule. `docs/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.md`:
   its Declined entry on picking the request in the viewer is rewritten, because the panel now takes
   `go`.
-- [ ] `docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md:17`: **Built** names the
+- [x] `docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md:17`: **Built** names the
   panel and why it is a frame.
-- [ ] `bun nv rules --render`, then `bun nv rules --check` is green.
+- [x] `bun nv rules --render`, then `bun nv rules --check` is green.
 
 ### 2. the viewer has the website's palette in the system's fonts, a frame with a rail and a command palette, and one set of shared components
 
@@ -549,14 +549,29 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Written by an interactive session on 2026-11-25, from the user's ask for a flagship debug viewer.
-Nothing of this goal is built but the drawing, `viewer/design/reference.html`. The `path:line`
-anchors come from three read-only surveys of that day, so a stage checks an anchor before it edits
-there.
+Stage 1 is done: the rules are written and `bun nv rules --check` is green. Six new rules are
+`designed`, owned by this goal: `testing/the-viewer-wears-the-websites-palette`,
+`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`,
+`testing/the-viewer-answers-per-route-and-per-statement`,
+`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`,
+`ide/the-debug-viewer-opens-from-one-button` and `ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`.
+The stage that ships each one sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops
+`goal` and fills `guardedBy`. The key order of a record is `title`, `status`, `seeAlso`,
+`guardedBy`, `goal`, or `rules --check` fails on its layout. The rules name the route index
+`requests_route` on `(method, route, start_us)`, and the palette's file `viewer/src/styles/tokens.css`.
+Nothing of the viewer is built yet but the drawing, `viewer/design/reference.html`. The `path:line`
+anchors in later stages come from surveys, so a stage checks an anchor before it edits there.
+
+The nightly run the sweep reported (its SHA `53e94a9`) failed on Miri zone-database tests, the
+quotient attack and the macOS json-api allocation count. `1c3196b0e8` and `8ca2f09e1b` had already
+fixed all three on `main`, and every named test is checked to carry its fix.
 
 ### Next
 
-Stage 1 from its first item. Stage 4 shares no file with stages 2 and 3 and can run beside them.
+Stage 2 from its first item (`viewer/src/style.css`, `viewer/src/keys.ts`, `viewer/src/theme.ts`,
+`tools/nv/cmd/viewer.ts` for the palette-equality check). Stage 4 (`crates/nvs-cli/src/debug/index.rs:78`,
+the `requests` table) shares no file with stages 2 and 3 and can run beside them. No test is expected
+to go red from stage 1, which changed prose alone.
 
 ### Backlog
 
