@@ -2,7 +2,7 @@
 // everything it recorded from `GET /api/request`: the exception it threw, its timeline, each dump with
 // its value tree, and its log lines. A link back goes to the list, and so does Escape. The link with
 // `#exception` focuses the exception once the records load. Each site is a link to the editor
-// (`site.tsx`); a log line's message is text, whatever it says.
+// (`ui/site.tsx`); a log line's message is text, whatever it says.
 //
 // A link with the trace id alone shows the request when one has that trace id, and the matching rows
 // when several do, because an inbound `traceparent` can give two requests one trace id. The records are
@@ -10,7 +10,7 @@
 //
 // Once the records load, a bar offers to compare the request with the previous request to the same
 // route (`c`), with the request marked in the list, to replay it (`r`, `replay.tsx`), and to make a test
-// from it (`t`, `to-test.tsx`). The previous
+// from it (`t`, `to-test.tsx`). The same three are in the command palette while the page is open. The previous
 // request is the nearest older row with the same method and route on one page of `before`, so the
 // lookup is one bounded `GET /api/requests`.
 //
@@ -22,7 +22,8 @@ import { profileDownload, request, requests, type Json, type RequestDetail, type
 import { profileLink } from "../editor-link.ts";
 import { ignored } from "../keys.ts";
 import { compareLink, navigate, requestLink } from "../router.ts";
-import { Site } from "../site.tsx";
+import { addCommands } from "../ui/palette.tsx";
+import { Site } from "../ui/site.tsx";
 import { isMarked, marked, setMarked } from "./compare.tsx";
 import { ReplayAction } from "./replay.tsx";
 import { ToTestAction } from "./to-test.tsx";
@@ -87,6 +88,21 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
   };
   let openReplay: (() => void) | undefined;
   let openToTest: (() => void) | undefined;
+  onCleanup(
+    addCommands([
+      { label: "Replay this request", group: "Actions", hint: "r", run: () => openReplay?.() },
+      { label: "Make a test from this request", group: "Actions", hint: "t", run: () => openToTest?.() },
+      {
+        label: "Compare with the previous request to this route",
+        group: "Actions",
+        hint: "c",
+        run: () => {
+          const link = previousLink();
+          if (link) navigate(link);
+        },
+      },
+    ]),
+  );
 
   const onKey = (e: KeyboardEvent) => {
     if (ignored(e)) return;

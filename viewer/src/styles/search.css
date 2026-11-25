@@ -1,0 +1,54 @@
+/* The search results. */
+.search-view {
+  overflow: auto;
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem;
+}
+
+.group {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.group-head {
+  margin: 0 0 0.25rem;
+}
+
+.group-link {
+  font-weight: 600;
+}
+
+.hits {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+}
+
+.hit {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.1rem 0;
+}
+
+.hit-kind {
+  min-width: 5rem;
+  color: var(--muted);
+}
+
+.snippet {
+  overflow-wrap: anywhere;
+}
+
+
+.more {
+  margin: 0.25rem 0 0 1rem;
+}
+
+.btn.older {
+  align-self: flex-start;
+  margin: 0.75rem 1rem;
+}

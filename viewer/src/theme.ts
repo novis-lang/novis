@@ -1,6 +1,7 @@
 // The viewer's theme: `system` follows the browser's `prefers-color-scheme`, and `dark` or `light`
 // fixes one. The choice is kept in `localStorage` and written to `<html data-theme>`, which
-// `style.css` reads; `system` removes the attribute.
+// `styles/tokens.css` reads; `system` removes the attribute. The top bar's theme button walks the
+// three, and the command palette and the settings set one.
 
 import { createSignal } from "solid-js";
 
@@ -35,7 +36,7 @@ export function setTheme(next: Theme): void {
   }
 }
 
-/** The next theme in the order the `t` key walks them. */
+/** The next theme in the order the theme button walks them. */
 export function nextTheme(): Theme {
   return theme() === "system" ? "dark" : theme() === "dark" ? "light" : "system";
 }

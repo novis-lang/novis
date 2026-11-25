@@ -12,7 +12,8 @@ other.
 
 **The viewer names roles, never places.** A rule outside `tokens.css` reads a role: `--surface`,
 `--line`, `--text`, `--muted`, `--link`, `--wash`, `--ok`, `--warn`, `--bad`, and the event tones
-below. A view picks no colour of its own.
+below. `--accent` and `--highlight` are blue and gold as drawn, for a border, a marker or a fill, and
+never for text. A view picks no colour of its own.
 
 **A colour has one meaning, as on the website.** Green is ok, blue is interaction and information,
 orange is a warning, red is an error, and gold is a highlight, such as a repeated query. A request's

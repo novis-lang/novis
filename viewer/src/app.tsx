@@ -1,29 +1,51 @@
-// The viewer's frame: the header with the search box, the theme control, the editor settings and the
-// key list, the links to the views and the saved filters, and the region the view the path names renders into (`router.ts`).
-// The frame answers the keys every view shares, `/`, `?` and `t`, and turns a click on a link inside
-// the viewer into a move without a reload.
+// The viewer's frame, as `viewer/design/reference.html` draws it: a top bar with the logo, the search
+// box, the live state, the theme button and the key list; a rail on the left with the views, the
+// saved filters and the settings; and the region the view the path names renders into (`router.ts`).
+//
+// The frame binds the keys every view shares in the key map (`keys.ts`): `/` focuses the search box,
+// `?` lists the keys, and `Ctrl+K` (`Cmd+K` on macOS) opens the command palette (`ui/palette.tsx`).
+// It also turns a click on a link inside the viewer into a move without a reload.
 //
 // The search box opens a pasted `traceresponse` value or trace id at once, and searches for anything
 // else at `/search?q=`.
 
-import { createEffect, createMemo, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { createEffect, createMemo, For, Match, onCleanup, onMount, Switch } from "solid-js";
 import { traceKey } from "./api.ts";
-import { ignored, KEYS } from "./keys.ts";
+import { bind, bindings, dispatch, label } from "./keys.ts";
 import { navigate, path, query, route, version } from "./router.ts";
 import { nextTheme, setTheme, theme, type Theme } from "./theme.ts";
+import { Dialog } from "./ui/dialog.tsx";
+import { Icon, type IconName } from "./ui/icon.tsx";
+import { type Command, Palette } from "./ui/palette.tsx";
+import { Toasts } from "./ui/toast.tsx";
 import { CompareView } from "./views/compare.tsx";
 import { EditorSettings } from "./views/editor.tsx";
 import { ExceptionsView } from "./views/exceptions.tsx";
 import { LogView } from "./views/log.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
-import { loadSettings, SavedList, SavedOpen } from "./views/saved.tsx";
+import { loadSettings, saved, SavedList, savedLink, SavedOpen } from "./views/saved.tsx";
 import { SearchView } from "./views/search.tsx";
 import { StreamView } from "./views/stream.tsx";
+
+/** The views the rail lists, in its order. `views` are the route views it is current on. */
+const RAIL: ReadonlyArray<{ href: string; label: string; icon: IconName; views: string[] }> = [
+  { href: "/", label: "Requests", icon: "requests", views: ["list", "request", "compare"] },
+  { href: "/exceptions", label: "Errors", icon: "errors", views: ["exceptions"] },
+  { href: "/log", label: "Logs", icon: "logs", views: ["log"] },
+  { href: "/stream", label: "Stream", icon: "stream", views: ["stream"] },
+];
+
+/** The views the command palette lists: the rail's, and the search, which the top bar's box opens. */
+const VIEWS = [...RAIL, { href: "/search", label: "Search", icon: "search" as const, views: ["search"] }];
+
+const THEME_NAMES: Record<Theme, string> = { system: "System", dark: "Dark", light: "Light" };
+const THEME_ICONS: Record<Theme, IconName> = { system: "system", dark: "moon", light: "sun" };
 
 export function App() {
   let search!: HTMLInputElement;
   let keys!: HTMLDialogElement;
+  let openPalette!: () => void;
   const at = createMemo(() => route(path()));
   const request = createMemo(() => {
     const now = at();
@@ -33,7 +55,7 @@ export function App() {
     const now = at();
     return now.view === "compare" ? now : null;
   });
-  const saved = createMemo(() => {
+  const savedView = createMemo(() => {
     const now = at();
     return now.view === "saved" ? now : null;
   });
@@ -43,6 +65,8 @@ export function App() {
   createEffect(() => {
     if (view() === "search") search.value = new URLSearchParams(query()).get("q") ?? "";
   });
+
+  const find = (text: string) => navigate(`/search?${new URLSearchParams({ q: text })}`);
 
   /** Opens the request a pasted `traceresponse` value or trace id names, or searches for the text. */
   const submit = (e: SubmitEvent) => {
@@ -54,16 +78,7 @@ export function App() {
     if (key) {
       search.value = "";
       navigate(key.span ? `/requests/${key.trace}/${key.span}` : `/requests/${key.trace}`);
-    } else navigate(`/search?${new URLSearchParams({ q: text })}`);
-  };
-
-  const onKey = (e: KeyboardEvent) => {
-    if (ignored(e)) return;
-    if (e.key === "/") search.focus();
-    else if (e.key === "?") keys.showModal();
-    else if (e.key === "t") setTheme(nextTheme());
-    else return;
-    e.preventDefault();
+    } else find(text);
   };
 
   const onClick = (e: MouseEvent) => {
@@ -75,7 +90,18 @@ export function App() {
     navigate(href);
   };
 
+  const onKey = (e: KeyboardEvent) => {
+    dispatch(e);
+  };
+
   onMount(() => {
+    onCleanup(
+      bind([
+        { keys: ["Mod+k"], action: "Open the command palette", run: () => openPalette() },
+        { keys: ["/"], action: "Go to the search box", run: () => search.focus() },
+        { keys: ["?"], action: "Show this list", run: () => keys.showModal() },
+      ]),
+    );
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
     loadSettings();
@@ -85,92 +111,116 @@ export function App() {
     document.removeEventListener("click", onClick);
   });
 
-  const current = (name: string) => (view() === name ? "page" : undefined);
+  /** What the palette lists besides the commands a page registered: the views, the saved filters and
+   *  the frame's own actions. */
+  const commands = (): Command[] => [
+    ...VIEWS.map((one): Command => ({ label: `Go to ${one.label}`, group: "Views", icon: one.icon, run: () => navigate(one.href) })),
+    ...(saved()?.filters ?? []).map((one): Command => ({ label: one.name, group: "Saved filters", run: () => navigate(savedLink(one.name)) })),
+    ...(["dark", "light", "system"] as const).map(
+      (one): Command => ({
+        label: one === "system" ? "Follow the system theme" : `Use the ${one} theme`,
+        group: "Actions",
+        icon: THEME_ICONS[one],
+        run: () => setTheme(one),
+      }),
+    ),
+    { label: "Show the keyboard shortcuts", group: "Actions", icon: "keys", hint: "?", run: () => keys.showModal() },
+  ];
 
   return (
     <>
-      <header class="bar">
-        <h1>Novis debug</h1>
+      <header class="top">
+        <span class="logo" aria-hidden="true">
+          N
+        </span>
+        <h1 class="brand">
+          Novis <span>debug</span>
+        </h1>
         <form class="search" role="search" onSubmit={submit}>
+          <Icon name="search" />
           <input
             ref={search}
             type="search"
             aria-label="Search"
             aria-keyshortcuts="/"
-            placeholder="Search, or paste a trace id"
+            placeholder="Search requests, queries and logs, or paste a trace id"
             spellcheck={false}
             autocomplete="off"
             onKeyDown={(e) => {
               if (e.key === "Escape") search.blur();
             }}
           />
+          <button type="button" class="search-palette" aria-label="Open the command palette" aria-keyshortcuts="Control+K Meta+K" onClick={() => openPalette()}>
+            <kbd>{label("Mod+k")}</kbd>
+          </button>
         </form>
-        <label class="theme">
-          Theme{" "}
-          <select value={theme()} onChange={(e) => setTheme(e.currentTarget.value as Theme)} aria-keyshortcuts="t">
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </label>
-        <EditorSettings />
-        <button type="button" class="btn" onClick={() => keys.showModal()} aria-keyshortcuts="?">
-          Keys
+        <span class="live" role="status">
+          <span class="dot" aria-hidden="true" />
+          Live
+        </span>
+        <button
+          type="button"
+          class="icon-btn theme"
+          aria-label={`Theme: ${THEME_NAMES[theme()]}`}
+          title={`Theme: ${THEME_NAMES[theme()]}. Click to change.`}
+          onClick={() => setTheme(nextTheme())}
+        >
+          <Icon name={THEME_ICONS[theme()]} />
+        </button>
+        <button type="button" class="icon-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" aria-keyshortcuts="?" onClick={() => keys.showModal()}>
+          <Icon name="keys" />
         </button>
       </header>
-      <nav class="views" aria-label="Views">
-        <a href="/" aria-current={current("list")}>
-          Requests
-        </a>
-        <a href="/stream" aria-current={current("stream")}>
-          Stream
-        </a>
-        <a href="/log" aria-current={current("log")}>
-          Log
-        </a>
-        <a href="/search" aria-current={current("search")}>
-          Search
-        </a>
-        <a href="/exceptions" aria-current={current("exceptions")}>
-          Exceptions
-        </a>
-        <SavedList />
-      </nav>
-      <main id="view">
-        {/* Discarding the index raises `version`, which loads the view on screen again. */}
-        <For each={[version()]}>
-          {() => (
-            <Switch fallback={<RequestList />}>
-              <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
-              <Match when={compare()}>{(c) => <CompareView left={c().left} right={c().right} />}</Match>
-              <Match when={view() === "stream"}>
-                <StreamView />
-              </Match>
-              <Match when={view() === "log"}>
-                <LogView />
-              </Match>
-              <Match when={view() === "search"}>
-                <For each={[query()]}>{(q) => <SearchView query={q} />}</For>
-              </Match>
-              <Match when={view() === "exceptions"}>
-                <For each={[query()]}>{(q) => <ExceptionsView query={q} />}</For>
-              </Match>
-              <Match when={saved()}>{(s) => <SavedOpen name={s().name} />}</Match>
-            </Switch>
-          )}
-        </For>
-      </main>
-      <dialog ref={keys} class="keys" aria-labelledby="keys-title">
-        <h2 id="keys-title">Keyboard shortcuts</h2>
+      <div class="frame">
+        <nav class="rail" aria-label="Views">
+          <For each={RAIL}>
+            {(one) => (
+              <a href={one.href} class="rail-item" aria-current={one.views.includes(view()) ? "page" : undefined}>
+                <Icon name={one.icon} />
+                <span class="rail-label">{one.label}</span>
+              </a>
+            )}
+          </For>
+          <SavedList />
+          <div class="rail-foot">
+            <EditorSettings />
+          </div>
+        </nav>
+        <main id="view">
+          {/* Discarding the index raises `version`, which loads the view on screen again. */}
+          <For each={[version()]}>
+            {() => (
+              <Switch fallback={<RequestList />}>
+                <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
+                <Match when={compare()}>{(c) => <CompareView left={c().left} right={c().right} />}</Match>
+                <Match when={view() === "stream"}>
+                  <StreamView />
+                </Match>
+                <Match when={view() === "log"}>
+                  <LogView />
+                </Match>
+                <Match when={view() === "search"}>
+                  <For each={[query()]}>{(q) => <SearchView query={q} />}</For>
+                </Match>
+                <Match when={view() === "exceptions"}>
+                  <For each={[query()]}>{(q) => <ExceptionsView query={q} />}</For>
+                </Match>
+                <Match when={savedView()}>{(s) => <SavedOpen name={s().name} />}</Match>
+              </Switch>
+            )}
+          </For>
+        </main>
+      </div>
+      <Dialog ref={(el) => (keys = el)} class="keys" title="Keyboard shortcuts">
         <table>
           <tbody>
-            <For each={KEYS}>
-              {([names, action]) => (
+            <For each={bindings()}>
+              {(one) => (
                 <tr>
                   <th scope="row">
-                    <For each={names}>{(name) => <kbd>{name}</kbd>}</For>
+                    <For each={one.keys}>{(name) => <kbd>{label(name)}</kbd>}</For>
                   </th>
-                  <td>{action}</td>
+                  <td>{one.action}</td>
                 </tr>
               )}
             </For>
@@ -179,7 +229,9 @@ export function App() {
         <form method="dialog">
           <button class="btn">Close</button>
         </form>
-      </dialog>
+      </Dialog>
+      <Palette ref={(open) => (openPalette = open)} extra={commands} search={find} />
+      <Toasts />
     </>
   );
 }

@@ -350,16 +350,21 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
   test("the theme follows the browser, and a fixed one is kept across a reload", async () => {
     reset(FIXTURE);
     const tab = await open("/");
+    // The page's ground is the website's: `--nv-ground` dark and `--nv-fog` light.
     const bg = `getComputedStyle(document.body).backgroundColor`;
+    const dark = `"rgb(17, 17, 17)"`;
+    const light = `"rgb(250, 250, 250)"`;
     await browser.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, tab.sessionId);
-    await tab.until(`${bg} == "rgb(13, 17, 23)"`);
+    await tab.until(`${bg} == ${dark}`);
     await browser.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, tab.sessionId);
-    await tab.until(`${bg} == "rgb(255, 255, 255)"`);
-    await tab.eval(`(() => { const s = document.querySelector(".theme select"); s.value = "dark"; s.dispatchEvent(new Event("change")); })()`);
-    await tab.until(`document.documentElement.dataset.theme == "dark" && ${bg} == "rgb(13, 17, 23)"`);
+    await tab.until(`${bg} == ${light}`);
+    // The theme button walks System, Dark and Light.
+    expect(await tab.eval(`document.querySelector("button.theme").getAttribute("aria-label")`)).toBe("Theme: System");
+    await tab.eval(`document.querySelector("button.theme").click()`);
+    await tab.until(`document.documentElement.dataset.theme == "dark" && ${bg} == ${dark}`);
     await browser.send("Page.reload", {}, tab.sessionId);
-    await tab.until(`document.readyState == "complete" && !!document.querySelector("#app h1") && ${bg} == "rgb(13, 17, 23)"`);
-    expect(await tab.eval(`document.querySelector(".theme select").value`)).toBe("dark");
+    await tab.until(`document.readyState == "complete" && !!document.querySelector("#app h1") && ${bg} == ${dark}`);
+    expect(await tab.eval(`document.querySelector("button.theme").getAttribute("aria-label")`)).toBe("Theme: Dark");
     await tab.eval(`localStorage.clear()`);
     await tab.close();
   }, 30_000);

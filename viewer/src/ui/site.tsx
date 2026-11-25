@@ -3,8 +3,8 @@
 // settings signal (`views/saved.tsx`), so a change in the editor settings reaches every site on screen.
 
 import { Show } from "solid-js";
-import { editorLink, type Site as SiteData } from "./editor-link.ts";
-import { saved } from "./views/saved.tsx";
+import { editorLink, type Site as SiteData } from "../editor-link.ts";
+import { saved } from "../views/saved.tsx";
 
 /** `file:line` of `site`, linked to the editor. A site inside a listbox row passes `tabindex={-1}`,
  *  because the row is reached with the arrow keys and opens with Enter. */

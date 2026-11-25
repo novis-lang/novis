@@ -1,7 +1,7 @@
 // The step of the coverage heatmap a line is drawn at (`views/coverage.tsx`). It imports nothing, so the
 // unit tests read it without a browser.
 
-/** The steps of the scale. `style.css` has a `heat-<n>` class for each. */
+/** The steps of the scale. `styles/coverage.css` has a `heat-<n>` class for each. */
 export const STEPS = 4;
 
 /** The step of a line that ran `count` times, in a file whose most-run line ran `most` times: `0` for a

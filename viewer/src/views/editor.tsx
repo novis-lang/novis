@@ -1,10 +1,13 @@
-// The editor settings: the "Editor" button in the header and its dialog (`editor-link.ts` builds the links).
+// The editor settings: the Settings item at the foot of the rail, and its dialog (`editor-link.ts` builds
+// the links). The command palette opens the same dialog.
 // The developer picks the editor that every `file:line` link opens, or writes a link template.
 // Path mappings rewrite a recorded path for a program that ran in a container or a virtual machine.
 // Saving sends the whole settings, and the dialog shows the service's message when it refuses them.
 
-import { createSignal, For, Index, Show } from "solid-js";
+import { createSignal, For, Index, onCleanup, Show } from "solid-js";
 import { EDITORS, type Editor, type PathMapping, type Settings } from "../api.ts";
+import { Icon } from "../ui/icon.tsx";
+import { addCommands } from "../ui/palette.tsx";
 import { putSettings, saved } from "./saved.tsx";
 
 /** The most path mappings the service keeps. */
@@ -44,6 +47,7 @@ export function EditorSettings() {
     dialog.showModal();
     select.focus();
   };
+  onCleanup(addCommands([{ label: "Open the editor settings", group: "Actions", icon: "settings", run: open }]));
 
   const change = (i: number, key: keyof PathMapping, value: string) =>
     setMappings(mappings().map((mapping, j) => (j === i ? { ...mapping, [key]: value } : mapping)));
@@ -69,8 +73,9 @@ export function EditorSettings() {
 
   return (
     <>
-      <button type="button" class="btn editor-open" onClick={open}>
-        Editor
+      <button type="button" class="rail-item editor-open" title="Editor links and path mappings" onClick={open}>
+        <Icon name="settings" />
+        <span class="rail-label">Settings</span>
       </button>
       <dialog ref={dialog} class="ask editor-settings" aria-labelledby="editor-title">
         <h2 id="editor-title">Editor links</h2>

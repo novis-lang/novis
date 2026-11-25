@@ -1,0 +1,45 @@
+/* Two requests side by side. */
+.cmp {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.cmp th,
+.cmp td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.cmp thead th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.cmp th[scope="row"] {
+  width: 14rem;
+  font-weight: normal;
+}
+
+.cmp-differs > th {
+  box-shadow: inset 3px 0 var(--warn);
+}
+
+.cmp-badge,
+.cmp-count {
+  color: var(--warn);
+}
+
+.cmp-code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.cmp-redacted {
+  color: var(--muted);
+  font-style: italic;
+}

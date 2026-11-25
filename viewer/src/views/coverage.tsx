@@ -9,7 +9,7 @@ import { editorLink } from "../editor-link.ts";
 import { heat } from "../heat.ts";
 import { saved } from "./saved.tsx";
 
-/** A line's height in pixels. `.source-line` in `style.css` has the same. */
+/** A line's height in pixels. `.source-line` in `styles/coverage.css` has the same. */
 export const LINE_HEIGHT = 20;
 /** Lines kept in the DOM above and below the screen, so a short scroll shows no gap. */
 const OVERSCAN = 10;

@@ -1,0 +1,128 @@
+/* The stream and the log. A row's height is `ROW_HEIGHT` in `views/requests.tsx`. */
+.stream,
+.feed,
+.search-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  flex: 1;
+}
+
+.filters input:not([type="checkbox"]) {
+  height: 26px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kinds legend {
+  float: left;
+  margin-right: 0.5rem;
+  color: var(--muted);
+}
+
+.feed > .note,
+.search-view > .note,
+.search-view > div.note {
+  margin: 0.5rem 1rem;
+}
+
+.cols.stream-grid,
+.row.stream-grid {
+  grid-template-columns: 7.5rem 8rem minmax(10rem, 1fr) minmax(10rem, 22rem);
+}
+
+.cols.log-grid,
+.row.log-grid {
+  grid-template-columns: 7.5rem 5rem minmax(10rem, 1fr) minmax(6rem, 16rem) minmax(10rem, 22rem);
+}
+
+.at {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.badge {
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.row.flawed {
+  box-shadow: inset 3px 0 var(--bad);
+}
+
+.owner a {
+  text-decoration: none;
+}
+
+.record-detail {
+  max-height: 30vh;
+  overflow: auto;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.record-detail .note {
+  margin: 0 0 0.5rem;
+}
+
+.quarantine {
+  max-height: 25vh;
+  overflow: auto;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.quarantine h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.quarantine .note {
+  margin: 0 0 0.5rem;
+}
+
+.quarantined {
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+}
+
+.quarantined th,
+.quarantined td {
+  text-align: left;
+  padding: 0.15rem 1rem 0.15rem 0;
+  vertical-align: top;
+}
+
+.quarantined th {
+  color: var(--muted);
+  font-weight: normal;
+}

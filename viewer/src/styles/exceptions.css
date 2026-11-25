@@ -1,0 +1,92 @@
+/* The exceptions view. A group row's height is `GROUP_HEIGHT` in `views/exceptions.tsx`. */
+.exceptions {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.exceptions > .note {
+  margin: 0.5rem 1rem;
+}
+
+.cols.exc-grid,
+.row.exc-grid {
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 20rem) 4rem 6.5rem 14rem;
+  grid-template-areas:
+    "class site count chart last"
+    "message routes count chart first";
+}
+
+.cols.exc-grid {
+  grid-template-areas: none;
+}
+
+.row.exc-grid {
+  height: 52px;
+  align-content: center;
+}
+
+.exc-grid .exc-class {
+  grid-area: class;
+  font-weight: 600;
+}
+
+.exc-grid .exc-at {
+  grid-area: site;
+}
+
+.exc-grid .exc-count {
+  grid-area: count;
+}
+
+.exc-grid .exc-chart-cell {
+  grid-area: chart;
+  display: flex;
+  align-items: center;
+}
+
+.exc-grid .exc-last {
+  grid-area: last;
+}
+
+.exc-grid .exc-message {
+  grid-area: message;
+}
+
+.exc-grid .exc-routes {
+  grid-area: routes;
+}
+
+.exc-grid .exc-first {
+  grid-area: first;
+}
+
+.exc-chart {
+  fill: var(--bad);
+}
+
+.exc-chart-base {
+  stroke: var(--line);
+}
+
+.exc-summary {
+  padding: 0.5rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.exc-summary .title {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1.15rem;
+}
+
+.exc-summary .exc-message {
+  margin: 0 0 0.75rem;
+}
+
+.toolbar-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}

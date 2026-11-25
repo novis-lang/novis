@@ -1,0 +1,67 @@
+/* A dumped value as a tree. */
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree ul {
+  padding-left: 1.25rem;
+}
+
+.tree [role="treeitem"]:focus {
+  outline: none;
+}
+
+.tree [role="treeitem"]:focus > .tv-row {
+  outline: 2px solid var(--link);
+  outline-offset: -1px;
+}
+
+.tv-row {
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.tv-row:hover {
+  background: var(--hover);
+}
+
+.tv-jumped > .tv-row {
+  background: var(--wash);
+}
+
+.tv-twisty {
+  display: inline-block;
+  width: 1rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tv-key,
+.tv-note,
+.tv-colon {
+  color: var(--muted);
+}
+
+.tv-str {
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.tv-num,
+.tv-lit {
+  color: var(--link);
+}
+
+.tv-class {
+  font-weight: 600;
+}
+
+.tv-secret,
+.tv-cut {
+  color: var(--warn);
+  font-style: italic;
+}

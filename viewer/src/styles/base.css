@@ -1,0 +1,136 @@
+/* The page itself: the type, the colours of the body and links, focus, and the elements every view
+   uses as they are (`kbd`, `mark`, `code`). The faces come from `tokens.css` alone.
+
+   A system face looks made for the page when it is set the same way everywhere: five sizes
+   (`--fs-1` to `--fs-5`), text at weight 400 and 600 with 700 for the brand alone, code at 400 and 700,
+   tabular figures on every number, no ligatures in code, and a letter spacing of -0.01em from 15 px
+   up. No weight between these is used, because Consolas and Menlo have none. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-2);
+  font: 400 var(--fs-3) / 1.45 var(--sans);
+  font-optical-sizing: auto;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--fs-4);
+  letter-spacing: -0.01em;
+}
+
+h3,
+h4 {
+  font-size: var(--fs-3);
+}
+
+a {
+  color: var(--link);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  font-variant-ligatures: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: var(--space-1);
+  padding: 0 0.3rem;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: var(--fs-1);
+  line-height: 1.6;
+  text-align: center;
+}
+
+mark {
+  background: color-mix(in oklab, var(--highlight) 30%, transparent);
+  color: var(--text);
+  border-radius: 2px;
+}
+
+/* The figures a list right-aligns. */
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  font-variant-ligatures: none;
+}
+
+.dim {
+  color: var(--muted);
+}
+
+/* Text a screen reader reads and the page does not show. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

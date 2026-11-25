@@ -1,0 +1,125 @@
+/* The viewer's design tokens. The seven palette colours are the website's
+   (`website/src/styles/custom.css`), copied once, and `bun nv viewer --check` fails when the two
+   differ. Every other colour is mixed from them, as the website mixes its own.
+
+   A view names a role, never a colour: `--surface`, `--line`, `--text`, `--muted`, `--link`,
+   `--wash`, `--ok`, `--warn`, `--bad`, `--accent`, `--highlight`, and the event tones `--k-*`. A colour has one meaning: green is ok, blue is interaction
+   and information, orange is a warning, red is an error, and gold is a highlight such as a repeated
+   query. Crimson fills only the one primary action of a page.
+
+   Each role is `light-dark(<light>, <dark>)`. The browser picks the side from `color-scheme`, which
+   follows `prefers-color-scheme` and which `<html data-theme>` fixes (`theme.ts`). Each text colour
+   keeps WCAG AA (4.5:1) on `--bg`, `--surface`, `--hover` and `--wash` in its theme. `--faint` is for
+   icons, axes and column heads, and clears 3:1.
+
+   This file names the two font stacks, and no other rule names a face. No font is embedded or
+   fetched: the viewer draws with the fonts of the system it runs on. */
+
+:root {
+  color-scheme: light dark;
+
+  /* ------------------------------------------------------------ the palette */
+  --nv-crimson: #b20038;
+  --nv-orange: #ef6c01;
+  --nv-gold: #ffb703;
+  --nv-blue: #11a7d7;
+  --nv-ink: #0a0a0a;
+  --nv-fog: #fafafa;
+  --nv-ground: #111111;
+
+  /* ---------------------------------------------------------------- scales */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --radius-sm: 0.375rem;
+  --radius: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-pill: 999px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 140ms;
+
+  /* ----------------------------------------------------------------- fonts */
+  --sans: "Segoe UI Variable Text", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+
+  /* The type scale: five sizes, and no other. */
+  --fs-1: 11px;
+  --fs-2: 12px;
+  --fs-3: 13px;
+  --fs-4: 15px;
+  --fs-5: 20px;
+
+  /* ----------------------------------------------------------------- roles */
+  --bg: light-dark(var(--nv-fog), var(--nv-ground));
+  --surface: light-dark(color-mix(in oklab, white 70%, var(--nv-fog)), color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ground)));
+  --surface-2: light-dark(color-mix(in oklab, var(--nv-ink) 3%, white), color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ground)));
+  --line: light-dark(color-mix(in oklab, var(--nv-ink) 10%, var(--nv-fog)), color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ground)));
+  --line-2: light-dark(color-mix(in oklab, var(--nv-ink) 20%, var(--nv-fog)), color-mix(in oklab, var(--nv-fog) 22%, var(--nv-ground)));
+  --text: light-dark(var(--nv-ink), white);
+  --text-2: light-dark(color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink)), color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ground)));
+  --muted: light-dark(color-mix(in oklab, var(--nv-fog) 38%, var(--nv-ink)), color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ground)));
+  --faint: light-dark(color-mix(in oklab, var(--nv-fog) 52%, var(--nv-ink)), color-mix(in oklab, var(--nv-fog) 44%, var(--nv-ground)));
+  --hover: light-dark(color-mix(in oklab, var(--nv-ink) 5%, transparent), color-mix(in oklab, var(--nv-fog) 7%, transparent));
+  --link: light-dark(color-mix(in oklab, var(--nv-blue) 62%, black), color-mix(in oklab, var(--nv-blue) 55%, white));
+  --wash: light-dark(color-mix(in oklab, var(--nv-blue) 12%, transparent), color-mix(in oklab, var(--nv-blue) 18%, transparent));
+  /* Blue and gold as drawn, for a border, a marker, a bar or a fill under text, never for text. */
+  --accent: var(--nv-blue);
+  --highlight: var(--nv-gold);
+  --focus: var(--accent);
+  --ok: light-dark(#177a4c, #4cc38a);
+  --warn: light-dark(color-mix(in oklab, var(--nv-orange) 76%, black), color-mix(in oklab, var(--nv-orange) 69%, white));
+  --bad: light-dark(#c0193d, #ff6b81);
+  --violet: light-dark(#6b46c9, #b69cf5);
+  --gold-text: light-dark(color-mix(in oklab, var(--nv-gold) 58%, black), var(--nv-gold));
+  --primary: light-dark(var(--nv-crimson), color-mix(in oklab, var(--nv-crimson) 92%, white));
+  --on-primary: white;
+  --grad: linear-gradient(
+    90deg,
+    light-dark(var(--nv-crimson), color-mix(in oklab, var(--nv-crimson) 60%, white)),
+    light-dark(color-mix(in oklab, var(--nv-orange) 94%, black), color-mix(in oklab, var(--nv-orange) 80%, white))
+  );
+  --shadow:
+    0 2px 4px light-dark(rgb(10 10 10 / 0.06), rgb(0 0 0 / 0.3)),
+    0 18px 40px -12px light-dark(rgb(10 10 10 / 0.18), rgb(0 0 0 / 0.7));
+  --backdrop: light-dark(rgb(10 10 10 / 0.4), rgb(17 17 17 / 0.72));
+
+  /* The event kinds, in the website's diagram tones. Time in the program's own code is `--k-own`. */
+  --k-query: var(--accent);
+  --k-http: var(--violet);
+  --k-cache: var(--ok);
+  --k-session: var(--ok);
+  --k-file: var(--highlight);
+  --k-gc: var(--nv-orange);
+  --k-spawn: light-dark(var(--nv-crimson), color-mix(in oklab, var(--nv-crimson) 60%, white));
+  --k-own: var(--faint);
+
+  /* Coverage: the more often a line ran, the more green under it. Text keeps AA on every step. */
+  --heat-1: color-mix(in oklab, var(--ok) 8%, var(--bg));
+  --heat-2: color-mix(in oklab, var(--ok) 16%, var(--bg));
+  --heat-3: color-mix(in oklab, var(--ok) 25%, var(--bg));
+  --heat-4: color-mix(in oklab, var(--ok) 34%, var(--bg));
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* The same four colours on a wide-gamut display: the lightness and hue of the sRGB values above,
+   with the extra chroma Display-P3 has room for. Every colour mixed from them follows. */
+@media (color-gamut: p3) {
+  :root {
+    --nv-crimson: oklch(0.485 0.215 15.7);
+    --nv-orange: oklch(0.68 0.21 48);
+    --nv-gold: oklch(0.825 0.19 79.9);
+    --nv-blue: oklch(0.68 0.15 228);
+  }
+}

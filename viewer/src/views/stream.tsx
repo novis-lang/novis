@@ -32,7 +32,7 @@ import {
 } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, query, reloadView, requestLink } from "../router.ts";
-import { Site } from "../site.tsx";
+import { Site } from "../ui/site.tsx";
 import { ROW_HEIGHT, statusClass } from "./requests.tsx";
 import { Confirm, SaveButton } from "./saved.tsx";
 import { ValueTree } from "./value-tree.tsx";

@@ -1,7 +1,8 @@
 // `bun nv viewer`: the debug viewer's two committed files, built from `viewer/` (`viewer/build.ts`).
 //
 //     bun nv viewer                  build viewer/dist/viewer.js and viewer/dist/viewer.css
-//     bun nv viewer --check          rebuild in memory; exit 1 when a committed file differs
+//     bun nv viewer --check          rebuild in memory; exit 1 when a committed file differs, when the
+//                                    palette differs from the website's, or the CSS has an @font-face
 //     bun nv viewer --verify         the viewer's types, the --check, then its unit tests
 //     bun nv viewer --dev            serve the source on 127.0.0.1:8138, rebuilt and reloaded on each
 //                                    save, with every /api/ request passed to a running `nvs debug`
@@ -10,7 +11,11 @@
 // The two files are committed, the way `THIRD-PARTY-LICENSES.txt` is, and `nvs-cli` embeds them with
 // `include_bytes!` (`crates/nvs-cli/src/viewer.rs`), so a Rust build never runs Bun. `--check` is what
 // keeps the committed bytes the build of the committed source, and `nv verify`'s `viewer` step runs
-// `--verify` when a file under `viewer/` changed. A build is minified with no source map, so it names
+// `--verify` when a file under `viewer/` changed. `--check` also holds the viewer to the website's look:
+// the seven `--nv-*` palette colours of `viewer/src/styles/tokens.css` must equal those of
+// `website/src/styles/custom.css`, so a re-tint of the website reaches the viewer, and the built
+// stylesheet has no `@font-face`, because the viewer draws with the system's fonts and ships none
+// (`rule:testing/the-viewer-wears-the-websites-palette`). A build is minified with no source map, so it names
 // no path of the machine that built it, and two builds of one tree give the same bytes
 // (`test/viewer.test.ts`).
 //
@@ -85,11 +90,50 @@ export function stale(bundle: Bundle, dist = DIST): string[] {
     .map(([name]) => name);
 }
 
+/** The seven colours of the website's palette and the viewer's copy of them. */
+export const WEBSITE_CSS = join(ROOT, "website", "src", "styles", "custom.css");
+export const TOKENS_CSS = join(VIEWER, "src", "styles", "tokens.css");
+const PALETTE = ["crimson", "orange", "gold", "blue", "ink", "fog", "ground"] as const;
+
+/** The value of each `--nv-<colour>` palette variable, from its first declaration in `css`, which is
+ *  the sRGB block. A colour the file does not declare is missing from the result. */
+export function palette(css: string): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const name of PALETTE) {
+    const m = new RegExp(`--nv-${name}:\\s*([^;]+);`).exec(css);
+    if (m) found[name] = m[1]!.trim().toLowerCase();
+  }
+  return found;
+}
+
+/** What differs between the website's palette and the viewer's copy, one line per colour. */
+export function paletteDrift(website: string, viewer: string): string[] {
+  const a = palette(website);
+  const b = palette(viewer);
+  return PALETTE.filter((name) => a[name] === undefined || a[name] !== b[name]).map(
+    (name) => `--nv-${name}: the website has ${a[name] ?? "nothing"}, the viewer has ${b[name] ?? "nothing"}`,
+  );
+}
+
+/** True when a built stylesheet declares a font face, which the viewer never ships. */
+export function hasFontFace(css: string): boolean {
+  return /@font-face/i.test(css);
+}
+
 async function check(): Promise<number> {
-  const bad = stale(await build());
+  const bundle = await build();
+  let code = 0;
+  const drift = paletteDrift(readFileSync(WEBSITE_CSS, "utf8"), readFileSync(TOKENS_CSS, "utf8"));
+  for (const line of drift) console.log(`nv viewer: ${shown(TOKENS_CSS)} ${line} -- copy the website's value`);
+  if (drift.length) code = 1;
+  if (hasFontFace(new TextDecoder().decode(bundle["viewer.css"]))) {
+    console.log("nv viewer: the built stylesheet has an @font-face rule -- the viewer draws with the system's fonts and ships none");
+    code = 1;
+  }
+  const bad = stale(bundle);
   if (bad.length === 0) {
-    console.log("nv viewer: viewer/dist/ is the build of viewer/src/");
-    return 0;
+    if (code === 0) console.log("nv viewer: viewer/dist/ is the build of viewer/src/, and its palette is the website's");
+    return code;
   }
   console.log(`nv viewer: ${bad.map((n) => shown(join(DIST, n))).join(" and ")} differ(s) from a rebuild -- run \`bun nv viewer\` and commit the result`);
   return 1;

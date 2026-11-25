@@ -1,7 +1,7 @@
 // The saved filters: the settings file `GET /api/settings` reads, the list of filters beside the
 // views, the "Save" action of the stream, log, search and exceptions views, and the dialog that asks
 // before a filter or the index is deleted. The settings are one signal, read once when the viewer
-// starts, so the editor links of every view (`site.tsx`) follow a change.
+// starts, so the editor links of every view (`ui/site.tsx`) follow a change.
 //
 // A filter is a name, a view and the part of the view's link after `?`, so opening one is opening that
 // link. Saving one sends the whole settings back with `PUT /api/settings`, as the service replaces the

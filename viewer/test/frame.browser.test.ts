@@ -42,4 +42,49 @@ describe.skipIf(!EXE)("the viewer's frame in Chromium", () => {
     expect(await browser.eval(`getComputedStyle(document.body).margin`, sessionId)).toBe("0px");
     await browser.send("Target.closeTarget", { targetId });
   }, 30_000);
+
+  test("the rail's current item has aria-current=page, and only that one", async () => {
+    const { targetId, sessionId } = await browser.tab();
+    await browser.send("Page.navigate", { url: `${server!.url}log` }, sessionId);
+    await browser.until(`document.readyState == "complete" && !!document.querySelector(".rail")`, sessionId);
+    const current = `[...document.querySelectorAll(".rail [aria-current=page]")].map((a) => a.textContent)`;
+    expect(await browser.eval(current, sessionId)).toEqual(["Logs"]);
+    // A request's own page belongs to the request list.
+    await browser.eval(`history.pushState(null, "", "/requests/${"a".repeat(32)}/${"b".repeat(16)}"); dispatchEvent(new PopStateEvent("popstate"))`, sessionId);
+    await browser.until(`${current}.join() == "Requests"`, sessionId);
+    await browser.send("Target.closeTarget", { targetId });
+  }, 30_000);
+
+  test("Ctrl+K opens the command palette, typing filters it, and Enter goes to the view", async () => {
+    const { targetId, sessionId } = await browser.tab();
+    await browser.send("Page.navigate", { url: server!.url }, sessionId);
+    await browser.until(`document.readyState == "complete" && !!document.querySelector(".rail")`, sessionId);
+    const key = { key: "k", code: "KeyK", windowsVirtualKeyCode: 75, modifiers: process.platform === "darwin" ? 4 : 2 };
+    await browser.send("Input.dispatchKeyEvent", { type: "keyDown", ...key }, sessionId);
+    await browser.send("Input.dispatchKeyEvent", { type: "keyUp", ...key }, sessionId);
+    await browser.until(`document.querySelector("dialog.palette").open && document.activeElement.getAttribute("role") == "combobox"`, sessionId);
+    await browser.send("Input.insertText", { text: "stream" }, sessionId);
+    // The view comes first, and the last entry searches for the text.
+    const options = `[...document.querySelectorAll(".palette [role=option]")].map((o) => o.textContent)`;
+    await browser.until(`${options}.join("|") == "Go to StreamViews|Search for “stream”Actions"`, sessionId);
+    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+    await browser.send("Input.dispatchKeyEvent", { type: "keyDown", ...enter }, sessionId);
+    await browser.send("Input.dispatchKeyEvent", { type: "keyUp", ...enter }, sessionId);
+    await browser.until(`location.pathname == "/stream" && !document.querySelector("dialog.palette").open`, sessionId);
+    await browser.send("Target.closeTarget", { targetId });
+  }, 30_000);
+
+  test("the ? dialog lists every key once, and t makes a test rather than changing the theme", async () => {
+    const { targetId, sessionId } = await browser.tab();
+    await browser.send("Page.navigate", { url: server!.url }, sessionId);
+    await browser.until(`document.readyState == "complete" && !!document.querySelector(".rail")`, sessionId);
+    const keys = `[...document.querySelectorAll("dialog.keys kbd")].map((k) => k.textContent)`;
+    const shown: string[] = await browser.eval(keys, sessionId);
+    expect(new Set(shown).size).toBe(shown.length);
+    expect(shown).toContain("?");
+    expect(shown).toContain("t");
+    const rows: string[] = await browser.eval(`[...document.querySelectorAll("dialog.keys tr")].map((r) => r.textContent)`, sessionId);
+    expect(rows.find((r) => r.startsWith("t"))).toBe("tMake a test from a request");
+    await browser.send("Target.closeTarget", { targetId });
+  }, 30_000);
 });

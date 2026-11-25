@@ -19,10 +19,10 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { requests, watermarks, type RequestPage, type RequestRow } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate } from "../router.ts";
-import { Site } from "../site.tsx";
+import { Site } from "../ui/site.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 
-/** A row's height in pixels. `.row` in `style.css` has the same. */
+/** A row's height in pixels. `.row` in `styles/requests.css` has the same. */
 export const ROW_HEIGHT = 28;
 /** Rows kept in the DOM above and below the screen, so a short scroll shows no gap. */
 const OVERSCAN = 6;

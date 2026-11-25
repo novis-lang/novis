@@ -1,0 +1,106 @@
+/* One request. */
+.request {
+  padding: 1rem;
+  overflow: auto;
+}
+
+.request .title {
+  margin: 1rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.5rem;
+  margin: 0;
+}
+
+.fields dt {
+  color: var(--muted);
+}
+
+.fields dd {
+  margin: 0;
+}
+
+.fields .exc {
+  color: var(--text);
+}
+
+.matches {
+  padding-left: 1.25rem;
+}
+
+.request h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.request h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.site,
+.tl-label,
+.tree {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.cut-note {
+  color: var(--warn);
+}
+
+/* The exception a request threw. */
+.exception .exc-head {
+  margin: 0;
+}
+
+.exc-class {
+  font-weight: 600;
+}
+
+.exception .exc-site {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+/* A request's log lines. */
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.log {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+  margin: 0;
+}
+
+.log-level {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+}
+
+.mark-state {
+  color: var(--warn);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 0 0;
+}

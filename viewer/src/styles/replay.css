@@ -1,0 +1,36 @@
+/* The dialog that asks before a request is sent again. */
+dialog.ask.replay {
+  max-width: 36rem;
+}
+
+.replay code {
+  overflow-wrap: anywhere;
+}
+
+.replay-headers {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin: 0.75rem 0 0;
+}
+
+.replay-headers label {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+/* The dialog that shows a test made from a request. */
+dialog.ask.to-test {
+  max-width: min(60rem, 90vw);
+}
+
+.to-test-text {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  user-select: text;
+}

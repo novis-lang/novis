@@ -1,0 +1,815 @@
+/* The frame and the shared components of `viewer/src/ui/`. A view's own file holds its columns and
+   its layout, never these. Motion is transform, opacity and colour only, for `--fast`, and none under
+   `prefers-reduced-motion` (`base.css`). */
+
+/* ------------------------------------------------------------------ icon */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------- top bar */
+.top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface);
+}
+
+/* The one hairline in the signature gradient. */
+.top::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--grad);
+  opacity: 0.75;
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--grad);
+  color: white;
+  font-size: var(--fs-2);
+  font-weight: 700;
+}
+
+.brand {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-3);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.brand span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 12rem;
+  max-width: 40rem;
+  height: 30px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--faint);
+  transition: border-color var(--fast) var(--ease);
+}
+
+.search:focus-within {
+  border-color: var(--focus);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  outline: none;
+}
+
+.search input::placeholder {
+  color: var(--muted);
+}
+
+.search-palette {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.search-palette kbd {
+  margin: 0;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
+  color: var(--ok);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live.warn {
+  background: color-mix(in oklab, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
+.live.stopped {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 25%, transparent);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- frame and rail */
+.frame {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  min-height: 0;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2);
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font-size: var(--fs-3);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.rail-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.rail-item[aria-current="page"] {
+  background: var(--wash);
+  color: var(--link);
+}
+
+.rail-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: calc(-1 * var(--space-2));
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+.rail-count {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--bad);
+  color: var(--bg);
+  font-size: var(--fs-1);
+  line-height: 18px;
+  text-align: center;
+}
+
+.rail .saved {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.rail .saved li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rail .saved a {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail .saved a:hover {
+  background: var(--hover);
+}
+
+.rail > .note {
+  padding: var(--space-2);
+  font-size: var(--fs-2);
+}
+
+.rail-foot {
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+#view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Below 900 pixels the rail shows its icons alone, and the saved filters are in the command palette. */
+@media (max-width: 900px) {
+  .frame {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .rail {
+    padding: var(--space-2) 6px;
+  }
+
+  .rail-item {
+    justify-content: center;
+    padding: var(--space-2) 0;
+  }
+
+  .rail-label,
+  .rail .saved,
+  .rail > .note,
+  .brand {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .rail-count {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .rail-item[aria-current="page"]::before {
+    left: -6px;
+  }
+}
+
+/* ---------------------------------------------------------------- button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.btn:hover {
+  background: var(--hover);
+  border-color: var(--faint);
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+.btn.small {
+  height: 22px;
+  padding: 0 var(--space-2);
+}
+
+/* The one primary action of a page, such as Replay. */
+.btn.primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn.primary:hover {
+  background: color-mix(in oklab, var(--primary) 88%, white);
+}
+
+.btn.danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------ notes */
+.note {
+  color: var(--muted);
+}
+
+.bad,
+.note.bad {
+  color: var(--bad);
+}
+
+/* ------------------------------------------------------------- dialogs */
+.dialog,
+dialog.ask {
+  max-width: 28rem;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-2);
+  box-shadow: var(--shadow);
+}
+
+.dialog::backdrop,
+dialog.ask::backdrop {
+  background: var(--backdrop);
+}
+
+.dialog h2,
+dialog.ask h2 {
+  margin: 0 0 var(--space-3);
+}
+
+.ask-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.ask input,
+.ask select {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+
+dialog.keys {
+  max-width: 36rem;
+}
+
+dialog.keys th {
+  padding: 3px var(--space-5) 3px 0;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+dialog.keys form {
+  margin-top: var(--space-4);
+  text-align: right;
+}
+
+/* ---------------------------------------------------------- the palette */
+dialog.palette {
+  width: min(36rem, 92vw);
+  max-width: none;
+  margin-top: 12vh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.palette-find {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+}
+
+.palette-find input {
+  flex: 1;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: var(--fs-4);
+  outline: none;
+}
+
+.palette-list {
+  max-height: 50vh;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.palette-item[aria-selected="true"] {
+  background: var(--wash);
+  color: var(--text);
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-group {
+  color: var(--muted);
+  font-size: var(--fs-1);
+}
+
+.palette-none {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-2);
+  white-space: nowrap;
+}
+
+button.chip {
+  cursor: pointer;
+}
+
+button.chip:hover {
+  background: var(--hover);
+}
+
+.chip.set {
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  background: var(--wash);
+  color: var(--link);
+}
+
+.chip.add {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------ method and status */
+.method {
+  display: inline-block;
+  min-width: 46px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  font: 700 var(--fs-1) var(--mono);
+  text-align: center;
+}
+
+.m-read {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--link);
+}
+
+.m-write {
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
+  color: var(--ok);
+}
+
+.m-change {
+  background: color-mix(in oklab, var(--warn) 15%, transparent);
+  color: var(--warn);
+}
+
+.m-delete {
+  background: color-mix(in oklab, var(--bad) 14%, transparent);
+  color: var(--bad);
+}
+
+.m-other {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.status {
+  font: 700 var(--fs-2) var(--mono);
+}
+
+.status-text {
+  font-family: var(--sans);
+  font-weight: 600;
+}
+
+.status.s2 {
+  color: var(--ok);
+}
+
+.status.s3 {
+  color: var(--link);
+}
+
+.status.s4 {
+  color: var(--warn);
+}
+
+.status.s5 {
+  color: var(--bad);
+}
+
+.status.s0 {
+  color: var(--muted);
+}
+
+.repeat {
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--highlight) 20%, transparent);
+  color: var(--gold-text);
+  font: 600 var(--fs-1) var(--sans);
+}
+
+/* ---------------------------------------------------------------- tabs */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--space-3);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs a {
+  padding: 9px var(--space-3);
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.tabs a:hover {
+  color: var(--text);
+}
+
+.tabs a[aria-current="page"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tab-count {
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-1);
+}
+
+/* --------------------------------------------------------------- toast */
+.toasts {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 10;
+}
+
+.toast {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  animation: toast-in var(--fast) var(--ease);
+}
+
+.toast.bad {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* --------------------------------------------------------------- empty */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: auto;
+  padding: var(--space-6) var(--space-4);
+  max-width: 32rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty .icon {
+  width: 24px;
+  height: 24px;
+  color: var(--faint);
+}
+
+.empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-4);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------- tile, spark and meter */
+.tile {
+  min-width: 0;
+  padding: 10px var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tile-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-1);
+  font-weight: 600;
+}
+
+.tile-value {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: var(--fs-5);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.tile-value small {
+  color: var(--muted);
+  font-size: var(--fs-2);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+  margin-top: 6px;
+}
+
+.spark i {
+  flex: 1;
+  border-radius: 1.5px;
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+}
+
+.spark i.bad {
+  background: var(--bad);
+}
+
+.meter {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+}
+
+/* The fill of each event kind, for a meter's part, a bar and a legend's swatch. */
+.k-query {
+  background: var(--k-query);
+}
+
+.k-http {
+  background: var(--k-http);
+}
+
+.k-cache {
+  background: var(--k-cache);
+}
+
+.k-session {
+  background: var(--k-session);
+}
+
+.k-file {
+  background: var(--k-file);
+}
+
+.k-gc {
+  background: var(--k-gc);
+}
+
+.k-spawn {
+  background: var(--k-spawn);
+}
+
+.k-own {
+  background: var(--k-own);
+}
+
+/* ---------------------------------------------------------------- site */
+.site-link {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  text-decoration: none;
+}
+
+.site-link:hover {
+  text-decoration: underline;
+}
+
+.site-text {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+}
+
+.exc-at {
+  color: var(--muted);
+}

@@ -20,13 +20,13 @@ import {
 } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
-import { Site } from "../site.tsx";
+import { Site } from "../ui/site.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 import { RequestCells, RequestColumns, ROW_HEIGHT } from "./requests.tsx";
 import { SaveButton } from "./saved.tsx";
 import { when } from "./stream.tsx";
 
-/** A group row's height in pixels: two lines. `.row.exc-grid` in `style.css` has the same. */
+/** A group row's height in pixels: two lines. `.row.exc-grid` in `styles/exceptions.css` has the same. */
 const GROUP_HEIGHT = 52;
 /** Rows kept in the DOM above and below the screen. */
 const OVERSCAN = 6;

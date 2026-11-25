@@ -233,12 +233,13 @@ async function open(path: string, ready: string) {
 }
 
 /** What the payloads left on the page. Every list is empty, `pwned` is `null` and `shown` is `true`
- *  when the viewer showed them as text. The one `<svg>` the viewer draws is the exception chart, and
- *  the viewer's own forms (the search box, the dialogs) are not counted, since no payload has one. */
+ *  when the viewer showed them as text. The `<svg>` elements the viewer draws are the exception chart
+ *  and its own icons, and the viewer's own forms (the search box, the dialogs) are not counted, since
+ *  no payload has one. */
 const LEFT_BEHIND = `(() => {
   const body = document.body;
   const made = [...body.querySelectorAll("script, img, iframe, frame, object, embed, textarea, style, link, meta, base, svg, math, noscript")]
-    .filter((el) => !(el.matches('script[type=module][src="/viewer.js"]') || el.matches("svg.exc-chart")))
+    .filter((el) => !(el.matches('script[type=module][src="/viewer.js"]') || el.matches("svg.exc-chart") || el.matches('svg.icon[aria-hidden="true"]')))
     .map((el) => el.tagName.toLowerCase());
   const handlers = [...document.querySelectorAll("*")].flatMap((el) =>
     [...el.attributes].filter((a) => /^on/i.test(a.name)).map((a) => el.tagName.toLowerCase() + " " + a.name));
