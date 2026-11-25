@@ -730,6 +730,9 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
             | ExprInfo::ClassNameOf
             | ExprInfo::ClassRefConst { .. }
             | ExprInfo::ClassRefOf => {}
+            // A `match` that names every case reads no declaration: its arms
+            // record their own cases.
+            ExprInfo::MatchCoversEveryCase => {}
             // A call through a `callable`, its rebinding and an anonymous
             // function's own name reach a body no declaration names here; the
             // anonymous function's body records its own uses.

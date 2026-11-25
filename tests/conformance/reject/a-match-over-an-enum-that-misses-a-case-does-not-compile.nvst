@@ -1,0 +1,44 @@
+--TEST--
+A `match` over an enum or a nullable enum with no `default` arm names every case, and `null` for a nullable enum (`rule:expressions/a-match-over-an-enum-covers-every-case`)
+--FILE--
+<?nvs
+// covers: lang:enums/match-and-switch-over-an-enum
+// A statically typed enum is always one of its cases, so a `match` with no
+// `default` that misses a case is the same mistake as a missing `return`. The
+// error is at the `match` keyword and lists every missing case. A `?Priority`
+// subject also needs an arm for `null`.
+enum Priority { Low, Medium, High }
+
+final class Labels {
+    // Refused: `Medium` and `High` have no arm.
+    public static function short(Priority $p): string {
+        return match ($p) {
+            Priority::Low => "low",
+        };
+    }
+
+    // Refused: every case has an arm, but `null` has none.
+    public static function maybe(?Priority $p): string {
+        return match ($p) {
+            Priority::Low, Priority::Medium => "not high",
+            Priority::High => "high",
+        };
+    }
+
+    // Accepted: a `default` arm handles every other case.
+    public static function loose(Priority $p): string {
+        return match ($p) {
+            Priority::Low => "low",
+            default => "other",
+        };
+    }
+}
+--EXPECTF-ERROR--
+error[E1016]: this `match` does not handle `Priority::Medium` and `Priority::High`
+   --> case.nvs:12:16
+%A
+error[E1016]: this `match` does not handle `null`
+   --> case.nvs:19:16
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

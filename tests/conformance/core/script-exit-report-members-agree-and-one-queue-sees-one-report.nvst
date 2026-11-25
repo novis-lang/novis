@@ -67,6 +67,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
         Core\Script\ExitReport::Reason::Normal => "Normal",
         Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
         Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Finish => "Finish",
     };
     // The first answer is pinned as well as compared: two identical wrong
     // answers agree exactly as well as two right ones, and a `status` that was
@@ -91,6 +92,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
         Core\Script\ExitReport::Reason::Normal => "Normal",
         Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
         Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Finish => "Finish",
     };
     echo "second: ", $named, " ", $report->status(), "\n";
 

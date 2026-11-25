@@ -1,13 +1,15 @@
 <?nvs
 // Shows what happens when no arm fits and there is no `default`. The `match`
-// throws an error, which you can catch. Add a `default` arm to avoid it.
+// throws an error, which you can catch. This can only happen with a `mixed`
+// value: a `match` over an enum type must handle every case.
 
 enum Mode { Read, Write, Exec }
 
-Mode $mode = Mode::Exec;
+// The type of `$value` is `mixed`, so the `match` needs no arm for `Mode::Exec`.
+mixed $value = Mode::Exec;
 
 try {
-    string $name = match ($mode) {
+    string $name = match ($value) {
         Mode::Read => 'read',
         Mode::Write => 'write',
     };
@@ -17,6 +19,7 @@ try {
     echo $error->message, "\n";
 }
 
-// The same `match` with a `default` arm returns a value for every case. This
+// A `match` with a `default` arm returns a value for every case. This
 // prints `other`.
+Mode $mode = Mode::Exec;
 echo match ($mode) { Mode::Read => 'read', default => 'other' }, "\n";

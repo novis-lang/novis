@@ -22,6 +22,7 @@
 //! | [`args`] | a call's arguments, its options bag, its type arguments |
 //! | [`assign`] | `rule:types/unions-and-mixed`'s assignability, and the positions applying it |
 //! | [`calls`] | which member a call resolves to; `rule:types/callable-values`'s `callable` |
+//! | [`cover`] | `rule:expressions/a-match-over-an-enum-covers-every-case`: which cases a `match` names |
 //! | [`isolate`] | `rule:security/isolate-shares-nothing`'s `spawn script` and `await`, and what each types as |
 //! | [`iteration`] | `rule:iteration/two-interfaces`'s `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
@@ -65,6 +66,7 @@ use crate::{Ctx, Env, FnSelf, span_text, strip_sigil};
 pub(crate) mod args;
 pub(crate) mod assign;
 pub(crate) mod calls;
+pub mod cover;
 pub(crate) mod isolate;
 pub(crate) mod iteration;
 pub(crate) mod literals;
@@ -950,6 +952,7 @@ fn infer_kind(
             // arm gets nothing.
             let labels_are_conditions = crate::locals::is_true_literal(subject);
             let mut arm_types = Vec::with_capacity(arms.len());
+            let mut conditions = Vec::new();
             for arm in arms {
                 let mut narrowed = crate::locals::Narrowing::default();
                 if let Some(conds) = &arm.conditions {
@@ -962,6 +965,7 @@ fn infer_kind(
                         let cond_ty = check_expr(c, None, live, scope, ctx, env);
                         reject_disjoint_equality(subject_ty, cond_ty, c.span, env);
                         record_value_equality(subject_ty, cond_ty, c.span, env);
+                        conditions.push((c.span, cond_ty));
                     }
                     if labels_are_conditions && let [only] = &conds[..] {
                         narrowed = crate::locals::narrow(only, true, scope, env);
@@ -985,6 +989,9 @@ fn infer_kind(
                 }
                 arm_types.push(arm_ty);
                 narrowed.restore(scope);
+            }
+            if !arm_types.is_empty() {
+                cover::check_match_covers(expr.span, subject_ty, arms, &conditions, env);
             }
             if arm_types.is_empty() {
                 // A `match` is an expression, so an arm-less one has no value

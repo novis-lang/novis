@@ -11,6 +11,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
         Core\Script\ExitReport::Reason::Normal => "Normal",
         Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
         Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Finish => "Finish",
     };
     // `ExitCall` carries the suffix so the case never shares a spelling with
     // the keyword two lines below. The status is the one the call named, and

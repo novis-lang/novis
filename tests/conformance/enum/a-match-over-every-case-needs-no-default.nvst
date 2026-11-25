@@ -1,0 +1,43 @@
+--TEST--
+A `match` that names every case of its enum needs no `default` arm, and picks the arm of each case (`rule:expressions/a-match-over-an-enum-covers-every-case`)
+--FILE--
+<?nvs
+// covers: lang:enums/match-and-switch-over-an-enum
+// The last arm is entered with no comparison, because every other case was
+// compared first. Each case still reaches its own arm, for both backings, a
+// nullable subject and an arm that names two cases.
+enum Priority { Low, Medium, High }
+enum Size: uint { Small = 1, Large = 2 }
+
+final class Labels {
+    public static function name(Priority $p): string {
+        return match ($p) {
+            Priority::Low => "low",
+            Priority::Medium => "medium",
+            Priority::High => "high",
+        };
+    }
+
+    public static function urgent(?Priority $p): string {
+        return match ($p) {
+            null => "none",
+            Priority::Low, Priority::Medium => "later",
+            Priority::High => "now",
+        };
+    }
+
+    public static function size(Size $s): string {
+        return match ($s) {
+            Size::Small => "small",
+            Size::Large => "large",
+        };
+    }
+}
+
+echo Labels::name(Priority::Low), " ", Labels::name(Priority::Medium), " ", Labels::name(Priority::High), "\n";
+echo Labels::urgent(null), " ", Labels::urgent(Priority::Medium), " ", Labels::urgent(Priority::High), "\n";
+echo Labels::size(Size::Small), " ", Labels::size(Size::Large), "\n";
+--EXPECT--
+low medium high
+none later now
+small large

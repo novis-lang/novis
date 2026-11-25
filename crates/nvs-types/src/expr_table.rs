@@ -1098,6 +1098,12 @@ pub enum ExprInfo {
         /// The case's own name.
         case: String,
     },
+    /// A `match` over an enum with no `default` arm whose arms name every case,
+    /// and `null` for a nullable enum
+    /// (`rule:expressions/a-match-over-an-enum-covers-every-case`). Recorded at the
+    /// `match` keyword alone ([`crate::expr::cover::match_keyword_span`]), so
+    /// `nvs-ir` lowers no fallback throw for it: no value reaches that branch.
+    MatchCoversEveryCase,
     /// A value the checker folded at a site that named **no constant of its
     /// own**: a `Foo::class`, an attribute retrieval
     /// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), a static call settled while

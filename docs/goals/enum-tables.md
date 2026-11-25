@@ -139,6 +139,15 @@ lowers no no-match branch (`crates/nvs-ir/src/lower/expr.rs:2268`). The IR test 
 in the stage that adds it. A `.nvst` whose expected output is the `LogicError` is a test of the run-time
 throw: it changes its subject to `mixed`, so the throw is still tested.
 
+**What stage 1 built.** The code is `E1016`, `E_MATCH_MISSES_A_CASE`, the first free one after
+`E1008`. The check is its own module, `crates/nvs-types/src/expr/cover.rs`, and
+the verdict is `ExprInfo::MatchCoversEveryCase`, recorded at the `match` keyword's span alone
+(`cover::match_keyword_span`), which no other expression has. The lowering does more than drop the
+throw: it does not compare the last label either, and jumps to its arm, since it is the only value
+left. Missing cases are listed by value, because the enum table keeps no declaration order. A
+`Core` enum case is named the way the message's reader writes it after a `use`, such as
+`ExitReport::Reason::Finish`.
+
 **Declined for stage 1.**
 - **A `switch` over an enum.** It is a statement, and a case it does not name runs nothing, which is a
   valid program.
@@ -260,19 +269,19 @@ last on the chain.
 
 ### 1. a match over an enum covers every case
 
-- [ ] `crates/nvs-types/src/expr/mod.rs:928`: for an `E` or `?E` subject with no `default`, collect the
+- [x] `crates/nvs-types/src/expr/mod.rs:928`: for an `E` or `?E` subject with no `default`, collect the
   cases the arm conditions name and report the new code for the rest. The doc comment names the
   rule stage 6 writes, `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md`.
-- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs:1`: the new code after `E1008`, with its card,
+- [x] `crates/nvs-diagnostics/src/code/types_e10.rs:1`: the new code after `E1008`, with its card,
   written to AGENTS.md § *Text an end user reads*.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:2268`: no no-match branch for a `match` the checker marked as
+- [x] `crates/nvs-ir/src/lower/expr.rs:2268`: no no-match branch for a `match` the checker marked as
   covering, and the test `a_match_over_every_case_lowers_no_fallback_throw` in
   `crates/nvs-ir/src/lower/tests.rs:945`.
-- [ ] `crates/nvs-types/tests/enum_tables.rs:1` (new): the tests the check `covers` names, then
+- [x] `crates/nvs-types/tests/enum_tables.rs:1` (new): the tests the check `covers` names, then
   `cargo test --test enum_tables` once.
 - [ ] Every `.nvs` and `.nvst` the new error reaches, fixed as the standing decision says. Found with
   `bun nv suite tests/conformance/` once and the examples' own run.
-- [ ] `tests/conformance/reject/a-match-over-an-enum-that-misses-a-case-does-not-compile.nvst:1` and
+- [x] `tests/conformance/reject/a-match-over-an-enum-that-misses-a-case-does-not-compile.nvst:1` and
   `tests/conformance/enum/a-match-over-every-case-needs-no-default.nvst:1` (new).
 
 ### 2. a class constant and a property default hold enum cases, as int of a case, other constants and Foo::class inside arrays
@@ -392,11 +401,30 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24, from a user
-report. Nothing is built. Every anchor above was read on that day.
+Stage 1 is built and committed, with every item ticked. The stage stays `open` for one reason: the
+check `covers` needs `a_class_constant_that_folds_to_a_case_covers_it`, which is **red until stage 2**.
+Today `const Priority URGENT = Priority::High;` is `E0792`, because the folder does not fold an enum
+case yet. The coverage side is ready: `cover::covered_case`
+(`crates/nvs-types/src/expr/cover.rs`) reads an `ExprInfo::ClassConst` whose `enum_backing` is set
+and whose value is `ConstArg::EnumInt`/`EnumUint` (or `Int`/`Uint`). Stage 2 must record that shape
+for an enum-typed constant. Then set stage 1 `done`.
+
+- `no-fallback` is green: `cargo test --lib a_match_over_every_case_lowers_no_fallback_throw`.
+- The other five `enum_tables` tests are green, run once.
+- The nightly CI failures the sweep named were already fixed by `1c3196b0e8`, before this session.
+- `docs/examples/lang/enums/match-and-switch-over-an-enum/02-a-match-without-a-default-throws.nvs`
+  now throws over a `mixed` value. Stage 6 should check that its name and `about.md` still fit, and
+  stamp what `site --check stale` names for that feature.
 
 ### Next
 
-Stage 1 from its first item. Every check is red until its stage's tests exist.
+Stage 2 from its first item, `crates/nvs-types/src/defaults.rs:921` (`eval_const_value`) and its
+caller `crates/nvs-types/src/signatures.rs:1949`, which has the class context that resolving
+`Priority::High` needs. Then run `cargo test --test enum_tables` by name, and set stage 1 `done`
+once `a_class_constant_that_folds_to_a_case_covers_it` is green.
+
+Expected red until then: `a_class_constant_that_folds_to_a_case_covers_it`. A Rust test whose inline
+source has a `match` over an enum with no `default` that misses a case would also be red. None was
+found among the tracked `.nvs` and `.nvst` files, but inline sources in Rust tests were not swept.
 
 ### Backlog

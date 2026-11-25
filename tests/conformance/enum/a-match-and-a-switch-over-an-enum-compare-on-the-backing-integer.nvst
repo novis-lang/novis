@@ -21,7 +21,7 @@ enum Weight: uint {
 }
 
 Mode $c = Mode::Write;
-echo "hit=", match ($c) { Mode::Read => "read", Mode::Write => "write" }, "\n";
+echo "hit=", match ($c) { Mode::Read => "read", Mode::Write => "write", Mode::Exec => "exec" }, "\n";
 
 // Every label misses, so the `default` arm answers -- the chain is tried in
 // source order wherever the `default` is written.
@@ -33,11 +33,14 @@ Weight $w = Weight::Heavy;
 echo "uint=", match ($w) { Weight::Light => "light", Weight::Heavy => "heavy" }, "\n";
 
 // No arm matched and there is no `default`: a `match` is exhaustive by
-// throwing, and the enum subject changes nothing about that. The result is
+// throwing. The subject is `mixed`, because a `match` over an enum type with
+// no `default` must name every case
+// (`rule:expressions/a-match-over-an-enum-covers-every-case`). The result is
 // bound rather than echoed, an `echo`'s operands being written out one at a
 // time and the first already printed by the time the second throws.
+mixed $loose = $e;
 try {
-    string $u = match ($e) { Mode::Read => "read" };
+    string $u = match ($loose) { Mode::Read => "read" };
     echo "unreached=", $u, "\n";
 } catch (Throwable $t) {
     echo "threw=", $t->message, "\n";

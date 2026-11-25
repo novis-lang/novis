@@ -951,6 +951,38 @@ fn a_match_with_no_default_throws_where_the_chain_runs_out() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
+/// A `match` that names every case of its enum subject lowers no fallback
+/// throw, and does not compare its last label
+/// (`rule:expressions/a-match-over-an-enum-covers-every-case`,
+/// `rule:programs/less-work-is-taken`). The count is the proof: three cases
+/// make two branches and no throw, where the same `match` with a `default`
+/// arm makes three branches.
+#[test]
+fn a_match_over_every_case_lowers_no_fallback_throw() {
+    let count = |src: &str| {
+        let (f, _, _) = lower_first_method(src);
+        let branches = f
+            .blocks
+            .iter()
+            .filter(|b| matches!(b.term, Terminator::Branch { .. }))
+            .count();
+        let throws = f
+            .blocks
+            .iter()
+            .filter(|b| matches!(b.term, Terminator::Throw { .. }))
+            .count();
+        (branches, throws)
+    };
+    let covering = count(
+        "<?nvs\nenum Rank { Bronze, Silver, Gold }\nclass T {\n  function name(Rank $r): string {\n    return match ($r) {\n      Rank::Bronze => \"b\",\n      Rank::Silver => \"s\",\n      Rank::Gold => \"g\",\n    };\n  }\n}\n",
+    );
+    let with_default = count(
+        "<?nvs\nenum Rank { Bronze, Silver, Gold }\nclass T {\n  function name(Rank $r): string {\n    return match ($r) {\n      Rank::Bronze => \"b\",\n      Rank::Silver => \"s\",\n      Rank::Gold => \"g\",\n      default => \"x\",\n    };\n  }\n}\n",
+    );
+    assert_eq!(covering, (2, 0), "a covering match compares two labels and throws nothing");
+    assert_eq!(with_default, (3, 0), "a `default` arm keeps every comparison");
+}
+
 /// `new Foo(1)` with a resolved one-parameter constructor — the class's
 /// own resolved target and the constructor's argument both come from the
 /// typed-expression table (`ExprInfo::New`), not from re-deriving `Foo`'s

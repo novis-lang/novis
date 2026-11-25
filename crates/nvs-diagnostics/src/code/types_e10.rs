@@ -191,4 +191,15 @@ codes! {
          result of a method that returns `static`. To pass any other value, declare the \
          parameter as `callable`.",
     );
+
+    /// A `match` over an enum, or a nullable enum, with no `default` arm, that
+    /// does not name every case, and `null` for a nullable enum
+    /// (`rule:expressions/a-match-over-an-enum-covers-every-case`). The message
+    /// lists every missing case.
+    pub const E_MATCH_MISSES_A_CASE: Code = Code::new("E1016").card(
+        "A `match` over an enum must handle every case of the enum. This `match` has no \
+         `default` arm, and no arm names one or more cases. The message lists those cases. If \
+         the value can be `null`, an arm must also handle `null`. Add an arm for each missing \
+         case, or add a `default` arm.",
+    );
 }

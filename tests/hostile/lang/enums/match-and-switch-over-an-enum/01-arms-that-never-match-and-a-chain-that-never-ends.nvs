@@ -7,16 +7,18 @@
 // hostile: timeout-ms 20000
 
 // 1. A `match` with one arm that the subject never fits, one million times. The
-// throw is caught each round, so the program keeps going.
+// throw is caught each round, so the program keeps going. The subject is
+// `mixed`, because a `match` over an enum type must handle every case.
 class Missed
 {
     public static function count(int $rounds): int
     {
         int $caught = 0;
         int $i = 0;
+        mixed $huge = Runaway::Mode::Huge;
         while ($i < $rounds) {
             try {
-                string $unreached = match (Runaway::Mode::Huge) { Runaway::Mode::Read => 'read' };
+                string $unreached = match ($huge) { Runaway::Mode::Read => 'read' };
                 $caught = $caught + (Core\Str::length($unreached) as int);
             } catch (Throwable $e) {
                 $caught = $caught + 1;

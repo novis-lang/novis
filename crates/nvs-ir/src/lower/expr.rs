@@ -198,7 +198,14 @@ impl<'a> Lowering<'a> {
                 self.lower_ternary(cond, then.as_deref(), else_, expected, env, cur)
             }
             ExprKind::Match { subject, arms } => {
-                self.lower_match(subject, arms, expected, env, cur)
+                // `rule:expressions/a-match-over-an-enum-covers-every-case`: the
+                // checker proved that one of the labels matches.
+                let keyword = nvs_types::expr::cover::match_keyword_span(expr.span);
+                let covers = matches!(
+                    self.exprs.lookup(keyword),
+                    Some(ExprInfo::MatchCoversEveryCase)
+                );
+                self.lower_match(subject, arms, covers, expected, env, cur)
             }
             // `rule:expressions/catch-lowers-to-block-form`: the expression `catch` lowers to the block form —
             // one protected region over the guarded expression, a landing pad
@@ -2132,10 +2139,16 @@ impl<'a> Lowering<'a> {
     /// ever sees it. A pair no single value inhabits is
     /// [`Self::emit_equality`]'s `E0466` guard instead, the checker having
     /// refused it at the arm that wrote it.
+    ///
+    /// `covers` is the checker's verdict that the labels name every value the
+    /// subject can have (`rule:expressions/a-match-over-an-enum-covers-every-case`).
+    /// Then the last label is not compared: it is the only value left, so the
+    /// chain ends in a jump to its arm, and no fallback throw is lowered.
     pub(crate) fn lower_match(
         &mut self,
         subject: &Expr,
         arms: &[MatchArm],
+        covers: bool,
         expected: Option<Ty>,
         env: &mut Env,
         cur: &mut BlockId,
@@ -2197,11 +2210,25 @@ impl<'a> Lowering<'a> {
         let pre_env = env.clone();
         let mut entry_edges: Vec<Vec<(BlockId, Env)>> = vec![Vec::new(); arms.len()];
         let mut test_cur = *cur;
+        let last_label = arms
+            .iter()
+            .rposition(|a| a.conditions.as_ref().is_some_and(|c| !c.is_empty()))
+            .filter(|_| covers && default_index.is_none());
+        let mut chain_ended = false;
         for (i, arm) in arms.iter().enumerate() {
             let Some(conditions) = &arm.conditions else {
                 continue;
             };
-            for cond in conditions {
+            for (j, cond) in conditions.iter().enumerate() {
+                if last_label == Some(i) && j + 1 == conditions.len() {
+                    // Every other value was compared above, so this label is
+                    // the subject's value: a case is a constant, and its arm is
+                    // entered with no comparison.
+                    self.seal(test_cur, Terminator::Jump(arm_blocks[i]));
+                    entry_edges[i].push((test_cur, env.clone()));
+                    chain_ended = true;
+                    break;
+                }
                 // The label is in flight for its own comparison, which is the
                 // one thing that can throw between building it and releasing
                 // it — the subject's case exactly, one value along.
@@ -2262,6 +2289,7 @@ impl<'a> Lowering<'a> {
         // stack entry surviving into either would release it twice.
         self.forget_temporaries_since(subject_mark);
         match default_index {
+            _ if chain_ended => {}
             Some(i) => {
                 self.seal(test_cur, Terminator::Jump(arm_blocks[i]));
                 entry_edges[i].push((test_cur, env.clone()));
