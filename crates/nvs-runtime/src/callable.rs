@@ -815,6 +815,30 @@ pub fn callable_arity(callable: Value) -> Result<usize, Fault> {
         .map_err(|_| Fault::fatal("internal error: a `callable` recorded a negative arity"))
 }
 
+/// The tag of the enum the parameter at `position` of `callable` is declared
+/// as, `E` or `?E`, or `None` for any other parameter or none at all.
+///
+/// A `Core\Arr` member reads it once per walk, so a callback that declares its
+/// key as an enum gets each key as a case, and every other callback gets the
+/// key as a `string` (`rule:types/arrays`). The parameter's check still runs on
+/// the case it gets, so a key that is no case of the enum throws there.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `callable` is not a callable value, as
+/// [`call_callable`] reports it.
+pub fn callable_param_enum(callable: Value, position: usize) -> Result<Option<Tag>, Fault> {
+    let enum_tag = |check: &crate::object::SlotCheck| match check {
+        crate::object::SlotCheck::Values(tag @ (Tag::EnumInt | Tag::EnumUint), _) => Some(*tag),
+        _ => None,
+    };
+    let check = invoke_row(callable)?.param_checks.get(position).and_then(Option::as_ref);
+    Ok(check.and_then(|check| match check {
+        crate::object::SlotCheck::AnyOf(arms) => arms.iter().find_map(enum_tag),
+        other => enum_tag(other),
+    }))
+}
+
 /// The [`CALLABLE_PARAM_TAGS_SLOT`] word `callable` recorded — the nibbles
 /// [`check_param_tags`] judges its arguments against, read straight off the
 /// object with no call made.

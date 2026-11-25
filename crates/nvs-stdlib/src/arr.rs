@@ -2509,7 +2509,7 @@ nvs_runtime::nvs_helper! {
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
         // for it, as this module's doc says.
-        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
+        let want = KeyArg::of(args[1], 1)?;
 
         let mut mask = Vec::with_capacity(base.count());
         let mut from = 0usize;
@@ -2519,19 +2519,15 @@ nvs_runtime::nvs_helper! {
                 .value_at(slot)
                 .expect("next_slot only names live entries");
 
-            let verdict = if wants_key {
+            let verdict = if want.wanted() {
                 // One reference for the duration of the call, released right
                 // after: `call_callable` takes its own.
-                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                let key_arg = Value::str(
-                    base.key_at(slot)
-                        .expect("next_slot only names live entries"),
-                );
+                let key_arg = want.at(&base, slot);
                 let verdict = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
-                              `key_at` just produced"
+                              `KeyArg::at` just produced"
                 )]
                 unsafe {
                     key_arg.release();
@@ -2591,7 +2587,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_map(ctx, args: [2])-> Retained, owns NvsArray {
         let base = held_subject(args, "map")?;
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
-        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
+        let want = KeyArg::of(args[1], 1)?;
 
         let mut out = Retained(Vec::with_capacity(base.count()));
         // The live slots, as an iterator, so the walk goes through
@@ -2612,19 +2608,15 @@ nvs_runtime::nvs_helper! {
                 .value_at(slot)
                 .expect("next_slot only names live entries");
 
-            let mapped = if wants_key {
+            let mapped = if want.wanted() {
                 // One reference for the duration of the call, released right
                 // after — `call_callable` takes its own.
-                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                let key_arg = Value::str(
-                    base.key_at(slot)
-                        .expect("next_slot only names live entries"),
-                );
+                let key_arg = want.at(&base, slot);
                 let mapped = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
-                              `key_at` just produced"
+                              `KeyArg::at` just produced"
                 )]
                 unsafe {
                     key_arg.release();
@@ -2703,7 +2695,7 @@ nvs_runtime::nvs_helper! {
     /// set entry per distinct key for the length of the call.
     fn nvs_core_arr_map_keys(ctx, args: [2])-> Vec<NvsStr>, owns NvsArray {
         let base = held_subject(args, "mapKeys")?;
-        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
+        let want = KeyArg::of(args[1], 1)?;
         let mut keys = Vec::with_capacity(base.count());
         let mut distinct: std::collections::HashSet<NvsStr> = std::collections::HashSet::new();
         let mut from = 0usize;
@@ -2714,8 +2706,8 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
 
             // The old key is built only for a callback that takes it.
-            let named = call_with_key(ctx, args[1], wants_key, value, || {
-                base.key_at(slot)
+            let named = call_with_key(ctx, args[1], want, value, || {
+                base.slot_key(slot)
                     .expect("next_slot only names live entries")
             })?;
             // Copied into the new key before the release below ends the
@@ -2811,7 +2803,7 @@ nvs_runtime::nvs_helper! {
     /// it in the form the subject has it, so a list renders no keys.
     fn nvs_core_arr_group_by(ctx, args: [2])-> Value, owns NvsArray {
         let base = held_subject(args, "groupBy")?;
-        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
+        let want = KeyArg::of(args[1], 1)?;
         let mut buckets: Vec<(NvsStr, NvsArray)> = Vec::new();
         let mut index_of: std::collections::HashMap<Vec<u8>, usize> =
             std::collections::HashMap::new();
@@ -2822,8 +2814,8 @@ nvs_runtime::nvs_helper! {
                 .value_at(slot)
                 .expect("next_slot only names live entries");
 
-            let named = call_with_key(ctx, args[1], wants_key, value, || {
-                base.key_at(slot)
+            let named = call_with_key(ctx, args[1], want, value, || {
+                base.slot_key(slot)
                     .expect("next_slot only names live entries")
             })?;
             // Read before the release below — [`key_bytes`] borrows.
@@ -4788,10 +4780,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let by = optional_callback(&args[1], "groupCounts", "by")?;
-        let by_wants_key = match by {
-            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
-            None => false,
-        };
+        let by_wants_key = KeyArg::of_optional(by, 1)?;
         let subject = Held::new(args[0], borrowed(array));
 
         // Room for every entry, the most buckets the entries can name.
@@ -4808,7 +4797,7 @@ nvs_runtime::nvs_helper! {
                 Some(callback) => {
                     let named = call_with_key(ctx, callback, by_wants_key, value, || {
                         subject
-                            .key_at(slot)
+                            .slot_key(slot)
                             .expect("next_slot only names live entries")
                     })?;
                     // Counted before the release below — [`key_bytes`]
@@ -4905,7 +4894,7 @@ nvs_runtime::nvs_helper! {
         // in — never sees one and none is built. The module doc § *A callback
         // that does not want a key is never handed one*, and
         // [`nvs_core_arr_filter`] is the same reading two positions earlier.
-        let wants_key = nvs_runtime::callable_arity(args[1])? >= 3;
+        let want = KeyArg::of(args[1], 2)?;
 
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
@@ -4920,22 +4909,17 @@ nvs_runtime::nvs_helper! {
                 .pop()
                 .expect("the carry is pushed back after every call");
 
-            let next = if wants_key {
+            let next = if want.wanted() {
                 // One reference for the duration of the call, released right
                 // after — `call_callable` takes its own. Nothing else in a fold
                 // wants the key, so this is the only place it is built.
-                #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                let key_arg = Value::str(
-                    base.slot_key(slot)
-                        .expect("next_slot only names live entries")
-                        .to_str(),
-                );
+                let key_arg = want.at(&base, slot);
                 let next =
                     nvs_runtime::call_callable_giving(ctx, args[1], &[given, value, key_arg], 0);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
-                              `slot_key(..).to_str()` just produced"
+                              `KeyArg::at` just produced"
                 )]
                 unsafe {
                     key_arg.release();
@@ -5088,11 +5072,8 @@ nvs_runtime::nvs_helper! {
         // Whether the decorating walk reads a key: only for a `by` callable
         // that declared a parameter to receive one. The result's keys are
         // [`apply_permutation`]'s, so `sort($list)` reads none here.
-        let by_wants_key = match by {
-            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
-            None => false,
-        };
-        let needs_keys = by_wants_key;
+        let by_wants_key = KeyArg::of_optional(by, 1)?;
+        let needs_keys = by_wants_key.wanted();
 
         // Every entry, in insertion order. Both halves are *borrowed* from the
         // subject: a `SlotKey::Str` is released by its own `NvsStr` drop, and
@@ -5119,14 +5100,13 @@ nvs_runtime::nvs_helper! {
         let mut sort_keys = Extracted(Vec::new());
         if let Some(by) = by {
             for (index, value) in values.iter().enumerate() {
-                let extracted = if by_wants_key {
-                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                    let key_arg = Value::str(keys[index].to_str());
+                let extracted = if needs_keys {
+                    let key_arg = by_wants_key.build(&keys[index]);
                     let extracted = nvs_runtime::call_callable(ctx, by, &[*value, key_arg]);
                     #[expect(
                         unsafe_code,
                         reason = "this frame owns exactly the reference \
-                                  `keys[index].to_str()` just produced"
+                                  `KeyArg::build` just produced"
                     )]
                     unsafe {
                         key_arg.release();
@@ -5615,29 +5595,87 @@ fn owned_key_at(subject: &NvsArray, slot: usize) -> Value {
     )
 }
 
-/// `callback($value, $key)`, where `key` builds the key only when `wants_key`
-/// is set. A callback that declares one parameter gets `($value)` alone, and no
-/// key is built for it.
+/// How a callback takes the key of each entry, read once per walk off the
+/// callable: not at all, as a `string`, or as a case of an enum.
 ///
-/// `wants_key` is read once per walk off `nvs_runtime::callable_arity`, as
-/// this module's doc says.
+/// A callback that declares fewer parameters than the key's position is never
+/// handed one, as this module's doc says. A callback that declares its key as
+/// an enum `E` or `?E` gets the key of an `array<E, T>` as the case, since
+/// every key of that array is one (`rule:types/arrays`). A key that is not the
+/// enum's integer in decimal is handed on as its `string`, and the callback's
+/// parameter check throws for it, as it did before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyArg {
+    /// The callback declares no parameter at the key's position.
+    Skip,
+    /// The key as a `string`.
+    Text,
+    /// The key as a case of an enum whose cases have this tag.
+    Case(Tag),
+}
+
+impl KeyArg {
+    /// How `callable` takes a key at parameter `position`.
+    fn of(callable: Value, position: usize) -> Result<Self, Fault> {
+        if nvs_runtime::callable_arity(callable)? <= position {
+            return Ok(Self::Skip);
+        }
+        Ok(match nvs_runtime::callable_param_enum(callable, position)? {
+            Some(tag) => Self::Case(tag),
+            None => Self::Text,
+        })
+    }
+
+    /// How an optional callback takes a key, `Skip` where there is none.
+    fn of_optional(callable: Option<Value>, position: usize) -> Result<Self, Fault> {
+        callable.map_or(Ok(Self::Skip), |callable| Self::of(callable, position))
+    }
+
+    /// Whether a key is built at all.
+    fn wanted(self) -> bool {
+        self != Self::Skip
+    }
+
+    /// `key` as the callback takes it, as one reference the caller owns. A
+    /// case allocates nothing. A `string` key of a list renders its decimal.
+    fn build(self, key: &SlotKey) -> Value {
+        if let Self::Case(tag) = self
+            && let Some(case) = key.as_case(tag)
+        {
+            return case;
+        }
+        #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
+        Value::str(key.to_str())
+    }
+
+    /// The key at `slot` of `subject`, as [`Self::build`] gives it.
+    fn at(self, subject: &NvsArray, slot: usize) -> Value {
+        self.build(
+            &subject
+                .slot_key(slot)
+                .expect("next_slot only names live entries"),
+        )
+    }
+}
+
+/// `callback($value, $key)`, where `key` reads the key only when `want` says
+/// the callback takes one. A callback that declares one parameter gets
+/// `($value)` alone, and no key is built for it.
+///
+/// `want` is read once per walk with [`KeyArg::of`], as this module's doc says.
 fn call_with_key(
     ctx: &mut nvs_runtime::Ctx,
     callback: Value,
-    wants_key: bool,
+    want: KeyArg,
     value: Value,
-    key: impl FnOnce() -> NvsStr,
+    key: impl FnOnce() -> SlotKey,
 ) -> Result<Value, Fault> {
-    if !wants_key {
+    if !want.wanted() {
         return nvs_runtime::call_callable(ctx, callback, &[value]);
     }
     // One reference for the duration of the call, released right after:
     // `call_callable` takes its own.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "every caller's `key` builds an array key, which is a `string`"
-    )]
-    let key_arg = Value::str(key());
+    let key_arg = want.build(&key());
     let answer = nvs_runtime::call_callable(ctx, callback, &[value, key_arg]);
     #[expect(
         unsafe_code,
@@ -5667,16 +5705,16 @@ fn find_slot(
     predicate: Value,
     negate: bool,
 ) -> Result<Option<usize>, Fault> {
-    let wants_key = nvs_runtime::callable_arity(predicate)? >= 2;
+    let want = KeyArg::of(predicate, 1)?;
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
         from = slot + 1;
         let value = subject
             .value_at(slot)
             .expect("next_slot only names live entries");
-        let verdict = call_with_key(ctx, predicate, wants_key, value, || {
+        let verdict = call_with_key(ctx, predicate, want, value, || {
             subject
-                .key_at(slot)
+                .slot_key(slot)
                 .expect("next_slot only names live entries")
         })?;
         let truthy = nvs_runtime::value_truthy(verdict);
@@ -5910,10 +5948,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_unique(ctx, args: [2])-> Vec<bool>, owns NvsArray {
         let subject = held_subject(args, "unique")?;
         let by = optional_callback(&args[1], "unique", "by")?;
-        let by_wants_key = match by {
-            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
-            None => false,
-        };
+        let by_wants_key = KeyArg::of_optional(by, 1)?;
 
         // Freed on every exit path, including a throw out of the extractor —
         // see [`Extracted`]. Declared before the set so the values it owns
@@ -5934,7 +5969,7 @@ nvs_runtime::nvs_helper! {
                 Some(by) => {
                     let named = call_with_key(ctx, by, by_wants_key, value, || {
                         subject
-                            .key_at(slot)
+                            .slot_key(slot)
                             .expect("next_slot only names live entries")
                     })?;
                     extracted.0.push(named);
@@ -6337,14 +6372,14 @@ fn on_of(value: &Value, member: &str) -> Result<On, Fault> {
 /// on the way out: a callback's answer belongs to this frame, and so does the
 /// `Value` a key is wrapped in.
 ///
-/// `key` builds the entry's key, and runs only where the key is compared or
+/// `key` reads the entry's key, and runs only where the key is compared or
 /// `by` declares a parameter for it — `by_wants_key`, read once per walk.
 fn comparison_subject(
     ctx: &mut nvs_runtime::Ctx,
     on: On,
     by: Option<Value>,
-    by_wants_key: bool,
-    key: impl FnOnce() -> NvsStr,
+    by_wants_key: KeyArg,
+    key: impl FnOnce() -> SlotKey,
     value: Value,
     extracted: &mut Extracted,
 ) -> Result<Value, Fault> {
@@ -6352,8 +6387,7 @@ fn comparison_subject(
         if on != On::Keys {
             return Ok(value);
         }
-        #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-        let held = Value::str(key());
+        let held = KeyArg::Text.build(&key());
         extracted.0.push(held);
         return Ok(held);
     };
@@ -6361,14 +6395,6 @@ fn comparison_subject(
     let answer = call_with_key(ctx, by, by_wants_key, value, key)?;
     extracted.0.push(answer);
     Ok(answer)
-}
-
-/// `key` as a string, rendered where the array holds it as a position.
-fn owned_key(key: &SlotKey) -> NvsStr {
-    match key {
-        SlotKey::Index(index) => NvsStr::new(&KeyBytes::rendered(*index)),
-        SlotKey::Str(key) => key.clone(),
-    }
 }
 
 /// `key`'s bytes: a string key's own, or a position's decimal on the stack.
@@ -6413,10 +6439,7 @@ fn set_member(
     let on = on_of(&args[2], member)?;
     let by = optional_callback(&args[3], member, "by")?;
     let comparator = optional_callback(&args[4], member, "comparator")?;
-    let by_wants_key = match by {
-        Some(by) => nvs_runtime::callable_arity(by)? >= 2,
-        None => false,
-    };
+    let by_wants_key = KeyArg::of_optional(by, 1)?;
 
     // Freed on every exit path, including a throw out of a callback — see
     // [`Extracted`]. Declared before anything that borrows from it.
@@ -6440,7 +6463,7 @@ fn set_member(
             on,
             by,
             by_wants_key,
-            || key.clone(),
+            || SlotKey::Str(key.clone()),
             value,
             &mut extracted,
         )?;
@@ -6476,7 +6499,7 @@ fn set_member(
             on,
             by,
             by_wants_key,
-            || owned_key(&key),
+            || key.clone(),
             value,
             &mut extracted,
         )?;

@@ -1807,6 +1807,39 @@ impl SlotKey {
             Self::Str(key) => key.clone(),
         }
     }
+
+    /// The key as a case of an enum whose cases have `tag`, or `None` when the
+    /// key is not that enum's integer written in decimal (`rule:types/arrays`).
+    ///
+    /// The case's own value is not checked against the enum's cases here. A
+    /// callback's parameter check does that, so a key that is no case throws
+    /// there. A packed array's position is read with no string, and a map's
+    /// key must be the decimal exactly, so `"08"` and `"+8"` give `None`.
+    #[must_use]
+    pub fn as_case(&self, tag: Tag) -> Option<Value> {
+        let bits = match (self, tag) {
+            (Self::Index(index), Tag::EnumInt) => index.cast_unsigned(),
+            (Self::Index(index), Tag::EnumUint) => u64::try_from(*index).ok()?,
+            (Self::Str(key), Tag::EnumInt | Tag::EnumUint) => {
+                let text = std::str::from_utf8(key.as_bytes()).ok()?;
+                let digits = text.strip_prefix('-').unwrap_or(text);
+                let canonical = !digits.is_empty()
+                    && digits.bytes().all(|byte| byte.is_ascii_digit())
+                    && (digits == "0" || !digits.starts_with('0'))
+                    && text != "-0";
+                if !canonical {
+                    return None;
+                }
+                if tag == Tag::EnumInt {
+                    text.parse::<i64>().ok()?.cast_unsigned()
+                } else {
+                    text.parse::<u64>().ok()?
+                }
+            }
+            _ => return None,
+        };
+        Some(Value::enum_case(tag, bits))
+    }
 }
 
 /// One step of a nested write's key chain — [`NvsArray::write_through`]'s
@@ -4295,6 +4328,25 @@ crate::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A key is a case only when it is the enum's integer, as a list's position
+    /// or as its exact decimal, and a key of any other form is not.
+    #[test]
+    fn a_key_is_a_case_only_as_its_exact_decimal() {
+        let case = |key: SlotKey, tag| key.as_case(tag).map(|case| (case.tag_byte(), case.bits()));
+        let int = Value::enum_int(0).tag_byte();
+        let uint = Value::enum_uint(0).tag_byte();
+        assert_eq!(case(SlotKey::Index(3), Tag::EnumInt), Some((int, 3)));
+        assert_eq!(case(SlotKey::Index(3), Tag::EnumUint), Some((uint, 3)));
+        let text = |key: &str| SlotKey::Str(NvsStr::new(key.as_bytes()));
+        assert_eq!(case(text("-12"), Tag::EnumInt), Some((int, (-12i64).cast_unsigned())));
+        assert_eq!(case(text("0"), Tag::EnumUint), Some((uint, 0)));
+        assert_eq!(case(text("18446744073709551615"), Tag::EnumUint), Some((uint, u64::MAX)));
+        for key in ["08", "+8", "-0", "", "8 ", "low", "-1"] {
+            assert_eq!(case(text(key), Tag::EnumUint), None, "{key:?}");
+        }
+        assert_eq!(case(text("1"), Tag::Int), None);
+    }
 
     /// A map that has room asks nothing for its own growth, yet a prepend
     /// renumbers it into a list it allocates whole. The ask is that list.
