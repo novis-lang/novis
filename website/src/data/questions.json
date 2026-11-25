@@ -2093,13 +2093,14 @@
   },
   "/reference/core/arr/filter/": {
     "feature": "Core\\Arr::filter",
-    "hash": "a86ec0a99fe930ae",
+    "hash": "b55f166c168ebd9b",
     "questions": [
       "How do I filter an array with a condition?",
       "Remove items from a list that do not match",
       "Keep only the elements that pass a test",
       "Select the rows of an array where a field matches",
-      "Remove empty values from a list"
+      "Remove empty values from a list",
+      "Does filtering an array keyed by an enum keep the enum keys?"
     ]
   },
   "/reference/core/arr/find/": {
@@ -2302,12 +2303,13 @@
   },
   "/reference/core/arr/map/": {
     "feature": "Core\\Arr::map",
-    "hash": "6fa4cf2118115f42",
+    "hash": "31da440ca969f129",
     "questions": [
       "How do I change every value in an array with a function?",
       "Apply a function to each item of a list",
       "Transform all elements of an array and keep the keys",
-      "Convert a list of numbers to a list of strings"
+      "Convert a list of numbers to a list of strings",
+      "Change the values of an array keyed by an enum"
     ]
   },
   "/reference/core/arr/mapkeys/": {
@@ -2480,12 +2482,12 @@
   },
   "/reference/core/arr/sortbykey/": {
     "feature": "Core\\Arr::sortByKey",
-    "hash": "461d7ae6bd668d31",
+    "hash": "8284a5565fc618a7",
     "questions": [
       "How do I sort an array by its keys?",
       "Order a map alphabetically by key name",
       "Sort a map by key in descending order",
-      "Sort keys as numbers and keep every key",
+      "Sort an array keyed by enum cases in case order",
       "Put some keys first in a fixed order",
       "Move the id column to the front of every row"
     ]
@@ -2512,13 +2514,14 @@
   },
   "/reference/core/arr/unique/": {
     "feature": "Core\\Arr::unique",
-    "hash": "11b7a71a3abed7a3",
+    "hash": "a170dac31bebe230",
     "questions": [
       "How do I remove duplicate values from an array?",
       "Make every value in a list unique",
       "Delete repeated items from a list",
       "Keep one record per email address",
-      "Get distinct values from an array"
+      "Get distinct values from an array",
+      "Remove repeated values from an array keyed by an enum"
     ]
   },
   "/reference/core/arr/values/": {
@@ -2555,12 +2558,13 @@
   },
   "/reference/core/arr/withoutnull/": {
     "feature": "Core\\Arr::withoutNull",
-    "hash": "c6d6cb66595bce96",
+    "hash": "d3fb689d6bf98fd1",
     "questions": [
       "How do I remove null values from an array?",
       "Filter out empty results and keep the keys",
       "Turn a list of nullable values into a list without null",
       "Keep only the ids a lookup found",
+      "Remove null values from an array keyed by an enum",
       "Does removing null also remove zero or an empty string?"
     ]
   },
@@ -19495,14 +19499,14 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "ccb1c77ed2e03943",
+    "hash": "82da9063098bce84",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",
-      "Why can I not print an enum case directly?",
+      "Use an enum case as an array key",
       "Get a readable name for each enum case",
-      "Allow only some cases of an enum as a parameter",
-      "Can an enum have methods or constants?"
+      "Why does a match over an enum need every case?",
+      "Allow only some cases of an enum as a parameter"
     ]
   },
   "/syntax/values/is/": {
