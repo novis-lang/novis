@@ -7135,6 +7135,7 @@ mod tests {
     /// copies of a repeated hour differ by their offset.
     // covers: Core\Time\DateTime::toIso
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn to_iso_datetime_writes_its_offset_and_zone() {
         let zoned = |text: &str, zone: &str| {
             let at: Timestamp = text.parse().expect("an instant");
@@ -11122,6 +11123,7 @@ mod tests {
     /// A `DateTime` is its moment: 10:00 in Berlin and 09:00 in London on one
     /// winter day are one value, and one nanosecond apart they are not.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn time_value_datetimes_at_one_moment_in_two_zones_are_equal() {
         let second = 1_767_603_600;
         assert!(equal(
@@ -11138,6 +11140,7 @@ mod tests {
     /// same slots are still two classes, and a value class never equals a
     /// scalar or `null`.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn time_value_mixed_operands_compare_by_value() {
         let at = Timestamp::new(1_767_600_000, 0).expect("in range");
         assert!(!equal(instant_built(at), moment(1_767_600_000, 0, "UTC")));
@@ -11169,6 +11172,7 @@ mod tests {
     /// `compareTo` orders two date-times by their moment, whatever their zones.
     // covers: Core\Time\DateTime::compareTo
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn datetime_orders_by_its_moment_across_zones() {
         // 09:30 in London is 10:30 in Berlin, so it is later than 10:00 in Berlin.
         let berlin = moment(1_767_603_600, 0, "Europe/Berlin");
@@ -11182,6 +11186,7 @@ mod tests {
 
     /// `compareTo` reads the nanosecond after the second.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn datetime_orders_to_the_nanosecond() {
         let early = moment(1_767_603_600, 1, "UTC");
         let late = moment(1_767_603_600, 2, "Europe/Vienna");
@@ -11212,6 +11217,7 @@ mod tests {
 
     /// A map keyed by `DateTime` finds the same moment written in another zone.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn a_map_keyed_by_a_datetime_finds_the_same_moment_in_another_zone() {
         use crate::objmap::{
             nvs_core_object_map_count, nvs_core_object_map_get, nvs_core_object_map_new,
@@ -11337,6 +11343,7 @@ mod tests {
     /// last day.
     // covers: Core\Time\Date::startOf, Core\Time\Date::endOf
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn date_calendar_start_and_end_match_datetime() {
         for at in date_calendar_samples() {
             let zoned = at
@@ -11392,6 +11399,7 @@ mod tests {
     /// takes, and counts months across the whole calendar.
     // covers: Core\Time\Date::difference
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn date_calendar_difference_matches_datetime() {
         let samples = date_calendar_samples();
         let midnight = |at: civil::Date| {
@@ -11439,6 +11447,7 @@ mod tests {
     /// The same weekday is a whole week away.
     // covers: Core\Time\Date::next, Core\Time\Date::previous
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn date_calendar_next_and_previous_match_datetime() {
         for at in date_calendar_samples() {
             let zoned = at

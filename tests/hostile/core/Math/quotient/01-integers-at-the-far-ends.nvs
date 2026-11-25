@@ -27,11 +27,11 @@ class Attempt
         }
     }
 }
-Attempt::intDiv(Core\Math::INT_MIN, -1);
-Attempt::intDiv(1, 0);
-Attempt::intDiv(0, 0);
-Attempt::intDiv(Core\Math::INT_MIN, 0);
-Attempt::intDiv(Core\Math::INT_MAX, 0);
+Attempt::quotient(Core\Math::INT_MIN, -1);
+Attempt::quotient(1, 0);
+Attempt::quotient(0, 0);
+Attempt::quotient(Core\Math::INT_MIN, 0);
+Attempt::quotient(Core\Math::INT_MAX, 0);
 
 // 4. A million calls. Each result feeds the next one, and none is kept.
 int $value = 1;
