@@ -35,6 +35,8 @@
 //! expressions, diagnostics and rows. The open document's diagnostics that
 //! compare the rows of several files, such as two routes on one path, see
 //! only the files whose output is current. `nvs check` reports them whole.
+//! A diagnostic that a row is missing would be false there, so a link to a
+//! method of a file left out is not checked (`nvs_types::links`).
 //!
 //! # Decision: one interner, shared and copied on write
 //!

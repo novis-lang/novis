@@ -592,10 +592,17 @@ fn folded_as(expr: &Expr, ty: crate::ty::Ty, env: &mut Env<'_>) -> Option<ConstA
 ///
 /// Run once, after every file has been walked, so `routes` is the whole
 /// program's table and a name declared in any file resolves from any other.
+///
+/// The editor's check leaves out a file whose checked output is not current,
+/// and that file's rows are not in `routes`. `left_out` says whether a
+/// handler's class is declared in such a file. A link to it is not checked
+/// at all, because a missing row is no proof that the method has no route.
+/// `nvs check` walks every file, so it checks every link.
 pub(crate) fn resolve(
     routes: &RouteTable,
     targets: &nvs_hir::LinkTargets,
     sites: &[LinkSite],
+    left_out: &dyn Fn(&str) -> bool,
     types: &mut Types<'_>,
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
@@ -618,6 +625,9 @@ pub(crate) fn resolve(
             }
         };
         let Some(row) = row else {
+            if site.foreign.is_none() && left_out(&site.handler) {
+                continue;
+            }
             report_no_route(site, diags);
             continue;
         };

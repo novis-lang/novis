@@ -360,6 +360,9 @@ fn check_files(
     // The encode half of the same question: a call that writes a class whose
     // decoder fills a `secret` property. See `crate::derive::check_encode_sites`.
     let mut encode_sites = Vec::new();
+    // The files left out of the fold, whose rows the table is missing. Empty
+    // for a whole check.
+    let mut left_out = FxHashSet::default();
     let shared = Shared {
         module,
         signatures: &signatures,
@@ -411,6 +414,7 @@ fn check_files(
                 if let Some((_, _, cache)) = partial.as_mut() {
                     cache.left_out += 1;
                 }
+                left_out.insert(id);
                 anon_fn_seq += partial
                     .as_ref()
                     .and_then(|(_, _, cache)| cache.outputs.get(&id))
@@ -471,6 +475,7 @@ fn check_files(
         routes,
         commands,
         &links,
+        &left_out,
         &Sites {
             codec: &codec_sites,
             row: &row_sites,
@@ -625,6 +630,7 @@ fn after_walk(
     routes: crate::routes::RouteTable,
     commands: crate::commands::CommandTable,
     links: &[crate::links::LinkSite],
+    left_out: &FxHashSet<nvs_diagnostics::SourceId>,
     sites: &Sites<'_>,
     packages: Option<&crate::package::Packages>,
     interner: &mut TypeInterner,
@@ -659,10 +665,20 @@ fn after_walk(
         graph: &module.graph,
         signatures,
     };
+    // Whether the class of a `Class::method` handler is declared in a file
+    // left out of the fold, so its rows are not in the table.
+    let declared_left_out = |handler: &str| {
+        !left_out.is_empty()
+            && handler
+                .rsplit_once("::")
+                .and_then(|(class, _)| module.symbols.get(&QName::parse(class)))
+                .is_some_and(|symbol| left_out.contains(&symbol.decl_span.file))
+    };
     crate::links::resolve(
         &routes,
         &module.link_targets,
         links,
+        &declared_left_out,
         &mut types,
         exprs,
         diags,

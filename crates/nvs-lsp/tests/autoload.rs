@@ -230,6 +230,46 @@ fn editing_the_declaring_file_reaches_the_documents_that_borrowed_from_it() {
     assert!(codes(&after).contains(&"E0306"), "{:?}", codes(&after));
 }
 
+/// A program whose open class links to the route of a class in another file.
+/// `Index::own` links to a method of its own file that has no route.
+const LINKING_BOOT: &str =
+    "<?nvs\nautoload 'Blog' from '../src';\n\nuse Blog\\Index;\n\nnew Index();\n";
+const LINKING_INDEX: &str = "<?nvs\nnamespace Blog;\n\nclass Index {\n    \
+                             public function link(): string {\n        \
+                             return Core\\Router::url(Pages::show);\n    }\n\n    \
+                             public function own(): string {\n        \
+                             return Core\\Router::url(Index::link);\n    }\n}\n";
+const LINKING_PAGES: &str = "<?nvs\nnamespace Blog;\n\nclass Pages {\n    \
+                             #[Core\\Route(path: '/pages', method: Core\\Http\\Method::Get)]\n    \
+                             #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+                             public function show(): string {\n        \
+                             return 'pages';\n    }\n}\n";
+
+/// The open document's analysis checks its own bodies alone, and a file whose
+/// checked output is not current is left out of it, routes included. A link
+/// to a route of such a file is not reported as a link to a method with no
+/// route. A link to a method of the document itself still is.
+#[test]
+fn a_link_to_a_route_of_a_file_the_analysis_left_out_is_not_an_error() {
+    let dir = temp("left-out-route");
+    dir.write("app/public/index.nvs", LINKING_BOOT);
+    dir.write("app/src/Index.nvs", LINKING_INDEX);
+    dir.write("app/src/Pages.nvs", LINKING_PAGES);
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&dir.at("app")));
+    dir.open(&mut documents, "app/src/Index.nvs", LINKING_INDEX);
+
+    let analysed = analyse(&documents, &dir.uri("app/src/Index.nvs")).expect("it is open");
+    assert!(
+        tails(&analysed).contains(&"src/Pages.nvs".to_owned()),
+        "the walk reached the file that declares the route: {:?}",
+        tails(&analysed),
+    );
+    assert_eq!(codes(&analysed), ["E0754"]);
+    let own = &analysed.diags.iter().next().expect("one diagnostic").message;
+    assert!(own.contains("Blog\\Index::link"), "{own}");
+}
+
 /// Two programs over one source tree, both naming its root: the first in
 /// entry-path order lends, so the answer does not depend on which was found
 /// first.
