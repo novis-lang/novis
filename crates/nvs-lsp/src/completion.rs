@@ -3486,7 +3486,13 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
                 if crate::arguments::route_argument_at(cursor.analysed, path, cursor.offset) {
                     items.extend(routed_methods(cursor));
                 }
-                items.extend(expected_cases(cursor));
+                // An arm over `?E` offers `null` as an expected row, which
+                // replaces the keyword's own row.
+                let expected = expected_cases(cursor);
+                if expected.iter().any(|row| row.label == "null") {
+                    items.retain(|row| row.label != "null");
+                }
+                items.extend(expected);
                 items.extend(in_scope(cursor));
                 items.extend(followed(
                     cursor,
@@ -5459,9 +5465,40 @@ fn member_key(owner: &str, member: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        CASE_WORDS, DECLARATION_WORDS, FILE_DECLARATION_WORDS, MEMBER_WORDS, STATEMENT_WORDS,
+        CASE_WORDS, DECLARATION_WORDS, FILE_DECLARATION_WORDS, MEMBER_WORDS, STATEMENT_WORDS, Tier,
+        item,
     };
+    use lsp_types::CompletionItemKind;
     use nvs_syntax::Keyword;
+
+    /// The `.lspt` renderer sorts rows by label, so no case shows the order an
+    /// editor sorts in. The order is the `sortText`, and an expected case's
+    /// row sorts before a row of every other tier, whatever the two labels.
+    #[test]
+    fn an_expected_case_sorts_before_every_other_row() {
+        let tiers = [
+            Tier::Override,
+            Tier::Route,
+            Tier::Variable,
+            Tier::Imported,
+            Tier::SameNamespace,
+            Tier::Used,
+            Tier::Core,
+            Tier::Workspace,
+            Tier::Keyword,
+        ];
+        let case = Tier::Expected
+            .ranks(item("Priority::Low".to_owned(), CompletionItemKind::ENUM_MEMBER, String::new()))
+            .sort_text
+            .expect("a ranked row has a sortText");
+        for tier in tiers {
+            let other = tier
+                .ranks(item("$a".to_owned(), CompletionItemKind::VARIABLE, String::new()))
+                .sort_text
+                .expect("a ranked row has a sortText");
+            assert!(case < other, "{case:?} does not sort before {other:?} of {tier:?}");
+        }
+    }
 
     /// The three lists above are spellings copied out of a grammar that owns
     /// them, and this is what keeps the copy honest: a word that stops being
