@@ -3353,6 +3353,14 @@ pub enum Helper {
     /// operand, give `null`. It never throws, and still takes a landing block
     /// for the status it returns.
     ToEnumKeyedOrNull,
+    /// A key a `Core\Arr` member gave back from an `array<E, T>`, as a case
+    /// of `E` (`rule:types/arrays`). Arguments: the member's result, and `1`
+    /// for an enum backed by `uint` or `0` for `int`. A `null` stays `null`, a
+    /// key becomes its case, and a list of keys becomes a new list of cases.
+    /// There is no membership check, because every key of the array was a
+    /// case. It throws only for a key that is not a decimal integer, which no
+    /// such array has.
+    KeyAsCase,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `nvs run`. Defines no value: a [`Helper`] invoked for an effect
@@ -4750,6 +4758,8 @@ impl Helper {
             // `nvs_to_enum_keyed` and `nvs_to_enum_keyed_or_null` read keys.
             | Helper::ToEnumKeyed
             | Helper::ToEnumKeyedOrNull
+            // `nvs_key_as_case` parses keys and builds a list of scalars.
+            | Helper::KeyAsCase
             // `nvs_echo_str` and `nvs_echo_markup` write a string.
             | Helper::EchoStr
             | Helper::EchoMarkup

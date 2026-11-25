@@ -245,7 +245,10 @@ pub(crate) fn bind(
         }
         // The keys pair only when both are written: a string-keyed argument
         // binds no key variable, which `substitute` then reads as string keys.
-        (Ty::Array(declared_elem, Some(declared_key)), Ty::Array(actual_elem, Some(actual_key))) => {
+        (
+            Ty::Array(declared_elem, Some(declared_key)),
+            Ty::Array(actual_elem, Some(actual_key)),
+        ) => {
             vec![(*declared_key, *actual_key), (*declared_elem, *actual_elem)]
         }
         (Ty::Array(declared_elem, _), Ty::Array(actual_elem, _))

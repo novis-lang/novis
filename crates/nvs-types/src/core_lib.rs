@@ -479,7 +479,9 @@ fn return_of(method: &nvs_stdlib::registry::CoreMethod, interner: &mut TypeInter
 /// One registry row as the checker's own signature.
 /// Keys `slots`, a member's subject and its result, by one variable when the
 /// member keeps its subject's keys, which an `array<E, T>` subject then binds
-/// to `E`. `nvs_stdlib::arr::KEEPS_KEYS` owns why. [`intern_core_types`] and
+/// to `E`. `nvs_stdlib::arr::KEEPS_KEYS` owns why. A member on
+/// `nvs_stdlib::arr::ENUM_KEYS` keys its subject alone, and the call binds its
+/// key from it ([`enum_key_of_subject`]). [`intern_core_types`] and
 /// [`method_sig`] both call it, so the frozen base has every type a signature
 /// names.
 fn keep_keys(
@@ -487,15 +489,40 @@ fn keep_keys(
     slots: &mut [TypeId; 2],
     interner: &mut TypeInterner,
 ) {
-    if !nvs_stdlib::arr::KEEPS_KEYS.contains(&method.symbol) {
+    let keeps = nvs_stdlib::arr::KEEPS_KEYS.contains(&method.symbol);
+    // A member that only gives keys out keys its subject alone, so the call
+    // can tell an `array<E, T>` subject from a string-keyed one.
+    let gives = nvs_stdlib::arr::ENUM_KEYS.contains(&method.symbol);
+    if !keeps && !gives {
         return;
     }
     let key = interner.type_var(nvs_stdlib::registry::ARRAY_KEY_VAR);
-    for slot in slots {
+    let count = if keeps { slots.len() } else { 1 };
+    for slot in &mut slots[..count] {
         if let Some(elem) = interner.array_element(*slot) {
             *slot = interner.array_keyed(elem, Some(key));
         }
     }
+}
+
+/// The enum `E` a call binds `nvs_stdlib::registry::KEY_VAR` to, when
+/// `declared` is a subject [`keep_keys`] keyed and `actual`, the argument's
+/// type, is an `array<E, T>`. `None` for any other parameter or argument, and
+/// the key is then a `string`. `nvs_stdlib::arr::ENUM_KEYS` owns why that is
+/// sound.
+pub(crate) fn enum_key_of_subject(
+    declared: TypeId,
+    actual: TypeId,
+    interner: &TypeInterner,
+) -> Option<TypeId> {
+    let key = interner.array_enum_key(declared)?;
+    let crate::ty::Ty::TypeVar(name) = interner.get(key) else {
+        return None;
+    };
+    if name != nvs_stdlib::registry::ARRAY_KEY_VAR {
+        return None;
+    }
+    interner.array_enum_key(actual)
 }
 
 fn method_sig(

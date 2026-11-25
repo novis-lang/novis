@@ -1820,26 +1820,32 @@ impl SlotKey {
         let bits = match (self, tag) {
             (Self::Index(index), Tag::EnumInt) => index.cast_unsigned(),
             (Self::Index(index), Tag::EnumUint) => u64::try_from(*index).ok()?,
-            (Self::Str(key), Tag::EnumInt | Tag::EnumUint) => {
-                let text = std::str::from_utf8(key.as_bytes()).ok()?;
-                let digits = text.strip_prefix('-').unwrap_or(text);
-                let canonical = !digits.is_empty()
-                    && digits.bytes().all(|byte| byte.is_ascii_digit())
-                    && (digits == "0" || !digits.starts_with('0'))
-                    && text != "-0";
-                if !canonical {
-                    return None;
-                }
-                if tag == Tag::EnumInt {
-                    text.parse::<i64>().ok()?.cast_unsigned()
-                } else {
-                    text.parse::<u64>().ok()?
-                }
-            }
+            (Self::Str(key), _) => return decimal_case(key.as_bytes(), tag),
             _ => return None,
         };
         Some(Value::enum_case(tag, bits))
     }
+}
+
+/// `key` as a case of an enum whose cases have `tag`, or `None` when `key` is
+/// not exactly the decimal of an integer of the enum's backing type. A sign
+/// other than a leading `-`, a leading zero and `-0` give `None`.
+pub(crate) fn decimal_case(key: &[u8], tag: Tag) -> Option<Value> {
+    let text = std::str::from_utf8(key).ok()?;
+    let digits = text.strip_prefix('-').unwrap_or(text);
+    let canonical = !digits.is_empty()
+        && digits.bytes().all(|byte| byte.is_ascii_digit())
+        && (digits == "0" || !digits.starts_with('0'))
+        && text != "-0";
+    if !canonical {
+        return None;
+    }
+    let bits = match tag {
+        Tag::EnumInt => text.parse::<i64>().ok()?.cast_unsigned(),
+        Tag::EnumUint => text.parse::<u64>().ok()?,
+        _ => return None,
+    };
+    Some(Value::enum_case(tag, bits))
 }
 
 /// One step of a nested write's key chain — [`NvsArray::write_through`]'s
@@ -4339,9 +4345,15 @@ mod tests {
         assert_eq!(case(SlotKey::Index(3), Tag::EnumInt), Some((int, 3)));
         assert_eq!(case(SlotKey::Index(3), Tag::EnumUint), Some((uint, 3)));
         let text = |key: &str| SlotKey::Str(NvsStr::new(key.as_bytes()));
-        assert_eq!(case(text("-12"), Tag::EnumInt), Some((int, (-12i64).cast_unsigned())));
+        assert_eq!(
+            case(text("-12"), Tag::EnumInt),
+            Some((int, (-12i64).cast_unsigned()))
+        );
         assert_eq!(case(text("0"), Tag::EnumUint), Some((uint, 0)));
-        assert_eq!(case(text("18446744073709551615"), Tag::EnumUint), Some((uint, u64::MAX)));
+        assert_eq!(
+            case(text("18446744073709551615"), Tag::EnumUint),
+            Some((uint, u64::MAX))
+        );
         for key in ["08", "+8", "-0", "", "8 ", "low", "-1"] {
             assert_eq!(case(text(key), Tag::EnumUint), None, "{key:?}");
         }

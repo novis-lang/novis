@@ -832,7 +832,10 @@ pub fn callable_param_enum(callable: Value, position: usize) -> Result<Option<Ta
         crate::object::SlotCheck::Values(tag @ (Tag::EnumInt | Tag::EnumUint), _) => Some(*tag),
         _ => None,
     };
-    let check = invoke_row(callable)?.param_checks.get(position).and_then(Option::as_ref);
+    let check = invoke_row(callable)?
+        .param_checks
+        .get(position)
+        .and_then(Option::as_ref);
     Ok(check.and_then(|check| match check {
         crate::object::SlotCheck::AnyOf(arms) => arms.iter().find_map(enum_tag),
         other => enum_tag(other),

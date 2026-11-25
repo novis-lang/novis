@@ -130,6 +130,45 @@ pub const KEEPS_KEYS: &[&str] = &[
     "nvs_core_arr_unique",
 ];
 
+/// The members whose key, given back or handed to a callback, is the enum
+/// `E` of an `array<E, T>` subject, by symbol.
+///
+/// `nvs_types` keys their subject by [`crate::registry::ARRAY_KEY_VAR`] too,
+/// and binds the key [`crate::registry::KEY_VAR`] to `E` when the subject is
+/// an `array<E, T>` (`rule:types/arrays`). The two halves that make that
+/// sound are run-time ones. A callback's key is built as the case by
+/// `KeyArg`, read off the callable's declared parameter. A key a member on
+/// [`GIVES_KEYS_BACK`] returns is turned into the case after the call by
+/// `nvs_ir`'s `Helper::KeyAsCase`. A member that hands its callback a key and
+/// is not here gives it as a `string`.
+pub const ENUM_KEYS: &[&str] = &[
+    "nvs_core_arr_filter",
+    "nvs_core_arr_map",
+    "nvs_core_arr_map_keys",
+    "nvs_core_arr_group_by",
+    "nvs_core_arr_reduce",
+    "nvs_core_arr_find",
+    "nvs_core_arr_find_key",
+    "nvs_core_arr_any",
+    "nvs_core_arr_all",
+    "nvs_core_arr_key_of",
+    "nvs_core_arr_keys",
+    "nvs_core_arr_first_key",
+    "nvs_core_arr_last_key",
+];
+
+/// The members of [`ENUM_KEYS`] that return a key, `?E`, or a list of keys,
+/// `array<E>`. The run time gives each key as its `string`, so `nvs_ir`
+/// converts the result into cases after the call. **What it spends:** a
+/// parse per key, and for `keys` a second list of the same length.
+pub const GIVES_KEYS_BACK: &[&str] = &[
+    "nvs_core_arr_find_key",
+    "nvs_core_arr_key_of",
+    "nvs_core_arr_keys",
+    "nvs_core_arr_first_key",
+    "nvs_core_arr_last_key",
+];
+
 /// `Core\Arr`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, so
@@ -5620,10 +5659,12 @@ impl KeyArg {
         if nvs_runtime::callable_arity(callable)? <= position {
             return Ok(Self::Skip);
         }
-        Ok(match nvs_runtime::callable_param_enum(callable, position)? {
-            Some(tag) => Self::Case(tag),
-            None => Self::Text,
-        })
+        Ok(
+            match nvs_runtime::callable_param_enum(callable, position)? {
+                Some(tag) => Self::Case(tag),
+                None => Self::Text,
+            },
+        )
     }
 
     /// How an optional callback takes a key, `Skip` where there is none.

@@ -723,6 +723,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ToArrayOfOrNull => "to_array_of_or_null",
         Helper::ToEnumKeyed => "to_enum_keyed",
         Helper::ToEnumKeyedOrNull => "to_enum_keyed_or_null",
+        Helper::KeyAsCase => "key_as_case",
         Helper::EchoStr => "echo_str",
         Helper::EchoValue => "echo_value",
         Helper::EchoMarkup => "echo_markup",

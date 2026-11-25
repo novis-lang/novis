@@ -5891,6 +5891,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ToArrayOfOrNull => "nvs_to_array_of_or_null",
         Helper::ToEnumKeyed => "nvs_to_enum_keyed",
         Helper::ToEnumKeyedOrNull => "nvs_to_enum_keyed_or_null",
+        Helper::KeyAsCase => "nvs_key_as_case",
         Helper::DecimalTruthy => "nvs_decimal_truthy",
         Helper::DecimalAdd => "nvs_decimal_add",
         Helper::DecimalSub => "nvs_decimal_sub",

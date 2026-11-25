@@ -471,6 +471,35 @@ fn a_string_keyed_array_converts_with_as_and_checks_each_key() {
 }
 
 #[test]
+fn keys_and_first_key_return_the_enum() {
+    let diags = check_src(&keyed(
+        "",
+        &format!(
+            "{LABELS}\n\
+             \x20 array<Priority> $keys = Core\\Arr::keys($labels);\n\
+             \x20 ?Priority $first = Core\\Arr::firstKey($labels);\n\
+             \x20 ?Priority $last = Core\\Arr::lastKey($labels);\n\
+             \x20 ?Priority $of = Core\\Arr::keyOf($labels, 'low');\n\
+             \x20 ?Priority $found = Core\\Arr::findKey($labels, fn($v, $k) => $k == Priority::High);\n\
+             \x20 array<string> $named = Core\\Arr::map($labels, fn(string $v, Priority $k) => $v);\n\
+             \x20 ?string $plain = Core\\Arr::firstKey($strings);"
+        ),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // A key of an `array<E, T>` is a case, so a callback that wants a
+    // `string` key, or a `string` variable, does not take it.
+    for wrong in [
+        "?string $first = Core\\Arr::firstKey($labels);",
+        "array<string> $keys = Core\\Arr::keys($labels);",
+        "bool $any = Core\\Arr::any($labels, fn(string $v, string $k) => true);",
+        "?Priority $plain = Core\\Arr::firstKey($strings);",
+    ] {
+        let diags = check_src(&keyed("", &format!("{LABELS}\n  {wrong}")));
+        assert!(diags.has_errors(), "{wrong}: {diags:?}");
+    }
+}
+
+#[test]
 fn a_member_that_keeps_keys_keeps_the_enum_key() {
     let diags = check_src(&keyed(
         "",

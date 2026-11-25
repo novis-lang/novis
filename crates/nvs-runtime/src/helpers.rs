@@ -2864,6 +2864,43 @@ crate::nvs_helper! {
     }
 }
 
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::KeyAsCase` — a key that `Core\Arr` gave back from an
+    /// `array<E, T>`, as a case of `E` (`rule:types/arrays`). `args[0]` is
+    /// `null`, one key, or a list of keys, and `args[1]` is `1` for an enum
+    /// backed by `uint`. A `null` stays `null`. Every key of such an array is a
+    /// case, so no membership check runs. **What it spends:** a parse per key,
+    /// and for a list one new list of scalars, which the result owns.
+    fn nvs_key_as_case(_ctx, args: [2]) {
+        let tag = if args[1].as_int() == Some(1) {
+            Tag::EnumUint
+        } else {
+            Tag::EnumInt
+        };
+        let not_a_case = || {
+            Fault::fatal("internal error: a key of an enum-keyed array is not a case's decimal")
+        };
+        if args[0].tag() == Some(Tag::Null) {
+            return Ok(Value::null());
+        }
+        if let Some(key) = args[0].as_str_bytes() {
+            return crate::array::decimal_case(key, tag).ok_or_else(not_a_case);
+        }
+        let keys = args[0].as_array().ok_or_else(not_a_case)?;
+        let mut cases = crate::array::NvsArray::new();
+        let mut from = 0;
+        while let Some(slot) = keys.next_slot(from) {
+            from = slot + 1;
+            let case = keys
+                .value_at(slot)
+                .and_then(|key| key.as_str_bytes().and_then(|key| crate::array::decimal_case(key, tag)))
+                .ok_or_else(not_a_case)?;
+            cases.append(case);
+        }
+        Ok(Value::array(cases))
+    }
+}
+
 /// `rule:types/arithmetic`'s
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 fn arithmetic_error(operation: &str) -> Fault {
@@ -3995,7 +4032,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_to_array_of", address(nvs_to_array_of)),
         ("nvs_to_array_of_or_null", address(nvs_to_array_of_or_null)),
         ("nvs_to_enum_keyed", address(nvs_to_enum_keyed)),
-        ("nvs_to_enum_keyed_or_null", address(nvs_to_enum_keyed_or_null)),
+        (
+            "nvs_to_enum_keyed_or_null",
+            address(nvs_to_enum_keyed_or_null),
+        ),
+        ("nvs_key_as_case", address(nvs_key_as_case)),
         ("nvs_to_bytes_or_null", address(nvs_to_bytes_or_null)),
         ("nvs_decimal_add", address(nvs_decimal_add)),
         ("nvs_decimal_sub", address(nvs_decimal_sub)),
@@ -4911,7 +4952,13 @@ mod tests {
         assert!(decimal_is(b"0", 0));
         assert!(decimal_is(b"-12", -12));
         assert!(decimal_is(b"18446744073709551615", i128::from(u64::MAX)));
-        for (key, n) in [(&b"08"[..], 8), (b"+8", 8), (b"-0", 0), (b"", 0), (b"8 ", 8)] {
+        for (key, n) in [
+            (&b"08"[..], 8),
+            (b"+8", 8),
+            (b"-0", 0),
+            (b"", 0),
+            (b"8 ", 8),
+        ] {
             assert!(!decimal_is(key, n), "{key:?}");
         }
         let mut cases = crate::array::NvsArray::new();

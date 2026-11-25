@@ -5829,6 +5829,26 @@ impl<'a> Lowering<'a> {
         // an anonymous function, a nested `Core` call's own result — has
         // no other owner and would leak without this.
         self.release_temporaries_since(mark, *cur);
+        // A key the member gave back from an `array<E, T>` is a `string` at run
+        // time and `E` to the checker, so it becomes the case here
+        // (`nvs_stdlib::arr::GIVES_KEYS_BACK`).
+        if nvs_stdlib::arr::GIVES_KEYS_BACK.contains(&symbol)
+            && let Some(repr) = returned_enum_key(call.return_ty, self.checked_types)
+        {
+            let unsigned = i64::from(repr == EnumRepr::Uint);
+            let (flag, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(unsigned));
+            let converted = self.emit_fallible(
+                *cur,
+                result.1,
+                InstKind::HelperCall {
+                    helper: Helper::KeyAsCase,
+                    args: vec![result.0, flag],
+                },
+                env,
+            );
+            self.emit_release(*cur, result.0);
+            return converted;
+        }
         result
     }
 
@@ -9118,6 +9138,25 @@ pub(super) fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
     match backing {
         nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
         nvs_types::EnumBacking::Uint => Ty::Enum(EnumRepr::Uint),
+    }
+}
+
+/// The representation of `E` where the checked type `id` is `?E` or
+/// `array<E>`, the two forms a `Core\Arr` member on
+/// `nvs_stdlib::arr::GIVES_KEYS_BACK` returns an enum key in. `None` for every
+/// other type, such as the `?string` of a string-keyed subject.
+fn returned_enum_key(id: TypeId, checked_types: &TypeInterner) -> Option<EnumRepr> {
+    let id = match checked_types.get(id) {
+        CheckedTy::Union(members) => *members
+            .iter()
+            .find(|member| !matches!(checked_types.get(**member), CheckedTy::Null))?,
+        CheckedTy::Array(element, None) => *element,
+        _ => id,
+    };
+    match checked_types.get(id) {
+        CheckedTy::Enum(_, nvs_types::EnumBacking::Int) => Some(EnumRepr::Int),
+        CheckedTy::Enum(_, nvs_types::EnumBacking::Uint) => Some(EnumRepr::Uint),
+        _ => None,
     }
 }
 

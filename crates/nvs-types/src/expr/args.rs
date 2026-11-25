@@ -2061,7 +2061,20 @@ pub(crate) fn check_generic_args(
         .filter(|index| !unplaced[*index] && !deferred_fn[*index])
         .filter(|index| deferred != Some(slots[*index]))
         .any(|index| keys_from_outside(arg_types[index], env.interner));
-    let key = if from_outside {
+    // A subject that is an `array<E, T>` gives its keys as `E` instead, which
+    // no request can taint: every key of it is a case. Only a `Core\Arr`
+    // member whose subject `core_lib` keyed binds it, and
+    // `nvs_stdlib::arr::ENUM_KEYS` owns why that is sound.
+    let enum_key = (0..arg_types.len())
+        .filter(|index| !unplaced[*index] && !deferred_fn[*index])
+        .filter(|index| slots[*index] == ArgSlot::Param(0))
+        .find_map(|index| {
+            let declared = declared_for(slots[index], &sig, env.interner)?;
+            crate::core_lib::enum_key_of_subject(declared, arg_types[index], env.interner)
+        });
+    let key = if let Some(enum_key) = enum_key {
+        enum_key
+    } else if from_outside {
         env.interner.tainted_string()
     } else {
         env.interner.string()
