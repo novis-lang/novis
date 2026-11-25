@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Enums as keys",
-      "text": "A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.",
-      "goals": [
-        "enum-tables"
-      ]
-    },
-    {
       "title": "A debug viewer that shows more",
       "text": "The debug viewer gets the website's design, a view of your routes and a view of your database queries. One button in VS Code opens it. Each recorded request also shows its memory, its handler and the stack of an uncaught exception. Scheduled jobs, queue jobs and commands are recorded like requests.",
       "goals": [
