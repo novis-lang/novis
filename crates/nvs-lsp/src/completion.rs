@@ -5488,15 +5488,26 @@ mod tests {
             Tier::Keyword,
         ];
         let case = Tier::Expected
-            .ranks(item("Priority::Low".to_owned(), CompletionItemKind::ENUM_MEMBER, String::new()))
+            .ranks(item(
+                "Priority::Low".to_owned(),
+                CompletionItemKind::ENUM_MEMBER,
+                String::new(),
+            ))
             .sort_text
             .expect("a ranked row has a sortText");
         for tier in tiers {
             let other = tier
-                .ranks(item("$a".to_owned(), CompletionItemKind::VARIABLE, String::new()))
+                .ranks(item(
+                    "$a".to_owned(),
+                    CompletionItemKind::VARIABLE,
+                    String::new(),
+                ))
                 .sort_text
                 .expect("a ranked row has a sortText");
-            assert!(case < other, "{case:?} does not sort before {other:?} of {tier:?}");
+            assert!(
+                case < other,
+                "{case:?} does not sort before {other:?} of {tier:?}"
+            );
         }
     }
 

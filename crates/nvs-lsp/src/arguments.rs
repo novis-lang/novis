@@ -272,7 +272,10 @@ pub(crate) fn param_at<'a>(
     path: &NodePath,
     offset: BytePos,
 ) -> Option<(&'a ResolvedCall, usize)> {
-    let node = path.nodes().iter().find(|node| CALLS.contains(&node.kind))?;
+    let node = path
+        .nodes()
+        .iter()
+        .find(|node| CALLS.contains(&node.kind))?;
     let children: Vec<Span> = analysed
         .index
         .children_of(*node)

@@ -93,9 +93,9 @@ fn at_arm(analysed: &Analysed, node: IndexNode, offset: BytePos) -> Option<Expec
     }
     let (enum_, nullable) = enum_of(analysed, receiver_ty(analysed, subject.span, offset)?)?;
     let tokens = tokens_in(analysed, node.span);
-    let open = tokens
-        .iter()
-        .position(|token| token.kind == TokenKind::LBrace && token.span.start >= subject.span.end)?;
+    let open = tokens.iter().position(|token| {
+        token.kind == TokenKind::LBrace && token.span.start >= subject.span.end
+    })?;
     let (at_start, written) = halves(analysed, &tokens[open + 1..], offset)?;
     at_start.then_some(Expected {
         enum_,
