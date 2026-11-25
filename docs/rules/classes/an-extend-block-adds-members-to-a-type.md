@@ -34,7 +34,10 @@ program's autoload map knows a block that adds the name. That `use` line is also
 the type or a type above it, after the type's own members and with the block's name beside each.
 Accepting one from a block the file does not use writes the `use` line too. Hover on an added member
 names the block, go-to-definition opens the member in the block, and references and rename reach the
-declaration and every call. The outline shows a block as a class with its members, ordering members
+declaration and every call. The outline shows a block as a class with its members and no `detail`,
+as no outline symbol has one. Completion in a `use` line does not offer block names, and `self::`
+inside a block does not complete the target's members. A block's target is not one of its
+supertypes, so the type hierarchy does not show blocks. Ordering members
 orders a block's as a class's, and the file list marks a file whose one declaration is a block with
 `X` (`rule:ide/a-file-shows-what-it-declares`). A block the program has not loaded is read off its
 file for each member list, one parse per such block, dropped with the answer.

@@ -32,7 +32,9 @@ one, and `ClassInfo::call` of an added name throws as for an unknown member.
 
 **Unions.** A union receiver finds an added member only when every type in the union gets it from the
 same block, which happens through an interface they share. Otherwise the call is **`E1013`**, and its
-help says to narrow the value with `is`.
+help says to narrow the value with `is`. When one block adds the method to every class of the union,
+the call is one direct call of the block's function, not a dispatch over the classes. Any other mix,
+of two blocks or of a block and a declared member, is `E1013` with a note naming each class's block.
 
 **Restrictions.** A block's body sits, for `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s purposes, in the block's own
 namespace and the block, never in the extended type, so a block cannot call a member restricted on its
@@ -45,9 +47,10 @@ same resolved-use pass as every other deprecated member (`rule:attributes/a-depr
 
 **The call.** An added method compiles to a function whose parameter 0 is the receiver, labelled
 `<Block>::<name>`, and every call of it is one direct call. The collision rule makes the target unique,
-so no call is virtual and none goes through `Core`'s dispatch. An added static method takes the
-extended type's class descriptor in slot 0, as a static method does, and an added method on an enum
-takes the case's integer. The checker records every added call as a resolved call, so the IR,
+so no call is virtual and none goes through `Core`'s dispatch. An added static method takes `0` in
+slot 0 on every target: a `Core` class has no descriptor a unit can name, and nothing in a block
+reads the called class, because `static::` is refused there. An added method on an enum takes the
+case's integer. The checker records every added call as a resolved call, so the IR,
 restriction and deprecation passes read it as they read any other.
 
 **What it spends:** the same as calling a static method of a helper class. Nothing per call, and

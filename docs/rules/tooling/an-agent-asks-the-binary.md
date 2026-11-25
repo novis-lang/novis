@@ -48,7 +48,12 @@ answers it wrongly, so the protocol `nvs agent init` writes sends it to `nvs cod
 `outline` (`rule:tooling/nvs-code-answers-about-the-project`), which read the project through the
 editor's own index. That is a command of its own and not a fifth verb here, so the four stay four, and
 the pointer names its verbs as commands and states nothing about the language
-(`rule:tooling/an-adapter-carries-protocol-and-never-language`).
+(`rule:tooling/an-adapter-carries-protocol-and-never-language`). A project's own `extend` blocks are
+such code: `nvs agent find`, `index` and `show` take no program and read the registry alone, and
+`nvs code` answers for every member a block adds, from the index that holds it under its block. The
+program document's renderer still writes an added member's line, ending `added by <Block>`
+(`rule:tooling/meta-json-takes-a-program`). That line names the member, and no line names the block
+itself. Added constants are not indexed, as class constants are not.
 
 - **Memory:** nothing on the request path. `nvs agent` is a CLI-only path over the document the binary
   already builds for `nvs meta --json`, and no server, isolate or request reaches it. What it spends is

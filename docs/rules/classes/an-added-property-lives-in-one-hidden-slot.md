@@ -47,7 +47,12 @@ session store skip it, and a revoke releases it with the other slots.
 
 **What it spends:** one pointer per instance of each class that takes the slot, and, per object that
 has an added value, one array of the program's added properties for its class. Both are charged to the
-request by the global allocator and freed with the object, so memory stays O(in-flight).
+request by the global allocator and freed with the object, so memory stays O(in-flight). Each access
+is a direct call of an accessor and one or two runtime helper calls, against an inline load for a
+class's own property. Inlining the accessors would change no behaviour.
+
+A computed added property that reads itself inside its own `get` hook calls the hook again, and the
+recursion limit stops it at run time with the ordinary recursion error.
 
 **Declined:**
 - **Side storage keyed by object address.** Every object free in every program would gain a check, a
