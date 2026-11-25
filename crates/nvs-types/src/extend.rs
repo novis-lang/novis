@@ -94,7 +94,9 @@ fn target_kind(target: &QName, env: &Env<'_>) -> Option<SymbolKind> {
 /// for a block of the application, in the application. `Core`, the reserved
 /// global types and a class a loaded extension declares are nobody's own.
 fn is_own_type(target: &QName, at: Span, env: &Env<'_>) -> bool {
-    if target.is_core() || target.is_reserved_global_interface() || target.is_reserved_global_class()
+    if target.is_core()
+        || target.is_reserved_global_interface()
+        || target.is_reserved_global_class()
     {
         return false;
     }
@@ -116,7 +118,12 @@ fn check_member(member: &ClassMember, kind: SymbolKind, env: &mut Env<'_>) {
         ClassMemberKind::Property(p) => (&p.modifiers, "property"),
         ClassMemberKind::Const(c) => (&c.modifiers, "constant"),
         ClassMemberKind::TypeAlias(_) => {
-            refuse(member.span, "a `type` alias", "declare the alias at file scope", env);
+            refuse(
+                member.span,
+                "a `type` alias",
+                "declare the alias at file scope",
+                env,
+            );
             return;
         }
         ClassMemberKind::Enum(_) | ClassMemberKind::Attribute(_) if kind == SymbolKind::Enum => {
@@ -186,9 +193,8 @@ fn check_property(at: Span, p: &PropertyMember, env: &mut Env<'_>) {
     let computed = p.hooks.as_ref().is_some_and(|hooks| {
         !hooks.is_empty() && hooks.iter().all(|hook| hook.kind == PropertyHookKind::Get)
     });
-    let has_start = p.default.is_some()
-        || p.modifiers.contains(&Modifier::Lateinit)
-        || is_nullable(&p.ty);
+    let has_start =
+        p.default.is_some() || p.modifiers.contains(&Modifier::Lateinit) || is_nullable(&p.ty);
     if !computed && !has_start {
         refuse(
             at,

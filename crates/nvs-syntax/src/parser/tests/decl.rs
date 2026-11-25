@@ -1679,7 +1679,10 @@ fn extend_block_parses_its_target_and_name() {
         panic!("expected an extend block: {s:?}");
     };
     let width = |span: Span| span.end - span.start;
-    assert_eq!(width(decl.target.span), u32::try_from("Core\\ObjectMap".len()).unwrap());
+    assert_eq!(
+        width(decl.target.span),
+        u32::try_from("Core\\ObjectMap".len()).unwrap()
+    );
     assert_eq!(decl.type_params.len(), 2);
     assert_eq!(width(decl.name.span), u32::try_from("Index".len()).unwrap());
     assert_eq!(decl.members.len(), 2);
@@ -1698,7 +1701,11 @@ fn extend_block_parses_its_target_and_name() {
     assert!(diags.has_errors(), "a block with no `as` name is an error");
 
     let codes = codes_of("<?nvs\nclass A { extend Shop\\Order as B { } }\n");
-    assert_eq!(codes, ["E0233"], "a block in a class body is a nested declaration");
+    assert_eq!(
+        codes,
+        ["E0233"],
+        "a block in a class body is a nested declaration"
+    );
 }
 
 /// `extend` is contextual: only a statement that starts with it and a second
@@ -1717,9 +1724,8 @@ fn extend_block_word_stays_an_identifier_elsewhere() {
             "`{src}` is no block: {s:?}"
         );
     }
-    let s = parse_stmt_ok(
-        "class Box { public int $extend = 0; public function extend(): void {} }",
-    );
+    let s =
+        parse_stmt_ok("class Box { public int $extend = 0; public function extend(): void {} }");
     let StmtKind::ClassDecl(class) = s.kind else {
         panic!("expected a class: {s:?}");
     };

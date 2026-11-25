@@ -180,7 +180,9 @@ impl CoreRoster<'_> {
             Self::Trusted => true,
             Self::Names { imports, .. } => {
                 let written = qname.to_string();
-                imports.iter().any(|name| name.eq_ignore_ascii_case(&written))
+                imports
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(&written))
             }
         }
     }
@@ -544,9 +546,14 @@ impl<'a> HierarchyResolver<'a> {
             let Some(raw) = block.extends.first() else {
                 continue;
             };
-            if let Some(target) =
-                resolve_extend_target(raw, block, symbols, self.core, uses.at(raw.span.file), diags)
-            {
+            if let Some(target) = resolve_extend_target(
+                raw,
+                block,
+                symbols,
+                self.core,
+                uses.at(raw.span.file),
+                diags,
+            ) {
                 graph.blocks.insert(block.qname.clone(), target);
             }
         }
