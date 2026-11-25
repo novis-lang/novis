@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-types/src/derive.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/object.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-classes/derive-property-list.md, docs/rules/core-classes/db-column-types.md]
   - id: 8
     title: "a Parses class writes itself with format, Core\\Router::url calls it, and url checks the type of each value written in its call"
-    status: open
+    status: done
     context: [crates/nvs-types/src/iter_lib.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-types/src/links.rs, crates/nvs-diagnostics/src/code/types_e07.rs, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/expressions/try-parse.md]
   - id: 9
     title: "stages 1 to 4 have their feature proofs, and the query example shows the string fallback"
@@ -617,7 +617,7 @@ each, before the first edit.
 - [x] `crates/nvs-types/src/links.rs:482` (`literal_args`) records each value's static type, and a check
   beside `converts` (`links.rs:1057`) refuses a value its parameter cannot take, by the list in
   § *Standing decisions*, with the new code and its card.
-- [ ] Every `Parses` class in the tree declares `format()`: the files
+- [x] Every `Parses` class in the tree declares `format()`: the files
   `git grep -lE "implements[^{]*\bParses\b"` lists, about 26. Each `.out` that changes is read.
 - [x] `docs/rules/routing/link-target-and-params-are-checked.md:25`: a value is held to its
   parameter's type where its type is known, a `Parses` value is written as its `format` text, the
@@ -712,23 +712,21 @@ website.
 
 ### State
 
-Stage 8's code, cases and rules are committed; only the sweep is left.
-`Parses` requires `format(): tainted string` (see the stage 8 call in § *Standing decisions*), seeded
-in `crates/nvs-types/src/iter_lib.rs`. `implements_parses` needs `format`, and `Core\Uuid` and
-`Core\Queue\Id` gain `format` rows (`nvs_core_uuid_format`, `nvs_core_queue_id_format`).
-`crate::uri::parses_text` (`crates/nvs-stdlib/src/uri.rs`) writes a `Parses` value for
-`segment_text` and `scalar_text`; every link and query writer now takes `&mut Ctx`. The link type check
-is `fits_type` in `crates/nvs-types/src/links.rs`, code `E1010` in `types_e10.rs`. It reads each
-`$params` element's type from `Env::argument_element_types`, which `check_array_literal` fills for a
-keyed element of a call argument. The four new cases pass (`target/debug/nvs.exe test <files>`).
-**The sweep stopped partway** at the context budget. Its writing subagent changed `benches/members/lang/classes/parses.nvs`, three
-fixtures under `crates/nvs-cli/tests/fixtures/`, `crates/nvs-types/src/conformance.rs`,
-`crates/nvs-types/tests/commands.rs` and `crates/nvs-types/tests/routes.rs`; those are committed
-as they stood, unread. About 19 conformance cases fail `E0449` until the sweep ends.
+Stages 1 to 8 are done. Stage 8 closed this session: every `Parses` class in the tree declares
+`format()`, and the case for a class with no members expects two `E0449` errors, `format` before
+`parse`. The `E1010` check (`fits_type`, `crates/nvs-types/src/links.rs`) had refused an enum case
+for a parameter narrowed to cases of that enum, because a written case has its whole enum's type; a
+value of the enum now passes there and `within_set` judges the case. Three link cases changed for
+`E1010`: a `float` for a `uint` is `E1010`, and a nested query value is written from a `mixed`
+variable. `bun nv suite` over the stage 8 cases ran 37 reached cases, green; `cargo test --test
+routes --test commands` and `cargo test --lib conformance` are green. The parses examples, the
+`types/Parses` example, the attack and `examples/parses.nvs` declare `format` but do not print it.
+`docs/examples/lang/classes/parses/details.md` and the route table's `details.md` say what `format`
+does and that a link value's type is checked; `about.md` in both folders is stage 9's and 10's.
 
 **Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url`, `buildQuery`, `E0756`
-and `E0821` cards, and now the new `format` cards of `Core\Uuid` and `Core\Queue\Id` and `E1010`,
-quoted in `website/src/data/core.json` and `website/public/llms-full.txt`.
+and `E0821` cards, the `format` cards of `Core\Uuid` and `Core\Queue\Id`, and `E1010`, quoted in
+`website/src/data/core.json` and `website/public/llms-full.txt`.
 **Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test asserting
 `CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a `nvs meta --json`
 golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case or test that builds a
@@ -736,17 +734,20 @@ link from a `Core\Uuid` (it threw before and now writes the text).
 
 ### Next
 
-Finish stage 8, then close it:
+Stage 9, by its **Split:** line. First list what is owed with `bun nv proofs --owed --goal route-values`.
 
-- [ ] `crates/nvs-types/tests/routes.rs:85` and every `Parses` class declares `format()`: check what `git grep -lE "implements[^{]*\bParses\b"`
-  lists, outside `docs/rules/`, `docs/goals/`, `docs/agent/` and `registry.rs`. A class with a
-  `tainted string` text returns `tainted string`. Read the seven files the subagent changed first.
-- [ ] `tests/conformance/core/a-class-claiming-the-contract-owes-its-one-member.nvst:2` now gets two
-  `E0449` errors, `parse` and `format`; update its expectation and title.
-- [ ] `crates/nvs-types/src/conformance.rs:2199`: run the changed cases once by path with `target/debug/nvs.exe test <files>`, then
-  `cargo test --test routes`, `cargo test --test commands` and `cargo test --lib conformance`.
-- [ ] `docs/goals/route-values.md:37`: set stage 8 to done, then stage 9 (`docs/examples/lang/classes/parses/`
-  gets `format` already from the sweep).
+- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`:
+  the string fallback route, its `.out` regenerated and read, and `about.md` and `details.md`.
+- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/08-a-query-value-that-may-be-missing.nvs:1`
+  and `09-a-yes-or-no-query-value.nvs`, as stage 9's item says.
+- [ ] `docs/examples/lang/classes/parses/06-a-final-class-loads-a-stored-record.nvs:1`, with `format`
+  on its `Order`; `tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst:9` is
+  the shape.
+- [ ] `tests/hostile/lang/classes/parses/02-a-visitor-guesses-ids.nvs:1` and the route-table attack
+  `03-query-values-written-another-way.nvs`, then `docs/examples/core/Router-Match/parameter/` and
+  `parameters/`, then the rest `--owed` names for stages 1 to 4.
+- [ ] `docs/goals/route-values.md:41`: set stage 9 to done once `bun nv proofs --comments` passes over
+  every file it wrote.
 
 ### Backlog
 
