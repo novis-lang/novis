@@ -1240,6 +1240,15 @@ fn takes(value: crate::TypeId, param: crate::TypeId, types: &mut Types<'_>) -> b
         }
         _ => {}
     }
+    // A case written in the call, `Lang::En`, has the type of its whole enum.
+    // So a value of the enum fits a parameter narrowed to some of its cases,
+    // and `within_set` then judges which case it is.
+    if let (Ty::Enum(value_enum, _), Ty::EnumCase(case_enum, ..)) =
+        (types.interner.get(value), types.interner.get(param))
+        && value_enum == case_enum
+    {
+        return true;
+    }
     crate::expr::assign::is_assignable(
         value,
         param,

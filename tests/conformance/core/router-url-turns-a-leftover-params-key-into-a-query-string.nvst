@@ -60,7 +60,10 @@ echo "agrees=", Core\Router::url(Posts::show, ["id" => 7, "q" => "a/b&c=d", "not
 // bracketed path with the brackets themselves encoded, and a `null` is dropped
 // rather than written as an empty value — `http_build_query`'s two rules, held
 // here because there is one implementation and not two.
-echo "nested=", Core\Router::url(Posts::show, ["id" => 7, "tag" => ["a" => 1, "b" => 2]]), "\n";
+// The value is `mixed`, because an array written in the call is not a type a
+// `string` parameter takes (`E1010`).
+mixed $nested = ["a" => 1, "b" => 2];
+echo "nested=", Core\Router::url(Posts::show, ["id" => 7, "tag" => $nested]), "\n";
 echo "null=", Core\Router::url(Posts::show, ["id" => 7, "sort" => null]), "\n";
 --EXPECT--
 split=/posts/7?sort=new

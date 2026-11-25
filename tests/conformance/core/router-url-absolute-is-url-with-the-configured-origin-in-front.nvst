@@ -66,6 +66,9 @@ string $origin = "https://example.test";
 // pins. Both members have to take the same route through it.
 var $outside = "xx";
 var $hostile = "../../etc";
+// `mixed`, because an array written in the call is not a type the `string`
+// parameter `tag` takes (`E1010`).
+mixed $nested = ["a" => 1];
 
 // Every row shape the seven `router-url-*` cases build, in one table: three
 // values of a closed set, a computed value outside it, a value the encoder has
@@ -88,7 +91,7 @@ array<string> $relative = [
     Core\Router::url(Posts::list, []),
     Core\Router::url(Posts::list, ["page" => 3]),
     Core\Router::url(Posts::show, ["id" => 7, "sort" => "new"]),
-    Core\Router::url(Posts::show, ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+    Core\Router::url(Posts::show, ["id" => 7, "tag" => $nested, "sort" => null]),
 ];
 
 array<string> $absolute = [
@@ -102,7 +105,7 @@ array<string> $absolute = [
     Core\Router::urlAbsolute(Posts::list, []),
     Core\Router::urlAbsolute(Posts::list, ["page" => 3]),
     Core\Router::urlAbsolute(Posts::show, ["id" => 7, "sort" => "new"]),
-    Core\Router::urlAbsolute(Posts::show, ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+    Core\Router::urlAbsolute(Posts::show, ["id" => 7, "tag" => $nested, "sort" => null]),
 ];
 
 // The count, which is the case. `rule:types/arrays`: an `array<T>`'s stored key type
