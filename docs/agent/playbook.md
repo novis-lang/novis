@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A `changes.json` entry for a changed feature needs a test with a `// covers:` line for it.**
+  A feature's behaviour hash reads only the tests that cover it. In `static-in-callables`, three new
+  conformance cases had no `// covers:` line, so `site --check changes` said the feature "has not
+  moved", and a DONE was refused. Give each new case the `// covers:` line of the feature it pins.
+  See `tools/nv/lib/texts.ts` `behaviour()`.
 - **A change to a test makes every member its `// covers:` line names stale on the website.** In
   `extend-blocks` stage 8, a Miri ignore on nine `Core\Time` tests made seven members' `about.md`
   and help stale, and `close` listed only some of them, so it took two close runs. After a test-only
