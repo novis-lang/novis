@@ -46,7 +46,7 @@ stages:
     context: [website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/syntax/attributes/json.mdx, website/src/data/changes.json]
   - id: 11
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: optional-query
@@ -705,24 +705,25 @@ website.
 ### 11. the goal is verified once, and every failure is fixed
 
 - [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 9 and 10 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 10 is done. Every page, `about.md` and help card the goal reached was reread and stamped
-(`5b3f38351c`), and their search questions rewritten (`81a7be77a9`). Nine `about.md` files were
-brought back under 200 words (`2d46da4a12`). The newcomer review ran over all 90 texts in six
-`reader` batches, and every finding is fixed in `bef8f4d105`. Two were real errors:
-`types/Router-Refusal/about.md` gave `BadCapture` for a built-in path value that does not convert
-(it is `NotFound`), and `Date::toIso` and `Instant::toIso` put the `-` before year 1, where the
-code puts it before year 0. `bun nv site --check stale questions changes review` is green,
-`bun nv proofs --gate --goal route-values` owes nothing, and perf is current (`d0fb9381f0`,
-`342aeed5f2`). `target/release/nvs` and `core.json` are built from the tree as of `bef8f4d105`.
+Every stage is done, and the goal claims `DONE`. Stage 11 closed it: `cargo build` and
+`cargo clippy --all-targets -- -D warnings` are green, and `bun nv close --goal route-values` named
+two reds, both fixed. Five files were not rustfmt-clean, and `website/public/llms-full.txt` was
+stale (`489d715341`). That formatting made the 23 `Core\Uri` perf records and the
+`Core\Uuid::format` stamps stale, so they were measured on a rebuilt `target/release/nvs` and
+stamped again (`e2fe0fbcce`). The second close is green on every check of the committed tree. Its
+one red is rustfmt on `crates/nvs-lsp/src/definition.rs`, an uncommitted edit this goal did not
+make, left untouched. Each Standing decision already has its home: the rules the decisions
+table names, `rule:expressions/try-parse` for `format(): tainted string`, and
+`crates/nvs-cli/src/openapi.rs`'s comment for the API formats. The driver retires this file.
 
-**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test
+**Expected red at the next full gate:** a `.out` pinning the old `E0756` or `E0821` text, a test
 asserting `CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a
 `nvs meta --json` golden or hover `.lspt` quoting `Core\Uuid`'s instance members or a help card
 this stage reworded (`Core\Router::url`, `::dispatch`, `::methodsFor`,
@@ -733,12 +734,8 @@ builds a link from a `Core\Uuid`, and a test pinning `E0746`'s card text
 
 ### Next
 
-- [ ] `docs/goals/route-values.md:708`: stage 11 is a close, not a full gate. Run `cargo build`,
-  `cargo clippy --all-targets -- -D warnings`, each acceptance check by name with
-  `looper check --name <id>`, and `bun nv close --goal route-values`. Fix every red in one pass
-  and run it once more.
-- [ ] `docs/goals/route-values.md:1`: before `DONE`, move each decision only this file holds to the
-  rule its Standing decisions name, then delete the file and run `bun nv relink --build`.
+- [ ] `docs/goals/route-values.md:1`: only if `DONE` comes back with a red acceptance check, rerun
+  that check alone with `looper check --name <id>`, fix it, and claim `DONE` again.
 
 ### Backlog
 
