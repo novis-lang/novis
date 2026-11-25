@@ -1347,7 +1347,7 @@ fn descriptors() -> &'static Descriptors {
 /// and no slots, because a connection's whole state is its isolate's — the peer
 /// and the topic queue are [`nvs_runtime::Ctx`] fields, so the receiver is a
 /// handle and there is nothing for it to carry.
-fn has_instances(class: &CoreClass) -> bool {
+pub(crate) fn has_instances(class: &CoreClass) -> bool {
     !class.slots.is_empty() || !class.instance.is_empty()
 }
 

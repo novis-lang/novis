@@ -125,6 +125,7 @@
 //! registered member with no `.nvst` case that calls it fails
 //! `cargo test -p nvs-stdlib`.
 
+pub mod added_slot;
 pub mod arr;
 mod ast;
 mod attributes;
