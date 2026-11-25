@@ -36,6 +36,12 @@ property, and so is a stored one with none of the three
 `$order->tags[] = "x"`, is `E0478`: it would copy the whole array on each write, so the program reads
 the array into a variable, writes there and assigns it back.
 
+**Hooks.** A stored added property may have a `set` hook, or a `get` and a `set` hook. A read or a
+write calls the hook the block writes, and the accessor where the block writes none. Inside its own
+hooks, `$this->p` calls the accessors, so it reads and writes the entry, as a class's hook reads its
+backing slot. A short `set => expr;` hook stores through the `set` accessor. A hooked property takes
+no default (`rule:classes/property-hooks`), so a hooked stored one is `?T` or `lateinit`.
+
 **Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
 session store skip it, and a revoke releases it with the other slots.
 

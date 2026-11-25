@@ -2372,8 +2372,32 @@ pub fn lower_property_hook(
     }
     low.emit_safepoint(entry, &env);
 
+    let entry_set = is_set
+        .then(|| exprs.added_stored(p.name))
+        .flatten()
+        .map(|stored| stored.set.clone());
     match &hook.body {
         Some(PropertyHookBody::Block(block)) => low.lower_stmts(&block.stmts, &mut cur, &mut env),
+        // A stored property an `extend` block adds keeps its value in the
+        // object's added slot, so the hook stores through the entry's `set`
+        // accessor. The call takes over one reference to `$this` and the value.
+        Some(PropertyHookBody::Expr(e)) if let Some(target) = entry_set.clone() => {
+            let (v, _) = low.lower_expr(e, Some(prop_ty), &mut env, &mut cur);
+            if prop_ty.is_refcounted() && low.sole_operand_borrowed(e) {
+                low.emit_retain(cur, v);
+            }
+            low.emit_retain(cur, this_v);
+            low.emit_fallible(
+                cur,
+                Ty::Void,
+                InstKind::Call {
+                    target,
+                    receiver: Some(this_v),
+                    args: vec![v],
+                },
+                &env,
+            );
+        }
         Some(PropertyHookBody::Expr(e)) if is_set => {
             let class = nvs_types::signatures::hook_label_class(name)
                 .unwrap_or_else(|| {

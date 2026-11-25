@@ -506,7 +506,7 @@ fn is_computed_decl(p: &PropertyMember) -> bool {
 /// compile its two accessors from. A property this pass refuses is recorded
 /// too: nothing compiles once an error is reported.
 fn record_stored(block: &QName, target: &QName, p: &PropertyMember, env: &mut Env<'_>) {
-    if !is_stored_added(p) || p.hooks.as_ref().is_some_and(|hooks| !hooks.is_empty()) {
+    if !is_stored_added(p) {
         return;
     }
     let name = crate::strip_sigil(span_text(env.src, p.name)).to_owned();
@@ -519,7 +519,7 @@ fn record_stored(block: &QName, target: &QName, p: &PropertyMember, env: &mut En
             .find(|(written, _)| *written == name)
             .map(|(_, default)| default.clone())
     });
-    let label = |kind| crate::signatures::hook_label(block, &name, kind);
+    let label = |kind| crate::signatures::entry_label(block, &name, kind);
     let stored = crate::expr_table::AddedStored {
         get: label(PropertyHookKind::Get),
         set: label(PropertyHookKind::Set),
@@ -588,8 +588,7 @@ fn has_added_slot(target: &QName, kind: SymbolKind) -> bool {
 }
 
 /// `E1014` for a stored property added to `target`, whose objects have no
-/// added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`), and
-/// `E0338` for a stored added property with a hook.
+/// added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`).
 fn refuse_stored(target: &QName, kind: SymbolKind, p: &PropertyMember, env: &mut Env<'_>) {
     // A `static`, a `readonly` and a property with no start are refused as
     // `E0338` already (`check_property`), one mistake reported once.
@@ -603,15 +602,6 @@ fn refuse_stored(target: &QName, kind: SymbolKind, p: &PropertyMember, env: &mut
         return;
     }
     if has_added_slot(target, kind) {
-        if p.hooks.as_ref().is_some_and(|hooks| !hooks.is_empty()) {
-            refuse(
-                p.name,
-                "a stored property with a hook",
-                "remove the hooks, or give the property only a `get` hook so it computes its \
-                 value on each read",
-                env,
-            );
-        }
         return;
     }
     let what = match kind {

@@ -542,6 +542,16 @@ pub fn hook_label(class: &QName, name: &str, kind: nvs_syntax::ast::PropertyHook
     format!("{class}::${name}::{accessor}")
 }
 
+/// The label of an accessor `nvs-ir` compiles for a stored property an
+/// `extend` block adds (`rule:classes/an-added-property-lives-in-one-hidden-slot`):
+/// `Block::$p::get#entry`. It reads or writes the property's entry in its
+/// object's added slot. A hook written in the block keeps its [`hook_label`],
+/// so the two never share a label.
+#[must_use]
+pub fn entry_label(block: &QName, name: &str, kind: nvs_syntax::ast::PropertyHookKind) -> String {
+    format!("{}#entry", hook_label(block, name, kind))
+}
+
 /// The declaring class's label back out of a [`hook_label`] — `Ns\Class` for
 /// `Ns\Class::$prop::get`. `None` for any string that is not a hook label.
 ///

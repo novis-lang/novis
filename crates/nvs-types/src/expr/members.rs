@@ -2679,9 +2679,16 @@ pub(crate) fn check_property_member(
                 // (`nvs_stdlib::registry` is the whole surface, and it is
                 // members-only), so `None` on either means exactly what it
                 // means on a user class: the name is not declared.
-                if let Some(ty) =
-                    added_property_access(object.span.to(*name_span), &qname, &name, ctx, env)
-                {
+                let inside_own_hook =
+                    ctx.current_hook == Some(name.as_str()) && is_this_receiver(object, env.src);
+                if let Some(ty) = added_property_access(
+                    object.span.to(*name_span),
+                    &qname,
+                    &name,
+                    inside_own_hook,
+                    ctx,
+                    env,
+                ) {
                     return ty;
                 }
                 if !is_this_receiver(object, env.src) {
@@ -2737,13 +2744,18 @@ pub(crate) fn check_property_member(
 /// property is a call of its block's `get` hook, with no `set` hook, so a
 /// write is refused as for any `get`-only property. It is a call inside its
 /// own hook too, because it has no stored value to read there. A stored
-/// property has a `get` and a `set` accessor, which `nvs-ir` compiles from
-/// [`crate::expr_table::AddedStored`] to use the object's added slot. A
+/// property has a `get` and a `set` accessor for its entry, which `nvs-ir`
+/// compiles from [`crate::expr_table::AddedStored`] to use the object's added
+/// slot. An access calls a hook the block writes, and the entry's accessor
+/// where it writes none. Inside the property's own hooks (`inside_own_hook`),
+/// `$this->p` calls the entry's accessors, as a class's hook reads its backing
+/// slot there. A
 /// class's `PropertyGuard` and `PropertyObserver` never see an added property.
 fn added_property_access(
     span: Span,
     qname: &QName,
     name: &str,
+    inside_own_hook: bool,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
@@ -2758,12 +2770,21 @@ fn added_property_access(
         ctx,
         env,
     );
-    let label = |kind| crate::signatures::hook_label(&block, name, kind);
-    let get = Some(label(nvs_syntax::ast::PropertyHookKind::Get));
-    // A stored added property is read and written through the two accessors
-    // `nvs-ir` compiles for it, which use the object's added slot.
-    let set = (!crate::extend::is_computed(&block, name, env.signatures))
-        .then(|| label(nvs_syntax::ast::PropertyHookKind::Set));
+    use nvs_syntax::ast::PropertyHookKind::{Get, Set};
+    let hook = |kind| crate::signatures::hook_label(&block, name, kind);
+    let entry = |kind| crate::signatures::entry_label(&block, name, kind);
+    let (get, set) = if crate::extend::is_computed(&block, name, env.signatures) {
+        (Some(hook(Get)), None)
+    } else if inside_own_hook && env.extend_block.as_ref() == Some(&block) {
+        // Inside its own hooks, `$this->p` is the entry in the added slot.
+        (Some(entry(Get)), Some(entry(Set)))
+    } else {
+        // Anywhere else, a hook the block writes runs, and the accessor
+        // `nvs-ir` compiles for the entry replaces a hook it does not write.
+        let hooks = crate::signatures::hooks_of(&block, name, env.signatures);
+        let pick = |written: bool, kind| if written { hook(kind) } else { entry(kind) };
+        (Some(pick(hooks.get, Get)), Some(pick(hooks.set, Set)))
+    };
     env.exprs.record(
         span,
         ExprInfo::HookedProperty {
