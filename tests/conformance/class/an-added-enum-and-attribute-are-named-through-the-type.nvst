@@ -1,0 +1,52 @@
+--TEST--
+an `extend` block adds a nested enum and a nested attribute to a class of another package: the file that uses the block names the enum as `Order::Size` in a type and in an expression, the block's body names it as `Size`, and a subclass's method carries the attribute as `Order::Audit`, read back with `Core\Attributes::get` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use App\OrderTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    enum Size { Small, Large }
+
+    attribute Audit on method { team: string }
+
+    public function size(): Size {
+        return $this->total > 100 ? Size::Large : Size::Small;
+    }
+}
+
+class RushOrder extends Order {
+    #[Order::Audit(team: "billing")]
+    public function label(): string {
+        return "rush";
+    }
+}
+
+Order::Size $size = (new Order(250))->size();
+echo $size == Order::Size::Large ? "large" : "small", "\n";
+echo (new RushOrder(40))->size() == Order::Size::Small ? "small" : "large", "\n";
+echo Core\Attributes::get<Order::Audit>(RushOrder::label)?->team ?? "none", "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+
+    public function label(): string
+    {
+        return "order";
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+large
+small
+billing

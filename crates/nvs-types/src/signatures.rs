@@ -1545,6 +1545,8 @@ fn collect_stmts(
                 let outer = std::mem::replace(&mut env.extend_type_params, params);
                 collect_members(&decl.members, &block, &ctx, table, env);
                 env.extend_type_params = outer;
+                // A nested enum is the extended type's, `<Type>::<Enum>`.
+                collect_owned_enum_members(&decl.members, &target, &ctx, table, env);
             }
             _ => {}
         }

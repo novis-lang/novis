@@ -120,6 +120,9 @@ impl Resolver {
     ) {
         let mut current_ns: Vec<String> = namespace.to_vec();
         let mut seen_imports: FxHashMap<String, Span> = FxHashMap::default();
+        // The `use` map in force, which an `extend` block's target is read
+        // through.
+        let mut scope: FxHashMap<String, QName> = FxHashMap::default();
 
         for stmt in stmts {
             match &stmt.kind {
@@ -132,6 +135,7 @@ impl Resolver {
                         None => {
                             current_ns = new_ns;
                             seen_imports.clear();
+                            scope.clear();
                         }
                     }
                 }
@@ -149,6 +153,7 @@ impl Resolver {
                         );
                     } else {
                         seen_imports.insert(short_name.clone(), use_decl.path.span);
+                        scope.insert(short_name.clone(), target.clone());
                     }
                     self.module.imports.push(Import {
                         short_name,
@@ -174,8 +179,20 @@ impl Resolver {
                 StmtKind::AttributeDecl(decl) => {
                     self.declare(SymbolKind::Attribute, &current_ns, &decl.name, src, diags);
                 }
+                // A block's nested enum is declared on the extended type, as
+                // `<Type>::<Enum>`, and noted with the block that declares it.
                 StmtKind::ExtendDecl(decl) => {
                     self.declare(SymbolKind::Extend, &current_ns, &decl.name, src, diags);
+                    let block = QName::join(&current_ns, name_text(src, &decl.name));
+                    let target =
+                        crate::resolve_ref(name_text(src, &decl.target), &current_ns, &scope);
+                    for member in &decl.members {
+                        if let ClassMemberKind::Enum(nested) = &member.kind {
+                            let key = QName::member(&target, name_text(src, &nested.name));
+                            self.module.symbols.note_added(&key, &block);
+                            self.declare_qname(SymbolKind::Enum, key, &nested.name, diags);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -390,6 +407,47 @@ pub fn owned_enum_in_scope(
         Some((outer, _)) => owned_enum(&outer, text, symbols),
         None => owned_enum(owner, text, symbols),
     }
+}
+
+/// Whether `key`, an enum an `extend` block declares on the type it extends,
+/// is out of reach of a file whose `use` map is `imports`: the file does not
+/// use the block (`rule:classes/an-extend-block-adds-members-to-a-type`). A
+/// block's own body has the block in its map. An enum no block declares is
+/// never hidden.
+#[must_use]
+pub fn added_enum_hidden(
+    key: &QName,
+    symbols: &SymbolTable,
+    imports: &FxHashMap<String, QName>,
+) -> bool {
+    symbols
+        .added_by(key)
+        .is_some_and(|block| !imports.values().any(|used| used == block))
+}
+
+/// [`owned_enum`], with an enum a block declares only where `imports` uses
+/// the block.
+#[must_use]
+pub fn owned_enum_using(
+    owner: &QName,
+    name: &str,
+    symbols: &SymbolTable,
+    imports: &FxHashMap<String, QName>,
+) -> Option<QName> {
+    owned_enum(owner, name, symbols).filter(|key| !added_enum_hidden(key, symbols, imports))
+}
+
+/// [`owned_enum_in_scope`], with an enum a block declares only where
+/// `imports` uses the block.
+#[must_use]
+pub fn owned_enum_in_scope_using(
+    text: &str,
+    current_class: Option<&QName>,
+    symbols: &SymbolTable,
+    imports: &FxHashMap<String, QName>,
+) -> Option<QName> {
+    owned_enum_in_scope(text, current_class, symbols)
+        .filter(|key| !added_enum_hidden(key, symbols, imports))
 }
 
 pub(crate) fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {

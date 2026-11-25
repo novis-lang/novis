@@ -512,7 +512,7 @@ classes are the ones that goal makes compare by value.
 - [x] `crates/nvs-types/src/expr/calls.rs:379` and `:506`: the union rule. Interfaces: an added member
   on an interface reached on every implementer. `crates/nvs-types/src/expr/args.rs:2629`: a generic
   `Core` block binds `class_type_params`. The three cases the check `reach` names.
-- [ ] `crates/nvs-hir/src/resolve.rs:157`: a block's nested enum declared as `<Type>::<Enum>`;
+- [x] `crates/nvs-hir/src/resolve.rs:157`: a block's nested enum declared as `<Type>::<Enum>`;
   `crates/nvs-types/src/attributes.rs:975`: a block's nested attribute is owned by the extended type,
   and one on a sealed `Core` class does not compile. The two cases the check `nested` names.
 - [ ] `crates/nvs-types/src/restrict.rs:709` and `crates/nvs-config/src/restrict.rs:45`: the block as
@@ -591,38 +591,36 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 is open: items 1, 2, 3 and 6 are done, and `collisions`,
-`dynamic-paths` and `reach` are green. How it works is in `crates/nvs-types/src/extend.rs`'s module
-docs and in the standing decisions.
+Stages 1 to 3 are done. Stage 4 is open: items 1 to 4 and 6 are done, and `collisions`,
+`dynamic-paths`, `reach` and `nested` are green. How it works is in `crates/nvs-types/src/extend.rs`'s
+module docs, the rule fragments and the standing decisions.
 
-- **Unions, `E1013`**: `infer_union_method_call` (`crates/nvs-types/src/expr/calls.rs:381`) falls
-  back to `extend::added_method` per class. One block for every class records one direct
-  `ExprInfo::Call`; any other mix is `report_union_added_member_not_shared`
-  (`crates/nvs-types/src/expr/members.rs`).
-- **Interfaces** needed no code: `extend::reaches` already walks implemented interfaces, so a block
-  on another package's interface reaches each implementer, an interface-typed value and a union of
-  implementers.
-- **Generic `Core` blocks**: `extend::type_param_names` and `check_type_params` (`E0338`),
-  `Env::extend_type_params` set in `signatures.rs` and `check.rs` around a block, read by
-  `lower.rs` `resolve_name_type`, `class_of_ctx` (`$this` is `ObjectMap<K, V>`) and
-  `check_args_typed`, which binds each block name to itself so it is not erased to `mixed`. A call
-  substitutes through `substitute_receiver_args` (`crates/nvs-types/src/expr/args.rs`). The IR
-  needed no change: `int`, `float`, `string` and object instances all pass the case.
+- **Nested enums and attributes** are keyed `<Target>::<Name>`. `Resolver::collect_in`
+  (`crates/nvs-hir/src/resolve.rs`), `members.rs`, `aliases.rs` and `enums.rs` read the target
+  through a `use` map of their own, since they collect before the graph exists.
+  `SymbolTable::note_added` and `AttributeDef::block` record the block. The compiler's lookups go
+  through `owned_enum_using`, `owned_enum_in_scope_using` and `crate::lower::owned_enum(…, imports,
+  …)`, which hide one whose block the file does not use (`added_enum_hidden`, `attributes.rs`
+  `block_used`). `extend::nothing_extends` refuses an attribute on a `Core` class, `E0338`. The
+  language server still calls the unfiltered `owned_enum`.
+- **Unions** (`infer_union_method_call`, `calls.rs:381`), **interfaces** (`extend::reaches`) and
+  **generic `Core` blocks** (`Env::extend_type_params`, `substitute_receiver_args` in
+  `expr/args.rs`) are as the standing decisions say.
 
 ### Next
 
-1. Stage 4's fourth item, `nested`: a block's nested enum as `<Type>::<Enum>`
-   (`crates/nvs-hir/src/resolve.rs:157`), and a block's nested attribute owned by the extended type
-   (`crates/nvs-types/src/attributes.rs:975`); one on a sealed `Core` class does not compile.
-2. Stage 4's fifth item, `restrict` (`crates/nvs-types/src/restrict.rs:709`,
+1. Stage 4's fifth and last item, `restrict` (`crates/nvs-types/src/restrict.rs:709`,
    `crates/nvs-config/src/restrict.rs:45`): the block is the place, and an entry names
    `<Block>::<member>`. Edit `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`
-   `:13` and `:62`.
+   `:13` and `:62`. Then stage 4 is done: set its status in the front matter once `restrict` is
+   green.
+2. Stage 5 (properties) waits on the gate: `docs/goals/time-values.md` must be gone first.
 
 Tests that may go red: a case where a union call meets a method one class declares and a used block
 adds to another class is now `E1013`, not `E0881`. No case in the tree does. A block on
 `Core\ObjectMap`, `ObjectSet`, `Heap`, `Task\Channel` or `Db\Rows` with no `<…>` list is now
-`E0338`.
+`E0338`. No case should change from the nested-enum work: an enum no block declares is never
+hidden.
 
 ### Backlog
 
@@ -641,5 +639,10 @@ adds to another class is now `E1013`, not `E0881`. No case in the tree does. A b
   that shadow the classes `Tag` and `Item` inside the block. Refusing a name the block's file
   resolves to a type needs the file's `use` map in `check_block`. Stage 7's newcomer review may
   want it.
+- An added enum's `#[Core\Deprecated]` is not read: `crates/nvs-types/src/deprecated.rs:621`
+  walks only class and interface bodies. It belongs with the deprecation work.
+- A block's enum whose name a `Core` type already owns (`Core\Arr::Order`) is not refused: the
+  symbol table wins over the registry's enum table in `crate::lower::owned_enum`. `check_collisions`
+  should compare against `env.enums` for a `Core` target.
 - Completion inside an `extend` body offers nothing yet: `completion.rs:3235` sends only
   `ClassDecl`/`InterfaceDecl` nodes to `member()`. Stage 6 adds `ExtendDecl`.

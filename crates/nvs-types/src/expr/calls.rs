@@ -398,14 +398,10 @@ fn infer_union_method_call(
         let declared = resolve_method(qname, name, env.signatures, env.graph);
         let added = match declared {
             Some(_) => None,
-            None => crate::extend::added_method(
-                qname,
-                name,
-                ctx.imports,
-                env.signatures,
-                env.graph,
-            )
-            .map(|(block, sig)| (block.clone(), sig.clone())),
+            None => {
+                crate::extend::added_method(qname, name, ctx.imports, env.signatures, env.graph)
+                    .map(|(block, sig)| (block.clone(), sig.clone()))
+            }
         };
         blocks.push(added.as_ref().map(|(block, _)| block.clone()));
         let Some((owner, sig)) = declared.or(added) else {
@@ -502,13 +498,7 @@ fn infer_union_method_call(
     // One block adds the method to every class, so the call is one direct
     // call of the block's function, whatever class the value has.
     if let Some(block) = added_block {
-        let resolved = resolved_call(
-            block,
-            name.to_owned(),
-            &sig,
-            slots.clone(),
-            env.signatures,
-        );
+        let resolved = resolved_call(block, name.to_owned(), &sig, slots.clone(), env.signatures);
         let info = match method_ref {
             true => ExprInfo::CallableRef(resolved),
             false => ExprInfo::Call(resolved),

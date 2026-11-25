@@ -44,6 +44,14 @@ program's autoload map knows a block that adds the name.
 
 The stored property and its slot are `rule:classes/an-added-property-lives-in-one-hidden-slot`.
 
+A nested enum or attribute belongs to the extended type, as one in the type's own body would: it is
+`<Type>::<Name>` from a file that uses the block, and a bare `<Name>` inside the block. A file that
+does not use the block cannot name it, and the error's help names the `use` line. An added attribute
+is used on the type's descendants or implementers (`rule:attributes/an-attribute-is-declared-with-its-sites`),
+so one added to a `Core` class, or to a `Core` interface only `Core` classes implement, could be used
+nowhere and is **`E0338`**. Two blocks that add one enum name to a type, or a block whose enum name
+the type already declares, are the duplicate-declaration error.
+
 **What a block may not add.** Each is **`E0338`** at the member, and its help names what to write
 instead: a constructor (a static factory), a `protected`, `abstract` or `final` member (a `public` or
 `private` one), a `static` property (a static property of a class of your own), `readonly` on an added

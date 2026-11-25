@@ -88,7 +88,8 @@ pub use requires::{
     Loaded, Parses, resolve_program, resolve_program_borrowing, resolve_program_linted,
 };
 pub use resolve::{
-    Import, Module, Resolver, owned_enum, owned_enum_in_scope, qname_segments, resolve_file,
+    Import, Module, Resolver, added_enum_hidden, owned_enum, owned_enum_in_scope,
+    owned_enum_in_scope_using, owned_enum_using, qname_segments, resolve_file,
     resolve_file_with_extensions,
 };
 pub use symbol::{ExtensionClass, ExtensionFile, Symbol, SymbolKind, SymbolTable};

@@ -1,0 +1,23 @@
+--TEST--
+an `extend` block on a `Core` class may add an enum but not an attribute: no class can extend a `Core` class, so an attribute declared on it could be used nowhere, and the error names the file-scope declaration to write instead — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\Calendar;
+
+extend Date as Calendar {
+    enum Season { Winter, Summer }
+
+    attribute Holiday on method { name: string }
+}
+
+echo Date::Season::Summer == Date::Season::Winter ? "same" : "different", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: an `extend` block cannot add an attribute to `Core\Time\Date`, because no class can extend or implement it
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

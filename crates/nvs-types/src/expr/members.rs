@@ -1756,8 +1756,13 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
         ExprKind::ConstFetch(name) => {
             let text = span_text(env.src, name.span);
             Some(
-                nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols)
-                    .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports)),
+                nvs_hir::owned_enum_in_scope_using(
+                    text,
+                    ctx.current_class,
+                    env.symbols,
+                    ctx.imports,
+                )
+                .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports)),
             )
         }
         // `Order::Status` on the left of `::Paid`: the enum the owner's body
@@ -1767,7 +1772,7 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
                 return None;
             }
             let owner = resolve_class_expr(inner, ctx, env)?;
-            crate::lower::owned_enum(&owner, span_text(env.src, *name), env)
+            crate::lower::owned_enum(&owner, span_text(env.src, *name), ctx.imports, env)
         }
         _ => None,
     }
@@ -2926,7 +2931,9 @@ pub(crate) fn report_union_added_member_not_shared(
     env.diags.report(
         Diagnostic::error(
             code::E_UNION_ADDED_MEMBER_NOT_SHARED,
-            format!("no one `extend` block adds the method `{name}()` to every class of `{described}`"),
+            format!(
+                "no one `extend` block adds the method `{name}()` to every class of `{described}`"
+            ),
         )
         .with_primary(span, format!("called through `{described}` here"))
         .with_note(whose.join(", "))

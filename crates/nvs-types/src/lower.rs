@@ -588,7 +588,7 @@ fn lower_member_type(
 
     // `rule:enums/class-scoped-enum`: `Order::Status` is the enum the owner's
     // body declares, read after the owner's alias and before a case.
-    if let Some(owned) = owned_enum(&qname, &case, env) {
+    if let Some(owned) = owned_enum(&qname, &case, ctx.imports, env) {
         let backing = env.enums.backing_of(&owned);
         return env.interner.enum_(owned, backing);
     }
@@ -627,7 +627,7 @@ fn lower_member_case_type(
         Ok(qname) => qname,
         Err(recovered) => return recovered,
     };
-    let Some(owned) = owned_enum(&owner, &member, env) else {
+    let Some(owned) = owned_enum(&owner, &member, ctx.imports, env) else {
         report_missing_member(span, &owner, &member, "enum", env);
         return env.interner.error();
     };
@@ -654,7 +654,9 @@ fn owner_left_of_member(
     env: &mut Env<'_>,
 ) -> Result<nvs_hir::QName, TypeId> {
     let text = span_text(env.src, name.span);
-    if let Some(owned) = nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols) {
+    if let Some(owned) =
+        nvs_hir::owned_enum_in_scope_using(text, ctx.current_class, env.symbols, ctx.imports)
+    {
         return Ok(owned);
     }
     match alias_left_of_member(text, ctx, env) {
@@ -678,16 +680,19 @@ fn is_enum_name(qname: &nvs_hir::QName, env: &Env<'_>) -> bool {
 /// The key of the enum `owner`'s body declares under `name`
 /// (`rule:enums/class-scoped-enum`). A program's is in the symbol table. A
 /// `Core` class declares nothing there, so its enum, `Core\Arr::Order`, is
-/// found in the enum table the registry seeds under the same key.
+/// found in the enum table the registry seeds under the same key. An enum an
+/// `extend` block declares is found only where `imports` uses the block.
 pub(crate) fn owned_enum(
     owner: &nvs_hir::QName,
     name: &str,
+    imports: &rustc_hash::FxHashMap<String, nvs_hir::QName>,
     env: &Env<'_>,
 ) -> Option<nvs_hir::QName> {
-    nvs_hir::owned_enum(owner, name, env.symbols).or_else(|| {
-        let key = nvs_hir::QName::member(owner, name);
-        env.enums.get(&key).is_some().then_some(key)
-    })
+    if let Some(key) = nvs_hir::owned_enum(owner, name, env.symbols) {
+        return (!nvs_hir::added_enum_hidden(&key, env.symbols, imports)).then_some(key);
+    }
+    let key = nvs_hir::QName::member(owner, name);
+    env.enums.get(&key).is_some().then_some(key)
 }
 
 /// The expansion the name left of a `::` stands for, when that name is itself a
@@ -1160,8 +1165,9 @@ fn resolve_name_type(
     }
     // `rule:enums/class-scoped-enum`'s short spelling: inside its owner's body
     // a bare `Status` is the owner's own enum before it is the namespace's.
-    let qname = nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols)
-        .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports));
+    let qname =
+        nvs_hir::owned_enum_in_scope_using(text, ctx.current_class, env.symbols, ctx.imports)
+            .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports));
 
     // Lowered up front, and unconditionally: an argument written on a name
     // that turns out not to be generic is still a type the author wrote, and

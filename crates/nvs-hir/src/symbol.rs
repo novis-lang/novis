@@ -115,6 +115,11 @@ pub struct SymbolTable {
     /// `E_UNRESOLVED_IMPORT` at its `use` line. Costs one string per such import,
     /// per check run.
     unresolved_imports: FxHashSet<String>,
+    /// Each enum an `extend` block declares, under its key on the extended type,
+    /// with the block that declares it. A file names it only through a block it
+    /// uses ([`crate::resolve::added_enum_hidden`]). One entry per such enum,
+    /// per check run.
+    added: FxHashMap<String, QName>,
 }
 
 impl SymbolTable {
@@ -192,6 +197,17 @@ impl SymbolTable {
     #[must_use]
     pub fn is_unresolved_import(&self, qname: &QName) -> bool {
         self.unresolved_imports.contains(&qname.to_string())
+    }
+
+    /// Records that the `extend` block `block` declares the enum `key`.
+    pub fn note_added(&mut self, key: &QName, block: &QName) {
+        self.added.insert(key.to_string(), block.clone());
+    }
+
+    /// The `extend` block that declares the enum `key`, if a block does.
+    #[must_use]
+    pub fn added_by(&self, key: &QName) -> Option<&QName> {
+        self.added.get(&key.to_string())
     }
 
     /// Every declared symbol, in no particular order.

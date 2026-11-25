@@ -234,6 +234,15 @@ pub(crate) fn check_attribute_decl(decl: &AttributeDecl, ctx: &Ctx<'_>, env: &mu
     }
 }
 
+/// Whether the file `ctx` is in may use `def`: an attribute an `extend` block
+/// declares is used only in a file that uses the block, or inside the block
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`).
+fn block_used(def: &nvs_hir::AttributeDef, ctx: &Ctx<'_>) -> bool {
+    def.block
+        .as_ref()
+        .is_none_or(|block| ctx.imports.values().any(|used| used == block))
+}
+
 /// Where one attribute is written. A promoted constructor parameter is a
 /// property and a parameter, and a declaration that lists either fits there.
 #[derive(Clone, Copy)]
@@ -452,7 +461,10 @@ pub(crate) fn lookup<'e>(
         let owner = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
         let short = span_text(env.src, member);
         let declared = nvs_hir::QName::member(&owner, short);
-        if let Some(def) = aliases.attribute(&declared) {
+        if let Some(def) = aliases
+            .attribute(&declared)
+            .filter(|def| block_used(def, ctx))
+        {
             env.uses.class(&declared);
             return Lookup::Declared(def);
         }
@@ -484,7 +496,9 @@ pub(crate) fn lookup<'e>(
         .filter(|_| !text.contains('\\'))
         .and_then(|class| {
             nvs_hir::find_in_ancestors(class, env.graph, |ancestor| {
-                aliases.attribute(&nvs_hir::QName::member(ancestor, &text))
+                aliases
+                    .attribute(&nvs_hir::QName::member(ancestor, &text))
+                    .filter(|def| block_used(def, ctx))
             })
         });
     record_attribute_lookup(&qname, &text, owned, scoped.is_some(), ctx, env);

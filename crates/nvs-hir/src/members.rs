@@ -113,8 +113,8 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, DocComment, DocTag, DocTagKind, Expr, ExprKind, FnBody, MemberName,
-    MethodMember, Modifier, NamespaceDecl, NewTarget, Param, Stmt, StmtKind, StringPart, TestOperand, Type,
-    TypeKind,
+    MethodMember, Modifier, NamespaceDecl, NewTarget, Param, Stmt, StmtKind, StringPart,
+    TestOperand, Type, TypeKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -303,6 +303,9 @@ impl<'a> MemberResolver<'a> {
 
     fn collect_in(&mut self, stmts: &[Stmt], src: &SourceFile, namespace: &[String]) {
         let mut current_ns: Vec<String> = namespace.to_vec();
+        // The `use` map in force, which an `extend` block's target is read
+        // through.
+        let mut imports: FxHashMap<String, QName> = FxHashMap::default();
 
         for stmt in stmts {
             match &stmt.kind {
@@ -312,8 +315,15 @@ impl<'a> MemberResolver<'a> {
                         .map_or_else(Vec::new, |n| qname_segments(src, n));
                     match body {
                         Some(block) => self.collect_in(&block.stmts, src, &new_ns),
-                        None => current_ns = new_ns,
+                        None => {
+                            current_ns = new_ns;
+                            imports.clear();
+                        }
                     }
+                }
+                StmtKind::UseDecl(use_decl) => {
+                    let target = QName::parse(name_text(src, &use_decl.path));
+                    imports.insert(target.short_name().to_owned(), target);
                 }
                 StmtKind::ClassDecl(decl) => {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
@@ -335,9 +345,13 @@ impl<'a> MemberResolver<'a> {
                     }
                     self.collect_class_members(&decl.members, src, qname);
                 }
-                // An `extend` block's members, under the block's own name.
+                // An `extend` block's members, under the block's own name. Its
+                // nested enums are the extended type's, `<Type>::<Enum>`.
                 StmtKind::ExtendDecl(decl) => {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
+                    let target =
+                        crate::resolve_ref(name_text(src, &decl.target), &current_ns, &imports);
+                    self.collect_owned_enums(&decl.members, src, &target);
                     self.collect_class_members(&decl.members, src, qname);
                 }
                 _ => {}
@@ -2510,7 +2524,9 @@ fn check_member_ref(
             if owner.is_core() {
                 return;
             }
-            if let Some(key) = crate::resolve::owned_enum(&owner, member, env.symbols) {
+            if let Some(key) =
+                crate::resolve::owned_enum_using(&owner, member, env.symbols, ctx.imports)
+            {
                 env.uses.class(&key);
                 Some(key)
             } else {
@@ -2608,7 +2624,9 @@ fn resolve_class_name(
     env: &mut Env<'_>,
 ) -> Option<QName> {
     let text = name_text(src, class_name);
-    if let Some(key) = crate::resolve::owned_enum_in_scope(text, ctx.current_class, env.symbols) {
+    if let Some(key) =
+        crate::resolve::owned_enum_in_scope_using(text, ctx.current_class, env.symbols, ctx.imports)
+    {
         env.uses.class(&key);
         return Some(key);
     }
@@ -2648,7 +2666,14 @@ fn report_missing_owned_enum(owner: &QName, name: &str, span: Span, env: &mut En
         format!("`{owner}` has no enum named `{name}`"),
     )
     .with_primary(span, "referenced here");
-    if let Some(declaring) = ancestor_owning_enum(owner, name, env) {
+    let block = crate::resolve::owned_enum(owner, name, env.symbols)
+        .and_then(|key| env.symbols.added_by(&key).cloned());
+    if let Some(block) = block {
+        diag = diag.with_help(format!(
+            "The `extend` block `{block}` adds this enum. Write `use {block};` at the top of \
+             this file"
+        ));
+    } else if let Some(declaring) = ancestor_owning_enum(owner, name, env) {
         diag = diag.with_help(format!(
             "`{declaring}::{name}` is where it is declared. An enum in a class body is used \
              through that class. A subclass does not inherit it"

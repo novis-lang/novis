@@ -241,6 +241,8 @@ fn collect(
     diags: &mut nvs_diagnostics::Diagnostics,
 ) {
     let mut current_ns = namespace.to_vec();
+    // The `use` map in force, which an `extend` block's target is read through.
+    let mut imports: FxHashMap<String, QName> = FxHashMap::default();
     for stmt in stmts {
         match &stmt.kind {
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
@@ -249,8 +251,21 @@ fn collect(
                 });
                 match body {
                     Some(block) => collect(&block.stmts, src, &new_ns, table, diags),
-                    None => current_ns = new_ns,
+                    None => {
+                        current_ns = new_ns;
+                        imports.clear();
+                    }
                 }
+            }
+            StmtKind::UseDecl(use_decl) => {
+                let target = QName::parse(span_text(src, use_decl.path.span));
+                imports.insert(target.short_name().to_owned(), target);
+            }
+            // A block's nested enums are the extended type's, `<Type>::<Enum>`.
+            StmtKind::ExtendDecl(decl) => {
+                let target =
+                    nvs_hir::resolve_ref(span_text(src, decl.target.span), &current_ns, &imports);
+                collect_owned_of(&target, &decl.members, src, table, diags);
             }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(src, decl.name.span));
@@ -279,9 +294,20 @@ fn collect_owned(
     diags: &mut nvs_diagnostics::Diagnostics,
 ) {
     let owner = QName::join(namespace, span_text(src, owner.span));
+    collect_owned_of(&owner, members, src, table, diags);
+}
+
+/// The enums `members` declares, keyed by [`QName::member`] under `owner`.
+fn collect_owned_of(
+    owner: &QName,
+    members: &[ClassMember],
+    src: &SourceFile,
+    table: &mut EnumTable,
+    diags: &mut nvs_diagnostics::Diagnostics,
+) {
     for member in members {
         if let ClassMemberKind::Enum(decl) = &member.kind {
-            let qname = QName::member(&owner, span_text(src, decl.name.span));
+            let qname = QName::member(owner, span_text(src, decl.name.span));
             let info = resolve_enum(decl, src, diags);
             table.by_name.insert(qname, info);
         }

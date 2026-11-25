@@ -61,10 +61,51 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
         );
     }
     check_type_params(decl, &target, env);
+    let sealed = nothing_extends(&target, kind);
     for member in &decl.members {
         check_member(member, kind, env);
+        if sealed && let ClassMemberKind::Attribute(nested) = &member.kind {
+            refuse_sealed_attribute(&target, nested.name.span, env);
+        }
     }
     check_collisions(decl, &block, &target, env);
+}
+
+/// Whether no class of a program can extend or implement `target`: a `Core`
+/// class (`rule:core-api/core-classes-are-sealed`), or a `Core` interface only
+/// `Core` classes implement. An attribute a block adds to such a type could be
+/// used nowhere, since an owned attribute is used on the owner's descendants.
+fn nothing_extends(target: &QName, kind: SymbolKind) -> bool {
+    if !target.is_core() {
+        return false;
+    }
+    let written = target.to_string();
+    match kind {
+        SymbolKind::Class => true,
+        SymbolKind::Interface => nvs_stdlib::registry::INTERFACES
+            .iter()
+            .any(|i| i.name.eq_ignore_ascii_case(&written)),
+        _ => false,
+    }
+}
+
+/// `E0338` for a nested attribute on a type [`nothing_extends`].
+fn refuse_sealed_attribute(target: &QName, at: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_EXTEND_MEMBER_NOT_ADDABLE,
+            format!(
+                "an `extend` block cannot add an attribute to `{target}`, because no class can \
+                 extend or implement it"
+            ),
+        )
+        .with_primary(at, "this attribute could not be used anywhere")
+        .with_help(
+            "An attribute declared on a type is used only on the classes that extend or \
+             implement it. Declare the attribute at file scope instead."
+                .to_owned(),
+        ),
+    );
 }
 
 /// Which name table an added member is looked up in: a method, a constant
@@ -391,7 +432,9 @@ fn check_member(member: &ClassMember, kind: SymbolKind, env: &mut Env<'_>) {
         // method takes `0` there, and an enum case is an integer.
         ClassMemberKind::Method(m)
             if (kind == SymbolKind::Enum || m.modifiers.contains(&Modifier::Static))
-                && m.body.as_ref().is_some_and(nvs_syntax::ast::is_generator_body) =>
+                && m.body
+                    .as_ref()
+                    .is_some_and(nvs_syntax::ast::is_generator_body) =>
         {
             refuse(
                 m.name,
@@ -457,7 +500,10 @@ fn is_nullable(ty: &Type) -> bool {
 /// The names a block on a generic `Core` class binds its type parameters to,
 /// in order: each `<…>` entry written as one bare name. Anything else is left
 /// out, and [`check_type_params`] reports it.
-pub(crate) fn type_param_names(decl: &ExtendDecl, src: &nvs_diagnostics::SourceFile) -> Vec<String> {
+pub(crate) fn type_param_names(
+    decl: &ExtendDecl,
+    src: &nvs_diagnostics::SourceFile,
+) -> Vec<String> {
     decl.type_params
         .iter()
         .filter_map(|ty| match &ty.kind {

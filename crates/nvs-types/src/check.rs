@@ -993,6 +993,8 @@ pub(crate) fn check_stmts(
                     let outer_params = std::mem::replace(&mut env.extend_type_params, params);
                     check_members(&decl.members, &ctx, env);
                     env.extend_type_params = outer_params;
+                    // A nested enum is the extended type's, `<Type>::<Enum>`.
+                    check_owned_enums(&decl.members, &target, &ctx, env);
                     env.extend_block = outer;
                 }
             }

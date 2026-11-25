@@ -116,8 +116,12 @@ pub struct AttributeDef {
     /// The declaration's full name: its own [`QName`] at namespace level, or
     /// [`QName::member`] of its owner, `Shop\Storable::Index`.
     pub name: QName,
-    /// The class or interface whose body declares it, if one does.
+    /// The class or interface whose body declares it, if one does. For one an
+    /// `extend` block declares, the type the block extends.
     pub owner: Option<QName>,
+    /// The `extend` block that declares it, if one does. A file uses it only
+    /// through a block it uses.
+    pub block: Option<QName>,
     /// The declared name as written.
     pub name_span: Span,
     /// Whether `repeatable` is written.
@@ -251,6 +255,9 @@ pub struct AliasResolver {
     /// Every `attribute` declaration, its body still to substitute, filed in
     /// [`Self::pending`] under [`AliasKey::Attribute`] of its name.
     attributes: Vec<AttributeDef>,
+    /// The `extend` block whose body is being collected, which
+    /// [`AttributeDef::block`] records.
+    block: Option<QName>,
 }
 
 impl AliasResolver {
@@ -327,6 +334,17 @@ impl AliasResolver {
                         &current_ns,
                         &imports,
                     );
+                }
+                // A block's nested attributes and enums are the extended
+                // type's, `<Type>::<Name>`, and its body sees the block.
+                StmtKind::ExtendDecl(decl) => {
+                    let block = QName::join(&current_ns, name_text(src, &decl.name));
+                    let target = resolve_ref(name_text(src, &decl.target), &current_ns, &imports);
+                    let mut inner = imports.clone();
+                    inner.insert(block.short_name().to_owned(), block.clone());
+                    let outer = self.block.replace(block);
+                    self.record_owned(&decl.members, &[], &target, src, &current_ns, &inner);
+                    self.block = outer;
                 }
                 _ => {}
             }
@@ -533,6 +551,7 @@ impl AliasResolver {
         self.attributes.push(AttributeDef {
             name: qname,
             owner,
+            block: self.block.clone(),
             name_span: decl.name.span,
             repeatable: decl.repeatable.is_some(),
             sites: decl.sites.clone(),
