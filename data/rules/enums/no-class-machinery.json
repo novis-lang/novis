@@ -11,6 +11,7 @@
     "crates/nvs-syntax/src/parser/tests/decl.rs",
     "crates/nvs-ir/tests/class_constants.rs",
     "tests/conformance/enum/an-enum-orders-and-sums-through-its-integer.nvst",
-    "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst"
+    "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst",
+    "tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst"
   ]
 }

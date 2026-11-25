@@ -20,6 +20,9 @@
     "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst",
     "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst",
     "tests/conformance/core/db-query-as-builds-a-class-and-not-a-scalar.nvst",
-    "crates/nvs-types/tests/objects_and_shapes.rs"
+    "crates/nvs-types/tests/objects_and_shapes.rs",
+    "crates/nvs-types/tests/enum_tables.rs",
+    "tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst",
+    "tests/conformance/reject/an-enum-keyed-array-takes-only-its-own-cases.nvst"
   ]
 }

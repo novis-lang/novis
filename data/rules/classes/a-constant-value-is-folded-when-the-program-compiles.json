@@ -1,0 +1,14 @@
+{
+  "title": "A class constant and a property default fold when the program compiles, and may hold enum cases, `Foo::class` and other constants",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/no-free-functions-or-constants",
+    "types/class-constant",
+    "types/arrays",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/enum_tables.rs",
+    "tests/conformance/enum/a-constant-holds-enum-cases-inside-an-array.nvst"
+  ]
+}

@@ -615,6 +615,8 @@ A `match` with no arms is `E0476` where it is written. PHP parses one and throws
 every evaluation, so no program that ran is lost. A `match` is an expression, and one whose every path
 throws has nothing for the position it sits in to bind, pass or return, and no value for a merge with
 no incoming edge to carry. A written arm, or `default => throw …`, says the same thing on purpose.
+A `match` over an enum with no `default` must also name every case
+([`expressions/a-match-over-an-enum-covers-every-case`](expressions.md#expressions-a-match-over-an-enum-covers-every-case)).
 
 A `match` has one `default` arm at most, and a `switch` one `default:` label. A second one is `E0876`
 at its keyword: the first runs for every value no other arm matches, so the second never runs.
@@ -625,6 +627,49 @@ is an `if` or a `switch`. A `void` call stored at `mixed` is `E0401`, as it is a
 type, because `mixed` takes every value and a `void` call has none.
 
 <sub>See also [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
+
+<a id="expressions-a-match-over-an-enum-covers-every-case"></a>
+
+## A `match` over an enum with no `default` names every case
+
+`rule:expressions/a-match-over-an-enum-covers-every-case`
+
+When the subject of a `match` has the static type of an enum `E`, or `?E`, and the `match` has no
+`default` arm, every case of `E` must be named by an arm, and `null` too for `?E`. A missing case is
+**`E1016`** at the `match` keyword, and the message lists every missing case. The check is
+`crates/nvs-types/src/expr/cover.rs`.
+
+An arm condition covers a case when it is a case of `E`, or a class constant that folds to one
+([`classes/a-constant-value-is-folded-when-the-program-compiles`](classes.md#classes-a-constant-value-is-folded-when-the-program-compiles)). Any other condition covers
+nothing, so that `match` needs a `default`. A subject of `mixed`, of a union with anything but
+`null`, or of `bool`, as `match (true)` is, is not checked, and a value no arm takes there throws
+`LogicError` at run time. Missing cases are listed by value, and a `Core` case is named the way a
+program writes it after a `use`, such as `ExitReport::Reason::Finish`.
+
+A statically typed `E` is always one of its cases, because every write is checked
+([`enums/representation`](enums.md#enums-representation)). So a `match` that names every case lowers no fallback throw, and does
+not compare its last label either: the last arm is the only value left, and the lowering jumps to it.
+The checker's verdict reaches the lowering as `ExprInfo::MatchCoversEveryCase`, recorded at the
+`match` keyword's span. That is one branch less per evaluation, counted by an IR test
+([`programs/less-work-is-taken`](programs.md#programs-less-work-is-taken)).
+
+The editor's quick fix for `E1016` is the error's own suggestion: one arm per missing case, each
+throwing `LogicError` that names its case, so the file compiles and the author replaces each body.
+It never inserts a `default` arm, because that would switch the check off.
+
+**Cost.** Check time only, and one branch less per `match` over every case. Nothing at run time and
+no memory. A `match` that names fewer cases than its enum has is a compile error instead of a throw
+on the request path.
+
+**Declined:**
+- **A `switch` over an enum.** It is a statement, and a case it does not name runs nothing, which is
+  a valid program.
+- **A warning on a `default` arm when every case is named.** A `default` that catches a future case
+  is a choice the author makes.
+- **A warning instead of an error.** A closed type is checked, and a missing case is the same kind of
+  mistake as a missing return.
+
+<sub>See also [`expressions/a-match-has-at-least-one-arm`](expressions.md#expressions-a-match-has-at-least-one-arm), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="expressions-intrinsic-constant-arguments"></a>
 

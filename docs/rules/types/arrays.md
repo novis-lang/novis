@@ -39,7 +39,7 @@ between two kinds.
 - Iteration order is insertion order, always; only the sort members reorder, and they say so in their
   names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
   (`rule:types/array-combination`).
-- What comes back is a `string` everywhere: `Core\Arr::keys()` returns `array<string>`, so do
+- What comes back from an array keyed by strings is a `string` everywhere: `Core\Arr::keys()` returns `array<string>`, so do
   `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
   on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
   subscript normalisation above is what makes those one key. A key binding declaring any other type is
@@ -50,8 +50,43 @@ between two kinds.
 - `Core\Json::encode` writes a JSON array exactly when the keys are `"0"` … `"n−1"` in order, and a
   JSON object otherwise, so string keys change nothing in the encoded output.
 
+**An array may be keyed by the cases of an enum: `array<E, T>`.** The key parameter comes first and
+is optional, and it must be an enum, file-scope or class-scoped. Any other key type, `array<string, T>`
+too, is `E1017` where it is written, and its help says that `array<T>` is already keyed by strings.
+The type is `Ty::Array(elem, key)`, with `key` the enum or nothing, so a reader that ignores the key
+reads the `array<T>` the value is assignable to, and every qualifier walk still sees the element.
+
+- **Storage does not change.** A key is stored as any `int` subscript is: a position in a packed list,
+  a decimal string otherwise. The array keeps no enum identity at run time.
+- **A write and a read are held to `E`.** The key of `$a[$k] = $v` and of `$a[$k]` must have the
+  static type `E`. An `int`, a `string`, a case of another enum and a `mixed` key are `E0434`, naming
+  `E`, and the help names `as E`. `$a[] = $v` is `E1018`: there is no next case to append under.
+  An absent key throws on a read, as it does on any array.
+- **A literal is checked against `array<E, T>` where one is its target.** With no target, a case key
+  is still `E0434`, and its help names `array<E, T>`. A literal is never inferred to be enum-keyed.
+- **A key read back is a case.** A `foreach` key over `array<E, T>` has the type `E`, and `E0723`
+  takes a key declared `E` there. `Core\Arr::keys`, `firstKey`, `lastKey`, `keyOf` and `findKey`
+  return `E` or `array<E>`, and a callback's key parameter may be `E`. The stored key becomes a case
+  with no check, because every write was checked.
+- **`array<E, T>` is read wherever `array<T>` is expected**, with its keys as their decimal strings.
+  The element stays covariant and the key is invariant, for the copy-on-write reason below. The other
+  direction is only `as array<E, T>`, which checks every key: a list's key is its position, and a
+  map's key must be the decimal of a case exactly, so `"08"` is not the case `8`. A miss throws
+  `RuntimeError`, or gives `null` under `as ?array<E, T>`.
+- **A `Core\Arr` member whose result keeps the subject's keys returns `array<E, U>`.** The members are
+  the roster `nvs_stdlib::arr::KEEPS_KEYS`, and the members that give keys back are
+  `nvs_stdlib::arr::ENUM_KEYS`. `slice`, `reverse` and `sort` keep keys only under `preserveKeys`, so
+  their result is `array<T>`, and `as array<E, T>` converts it back. `groupBy` with a callback that
+  returns `E`, and `flip` of an `array<E>`, return an array keyed by `E` (`nvs_stdlib::arr::CASE_KEYS`).
+  `flip` of an `array<E, string>` returns `array<E>`. `groupCounts` stays keyed by strings.
+- `Core\Json::encode` writes a case key as its number. A decoded object, a cached array and a session
+  value become enum-keyed with `as array<E, T>`.
+- **Memory:** nothing per array and nothing per entry. A key read back from a map parses a short
+  decimal string with no allocation, and a packed position costs nothing. `as array<E, T>` costs one
+  check per key.
+
 **The element type may be declared, and nests to any depth** — `array<uint>`, `array<array<int|string>>`,
-`array<User|null>`; one parameter, not two, because the key type is fixed.
+`array<User|null>`. The key is a `string`, or an enum given as a first parameter.
 
 - **Enforced on every write** — `$a['k'] = $v`, `$a[] = $v`, `+=`, and every `Core\Arr` member that
   builds an array. Where the value's static type satisfies the element type the check is compile-time
@@ -151,3 +186,17 @@ up to four times; a list never prepended to or cut holds nothing more.
   array declared to hold floats, for `Core\Json::encode` and `Core\Arr::sum` to see.
 - **The roster listed in prose as the authority.** A list in a document cannot track a table, and the
   door's members are the compiler's registry.
+- **`array<int, T>`, or any key type but an enum.** It brings back the integer key domain the first
+  item above declines.
+- **A case as a key of a plain `array<T>`.** It would key by a number another enum shares, and give
+  the key back as a `string`. `E0434` stays there.
+- **A second array variant, `Ty::EnumArray`, for the keyed form.** Every reader that is not exhaustive
+  over `Ty` would miss it, and a qualifier walk among them would miss a `secret` or `tainted` element.
+- **The case name as the JSON key.** The array keeps no enum identity at run time. Writing names would
+  cost a tag per array, and decoding would need a second mapping.
+- **A literal that must name every case.** The covering `match` is the total form
+  (`rule:expressions/a-match-over-an-enum-covers-every-case`), and a counting array starts empty.
+- **A `Core\Arr` signature variant for a kept key.** About forty walks match `CoreTy::Array` without
+  being exhaustive, the taint walks among them, so the rosters above name the members instead.
+- **`groupCounts` keyed by `E`.** Its `by` callback is in an options bag, and a bag binds no type
+  variable. `as array<E, uint>` converts its result.

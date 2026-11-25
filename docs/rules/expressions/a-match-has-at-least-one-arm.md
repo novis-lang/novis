@@ -2,6 +2,8 @@ A `match` with no arms is `E0476` where it is written. PHP parses one and throws
 every evaluation, so no program that ran is lost. A `match` is an expression, and one whose every path
 throws has nothing for the position it sits in to bind, pass or return, and no value for a merge with
 no incoming edge to carry. A written arm, or `default => throw …`, says the same thing on purpose.
+A `match` over an enum with no `default` must also name every case
+(`rule:expressions/a-match-over-an-enum-covers-every-case`).
 
 A `match` has one `default` arm at most, and a `switch` one `default:` label. A second one is `E0876`
 at its keyword: the first runs for every value no other arm matches, so the second never runs.

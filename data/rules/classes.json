@@ -3,6 +3,7 @@
   "order": 50,
   "rules": [
     "classes/no-free-functions-or-constants",
+    "classes/a-constant-value-is-folded-when-the-program-compiles",
     "classes/a-type-is-declared-at-file-scope",
     "classes/names-resolve-case-sensitively",
     "classes/reserved-spellings-are-lower-case",

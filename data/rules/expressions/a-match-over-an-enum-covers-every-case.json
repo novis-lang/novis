@@ -1,0 +1,16 @@
+{
+  "title": "A `match` over an enum with no `default` names every case",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/a-match-has-at-least-one-arm",
+    "expressions/switch-match-equality",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/enum_tables.rs",
+    "crates/nvs-ir/src/lower/tests.rs",
+    "tests/conformance/reject/a-match-over-an-enum-that-misses-a-case-does-not-compile.nvst",
+    "tests/conformance/enum/a-match-over-every-case-needs-no-default.nvst",
+    "tests/lsp/actions/a-match-missing-a-case-is-offered-its-arms.lspt"
+  ]
+}
