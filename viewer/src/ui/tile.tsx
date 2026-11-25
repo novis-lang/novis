@@ -8,7 +8,7 @@
 import { For, type JSX, Show } from "solid-js";
 
 /** A labelled figure. `unit` is drawn smaller beside the value, and `children` below it. */
-export function Tile(props: { label: string; value: string; unit?: string; children?: JSX.Element }) {
+export function Tile(props: { label: string; value: string; unit?: string | undefined; children?: JSX.Element }) {
   return (
     <div class="tile">
       <h3 class="tile-label">{props.label}</h3>

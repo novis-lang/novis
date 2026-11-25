@@ -21,6 +21,9 @@ const LIST = listFixture as RequestPage;
 // JSON gives a header pair the type `string[]`, so the cast goes through `unknown`.
 const FIXTURE = detailFixture as unknown as RequestDetail;
 const { trace: TRACE, span: SPAN } = FIXTURE.request;
+/** The option ids of the fixture's four events, in time order: the call, the query, the pause and
+ *  the spawn. The ids are the index's own, so they follow the fixture. */
+const [CALL, QUERY, GC, SPAWN] = FIXTURE.events.map((event) => `event-${event.id}`) as [string, string, string, string];
 
 /** What `/api/request` answers for the fixture's request. A test may swap it for a changed copy. */
 let detail: RequestDetail = FIXTURE;
@@ -120,12 +123,12 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     detail = FIXTURE;
     const tab = await open();
     expect(await tab.eval(`[...document.querySelectorAll(".tl-list [role=option]")].map((o) => o.id)`)).toEqual([
-      "event-1",
-      "event-2",
+      CALL,
+      QUERY,
       "point-dump-1",
       "point-log-1",
-      "event-3",
-      "event-4",
+      GC,
+      SPAWN,
       "point-dump-2",
     ]);
     expect(await tab.eval(`[...document.querySelectorAll(".tl-list [role=option] .tl-kind")].map((s) => s.textContent)`)).toEqual([
@@ -138,7 +141,7 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
       "Dump",
     ]);
     // A query shows its SQL, its driver and rows, when it started and how long it took.
-    const cells = await tab.eval(`[...document.querySelectorAll("#event-2 > span")].map((s) => s.textContent)`);
+    const cells = await tab.eval(`[...document.querySelectorAll("#${QUERY} > span")].map((s) => s.textContent)`);
     expect(cells).toEqual(["Query", "100 µs", "SELECT * FROM items WHERE id = ?", "sqlite, 1 row", "800 µs"]);
     expect(await tab.eval(`document.querySelector("#point-log-1 .tl-label").textContent`)).toBe("stock is empty");
     expect(await tab.eval(`document.querySelector("#point-dump-2 .tl-label").textContent`)).toBe("src/Shop/Orders.nvs:41");
@@ -174,15 +177,15 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     detail = FIXTURE;
     const tab = await open();
     await tab.eval(`document.querySelector(".tl-list").focus()`);
-    expect(await tab.eval(ACTIVE)).toBe("event-1");
+    expect(await tab.eval(ACTIVE)).toBe(CALL);
     await tab.press("ArrowDown");
-    await tab.until(`${ACTIVE} == "event-2"`);
-    expect(await tab.eval(`document.querySelector("#event-2").getAttribute("aria-selected")`)).toBe("true");
+    await tab.until(`${ACTIVE} == "${QUERY}"`);
+    expect(await tab.eval(`document.querySelector("#${QUERY}").getAttribute("aria-selected")`)).toBe("true");
     expect(await tab.eval(`document.querySelector(".tl-bar.tl-on")?.textContent`)).toBe("SELECT * FROM items WHERE id = ?");
     await tab.press("End");
     await tab.until(`${ACTIVE} == "point-dump-2"`);
     await tab.press("ArrowUp");
-    await tab.until(`${ACTIVE} == "event-4"`);
+    await tab.until(`${ACTIVE} == "${SPAWN}"`);
     await tab.press("ArrowDown");
     await tab.until(`${ACTIVE} == "point-dump-2"`);
     await tab.press("Enter");

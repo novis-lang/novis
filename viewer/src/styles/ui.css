@@ -772,6 +772,61 @@ button.chip:hover {
   font-size: var(--fs-1);
 }
 
+/* ---------------------------------------------------------------- menu */
+/* A chip's menu (`ui/menu.tsx`) is a popover. Its place is set when it opens. */
+.chip-caret {
+  color: var(--faint);
+  font-size: var(--fs-1);
+}
+
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 10rem;
+  max-height: 20rem;
+  overflow: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+}
+
+.menu button {
+  display: block;
+  width: 100%;
+  padding: 5px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-2);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.menu button[aria-checked="true"] {
+  background: var(--wash);
+  color: var(--link);
+  font-weight: 600;
+}
+
+.menu-note {
+  margin: var(--space-1) var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-2);
+}
+
 /* --------------------------------------------------------------- toast */
 /* A popover: the browser's own popover box is cleared, so only the toast is drawn. */
 .toasts {

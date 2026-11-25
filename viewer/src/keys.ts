@@ -32,7 +32,7 @@ export const VIEW_KEYS: readonly Binding[] = [
   { keys: ["c"], action: "Compare a request with the previous request to the same route" },
   { keys: ["r"], action: "Replay a request: send it to your server again" },
   { keys: ["t"], action: "Make a test from a request" },
-  { keys: ["s"], action: "Save the filter of the stream, the log, the search or an exception" },
+  { keys: ["s"], action: "Save the filter of a list, the search or an exception" },
   { keys: ["Escape"], action: "Close a dialog, leave the search box, or go back to the list" },
 ];
 

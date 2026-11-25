@@ -694,12 +694,20 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
     }
     let tx = db.transaction()?;
     // A filtered page reads at most `FILTER_SCAN` ids below its cursor, and the oldest id says
-    // whether any request lies below that floor.
+    // whether any request lies below that floor. On a `since` page the oldest id is the oldest
+    // that arrived after it, so the page says it was cut only when what arrived passed the floor,
+    // and a filtered list that follows is not sent back to its newest page on every batch.
     let (floor, oldest) = if filter.scans() {
-        let (newest, oldest): (Option<i64>, Option<i64>) =
-            tx.query_row("SELECT max(id), min(id) FROM requests", [], |row| {
+        let (newest, oldest): (Option<i64>, Option<i64>) = match &filter.since {
+            Some(since) => tx.query_row(
+                "SELECT (SELECT max(id) FROM requests), min(id) FROM requests WHERE batch > ?",
+                [since],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?,
+            None => tx.query_row("SELECT max(id), min(id) FROM requests", [], |row| {
                 Ok((row.get(0)?, row.get(1)?))
-            })?;
+            })?,
+        };
         let top = filter
             .before
             .unwrap_or_else(|| newest.unwrap_or(0).saturating_add(1));
@@ -1199,10 +1207,10 @@ mod tests {
         assert!(Key::parse("trace=4bf92f3577b34da6a3ce929d0e0e4736&limit=3").is_err());
     }
 
-    /// The SQLite virtual-machine steps of reading the newest page of an index of `requests` rows,
-    /// one in ten of which threw.
-    fn newest_page_steps(requests: i64) -> u64 {
-        let dir = nvs_repo::scratch(&format!("debug-page-{requests}"));
+    /// An index of `requests` rows named `name`, each in its own batch, one in ten of which threw,
+    /// and the scratch folder that deletes it once dropped.
+    fn index_of(name: &str, requests: i64) -> (nvs_repo::Scratch, PathBuf) {
+        let dir = nvs_repo::scratch(&format!("debug-page-{name}-{requests}"));
         let path = dir.join("index.sqlite");
         drop(super::super::index::Index::open(&path).expect("the index is created"));
         let mut writer = Connection::open(&path).expect("the index opens for writing");
@@ -1225,7 +1233,12 @@ mod tests {
         }
         tx.commit().expect("the requests are committed");
         drop(writer);
+        (dir, path)
+    }
 
+    /// The SQLite virtual-machine steps of reading the newest page of an index of `requests` rows.
+    fn newest_page_steps(requests: i64) -> u64 {
+        let (_dir, path) = index_of("steps", requests);
         let mut db = connect(&path).expect("the index opens for reading");
         let steps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let counted = std::sync::Arc::clone(&steps);
@@ -1256,6 +1269,40 @@ mod tests {
         assert_eq!(
             small, large,
             "the newest page's SQLite steps grew with the index"
+        );
+    }
+
+    /// A filtered `since` page says it was cut only when what arrived after `since` passed the
+    /// scan's floor. Otherwise a filtered list that follows new requests would load its newest
+    /// page again on every batch of an index larger than one scan.
+    #[test]
+    fn a_filtered_since_page_is_cut_only_when_what_arrived_passes_the_floor() {
+        let total = FILTER_SCAN + 500;
+        let (_dir, path) = index_of("since", total);
+        let mut db = connect(&path).expect("the index opens for reading");
+        let since = total - 10;
+        let recent = Filter::parse(&format!("since={since}&threw=false")).expect("a valid filter");
+        let read = page(&mut db, &recent).expect("the since page is read");
+        assert_eq!(
+            read.requests.len(),
+            9,
+            "the nine new requests that did not throw"
+        );
+        assert_eq!(
+            read.older, None,
+            "nothing that arrived lies below the floor"
+        );
+        // Every request took 10 µs, so these pages match none and are never full.
+        let none = |since: i64| {
+            Filter::parse(&format!("since={since}&min_us=11")).expect("a valid filter")
+        };
+        let read = page(&mut db, &none(since)).expect("the since page is read");
+        assert_eq!((read.requests.len(), read.older), (0, None));
+        let read = page(&mut db, &none(0)).expect("the since page is read");
+        assert!(read.requests.is_empty());
+        assert!(
+            read.older.is_some(),
+            "what arrived since batch 0 passes the floor"
         );
     }
 }

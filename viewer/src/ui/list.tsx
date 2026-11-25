@@ -12,6 +12,10 @@
 // aside and counted, and resuming puts it on top. A `since` page that is not complete (`older` set)
 // means more arrived than one page, so the newest page is loaded again instead.
 //
+// A filtered page can hold fewer rows than the screen and still have `older` set, because the
+// service reads a bounded range of ids for it. The list then loads the next range at once, and goes
+// on until the screen is full or no older range is left.
+//
 // What it spends: the rows loaded so far, at most `KEEP` while following, plus what arrived while
 // paused. A list's DOM is the rows on screen and `OVERSCAN` rows on each side.
 
@@ -59,6 +63,10 @@ export interface Feed<T> {
   error: Accessor<string | null>;
   /** True while older pages remain to load. */
   more: Accessor<boolean>;
+  /** True while an older page loads. */
+  busy: Accessor<boolean>;
+  /** The newest watermark the event stream pushed, or `0` before the first. */
+  batch: Accessor<number>;
   paused: Accessor<boolean>;
   /** How many rows arrived while paused. */
   arrived: Accessor<number>;
@@ -80,6 +88,7 @@ export function createFeed<T, C>(opts: FeedOptions<T, C>): Feed<T> {
   const [paused, setPaused] = createSignal(false);
   const [arrived, setArrived] = createSignal<T[]>([]);
   const [overflow, setOverflow] = createSignal(false);
+  const [batch, setBatch] = createSignal(0);
   /** The last watermark this feed is complete up to. */
   let seen = 0;
   /** Rises with every reload of the newest page, so an older page asked for before it is dropped. */
@@ -159,7 +168,10 @@ export function createFeed<T, C>(opts: FeedOptions<T, C>): Feed<T> {
   };
 
   serial(async () => showNewest(await newest()));
-  watermarks(onBatch, abort.signal);
+  watermarks((next) => {
+    setBatch(next);
+    onBatch(next);
+  }, abort.signal);
   onCleanup(() => abort.abort());
 
   return {
@@ -167,6 +179,8 @@ export function createFeed<T, C>(opts: FeedOptions<T, C>): Feed<T> {
     loaded,
     error,
     more: () => older() !== null,
+    busy: loadingOlder,
+    batch,
     paused,
     arrived: () => arrived().length,
     overflow,
@@ -219,6 +233,8 @@ export interface ListProps<T> {
   error?: string | null;
   /** The view's own keys, by `KeyboardEvent.key`. Each runs with the selected row. */
   keys?: Record<string, (row: T | undefined) => void>;
+  /** Runs with the rows in the DOM each time they change, such as to scale a bar to the slowest. */
+  onShown?: (rows: T[]) => void;
 }
 
 /** The one virtual list. */
@@ -247,9 +263,14 @@ export function List<T>(props: ListProps<T>) {
     if (props.selected === null && top !== undefined) props.onSelect(props.key(top));
   });
 
+  // A list with no row yet and older rows left loads them too, as a filtered page can be empty.
+  // Reading `busy` runs this again once a page has loaded, so a short page loads the next one.
   createEffect(() => {
-    if (props.rows.length > 0 && end() >= props.rows.length - NEAR_END) (props.onEnd ?? feed()?.older)?.();
+    if (feed()?.busy()) return;
+    if ((props.rows.length > 0 || more()) && end() >= props.rows.length - NEAR_END) (props.onEnd ?? feed()?.older)?.();
   });
+
+  createEffect(() => props.onShown?.(visible()));
 
   const resume = () => {
     feed()?.resume();

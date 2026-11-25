@@ -190,7 +190,7 @@ export function App() {
           {/* Discarding the index raises `version`, which loads the view on screen again. */}
           <For each={[version()]}>
             {() => (
-              <Switch fallback={<RequestList />}>
+              <Switch fallback={<For each={[query()]}>{(q) => <RequestList query={q} />}</For>}>
                 <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
                 <Match when={compare()}>{(c) => <CompareView left={c().left} right={c().right} />}</Match>
                 <Match when={view() === "stream"}>

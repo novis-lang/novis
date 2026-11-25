@@ -28,7 +28,7 @@ import { isMarked, marked, setMarked } from "./compare.tsx";
 import { ReplayAction } from "./replay.tsx";
 import { ToTestAction } from "./to-test.tsx";
 import { saved } from "./saved.tsx";
-import { duration, statusClass } from "./requests.tsx";
+import { duration, listLink, statusClass } from "./requests.tsx";
 import { Coverage } from "./coverage.tsx";
 import { Timeline } from "./timeline.tsx";
 import { ValueTree } from "./value-tree.tsx";
@@ -106,7 +106,7 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
 
   const onKey = (e: KeyboardEvent) => {
     if (ignored(e)) return;
-    if (e.key === "Escape") navigate("/");
+    if (e.key === "Escape") navigate(listLink());
     else if (e.key === "c" && previousLink()) navigate(previousLink()!);
     else if (e.key === "r" && openReplay) openReplay();
     else if (e.key === "t" && openToTest) openToTest();

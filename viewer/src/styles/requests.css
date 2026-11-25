@@ -6,8 +6,46 @@
   flex-direction: column;
 }
 
+/* The summary tiles above the list. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.tile-note {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-2);
+}
+
+/* The chips stay on one line and scroll sideways when the bar is narrow, so the bar's height and the
+   list below it never change when the follow button's text does. */
+.filter-chips {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* The list, and the peek pane beside it at 1280 pixels and wider. */
+.requests-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.requests-body > .list-view {
+  flex: 1;
+  min-width: 0;
+}
+
 .request-grid {
-  grid-template-columns: 4rem minmax(10rem, 1fr) 3.5rem 5.5rem 4rem 4rem 4rem;
+  grid-template-columns: 4rem minmax(10rem, 1fr) 3.5rem 10rem 5rem 4rem 4rem;
 }
 
 .request-grid .method {
@@ -50,8 +88,158 @@
   color: var(--faint);
 }
 
+/* The duration: the figure, then one bar split by kind and scaled to the slowest row on screen. */
+.request-grid .duration {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.request-grid .duration .num {
+  flex: none;
+  width: 4rem;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+}
+
+.request-grid .duration .meter {
+  flex: 1;
+  min-width: 0;
+}
+
 .request-grid .queries,
 .request-grid .dumps {
   font-family: var(--mono);
+  font-size: var(--fs-2);
+}
+
+.empty-code {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  text-align: left;
+}
+
+/* The peek pane. */
+.peek {
+  flex: none;
+  width: 24rem;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.peek-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.peek-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.peek-tiles .tile-value {
+  font-size: var(--fs-4);
+}
+
+.peek-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--fs-1);
+}
+
+.peek-legend i,
+.peek-label i {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 2px;
+}
+
+.peek-head {
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-1);
+  font-weight: 600;
+}
+
+.peek-events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peek-events li {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) 4rem;
+  gap: var(--space-2);
+  align-items: center;
+  height: 24px;
+}
+
+.peek-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek-lane {
+  position: relative;
+  height: 100%;
+}
+
+.peek-lane i {
+  position: absolute;
+  top: 8px;
+  height: 8px;
+  min-width: 2px;
+  border-radius: 2px;
+}
+
+.peek-events .num {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  text-align: right;
+}
+
+.peek-open {
+  margin-top: var(--space-4);
   font-size: var(--fs-2);
 }

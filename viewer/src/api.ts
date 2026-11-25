@@ -74,7 +74,6 @@ export interface RequestFilter {
   route?: string;
   /** Only requests that took at least this many microseconds. */
   min_us?: number;
-  /** Only requests that threw, or only those that did not. */
   /**
    * Only requests that threw, or only those that did not. A page filtered by `method`, `status`,
    * `route`, `min_us` or `threw` reads at most 20,000 request ids below its cursor, so it can hold

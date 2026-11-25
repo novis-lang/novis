@@ -1,15 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Browser, EXE } from "../../tools/nv/test/chromium.ts";
-import type { RequestPage, RequestRow } from "../src/api.ts";
+import type { RequestPage, RequestRow, Summary } from "../src/api.ts";
 import { DIST } from "../build.ts";
 import fixture from "./fixtures/requests.json";
 
 // The request list in a real Chromium, over the committed bundle. The server below stands in for
 // `nvs debug`: it serves the page for every path, answers `/api/requests` from an in-memory list the way
 // `crates/nvs-cli/src/debug/api.rs` pages the index (newest first, `before`, `since`, `trace`, `span`,
-// `limit`), and pushes a watermark on `/api/events` when a test adds requests. The rows start as the
-// fixture the Rust test writes from a real index, so the view reads the shapes the service sends.
+// `limit`, and the filters, each filtered page reading at most `SCAN` ids), answers `/api/summary`
+// with the count of its rows, and pushes a watermark on `/api/events` when a test adds requests. The
+// rows start as the fixture the Rust test writes from a real index, so the view reads the shapes the
+// service sends.
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/viewer.css"></head>
 <body><div id="app"></div><script type="module" src="/viewer.js"></script></body></html>`;
@@ -26,6 +28,10 @@ let watermark = 1;
 const streams = new Set<ReadableStreamDefaultController<Uint8Array>>();
 const encoder = new TextEncoder();
 let opened = 0;
+/** How many times `/api/summary` was read. */
+let summaries = 0;
+/** The ids a filtered page reads at most below its cursor. The service reads 20,000. */
+const SCAN = 30;
 
 /** Starts the service over `list`, newest first. */
 function reset(list: RequestRow[]) {
@@ -66,8 +72,9 @@ function json(body: unknown, status = 200): Response {
 
 /** `GET /api/requests` over `rows`, the way the service answers it. */
 function page(url: URL): Response {
+  const filters = ["method", "status", "route", "min_us", "threw"];
   for (const key of url.searchParams.keys()) {
-    if (!["before", "since", "trace", "span", "limit"].includes(key)) return json({ error: `unknown key ${key}` }, 400);
+    if (![...filters, "before", "since", "trace", "span", "limit"].includes(key)) return json({ error: `unknown key ${key}` }, 400);
   }
   const num = (key: string) => (url.searchParams.has(key) ? Number(url.searchParams.get(key)) : undefined);
   const before = num("before");
@@ -75,16 +82,50 @@ function page(url: URL): Response {
   const trace = url.searchParams.get("trace");
   const span = url.searchParams.get("span");
   const limit = num("limit") ?? 100;
+  const method = url.searchParams.get("method");
+  const status = url.searchParams.get("status");
+  const minUs = num("min_us");
+  const threw = url.searchParams.get("threw");
+  const scans = filters.some((key) => url.searchParams.has(key));
+  const top = before ?? Math.max(0, ...rows.map((row) => row.id)) + 1;
+  const floor = scans ? top - SCAN : null;
+  const statusOk = (code: number) => status === null || (/xx$/.test(status) ? Math.floor(code / 100) === Number(status[0]) : code === Number(status));
   const found = rows.filter(
     (row) =>
       (before === undefined || row.id < before) &&
       (since === undefined || row.batch > since) &&
       (trace === null || row.trace === trace) &&
-      (span === null || row.span === span),
+      (span === null || row.span === span) &&
+      (method === null || row.method === method) &&
+      statusOk(row.status) &&
+      (minUs === undefined || row.duration_us >= minUs) &&
+      (threw === null || (row.exception !== null) === (threw === "true")) &&
+      (floor === null || row.id >= floor),
   );
   const requests = found.slice(0, limit);
-  const older = found.length > limit ? requests.at(-1)!.id : null;
+  const lowest = Math.min(...rows.filter((row) => since === undefined || row.batch > since).map((row) => row.id));
+  const older = found.length > limit ? requests.at(-1)!.id : floor !== null && lowest < floor ? floor : null;
   return json({ watermark, requests, older } satisfies RequestPage);
+}
+
+/** `GET /api/summary`: every row counts, and the rows with a status of 500 or more are the errors. */
+function summaryOf(): Response {
+  summaries++;
+  const errors = rows.filter((row) => row.status >= 500).length;
+  const buckets = Array.from({ length: 12 }, (_, i) => (i === 11 ? { count: rows.length, errors } : { count: 0, errors: 0 }));
+  const body: Summary = {
+    until_us: Date.now() * 1000,
+    window_us: 300_000_000,
+    bucket_us: 25_000_000,
+    buckets,
+    count: rows.length,
+    errors,
+    p50_us: 840,
+    p95_us: 15_400,
+    max_us: 15_400,
+    cut: false,
+  };
+  return json(body);
 }
 
 /** The event stream: a comment at once, then one `data:` line per push, until the tab closes it. */
@@ -117,6 +158,7 @@ beforeAll(async () => {
       if (url.pathname === "/viewer.js") return new Response(Bun.file(join(DIST, "viewer.js")), { headers: { "content-type": "text/javascript" } });
       if (url.pathname === "/viewer.css") return new Response(Bun.file(join(DIST, "viewer.css")), { headers: { "content-type": "text/css" } });
       if (url.pathname === "/api/requests") return page(url);
+      if (url.pathname === "/api/summary") return summaryOf();
       if (url.pathname === "/api/events") return events(req);
       if (url.pathname.startsWith("/api/")) return json({ error: "not found" }, 404);
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8" } });
@@ -373,6 +415,61 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     await tab.until(`document.readyState == "complete" && !!document.querySelector("#app h1") && ${bg} == ${dark}`);
     expect(await tab.eval(`document.querySelector("button.theme").getAttribute("aria-label")`)).toBe("Theme: Dark");
     await tab.eval(`localStorage.clear()`);
+    await tab.close();
+  }, 30_000);
+
+  test("a filter is the list's link, and short filtered pages load the next range until none is left", async () => {
+    reset(many(300));
+    const errors = rows.filter((row) => row.status >= 500).length;
+    const tab = await open("/?status=5xx");
+    // Each page reads 30 ids, so the list loads range after range until it has every match.
+    await tab.until(`${LIST}.getAttribute("aria-label") == "Requests that match the filter, newest first" && Number(${LIST}.dataset.rows) == ${errors}`);
+    await tab.until(`document.querySelector("[role=option]")?.getAttribute("aria-setsize") == "${errors}"`);
+    expect(await tab.eval(`[...document.querySelectorAll("[role=option] .status")].every((s) => s.textContent == "500")`)).toBe(true);
+    expect(await tab.eval(`document.querySelector(".filter-chips .chip.set").textContent`)).toBe("Status: 5xx▾");
+    // A choice in a chip's menu opens the list's link with it.
+    await tab.eval(`document.querySelector(".filter-chips .chip:not(.set)").click()`);
+    await tab.until(`!!document.querySelector(".menu:popover-open")`);
+    await tab.eval(`[...document.querySelectorAll(".menu:popover-open [role=menuitemradio]")].find((b) => b.textContent == "POST").click()`);
+    await tab.until(`location.pathname + location.search == "/?method=POST&status=5xx"`);
+    await tab.until(`Number(${LIST}.dataset.rows) > 0 && [...document.querySelectorAll("[role=option] .method")].every((m) => m.textContent == "POST")`);
+    // Clear opens the list with no filter.
+    await tab.eval(`[...document.querySelectorAll(".filter-chips .chip")].find((c) => c.textContent == "Clear").click()`);
+    await tab.until(`location.pathname + location.search == "/" && ${LIST}.getAttribute("aria-label") == "Requests, newest first"`);
+    await tab.close();
+  }, 30_000);
+
+  test("a repeated query shows its gold count, and the pane beside a wide list shows the selected request", async () => {
+    reset(FIXTURE);
+    const tab = await open("/");
+    await tab.until(`document.querySelectorAll("[role=option]").length == ${FIXTURE.length}`);
+    const repeated = FIXTURE.find((row) => row.repeats >= 2)!;
+    const once = FIXTURE.find((row) => row.repeats === 1)!;
+    expect(await tab.eval(`document.querySelector("#request-${repeated.id} .queries .repeat")?.textContent`)).toBe(`${repeated.repeats}×`);
+    expect(await tab.eval(`document.querySelector("#request-${once.id} .queries .repeat")`)).toBe(null);
+    expect(await tab.eval(`document.querySelector(".peek")`)).toBe(null);
+    await browser.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 800, deviceScaleFactor: 1, mobile: false }, tab.sessionId);
+    await tab.until(`document.querySelector(".peek .peek-path")?.textContent == ${JSON.stringify(FIXTURE[0]!.path)}`);
+    await tab.press("j");
+    await tab.until(`document.querySelector(".peek .peek-path")?.textContent == ${JSON.stringify(FIXTURE[1]!.path)}`);
+    await tab.close();
+  }, 30_000);
+
+  test("the tiles show the last five minutes, and hold still while the list is paused", async () => {
+    reset(FIXTURE);
+    const tab = await open("/");
+    const requestsTile = `document.querySelector(".tiles .tile-value")?.textContent`;
+    await tab.until(`${requestsTile} == "${FIXTURE.length}"`);
+    await tab.press("p");
+    await tab.until(`document.querySelector(".follow-state").textContent == "Paused."`);
+    const read = summaries;
+    push(3);
+    await tab.until(`document.querySelector(".arrived")?.textContent == "3 new requests"`);
+    expect(await tab.eval(requestsTile)).toBe(`${FIXTURE.length}`);
+    expect(summaries).toBe(read);
+    // Following again reads the summary again.
+    await tab.eval(`document.querySelector(".arrived").click()`);
+    await tab.until(`${requestsTile} == "${FIXTURE.length + 3}"`);
     await tab.close();
   }, 30_000);
 });
