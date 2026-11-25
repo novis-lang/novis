@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/crossing.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-api/required-optional-and-nullable.md, docs/rules/routing/a-leftover-link-key-is-a-query-string.md]
   - id: 2
     title: "a bool query value reads 1 or 0, and a bool path capture still does not compile"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/crossing.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-cli/src/openapi.rs, docs/rules/routing/a-bad-query-value-is-a-400.md]
   - id: 3
     title: "a final class's parse may return an existing object of its class, and allows checks it"
@@ -429,24 +429,24 @@ needs stages 1 to 4, and stage 10 needs everything.
 
 **Split:** none, one session.
 
-- [ ] The failing case first: `tests/conformance/core/a-bool-query-value-is-1-or-0.nvst:1` (`1`, `0`,
+- [x] The failing case first: `tests/conformance/core/a-bool-query-value-is-1-or-0.nvst:1` (`1`, `0`,
   `true`, `on`, an empty value, a bare key, an absent key with a default, and a `true` single value),
   run once by name and red. `tests/conformance/reject/a-bool-route-capture-does-not-compile.nvst:1`
   gains a `true` capture and stays green.
-- [ ] `crates/nvs-types/src/routes.rs:2988`: `converts_from_segment` splits into a path half (`:2870`,
+- [x] `crates/nvs-types/src/routes.rs:2988`: `converts_from_segment` splits into a path half (`:2870`,
   still refusing `bool`, `true` and `false`) and a query half (`:3200`) that admits them; the help at
   `:3210` lists `bool` for a query value.
-- [ ] `crates/nvs-runtime/src/routes.rs:129` and `:217`: `CaptureConv::Bool(Option<bool>)`;
+- [x] `crates/nvs-runtime/src/routes.rs:129` and `:217`: `CaptureConv::Bool(Option<bool>)`;
   `crates/nvs-runtime/src/routes.rs:292`: `Param::Bool(bool)`; `crates/nvs-types/src/crossing.rs:129`
   (`capture_conv`) maps the three types; `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`)
   builds the `bool`. The tests the check `bool-query-runtime` names, beside `convert`, run once by
   name.
-- [ ] `crates/nvs-cli/src/openapi.rs:837` (`schema`): a `bool` query value is
+- [x] `crates/nvs-cli/src/openapi.rs:837` (`schema`): a `bool` query value is
   `{"type": "integer", "enum": [0, 1]}`. The test the check `bool-query-document` names, run once by
   name.
-- [ ] `crates/nvs-stdlib/src/uri.rs:2483` already writes `1` and `0`; the case above builds one link
+- [x] `crates/nvs-stdlib/src/uri.rs:2483` already writes `1` and `0`; the case above builds one link
   with `Core\Router::url` and follows it.
-- [ ] `docs/rules/security/route-capture-is-laundered-by-its-type.md:6`: the `bool` paragraph says a
+- [x] `docs/rules/security/route-capture-is-laundered-by-its-type.md:6`: the `bool` paragraph says a
   query value is `1` or `0` and why, a path capture stays `E0752`, and the first two Declined rows of
   § *Standing decisions* join the Declined list. `docs/rules/routing/a-bad-query-value-is-a-400.md:1`:
   a `bool` value other than `1` or `0` is a `400`.
@@ -704,47 +704,47 @@ website.
 
 ### State
 
-Stage 1 is done and its two checks are green (`optional-query`, `optional-query-document`).
-`query_params` (`crates/nvs-types/src/routes.rs:3178`) strips the `null` of a `?T $x = null` and
-records `T`; `report_nullable_query` beside it is the `E0752` for `?T` with no default or another
-default. `nvs_runtime::routes::QueryDefault` (`Required`, `Null`, `Given`) replaced
-`QueryParam::default`'s `Option<Param>`. The API document needed no change, because the row's `ty` is
-`T` already (fixture `crates/nvs-cli/tests/fixtures/api/nullable-query.nvs`).
+Stages 1 and 2 are done, and their five checks are green (`optional-query`,
+`optional-query-document`, `bool-query`, `bool-query-runtime`, `bool-query-document`).
 
-**A pre-existing bug was fixed on the way:** an enum path capture or enum query value never reached
-its route method through `dispatch`. The match converts it to a plain `int` or `uint`, and the
-method's parameter check refused that ("must be of type enum, uint given"). No case dispatched one.
-`as_case` (`crates/nvs-stdlib/src/router.rs:3187`) now gives the value the enum's tag where
-`call_handler` binds it; the match keeps the plain integer `CAPTURE` declares. Pinned by
-`tests/conformance/core/an-enum-capture-reaches-its-route-method-as-a-case.nvst`. Stage 4 puts query
-values into the match: it must decide whether an enum query value there is the plain integer, as an
-enum capture is, and keep the two the same.
+Stage 2: `converts_from_segment` (`crates/nvs-types/src/routes.rs:2988`) is the path half and still
+refuses `bool`, `true` and `false`; `converts_from_query` beside it is the whole shared roster, read
+by `query_params`. `CaptureConv::Bool(Option<bool>)` and `Param::Bool(bool)` are in
+`crates/nvs-runtime/src/routes.rs`. `native_conv` (`crates/nvs-stdlib/src/router.rs:1335`) maps
+`bool`, `true` and `false`, so `capture_conv` in `crossing.rs` needed no arm of its own;
+`converted_default` there writes a `bool` default as `1` or `0`. The API document's
+`parameter_schema` (`crates/nvs-cli/src/openapi.rs`) gives a `bool` query value
+`{"type": "integer", "enum": [0, 1]}` and leaves `schema`'s `boolean` to JSON bodies. The `E0752`
+card says a path capture cannot be a `bool` and a query value can. A `bool` literal in a link folds
+to nothing, so the link value check in `links.rs` passes it; a string literal `"true"` for a `bool`
+key is `E0772`.
+
+**From stage 1:** an enum capture reaches its route method as a case through `as_case`
+(`crates/nvs-stdlib/src/router.rs:3187`), and the match keeps the plain integer `CAPTURE` declares.
+Stage 4 puts query values into the match and must keep an enum query value there the plain integer,
+as an enum capture is.
 
 Expected red once later stages land:
 `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 7 moves it to `Core\Uri`), and `tests/conformance/reject/a-bool-route-capture-does-not-compile.nvst`
-(stage 2: its `#[Query] bool $full` error goes away).
+(stage 7 moves it to `Core\Uri`).
 
 ### Next
 
-Stage 2, files `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/crossing.rs`,
-`crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/router.rs` and
-`crates/nvs-cli/src/openapi.rs`; no gate. Stage 3 may run beside it, and stage 4 follows stages 2
-and 3.
+Stage 3, files `crates/nvs-types/src/check.rs`, `crates/nvs-types/src/conformance.rs`,
+`crates/nvs-types/src/signatures.rs` and the cards in `crates/nvs-diagnostics/src/code/`; no gate.
+Stage 4 follows it and adds `bool` to the `CAPTURE` union (`router.rs:695`) when the match carries
+query values.
 
-- [ ] `tests/conformance/core/a-bool-query-value-is-1-or-0.nvst:1`: the failing case first, run once
-  by name; `tests/conformance/reject/a-bool-route-capture-does-not-compile.nvst:1` loses its
-  `#[Query] bool` route and gains a `false` capture.
-- [ ] `crates/nvs-types/src/routes.rs:2988` (`converts_from_segment`): a path half and a query half;
-  the query help at `query_params` (`:3178`) lists `bool`.
-- [ ] `crates/nvs-runtime/src/routes.rs:129` (`CaptureConv`), `:217` (`convert`) and `:306` (`Param`):
-  `CaptureConv::Bool(Option<bool>)` and `Param::Bool(bool)`; `crates/nvs-types/src/crossing.rs:129`
-  (`capture_conv`); `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`). The tests the check
-  `bool-query-runtime` names, run once by name with `cargo test --lib a_bool_query_value_`.
-- [ ] `crates/nvs-cli/src/openapi.rs:837` (`schema`): `{"type": "integer", "enum": [0, 1]}`, and the
-  test `a_bool_query_value_is_the_integer_0_or_1` in `crates/nvs-cli/tests/openapi.rs`.
-- [ ] `docs/rules/security/route-capture-is-laundered-by-its-type.md:6` and
-  `docs/rules/routing/a-bad-query-value-is-a-400.md:1`, with the two Declined rows.
+- [ ] `tests/conformance/class/a-final-class-may-return-any-object-of-itself-where-it-declares-static.nvst:1`
+  and the other two failing cases the check `final-parse` names, each run once by name and red.
+- [ ] `crates/nvs-types/src/check.rs:1587` (`reject_static_return_of_another_class`): in a `final`
+  class (`class_is_final`, `crates/nvs-types/src/signatures.rs:2477`) accept any value the declared
+  type accepts with `static` read as the class; the `E0741` card and the help at `check.rs:1612`.
+- [ ] `crates/nvs-types/src/conformance.rs:631` (`reject_dropped_static_return`) and the override
+  half: a `final` class may write its own name or `self` where the parent writes `static`; the
+  `E0404` card.
+- [ ] `docs/rules/statements/static-is-a-member-modifier.md:70` and the *Memory* paragraph of
+  `docs/rules/security/route-capture-is-laundered-by-its-type.md:43`.
 
 ### Backlog
 
