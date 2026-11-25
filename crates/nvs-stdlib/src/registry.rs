@@ -4758,6 +4758,21 @@ pub fn implements_parses(class: &str) -> bool {
         })
 }
 
+/// `parse` of a `Core` class that [`implements_parses`], called on one text value, or `None`
+/// when `class` is not such a class.
+///
+/// A route value and a command value typed at a `Parses` class are bound by calling the class's
+/// `parse` by name (`crate::router`'s `parsed`, `crate::command`'s `parse_each`). That call
+/// looks the class up in the program's own class table, which holds no `Core` class, so those
+/// sites ask here first. `Core\Uuid` has no arm: the matcher and the command reader convert it
+/// themselves and never call its `parse`.
+pub(crate) fn core_parse(class: &str, text: nvs_runtime::Value) -> Option<Result<nvs_runtime::Value, nvs_runtime::Fault>> {
+    match class {
+        crate::queue::ID_NAME => Some(crate::queue::parse_id_value(text)),
+        _ => None,
+    }
+}
+
 /// The type parameters `class` declares, in order — `None` when it is not one
 /// of [`GENERIC_CLASSES`], which is every other name in the program.
 #[must_use]
@@ -5869,6 +5884,25 @@ mod tests {
         // over rather than assume the name is its own.
         assert!(!implements_parses(r"App\Models\Slug"));
         assert!(!implements_parses("Parses"));
+    }
+
+    /// Every `Core` class a route or a command value can be typed at through `Parses` is bound
+    /// by [`core_parse`], so no such value reaches the program's class table and misses.
+    #[test]
+    fn core_parse_binds_every_core_parses_class_the_readers_do_not_convert_themselves() {
+        for class in CLASSES {
+            if !implements_parses(class.name) || class.name == crate::uuid::NAME {
+                continue;
+            }
+            let text = nvs_runtime::Value::text("not an id");
+            let outcome = core_parse(class.name, text);
+            #[expect(unsafe_code, reason = "this frame owns the one reference `text` holds")]
+            unsafe {
+                text.release();
+            }
+            assert!(outcome.is_some(), "`{}` has no arm in `core_parse`", class.name);
+        }
+        assert!(core_parse(r"App\Models\Slug", nvs_runtime::Value::null()).is_none());
     }
 
     /// The half of the pair the interface is read through: `tryParse` **is**

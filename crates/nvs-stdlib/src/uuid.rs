@@ -1024,6 +1024,34 @@ mod tests {
         parsed
     }
 
+    /// `format` writes the canonical text, the same text `toString` writes and the text a link
+    /// writes through [`super::format_text`], and `parse` reads it back to the same UUID.
+    // covers: Core\Uuid::format
+    #[test]
+    fn format_writes_the_text_parse_reads_and_to_string_writes() {
+        let subject = Value::text("F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4");
+        let parsed = run(super::nvs_core_uuid_parse, &[subject]).expect("that is a UUID");
+        let formatted = run(super::nvs_core_uuid_format, &[parsed]).expect("a built UUID formats");
+        let text = formatted.as_text().expect("`format` returns a `string`").to_owned();
+        assert_eq!(text, "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4");
+        assert_eq!(
+            super::format_text(parsed).ok().flatten().as_deref(),
+            Some(text.as_str())
+        );
+        let again = run(super::nvs_core_uuid_parse, &[formatted]).expect("`format`'s text parses");
+        assert_eq!(rendered(again), text);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns each reference it built, and every helper borrowed \
+                      rather than consumed its arguments"
+        )]
+        unsafe {
+            subject.release();
+            formatted.release();
+        }
+        assert_eq!(rendered(parsed), text);
+    }
+
     // covers: Core\Uuid::parse, Core\Uuid::toString
     #[test]
     fn the_canonical_form_parses_in_either_case_and_renders_lower() {

@@ -1,0 +1,47 @@
+--TEST--
+A route parameter typed `Core\Queue\Id`, a `Core` class that implements `Parses`, is bound through that class's own `parse` from a path capture and from a query value, so the link `Core\Router::url` wrote reaches the route with the same id; a capture `parse` refuses is `Refusal::BadCapture` — `rule:security/route-capture-is-laundered-by-its-type`, `rule:routing/a-bad-query-value-is-a-400`
+--FILE--
+<?nvs
+use Core\Queue\Id;
+
+class Exports {
+    #[Core\Route(path: "/exports/{job}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Id $job, #[Core\Query] ?Id $previous = null): void {
+        echo "job ", $job->format(), " previous ", $previous?->format() ?? "none", "\n";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused ", $reason == Core\Router\Refusal::BadCapture ? "BadCapture" : "other", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $job = Id::parse("42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw");
+    var $previous = Id::parse("1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM");
+
+    var $both = Core\Test::request(Core\Http\Method::Get, Core\Router::url(Exports::show, ["job" => $job, "previous" => $previous]));
+    echo $both->status(), " ", $both->body();
+
+    var $one = Core\Test::request(Core\Http\Method::Get, Core\Router::url(Exports::show, ["job" => $job]));
+    echo $one->status(), " ", $one->body();
+
+    var $bad = Core\Test::request(Core\Http\Method::Get, "/exports/not-a-job");
+    echo $bad->status(), " ", $bad->body();
+}
+--EXPECT--
+200 job 42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw previous 1.AAAAAAAAAAAAAAAAAAAAAA.cmVjZWlwdHM
+200 job 42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw previous none
+400 refused BadCapture

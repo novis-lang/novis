@@ -3748,6 +3748,17 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// `Core\Queue\Id::parse` over one text value, for a route or a command value typed
+/// `Core\Queue\Id`. Those binding sites call a `parse` by its class name, and a `Core` class is
+/// not in the program's class table, so [`crate::registry::core_parse`] calls this instead.
+///
+/// # Errors
+///
+/// What `parse` throws, or a [`Fault::fatal`] for a value that is not text.
+pub(crate) fn parse_id_value(text: Value) -> Result<Value, Fault> {
+    parse_id(id_text_arg(&[text], "parse")?).map(built_id)
+}
+
 /// `parse`'s whole answer for `text`: [`read_id`]'s slots, or the `RuntimeError` it throws.
 ///
 /// # Errors
@@ -8378,6 +8389,31 @@ mod tests {
                 Ok((id, queue.to_owned(), token.clone())),
                 "{text}"
             );
+        }
+    }
+
+    /// `format` writes the text `toString` writes, and [`super::parse_id_value`], which a route
+    /// or a command value typed `Core\Queue\Id` is bound through, reads it back to the same Id.
+    // covers: Core\Queue\Id::format
+    #[test]
+    fn id_format_writes_the_text_parse_reads() {
+        let written = super::id_text(42, "mail/ünïcode", &some_token());
+        let subject = nvs_runtime::Value::text(&written);
+        let id = super::parse_id_value(subject).expect("that is a job id");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let formatted = nvs_runtime::call(super::nvs_core_queue_id_format, &mut ctx, &[id])
+            .expect("a built Id formats");
+        assert_eq!(formatted.as_text(), Some(written.as_str()));
+        assert!(super::parse_id_value(nvs_runtime::Value::null()).is_err());
+        #[expect(
+            unsafe_code,
+            reason = "this test owns each reference it built, and every helper borrowed \
+                      rather than consumed its arguments"
+        )]
+        unsafe {
+            subject.release();
+            id.release();
+            formatted.release();
         }
     }
 

@@ -748,7 +748,10 @@ fn parse_each(
             done.push(word);
             continue;
         };
-        let outcome = nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[word]);
+        let outcome = match crate::registry::core_parse(class, word) {
+            Some(parsed) => parsed.map(Some),
+            None => nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[word]),
+        };
         #[expect(
             unsafe_code,
             reason = "this frame owns the one reference `word` holds, and \
