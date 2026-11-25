@@ -3,8 +3,6 @@
 
 # Enums
 
-*1 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -387,7 +385,7 @@ and no comparison at all.
 
 <a id="enums-no-class-machinery"></a>
 
-## A case is an integer constant, and an enum body declares nothing but cases
+## A case is an integer constant, and an enum has no descriptor, no property and no interface
 
 `rule:enums/no-class-machinery`
 
@@ -395,10 +393,11 @@ and no comparison at all.
 nothing is allocated, nothing is refcounted, there is no descriptor, and there is no per-isolate
 storage slot for an enum at all ([`enums/representation`](enums.md#enums-representation)).
 
-An enum body therefore declares only cases and an optional backing type. An `implements` clause is
-refused with **`E0218`**; a method, a property, a class constant or a trait use inside the body is
-refused with **`E0220`**, which names the class such a member belongs on instead. A case has no
-members of its own, and is not an array key — index with `$case as int`.
+An enum body declares cases, methods and constants, and nothing that needs an object
+([`enums/an-enum-body-takes-methods-and-constants`](enums.md#enums-an-enum-body-takes-methods-and-constants)). An `implements` clause is refused with
+**`E0218`**. A property or a nested enum inside the body is refused with **`E0220`**, which names a
+class for state. A case has no property of its own, and is not an array key — index with
+`$case as int`.
 
 An enum has no constructor. `new E()` and the constructor reference `E::constructor` are each
 **`E0870`** at the enum's name, whose help says a case is written `E::Case`. A program's attribute
@@ -411,12 +410,10 @@ What a program writes for each job:
 |---|---|
 | a case's integer | `E::A as int` (or `as uint`) |
 | a case from an integer | `$n as E` / `$n as ?E` |
-| a case's name | a `match` of your own |
-| every case | a `static` method of your own returning `array<E>` |
-| methods, constants, an interface | a class that takes the enum |
-
-Behaviour over an enum lives on some other class as a `static` method taking the enum, because there
-is no standalone-function destination for it to go to ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
+| a case's name | a `match` in a method of the enum |
+| every case | a `static` method of the enum returning `array<E>` |
+| behaviour and constants | methods and constants in the enum body |
+| state, or an interface | a class that takes the enum |
 
 A case that is a constant is free to inline. A case that is a heap reference is inlined only once the
 optimiser has proved it immutable.
@@ -429,14 +426,12 @@ optimiser has proved it immutable.
 - **A flags enum with `| & ^ ~` on the enum type itself.** Bitwise operators apply to the backing
   integer only ([`types/arithmetic`](types.md#types-arithmetic)), so flags are combined after `as uint` and converted back
   with the checked `as`.
-- **Static methods on a class that the checker treats as belonging to the enum.** It is dedicated
-  syntax for what a `static` method taking the enum already does.
 
 <sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection).</sub>
 
 <a id="enums-an-enum-body-takes-methods-and-constants"></a>
 
-## An enum body declares cases, methods and constants, and a method takes its case as `$this`  *(designed — owned by goal extend-blocks)*
+## An enum body declares cases, methods and constants, and a method takes its case as `$this`
 
 `rule:enums/an-enum-body-takes-methods-and-constants`
 
@@ -444,23 +439,36 @@ An enum body declares cases, instance and static methods, and constants, and an 
 call that takes the case's integer as `$this`. The representation stays the integer constant of
 [`enums/representation`](enums.md#enums-representation): an enum has no descriptor, and no case is allocated.
 
-A property in an enum body is still **`E0220`**, and so is a nested enum. Its help names a class for
-state. An `implements` clause is still **`E0218`**. A method on a value typed as one case, `E::A`,
-resolves as it does on the enum. `$this` in an enum method is the case, and `self` names the enum.
-`self::Case` and `self::CONSTANT` work in the body.
+A property in an enum body is **`E0220`**, and so are a nested enum and a method that uses `yield`.
+The help for a property names a class for state. A generator keeps its receiver in a state object,
+and a case has no object to keep. An `implements` clause is **`E0218`**. A constant may not take a
+case's name, because `E::X` reads both: the constant is **`E0304`**, beside the case.
+
+A method on a value typed as one case, `E::A`, resolves as it does on the enum. `$this` in an enum
+method is the case, and `self` names the enum. `self::Case`, `self::CONSTANT` and `self::method()`
+work in the body, and an enum a class declares sees its owner's other enums by their bare names. A
+method reference, `E::A->label(...)` or `E::make`, is a callable over the same function.
+
+An instance method is compiled with the case's integer in parameter 0. A static method takes a `0`
+there, which its caller passes and nothing reads, so every call of an enum method is one direct call
+with one convention, and no call of one needs a descriptor. Nothing overrides an enum method, so no
+call of one is virtual.
 
 An enum declared in another package takes methods and constants through an `extend` block instead
 ([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)), and a block of an enum the program declares
 is `E0337`.
 
 **What it spends:** an enum method costs what a static method taking the enum costs. Nothing per case
-and nothing per value.
+and nothing per value. A method reference over one stores the case's integer in its callable object,
+one word, as it stores an object receiver.
 
 **Declined:**
 - **Properties on a case.** A case is an integer constant, and a property would need an object.
 - **An `implements` clause.** A case would need a descriptor for dispatch through the interface.
 - **Keeping methods on a helper class.** It splits one type's behaviour across two names, and
   `$case->label()` reads as the type's own operation.
+- **A generator method.** Its state object would carry an integer receiver beside every object one,
+  and a method that returns an array does the same job.
 
 <sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation), [`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type).</sub>
 

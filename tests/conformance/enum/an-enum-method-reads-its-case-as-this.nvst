@@ -1,0 +1,86 @@
+--TEST--
+An enum method reads the case it is called on as `$this`, on a case written by name, a variable, a nullsafe call, a method reference and an enum a class declares — `rule:enums/an-enum-body-takes-methods-and-constants`
+--FILE--
+<?nvs
+namespace Shop;
+
+enum Suit {
+    Hearts,
+    Diamonds,
+    Clubs,
+    Spades,
+
+    public function isRed(): bool {
+        return $this == Suit::Hearts || $this == Suit::Diamonds;
+    }
+
+    public function label(): string {
+        return match ($this) {
+            Suit::Hearts => "hearts",
+            Suit::Diamonds => "diamonds",
+            Suit::Clubs => "clubs",
+            Suit::Spades => "spades",
+        };
+    }
+
+    public function describe(): string {
+        return $this->label() . ($this->isRed() ? " (red)" : " (black)");
+    }
+}
+
+enum Flag: uint {
+    Read = 1,
+    Write = 2,
+
+    public function covers(uint $mask): bool {
+        return ($mask & ($this as uint)) != 0;
+    }
+}
+
+final class Order {
+    enum Status {
+        Open,
+        Paid,
+
+        public function label(): string {
+            return $this->word() . " order";
+        }
+
+        private function word(): string {
+            return $this == Status::Open ? "open" : "paid";
+        }
+    }
+
+    public Status $status = Status::Open;
+
+    public function describe(): string {
+        return $this->status->label();
+    }
+}
+
+echo Suit::Clubs->label(), "\n";
+Suit $held = Suit::Diamonds;
+echo $held->describe(), "\n";
+echo Flag::Write->covers(3) as string, " ", Flag::Write->covers(1) as string, "\n";
+
+var $order = new Order();
+echo $order->describe(), "\n";
+echo Order::Status::Paid->label(), "\n";
+
+?Order::Status $none = null;
+echo $none?->label() ?? "no order", "\n";
+
+var $label = Suit::Spades->label(...);
+echo $label(), "\n";
+
+array<Suit> $hand = [Suit::Hearts, Suit::Spades];
+echo Core\Str::join(Core\Arr::map($hand, fn(Suit $s): string => $s->label()), ","), "\n";
+--EXPECT--
+clubs
+diamonds (red)
+1
+open order
+paid order
+no order
+spades
+hearts,spades

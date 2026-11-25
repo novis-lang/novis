@@ -100,11 +100,10 @@ codes! {
         "The namespace `Core` is reserved for the built-in library. Your code cannot declare it, \
          or any namespace inside it. Choose a different namespace name.",
     );
-    /// `enum Name implements Iface { ... }`: an enum declares only cases and
-    /// an optional backing type — see `rule:enums/no-class-machinery`.
+    /// `enum Name implements Iface { ... }`: a case has no descriptor to
+    /// dispatch through an interface on — see `rule:enums/no-class-machinery`.
     pub const E_ENUM_IMPLEMENTS_UNSUPPORTED: Code = Code::new("E0218").card(
-        "An enum cannot implement an interface. An enum contains only its cases and an optional \
-         backing type. Put the behavior in a `static` method on another class.",
+        "An enum cannot implement an interface. Write the behavior as a method of the enum.",
     );
     /// `enum Name: string { ... }`: no `string` backing, only `int`/`uint` —
     /// see `rule:enums/no-class-machinery`.
@@ -116,8 +115,9 @@ codes! {
     /// cases, methods and constants — see
     /// `rule:enums/an-enum-body-takes-methods-and-constants`.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220").card(
-        "An enum cannot contain a property or a nested enum. An enum contains its cases, \
-         methods and constants. A case cannot store a value, so keep that value in a class.",
+        "An enum cannot contain a property, a nested enum or a method that uses `yield`. An \
+         enum contains its cases, methods and constants. A case cannot store a value, so keep \
+         that value in a class.",
     );
     /// `include`, `include_once`, or `require_once`: Novis keeps exactly one
     /// same-frame inclusion construct, `require` — see `rule:statements/require-is-the-only-inclusion-construct`.

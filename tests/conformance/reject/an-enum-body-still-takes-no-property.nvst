@@ -8,7 +8,7 @@ enum Size {
     Small,
     Large,
 
-    const DEFAULT_LABEL = "small";
+    public const string DEFAULT_LABEL = "small";
 
     public string $label = "small";
 

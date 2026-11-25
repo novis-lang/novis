@@ -1,11 +1,15 @@
 {
   "title": "An enum body declares cases, methods and constants, and a method takes its case as `$this`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "enums/no-class-machinery",
     "enums/representation",
     "classes/an-extend-block-adds-members-to-a-type"
   ],
-  "guardedBy": [],
-  "goal": "extend-blocks"
+  "guardedBy": [
+    "tests/conformance/enum/an-enum-method-reads-its-case-as-this.nvst",
+    "tests/conformance/enum/an-enum-static-method-and-constant-are-called-on-the-enum.nvst",
+    "tests/conformance/reject/an-enum-body-still-takes-no-property.nvst",
+    "tests/conformance/reject/an-enum-constant-named-as-a-case-and-an-enum-generator-do-not-compile.nvst"
+  ]
 }

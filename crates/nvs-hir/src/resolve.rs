@@ -383,7 +383,13 @@ pub fn owned_enum_in_scope(
     if text.contains('\\') {
         return None;
     }
-    owned_enum(owner, text, symbols)
+    // Inside the body of an owned enum, which has methods
+    // (`rule:enums/an-enum-body-takes-methods-and-constants`), its owner's
+    // enums are in scope as they are in the owner's own body, this one too.
+    match owner.as_member() {
+        Some((outer, _)) => owned_enum(&outer, text, symbols),
+        None => owned_enum(owner, text, symbols),
+    }
 }
 
 pub(crate) fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {

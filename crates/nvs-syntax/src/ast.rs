@@ -2082,10 +2082,10 @@ pub struct EnumDecl {
     pub implements: Vec<Name>,
     /// The declared cases, in source order.
     pub cases: Vec<EnumCase>,
-    /// Any member other than a case. A `type` alias the enum owns is kept
-    /// ([`ClassMemberKind::TypeAlias`]); every other member shape is rejected
-    /// (`rule:enums/no-class-machinery`), an enum declaring only cases, an
-    /// optional backing type and its own aliases.
+    /// Any member other than a case: methods, constants and the `type` aliases
+    /// the enum owns (`rule:enums/an-enum-body-takes-methods-and-constants`).
+    /// The parser refuses a property, a nested enum and a method that uses
+    /// `yield`, and keeps none of them here.
     pub members: Vec<ClassMember>,
 }
 

@@ -1161,95 +1161,130 @@ fn lower_program_as(
                 // is where they are *declared*, which is all that differs.
                 // Every bodiless member is skipped by the same `m.body`
                 // check an `abstract` class method already went through.
+                //
+                // An enum's methods (`rule:enums/an-enum-body-takes-methods-and-constants`)
+                // are compiled the same way, with the case's integer as the
+                // receiver: see `lower_method_of`. An enum a class or an
+                // interface declares is reached through its owner's members.
                 StmtKind::ClassDecl(nvs_syntax::ast::ClassDecl { members, .. })
-                | StmtKind::InterfaceDecl(nvs_syntax::ast::InterfaceDecl { members, .. }) => {
-                    for member in members {
-                        match &member.kind {
-                            ClassMemberKind::Method(m) => {
-                                if m.body.is_none() {
-                                    continue; // `abstract` — nothing to lower
-                                }
-                                let Some(label) = exprs.method_label(m.name) else {
-                                    continue;
-                                };
-                                if !tests.lowers(exprs, label) {
-                                    continue;
-                                }
-                                // `rule:iteration/generators`: a body containing `yield` is
-                                // a generator, and becomes a state class and
-                                // its own functions rather than one function
-                                // — see `lower_generator`.
-                                let body = m
-                                    .body
-                                    .as_ref()
-                                    .expect("just checked this declaration has one");
-                                // `rule:testing/mutation-testing`: no mutant is
-                                // made inside test code or `#[NoMutate]` code,
-                                // and each one names this method. See
-                                // `mutate::within`.
-                                let unmutated =
-                                    exprs.is_test_code(label) || exprs.is_no_mutate(label);
-                                if nvs_syntax::ast::is_generator_body(body) {
-                                    let (mut fns, classes) =
-                                        mutate::within(label, unmutated, || {
-                                            lower_generator(
-                                                label,
-                                                m,
-                                                src,
-                                                exprs,
-                                                checked_types,
-                                                enums,
-                                            )
-                                        });
-                                    // The factory is the function a call reaches.
-                                    if let Some(factory) = fns.iter_mut().find(|f| f.name == label)
-                                    {
-                                        factory.param_checks = method_param_checks(m, &scope);
+                | StmtKind::InterfaceDecl(nvs_syntax::ast::InterfaceDecl { members, .. })
+                | StmtKind::EnumDecl(nvs_syntax::ast::EnumDecl { members, .. }) => {
+                    let own = match &stmt.kind {
+                        StmtKind::EnumDecl(decl) => Some(enum_receiver(decl, src)),
+                        _ => None,
+                    };
+                    let owned = members.iter().filter_map(|member| match &member.kind {
+                        ClassMemberKind::Enum(decl) => {
+                            Some((&decl.members[..], Some(enum_receiver(decl, src))))
+                        }
+                        _ => None,
+                    });
+                    for (members, receiver) in std::iter::once((&members[..], own)).chain(owned) {
+                        for member in members {
+                            match &member.kind {
+                                ClassMemberKind::Method(m) => {
+                                    if m.body.is_none() {
+                                        continue; // `abstract` — nothing to lower
                                     }
-                                    out.extend(fns);
-                                    synthesized.extend(classes);
-                                    continue;
-                                }
-                                let mut lowered = mutate::within(label, unmutated, || {
-                                    lower_method(label, m, src, exprs, checked_types, enums)
-                                });
-                                lowered.function.param_checks = method_param_checks(m, &scope);
-                                out.push(lowered.function);
-                                out.extend(lowered.anon_fns);
-                                synthesized.extend(lowered.classes);
-                            }
-                            // `rule:classes/property-hooks`'s property hooks are compiled the
-                            // same way, under the label `nvs_types` recorded
-                            // for the hook itself — see
-                            // `lower_property_hook`. A bodiless hook (an
-                            // abstract `get;`) is skipped for exactly the
-                            // reason an `abstract` method is.
-                            ClassMemberKind::Property(p) => {
-                                for hook in p.hooks.iter().flatten() {
-                                    if hook.body.is_none() {
-                                        continue;
-                                    }
-                                    let Some(label) = exprs.method_label(hook.span) else {
+                                    let Some(label) = exprs.method_label(m.name) else {
                                         continue;
                                     };
-                                    let lowered =
-                                        mutate::within(label, exprs.is_no_mutate(label), || {
-                                            lower_property_hook(
-                                                label,
-                                                p,
-                                                hook,
-                                                src,
-                                                exprs,
-                                                checked_types,
-                                                enums,
-                                            )
-                                        });
+                                    if !tests.lowers(exprs, label) {
+                                        continue;
+                                    }
+                                    // `rule:iteration/generators`: a body containing `yield` is
+                                    // a generator, and becomes a state class and
+                                    // its own functions rather than one function
+                                    // — see `lower_generator`.
+                                    let body = m
+                                        .body
+                                        .as_ref()
+                                        .expect("just checked this declaration has one");
+                                    // `rule:testing/mutation-testing`: no mutant is
+                                    // made inside test code or `#[NoMutate]` code,
+                                    // and each one names this method. See
+                                    // `mutate::within`.
+                                    let unmutated =
+                                        exprs.is_test_code(label) || exprs.is_no_mutate(label);
+                                    if nvs_syntax::ast::is_generator_body(body) {
+                                        assert!(
+                                            receiver.is_none(),
+                                            "nvs-ir: `{label}` is an enum method that uses `yield` — \
+                                         the parser refuses that as `E0220`"
+                                        );
+                                        let (mut fns, classes) =
+                                            mutate::within(label, unmutated, || {
+                                                lower_generator(
+                                                    label,
+                                                    m,
+                                                    src,
+                                                    exprs,
+                                                    checked_types,
+                                                    enums,
+                                                )
+                                            });
+                                        // The factory is the function a call reaches.
+                                        if let Some(factory) =
+                                            fns.iter_mut().find(|f| f.name == label)
+                                        {
+                                            factory.param_checks = method_param_checks(m, &scope);
+                                        }
+                                        out.extend(fns);
+                                        synthesized.extend(classes);
+                                        continue;
+                                    }
+                                    let mut lowered = mutate::within(label, unmutated, || {
+                                        lower_method_of(
+                                            label,
+                                            m,
+                                            receiver,
+                                            src,
+                                            exprs,
+                                            checked_types,
+                                            enums,
+                                        )
+                                    });
+                                    lowered.function.param_checks = method_param_checks(m, &scope);
                                     out.push(lowered.function);
                                     out.extend(lowered.anon_fns);
                                     synthesized.extend(lowered.classes);
                                 }
+                                // `rule:classes/property-hooks`'s property hooks are compiled the
+                                // same way, under the label `nvs_types` recorded
+                                // for the hook itself — see
+                                // `lower_property_hook`. A bodiless hook (an
+                                // abstract `get;`) is skipped for exactly the
+                                // reason an `abstract` method is.
+                                ClassMemberKind::Property(p) => {
+                                    for hook in p.hooks.iter().flatten() {
+                                        if hook.body.is_none() {
+                                            continue;
+                                        }
+                                        let Some(label) = exprs.method_label(hook.span) else {
+                                            continue;
+                                        };
+                                        let lowered = mutate::within(
+                                            label,
+                                            exprs.is_no_mutate(label),
+                                            || {
+                                                lower_property_hook(
+                                                    label,
+                                                    p,
+                                                    hook,
+                                                    src,
+                                                    exprs,
+                                                    checked_types,
+                                                    enums,
+                                                )
+                                            },
+                                        );
+                                        out.push(lowered.function);
+                                        out.extend(lowered.anon_fns);
+                                        synthesized.extend(lowered.classes);
+                                    }
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
@@ -1760,6 +1795,34 @@ pub fn lower_method(
     checked_types: &TypeInterner,
     enums: &EnumTable,
 ) -> Lowered {
+    lower_method_of(name, m, None, src, exprs, checked_types, enums)
+}
+
+/// The representation of an enum's cases, read from its `: uint` clause: the
+/// receiver an enum method is compiled with.
+fn enum_receiver(decl: &nvs_syntax::ast::EnumDecl, src: &SourceFile) -> EnumRepr {
+    match &decl.backing {
+        Some(ty) if span_text(src, ty.span) == "uint" => EnumRepr::Uint,
+        _ => EnumRepr::Int,
+    }
+}
+
+/// [`lower_method`] for a method of a class or an interface (`receiver` is
+/// `None`) or of an enum (`Some`, the representation of its cases).
+///
+/// An enum method's parameter 0 is the case's integer, and the enum has no
+/// descriptor (`rule:enums/an-enum-body-takes-methods-and-constants`). An
+/// instance method binds `$this` to that integer. A static one takes a `0`
+/// its caller passes, which nothing reads, so every call keeps one convention.
+pub(crate) fn lower_method_of(
+    name: &str,
+    m: &MethodMember,
+    receiver: Option<EnumRepr>,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> Lowered {
     let ret_ty = m
         .return_type
         .as_ref()
@@ -1792,10 +1855,19 @@ pub fn lower_method(
     let mut entry_checks = Vec::new();
     // Every build's tests at entry: one per `covariant` parameter.
     let mut covariant_checks = Vec::new();
-    let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
+    let recv_ty = match (receiver, is_static) {
+        (Some(_), true) => Ty::Int,
+        (Some(repr), false) => Ty::Enum(repr),
+        (None, true) => Ty::ClassDesc,
+        (None, false) => Ty::Object,
+    };
     let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
     param_tys.push(recv_ty);
-    if is_static {
+    if receiver.is_some() {
+        if !is_static {
+            env.insert("this".to_owned(), (this_v, recv_ty));
+        }
+    } else if is_static {
         low.lsb = Some(this_v);
     } else {
         env.insert("this".to_owned(), (this_v, Ty::Object));

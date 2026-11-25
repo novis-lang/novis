@@ -1479,6 +1479,7 @@ fn collect_stmts(
                 table.entry(qname.clone()).implements = implements;
                 table.entry(qname.clone()).is_final = decl.modifiers.contains(&Modifier::Final);
                 collect_members(&decl.members, &qname, &ctx, table, env);
+                collect_owned_enum_members(&decl.members, &qname, &ctx, table, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -1493,6 +1494,7 @@ fn collect_stmts(
                     in_test_code: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
+                collect_owned_enum_members(&decl.members, &qname, &ctx, table, env);
             }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -1549,6 +1551,29 @@ fn declared_visibility(modifiers: &[Modifier]) -> Option<Visibility> {
         Modifier::Private => Some(Visibility::Private),
         _ => None,
     })
+}
+
+/// The methods and constants of each enum a class or interface body declares,
+/// under the enum's own key (`rule:enums/class-scoped-enum`,
+/// `rule:enums/an-enum-body-takes-methods-and-constants`).
+fn collect_owned_enum_members(
+    members: &[ClassMember],
+    owner: &QName,
+    ctx: &Ctx<'_>,
+    table: &mut SignatureTable,
+    env: &mut Env<'_>,
+) {
+    for member in members {
+        let ClassMemberKind::Enum(decl) = &member.kind else {
+            continue;
+        };
+        let qname = QName::member(owner, span_text(env.src, decl.name.span));
+        let ctx = Ctx {
+            current_class: Some(&qname),
+            ..*ctx
+        };
+        collect_members(&decl.members, &qname, &ctx, table, env);
+    }
 }
 
 fn collect_members(

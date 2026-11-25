@@ -1,0 +1,23 @@
+--TEST--
+An enum constant may not reuse a case's name, because `Name::X` reads both, and an enum method may not use `yield`, because a case is an integer and a generator keeps its receiver in an object — `rule:enums/an-enum-body-takes-methods-and-constants`
+--FILE--
+<?nvs
+enum Grade {
+    A,
+    B,
+
+    public const int A = 3;
+
+    public function steps(): Iterator<int> {
+        yield $this as int;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: the enum `Grade` declares `A` as a case and as a constant
+%A
+error[E0220]: an enum method cannot use `yield`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

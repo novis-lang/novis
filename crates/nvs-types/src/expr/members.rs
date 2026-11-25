@@ -125,6 +125,23 @@ pub(crate) fn infer_class_const(
         matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
             || env.enums.get(qname).is_some()
     });
+    // An enum of the program declares constants beside its cases
+    // (`rule:enums/an-enum-body-takes-methods-and-constants`). A name that is
+    // no case but one of those is read as a class constant is, in the arm
+    // for a user-declared class below.
+    let is_enum = is_enum
+        && !qname.as_ref().is_some_and(|qname| {
+            let constant = span_text(env.src, name);
+            !qname.is_core()
+                && env.enums.case(qname, constant).is_none()
+                && crate::signatures::resolve_const_owned(
+                    qname,
+                    constant,
+                    env.signatures,
+                    env.graph,
+                )
+                .is_some()
+        });
     match qname {
         Some(qname) if is_enum => {
             // `rule:enums/no-class-machinery`: the case *is* its integer constant, so `nvs-ir`

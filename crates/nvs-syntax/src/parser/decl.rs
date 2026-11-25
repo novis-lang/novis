@@ -2037,11 +2037,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                     code::E_ENUM_IMPLEMENTS_UNSUPPORTED,
                     "an enum cannot implement an interface",
                 )
-                .with_primary(
-                    span,
-                    "an enum declares only cases and an optional backing type",
-                )
-                .with_help("write a `static` method on another class that takes the enum"),
+                .with_primary(span, "an enum has no `implements` clause")
+                .with_help("write the behavior as a method of the enum"),
             );
         }
         let (cases, members) = self.parse_enum_body();
@@ -2196,6 +2193,30 @@ impl<'src, 'd> Parser<'src, 'd> {
                         .with_help(
                             "an enum case cannot store a value. Keep the value in a class of \
                              your own, or return it from a method of the enum",
+                        ),
+                    );
+                } else if let Some(m) = members[first..].iter().find_map(|m| match &m.kind {
+                    ClassMemberKind::Method(m) => m
+                        .body
+                        .as_ref()
+                        .filter(|body| crate::ast::is_generator_body(body))
+                        .map(|_| m.name),
+                    _ => None,
+                }) {
+                    // `rule:enums/an-enum-body-takes-methods-and-constants`: a
+                    // generator keeps its receiver in a state object, and a case
+                    // is an integer with no object. The method is refused and
+                    // not kept.
+                    members.truncate(first);
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_ENUM_MEMBER_UNSUPPORTED,
+                            "an enum method cannot use `yield`",
+                        )
+                        .with_primary(m, "this method uses `yield`")
+                        .with_help(
+                            "return an array from the method, or write the generator as a \
+                             method of a class",
                         ),
                     );
                 }

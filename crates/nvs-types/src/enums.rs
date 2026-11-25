@@ -331,6 +331,26 @@ fn resolve_enum(
         }
         cases.insert(name, value);
     }
+    // `rule:enums/an-enum-body-takes-methods-and-constants`: `Name::X` reads a
+    // case and a constant alike, so the two share one set of names.
+    for member in &decl.members {
+        let ClassMemberKind::Const(c) = &member.kind else {
+            continue;
+        };
+        let name = span_text(src, c.name);
+        if let Some(&first) = seen.get(name) {
+            let enum_name = span_text(src, decl.name.span);
+            diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("the enum `{enum_name}` declares `{name}` as a case and as a constant"),
+                )
+                .with_primary(c.name, "declared again here")
+                .with_secondary(first, "first declared here as a case")
+                .with_help("give the constant another name"),
+            );
+        }
+    }
     EnumInfo {
         backing,
         cases,

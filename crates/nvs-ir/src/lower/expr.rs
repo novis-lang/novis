@@ -5166,7 +5166,11 @@ impl<'a> Lowering<'a> {
         // is the receiver's own — see `nvs_runtime::object`'s module
         // docs. Nothing is retained for it; a descriptor is not
         // refcounted.
-        let receiver_v = if is_static {
+        let receiver_v = if is_static && self.enums.get(&call.class).is_some() {
+            // An enum's static method, reached through a case: slot 0 takes
+            // the `0` every call of one passes (`lower_method_of`).
+            self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0
+        } else if is_static {
             // `rule:classes/revocable-objects`: the call uses the object to
             // find its class, and that is a use, so a revoked one throws.
             let class = call.class.to_string();
@@ -5528,14 +5532,21 @@ impl<'a> Lowering<'a> {
         // fact an instance call reads); otherwise it binds to the called
         // class. A resolved declaration with no body has no target either,
         // for a different reason — see `InstKind::CallVirtual::fallback`.
-        let late_bound = (matches!(class.kind, ExprKind::StaticExpr)
-            && (call.overridden || !cheaper_forms_on()))
-            || !has_body;
+        // An enum's method is never overridden and the enum has no descriptor,
+        // so its call is always direct, and a static one passes `0` in slot 0
+        // (`lower_method_of`).
+        let on_enum = self.enums.get(&call.class).is_some();
+        let late_bound = !on_enum
+            && ((matches!(class.kind, ExprKind::StaticExpr)
+                && (call.overridden || !cheaper_forms_on()))
+                || !has_body);
         // As for an instance call: the receiver and the arguments are the
         // callee's from the `Call` below and this frame's until then. See
         // `Lowering::forget_transferred_since`.
         let mark = self.temporaries_mark();
-        let receiver = if is_static {
+        let receiver = if is_static && on_enum {
+            Some(self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0)
+        } else if is_static {
             // A static callee has no `$this`, so its receiver slot
             // carries the *called* class instead — an explicitly named
             // one sets it, `self::`/`parent::`/`static::` forward this

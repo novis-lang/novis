@@ -732,6 +732,17 @@ pub(crate) fn lower_callable(
         ),
         ThunkTarget::Build { .. } => (Ty::Object, false, false),
     };
+    // A method of an enum takes the case's integer as its receiver, and a `0`
+    // in slot 0 when it is static (`super::lower_method_of`).
+    let enum_receiver = match target {
+        ThunkTarget::Forward { call, .. } => {
+            enums.get(&call.class).map(|info| match info.backing {
+                nvs_types::EnumBacking::Int => crate::ty::EnumRepr::Int,
+                nvs_types::EnumBacking::Uint => crate::ty::EnumRepr::Uint,
+            })
+        }
+        ThunkTarget::Build { .. } => None,
+    };
     let label = format!("{class}::{FN_INVOKE}");
     let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
     let entry = low.new_block();
@@ -752,15 +763,20 @@ pub(crate) fn lower_callable(
     // the calling conventions differ in, at the bottom.
     let mark = low.temporaries_mark();
     let receiver = takes_receiver.then(|| {
+        let recv_ty = enum_receiver.map_or(Ty::Object, Ty::Enum);
         let (v, _) = low.emit(
             entry,
-            Ty::Object,
+            recv_ty,
             InstKind::FieldGet {
                 object: self_v,
                 class: class.clone(),
                 field: FCC_RECV.to_owned(),
             },
         );
+        // A case is an integer: nothing to retain, and nothing to revoke.
+        if enum_receiver.is_some() {
+            return v;
+        }
         // A field read borrows: the object keeps its own reference, so the
         // one the callee will release has to be a new one.
         low.emit_retain(entry, v);
@@ -1033,6 +1049,14 @@ pub(crate) fn lower_callable(
                     method: call.method.clone(),
                     fallback: call.has_body.then_some(target),
                     receiver: None,
+                    args,
+                }
+            }
+            None if enum_receiver.is_some() => {
+                let (zero, _) = low.emit(cur, Ty::Int, InstKind::ConstInt(0));
+                InstKind::Call {
+                    target,
+                    receiver: Some(zero),
                     args,
                 }
             }

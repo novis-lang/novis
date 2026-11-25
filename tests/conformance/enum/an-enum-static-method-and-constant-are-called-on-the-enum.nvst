@@ -1,0 +1,60 @@
+--TEST--
+An enum's static method and constant are reached through the enum's name, through `self::` inside it and through a method reference —`rule:enums/an-enum-body-takes-methods-and-constants`
+--FILE--
+<?nvs
+namespace Shop;
+
+enum Size {
+    Small,
+    Medium,
+    Large,
+
+    public const int COUNT = 3;
+
+    private const string UNIT = "cm";
+
+    public static function largest(): Size {
+        return self::Large;
+    }
+
+    public static function parse(int $n): ?Size {
+        return $n as ?Size;
+    }
+
+    public function width(): string {
+        return (($this as int) + 1) * 10 . self::UNIT;
+    }
+
+    public static function summary(): string {
+        return self::COUNT . " sizes, largest " . self::largest()->width();
+    }
+}
+
+final class Shelf {
+    enum Level {
+        Low,
+        High,
+
+        public const string NAME = "level";
+
+        public static function top(): Level {
+            return Level::High;
+        }
+    }
+}
+
+echo Size::COUNT, "\n";
+echo Size::largest() as int, "\n";
+echo Size::parse(1)?->width() ?? "none", " ", Size::parse(9)?->width() ?? "none", "\n";
+echo Size::summary(), "\n";
+echo Shelf::Level::NAME, " ", Shelf::Level::top() as int, "\n";
+
+var $make = Size::largest;
+echo $make() as int, "\n";
+--EXPECT--
+3
+2
+20cm none
+3 sizes, largest 30cm
+level 1
+2

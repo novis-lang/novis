@@ -4306,7 +4306,8 @@ the plan.
 
 - **Memory:** the `raw` output adds 16 bytes to the pixel buffer it returns.
 
-A `Format` carries no members, because an enum declares only cases ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)):
+A `Format` carries no members, because an enum an extension declares has only cases
+([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)):
 `Image::mime(Format)` and `Image::extension(Format)` name a format's MIME type and file extension. The
 plan's option shapes that the builder fills in for the caller — `format`'s, `rotate`'s and
 `composite`'s — declare `x: ?T` rather than `x?: T` in `extensions/image/manifest.json`, because a

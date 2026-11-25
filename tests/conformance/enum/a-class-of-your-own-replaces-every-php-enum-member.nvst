@@ -1,18 +1,20 @@
 --TEST--
-Every PHP enum member is written outside the enum instead: a `match` for the case name, a static method for the case list, and the two conversions for `from` and `tryFrom` — `rule:enums/no-class-machinery`
+Every PHP enum member is written as a method of the enum instead: a `match` for the case name, a static method for the case list, and the two conversions for `from` and `tryFrom` — `rule:enums/no-class-machinery`, `rule:enums/an-enum-body-takes-methods-and-constants`
 --FILE--
 <?nvs
 // covers: lang:enums/what-an-enum-does-not-have
-enum Level { Debug = 10, Info = 20, Warn = 30 }
+enum Level {
+    Debug = 10,
+    Info = 20,
+    Warn = 30,
 
-class Levels {
     // `rule:enums/no-class-machinery`: PHP's `->name` is the one member with no
-    // conversion behind it, so it is a `match` in a class of your own. The
+    // conversion behind it, so it is a `match` in a method of the enum. The
     // match is exhaustive over the declaration, so a case added later stops
     // this method at compile time rather than at the first request that meets
     // it.
-    public static function name(Level $l): string {
-        return match ($l) {
+    public function name(): string {
+        return match ($this) {
             Level::Debug => "debug",
             Level::Info => "info",
             Level::Warn => "warn",
@@ -25,8 +27,8 @@ class Levels {
     }
 
     public static function parse(string $s): ?Level {
-        foreach (Levels::all() as Level $l) {
-            if (Levels::name($l) == $s) {
+        foreach (self::all() as Level $l) {
+            if ($l->name() == $s) {
                 return $l;
             }
         }
@@ -34,10 +36,10 @@ class Levels {
     }
 }
 
-echo Levels::name(Level::Info), "\n";
-echo Core\Arr::count(Levels::all()), "\n";
-echo (Levels::parse("warn") ?? Level::Debug) as int, "\n";
-echo (Levels::parse("nope") ?? Level::Debug) as int, "\n";
+echo Level::Info->name(), "\n";
+echo Core\Arr::count(Level::all()), "\n";
+echo (Level::parse("warn") ?? Level::Debug) as int, "\n";
+echo (Level::parse("nope") ?? Level::Debug) as int, "\n";
 
 // PHP's `E::A->value`, `E::from($n)` and `E::tryFrom($n)`, in that order.
 echo Level::Warn as int, "\n";
