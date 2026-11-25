@@ -320,6 +320,16 @@ static property of your own class), `readonly` on an added property, a stored pr
   - **Reading** an added stored property is a load of the slot, a null test and an indexed load. An
     unwritten property reads its default, `null`, or throws for `lateinit` exactly as an unwritten
     `lateinit` property does.
+  - **A stored added property has two compiled accessors** (mine, stage 5, by simplicity). `nvs-ir`
+    compiles a `get` and a `set` function per property under the block's hook labels
+    (`lower_added_accessors`), and the checker records every access as a hooked property's. So
+    every read and write form (`+=`, `++`, `??`, `isset`, nullsafe) reaches it through the paths a
+    hook already has, with no new case in any of them. They call `nvs_added_has`, `nvs_added_get`
+    and `nvs_added_set`. **Cost:** a direct call and one or two helper calls per access, against an
+    inline load; inlining the accessors is a later latency change that changes no behaviour.
+  - **An element write through an added property is `E0478`** (mine, stage 5). Through two calls,
+    `$o->tags[] = "x"` copies the whole array on each write, because the read holds a second
+    reference. The program reads it into a variable, writes there and assigns it back.
   - **`clone` and the graph copy to a task start the slot empty** (user, "never seen by clone"). JSON,
     `Reflect`, `==` and sessions skip the slot. A revoke releases it with the other slots.
   - **What it spends:** one pointer per instance of each class that takes the slot, and per object
@@ -552,15 +562,17 @@ or is extended by another `Core` class (`file:line` and one line each), before t
   - [x] a computed (`get`-only) added property resolves through a used block, on a class, a `Core`
     object and an enum case, and lowers as a call of the block's hook
   - [x] a write to it is `E0787`; a stored added property is `E1014` on every type for now
-  - [ ] a stored added property reads and writes the slot, with its default, `null` and `lateinit`
+  - [x] a stored added property reads and writes the slot, with its default, `null` and `lateinit`
   - [x] `clone` and the graph copy start the slot empty; JSON and `Reflect` skip it
-  - [ ] `refuse_stored` narrowed to an interface, an enum, a `Core` class with no slot and a
+  - [x] `refuse_stored` narrowed to an interface, an enum, a `Core` class with no slot and a
     namespace class
+  - [ ] a stored added property with hooks: a `set` hook, a `get` hook beside a stored value, and
+    `$this->p` inside them reading and writing the entry
 - [x] The two remaining tests the check `slot` names, beside `object.rs`'s tests, run once by name.
-- [ ] The five cases the check `properties` names and the two the check `property-refusals` names,
+- [x] The five cases the check `properties` names and the two the check `property-refusals` names,
   each run once by name. The `Core` request case uses `--GET`.
   - [x] the two `property-refusals` cases and `an-added-get-hook-is-computed-on-each-read`, green
-  - [ ] the four other `properties` cases
+  - [x] the four other `properties` cases
 
 ### 6. the editor, nvs meta and nvs agent know every added member
 
@@ -613,45 +625,40 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 5 has its computed properties, its refusals, the `Core` slot roster and the runtime slot.
-Reads and writes of a stored added property are next. The `slot` check's three tests and the
-`property-refusals` check's two cases are green.
+Stage 5 reads and writes a stored added property. The `slot`, `properties` and `property-refusals`
+checks are all green, each run once by name. One item is left: a stored added property with hooks.
 
 - **Computed**: `added_property_access` (`crates/nvs-types/src/expr/members.rs:2741`) records
   `ExprInfo::HookedProperty` with the block's `get` label; a write is `E0787` (`assign.rs:1947`).
-- **Stored**: `refuse_stored` (`crates/nvs-types/src/extend.rs:508`) still reports `E1014` on every
-  type, because nothing lowers a read or write of the slot yet.
-- **The slot**: `nvs_runtime::ADDED_SLOT_NAME` (`object.rs:1076`). `ClassDesc::added_slot()` is
-  found by that name in `push_class`; `is_hidden_slot` covers it, so JSON, bytes, Reflect, the test
-  diff and the debug record skip it, and `clone` and the graph copy leave it `null`. A `Core` class
-  whose `added_slot::decision` is `Reserved` has it after its declared slots (`instance.rs`
-  `reserves_added_slot`). A program class has it after its own properties when a loaded block adds
-  a stored property to it (`layout.rs` `flatten_fields`, `extend::is_stored_added`).
-- **It holds an ordinary array**, one entry per added stored property, so the sweep frees it. An
-  error object starts every slot as `Value::unset()` (`ctx/error.rs:393`), so a reader treats any
-  value that is not an array as "no added values".
+- **Stored**: the same record with a `set` label too. `extend::record_stored`
+  (`crates/nvs-types/src/extend.rs`) records `expr_table::AddedStored` (labels, index, default,
+  `lateinit`) at the property's name span, and `extend::added_index` gives the index from
+  `ClassSignature::added_stored`. `nvs_ir::lower::lower_added_accessors`
+  (`crates/nvs-ir/src/lower/mod.rs`) compiles the two functions; they call `Helper::AddedHas`,
+  `AddedGet` and `AddedSet` (`nvs_added_*`, `crates/nvs-runtime/src/object.rs` after
+  `nvs_clone_guard`). `refuse_stored` reports `E1014` only where `has_added_slot` is false, and
+  `E0338` for a stored added property with hooks, which `record_stored` skips.
+- **Element writes**: `$o->tags[] = …` through an added property is `E0478` with its own message
+  (`assign.rs`, the `HookedProperty` arm whose property no class declares).
+- **The slot**: `nvs_runtime::ADDED_SLOT_NAME` (`object.rs:1076`), hidden from JSON, bytes,
+  Reflect and copies. It holds an array keyed by index; an entry never written has no key, and a
+  slot that is not an array (`null`, or an error object's `unset`) has no added values.
 
 ### Next
 
-1. Each stored added property's index in the array, decided in `nvs-types` and carried to `nvs-ir`
-   on the `ExprInfo` record: a class's ancestors' added properties first, root first, then its
-   own. Within one class, its blocks sorted by qualified name, and each block's properties in
-   declaration order. So an index computed against a base class holds for every subclass, as a
-   slot index does.
-2. Two runtime helpers beside `nvs_object_clone` (`object.rs:5566`), each `nvs_helper!` with an
-   `nvs_ir::Helper` variant. `added_get(obj, index)` returns the entry, or `Value::unset()` when
-   the slot is not an array or is too short. `added_set(obj, index, value)` makes the array on the
-   first write, fills it with `Value::unset()` up to `index`, and stores the value.
-3. `added_property_access` records the stored case. `nvs-ir` lowers a read as `added_get`, then an
-   unset test: the default expression where one is written, `null` for a `?T` with none, and the
-   unwritten-property throw for `lateinit` (`rule:classes/an-unwritten-property-read-throws`). A
-   write lowers as `added_set`. Then narrow `refuse_stored` to an interface, an enum, a `Core`
-   class whose decision is not `Reserved`, and a namespace class.
-4. The four other `properties` cases. `Core\Request` is a namespace class with no instances, so
-   the "Core request" case extends a `Core` class a request gives, such as `Core\Uri` or
-   `Core\Router\Match`, and runs with `--GET`.
+1. A stored added property with hooks (the user's table allows it). Inside its own hooks,
+   `$this->p` is the entry, not a call: `added_property_access` needs `ctx.current_hook` to name
+   this property and then records a plain read and write of the entry. The simplest shape: the
+   synthesized accessors take the labels `<Block>::$p::get#entry` / `set#entry`, the written hooks
+   keep the ordinary labels, and an access inside the hooks records the `#entry` labels. Then
+   drop the `E0338` hook refusal in `refuse_stored` and the hook skip in `record_stored`, and add
+   one case to `an-added-property-on-another-packages-class-reaches-its-subclasses.nvst` or a new
+   class case.
+2. Then stage 5 is done: set its status to `done` in the front matter, and stage 6 starts
+   (`completion.rs:3235`, `HierarchyResolver::written`, the backlog's stage 6 notes).
 
-Tests that may go red: none. The three `slot` tests and the `instance::tests` suite are green.
+Tests that may go red: none. Every test this session wrote was run once, by name, and is green.
+`cargo clippy --all-targets -- -D warnings` is clean.
 
 ### Backlog
 
