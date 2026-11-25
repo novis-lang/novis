@@ -1,0 +1,11 @@
+{
+  "title": "An enum body declares cases, methods and constants, and a method takes its case as `$this`",
+  "status": "designed",
+  "seeAlso": [
+    "enums/no-class-machinery",
+    "enums/representation",
+    "classes/an-extend-block-adds-members-to-a-type"
+  ],
+  "guardedBy": [],
+  "goal": "extend-blocks"
+}

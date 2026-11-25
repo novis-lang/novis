@@ -3,6 +3,8 @@
 
 # Classes
 
+*3 of 54 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="classes-no-free-functions-or-constants"></a>
 
 ## No `function` and no `const` may be declared outside a class body
@@ -1323,6 +1325,213 @@ is not a new kind of cost, and it is an ordinary property a reader can inspect.
   needs it, and the field stays non-nullable.
 
 <sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call).</sub>
+
+<a id="classes-an-extend-block-adds-members-to-a-type"></a>
+
+## `extend T as Name { … }` adds members to a type another package declares, seen where the block is used  *(designed — owned by goal extend-blocks)*
+
+`rule:classes/an-extend-block-adds-members-to-a-type`
+
+`extend <Type> as <Name> { … }` declares a block of members added to a class, an interface or an enum
+that another package declares, and a file sees them only once it writes `use <Ns>\<Name>;`. `<Type>`
+is written in full or through `use`, and may be a `Core` type or a type of another package. `<Name>`
+is the block's own name in the file's namespace, as a class name is. `extend` is a contextual word: it
+is read as one only at the start of a top-level statement, before a type name, so a method, a variable
+or a property named `extend` stays an ordinary identifier.
+
+**The declaration.** A block is a top-level declaration. Written inside a class body it is `E0233`, as
+a nested class is ([`classes/a-type-is-declared-at-file-scope`](classes.md#classes-a-type-is-declared-at-file-scope)). It may carry
+`#[Core\Deprecated]` and no other attribute, and its members take attributes as class members do. A doc
+comment and its tags work on the block and on each member. An autoloaded file declares one block and
+nothing else, named as the autoload map finds it, so `App\Time\BusinessDays` is `BusinessDays.nvs`
+under `App\Time`'s directory ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)). A file reached by
+`require` may declare blocks as it may declare anything. In user-facing text the feature is "an
+`extend` block" and its members are "added" members. "Extension" already names a native `nvs ext`
+component, and no text, rule title or code name calls this feature one.
+
+**The target.** A target that names no class, interface or enum is **`E0336`**, whether it names
+nothing, a `type` alias or an attribute. A target declared in the block's own package is **`E0337`**,
+and its help says to add the member to the type itself. For the application, that is any type the
+application declares. Every type a project owns then has one place per member, and an enum of the
+program's own takes methods and constants in its body ([`enums/an-enum-body-takes-methods-and-constants`](enums.md#enums-an-enum-body-takes-methods-and-constants)).
+`Packages::of` names both packages.
+
+**Where an added member is visible.** In a file that writes `use <Ns>\<Name>;` for the block, a group
+`use` and an alias included, and inside the block's own body. The block's own namespace is no
+exception: names load lazily through the autoload map, and nothing but a `use` names a block. A call
+that would resolve only through a block the file does not use is the ordinary unknown-member error
+(`E0405` for `->`, `E0309` for `::`), and its help names the block and the `use` line when the
+program's autoload map knows a block that adds the name.
+
+**What a block may add.**
+
+| Added | On a class | On an interface | On an enum |
+|---|---|---|---|
+| `public` or `private` instance method | yes | yes | yes, `$this` is the case |
+| `public` or `private` static method | yes | yes | yes |
+| constant | yes | yes | yes |
+| nested `enum` | yes | yes | no |
+| nested `attribute` | yes, used on the type's descendants | yes, used on its implementers | no |
+| property with a `get` hook and no stored value | yes | yes | yes |
+| stored property, with or without hooks | yes, when the class takes the added slot | no | no |
+
+The stored property and its slot are [`classes/an-added-property-lives-in-one-hidden-slot`](classes.md#classes-an-added-property-lives-in-one-hidden-slot).
+
+**What a block may not add.** Each is **`E0338`** at the member, and its help names what to write
+instead: a constructor (a static factory), a `protected`, `abstract` or `final` member (a `public` or
+`private` one), a `static` property (a static property of a class of your own), `readonly` on an added
+property, a stored property with no default or one declared `?` or `lateinit`, a new enum case, and a
+member the table above leaves out. An `implements` or `extends` clause on the block does not parse. In
+a body, `parent` is `E0338` and `static::` is `E0338` whose help says to write `self::`. A member that
+replaces or overrides anything is [`classes/an-added-member-never-changes-a-type`](classes.md#classes-an-added-member-never-changes-a-type).
+
+**Inside the body.** `$this` is a value of the extended type, and `self` names that type. A block's
+body sees what code outside the type sees: the type's `public` members, the block's own members, and
+the members of other blocks its file uses. `private` on an added member means visible inside that
+block only. Visibility is checked with the block as the accessing place, never the type.
+
+**Generic `Core` classes.** A generic `Core` class is extended with its parameters bound by name, as
+`extend Core\ObjectMap<K, V> as Index { … }`, and those names are its declared parameter names. A
+block of one instance, such as `Core\ObjectMap<int, string>`, does not compile. A program's own
+classes take no type parameters, so this is `Core` only. An added method may declare type parameters
+of its own.
+
+**Declined:**
+- **Opening `Core` classes to `extends`.** [`core-api/core-classes-are-sealed`](core-api.md#core-api-core-classes-are-sealed) keeps its reasons.
+- **Program-wide visibility, registered once.** Reading a file would not show where a method comes
+  from, two dependencies adding one name would break an application that can fix neither, and every
+  block change would recompile every file.
+- **`extend` as a reserved word.** A reserved word breaks every identifier already spelled `extend`,
+  and the contextual position is unambiguous.
+- **Extending a scalar (`extend string`).** Novis has no methods on scalars. `extend Core\Str as
+  Slugs` adds static functions where the string functions already are.
+- **A block of one generic instance (`extend List<int>`).** Its members would exist on some values of
+  a class and not others, and a receiver's type argument is erased where a call is resolved.
+- **A block of a type the program owns.** It would give one type two places for each member.
+
+<sub>See also [`classes/an-added-member-never-changes-a-type`](classes.md#classes-an-added-member-never-changes-a-type), [`classes/an-added-property-lives-in-one-hidden-slot`](classes.md#classes-an-added-property-lives-in-one-hidden-slot), [`core-api/core-classes-are-sealed`](core-api.md#core-api-core-classes-are-sealed), [`classes/a-type-is-declared-at-file-scope`](classes.md#classes-a-type-is-declared-at-file-scope), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file).</sub>
+
+<a id="classes-an-added-member-never-changes-a-type"></a>
+
+## An added member never replaces, overrides or satisfies anything, and only a statically typed call reaches it  *(designed — owned by goal extend-blocks)*
+
+`rule:classes/an-added-member-never-changes-a-type`
+
+An added member adds a name and changes nothing a type already has: it never replaces, overrides or
+hides a member, never satisfies an interface obligation, and only a statically typed call reaches it.
+Every case where two members would meet is a compile error naming both places, so whether a call
+reaches an added member or a declared one never depends on the receiver's static type.
+
+**Collisions.** Each is **`E1011`**, naming both declarations:
+
+- an added name equal to a member of the type or of an ancestor;
+- two blocks in the program adding one name to one type, whether or not one file uses both;
+- a class or interface in the program that extends or implements the type and declares the name;
+- a later Novis release adding the name to a `Core` type, which turns the block's member into this
+  error when the program is next compiled.
+
+The descendant check runs over the whole compiled program, because the program is resolved before any
+body is checked. It is never a per-file check: a per-file check would let a call on a subclass reach
+the subclass's member in one file and the added one in another.
+
+**Names the runtime calls by name.** An added method may not take a name a `Core` interface requires
+or an operator dispatches by name, such as `compareTo`, `equals` or `toString`. That is **`E1012`**,
+whose help says a class of your own implements the interface instead. An added method never satisfies
+an interface obligation, so `$x is Comparable` returns what it returned before the block existed.
+
+**Only a statically typed call.** A `mixed` or `object` receiver, a dynamic member name, `Core\Reflect`,
+JSON encoding and decoding, `==`, `clone`, the graph copy to a task, the ordering operators and every
+`Core` member never see an added member. `Reflect::methods()` and `Reflect::properties()` do not list
+one, and `ClassInfo::call` of an added name throws as for an unknown member.
+
+**Unions.** A union receiver finds an added member only when every type in the union gets it from the
+same block, which happens through an interface they share. Otherwise the call is **`E1013`**, and its
+help says to narrow the value with `is`.
+
+**Restrictions.** A block's body sits, for [`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used)'s purposes, in the block's own
+namespace and the block, never in the extended type, so a block cannot call a member restricted on its
+type. A `[[restrict]]` entry names an added member by its block, as
+`'App\Time\BusinessDays::isBusinessDay'`, and an entry on the extended type does not cover its added
+members. A package may restrict only its own blocks, as it may restrict only its own code.
+
+**Deprecation.** `#[Core\Deprecated]` on an added member or on a block warns at each use, through the
+same resolved-use pass as every other deprecated member ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
+
+**The call.** An added method compiles to a function whose parameter 0 is the receiver, labelled
+`<Block>::<name>`, and every call of it is one direct call. The collision rule makes the target unique,
+so no call is virtual and none goes through `Core`'s dispatch. An added static method takes the
+extended type's class descriptor in slot 0, as a static method does, and an added method on an enum
+takes the case's integer. The checker records every added call as a resolved call, so the IR,
+restriction and deprecation passes read it as they read any other.
+
+**What it spends:** the same as calling a static method of a helper class. Nothing per call, and
+nothing on any type no loaded block extends.
+
+**Declined:**
+- **Retroactive `implements` (`extend Date implements Sortable`).** It changes what `$x is Sortable`
+  returns for a value that already exists, and dispatch through the interface would depend on which
+  file asks.
+- **An added member that overrides a declared one.** Which member runs would depend on whether the
+  calling file uses the block.
+- **Dispatching an added method through `mixed`.** A run-time lookup would need a table of every
+  block on every object, and the answer would depend on which blocks happen to be loaded.
+- **The last block loaded wins a collision.** The program's meaning would depend on load order.
+
+<sub>See also [`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used), [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code).</sub>
+
+<a id="classes-an-added-property-lives-in-one-hidden-slot"></a>
+
+## An added stored property lives in one hidden slot of its object, empty until the first write  *(designed — owned by goal extend-blocks)*
+
+`rule:classes/an-added-property-lives-in-one-hidden-slot`
+
+An added property is either computed, a property with a `get` hook and no stored value, or stored,
+and a stored one lives in one hidden slot of its object that is `null` until the first write of any
+added property. A computed property is allowed on every type a block may extend, and compiles to a call
+of its hook, as a hooked property of a class does ([`classes/property-hooks`](classes.md#classes-property-hooks)). A `set`-only or a
+stored property is the stored case. A class's `PropertyGuard` and `PropertyObserver` never see an added
+property.
+
+**The slot.** It holds a pointer to a small array of the program's added values for that object, and
+is released with the object's other slots when the object is freed. No other object pays anything,
+nothing runs on any free path, and no address is ever a key, so a reused address never sees old
+values. The precedent is the hidden slot 0 of a revocable class ([`classes/revocable-objects`](classes.md#classes-revocable-objects)).
+
+- **On a class of the program**, the compiler adds the slot only when a loaded block adds a stored
+  property to the class. The slot sits in the class's own part of the layout, so every subclass has it
+  at the same index. The class's unit cache key covers the blocks that add properties to it, as
+  [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key) covers the extension set.
+- **On a `Core` class**, the registry records whether the class reserves the slot, after its declared
+  slots, so no `Core` member's slot index moves. Every `Core` class with instances reserves it,
+  except the value classes `Core\Time` compares by value, a class whose instances can be immortal
+  constants, such as `Core\Html\Markup`, and a namespace class with no instances. A test enumerates the
+  registry and fails on a class with instances and no recorded decision. A `Core` class whose layout a
+  `Core` subclass extends records "no slot" with its reason, and this fragment lists it.
+
+A stored property added to a class that takes no slot, to an interface or to an enum is **`E1014`**,
+whose help names a wrapper class of your own for data that belongs to such a value.
+
+**Reading and writing.** A read is a load of the slot, a null test and an indexed load. An unwritten
+property reads its default. A stored added property always declares one, so `readonly`, `?` and
+`lateinit` are refused on it ([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)).
+
+**Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
+session store skip it, and a revoke releases it with the other slots.
+
+**What it spends:** one pointer per instance of each class that takes the slot, and, per object that
+has an added value, one array of the program's added properties for its class. Both are charged to the
+request by the global allocator and freed with the object, so memory stays O(in-flight).
+
+**Declined:**
+- **Side storage keyed by object address.** Every object free in every program would gain a check, a
+  read would be a hash lookup, and a reused address would need its entry cleared first.
+- **Stored properties on the value classes.** A `Core\Time` value is immutable and compares by value,
+  every operation returns a new value, and `Core` cannot copy a value it does not know. A wrapper class
+  is the design for data that belongs to such a value.
+- **Copying added values with `clone`.** `clone` copies what the class declares, and a block is not
+  part of the class.
+
+<sub>See also [`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/revocable-objects`](classes.md#classes-revocable-objects), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key).</sub>
 
 <a id="classes-comparable"></a>
 

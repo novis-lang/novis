@@ -1,0 +1,12 @@
+{
+  "title": "An added member never replaces, overrides or satisfies anything, and only a statically typed call reaches it",
+  "status": "designed",
+  "seeAlso": [
+    "classes/an-extend-block-adds-members-to-a-type",
+    "classes/member-conflict-is-an-error",
+    "packaging/a-restriction-limits-where-a-declaration-is-used",
+    "attributes/a-deprecation-names-its-replacement-as-code"
+  ],
+  "guardedBy": [],
+  "goal": "extend-blocks"
+}

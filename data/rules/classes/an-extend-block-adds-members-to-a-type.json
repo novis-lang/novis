@@ -1,0 +1,13 @@
+{
+  "title": "`extend T as Name { … }` adds members to a type another package declares, seen where the block is used",
+  "status": "designed",
+  "seeAlso": [
+    "classes/an-added-member-never-changes-a-type",
+    "classes/an-added-property-lives-in-one-hidden-slot",
+    "core-api/core-classes-are-sealed",
+    "classes/a-type-is-declared-at-file-scope",
+    "programs/one-declaration-per-autoloaded-file"
+  ],
+  "guardedBy": [],
+  "goal": "extend-blocks"
+}

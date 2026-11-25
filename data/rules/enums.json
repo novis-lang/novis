@@ -11,6 +11,7 @@
     "enums/representation",
     "enums/truthiness",
     "enums/no-class-machinery",
+    "enums/an-enum-body-takes-methods-and-constants",
     "enums/reflection"
   ]
 }

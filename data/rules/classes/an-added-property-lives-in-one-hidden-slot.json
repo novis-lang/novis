@@ -1,0 +1,12 @@
+{
+  "title": "An added stored property lives in one hidden slot of its object, empty until the first write",
+  "status": "designed",
+  "seeAlso": [
+    "classes/an-extend-block-adds-members-to-a-type",
+    "classes/property-hooks",
+    "classes/revocable-objects",
+    "config/the-extension-set-is-in-every-unit-key"
+  ],
+  "guardedBy": [],
+  "goal": "extend-blocks"
+}

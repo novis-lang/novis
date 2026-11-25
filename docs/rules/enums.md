@@ -3,6 +3,8 @@
 
 # Enums
 
+*1 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -431,6 +433,36 @@ optimiser has proved it immutable.
   syntax for what a `static` method taking the enum already does.
 
 <sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection).</sub>
+
+<a id="enums-an-enum-body-takes-methods-and-constants"></a>
+
+## An enum body declares cases, methods and constants, and a method takes its case as `$this`  *(designed — owned by goal extend-blocks)*
+
+`rule:enums/an-enum-body-takes-methods-and-constants`
+
+An enum body declares cases, instance and static methods, and constants, and an enum method is a direct
+call that takes the case's integer as `$this`. The representation stays the integer constant of
+[`enums/representation`](enums.md#enums-representation): an enum has no descriptor, and no case is allocated.
+
+A property in an enum body is still **`E0220`**, and so is a nested enum. Its help names a class for
+state. An `implements` clause is still **`E0218`**. A method on a value typed as one case, `E::A`,
+resolves as it does on the enum. `$this` in an enum method is the case, and `self` names the enum.
+`self::Case` and `self::CONSTANT` work in the body.
+
+An enum declared in another package takes methods and constants through an `extend` block instead
+([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)), and a block of an enum the program declares
+is `E0337`.
+
+**What it spends:** an enum method costs what a static method taking the enum costs. Nothing per case
+and nothing per value.
+
+**Declined:**
+- **Properties on a case.** A case is an integer constant, and a property would need an object.
+- **An `implements` clause.** A case would need a descriptor for dispatch through the interface.
+- **Keeping methods on a helper class.** It splits one type's behaviour across two names, and
+  `$case->label()` reads as the type's own operation.
+
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation), [`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type).</sub>
 
 <a id="enums-reflection"></a>
 

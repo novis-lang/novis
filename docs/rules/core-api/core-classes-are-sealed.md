@@ -34,3 +34,5 @@ The check is a binary search of the `Core` descriptors by address and one name c
   parent: its members read slots, and a subclass would need a second layout contract that every
   member keeps. A class of the program's own with a property that holds the `Core` value covers the
   same need.
+- **A subclass to add methods to a `Core` class.** An `extend` block adds them without a layout of
+  its own (`rule:classes/an-extend-block-adds-members-to-a-type`).
