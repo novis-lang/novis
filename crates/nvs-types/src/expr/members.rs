@@ -396,15 +396,11 @@ pub(crate) fn enum_backing(ty: TypeId, env: &Env<'_>) -> Option<crate::enums::En
 /// The `E0792` half of the arm above, which owns why the read and not the
 /// declaration is the position.
 ///
-/// The help names the three shapes that reach it, because after
-/// [`crate::defaults::eval_const_value`]'s array fold they are the whole of
-/// what is left: another class's constant, an enum case, and `Foo::class` —
-/// written as the value itself or nested inside a container, since neither
-/// position folds. Each is a compile-time constant `rule:attributes/payload-is-a-compile-time-constant` already admits
-/// at a *property* default ([`crate::defaults::const_reference_default`]) and
-/// none has a `ConstArg` here, so the refusal is a gap named rather than a
-/// rule: what closes it is that resolver, one position along, which needs the
-/// `Ctx` this table's collection pass does hold.
+/// The help names what folds and the one common shape that does not: another
+/// class's constant whose value is an array or an enum case.
+/// [`crate::defaults::eval_const_value`] folds a case, a case `as int`,
+/// `Foo::class` and another class's literal constant, but it reads other
+/// constants from [`crate::consts`], which folds literals alone.
 /// Whether a folded constant is one of the kinds a class descriptor's table
 /// carries (`nvs_runtime::ConstantValue`): the four scalars, with `uint`
 /// travelling as the `int` bits it is. A `static::` read of anything else has
@@ -477,10 +473,9 @@ fn report_unfoldable_const(
         .with_primary(expr.span, "this constant's declaration folds to no value")
         .with_help(
             "a class constant is copied into every place that uses it, so its value must be \
-             known when the program compiles. Write it as a number, a string, or an array of \
-             them. This compiler cannot yet do that for another class's constant, an enum \
-             case or `Foo::class`, alone or inside an array. Write the value out here, or \
-             move it to a `static` property that the class sets",
+             known when the program compiles. Write it as a number, a string, an enum case, \
+             `Foo::class` or an array of these. Another class's constant works only when its \
+             value is a number or a string. Write that array or enum case out here instead",
         ),
     );
 }

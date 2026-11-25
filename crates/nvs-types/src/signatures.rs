@@ -1946,7 +1946,7 @@ fn collect_member(
                 Some(written) => lower_type(written, ctx, env),
                 None => folded_const_ty(qname, &name, env),
             };
-            let value = crate::defaults::eval_const_value(&c.value, ty, env);
+            let value = crate::defaults::eval_const_value(&c.value, ty, Some(ctx), env);
             // An unannotated constant is already `E0246`, and its type is
             // read off the value, so only a written type is checked.
             let refused = value.is_none()

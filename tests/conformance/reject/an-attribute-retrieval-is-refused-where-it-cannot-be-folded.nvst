@@ -6,12 +6,12 @@ repeatable attribute Route on class { path: string }
 attribute Code on class { code: mixed }
 
 class Limits {
-    public const int MAX = 5;
+    public const array<int> SIZES = [5];
     // A constant whose own declaration folds to no value: `rule:classes/no-free-functions-or-constants` inlines a
-    // class constant at every use site, and this compiler does not fold one
-    // constant into another. That gap is `E0792` at a read, and it is the
-    // whole of what `E0731` is left reporting below.
-    public const int RELAY = Limits::MAX;
+    // class constant at every use site, and another constant folds into one only
+    // when its value is a number or a string. That gap is `E0792` at a read, and
+    // it is the whole of what `E0731` is left reporting below.
+    public const array<int> RELAY = Limits::SIZES;
 }
 
 #[Route(path: "/a")]
@@ -57,7 +57,7 @@ error[E0792]: `Limits::RELAY` has no compile-time value to inline
    |
 21 | #[Code(code: Limits::RELAY)]
    |              ^^^^^^^^^^^^^ this constant's declaration folds to no value
-   = help: a class constant is copied into every place that uses it, so its value must be known when the program compiles. Write it as a number, a string, or an array of them. This compiler cannot yet do that for another class's constant, an enum case or `Foo::class`, alone or inside an array. Write the value out here, or move it to a `static` property that the class sets
+   = help: a class constant is copied into every place that uses it, so its value must be known when the program compiles. Write it as a number, a string, an enum case, `Foo::class` or an array of these. Another class's constant works only when its value is a number or a string. Write that array or enum case out here instead
 
 error[E0731]: this attribute has a value that the compiler cannot compute
    --> case.nvs:21:14

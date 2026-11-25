@@ -632,13 +632,13 @@ codes! {
     /// is written with (`nvs_types::defaults`), so it has to be a compile-time
     /// constant of the property's own declared type. Its own code rather than
     /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
-    /// a property may be defaulted to `[]`, to an enum case or to another
-    /// class's `const` — `rule:attributes/payload-is-a-compile-time-constant`'s whole set — and a parameter to a
-    /// literal only.
+    /// a property may be defaulted to an enum case, another class's `const`,
+    /// `Foo::class` and an array of these, as a class constant may — and a
+    /// parameter to a literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472").card(
         "The default value of a property must be a constant of the property's type. Write a \
-         value such as `0` or `'text'`, `[]`, an enum case or a `const` of another class. Set any other value in the \
-         constructor.",
+         value such as `0` or `'text'`, an enum case, a `const` of another class, `Foo::class` \
+         or an array of these. Set any other value in the constructor.",
     );
     /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `is` plus
     /// `rule:types/unions-and-mixed`'s narrowing already answers class membership, so the

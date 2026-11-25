@@ -1,0 +1,71 @@
+--TEST--
+A class constant and a property default hold an enum case, alone and inside an array, with keys written as a case `as int`, another class's constant and a class name (`rule:enums/no-class-machinery`)
+--FILE--
+<?nvs
+// covers: lang:types/properties-and-constants
+// Each constant is computed when the program compiles. A case inside an array
+// is still a case, so `is` and a `match` see its enum.
+enum Priority { Low, Medium, High }
+enum Size: uint { Small = 1, Large = 2 }
+
+final class Limits {
+    public const int MAX = 10;
+}
+
+final class Defaults {
+    public const Priority URGENT = Priority::High;
+    public const array<Priority> ORDER = [Priority::High, Priority::Medium, Priority::Low];
+    public const array<string> LABELS = [
+        Priority::Low as int => "low",
+        Priority::Medium as int => "medium",
+        Priority::High as int => "high",
+    ];
+    public const array<uint> SIZES = [Size::Small as uint, Size::Large as uint];
+    public const array<array<Priority>> GROUPS = ["now" => [Priority::High], "later" => [Priority::Low, Priority::Medium]];
+    public const array<int> LIMITS = [Limits::MAX, 3];
+    public const array<string> CLASSES = [Limits::class, Defaults::class];
+    public const string SELF_NAME = Defaults::class;
+}
+
+final class Queue {
+    public array<Priority> $order = [Priority::Low, Priority::High];
+    public static array<string> $labels = [Priority::Low as int => "low", Priority::High as int => "high"];
+}
+
+final class Names {
+    public static function of(Priority $p): string {
+        return match ($p) {
+            Priority::Low => "low",
+            Priority::Medium => "medium",
+            Defaults::URGENT => "urgent",
+        };
+    }
+}
+
+echo Names::of(Defaults::URGENT), "\n";
+foreach (Defaults::ORDER as var $p) {
+    echo Names::of($p), ";";
+}
+echo "\n";
+echo Defaults::LABELS[Priority::Medium as int], "\n";
+echo Defaults::SIZES[1], "\n";
+echo Core\Arr::count(Defaults::GROUPS["later"]) as string, " ", Names::of(Defaults::GROUPS["now"][0]), "\n";
+mixed $first = Defaults::ORDER[0];
+echo ($first is Priority) ? "a case" : "not a case", "\n";
+echo Defaults::LIMITS[0], " ", Defaults::LIMITS[1], "\n";
+echo Defaults::CLASSES[0], " ", Defaults::CLASSES[1], " ", Defaults::SELF_NAME, "\n";
+Queue $queue = new Queue();
+$queue->order[] = Priority::Medium;
+echo Names::of($queue->order[1]), " ", Core\Arr::count($queue->order) as string, " ", Core\Arr::count((new Queue())->order) as string, "\n";
+echo Queue::$labels[Priority::High as int], "\n";
+--EXPECT--
+urgent
+urgent;medium;low;
+medium
+2
+2 urgent
+a case
+10 3
+Limits Defaults Defaults
+urgent 3 2
+high

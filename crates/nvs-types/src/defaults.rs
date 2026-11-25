@@ -432,12 +432,15 @@ fn class_reference_default(
 /// accumulating into an `array<T>` has to write the assignment by hand in
 /// every constructor it declares. And a *named* constant — `Mode::Fast`,
 /// `Limits::MAX` — is folded by [`const_reference_default`], which is `rule:attributes/payload-is-a-compile-time-constant`'s constant set arriving one position along from the attribute payload
-/// it was written for.
+/// it was written for. Every other shape takes a class constant's fold,
+/// [`eval_const_value`], so a non-empty array, a table of enum cases and keys
+/// written `Priority::High as int` are a default too.
 ///
 /// Unlike a parameter default, this constant is never emitted at a *call
 /// site*: it is copied onto the class descriptor and written into the fresh
 /// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
-/// constant is reachable here at all. A folded enum case reaches the slot as
+/// constant is reachable here at all. A folded array is
+/// `nvs_runtime::FieldDefault::Array`, built afresh for each instance. A folded enum case reaches the slot as
 /// `nvs_runtime::FieldDefault::EnumInt` or `EnumUint`, under the enum tag a
 /// written case carries. A written `Foo::class` at a `class<T>` property is
 /// [`class_reference_default`]'s, as it is at a parameter.
@@ -462,7 +465,9 @@ pub(crate) fn eval_property_default(
     } else if matches!(&expr.kind, ExprKind::ClassNameConst { .. }) {
         class_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
-        literal_default(expr, declared, env)
+        // A literal, and a table such as `[Priority::High, Priority::Low]`: the
+        // fold a class constant takes, in the property's class.
+        eval_const_value(expr, declared, Some(ctx), env)
     };
     if value.is_none() && !reported {
         let want = env.interner.describe(declared);
@@ -472,10 +477,10 @@ pub(crate) fn eval_property_default(
         )
         .with_primary(expr.span, "not a constant of the declared type")
         .with_help(
-            "a property default is evaluated once, at compile time, and written into \
-             every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`decimal`/`string` \
-             value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; \
-             anything else belongs in `constructor`",
+            "a property default is computed once, when the program compiles, and copied into \
+             every new object. Write a value such as `0` or `'text'`, an enum case, another \
+             class's `const`, `Foo::class` or an array of these. Set any other value in \
+             `constructor`",
         );
         let report = with_class_name_help(report, declared, env);
         env.diags.report(report);
@@ -912,18 +917,31 @@ fn atom_default(expr: &Expr, declared: TypeId, env: &mut Env<'_>, widen: bool) -
 /// is accepted at a *wrong* type on the way: an element the grid refuses is the
 /// whole constant refused, since a half-folded array has no value to inline.
 ///
+/// `ctx` is the class the constant is declared in. With it, a **named** value
+/// folds too, alone and as an array element at any depth ([`named_const_value`]):
+/// an enum case, `Priority::High as int`, another class's constant whose value
+/// is a literal, and `Foo::class`. `None` is a position with no class, the
+/// options of a test attribute, where only literals fold.
+///
 /// `None` for a value with no constant form, which the *read* refuses with
 /// `E0792` — [`crate::expr::members`] owns why that is the position rather than
-/// this one. Two shapes reach it: the named constants of `rule:attributes/payload-is-a-compile-time-constant` that
-/// [`const_reference_default`] resolves one position along and this pass does
-/// not, and a shape-typed constant, whose fields would each need placing
-/// against the declared shape's own.
+/// this one. Three shapes reach it: another class's constant that is itself an
+/// array or an enum case, since [`crate::consts`] folds literals alone and runs
+/// before this pass; `static::class`, which has no class before a method runs;
+/// and a shape-typed constant, whose fields would each need placing against the
+/// declared shape's own. A cycle between two constants is the first of these.
 pub(crate) fn eval_const_value(
     expr: &Expr,
     declared: TypeId,
+    ctx: Option<&Ctx<'_>>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
     if let Some(value) = literal_default(expr, declared, env) {
+        return Some(value);
+    }
+    if let Some(ctx) = ctx
+        && let Some(value) = named_const_value(expr, declared, ctx, env)
+    {
         return Some(value);
     }
     let Ty::Array(element) = *env.interner.get(declared) else {
@@ -938,7 +956,81 @@ pub(crate) fn eval_const_value(
         // `nvs_ir::ir::InstKind::ArrayNew`.
         return Some(ConstArg::EmptyArray);
     }
-    fold_const_array(items, Some(element), None, env)
+    fold_const_array(items, Some(element), ctx, env)
+}
+
+/// A named value at a constant's declared type: an enum case, `$case as int`,
+/// another class's constant and `Foo::class`. [`eval_const_value`]'s second
+/// try, after the literal grid.
+///
+/// Each is placed against `declared` as a written literal is. A case folds only
+/// where `declared` is its own enum, so an element of `array<Priority>` is a
+/// case under the enum's tag ([`ConstArg::EnumInt`]). `Foo::class` is a class
+/// reference at a `class<T>` type and the class's name at a `string` one, as the
+/// expression is in a method body. Reports nothing: the read reports `E0792` for
+/// a value that does not fold. Costs check time only, and nothing at run time,
+/// because the value is inlined like any constant.
+fn named_const_value(
+    expr: &Expr,
+    declared: TypeId,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    match &expr.kind {
+        ExprKind::Paren(inner) => named_const_value(inner, declared, ctx, env),
+        ExprKind::ClassConstAccess { .. } => {
+            const_reference_default(expr, declared, ctx, None, env)
+        }
+        ExprKind::ClassNameConst { class } => {
+            if crate::expr::members::class_reference_targets(declared, env).is_some() {
+                return class_reference_default(expr, declared, ctx, None, env);
+            }
+            if matches!(class.kind, ExprKind::StaticExpr) {
+                return None;
+            }
+            let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+            place_const(ConstArg::Str(qname.to_string()), declared, env)
+        }
+        ExprKind::Conversion {
+            expr: inner,
+            ty,
+            legacy: false,
+        } => {
+            let value = case_as_integer(inner, ty, ctx, env)?;
+            place_const(value, declared, env)
+        }
+        _ => None,
+    }
+}
+
+/// `Priority::High as int` or `as uint`: the case's backing integer, where the
+/// target is the enum's own backing type. Any other conversion has no constant
+/// form here, and `None` leaves it to the read's `E0792`.
+fn case_as_integer(
+    expr: &Expr,
+    target: &nvs_syntax::ast::Type,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let mut expr = expr;
+    while let ExprKind::Paren(inner) = &expr.kind {
+        expr = inner;
+    }
+    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
+        return None;
+    };
+    if matches!(class.kind, ExprKind::StaticExpr) {
+        return None;
+    }
+    let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+    let member = crate::span_text(env.src, *name).to_owned();
+    let case = env.enums.case(&qname, &member)?;
+    env.uses.member(&qname, &member);
+    match (crate::span_text(env.src, target.span), case) {
+        ("int", crate::enums::EnumValue::Int(value)) => Some(ConstArg::Int(value)),
+        ("uint", crate::enums::EnumValue::Uint(value)) => Some(ConstArg::Uint(value)),
+        _ => None,
+    }
 }
 
 /// One array literal's entries under the `string` keys `rule:types/arrays` gives them,
@@ -979,7 +1071,7 @@ fn fold_const_array(
             }
         };
         let value = match element {
-            Some(element) => eval_const_value(value, element, env)?,
+            Some(element) => eval_const_value(value, element, ctx, env)?,
             None => fold_constant_value(value, ctx, env)?,
         };
         out.push((key, value));
@@ -999,10 +1091,10 @@ fn fold_const_array(
 /// it in.
 ///
 /// `ctx` is the scope a **named** constant in this value resolves through, and
-/// `None` says the caller has none to offer: the declaration folds
-/// ([`eval_const_value`]) run before the pass that would answer, so they hand
-/// `None` and a `Mode::Fast` written there is left to
-/// [`const_reference_default`] one position along. `rule:attributes/retrieval-folds-while-checking`'s payload fold
+/// `None` says the caller has none to offer. A class constant's fold
+/// ([`eval_const_value`]) hands its class for the keys of an array, where a case
+/// and `Priority::High as int` fold; a user class's constant does not fold there,
+/// since that pass runs before the table that holds it. `rule:attributes/retrieval-folds-while-checking`'s payload fold
 /// is the caller that does have one — the attach site's own, never the
 /// retrieval's — and [`fold_const_reference`] is what it buys.
 pub(crate) fn fold_constant_value(
@@ -1068,6 +1160,12 @@ pub(crate) fn fold_constant_value(
         ExprKind::ClassConstAccess { .. } | ExprKind::ClassNameConst { .. } if !negated => {
             fold_const_reference(inner, ctx?, env)
         }
+        // `Priority::High as int`, such as a key of a constant table.
+        ExprKind::Conversion {
+            expr: operand,
+            ty,
+            legacy: false,
+        } if !negated => case_as_integer(operand, ty, ctx?, env),
         _ => None,
     }
 }

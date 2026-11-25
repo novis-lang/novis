@@ -1112,9 +1112,14 @@ pub enum FieldDefault {
     /// `string`, already cooked — the octets the slot's fresh
     /// [`crate::NvsStr`] holds.
     Str(String),
-    /// `[]` — a fresh empty array, which is the only array constant there is
-    /// (`nvs_types::defaults::ConstArg::EmptyArray`).
+    /// `[]` — a fresh empty array (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
+    /// A folded array constant, such as a table of enum cases: each entry's
+    /// key and its own recipe, in the order they were written
+    /// (`nvs_types::defaults::ConstArg::Array`). **Cost:** one array and one
+    /// allocation per string entry for each fresh instance, the same work the
+    /// array literal in a constructor does.
+    Array(Vec<(String, FieldDefault)>),
     /// `null`, written `= null` where the declared type admits one. A slot
     /// already starts out `null`, so on a property it only stops an
     /// ancestor's default winning the slot; its reader is a decoder, which
@@ -1187,6 +1192,13 @@ impl FieldDefault {
             Self::Decimal(v) => Value::decimal(*v),
             Self::Str(s) => Value::text(s),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
+            Self::Array(entries) => {
+                let mut array = crate::NvsArray::with_capacity(entries.len());
+                for (key, value) in entries {
+                    array.set(crate::NvsStr::new(key.as_bytes()), value.materialize());
+                }
+                Value::array(array)
+            }
             Self::Null => Value::null(),
             Self::Unset => Value::unset(),
             Self::Class(addr) => {

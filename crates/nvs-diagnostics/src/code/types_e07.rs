@@ -1549,14 +1549,14 @@ codes! {
     /// Distinct from [`E_SINGLE_VALUE_TYPE_NOT_CONST`], which refuses the same
     /// declaration in *type* position under `rule:types/constant-in-type-position`'s narrower question
     /// ("is this a `string` or `int` single-value type"). An `array` constant is
-    /// legal here and refused there, and after the array fold this code is
-    /// down to the shapes no constant emitter exists for at all — another
-    /// class's `const`, an enum case, and `Foo::class` nested inside a
-    /// container.
+    /// legal here and refused there. The folder takes an enum case, a case
+    /// `as int`, `Foo::class` and another class's literal constant, alone or
+    /// inside an array, so this code is down to another class's constant that
+    /// is itself an array or an enum case, `static::class`, and a shape.
     pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792").card(
-        "The value of this class constant cannot be computed when the program compiles, \
-         because it uses another class's constant, an enum case or `Foo::class`. Write the \
-         value out directly, as a number, a string in quotes, or an array of them.",
+        "The value of this class constant cannot be computed when the program compiles. A \
+         constant can use another class's constant only when that value is a number or a \
+         string. Write the array or the enum case out in this constant instead.",
     );
 
     /// `rule:types/callable-values`'s `(...)` naming a member whose parameter list a

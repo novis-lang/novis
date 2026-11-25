@@ -1276,7 +1276,7 @@ pub(crate) fn fold_options(
         };
         // `eval_const_value` rather than `literal_default`, because `tags` is an array and
         // `literal_default` folds no array but the empty one.
-        if let Some(value) = crate::defaults::eval_const_value(&field.value, declared, env) {
+        if let Some(value) = crate::defaults::eval_const_value(&field.value, declared, None, env) {
             folded.push((name, value));
         }
     }
@@ -1388,7 +1388,7 @@ pub(crate) fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>)
                 },
                 _ => continue,
             },
-            "tags" => match crate::defaults::eval_const_value(&field.value, tags, env) {
+            "tags" => match crate::defaults::eval_const_value(&field.value, tags, None, env) {
                 Some(crate::defaults::ConstArg::Array(entries))
                     if entries.iter().any(|(_, tag)| {
                         matches!(tag, crate::defaults::ConstArg::Str(text) if text.trim().is_empty())
@@ -1401,7 +1401,7 @@ pub(crate) fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>)
                 }
                 _ => continue,
             },
-            "env" => match crate::defaults::eval_const_value(&field.value, tags, env) {
+            "env" => match crate::defaults::eval_const_value(&field.value, tags, None, env) {
                 Some(crate::defaults::ConstArg::Array(entries))
                     if entries.iter().any(|(name, _)| !is_env_name(name)) =>
                 {

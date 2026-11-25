@@ -429,6 +429,14 @@ fn value_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         } => FieldDefault::decimal(*negative, *mantissa, *scale),
         ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
+        // A folded table, such as `array<Priority> $order = [Priority::High]`. An
+        // element with no recipe, a class reference among them, leaves the whole
+        // default unlowered, as `eval_property_default` never folds one there.
+        ConstArg::Array(entries) => entries
+            .iter()
+            .map(|(key, value)| Some((key.clone(), value_default(value)?)))
+            .collect::<Option<Vec<_>>>()
+            .map(FieldDefault::Array),
         ConstArg::Null => Some(FieldDefault::Null),
         ConstArg::Bytes(_)
         // Handled by `field_default`, before this is called.
@@ -443,8 +451,7 @@ fn value_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         | ConstArg::Built { .. }
         // `rule:attributes/retrieval-folds-while-checking`'s folded retrieval, which is an expression's value and
         // never a written property default.
-        | ConstArg::Shape(_)
-        | ConstArg::Array(_) => None,
+        | ConstArg::Shape(_) => None,
     }
 }
 
