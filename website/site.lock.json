@@ -3629,6 +3629,9 @@
   "docs/examples/lang/classes/declaring-a-class/about.md": {
     "lang:classes/declaring-a-class": "e7e29f3cb55816ff"
   },
+  "docs/examples/lang/classes/extend-blocks/about.md": {
+    "lang:classes/extend-blocks": "989576d00429845a"
+  },
   "docs/examples/lang/classes/inheritance/about.md": {
     "lang:classes/inheritance": "25e1eb3c6d112520"
   },
@@ -3723,7 +3726,7 @@
     "lang:enums/core-enums": "0e00ad3eca9b976e"
   },
   "docs/examples/lang/enums/declaring-an-enum/about.md": {
-    "lang:enums/declaring-an-enum": "265383ab6c148e57"
+    "lang:enums/declaring-an-enum": "8e43620e0b6d3211"
   },
   "docs/examples/lang/enums/from-an-integer-back-to-a-case/about.md": {
     "lang:enums/from-an-integer-back-to-a-case": "772932669c1c14ec"
@@ -3732,7 +3735,7 @@
     "lang:enums/match-and-switch-over-an-enum": "d10023cdaf705047"
   },
   "docs/examples/lang/enums/what-an-enum-does-not-have/about.md": {
-    "lang:enums/what-an-enum-does-not-have": "1fd5563a42aff370"
+    "lang:enums/what-an-enum-does-not-have": "d98e64f7c8dd405c"
   },
   "docs/examples/lang/errors/an-uncaught-throw/about.md": {
     "lang:errors/an-uncaught-throw": "efb65fd4bf4d89fd"
@@ -3855,7 +3858,7 @@
     "lang:programs/comments": "3de243587c58b114"
   },
   "docs/examples/lang/programs/doc-comments/about.md": {
-    "lang:programs/doc-comments": "1a57ec2219b78f44"
+    "lang:programs/doc-comments": "ce79641d4d7cfd93"
   },
   "docs/examples/lang/programs/ending-a-program/about.md": {
     "lang:programs/ending-a-program": "da557f190da41531"
@@ -9680,7 +9683,7 @@
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "09bf404ca5c6d9e7",
-    "lang:programs/doc-comments": "bfee10c68b393d93"
+    "lang:programs/doc-comments": "3ca10ef8ebbfbd4a"
   },
   "syntax/basics/constants.mdx": {
     "lang:classes/constants-and-class": "798d0b87e518cc14"
@@ -9701,6 +9704,9 @@
   },
   "syntax/classes/declaring.mdx": {
     "lang:classes/declaring-a-class": "105095d5ce39ba12"
+  },
+  "syntax/classes/extend-blocks.mdx": {
+    "lang:classes/extend-blocks": "426b8432fb46b09a"
   },
   "syntax/classes/interfaces.mdx": {
     "lang:classes/interfaces": "c2df17e11935d2ac"
@@ -9968,11 +9974,11 @@
     "lang:enums/an-enum-as-a-type": "571f8d901056468a",
     "lang:enums/an-enum-inside-a-class": "1fc16276688bcd47",
     "lang:enums/comparing-cases": "a0a08f99c81ee55d",
-    "lang:enums/core-enums": "699d423fd96d6be6",
-    "lang:enums/declaring-an-enum": "1cd5ec8be37bd5a8",
+    "lang:enums/core-enums": "ed3725c2bba7b19b",
+    "lang:enums/declaring-an-enum": "8ed2e392822c8b07",
     "lang:enums/from-an-integer-back-to-a-case": "93fa43fd89189064",
     "lang:enums/match-and-switch-over-an-enum": "b1b08136e24c2f3c",
-    "lang:enums/what-an-enum-does-not-have": "66c326760d04130e",
+    "lang:enums/what-an-enum-does-not-have": "b6d2cc8af41fa5e0",
     "Novis\\Image\\Barcode::Symbology": "1f49c8b546a9610b",
     "Novis\\Image\\Format": "1422563cabdafbd4",
     "Novis\\Image\\Image::Align": "0d38707471639418",

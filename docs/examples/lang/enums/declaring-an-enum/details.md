@@ -2,9 +2,10 @@ A case value is a whole number written in the code. It may be negative, and it m
 (`0x10`), in binary (`0b11`) or with underscores (`1_000`). Anything else is the error `E0436`. That
 covers a calculation such as `1 << 3`, another case, a class constant, a `float` and a string.
 
-A value that does not fit the backing type is the error `E0437`. `enum M: uint { A = -1 }` is one
-example. A case with no value after the largest possible number is `E0437` too, because no number is
-left to count on to.
+The backing type is the type of number behind the cases, `int` or `uint`. A value that does not fit
+it is the error `E0437`. `enum M: uint { A = -1 }` is one
+example. A case with no value written after a case with the largest possible number is `E0437` too. It
+has no next number.
 
 A comma after the last case is allowed. An enum with no cases compiles.
 
@@ -28,8 +29,8 @@ These forms do not compile:
 - A constant with the same name as a case is the error `E0304`.
 - A `;` between cases is a syntax error (`E0101`).
 - `implements` on an enum is the error `E0218`.
-- `enum Suit: string` is the error `E0219`. Any other backing type except `int` and `uint` is
-  `E0438`.
+- `enum Suit: string` is the error `E0219`. Every other backing type is
+  `E0438`. Only `int` and `uint` are allowed.
 - An enum with the same name as another enum or a class in the file is the error `E0304`.
 - An enum declared inside a method is the error `E0233`. Declare it at the top level of the file,
   or in a class body.

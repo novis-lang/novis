@@ -1,5 +1,5 @@
 <?nvs
-// Adds two properties to the route of a request, so one class can store a value there for another.
+// Adds two stored properties to `Core\Router\Match`, the route of a request. One class writes them and another class reads them.
 
 namespace Shop;
 

@@ -22,16 +22,17 @@ The body may also declare methods and constants, but no properties. Inside a met
 case the method is called on, as in `Level::Info->label()`.
 
 **The examples below** show an enum with no numbers written, then an enum whose numbers you choose,
-then permissions where each case is one bit. Example 04 counts on from a written number. Examples 05
+then permissions where each case is one bit. In example 04, the cases after a written number get the next numbers. Examples 05
 to 07 show three enums that do not compile. Example 08 shows a constant and a method.
 
 A case value is a whole number written in the code. It may be negative, and it may be written in hex
 (`0x10`), in binary (`0b11`) or with underscores (`1_000`). Anything else is the error `E0436`. That
 covers a calculation such as `1 << 3`, another case, a class constant, a `float` and a string.
 
-A value that does not fit the backing type is the error `E0437`. `enum M: uint { A = -1 }` is one
-example. A case with no value after the largest possible number is `E0437` too, because no number is
-left to count on to.
+The backing type is the type of number behind the cases, `int` or `uint`. A value that does not fit
+it is the error `E0437`. `enum M: uint { A = -1 }` is one
+example. A case with no value written after a case with the largest possible number is `E0437` too. It
+has no next number.
 
 A comma after the last case is allowed. An enum with no cases compiles.
 
@@ -55,8 +56,8 @@ These forms do not compile:
 - A constant with the same name as a case is the error `E0304`.
 - A `;` between cases is a syntax error (`E0101`).
 - `implements` on an enum is the error `E0218`.
-- `enum Suit: string` is the error `E0219`. Any other backing type except `int` and `uint` is
-  `E0438`.
+- `enum Suit: string` is the error `E0219`. Every other backing type is
+  `E0438`. Only `int` and `uint` are allowed.
 - An enum with the same name as another enum or a class in the file is the error `E0304`.
 - An enum declared inside a method is the error `E0233`. Declare it at the top level of the file,
   or in a class body.
@@ -1744,7 +1745,7 @@ warn
 
 ```nvs
 <?nvs
-// Shows where the behaviour of an enum goes. The enum has the states of an
+// Shows methods in an enum. The enum has the states of an
 // order, and its methods say what each state means.
 
 enum Status
@@ -1857,15 +1858,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 The enums that come with Novis. They work exactly like the ones you write yourself.
 
 `Core\Arr::Order` chooses the direction of a sort. It is declared in the class `Core\Arr`, whose
-methods use it. `Core\RoundMode` chooses how a number is rounded. Part B of the reference lists the
+methods use it. `Core\RoundMode` chooses how a number is rounded. The `Core` reference lists the
 rest.
 
 A case is written `Core\Arr::Order::Desc`. You pass it to a method that needs it. You can keep it in a
-variable of type `Core\Arr::Order`, compare it with `==`, use it in a `match`, and convert it to its
-number with `as int`.
+variable of type `Core\Arr::Order` and compare it with `==`. You can use it in a `match` and convert
+it to its number with `as int`.
 
-Nothing about these enums is special. They have no `->value`, the same as your own. To add a method
-to one, write an `extend` block.
+Like your own enums, they have no `->value`. To add a method to one, write an `extend` block: a block
+that adds members to a type from `Core`.
+
 `as Core\Arr::Order` or `as ?Core\Arr::Order` converts a number back into a case. A method that takes
 one of these enums accepts only its cases. A wrong value is an error when the program is compiled.
 

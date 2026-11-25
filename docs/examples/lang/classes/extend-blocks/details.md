@@ -10,9 +10,9 @@ A block may add these members:
 - Constants.
 - A property with a `get` hook and no stored value. Every read runs the hook.
 - A stored property. It needs a default value, a `?` type or `lateinit`. Only a class can store one.
-- A nested `enum`, and a nested `attribute`. An enum cannot get either.
+- A nested `enum`, and a nested `attribute`. A block on an enum cannot add these two.
 
-A block cannot add these members, and each one is the error `E0338`: a constructor, a `protected`, `abstract` or `final` member, a `static` property, a `readonly` property, a stored property with no default, and a new enum case. Inside a block, `parent`, `static::` and `new static` are `E0338` too. Write `self` in place of `static`. A static method of a block cannot use `yield`, and on an enum no method of a block can.
+A block cannot add these members, and each one is the error `E0338`: a constructor, a `protected`, `abstract` or `final` member, a `static` property, a `readonly` property, a stored property with no default, and a new enum case. Inside a block, `parent`, `static::` and `new static` are `E0338` too. Write `self` instead of `static`. A static method of a block cannot use `yield`, and on an enum no method of a block can.
 
 Inside a block, `$this` has the type that the block extends, and `self` names that type. The body sees the `public` members of the type, the members of its own block, and the members of other blocks its file uses. A `private` member of the type is the error `E0471`. A `private` added member is visible only inside its own block.
 
@@ -27,12 +27,12 @@ Some methods are called by name by the runtime. Examples are `compareTo`, `toStr
 
 A value whose type is a union finds an added method only when every type in the union gets it from the same block. Otherwise the call is the error `E1013`. Use `is` to check the type first.
 
-A stored property cannot be added to an interface, to an enum, or to a class that has no place for it. That is the error `E1014`. The `Core\Time` classes such as `Core\Time\Date` are such classes. Wrap the value in a class of your own instead. Before its first write, a stored property reads its default. A `?` property with no default reads `null`. A `lateinit` property throws an error when it is read before a write. A write of one array element through an added property, such as `$order->tags[] = 'x'`, is the error `E0478`. Read the array into a variable, change it there, and assign it back.
+A stored property cannot be added to an interface, to an enum, or to a `Core` class that does not allow it. That is the error `E1014`. The `Core\Time` classes, such as `Core\Time\Date`, do not allow it. Wrap the value in a class of your own instead. Before its first write, a stored property reads its default. A `?` property with no default reads `null`. A `lateinit` property throws an error when it is read before a write. A write of one array element through an added property, such as `$order->tags[] = 'x'`, is the error `E0478`. Read the array into a variable, change it there, and assign it back.
 
 `clone` gives a copy whose added properties have their defaults again. A copy sent to a task starts the same way. JSON, `Core\Reflect`, `==` and the session store do not read added properties. `Core\Reflect` does not list an added method. A call of one through a `mixed` value or `object` throws an error, as for a method that does not exist.
 
 A block for a generic `Core` class gives a new name to each type parameter, such as `extend Core\ObjectMap<K, V> as Index { … }`. A list that does not match the type parameters is the error `E0338`. So a block for one exact type, such as `Core\ObjectMap<Tag, int>`, does not compile.
 
-A `[[restrict]]` entry in `package.toml` names an added method by its block, such as `'Acme\Billing\InvoiceDates::lateFeeFrom'`. A use where the entry does not allow it is the error `E0664`. An entry for the extended type does not cover the members a block adds. The code of a block counts as code in the namespace of the block. So a block cannot call a member of its type that is restricted to that type.
+A `[[restrict]]` entry in `package.toml` names an added method by its block, such as `'Acme\Billing\InvoiceDates::lateFeeFrom'`. A use where the entry does not allow it is the error `E0664`. An entry for the extended type does not cover the members a block adds. The code inside a block is checked as code in the namespace of the block. So a block cannot call a member that is restricted to its type.
 
 `#[Core\Deprecated]` on a block or on an added member gives a warning at each use.

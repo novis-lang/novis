@@ -12,5 +12,5 @@ The body may also declare methods and constants, but no properties. Inside a met
 case the method is called on, as in `Level::Info->label()`.
 
 **The examples below** show an enum with no numbers written, then an enum whose numbers you choose,
-then permissions where each case is one bit. Example 04 counts on from a written number. Examples 05
+then permissions where each case is one bit. In example 04, the cases after a written number get the next numbers. Examples 05
 to 07 show three enums that do not compile. Example 08 shows a constant and a method.

@@ -1,5 +1,5 @@
 <?nvs
-// Shows where the behaviour of an enum goes. The enum has the states of an
+// Shows methods in an enum. The enum has the states of an
 // order, and its methods say what each state means.
 
 enum Status
