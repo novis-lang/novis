@@ -1,0 +1,47 @@
+--TEST--
+An `array<E, T>` takes only cases of `E` as keys, has no append, and `array<K, T>` needs an enum `K` (`rule:types/arrays`)
+--FILE--
+<?nvs
+// covers: lang:enums/an-enum-as-a-type
+// Each refused line below is one mistake and gets its own error.
+// A number or a string becomes a key only after `as Priority` checks it.
+enum Priority { Low, Medium, High }
+enum Size { Small, Large }
+
+array<Priority, string> $labels = [Priority::Low => "low"];
+
+// Refused: an `int` is not a case.
+$labels[1] = "medium";
+
+// Refused: a `string` is not a case.
+$labels["2"] = "high";
+
+// Refused: a case of another enum.
+$labels[Size::Small] = "small";
+
+// Refused: an enum-keyed array has no next key to append under.
+$labels[] = "other";
+
+// Refused: only an enum can be the key type.
+array<string, int> $counts = [];
+
+// Accepted: `as Priority` checks the number first.
+$labels[1 as Priority] = "medium";
+--EXPECTF-ERROR--
+error[E0434]: the keys of this array are cases of `Priority`, and this key is `int`
+   --> case.nvs:11:9
+%A
+error[E0434]: the keys of this array are cases of `Priority`, and this key is `string`
+   --> case.nvs:14:9
+%A
+error[E0434]: the keys of this array are cases of `Priority`, and this key is `Size`
+   --> case.nvs:17:9
+%A
+error[E1018]: `[]` cannot add a value to an array whose keys are enum cases
+   --> case.nvs:20:1
+%A
+error[E1017]: `string` is not an enum, so it cannot be the key type of an array
+   --> case.nvs:23:7
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

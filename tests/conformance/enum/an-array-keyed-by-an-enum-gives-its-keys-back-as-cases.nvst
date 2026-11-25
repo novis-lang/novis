@@ -1,0 +1,62 @@
+--TEST--
+An `array<E, T>` gives its keys back as cases of `E`: in a `foreach`, from `Core\Arr`, from a callback's key and after a JSON round trip through `as` (`rule:types/arrays`)
+--FILE--
+<?nvs
+// covers: lang:enums/an-enum-as-a-type
+// The values of this enum have gaps. Each key prints as its case's value: 0, 5 or 9.
+enum Priority { Low = 0, Mid = 5, High = 9 }
+
+array<Priority, string> $labels = [Priority::High => "high", Priority::Low => "low"];
+$labels[Priority::Mid] = "mid";
+
+// A `foreach` key is a case.
+foreach ($labels as Priority $priority => string $label) {
+    echo $priority as int, "=", $label, " ";
+}
+echo "\n";
+
+// `keys`, `firstKey` and `lastKey` return cases.
+foreach (Core\Arr::keys($labels) as Priority $key) {
+    echo $key as int, " ";
+}
+echo "\n";
+echo Core\Arr::firstKey($labels) == Priority::High ? "first is High" : "wrong", "\n";
+echo Core\Arr::lastKey($labels) == Priority::Mid ? "last is Mid" : "wrong", "\n";
+
+// A callback's key is a case, whether it declares the type or not.
+array<Priority, string> $urgent = Core\Arr::filter($labels, fn(string $label, Priority $key) => $key != Priority::Low);
+echo Core\Str::join($urgent, ","), "\n";
+array<Priority, int> $values = Core\Arr::map($labels, fn($label, $key) => $key as int);
+echo Core\Str::join(Core\Arr::map($values, fn(int $value) => "$value"), ","), "\n";
+
+// `groupBy` with a callback that returns a case gives an array keyed by that case.
+array<string> $words = ["apple", "bee", "cat", "melon"];
+array<Priority, array<string>> $groups = Core\Arr::groupBy($words, fn(string $word): Priority => Core\Str::length($word) > 3 ? Priority::High : Priority::Low);
+foreach ($groups as Priority $priority => array<string> $group) {
+    echo $priority as int, ": ", Core\Str::join($group, ","), "\n";
+}
+
+// `flip` turns the keys into values, and those values are cases.
+array<Priority> $byLabel = Core\Arr::flip($labels);
+echo $byLabel["mid"] == Priority::Mid ? "mid is Mid" : "wrong", "\n";
+
+// JSON writes each key as its number. `as` checks each key on the way back.
+string $json = Core\Json::encode($labels);
+echo $json, "\n";
+array<Priority, tainted string> $decoded = Core\Json::decode($json) as array<Priority, string>;
+echo $decoded[Priority::Mid], "\n";
+?array<Priority, tainted string> $missing = Core\Json::decode('{"4":"four"}') as ?array<Priority, string>;
+echo $missing == null ? "4 is not a case" : "wrong", "\n";
+--EXPECT--
+9=high 0=low 5=mid
+9 0 5
+first is High
+last is Mid
+high,mid
+9,0,5
+9: apple,melon
+0: bee,cat
+mid is Mid
+{"9":"high","0":"low","5":"mid"}
+mid
+4 is not a case
