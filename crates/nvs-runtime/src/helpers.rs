@@ -2754,6 +2754,116 @@ crate::nvs_helper! {
     }
 }
 
+/// Whether every key of `array` is the decimal of one of `cases`' values, the
+/// check `as array<E, T>` makes (`rule:types/arrays`). `cases` is a list of
+/// every case of `E`, as `int`s or as `uint`s, the enum's backing type. A key
+/// must be written the way the case renders, so `"08"` is not the case `8`.
+/// `None` where either value is not an array.
+///
+/// **What it spends:** a scan of the cases for each key, and no allocation. A
+/// packed list's key is its position, so no string is read for it.
+fn keys_are_cases(array: Value, cases: Value) -> Option<bool> {
+    let array = array.as_array()?;
+    let cases = cases.as_array()?;
+    // Each case as a wide integer, read off the list in place.
+    let any_case = |test: &dyn Fn(i128) -> bool| {
+        let mut from = 0;
+        while let Some(slot) = cases.next_slot(from) {
+            from = slot + 1;
+            let case = cases.value_at(slot).and_then(|case| {
+                case.as_int()
+                    .map(i128::from)
+                    .or_else(|| case.as_uint().map(i128::from))
+            });
+            if case.is_some_and(test) {
+                return true;
+            }
+        }
+        false
+    };
+    let mut from = 0;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        let fits = match array.slot_key(slot)? {
+            crate::array::SlotKey::Index(index) => any_case(&|case| case == i128::from(index)),
+            crate::array::SlotKey::Str(key) => any_case(&|case| decimal_is(key.as_bytes(), case)),
+        };
+        if !fits {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+/// Whether `key` is exactly the decimal rendering of `n`: no sign but a `-`
+/// before a number below zero, and no leading zero.
+fn decimal_is(key: &[u8], n: i128) -> bool {
+    let mut buf = [0u8; 40];
+    let mut at = buf.len();
+    let mut rest = n.unsigned_abs();
+    loop {
+        at -= 1;
+        buf[at] = b'0' + (rest % 10) as u8;
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    if n < 0 {
+        at -= 1;
+        buf[at] = b'-';
+    }
+    key == &buf[at..]
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToEnumKeyed` — `as array<E, T>`'s check of the keys
+    /// (`rule:types/arrays`), after the element walk. `args[0]` is the array
+    /// that walk gave, and `args[1]` the list of every case of `E`. It gives
+    /// `args[0]` under one more reference, and throws for a key that is not a
+    /// case of `E`.
+    fn nvs_to_enum_keyed(_ctx, args: [2]) {
+        match keys_are_cases(args[0], args[1]) {
+            Some(true) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the caller owns a reference to `args[0]`, and the \
+                              result carries one of its own"
+                )]
+                unsafe {
+                    args[0].retain();
+                }
+                Ok(args[0])
+            }
+            Some(false) => Err(Fault::thrown(
+                "a key of this array is not a case of the enum it is converted to".to_owned(),
+            )),
+            None => Err(does_not_fit("this value", "array")),
+        }
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToEnumKeyedOrNull` — `as ?array<E, T>`'s form of
+    /// [`nvs_to_enum_keyed`]. A key that is not a case, and an operand that is
+    /// not an array, such as the `null` the element walk gave, give `null`.
+    fn nvs_to_enum_keyed_or_null(_ctx, args: [2]) {
+        if keys_are_cases(args[0], args[1]) == Some(true) {
+            #[expect(
+                unsafe_code,
+                reason = "the caller owns a reference to `args[0]`, and the \
+                          result carries one of its own"
+            )]
+            unsafe {
+                args[0].retain();
+            }
+            Ok(args[0])
+        } else {
+            Ok(Value::null())
+        }
+    }
+}
+
 /// `rule:types/arithmetic`'s
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 fn arithmetic_error(operation: &str) -> Fault {
@@ -3884,6 +3994,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_tagged_to_bytes", address(nvs_tagged_to_bytes)),
         ("nvs_to_array_of", address(nvs_to_array_of)),
         ("nvs_to_array_of_or_null", address(nvs_to_array_of_or_null)),
+        ("nvs_to_enum_keyed", address(nvs_to_enum_keyed)),
+        ("nvs_to_enum_keyed_or_null", address(nvs_to_enum_keyed_or_null)),
         ("nvs_to_bytes_or_null", address(nvs_to_bytes_or_null)),
         ("nvs_decimal_add", address(nvs_decimal_add)),
         ("nvs_decimal_sub", address(nvs_decimal_sub)),
@@ -4789,6 +4901,44 @@ mod tests {
             assert_eq!(string_result(nvs_tagged_to_string, value), "text");
             assert_eq!(NvsStr::refcount_of(ptr), 1);
             value.release();
+        }
+    }
+
+    /// `as array<E, T>` takes a key that is a case written the way the case
+    /// renders, by position in a list or by string in a map, and nothing else.
+    #[test]
+    fn an_enum_key_is_a_case_written_as_its_decimal() {
+        assert!(decimal_is(b"0", 0));
+        assert!(decimal_is(b"-12", -12));
+        assert!(decimal_is(b"18446744073709551615", i128::from(u64::MAX)));
+        for (key, n) in [(&b"08"[..], 8), (b"+8", 8), (b"-0", 0), (b"", 0), (b"8 ", 8)] {
+            assert!(!decimal_is(key, n), "{key:?}");
+        }
+        let mut cases = crate::array::NvsArray::new();
+        cases.append(Value::int(0));
+        cases.append(Value::int(2));
+        let cases = Value::array(cases);
+        let mut list = crate::array::NvsArray::new();
+        list.append(Value::int(5));
+        let list = Value::array(list);
+        let mut map = crate::array::NvsArray::new();
+        map.set(NvsStr::new(b"2"), Value::int(5));
+        let map = Value::array(map);
+        let mut stray = crate::array::NvsArray::new();
+        stray.set(NvsStr::new(b"1"), Value::int(5));
+        let stray = Value::array(stray);
+        assert_eq!(keys_are_cases(list, cases), Some(true));
+        assert_eq!(keys_are_cases(map, cases), Some(true));
+        assert_eq!(keys_are_cases(stray, cases), Some(false));
+        assert_eq!(keys_are_cases(Value::int(1), cases), None);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference each array was built with"
+        )]
+        unsafe {
+            for value in [cases, list, map, stray] {
+                value.release();
+            }
         }
     }
 

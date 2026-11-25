@@ -3342,6 +3342,17 @@ pub enum Helper {
     /// still carries a landing block, because it still returns a status:
     /// [`Inst::on_error`] is that rule's home.
     ToArrayOfOrNull,
+    /// `$x as array<E, T>`'s check that every key is a case of `E`
+    /// (`rule:types/arrays`), after [`Self::ToArrayOf`]'s element walk.
+    /// Arguments: that walk's array, and a list of every case of `E`. The
+    /// result is the same array under one more reference. A key that is not
+    /// a case throws.
+    ToEnumKeyed,
+    /// `$x as ?array<E, T>`'s form of [`Self::ToEnumKeyed`], after
+    /// [`Self::ToArrayOfOrNull`]. A key that is not a case, and a `null`
+    /// operand, give `null`. It never throws, and still takes a landing block
+    /// for the status it returns.
+    ToEnumKeyedOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `nvs run`. Defines no value: a [`Helper`] invoked for an effect
@@ -4736,6 +4747,9 @@ impl Helper {
             // tags and widen numbers.
             | Helper::ToArrayOf
             | Helper::ToArrayOfOrNull
+            // `nvs_to_enum_keyed` and `nvs_to_enum_keyed_or_null` read keys.
+            | Helper::ToEnumKeyed
+            | Helper::ToEnumKeyedOrNull
             // `nvs_echo_str` and `nvs_echo_markup` write a string.
             | Helper::EchoStr
             | Helper::EchoMarkup

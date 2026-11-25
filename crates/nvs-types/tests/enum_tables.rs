@@ -456,6 +456,21 @@ fn a_constant_of_an_enum_keyed_array_folds() {
 }
 
 #[test]
+fn a_string_keyed_array_converts_with_as_and_checks_each_key() {
+    let diags = check_src(&keyed(
+        "",
+        "  array<Priority, string> $a = $strings as array<Priority, string>;\n\
+         \x20 ?array<Priority, string> $b = $strings as ?array<Priority, string>;\n\
+         \x20 var $c = $m as array<Priority, string>;\n\
+         \x20 foreach ($c as Priority $k => var $v) { }",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // Without the `as`, a string-keyed array is not an enum-keyed one.
+    let bare = check_src(&keyed("", "  array<Priority, string> $a = $strings;"));
+    assert!(bare.has_errors(), "{bare:?}");
+}
+
+#[test]
 fn a_member_that_keeps_keys_keeps_the_enum_key() {
     let diags = check_src(&keyed(
         "",

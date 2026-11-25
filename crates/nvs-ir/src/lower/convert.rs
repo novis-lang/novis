@@ -720,12 +720,8 @@ impl<'a> Lowering<'a> {
                 // annotation rather than from `lower_decl_type(target)`
                 // because a `?array<U>` reaches `convert_or_null` down two
                 // different paths below, and this is the one point above both.
-                if let Some(tags) = self
-                    .exprs
-                    .declared_ty(ty.span)
-                    .and_then(|id| super::array_element_tags(id, self.checked_types))
-                {
-                    return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
+                if let Some((tags, cases)) = self.array_target(ty) {
+                    return self.lower_array_restamp(v, from, tags, cases, inner, true, env, cur);
                 }
                 // `rule:types/conversion`'s shape row under the same sugar: the
                 // field walk the checked form runs, with a miss answering `null`.
@@ -950,12 +946,8 @@ impl<'a> Lowering<'a> {
                 // element type `nvs_types` lets through undescribed is a class
                 // in `array<Foo> as array<Foo>`, where the two sides are the
                 // identical type and there is nothing to check.
-                if let Some(tags) = self
-                    .exprs
-                    .declared_ty(ty.span)
-                    .and_then(|id| super::array_element_tags(id, self.checked_types))
-                {
-                    return self.lower_array_restamp(v, from, tags, inner, false, env, cur);
+                if let Some((tags, cases)) = self.array_target(ty) {
+                    return self.lower_array_restamp(v, from, tags, cases, inner, false, env, cur);
                 }
                 let Some(accepted) = self.closed_single_value_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
@@ -1642,6 +1634,7 @@ impl<'a> Lowering<'a> {
         v: ValueId,
         from: Ty,
         tags: u64,
+        cases: Option<Vec<nvs_types::EnumValue>>,
         operand: &Expr,
         or_null: bool,
         env: &mut Env,
@@ -1653,7 +1646,11 @@ impl<'a> Lowering<'a> {
              tagged value — got representation {from:?}, every other operand being `E0708` at \
              the checker"
         );
-        if !or_null && from == Ty::Array && tags == u64::from(super::FN_PARAM_TAG_ANY) {
+        if !or_null
+            && cases.is_none()
+            && from == Ty::Array
+            && tags == u64::from(super::FN_PARAM_TAG_ANY)
+        {
             return self.convert(v, from, Ty::Array, operand, env, *cur);
         }
         let (word, _) = self.emit(*cur, Ty::Uint, InstKind::ConstUint(tags));
@@ -1676,7 +1673,84 @@ impl<'a> Lowering<'a> {
         if !self.sole_operand_borrowed(operand) {
             self.emit_release(*cur, v);
         }
+        match cases {
+            Some(cases) => self.lower_enum_key_check(out, &cases, or_null, env, cur),
+            None => out,
+        }
+    }
+
+    /// `as array<E, T>`'s check that every key of `walked`, the array the
+    /// element walk gave, is a case of `E` (`rule:types/arrays`). It builds the
+    /// list of `cases` and calls [`Helper::ToEnumKeyed`], or
+    /// [`Helper::ToEnumKeyedOrNull`] when `or_null`. Both give the array under a
+    /// reference of its own, so `walked` and the list are released after.
+    /// **What it spends:** one list of the enum's cases per conversion, freed
+    /// at once, and a scan of the cases per key.
+    fn lower_enum_key_check(
+        &mut self,
+        walked: (ValueId, Ty),
+        cases: &[nvs_types::EnumValue],
+        or_null: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mut entries = Vec::with_capacity(cases.len());
+        for (index, case) in cases.iter().enumerate() {
+            let (value, _) = match *case {
+                nvs_types::EnumValue::Int(n) => self.emit(*cur, Ty::Int, InstKind::ConstInt(n)),
+                nvs_types::EnumValue::Uint(n) => self.emit(*cur, Ty::Uint, InstKind::ConstUint(n)),
+            };
+            entries.push((index.to_string(), value));
+        }
+        let (list, _) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        let call = InstKind::HelperCall {
+            helper: if or_null {
+                Helper::ToEnumKeyedOrNull
+            } else {
+                Helper::ToEnumKeyed
+            },
+            args: vec![walked.0, list],
+        };
+        let out = self.emit_fallible(*cur, walked.1, call, env);
+        self.emit_release(*cur, walked.0);
+        self.emit_release(*cur, list);
         out
+    }
+
+    /// What an `as array<…>` target `ty` checks, where it is an array type:
+    /// the word of element tags the walk tests, and every case of `E` for an
+    /// `array<E, T>`. `None` where the target is no array, or names an element
+    /// the walk cannot describe and no enum key, which is the free row.
+    fn array_target(&self, ty: &Type) -> Option<(u64, Option<Vec<nvs_types::EnumValue>>)> {
+        let id = self.exprs.declared_ty(ty.span)?;
+        let tags = super::array_element_tags(id, self.checked_types);
+        let cases = self.enum_key_cases(id);
+        if tags.is_none() && cases.is_none() {
+            return None;
+        }
+        Some((tags.unwrap_or(u64::from(super::FN_PARAM_TAG_ANY)), cases))
+    }
+
+    /// Every case of `E` when `id` is `array<E, T>` or `?array<E, T>`.
+    fn enum_key_cases(&self, id: TypeId) -> Option<Vec<nvs_types::EnumValue>> {
+        let types = self.checked_types;
+        let id = match types.get(id) {
+            CheckedTy::Union(members) => *members
+                .iter()
+                .find(|member| !matches!(types.get(**member), CheckedTy::Null))?,
+            _ => id,
+        };
+        let key = types.array_enum_key(id)?;
+        let CheckedTy::Enum(qname, _) = types.get(key) else {
+            return None;
+        };
+        let info = self.enums.get(qname)?;
+        Some(
+            sorted_enum_cases(info)
+                .into_iter()
+                .map(|(_, value)| value)
+                .collect(),
+        )
     }
 
     /// The closed set of literals an `expr as T` has to test its operand

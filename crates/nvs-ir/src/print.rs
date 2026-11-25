@@ -721,6 +721,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::TaggedToBytes => "tagged_to_bytes",
         Helper::ToArrayOf => "to_array_of",
         Helper::ToArrayOfOrNull => "to_array_of_or_null",
+        Helper::ToEnumKeyed => "to_enum_keyed",
+        Helper::ToEnumKeyedOrNull => "to_enum_keyed_or_null",
         Helper::EchoStr => "echo_str",
         Helper::EchoValue => "echo_value",
         Helper::EchoMarkup => "echo_markup",

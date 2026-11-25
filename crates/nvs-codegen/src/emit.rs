@@ -5889,6 +5889,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::TaggedToBytes => "nvs_tagged_to_bytes",
         Helper::ToArrayOf => "nvs_to_array_of",
         Helper::ToArrayOfOrNull => "nvs_to_array_of_or_null",
+        Helper::ToEnumKeyed => "nvs_to_enum_keyed",
+        Helper::ToEnumKeyedOrNull => "nvs_to_enum_keyed_or_null",
         Helper::DecimalTruthy => "nvs_decimal_truthy",
         Helper::DecimalAdd => "nvs_decimal_add",
         Helper::DecimalSub => "nvs_decimal_sub",
