@@ -3450,7 +3450,7 @@
     "Core\\Uri::withQueryParameter": "93c0b74988cbe8fd"
   },
   "docs/examples/core/Uuid/format/about.md": {
-    "Core\\Uuid::format": "dc81e886a388b988"
+    "Core\\Uuid::format": "c2b79d876dcc6423"
   },
   "docs/examples/core/Uuid/fromBytes/about.md": {
     "Core\\Uuid::fromBytes": "323d5223ecadaffa"
@@ -8454,7 +8454,7 @@
     "Core\\Uri::withQueryParameter": "75ae2ee1e0b10140"
   },
   "help:Core\\Uuid::format": {
-    "Core\\Uuid::format": "8f5746463dbe6c6c"
+    "Core\\Uuid::format": "26123602557889d4"
   },
   "help:Core\\Uuid::fromBytes": {
     "Core\\Uuid::fromBytes": "b58c2a2941f917ee"
