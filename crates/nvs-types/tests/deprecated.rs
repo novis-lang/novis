@@ -500,7 +500,11 @@ fn a_deprecated_enum_an_extend_block_adds_warns_as_a_nested_enum_does() {
     let found = warnings(&diags);
     let about = |name: &str| found.iter().filter(|m| m.contains(name)).count();
     assert!(about("`App\\Shop::Mode`") > 0, "{found:#?}");
-    assert_eq!(about("`Core\\Arr::Sort`"), about("`App\\Shop::Mode`"), "{found:#?}");
+    assert_eq!(
+        about("`Core\\Arr::Sort`"),
+        about("`App\\Shop::Mode`"),
+        "{found:#?}"
+    );
     assert_eq!(about("`Core\\Arr::Pick::First`"), 1, "{found:#?}");
     assert_eq!(about("`App\\Shop::Kind::Old`"), 1, "{found:#?}");
 }
@@ -529,6 +533,12 @@ fn a_deprecated_added_member_or_block_warns_at_each_use() {
     assert!(!diags.has_errors(), "{diags:?}");
     let found = warnings(&diags);
     assert_eq!(found.len(), 2, "{found:#?}");
-    assert!(found.iter().any(|m| m.contains("`App\\ShopTools::old()`")), "{found:#?}");
-    assert!(found.iter().any(|m| m.contains("`App\\BlogTools`")), "{found:#?}");
+    assert!(
+        found.iter().any(|m| m.contains("`App\\ShopTools::old()`")),
+        "{found:#?}"
+    );
+    assert!(
+        found.iter().any(|m| m.contains("`App\\BlogTools`")),
+        "{found:#?}"
+    );
 }

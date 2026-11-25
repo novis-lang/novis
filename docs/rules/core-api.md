@@ -247,7 +247,8 @@ as `E0329` before any type is checked. That covers a class's `extends` and `impl
 interface's `extends`, a name written in full or imported with `use`, every registry class, and the
 classes of the exception tree that sit under `Core`: `Core\Db\DbError`, `Core\Db\RolledBack`,
 `Core\Ldap\LdapError`, `Core\Cli\NotInteractive`, `Core\Test\Failure`, `Core\DeprecatedError` and the
-finish marker `Core\Script\Finished`.
+finish marker `Core\Script\Finished`. The help of `E0329` says how to add members instead: "Write
+`extend Core\Time\Date as Name { … }` to add members to it."
 
 What a program's class may name under `Core` is an interface written for it to implement: a contract
 such as `Core\Router\Gate`, and the interfaces the derive attributes stand for, `Core\Json\Codec` and

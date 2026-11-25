@@ -1368,7 +1368,10 @@ program's autoload map knows a block that adds the name. That `use` line is also
 the type or a type above it, after the type's own members and with the block's name beside each.
 Accepting one from a block the file does not use writes the `use` line too. Hover on an added member
 names the block, go-to-definition opens the member in the block, and references and rename reach the
-declaration and every call. The outline shows a block as a class with its members, ordering members
+declaration and every call. The outline shows a block as a class with its members and no `detail`,
+as no outline symbol has one. Completion in a `use` line does not offer block names, and `self::`
+inside a block does not complete the target's members. A block's target is not one of its
+supertypes, so the type hierarchy does not show blocks. Ordering members
 orders a block's as a class's, and the file list marks a file whose one declaration is a block with
 `X` ([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)). A block the program has not loaded is read off its
 file for each member list, one parse per such block, dropped with the answer.
@@ -1474,7 +1477,9 @@ one, and `ClassInfo::call` of an added name throws as for an unknown member.
 
 **Unions.** A union receiver finds an added member only when every type in the union gets it from the
 same block, which happens through an interface they share. Otherwise the call is **`E1013`**, and its
-help says to narrow the value with `is`.
+help says to narrow the value with `is`. When one block adds the method to every class of the union,
+the call is one direct call of the block's function, not a dispatch over the classes. Any other mix,
+of two blocks or of a block and a declared member, is `E1013` with a note naming each class's block.
 
 **Restrictions.** A block's body sits, for [`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used)'s purposes, in the block's own
 namespace and the block, never in the extended type, so a block cannot call a member restricted on its
@@ -1487,9 +1492,10 @@ same resolved-use pass as every other deprecated member ([`attributes/a-deprecat
 
 **The call.** An added method compiles to a function whose parameter 0 is the receiver, labelled
 `<Block>::<name>`, and every call of it is one direct call. The collision rule makes the target unique,
-so no call is virtual and none goes through `Core`'s dispatch. An added static method takes the
-extended type's class descriptor in slot 0, as a static method does, and an added method on an enum
-takes the case's integer. The checker records every added call as a resolved call, so the IR,
+so no call is virtual and none goes through `Core`'s dispatch. An added static method takes `0` in
+slot 0 on every target: a `Core` class has no descriptor a unit can name, and nothing in a block
+reads the called class, because `static::` is refused there. An added method on an enum takes the
+case's integer. The checker records every added call as a resolved call, so the IR,
 restriction and deprecation passes read it as they read any other.
 
 **What it spends:** the same as calling a static method of a helper class. Nothing per call, and
@@ -1562,7 +1568,12 @@ session store skip it, and a revoke releases it with the other slots.
 
 **What it spends:** one pointer per instance of each class that takes the slot, and, per object that
 has an added value, one array of the program's added properties for its class. Both are charged to the
-request by the global allocator and freed with the object, so memory stays O(in-flight).
+request by the global allocator and freed with the object, so memory stays O(in-flight). Each access
+is a direct call of an accessor and one or two runtime helper calls, against an inline load for a
+class's own property. Inlining the accessors would change no behaviour.
+
+A computed added property that reads itself inside its own `get` hook calls the hook again, and the
+recursion limit stops it at run time with the ordinary recursion error.
 
 **Declined:**
 - **Side storage keyed by object address.** Every object free in every program would gain a check, a

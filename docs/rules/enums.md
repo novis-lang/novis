@@ -446,7 +446,8 @@ case's name, because `E::X` reads both: the constant is **`E0304`**, beside the 
 
 A method on a value typed as one case, `E::A`, resolves as it does on the enum. `$this` in an enum
 method is the case, and `self` names the enum. `self::Case`, `self::CONSTANT` and `self::method()`
-work in the body, and an enum a class declares sees its owner's other enums by their bare names. A
+work in the body. `static::` is accepted too: nothing extends an enum, so it names the enum, and its
+calls compile as `self::` calls do. An enum a class declares sees its owner's other enums by their bare names. A
 method reference, `E::A->label(...)` or `E::make`, is a callable over the same function.
 
 An instance method is compiled with the case's integer in parameter 0. A static method takes a `0`

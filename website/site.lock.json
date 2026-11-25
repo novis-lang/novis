@@ -3630,7 +3630,7 @@
     "lang:classes/declaring-a-class": "e7e29f3cb55816ff"
   },
   "docs/examples/lang/classes/extend-blocks/about.md": {
-    "lang:classes/extend-blocks": "989576d00429845a"
+    "lang:classes/extend-blocks": "399418d4ab5080a8"
   },
   "docs/examples/lang/classes/inheritance/about.md": {
     "lang:classes/inheritance": "25e1eb3c6d112520"
@@ -9706,7 +9706,7 @@
     "lang:classes/declaring-a-class": "105095d5ce39ba12"
   },
   "syntax/classes/extend-blocks.mdx": {
-    "lang:classes/extend-blocks": "426b8432fb46b09a"
+    "lang:classes/extend-blocks": "0b88be70805f6251"
   },
   "syntax/classes/interfaces.mdx": {
     "lang:classes/interfaces": "c2df17e11935d2ac"

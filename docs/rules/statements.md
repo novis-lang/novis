@@ -264,7 +264,9 @@ segment of a qualified name. `crates/nvs-lsp/src/index.rs`'s `reads` is that rea
 for organize imports, and `nvs_lsp::diagnostics::unused_uses` turns it into the warning for both
 `nvs check` and the editor, so the two cannot disagree about a line. The reading errs one way only: a
 method or a property spelled like the import counts as a read, so an unused import can go unreported,
-and a needed one is never deleted.
+and a needed one is never deleted. An `extend` block is never written by name outside its `use`, so
+an identifier after `->`, `?->` or `::` that spells a member the block adds reads the block's `use`.
+It errs the same way: a member of another type with the same name counts as a read.
 
 What it costs is one more lexing of each file `nvs check` reads, and of the open document per analysis.
 Nothing runs on the request path.
