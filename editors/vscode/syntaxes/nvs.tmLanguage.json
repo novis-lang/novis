@@ -384,6 +384,14 @@
           "match": "(?<![$\\w\\\\])[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*(?=\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=)"
         },
         {
+          "comment": "Two type arguments: `array<Priority, Label>`, an array keyed by an enum (rule:types/arrays). The pair is matched whole, because a name after a bare `,` is a value in an argument list. The second name starts with a capital letter, so a scalar such as `string` keeps the reserved table's colour, and the pattern below colours the first name alone.",
+          "match": "(?<=<)([A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)\\s*,\\s*([A-Z][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)(?=\\s*>)",
+          "captures": {
+            "1": { "name": "entity.name.type.nvs" },
+            "2": { "name": "entity.name.type.nvs" }
+          }
+        },
+        {
           "comment": "A type argument: `array<Line>`, `Iterator<Row>`. rule:types/grammar parses a `<` after a name as an argument list in type position and nowhere else, so a name written between one and its `,` or `>` is a type wherever it stands.",
           "name": "entity.name.type.nvs",
           "match": "(?<=<)[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*[,>])"

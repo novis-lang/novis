@@ -99,6 +99,17 @@ describe("the name a type slot holds", () => {
     uncoloured("DEFAULT", "SCALE");
   });
 
+  it("colours both arguments of an array type keyed by an enum", async () => {
+    // `array<Priority, Label>` has two type arguments. The enum before the comma is a type,
+    // and so is the element type after it, in a local's slot and in a class constant's.
+    const keyed = await tokenize(
+      "<?nvs\nfinal class Labels\n{\n    const array<Priority, Label> ALL = [];\n}\n" +
+        "array<Priority, Label> $short = [];\n",
+    );
+    const names = keyed.filter((s) => s.scopes.includes(TYPE_NAME)).map((s) => s.text);
+    assert.deepEqual(names, ["Priority", "Label", "Priority", "Label"]);
+  });
+
   it("colours the name an alias introduces, and reads its right-hand side as a type", () => {
     // `type Totals = {gross: Money, fee: decimal};` — `type` is a contextual spelling and the name
     // and the `=` are what make this one a declaration, so the alias carries both and the shape
