@@ -487,6 +487,13 @@ fn check_property(at: Span, p: &PropertyMember, env: &mut Env<'_>) {
     }
 }
 
+/// Whether an added property is stored: not `static` and not computed. Such a
+/// property lives in its object's added slot, so [`crate::layout`] gives the
+/// block's target the slot when a block declares one.
+pub(crate) fn is_stored_added(p: &PropertyMember) -> bool {
+    !p.modifiers.contains(&Modifier::Static) && !is_computed_decl(p)
+}
+
 /// Whether an added property is computed: hooks, every one of them `get`.
 fn is_computed_decl(p: &PropertyMember) -> bool {
     p.hooks.as_ref().is_some_and(|hooks| {

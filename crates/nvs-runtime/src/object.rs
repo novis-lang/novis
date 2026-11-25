@@ -791,6 +791,11 @@ pub struct ClassDesc {
     /// [`ClassTable::set_revocable`] writes it. **Cost:** one `bool` per
     /// class, once per compiled unit, not per instance.
     revocable: bool,
+    /// The index of the added slot ([`ADDED_SLOT_NAME`]), or `None` for a
+    /// class that has none. [`ClassTable::define`] finds it by name.
+    /// **Cost:** one `Option<usize>` per class, once per compiled unit, not
+    /// per instance.
+    added_slot: Option<usize>,
     /// The full name of the class this one extends, or `None` for a class
     /// that extends none, for an interface and for every class the compiler
     /// or a native test makes. `nvs_ir::ir::Class::parent` carries it down,
@@ -1047,6 +1052,28 @@ pub struct HookRow {
 /// nor `nvs-codegen`, and the class label and field names of that transform
 /// are restated in the same direction for the same reason.
 pub const GENERATOR_UNWIND_METHOD: &str = "gen#unwind";
+
+/// The name of the added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`):
+/// the one slot where an object keeps the stored properties `extend` blocks
+/// add to its class. No property can have this name, so no lookup by a
+/// property's name finds it.
+///
+/// The slot holds `null` until the first write of an added property, and
+/// then an array of the class's added values in the order the compiler gave
+/// them. It is an ordinary array value, so the sweep in [`dismantle`] frees it
+/// with the object's other slots and no free path runs anything new. Every
+/// walk of properties skips it ([`ClassDesc::is_hidden_slot`]), and `clone`
+/// and the graph copy start it empty.
+///
+/// A program class has the slot only when a loaded block adds a stored
+/// property to it (`nvs_types::layout`), and a `Core` class after its declared
+/// slots when `nvs_stdlib::added_slot` reserves it. [`ClassTable::define`]
+/// finds it by this name, so the slot and [`ClassDesc::added_slot`] cannot
+/// disagree.
+///
+/// **What it spends:** one 16-byte slot per instance of a class that has it,
+/// and nothing per instance of any other class.
+pub const ADDED_SLOT_NAME: &str = "#added";
 
 /// One property default's already-evaluated value — the closed set
 /// `nvs_types::defaults::ConstArg` can reach from a *written* property
@@ -2006,11 +2033,19 @@ impl ClassDesc {
         usize::from(self.revocable)
     }
 
-    /// Whether slot `index` is a revocable class's hidden slot, which no walk
-    /// of properties reads, copies or names.
+    /// Whether slot `index` is a hidden slot, which no walk of properties
+    /// reads, copies or names: a revocable class's slot 0, or the added slot
+    /// ([`ADDED_SLOT_NAME`]).
     #[must_use]
     pub fn is_hidden_slot(&self, index: usize) -> bool {
-        self.revocable && index == crate::revoke::HIDDEN_SLOT
+        (self.revocable && index == crate::revoke::HIDDEN_SLOT) || self.added_slot == Some(index)
+    }
+
+    /// The index of the added slot ([`ADDED_SLOT_NAME`]), or `None` for a
+    /// class with no such slot.
+    #[must_use]
+    pub fn added_slot(&self) -> Option<usize> {
+        self.added_slot
     }
 
     /// The slot `name` occupies on an instance of this class, or `None` if
@@ -2039,7 +2074,7 @@ impl ClassDesc {
     pub fn field_slot(&self, name: &str, hint: usize) -> Option<usize> {
         // A revocable class's hidden slot is no property, and a name a program
         // passes to reflection must never reach it.
-        if self.revocable && name == crate::revoke::HIDDEN_SLOT_NAME {
+        if (self.revocable && name == crate::revoke::HIDDEN_SLOT_NAME) || name == ADDED_SLOT_NAME {
             return None;
         }
         if self.fields.get(hint).is_some_and(|field| field == name) {
@@ -2804,6 +2839,7 @@ impl ClassTable {
     ) -> ClassId {
         let id = ClassId(self.classes.len());
         let compiler_made = name.contains('$') && !name.starts_with("$shape{");
+        let added_slot = fields.iter().position(|field| field == ADDED_SLOT_NAME);
         self.classes.push(Box::new(ClassDesc {
             name,
             fields,
@@ -2840,6 +2876,7 @@ impl ClassTable {
             description: Value::null(),
             no_instances: false,
             revocable: false,
+            added_slot,
             parent: None,
             states_slot_types: false,
             bytes_refusal: None,
@@ -2946,19 +2983,33 @@ impl ClassTable {
     /// # Panics
     ///
     /// If `id` does not belong to this table, or if `types` is not one entry
-    /// per slot, on [`Self::set_field_classes`]' terms.
-    pub fn set_slot_types(&mut self, id: ClassId, types: Vec<SlotType>) {
+    /// per slot, on [`Self::set_field_classes`]' terms. The added slot
+    /// ([`ADDED_SLOT_NAME`]) is no declared slot, so `types` has no entry for
+    /// it, and it takes [`SlotCheck::Any`].
+    pub fn set_slot_types(&mut self, id: ClassId, mut types: Vec<SlotType>) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
+        let declared = desc.fields.len() - usize::from(desc.added_slot.is_some());
         assert!(
-            types.len() == desc.fields.len(),
-            "`{}` has {} field slots but {} stated slot types",
+            types.len() == declared,
+            "`{}` has {} declared field slots but {} stated slot types",
             desc.name,
-            desc.fields.len(),
+            declared,
             types.len()
         );
+        if let Some(added) = desc.added_slot {
+            types.insert(
+                added,
+                SlotType {
+                    tag: None,
+                    classes: None,
+                    check: Some(SlotCheck::Any),
+                    spelled: String::new(),
+                },
+            );
+        }
         let mut tags = Vec::with_capacity(types.len());
         let mut classes = Vec::with_capacity(types.len());
         let mut checks = Vec::with_capacity(types.len());
@@ -5527,10 +5578,11 @@ pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
     };
     // A copy is in no collection and is not revoked, so a revocable class's
     // hidden slot stays the `null` the allocation wrote. Copying it would give
-    // two objects one memberships list, freed twice.
+    // two objects one memberships list, freed twice. The added slot stays
+    // `null` too: a copy starts with no added values.
     #[expect(unsafe_code, reason = "a live object's descriptor outlives it")]
-    let first = unsafe { &*source.class() }.first_property_slot();
-    for index in first..source.field_count() {
+    let class = unsafe { &*source.class() };
+    for index in (0..source.field_count()).filter(|index| !class.is_hidden_slot(*index)) {
         let value = source.field(index);
         #[expect(
             unsafe_code,
@@ -8212,6 +8264,54 @@ mod tests {
         object.set_field(0, Value::str(name.clone()));
         assert_eq!(name.refcount(), 2);
         drop(object);
+        assert_eq!(name.refcount(), 1);
+    }
+
+    /// `rule:classes/an-added-property-lives-in-one-hidden-slot`: the added
+    /// slot is no property, a `clone` starts it empty, and the values in it
+    /// are freed with their object.
+    #[test]
+    fn added_slot_values_are_freed_with_their_object() {
+        let mut table = ClassTable::new();
+        let tagged = table.define("Tagged", &["a", ADDED_SLOT_NAME], &[]);
+        let desc = table.desc(tagged);
+        #[expect(unsafe_code, reason = "the table outlives every borrow below")]
+        let class = unsafe { &*desc };
+        assert_eq!(class.added_slot(), Some(1));
+        assert!(class.is_hidden_slot(1) && !class.is_hidden_slot(0));
+        assert_eq!(class.field_slot(ADDED_SLOT_NAME, 1), None);
+        assert_eq!(class.field_name(1), None);
+        let plain = table.define("Plain", &["a"], &[]);
+        #[expect(unsafe_code, reason = "the table outlives the borrow")]
+        let plain = unsafe { &*table.desc(plain) };
+        assert_eq!(plain.added_slot(), None);
+
+        let name = NvsStr::new(b"tag");
+        #[expect(unsafe_code, reason = "the table outlives every object below")]
+        unsafe {
+            let object = NvsObj::new(desc);
+            let mut values = NvsArray::new();
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the handle is built from an ASCII literal, and the test counts its references"
+            )]
+            values.append(Value::str(name.clone()));
+            object.set_field(1, Value::array(values));
+            assert_eq!(name.refcount(), 2);
+
+            let object_ptr = object.into_raw();
+            let copy = NvsObj::from_raw(nvs_object_clone(object_ptr));
+            let object = NvsObj::from_raw(object_ptr);
+            assert_eq!(
+                copy.field(1).tag(),
+                Some(Tag::Null),
+                "a copy starts with no added values"
+            );
+            assert_eq!(name.refcount(), 2);
+            drop(copy);
+
+            drop(object);
+        }
         assert_eq!(name.refcount(), 1);
     }
 

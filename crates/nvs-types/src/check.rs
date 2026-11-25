@@ -1341,7 +1341,11 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(hooks) = &p.hooks else { return };
     // A hook an `extend` block adds is labelled by its block.
-    let Some(class) = env.extend_block.clone().or_else(|| ctx.current_class.cloned()) else {
+    let Some(class) = env
+        .extend_block
+        .clone()
+        .or_else(|| ctx.current_class.cloned())
+    else {
         return;
     };
     let class = &class;

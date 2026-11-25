@@ -172,7 +172,10 @@ const RESERVED: &[&str] = &[
 /// with no decision: a namespace class, or a name that is not a `Core` class.
 #[must_use]
 pub fn decision(name: &str) -> Option<AddedSlot> {
-    if RESERVED.iter().any(|class| class.eq_ignore_ascii_case(name)) {
+    if RESERVED
+        .iter()
+        .any(|class| class.eq_ignore_ascii_case(name))
+    {
         return Some(AddedSlot::Reserved);
     }
     NO_SLOT

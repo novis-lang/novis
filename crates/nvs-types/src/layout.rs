@@ -41,6 +41,13 @@
 //! revocable, so the slot and the class's flag cannot disagree. A class that is
 //! not revocable has no such slot.
 //!
+//! A class that a loaded `extend` block adds a stored property to claims the
+//! added slot, [`nvs_runtime::ADDED_SLOT_NAME`], after its own properties
+//! (`rule:classes/an-added-property-lives-in-one-hidden-slot`). Every subclass
+//! inherits it at the same index, and `nvs_runtime::ClassTable::define` finds
+//! it by its name. A class no block adds a stored property to has no such
+//! slot, so it pays nothing.
+//!
 //! Two kinds of type have no entry at all, by decision rather than by
 //! omission. An **enum** has none: `rule:enums/closed-integer-type` makes it a closed integer
 //! value type, not an instance with fields. A **`Core` class** has none
@@ -469,6 +476,7 @@ pub fn build_class_layouts(
     let mut own_constants: FxHashMap<QName, Vec<ClassConstant>> = FxHashMap::default();
     let mut own_attributes: FxHashMap<QName, Vec<ClassAttribute>> = FxHashMap::default();
     let mut interfaces: FxHashSet<QName> = FxHashSet::default();
+    let mut storing_blocks: FxHashSet<QName> = FxHashSet::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -539,9 +547,19 @@ pub fn build_class_layouts(
                 constants: &mut own_constants,
                 attributes: &mut own_attributes,
                 interfaces: &mut interfaces,
+                storing_blocks: &mut storing_blocks,
             },
         );
     }
+    // Each class a loaded block adds a stored property to takes the added
+    // slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`). A block
+    // whose target did not resolve was already reported, and gives nothing.
+    let added: FxHashSet<QName> = storing_blocks
+        .iter()
+        .filter_map(|block| graph.block_target(block))
+        .filter(|target| own.contains_key(*target) && !interfaces.contains(*target))
+        .cloned()
+        .collect();
 
     let reserved: Vec<QName> = nvs_hir::interfaces::RESERVED
         .iter()
@@ -550,7 +568,7 @@ pub fn build_class_layouts(
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
         let mut slots = Vec::new();
-        flatten_fields(qname, graph, &own, &mut slots, &mut Seen::default());
+        flatten_fields(qname, graph, &own, &added, &mut slots, &mut Seen::default());
         let mut fields = Vec::with_capacity(slots.len());
         let mut public_fields = Vec::with_capacity(slots.len());
         let mut protected_fields = Vec::with_capacity(slots.len());
@@ -637,6 +655,9 @@ struct Own<'r> {
     /// Every declared interface, which [`ClassLayout::parent`] reads: the
     /// class graph's links do not say which kind a declaration is.
     interfaces: &'r mut FxHashSet<QName>,
+    /// Every `extend` block that adds a stored property, by the block's name.
+    /// Its target takes the added slot ([`flatten_fields`]).
+    storing_blocks: &'r mut FxHashSet<QName>,
 }
 
 /// Records each declared class's/interface's *own* instance properties, in
@@ -702,6 +723,19 @@ fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut
                     own_attributes(&decl.attributes, &decl.members, src),
                 );
                 out.interfaces.insert(qname);
+            }
+            // A block declares no slot of its own. One that adds a stored
+            // property gives its target the added slot, which
+            // `build_class_layouts` reads once every file is walked.
+            StmtKind::ExtendDecl(decl) => {
+                let stores = decl.members.iter().any(|member| {
+                    matches!(&member.kind, ClassMemberKind::Property(p)
+                        if crate::extend::is_stored_added(p))
+                });
+                if stores {
+                    out.storing_blocks
+                        .insert(QName::join(&current, span_text(src, decl.name.span)));
+                }
             }
             _ => {}
         }
@@ -1043,6 +1077,7 @@ fn flatten_fields<'a>(
     qname: &'a QName,
     graph: &'a ClassGraph,
     own: &'a FxHashMap<QName, Vec<OwnField>>,
+    added: &FxHashSet<QName>,
     fields: &mut Vec<OwnField>,
     seen: &mut Seen<'a>,
 ) {
@@ -1054,7 +1089,7 @@ fn flatten_fields<'a>(
     // both without a kind check.
     if let Some(links) = graph.get(qname) {
         for parent in &links.extends {
-            flatten_fields(parent, graph, own, fields, seen);
+            flatten_fields(parent, graph, own, added, fields, seen);
         }
         // A revocable root's hidden slot comes before its own properties, so
         // it is slot 0 in every class of its tree. Only a root may implement
@@ -1096,6 +1131,18 @@ fn flatten_fields<'a>(
                 inherited.4.clone_from(&slot.4);
             }
         }
+    }
+    // The added slot comes after the class's own properties, in its own part
+    // of the layout, so every subclass has it at the same index. A subclass
+    // that a block also extends shares the slot it inherited.
+    if added.contains(qname) && seen.names.insert((nvs_runtime::ADDED_SLOT_NAME, false)) {
+        fields.push((
+            nvs_runtime::ADDED_SLOT_NAME.to_owned(),
+            false,
+            false,
+            false,
+            String::new(),
+        ));
     }
 }
 
@@ -1256,6 +1303,30 @@ mod tests {
         let leaf = table.get("Leaf").expect("Leaf has a layout");
         assert_eq!(leaf.fields, [hidden, "a", "b"]);
         assert_eq!(leaf.slot_of("a"), root.slot_of("a"));
+    }
+
+    // covers: lang:classes/an-extend-block-adds-members-to-a-type
+    #[test]
+    fn added_slot_is_absent_where_no_block_adds_a_property() {
+        let table = layouts(
+            "<?nvs\nclass Base {\n  public int $a = 0;\n}\n\
+             class Leaf extends Base {\n  public int $b = 0;\n}\n\
+             class Other {\n  public int $c = 0;\n}\n\
+             class Plain {\n  public int $x = 0;\n}\n\
+             extend Base as Tags {\n  public ?string $tag = null;\n}\n\
+             extend Other as Sizes {\n  public int $twice {\n    get => $this->c * 2;\n  }\n}\n",
+        );
+        let added = nvs_runtime::ADDED_SLOT_NAME;
+        let base = table.get("Base").expect("Base has a layout");
+        assert_eq!(base.fields, ["a", added]);
+        let leaf = table.get("Leaf").expect("Leaf has a layout");
+        assert_eq!(leaf.fields, ["a", added, "b"]);
+        assert_eq!(leaf.slot_of(added), base.slot_of(added));
+        // A computed property stores nothing, so its block gives no slot.
+        let other = table.get("Other").expect("Other has a layout");
+        assert_eq!(other.fields, ["c"]);
+        let plain = table.get("Plain").expect("Plain has a layout");
+        assert_eq!(plain.fields, ["x"]);
     }
 
     #[test]

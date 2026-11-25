@@ -1199,7 +1199,14 @@ fn descriptors() -> &'static Descriptors {
             } else {
                 Vec::new()
             };
-            let id = table.define(class.name, class.slots, &parents);
+            // A class that reserves the added slot has it after its declared
+            // slots, so no member's slot index moves
+            // (`rule:classes/an-added-property-lives-in-one-hidden-slot`).
+            let mut slots: Vec<&str> = class.slots.to_vec();
+            if registered && reserves_added_slot(class) {
+                slots.push(nvs_runtime::ADDED_SLOT_NAME);
+            }
+            let id = table.define(class.name, &slots, &parents);
             // Every descriptor this loop defines is a `Core` class, which only
             // a `Core` member makes (`nvs_runtime::ClassDesc::refusal`).
             table.set_core(id);
@@ -1349,6 +1356,13 @@ fn descriptors() -> &'static Descriptors {
 /// handle and there is nothing for it to carry.
 pub(crate) fn has_instances(class: &CoreClass) -> bool {
     !class.slots.is_empty() || !class.instance.is_empty()
+}
+
+/// Whether `class` has the added slot after its declared slots, which
+/// [`crate::added_slot::decision`] records by name. A class with no decision,
+/// such as a `Core\Ast` production, has no slot.
+pub(crate) fn reserves_added_slot(class: &CoreClass) -> bool {
+    crate::added_slot::decision(class.name) == Some(crate::added_slot::AddedSlot::Reserved)
 }
 
 /// [`has_instances`] asked by name, over the registry alone: whether `name` is
@@ -1989,7 +2003,14 @@ mod tests {
             )]
             let desc = unsafe { &*first };
             assert_eq!(desc.name(), class.name);
-            assert_eq!(desc.field_count(), class.slots.len());
+            let added = usize::from(reserves_added_slot(class));
+            assert_eq!(desc.field_count(), class.slots.len() + added);
+            assert_eq!(
+                desc.added_slot(),
+                (added == 1).then_some(class.slots.len()),
+                "{}'s added slot follows its declared slots",
+                class.name
+            );
         }
     }
 
@@ -2428,22 +2449,31 @@ mod tests {
     /// name and slots and none of the marks, because `encode` writes nothing
     /// for a class it refuses.
     fn payload_naming(desc: &ClassDesc) -> Vec<u8> {
-        payload_holding(
-            desc,
-            (0..desc.field_count()).map(|_| Value::null()).collect(),
-        )
+        payload_holding(desc, declared_slots(desc).map(|_| Value::null()).collect())
     }
 
-    /// [`payload_naming`], with `values` in the slots in slot order. Takes
-    /// over each value's reference.
+    /// The slots of `desc` a payload writes, in slot order: every slot but
+    /// the added one.
+    fn declared_slots(desc: &ClassDesc) -> impl Iterator<Item = usize> + '_ {
+        (0..desc.field_count()).filter(|index| !desc.is_hidden_slot(*index))
+    }
+
+    /// [`payload_naming`], with `values` in the declared slots in slot order.
+    /// Takes over each value's reference.
     fn payload_holding(desc: &ClassDesc, values: Vec<Value>) -> Vec<u8> {
+        // A `Core` class's one hidden slot is the added slot. The twin has it
+        // under the same name, so the encoder skips it as it skips the real
+        // one, and it stays `null`.
         let fields: Vec<&str> = (0..desc.field_count())
-            .map(|index| desc.field_name(index).unwrap_or_default())
+            .map(|index| {
+                desc.field_name(index)
+                    .unwrap_or(nvs_runtime::ADDED_SLOT_NAME)
+            })
             .collect();
         assert_eq!(
             values.len(),
-            fields.len(),
-            "one value per slot of {}",
+            declared_slots(desc).count(),
+            "one value per declared slot of {}",
             desc.name()
         );
         let mut twins = ClassTable::new();
@@ -2451,7 +2481,7 @@ mod tests {
         let twins: &'static ClassTable = Box::leak(Box::new(twins));
         #[expect(unsafe_code, reason = "the leaked table outlives the object")]
         let object = unsafe { nvs_runtime::NvsObj::new(twins.desc(id)) };
-        for (index, value) in values.into_iter().enumerate() {
+        for (index, value) in declared_slots(desc).zip(values) {
             object.set_field(index, value);
         }
         nvs_runtime::encode(Value::object(object)).expect("the twin has no marks, so it encodes")
@@ -2651,7 +2681,7 @@ mod tests {
                 }
                 continue;
             }
-            for index in 0..desc.field_count() {
+            for index in declared_slots(desc) {
                 let slot_name = desc.field_name(index).unwrap_or_default();
                 // A value of another kind than the slot states: the first of
                 // these that the stated type does not admit.
@@ -2667,7 +2697,7 @@ mod tests {
                     neither.push(format!("{name}::{slot_name} admits a float and a bool"));
                     continue;
                 };
-                let values = (0..desc.field_count())
+                let values = declared_slots(desc)
                     .map(|at| if at == index { wrong } else { Value::null() })
                     .collect();
                 if nvs_runtime::decode(&payload_holding(desc, values), &resolve).is_ok() {

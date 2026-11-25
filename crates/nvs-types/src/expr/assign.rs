@@ -1964,10 +1964,7 @@ fn reject_get_only_hook_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     else {
         // A computed property an `extend` block adds has no stored value, so
         // nothing writes it, inside its block or out.
-        if let Some(block) = get
-            .as_deref()
-            .and_then(crate::signatures::hook_label_class)
-        {
+        if let Some(block) = get.as_deref().and_then(crate::signatures::hook_label_class) {
             env.diags.report(
                 Diagnostic::error(
                     code::E_GET_ONLY_HOOK_WRITE,

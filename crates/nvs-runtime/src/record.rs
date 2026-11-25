@@ -436,6 +436,10 @@ fn properties_of(
     let mut properties = Vec::new();
     let keys_private = desc.store_keys_private(value);
     for slot in first..object.field_count() {
+        // The added slot is no property, so a record does not show it.
+        if desc.added_slot() == Some(slot) {
+            continue;
+        }
         let name = desc
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
