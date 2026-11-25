@@ -176,10 +176,15 @@ constants stays an error. The session reads how the folder finds one today and k
 where `E` must be an enum type, file-scope or class-scoped. Every other key type, `array<string, T>`
 too, is a new error after stage 1's, `E_ARRAY_KEY_TYPE_NOT_ENUM`. Its help says that keys are strings
 already, so `array<T>` is the way to write that.
-- **Representation.** `Ty::Array(TypeId)` (`crates/nvs-types/src/ty.rs:73`) stays for string keys. A
-  new variant, `Ty::EnumArray { key, elem }`, is the keyed form. A helper returns the element type of
-  both, so a reader that only needs the element type does not change. Fallback if the new variant
-  costs more arms than the session can land: a key field on `Ty::Array`, with `None` for string keys.
+- **Representation (decided in stage 3: the key field, not a variant).** `Ty::Array(elem, key)`,
+  where `key` is `None` for string keys and the `Ty::Enum` id of `E` for `array<E, T>`. The AST is
+  `TypeAtom::Array(elem, key)` in the same order. Why not `Ty::EnumArray`: a new variant is missed
+  by every non-exhaustive reader (`if let Ty::Array(..)`, `matches!`, `_ =>` arms), and the qualifier
+  walks in `quals.rs` are such readers. A `secret` or `tainted` element inside an `array<E, T>` would
+  go unseen there (security). With a field, a reader that ignores the key reads `array<E, T>` as the
+  `array<T>` it is assignable to, which is sound. Only the sites that read, write or compare keys
+  read the field. Every walk that rebuilds an array type passes the key on with
+  `TypeInterner::array_keyed`. `array_element` and `array_enum_key` are the helpers.
 - **Storage does not change.** A key is stored as today: a position in a packed list, a decimal
   string otherwise. No enum identity is kept on the array at run time. **Memory:** nothing per array
   and nothing per entry.
@@ -302,21 +307,36 @@ last on the chain.
 
 ### 3. array<E, T> types an array keyed by the cases of an enum, and the checker holds every key to it
 
-- [ ] `crates/nvs-syntax/src/parser/ty.rs:597`: `array<K, T>` parses, with `TypeAtom::Array`
+- [x] `crates/nvs-syntax/src/parser/ty.rs:597`: `array<K, T>` parses, with `TypeAtom::Array`
   (`crates/nvs-syntax/src/ast.rs:142`) holding the optional key.
-- [ ] `crates/nvs-types/src/ty.rs:73`: `Ty::EnumArray { key, elem }`, its interning (`:1078`), its
-  display for hover and diagnostics, and the element-type helper. The resolver reports the new key-type
-  code for a key that is not an enum.
-- [ ] `crates/nvs-types/src/expr/literals.rs:1621`: `check_array_key_type` takes the expected key
+  - [x] `TypeAtom::Array(elem, key)` and the parser's comma.
+  - [x] Every AST walk (hir aliases and requires, lsp definition and index, signatures, walk.rs) visits the key.
+- [x] `crates/nvs-types/src/ty.rs:73`: the key field on `Ty::Array` (see the standing decision), its
+  interning, its display for hover and diagnostics, and the element-type helper. The resolver reports
+  the new key-type code for a key that is not an enum.
+  - [x] `Ty::Array(elem, key)`, `enum_array`, `array_keyed`, `array_element`, `array_enum_key`, `describe`.
+  - [x] `lower_array_key` (`crates/nvs-types/src/lower.rs`) and `E1017` `E_ARRAY_KEY_TYPE_NOT_ENUM`.
+  - [x] Every walk that rebuilds an array type keeps the key (quals, generics, ext_lib, signatures, narrow).
+- [x] `crates/nvs-types/src/expr/literals.rs:1621`: `check_array_key_type` takes the expected key
   type. Its callers, `literals.rs:1243` and `:1415`, `crates/nvs-types/src/expr/mod.rs:809` and
   `crates/nvs-types/src/locals.rs:2223`, pass it. The append error goes beside it.
-- [ ] `crates/nvs-types/src/expr/assign.rs:262`: `array<E, T>` is assignable to `array<T>`, and the
+  - [x] `check_enum_key`, and the enum-key help names `array<E, T>`.
+  - [x] `E1018` `E_ENUM_KEYED_ARRAY_APPEND` at `$a[] =`, a literal element with no key, and a spread.
+- [x] `crates/nvs-types/src/expr/assign.rs:262`: `array<E, T>` is assignable to `array<T>`, and the
   key is invariant between two keyed arrays.
 - [ ] `crates/nvs-types/src/expr/iteration.rs:439` and `:535`, and `crates/nvs-ir/src/lower/control.rs:994`:
   the `foreach` key is `E`, and a key declared as `E` is taken.
+  - [x] The checker: `ForeachSource::Array { value, key }`, `foreach_key_ty` and `check_foreach_key`.
+  - [ ] The IR: `lower_foreach`'s `guarded_by!(E_FOREACH_KEY_TY)` (`control.rs:994`) takes a key typed
+    `Ty::Enum`, and the key at `:1147` is made the case (next item).
 - [ ] The IR's own array type (`crates/nvs-ir/src/ty.rs:45`) and the lowering of a key read back as
   `E`, with no check, as the standing decision says.
-- [ ] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `keyed` names, then `cargo test
+  - [x] A case as a subscript or literal key: `lower_array_key_as` (`crates/nvs-ir/src/lower/expr.rs`)
+    relabels it to its backing integer with `reinterpret_enum_to_backing`.
+  - [ ] A key read back as `E`: the `ArrayKeyAt` string parsed to the backing integer, then
+    `InstKind::Reinterpret` to `Ty::Enum`. No membership check.
+  - [ ] A test in `crates/nvs-ir/src/lower/tests.rs` that the foreach key lowers with no check.
+- [x] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `keyed` names, then `cargo test
   --test enum_tables` once.
 
 ### 4. Core\Arr keeps and returns enum keys, and as array<E, T> checks each key
@@ -401,31 +421,40 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 and 2 are done, and every item of each is ticked. The checks `covers`, `no-fallback` and
-`folds` are green: `cargo test --test enum_tables` runs 11 tests, all green.
+Stages 1 and 2 are done. Stage 3's checker half is done: `cargo test --test enum_tables` runs 19
+tests, all green, and they include the 8 that the check `keyed` names. The nightly CI failures named in
+the sweep (Miri zone database, the Miri timeout, the quotient attack, the macOS json-api count) are
+already fixed by `1c3196b0e8` and `8ca2f09e1b`. Those commits are on local `main` but not pushed yet,
+so the next push clears them.
 
-What stage 2 built (`6ea7afe36d`):
-- `eval_const_value` (`crates/nvs-types/src/defaults.rs`) takes `ctx: Option<&Ctx>`. With a class it
-  folds a case, `$case as int`/`as uint` (`case_as_integer`), another class's literal constant and
-  `Foo::class`, alone and as array elements (`named_const_value`). A key written `Priority::Low as int`
-  folds through `fold_constant_value`. The test-attribute callers in `testing.rs` pass `None`.
-- `eval_property_default` takes the same fold, and `nvs_runtime::FieldDefault::Array` builds the array
-  for each new object (`crates/nvs-ir/src/lower/mod.rs` `value_default`).
-- `E0792` stays. It is left for another class's constant whose value is an array or an enum case,
-  because `crate::consts` folds literals alone. A cycle between two constants is that case. Its help
-  and card name only that. `E0472`'s help and card list arrays, cases and `Foo::class`.
-- The full conformance run (`bun nv suite tests/conformance/ --full`) found no `.nvst` that the new
-  match error reaches. It was red on 4 `tests/conformance/novis/image-*` cases. They pass alone and
-  as a folder on the same covws build, and this goal touches no image code, so they look like a flake
-  under load. Rerun them if the gate names them again.
+What this session built:
+- `array<K, T>` parses as `TypeAtom::Array(elem, key)`. `Ty::Array(elem, key)` carries the key as
+  a field, not a new variant (see the standing decision for why). `E1017` refuses a key type that is
+  not an enum, in `lower_array_key` (`crates/nvs-types/src/lower.rs`).
+- Keys: `check_array_key_type(key_ty, expected_key, span, env)` (`literals.rs`) holds a subscript, a
+  literal key and a destructuring key to `E` (`E0434`). `E1018` refuses `$a[] =`, a literal element
+  with no key, and a spread, each through `report_enum_keyed_append`.
+- `is_assignable`: `array<E, T>` reads as `array<T>`, and a keyed target takes only the same key.
+- `foreach` over `array<E, T>` gives `E` to the key binding (`iteration.rs`), in the checker only.
+- The IR stores a case key under its backing integer (`lower_array_key_as`, `expr.rs`). A program that
+  writes, reads and iterates values of an `array<Priority, string>` runs.
 
 ### Next
 
-Stage 3 from its first item: `array<E, T>`. Start at the parser (`crates/nvs-syntax/src/parser/ty.rs`)
-and `Ty` (`crates/nvs-types/src/ty.rs:73`), adding `Ty::EnumArray { key, elem }` as the standing
-decision says. The compiler then names every exhaustive `match` over `Ty` that has to decide.
+Stage 3's last two items, both in the IR:
+1. `crates/nvs-ir/src/lower/control.rs:991`: `lower_foreach`'s key binding. `binding_ty` gives
+   `Ty::Enum(repr)` for a key declared `Priority $k`, and the `guarded_by!(E_FOREACH_KEY_TY)` at
+   `:994` panics today, so `foreach ($labels as Priority $k => …)` crashes the compiler. Take
+   `Ty::Enum`, and at `:1147` turn the `ArrayKeyAt` string into the backing integer, then
+   `InstKind::Reinterpret` it to `Ty::Enum`. Find how `string as int` lowers in `convert.rs` and
+   reuse its parse, or add a helper that parses with no check. The `var $k` form reaches the same
+   place. `lower_foreach_cursor` is not involved.
+2. A lowering test in `crates/nvs-ir/src/lower/tests.rs` that a keyed `foreach` emits no membership
+   check, then the stage's status set to done.
+Then stage 4 from its first item.
 
-Expected red: none.
+Expected red: none. The new codes `E1017` and `E1018` have cards, and stage 6 owes their reference
+entries and the rule `rule:types/arrays` text that their doc comments cite.
 
 ### Backlog
 

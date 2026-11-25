@@ -1844,7 +1844,7 @@ fn payload_type(analysed: &Analysed, value: Span, outer: &[IndexNode]) -> Option
             for step in steps.iter().rev() {
                 let base = without_null(interner, ty)?;
                 ty = match (interner.get(base), step) {
-                    (Ty::Array(element), None) => *element,
+                    (Ty::Array(element, _), None) => *element,
                     (Ty::Shape(fields), Some(key)) => {
                         fields.iter().find(|field| field.name == *key)?.ty
                     }

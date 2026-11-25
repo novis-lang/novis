@@ -1052,8 +1052,13 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             }
         }
         TypeKind::Atom(atom) => match atom {
-            TypeAtom::Array(Some(inner))
-            | TypeAtom::ClassRef(inner)
+            TypeAtom::Array(Some(inner), key) => {
+                if let Some(key) = key {
+                    walk_type(key, src, out);
+                }
+                walk_type(inner, src, out);
+            }
+            TypeAtom::ClassRef(inner)
             | TypeAtom::PropertyKey(inner)
             | TypeAtom::PropertyPath(inner)
             | TypeAtom::StringHoles { key: inner, .. } => {
@@ -1099,7 +1104,7 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             | TypeAtom::SecretBytes
             | TypeAtom::SecretTaintedString
             | TypeAtom::SecretTaintedBytes
-            | TypeAtom::Array(None)
+            | TypeAtom::Array(None, _)
             | TypeAtom::Object
             | TypeAtom::Mixed
             | TypeAtom::SecretMixed

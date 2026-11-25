@@ -1189,9 +1189,13 @@ pub(crate) fn check_array_literal(
     // array members names no single element type, so it keeps that fallback.
     let expected = expected.map(|id| sole_array_member(id, env));
     let elem_expected = expected.and_then(|id| match env.interner.get(id) {
-        Ty::Array(elem) => Some(*elem),
+        Ty::Array(elem, _) => Some(*elem),
         _ => None,
     });
+    // The enum `E` of an `array<E, T>` target: every key must be one of its
+    // cases, and an element with no key, or a spread, is refused, because
+    // both append under a number key.
+    let key_expected = expected.and_then(|id| env.interner.array_enum_key(id));
     // A literal written as the argument of a dispatching `Core` parameter is
     // judged element by element, since each element is passed on as a value
     // of its own (`nvs_stdlib::registry::CoreTy::Dispatched`). Taken here, so
@@ -1232,6 +1236,16 @@ pub(crate) fn check_array_literal(
         if item.by_ref {
             report_by_reference_element(item, env);
         }
+        if let Some(key) = key_expected
+            && (item.spread || item.key.is_none())
+        {
+            let site = if item.spread {
+                KeyedAppend::Spread
+            } else {
+                KeyedAppend::Element
+            };
+            report_enum_keyed_append(item.span, key, site, env);
+        }
         if item.spread {
             let subject_ty = check_spread_element(item, elem_expected, live, scope, ctx, env);
             holds_secret |= super::quals::contains_secret(subject_ty, env.interner);
@@ -1242,7 +1256,7 @@ pub(crate) fn check_array_literal(
         }
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
-            check_array_key_type(key_ty, key.span, env);
+            check_array_key_type(key_ty, key_expected, key.span, env);
             keys.push((key.span, key_ty));
         }
         // `rule:security/secret-qualifier`'s container axis, at the element
@@ -1306,7 +1320,7 @@ pub(crate) fn check_array_literal(
     // value keeps plain `mixed`. Outside an argument the element was already
     // refused where it was written.
     if env.in_call_argument
-        && let Ty::Array(elem) = env.interner.get(array).clone()
+        && let Ty::Array(elem, key) = env.interner.get(array).clone()
     {
         let retyped = if holds_secret {
             super::quals::mixed_admitting_secret(elem, env.interner)
@@ -1314,7 +1328,7 @@ pub(crate) fn check_array_literal(
             super::quals::mixed_without_secret(elem, env.interner)
         };
         if retyped != elem {
-            array = env.interner.array(retyped);
+            array = env.interner.array_keyed(retyped, key);
         }
     }
     for (key, key_ty) in keys {
@@ -1329,6 +1343,50 @@ pub(crate) fn check_array_literal(
     array
 }
 
+/// Where [`report_enum_keyed_append`] found an append.
+#[derive(Clone, Copy)]
+pub(crate) enum KeyedAppend {
+    /// An element with no key in a literal.
+    Element,
+    /// A `...$a` spread in a literal.
+    Spread,
+    /// `$a[] = $v`.
+    Subscript,
+}
+
+/// An element with no key, or a spread, in a literal typed `array<E, T>`, or
+/// `$a[] = $v` on such an array: each appends under the next number key, and
+/// the keys of that array are the cases of `E` (`rule:types/arrays`).
+pub(crate) fn report_enum_keyed_append(
+    span: Span,
+    key: TypeId,
+    site: KeyedAppend,
+    env: &mut Env<'_>,
+) {
+    let key = env.interner.describe(key);
+    let (message, label) = match site {
+        KeyedAppend::Spread => (
+            "a spread cannot fill an array whose keys are enum cases",
+            "this spread",
+        ),
+        KeyedAppend::Element => (
+            "this value has no key, and the keys of this array are enum cases",
+            "this value",
+        ),
+        KeyedAppend::Subscript => (
+            "`[]` cannot add a value to an array whose keys are enum cases",
+            "this `[]` has no key",
+        ),
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_ENUM_KEYED_ARRAY_APPEND, message)
+            .with_primary(span, label)
+            .with_help(format!(
+                "Write a case of `{key}` as the key of each value: `{key}::Case => $value`"
+            )),
+    );
+}
+
 /// The one `array<T>` member of a union `expected`, or `expected` itself
 /// where it is not a union or has no member or several — see
 /// [`check_array_literal`].
@@ -1339,7 +1397,7 @@ fn sole_array_member(expected: TypeId, env: &Env<'_>) -> TypeId {
     let mut arrays = members
         .iter()
         .copied()
-        .filter(|member| matches!(env.interner.get(*member), Ty::Array(_)));
+        .filter(|member| matches!(env.interner.get(*member), Ty::Array(..)));
     match (arrays.next(), arrays.next()) {
         (Some(only), None) => only,
         _ => expected,
@@ -1417,7 +1475,7 @@ fn synthesize_items(
         }
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
-            check_array_key_type(key_ty, key.span, env);
+            check_array_key_type(key_ty, None, key.span, env);
             keys.push((key.span, key_ty));
         }
         let answer = if item.spread {
@@ -1506,7 +1564,7 @@ fn spread_element_ty(
 ) -> Result<TypeId, NoArrayType> {
     let subject = element_ty(&item.value, live, scope, ctx, env)?;
     match env.interner.get(subject) {
-        Ty::Array(elem) => Ok(*elem),
+        Ty::Array(elem, _) => Ok(*elem),
         _ => {
             report_spread_not_an_array(item, subject, env);
             Err(NoArrayType::Untyped)
@@ -1555,7 +1613,7 @@ fn check_spread_element(
     let before = env.diags.len();
     let subject_ty = check_expr(&item.value, expectation, live, scope, ctx, env);
     let reported = env.diags.len() != before;
-    if !reported && !matches!(env.interner.get(subject_ty), Ty::Array(_)) {
+    if !reported && !matches!(env.interner.get(subject_ty), Ty::Array(..)) {
         report_spread_not_an_array(item, subject_ty, env);
     }
     subject_ty
@@ -1623,7 +1681,21 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
 /// split `division_result`/`bitwise_result` already draw for an operand pair
 /// they don't recognize; `rule:types/arrays`'s own runtime normalization/throw
 /// covers it once a value arrives through `mixed`.
-pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>) {
+///
+/// `expected_key` is the enum `E` of an `array<E, T>` the key indexes, and
+/// then the rule is the other way round: the key's static type must be `E`, or
+/// a case of it. An `int`, a `string`, a case of another enum and `mixed` are
+/// all refused, because nothing checks a key of that array at run time.
+pub(crate) fn check_array_key_type(
+    key_ty: TypeId,
+    expected_key: Option<TypeId>,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if let Some(expected) = expected_key {
+        check_enum_key(key_ty, expected, span, env);
+        return;
+    }
     if matches!(env.interner.get(key_ty), Ty::Float | Ty::Bool | Ty::Null) {
         env.diags.report(
             Diagnostic::error(
@@ -1645,10 +1717,36 @@ pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>
             format!("`{qname}` is an enum, and an enum case is not an array key"),
         )
         .with_primary(span, "this key")
-        .with_help(
-            "an enum case is a named integer, and two enums can have the same numbers. Write \
-             `$case as int` if the number is the key you want. Otherwise write a method that \
-             returns a name for the case",
-        ),
+        .with_help(format!(
+            "To use the cases of `{qname}` as keys, declare the array as `array<{qname}, T>`, \
+             where `T` is the type of the values. Write `$case as int` if the number is the key \
+             you want"
+        )),
+    );
+}
+
+/// A key of an `array<E, T>`: its static type must be `E` or a case of `E`
+/// (`rule:types/arrays`). A key that already reported is the error type and
+/// reports nothing more.
+fn check_enum_key(key_ty: TypeId, expected: TypeId, span: Span, env: &mut Env<'_>) {
+    if env.interner.is_error(key_ty)
+        || is_assignable(key_ty, expected, env.interner, env.graph, env.signatures)
+    {
+        return;
+    }
+    let (found, want) = (
+        env.interner.describe(key_ty),
+        env.interner.describe(expected),
+    );
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARRAY_KEY_INVALID_TYPE,
+            format!("the keys of this array are cases of `{want}`, and this key is `{found}`"),
+        )
+        .with_primary(span, format!("this key is `{found}`"))
+        .with_help(format!(
+            "Write a case of `{want}` as the key. To use another value, convert it first with \
+             `$value as {want}`"
+        )),
     );
 }

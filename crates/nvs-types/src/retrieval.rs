@@ -704,7 +704,7 @@ fn literal_type(
     }
     let base = env.interner.without_null(want);
     match (&value.kind, env.interner.get(base).clone()) {
-        (ExprKind::ArrayLiteral(items), Ty::Array(element)) => {
+        (ExprKind::ArrayLiteral(items), Ty::Array(element, _)) => {
             let fits = items.iter().all(|item| {
                 if item.spread || item.by_ref {
                     return false;
@@ -757,7 +757,7 @@ pub(crate) fn report_payload_keys(value: &Expr, want: TypeId, env: &mut Env<'_>)
     }
     let base = env.interner.without_null(want);
     match (&value.kind, env.interner.get(base).clone()) {
-        (ExprKind::ArrayLiteral(items), Ty::Array(element)) => {
+        (ExprKind::ArrayLiteral(items), Ty::Array(element, _)) => {
             for item in items.iter().filter(|item| !item.spread && !item.by_ref) {
                 report_payload_keys(&item.value, element, env);
             }

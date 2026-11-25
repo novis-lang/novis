@@ -596,15 +596,22 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Array) => {
                 self.bump();
                 if self.eat(TokenKind::Lt).is_some() {
-                    let inner = self.parse_type_union();
+                    // `array<K, T>`: a comma after the first argument makes it
+                    // the key type, and the element type follows.
+                    let first = self.parse_type_union();
+                    let (elem, key) = if self.eat(TokenKind::Comma).is_some() {
+                        (self.parse_type_union(), Some(Box::new(first)))
+                    } else {
+                        (first, None)
+                    };
                     let close = self.expect_type_close_angle();
                     Type {
-                        kind: TypeKind::Atom(TypeAtom::Array(Some(Box::new(inner)))),
+                        kind: TypeKind::Atom(TypeAtom::Array(Some(Box::new(elem)), key)),
                         span: start.to(close),
                     }
                 } else {
                     Type {
-                        kind: TypeKind::Atom(TypeAtom::Array(None)),
+                        kind: TypeKind::Atom(TypeAtom::Array(None, None)),
                         span: start,
                     }
                 }
@@ -980,8 +987,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 *carries_text = true;
                 already
             }
-            TypeAtom::Array(Some(elem)) => {
-                TypeAtom::Array(Some(Box::new(Self::taint_type(*elem, carries_text))))
+            // A key is an enum case and carries no text, so only the element
+            // type is tainted.
+            TypeAtom::Array(Some(elem), key) => {
+                TypeAtom::Array(Some(Box::new(Self::taint_type(*elem, carries_text))), key)
             }
             TypeAtom::Shape(fields) => TypeAtom::Shape(
                 fields

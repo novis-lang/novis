@@ -104,7 +104,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         // it from its own argument — so a signature carrying one needs this
         // machinery to run even where nothing else in it mentions a variable.
         Ty::TypeVar(_) | Ty::ShapeOfCallables(_) => true,
-        Ty::Array(elem)
+        Ty::Array(elem, _)
         | Ty::PropertyKey(elem)
         | Ty::PropertyPath(elem)
         | Ty::StringHoles { key: elem, .. } => mentions_type_var(*elem, interner),
@@ -238,7 +238,7 @@ pub(crate) fn bind(
             out.entry(name.clone()).or_insert(actual);
             Vec::new()
         }
-        (Ty::Array(declared_elem), Ty::Array(actual_elem))
+        (Ty::Array(declared_elem, _), Ty::Array(actual_elem, _))
         | (Ty::PropertyKey(declared_elem), Ty::PropertyKey(actual_elem))
         | (Ty::PropertyPath(declared_elem), Ty::PropertyPath(actual_elem)) => {
             vec![(*declared_elem, *actual_elem)]
@@ -427,9 +427,9 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         // than being one, so there is nothing inside it to put a binding into.
         // See [`Ty::ShapeOfCallables`].
         Ty::ShapeOfCallables(_) => id,
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = substitute(elem, bindings, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::PropertyKey(inner) => {
             let inner = substitute(inner, bindings, interner);

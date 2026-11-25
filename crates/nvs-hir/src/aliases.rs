@@ -628,9 +628,14 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
                 record_names(item, src, out);
             }
         }
+        TypeKind::Atom(TypeAtom::Array(Some(inner), key)) => {
+            if let Some(key) = key {
+                record_names(key, src, out);
+            }
+            record_names(inner, src, out);
+        }
         TypeKind::Atom(
-            TypeAtom::Array(Some(inner))
-            | TypeAtom::ClassRef(inner)
+            TypeAtom::ClassRef(inner)
             | TypeAtom::PropertyKey(inner)
             | TypeAtom::PropertyPath(inner)
             | TypeAtom::StringHoles { key: inner, .. },
@@ -843,10 +848,12 @@ fn substitute(ty: &Type, scope: Scope<'_>, ctx: &mut ResolveCtx<'_>) -> Type {
             kind: TypeKind::Paren(Box::new(substitute(inner, scope, ctx))),
             span: ty.span,
         },
-        TypeKind::Atom(TypeAtom::Array(Some(inner))) => Type {
-            kind: TypeKind::Atom(TypeAtom::Array(Some(Box::new(substitute(
-                inner, scope, ctx,
-            ))))),
+        TypeKind::Atom(TypeAtom::Array(Some(inner), key)) => Type {
+            kind: TypeKind::Atom(TypeAtom::Array(
+                Some(Box::new(substitute(inner, scope, ctx))),
+                key.as_ref()
+                    .map(|key| Box::new(substitute(key, scope, ctx))),
+            )),
             span: ty.span,
         },
         // `rule:types/class-reference`'s class reference, whose argument is a name like any
@@ -1018,7 +1025,7 @@ mod tests {
         let (table, diags) = resolve("<?nvs\ntype Inner = uint;\ntype Outer = array<Inner>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let outer = table.get(&QName::parse("Outer")).unwrap();
-        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &outer.kind else {
+        let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = &outer.kind else {
             panic!("expected array<...>, got {outer:?}");
         };
         assert!(is_atom(inner, &TypeAtom::Uint));
@@ -1086,13 +1093,13 @@ mod tests {
         );
         assert!(!diags.has_errors(), "{diags:?}");
         let wrapped = table.get_member(&QName::parse("Order"), "Wrapped").unwrap();
-        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &wrapped.kind else {
+        let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = &wrapped.kind else {
             panic!("expected array<...>, got {wrapped:?}");
         };
         assert!(is_atom(inner, &TypeAtom::Decimal));
         // Outside the body the same spelling is the file-scope alias.
         let outer = table.get(&QName::parse("Outer")).unwrap();
-        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &outer.kind else {
+        let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = &outer.kind else {
             panic!("expected array<...>, got {outer:?}");
         };
         assert!(is_atom(inner, &TypeAtom::Uint));
@@ -1283,7 +1290,7 @@ mod tests {
         ]);
         assert!(!diags.has_errors(), "{diags:?}");
         let row = table.get(&QName::parse("App\\Http\\Row")).unwrap();
-        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &row.kind else {
+        let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = &row.kind else {
             panic!("expected array<...>, got {row:?}");
         };
         assert!(is_atom(inner, &TypeAtom::Uint));

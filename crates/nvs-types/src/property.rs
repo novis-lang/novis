@@ -534,7 +534,7 @@ impl Deriver {
                 );
             }
             Ty::Mixed => Gen::mixed(),
-            Ty::Array(element) => {
+            Ty::Array(element, _) => {
                 let element = self.escaping(|this| this.gen_of(element, env))?;
                 Gen::List {
                     element: Box::new(element),

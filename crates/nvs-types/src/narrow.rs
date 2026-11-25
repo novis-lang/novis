@@ -29,14 +29,14 @@ use crate::ty::{Ty, TypeId, TypeInterner};
 /// in it, an element type no annotation can state, an array nested past
 /// [`MAX_ARRAY_DEPTH`], and the empty literal's `array<never>`.
 pub fn narrowest(interner: &mut TypeInterner, synthesized: TypeId) -> Option<TypeId> {
-    let Ty::Array(elem) = *interner.get(synthesized) else {
+    let Ty::Array(elem, key) = *interner.get(synthesized) else {
         return None;
     };
     let elem = widened(interner, elem, 1)?;
     if matches!(interner.get(elem), Ty::Never) {
         return None;
     }
-    Some(interner.array(elem))
+    Some(interner.array_keyed(elem, key))
 }
 
 /// `id` with every single-value type in it widened to its base, or `None`
@@ -44,12 +44,12 @@ pub fn narrowest(interner: &mut TypeInterner, synthesized: TypeId) -> Option<Typ
 /// around `id`.
 fn widened(interner: &mut TypeInterner, id: TypeId, depth: u32) -> Option<TypeId> {
     match interner.get(id).clone() {
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             if depth >= MAX_ARRAY_DEPTH {
                 return None;
             }
             let elem = widened(interner, elem, depth + 1)?;
-            Some(interner.array(elem))
+            Some(interner.array_keyed(elem, key))
         }
         Ty::Union(members) => {
             let members = members
@@ -121,7 +121,12 @@ fn widened(interner: &mut TypeInterner, id: TypeId, depth: u32) -> Option<TypeId
 #[must_use]
 pub fn written(interner: &TypeInterner, id: TypeId) -> String {
     match interner.get(id) {
-        Ty::Array(elem) => format!("array<{}>", written(interner, *elem)),
+        Ty::Array(elem, None) => format!("array<{}>", written(interner, *elem)),
+        Ty::Array(elem, Some(key)) => format!(
+            "array<{}, {}>",
+            written(interner, *key),
+            written(interner, *elem)
+        ),
         Ty::Union(members) => {
             if let [a, b] = members.as_slice() {
                 match (interner.get(*a), interner.get(*b)) {
@@ -161,14 +166,18 @@ pub fn parameter(interner: &TypeInterner, id: TypeId) -> Option<String> {
 /// `result` is whether `id` is a callable's result, where `void` is written.
 fn base_written(interner: &TypeInterner, id: TypeId, depth: u32, result: bool) -> Option<String> {
     Some(match interner.get(id) {
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             if depth >= MAX_ARRAY_DEPTH {
                 return None;
             }
-            format!(
-                "array<{}>",
-                base_written(interner, *elem, depth + 1, false)?
-            )
+            let elem = base_written(interner, *elem, depth + 1, false)?;
+            match key {
+                Some(key) => format!(
+                    "array<{}, {elem}>",
+                    base_written(interner, *key, depth, false)?
+                ),
+                None => format!("array<{elem}>"),
+            }
         }
         Ty::Union(members) => {
             let mut written: Vec<String> = members

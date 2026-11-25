@@ -416,7 +416,7 @@ fn qualified_atom(tested: TypeId, secret_only: bool, env: &Env<'_>) -> Option<Ty
         Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes => {
             Some(tested)
         }
-        Ty::Array(element) => qualified_atom(*element, secret_only, env),
+        Ty::Array(element, _) => qualified_atom(*element, secret_only, env),
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .find_map(|m| qualified_atom(*m, secret_only, env)),

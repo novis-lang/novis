@@ -3133,6 +3133,10 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
+        // A key of an `array<E, T>` is a case, stored under its backing
+        // integer as `$case as int` would store it. The relabel emits no
+        // machine instruction.
+        let (v, ty) = self.reinterpret_enum_to_backing(v, ty, cur);
         match ty {
             Ty::Str => (v, Ty::Str, self.sole_operand_borrowed(expr)),
             Ty::Int => (v, Ty::Int, false),
@@ -9029,7 +9033,7 @@ pub(super) fn test_shape(
         CheckedTy::Object => Ty::Object,
         // A bare `array` is `array<mixed>` (`nvs_types::lower::lower_type`),
         // and every value carrying `Tag::Array` holds one.
-        CheckedTy::Array(element)
+        CheckedTy::Array(element, _)
             if matches!(
                 checked_types.get(*element),
                 CheckedTy::Mixed | CheckedTy::SecretMixed
@@ -9043,7 +9047,7 @@ pub(super) fn test_shape(
         // the same walk is lowered here over the element's own row, which is
         // what `as array<T>` has no need of, refusing each of those where it is
         // written (`E0711`) while `rule:types/type-test` makes `is` answer.
-        CheckedTy::Array(element) => {
+        CheckedTy::Array(element, _) => {
             if let Some(tags) = array_element_tags(tested, checked_types) {
                 return Some(TestShape::ArrayOf(tags));
             }

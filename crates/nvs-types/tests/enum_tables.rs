@@ -67,7 +67,11 @@ fn a_match_with_a_default_arm_needs_no_other_case() {
 #[test]
 fn a_match_over_a_nullable_enum_needs_a_null_arm() {
     let all = "Priority::Low => 'low', Priority::Medium => 'medium', Priority::High => 'high'";
-    let diags = check_src(&fixture("?Priority", "", &format!("match ($p) {{ {all} }}")));
+    let diags = check_src(&fixture(
+        "?Priority",
+        "",
+        &format!("match ($p) {{ {all} }}"),
+    ));
     assert_eq!(
         misses(&diags),
         ["this `match` does not handle `null`"],
@@ -172,7 +176,10 @@ fn a_constant_array_holds_enum_cases() {
     assert!(!diags.has_errors(), "{diags:?}");
     assert_eq!(
         entries(order),
-        [key("0", ConstArg::EnumInt(2)), key("1", ConstArg::EnumInt(0))]
+        [
+            key("0", ConstArg::EnumInt(2)),
+            key("1", ConstArg::EnumInt(0))
+        ]
     );
     let (_, groups) = folded(&src, "Defaults::GROUPS");
     assert_eq!(
@@ -275,5 +282,175 @@ fn a_constant_that_still_cannot_fold_says_what_to_write() {
             )
             && !help.contains("cannot yet"),
         "{help}"
+    );
+}
+
+/// `Priority`, `Size`, a class `Defaults` with `consts`, and a function whose body is `body`.
+fn keyed(consts: &str, body: &str) -> String {
+    format!(
+        "<?nvs\nenum Priority {{ Low, Medium, High }}\nenum Size: uint {{ Small = 1, Large = 2 }}\n\
+         class Defaults {{\n{consts}\n}}\n\
+         class Run {{\n  public static function plain(array<string> $a): int {{ return 0; }}\n\
+         \x20 public static function run(mixed $m, int $i, array<string> $strings): void {{\n{body}\n  }}\n}}\n"
+    )
+}
+
+/// The messages of every diagnostic with `code`.
+fn coded(diags: &Diagnostics, code: nvs_diagnostics::Code) -> Vec<String> {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code))
+        .map(|d| format!("{d:?}"))
+        .collect()
+}
+
+const LABELS: &str =
+    "  array<Priority, string> $labels = [Priority::Low => 'low', Priority::High => 'high'];";
+
+#[test]
+fn an_array_keyed_by_an_enum_takes_only_its_cases() {
+    let diags = check_src(&keyed(
+        "",
+        &format!(
+            "{LABELS}\n  $labels[Priority::Medium] = 'medium';\n  string $low = $labels[Priority::Low];\n\
+             \x20 Priority $p = Priority::High;\n  $labels[$p] = 'h';\n  string $high = $labels[$p];"
+        ),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_int_a_string_or_another_enum_key_is_refused() {
+    for key in ["0", "$i", "'Low'", "Size::Small", "$m"] {
+        let diags = check_src(&keyed(
+            "",
+            &format!("{LABELS}\n  string $x = $labels[{key}];"),
+        ));
+        let found = coded(&diags, code::E_ARRAY_KEY_INVALID_TYPE);
+        assert_eq!(found.len(), 1, "{key}: {diags:?}");
+        assert!(
+            found[0].contains("cases of `Priority`") && found[0].contains("as Priority"),
+            "{key}: {}",
+            found[0]
+        );
+    }
+    let literal = check_src(&keyed(
+        "",
+        "  array<Priority, string> $l = [Priority::Low => 'a', 1 => 'b'];",
+    ));
+    assert_eq!(
+        coded(&literal, code::E_ARRAY_KEY_INVALID_TYPE).len(),
+        1,
+        "{literal:?}"
+    );
+}
+
+#[test]
+fn an_append_to_an_enum_keyed_array_is_refused() {
+    let append = check_src(&keyed("", &format!("{LABELS}\n  $labels[] = 'x';")));
+    assert_eq!(
+        coded(&append, code::E_ENUM_KEYED_ARRAY_APPEND).len(),
+        1,
+        "{append:?}"
+    );
+    let positional = check_src(&keyed(
+        "",
+        "  array<Priority, string> $l = [Priority::Low => 'a', 'b'];",
+    ));
+    assert_eq!(
+        coded(&positional, code::E_ENUM_KEYED_ARRAY_APPEND).len(),
+        1,
+        "{positional:?}"
+    );
+    let spread = check_src(&keyed(
+        "",
+        &format!("{LABELS}\n  array<Priority, string> $copy = [...$labels];"),
+    ));
+    assert_eq!(
+        coded(&spread, code::E_ENUM_KEYED_ARRAY_APPEND).len(),
+        1,
+        "{spread:?}"
+    );
+}
+
+#[test]
+fn a_foreach_key_over_an_enum_keyed_array_is_the_enum() {
+    let diags = check_src(&keyed(
+        "",
+        &format!(
+            "{LABELS}\n  foreach ($labels as Priority $k => string $v) {{ Priority $q = $k; }}\n\
+             \x20 foreach ($labels as var $key => var $value) {{ Priority $r = $key; }}"
+        ),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let as_string = check_src(&keyed(
+        "",
+        &format!("{LABELS}\n  foreach ($labels as string $k => string $v) {{ }}"),
+    ));
+    assert!(as_string.has_errors(), "{as_string:?}");
+}
+
+#[test]
+fn an_enum_keyed_array_is_read_as_a_string_keyed_one() {
+    let diags = check_src(&keyed(
+        "",
+        &format!("{LABELS}\n  int $n = Run::plain($labels);\n  array<string> $copy = $labels;"),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    for from in ["$strings", "$sized"] {
+        let diags = check_src(&keyed(
+            "",
+            &format!(
+                "  array<Size, string> $sized = [Size::Small => 's'];\n\
+                 \x20 array<Priority, string> $back = {from};"
+            ),
+        ));
+        assert!(diags.has_errors(), "{from}: {diags:?}");
+    }
+}
+
+#[test]
+fn the_key_type_of_an_array_must_be_an_enum() {
+    for key in ["string", "int", "Defaults", "?Priority"] {
+        let diags = check_src(&keyed("", &format!("  array<{key}, int> $a = [];")));
+        let found = coded(&diags, code::E_ARRAY_KEY_TYPE_NOT_ENUM);
+        assert_eq!(found.len(), 1, "{key}: {diags:?}");
+        assert!(found[0].contains("`array<int>`"), "{key}: {}", found[0]);
+    }
+    let diags = check_src(&keyed("", "  array<Priority, int> $a = [];"));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_literal_with_case_keys_and_no_target_names_the_keyed_type() {
+    for body in [
+        "  var $l = [Priority::Low => 'a'];",
+        "  array<string> $l = [Priority::Low => 'a'];",
+    ] {
+        let diags = check_src(&keyed("", body));
+        let found = coded(&diags, code::E_ARRAY_KEY_INVALID_TYPE);
+        assert_eq!(found.len(), 1, "{body}: {diags:?}");
+        assert!(
+            found[0].contains("array<Priority, T>"),
+            "{body}: {}",
+            found[0]
+        );
+    }
+}
+
+#[test]
+fn a_constant_of_an_enum_keyed_array_folds() {
+    let src = keyed(
+        "  const array<Priority, string> LABELS = [Priority::Low => 'low', Priority::High => 'high'];",
+        "  var $l = Defaults::LABELS;\n  string $low = Defaults::LABELS[Priority::Low];",
+    );
+    let (diags, labels) = folded(&src, "Defaults::LABELS");
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(
+        entries(labels),
+        [
+            key("0", ConstArg::Str("low".to_owned())),
+            key("2", ConstArg::Str("high".to_owned())),
+        ]
     );
 }

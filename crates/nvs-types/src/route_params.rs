@@ -137,7 +137,7 @@ fn check_param(param: &Param, attr: &Attribute, mark: Mark, env: &mut Env<'_>) {
         Mark::Params => (
             "#[Core\\Router\\Params]",
             "route values are an `array`",
-            |atom| matches!(atom, TypeAtom::Array(_)),
+            |atom| matches!(atom, TypeAtom::Array(..)),
         ),
     };
     let name = strip_sigil(span_text(env.src, param.name)).to_owned();

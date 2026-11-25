@@ -734,7 +734,7 @@ fn slot_check(id: TypeId, scope: &SlotScope<'_>) -> SlotCheck {
         CheckedTy::SingleValueInt(value) => SlotCheck::Values(Ty::Int, vec![value.cast_unsigned()]),
         CheckedTy::True => SlotCheck::Values(Ty::Bool, vec![1]),
         CheckedTy::False => SlotCheck::Values(Ty::Bool, vec![0]),
-        CheckedTy::Array(element) => match slot_check(*element, scope) {
+        CheckedTy::Array(element, _) => match slot_check(*element, scope) {
             SlotCheck::Any => SlotCheck::Repr(Ty::Array),
             element => SlotCheck::Array(Box::new(element)),
         },
@@ -3410,7 +3410,7 @@ impl<'a> Lowering<'a> {
                     self.record_extension_result_shapes(field.ty);
                 }
             }
-            CheckedTy::Array(element) => self.record_extension_result_shapes(*element),
+            CheckedTy::Array(element, _) => self.record_extension_result_shapes(*element),
             CheckedTy::Union(members) => {
                 for member in members {
                     self.record_extension_result_shapes(*member);
@@ -5345,7 +5345,7 @@ pub(crate) fn lower_decl_type(
         // the checker holds, and no part of it has a representation below this
         // boundary.
         TypeKind::Atom(TypeAtom::CallableSig { .. }) => Ty::Object,
-        TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
+        TypeKind::Atom(TypeAtom::Array(..)) => Ty::Array,
         // `mixed` — `rule:types/grammar`. See `Ty::Tagged`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
         // local/parameter/return/call-argument round-trips, nothing else.
@@ -5879,7 +5879,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // The element `TypeId` is discarded — same erasure `lower_decl_type`
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
-        CheckedTy::Array(_) => Ty::Array,
+        CheckedTy::Array(..) => Ty::Array,
         CheckedTy::Mixed | CheckedTy::SecretMixed => Ty::Tagged,
         // The type of a place that already reported an error. A program with
         // an error does not compile, so lowering never meets it, and a debug
@@ -6347,7 +6347,7 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
         }
         _ => id,
     };
-    let CheckedTy::Array(element) = checked_types.get(id) else {
+    let CheckedTy::Array(element, _) = checked_types.get(id) else {
         return None;
     };
     let mut current = *element;
@@ -6374,12 +6374,12 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
             | CheckedTy::SecretBytes
             | CheckedTy::SecretTaintedBytes => Ty::Bytes,
             CheckedTy::Mixed | CheckedTy::SecretMixed => Ty::Tagged,
-            CheckedTy::Array(_) => Ty::Array,
+            CheckedTy::Array(..) => Ty::Array,
             _ => return None,
         };
         word |= u64::from(param_tag_nibble(repr)) << (level * 4);
         match checked_types.get(current) {
-            CheckedTy::Array(inner) => current = *inner,
+            CheckedTy::Array(inner, _) => current = *inner,
             _ => return Some(word),
         }
     }

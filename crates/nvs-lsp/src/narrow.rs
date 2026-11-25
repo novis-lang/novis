@@ -67,7 +67,7 @@ pub fn at(
 ) -> Option<Action> {
     let (ty, literal) = declaration_at(entry_stmts(analysed)?, offset)?;
     let declared = analysed.exprs.declared_ty(ty.span)?;
-    let Ty::Array(elem) = analysed.interner.get(declared) else {
+    let Ty::Array(elem, _) = analysed.interner.get(declared) else {
         return None;
     };
     if !matches!(analysed.interner.get(*elem), Ty::Mixed) {

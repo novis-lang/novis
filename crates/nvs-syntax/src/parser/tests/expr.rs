@@ -1574,7 +1574,7 @@ fn is_parses_its_right_hand_side_with_parse_type_and_not_as_an_expression() {
     assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Int)), "{ty:?}");
 
     let ty = tested_type(parse_ok("$x is array<int>"));
-    let TypeKind::Atom(TypeAtom::Array(Some(elem))) = ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(elem), None)) = ty.kind else {
         panic!("expected an array type: {ty:?}");
     };
     assert!(

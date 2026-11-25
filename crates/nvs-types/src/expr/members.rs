@@ -569,7 +569,7 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
         | Ty::SecretTaintedBytes
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_)
-        | Ty::Array(_)
+        | Ty::Array(..)
         | Ty::Enum(..)
         | Ty::EnumCase(..) => false,
         // `?Box` is `Union([Null, Class])`, so one member admitting an object
@@ -591,7 +591,7 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
 /// one that holds an object.
 pub(crate) fn is_plain_array(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Array(element) => holds_no_object(*element, interner),
+        Ty::Array(element, _) => holds_no_object(*element, interner),
         _ => false,
     }
 }
@@ -599,7 +599,7 @@ pub(crate) fn is_plain_array(ty: TypeId, interner: &TypeInterner) -> bool {
 /// Whether no value of `ty` is an object or contains one, at any depth.
 fn holds_no_object(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Array(element) => holds_no_object(*element, interner),
+        Ty::Array(element, _) => holds_no_object(*element, interner),
         Ty::Union(members) => members
             .iter()
             .all(|member| holds_no_object(*member, interner)),
@@ -975,7 +975,7 @@ impl PathTarget {
 pub fn path_step(ty: TypeId, interner: &TypeInterner) -> Option<PathTarget> {
     let direct = |id: TypeId| match interner.get(id) {
         Ty::Class(qname, _) => Some(PathTarget::Class(qname.clone())),
-        Ty::Array(element) => Some(PathTarget::Array {
+        Ty::Array(element, _) => Some(PathTarget::Array {
             array: id,
             element: *element,
         }),

@@ -314,7 +314,7 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // off the declaration rather than off the type. [`ArgConv::Enum`] owns
         // both decisions that took — which word, and what it becomes.
         Ty::Enum(name, _) => cases_of(name, env),
-        Ty::Array(elem) if matches!(env.interner.get(*elem), Ty::String | Ty::TaintedString) => {
+        Ty::Array(elem, _) if matches!(env.interner.get(*elem), Ty::String | Ty::TaintedString) => {
             ArgConv::Words
         }
         _ => ArgConv::Unconverted,

@@ -2264,7 +2264,7 @@ fn never_a_callable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::SecretTaintedBytes
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_)
-        | Ty::Array(_)
+        | Ty::Array(..)
         | Ty::Enum(..)
         | Ty::EnumCase(..)
         | Ty::Shape(_)
@@ -2803,7 +2803,7 @@ pub(crate) fn reject_qualified_spreads(
 /// refuses elsewhere.
 fn spread_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
     match env.interner.get(ty) {
-        Ty::Array(elem) => Some(*elem),
+        Ty::Array(elem, _) => Some(*elem),
         Ty::Mixed | Ty::SecretMixed => Some(ty),
         _ => None,
     }

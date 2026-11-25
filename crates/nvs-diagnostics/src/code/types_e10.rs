@@ -202,4 +202,21 @@ codes! {
          the value can be `null`, an arm must also handle `null`. Add an arm for each missing \
          case, or add a `default` arm.",
     );
+
+    /// The key type of `array<K, T>` is not an enum
+    /// (`rule:types/arrays`). Every other array has string
+    /// keys already, so `array<T>` is the way to write it.
+    pub const E_ARRAY_KEY_TYPE_NOT_ENUM: Code = Code::new("E1017").card(
+        "An array type with two arguments, `array<K, T>`, needs an enum as its key type `K`. \
+         The keys of that array are the cases of the enum. Every other array has `string` keys. \
+         For those arrays, write `array<T>` with one argument.",
+    );
+
+    /// `$a[] = $v` where `$a` is an `array<E, T>` (`rule:types/arrays`). An
+    /// append picks the next integer key, and an enum has no next case.
+    pub const E_ENUM_KEYED_ARRAY_APPEND: Code = Code::new("E1018").card(
+        "`$a[] = $value` adds a value under the next number key. The keys of an array of type \
+         `array<E, T>` are the cases of the enum `E`, so there is no next key. Write the case \
+         as the key: `$a[E::Case] = $value`.",
+    );
 }

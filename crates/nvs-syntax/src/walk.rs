@@ -1232,8 +1232,11 @@ fn push_shape(kids: &mut Vec<Node>, span: Span, fields: &[ShapeField]) {
 /// The shape types written inside an atom that is not one itself.
 fn push_atom(kids: &mut Vec<Node>, atom: &TypeAtom) {
     match atom {
-        TypeAtom::Array(Some(inner))
-        | TypeAtom::ClassRef(inner)
+        TypeAtom::Array(Some(inner), key) => {
+            key.iter().for_each(|key| push_type(kids, key));
+            push_type(kids, inner);
+        }
+        TypeAtom::ClassRef(inner)
         | TypeAtom::PropertyKey(inner)
         | TypeAtom::PropertyPath(inner)
         | TypeAtom::StringHoles { key: inner, .. } => push_type(kids, inner),
@@ -1243,7 +1246,7 @@ fn push_atom(kids: &mut Vec<Node>, atom: &TypeAtom) {
         }
         TypeAtom::Name(_, args) => args.iter().for_each(|arg| push_type(kids, arg)),
         TypeAtom::Shape(_)
-        | TypeAtom::Array(None)
+        | TypeAtom::Array(None, _)
         | TypeAtom::Null
         | TypeAtom::Bool
         | TypeAtom::Int

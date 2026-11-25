@@ -253,7 +253,7 @@ fn has_one_representation(ty: TypeId, interner: &TypeInterner) -> bool {
         | Ty::Class(..)
         | Ty::Enum(..)
         | Ty::EnumCase(..) => true,
-        Ty::Array(element) => has_one_representation(*element, interner),
+        Ty::Array(element, _) => has_one_representation(*element, interner),
         _ => false,
     }
 }
@@ -409,8 +409,19 @@ fn assignable(
     // *literal* at `array<float>` is not compared here at all: its elements
     // are checked one by one against `float`, and lowering stores each one
     // converted (`super::literals::check_array_literal`).
-    if let (Ty::Array(from_elem), Ty::Array(to_elem)) = (interner.get(from), interner.get(to)) {
+    //
+    // The key type is invariant between two enum-keyed arrays, and an
+    // `array<E, T>` is read wherever an `array<T>` is expected: its keys are
+    // stored as the same decimal strings any array key is. The other way has no
+    // row, because a string key need not be a case of `E`; `as array<E, T>` is
+    // the checked conversion.
+    if let (Ty::Array(from_elem, from_key), Ty::Array(to_elem, to_key)) =
+        (interner.get(from), interner.get(to))
+    {
         let (from_elem, to_elem) = (*from_elem, *to_elem);
+        if to_key.is_some() && from_key != to_key {
+            return false;
+        }
         return assignable(
             from_elem,
             to_elem,
@@ -995,7 +1006,7 @@ fn null_help(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -> Option<Stri
     }
     let present_desc = env.interner.describe(present);
     let empty = match env.interner.get(present) {
-        Ty::Array(_) => Some("[]"),
+        Ty::Array(..) => Some("[]"),
         Ty::String => Some("''"),
         Ty::Int | Ty::Uint => Some("0"),
         Ty::Float => Some("0.0"),
@@ -1024,7 +1035,7 @@ fn unconverted_array_help(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -
     let target = env.interner.without_null(expected);
     let (mut from, mut to) = (actual, target);
     let mut nested = false;
-    while let (Ty::Array(from_elem), Ty::Array(to_elem)) =
+    while let (Ty::Array(from_elem, _), Ty::Array(to_elem, _)) =
         (env.interner.get(from), env.interner.get(to))
     {
         (from, to) = (*from_elem, *to_elem);
@@ -1289,7 +1300,7 @@ fn name_the_var_line(
     };
     let mut element = declared;
     for _ in 0..depth {
-        let Ty::Array(inner) = env.interner.get(element) else {
+        let Ty::Array(inner, _) = env.interner.get(element) else {
             return;
         };
         element = *inner;

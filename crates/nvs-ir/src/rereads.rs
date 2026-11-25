@@ -553,7 +553,7 @@ fn takes_code(types: &nvs_types::TypeInterner, ty: nvs_types::ty::TypeId) -> boo
         Ty::Callable | Ty::CallableSig { .. } | Ty::ShapeOfCallables(_) => true,
         Ty::Shape(fields) => fields.iter().any(|field| takes_code(types, field.ty)),
         Ty::Union(tys) => tys.iter().any(|&ty| takes_code(types, ty)),
-        Ty::Array(element) => takes_code(types, *element),
+        Ty::Array(element, _) => takes_code(types, *element),
         _ => false,
     }
 }

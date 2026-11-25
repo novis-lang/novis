@@ -68,9 +68,19 @@ pub enum Ty {
     /// `secret tainted bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretTaintedString`].
     SecretTaintedBytes,
-    /// `array<T>`. A bare `array` is `Array` of the interned `Mixed` id —
+    /// `array<T>`, or `array<E, T>` with a key. The first field is `T`, the
+    /// second the key type: `None` for the string keys of `array<T>`, or the
+    /// [`Self::Enum`] id of the enum `E` whose cases are the keys. A bare
+    /// `array` is `Array` of the interned `Mixed` id with no key —
     /// `rule:types/grammar`: "`array` with no argument is exactly `array<mixed>`."
-    Array(TypeId),
+    ///
+    /// The key is a field and not a second variant so that a reader that only
+    /// needs the element type reads `array<E, T>` as the `array<T>` it is
+    /// assignable to, and so a qualifier walk or a reachability walk that
+    /// names `Ty::Array(elem, _)` sees inside both. Only the sites that read a
+    /// key, write one or compare two array types read the second field. The
+    /// storage of the two is the same, so the key costs nothing at run time.
+    Array(TypeId, Option<TypeId>),
     /// `class<T>` — `rule:types/class-reference`'s class reference. Its *value* is a run-time
     /// class descriptor, and the argument bounds which descriptors it can be:
     /// `T` itself or any class that is a `T`.
@@ -732,7 +742,10 @@ impl TypeInterner {
             Ty::SecretBytes => "secret bytes".to_owned(),
             Ty::SecretTaintedString => "secret tainted string".to_owned(),
             Ty::SecretTaintedBytes => "secret tainted bytes".to_owned(),
-            Ty::Array(elem) => format!("array<{}>", self.describe(*elem)),
+            Ty::Array(elem, None) => format!("array<{}>", self.describe(*elem)),
+            Ty::Array(elem, Some(key)) => {
+                format!("array<{}, {}>", self.describe(*key), self.describe(*elem))
+            }
             Ty::ClassRef(inner) => format!("class<{}>", self.describe(*inner)),
             Ty::PropertyKey(inner) => format!("property<{}>", self.describe(*inner)),
             Ty::PropertyPath(inner) => format!("propertyPath<{}>", self.describe(*inner)),
@@ -1075,7 +1088,40 @@ impl TypeInterner {
     /// Interns `array<elem>`.
     #[must_use]
     pub fn array(&mut self, elem: TypeId) -> TypeId {
-        self.intern(Ty::Array(elem))
+        self.intern(Ty::Array(elem, None))
+    }
+
+    /// Interns `array<key, elem>`, where `key` is a [`Ty::Enum`] id — see
+    /// [`Ty::Array`].
+    #[must_use]
+    pub fn enum_array(&mut self, key: TypeId, elem: TypeId) -> TypeId {
+        self.intern(Ty::Array(elem, Some(key)))
+    }
+
+    /// Interns an array of `elem` with the key `key` — `None` for string keys.
+    /// A walk that rebuilds an array type from a new element type passes the
+    /// key it read, so an `array<E, T>` stays keyed by `E`.
+    #[must_use]
+    pub fn array_keyed(&mut self, elem: TypeId, key: Option<TypeId>) -> TypeId {
+        self.intern(Ty::Array(elem, key))
+    }
+
+    /// The element type of `id` when it is an array, keyed or not.
+    #[must_use]
+    pub fn array_element(&self, id: TypeId) -> Option<TypeId> {
+        match self.get(id) {
+            Ty::Array(elem, _) => Some(*elem),
+            _ => None,
+        }
+    }
+
+    /// The enum key type of `id` when it is an `array<E, T>`.
+    #[must_use]
+    pub fn array_enum_key(&self, id: TypeId) -> Option<TypeId> {
+        match self.get(id) {
+            Ty::Array(_, key) => *key,
+            _ => None,
+        }
     }
 
     /// Interns `class<inner>`, where `inner` is a class or interface id —

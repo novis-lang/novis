@@ -1763,7 +1763,7 @@ fn check_example_value(
             check_example_fields(fields, inner, live, scope, ctx, env);
             return;
         }
-        (ExprKind::ArrayLiteral(items), crate::ty::Ty::Array(element)) => {
+        (ExprKind::ArrayLiteral(items), crate::ty::Ty::Array(element, _)) => {
             for item in items {
                 check_example_value(&item.value, element, name, live, scope, ctx, env);
             }
@@ -2501,7 +2501,7 @@ fn body_ty(ty: crate::ty::TypeId, env: &Env<'_>) -> BodyTy {
     }
     match env.interner.get(ty) {
         crate::ty::Ty::Void => BodyTy::Void,
-        crate::ty::Ty::Array(element) => BodyTy::List(Box::new(body_ty(*element, env))),
+        crate::ty::Ty::Array(element, _) => BodyTy::List(Box::new(body_ty(*element, env))),
         crate::ty::Ty::Union(members) => {
             let rest: Vec<crate::ty::TypeId> = members
                 .iter()

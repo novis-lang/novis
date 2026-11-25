@@ -979,8 +979,16 @@ fn a_match_over_every_case_lowers_no_fallback_throw() {
     let with_default = count(
         "<?nvs\nenum Rank { Bronze, Silver, Gold }\nclass T {\n  function name(Rank $r): string {\n    return match ($r) {\n      Rank::Bronze => \"b\",\n      Rank::Silver => \"s\",\n      Rank::Gold => \"g\",\n      default => \"x\",\n    };\n  }\n}\n",
     );
-    assert_eq!(covering, (2, 0), "a covering match compares two labels and throws nothing");
-    assert_eq!(with_default, (3, 0), "a `default` arm keeps every comparison");
+    assert_eq!(
+        covering,
+        (2, 0),
+        "a covering match compares two labels and throws nothing"
+    );
+    assert_eq!(
+        with_default,
+        (3, 0),
+        "a `default` arm keeps every comparison"
+    );
 }
 
 /// `new Foo(1)` with a resolved one-parameter constructor — the class's
@@ -6097,7 +6105,10 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
         (TypeAtom::SecretBytes, Some(Ty::Bytes)),
         (TypeAtom::SecretTaintedString, Some(Ty::Str)),
         (TypeAtom::SecretTaintedBytes, Some(Ty::Bytes)),
-        (TypeAtom::Array(Some(Box::new(int()))), Some(Ty::Array)),
+        (
+            TypeAtom::Array(Some(Box::new(int())), None),
+            Some(Ty::Array),
+        ),
         (TypeAtom::ClassRef(Box::new(named())), Some(Ty::ClassDesc)),
         (TypeAtom::PropertyKey(Box::new(named())), Some(Ty::Str)),
         (TypeAtom::Object, Some(Ty::Object)),
@@ -6218,7 +6229,7 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
         (CheckedTy::SecretBytes, Ty::Bytes),
         (CheckedTy::SecretTaintedString, Ty::Str),
         (CheckedTy::SecretTaintedBytes, Ty::Bytes),
-        (CheckedTy::Array(int), Ty::Array),
+        (CheckedTy::Array(int, None), Ty::Array),
         (CheckedTy::ClassRef(class), Ty::ClassDesc),
         (CheckedTy::PropertyKey(class), Ty::Str),
         (CheckedTy::Object, Ty::Object),

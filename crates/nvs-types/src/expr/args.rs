@@ -363,7 +363,7 @@ fn check_key_marks(
 /// neither, such as a bare `callable`, whose result is not known here.
 fn key_values(ty: TypeId, interner: &TypeInterner) -> Option<TypeId> {
     match interner.get(ty) {
-        Ty::Array(elem) => Some(*elem),
+        Ty::Array(elem, _) => Some(*elem),
         Ty::CallableSig { ret, .. } => Some(*ret),
         _ => None,
     }
@@ -2401,7 +2401,7 @@ pub(crate) fn written_class_of(
     }
     let first = *written.first()?;
     let (element, list) = match env.interner.get(first) {
-        Ty::Array(element) => (*element, true),
+        Ty::Array(element, _) => (*element, true),
         _ => (first, false),
     };
     let owner_name = owner.to_string();

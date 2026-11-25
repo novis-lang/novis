@@ -270,7 +270,7 @@ pub fn text_class(ty: TypeId, interner: &TypeInterner) -> TextClass {
         | Ty::Object
         | Ty::Iterable
         | Ty::TypeVar(_) => TextClass::Tainted,
-        Ty::Array(elem) => TextClass::Holds(vec![*elem]),
+        Ty::Array(elem, _) => TextClass::Holds(vec![*elem]),
         Ty::Shape(fields) => TextClass::Holds(fields.iter().map(|field| field.ty).collect()),
         Ty::CoreShape(shape) => {
             TextClass::Holds(shape.fields.iter().map(|field| field.ty).collect())
@@ -395,7 +395,7 @@ pub(crate) fn carries_secret(ty: TypeId, interner: &TypeInterner) -> bool {
         return true;
     }
     match interner.get(ty) {
-        Ty::Array(elem) => carries_secret(*elem, interner),
+        Ty::Array(elem, _) => carries_secret(*elem, interner),
         Ty::Union(members) => members
             .iter()
             .any(|&member| carries_secret(member, interner)),
@@ -420,7 +420,7 @@ pub(crate) fn carries_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         Ty::Mixed | Ty::SecretMixed => true,
-        Ty::Array(elem) => carries_unchecked(*elem, interner),
+        Ty::Array(elem, _) => carries_unchecked(*elem, interner),
         Ty::Union(members) => members
             .iter()
             .any(|&member| carries_unchecked(member, interner)),
@@ -432,7 +432,7 @@ pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
 /// either among its members.
 fn holds_array(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Array(_) | Ty::Mixed | Ty::SecretMixed => true,
+        Ty::Array(..) | Ty::Mixed | Ty::SecretMixed => true,
         Ty::Union(members) => members.iter().any(|&member| holds_array(member, interner)),
         _ => false,
     }
@@ -479,7 +479,9 @@ pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
         Ty::Mixed | Ty::SecretMixed | Ty::Iterable => true,
-        Ty::Array(elem) => carries_unchecked(*elem, interner) || carries_tainted(*elem, interner),
+        Ty::Array(elem, _) => {
+            carries_unchecked(*elem, interner) || carries_tainted(*elem, interner)
+        }
         // A class's keys are outside text when [`text_class`] cannot prove
         // the class clean, such as a `Core` class no row declares.
         Ty::Class(..) => text_class(ty, interner) == TextClass::Tainted,
@@ -538,7 +540,7 @@ pub(crate) fn check_key_qualifier(
         return true;
     }
     if !carries_tainted(key_ty, env.interner)
-        || !matches!(env.interner.get(base), Ty::Array(_))
+        || !matches!(env.interner.get(base), Ty::Array(..))
         || keys_from_outside(base, env.interner)
     {
         return false;
@@ -571,7 +573,7 @@ fn untainted_shape_text(ty: TypeId, interner: &TypeInterner) -> bool {
         Ty::Shape(fields) => fields
             .iter()
             .any(|field| crate::derive::unqualified_text(field.ty, interner)),
-        Ty::Array(elem) => untainted_shape_text(*elem, interner),
+        Ty::Array(elem, _) => untainted_shape_text(*elem, interner),
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .any(|&member| untainted_shape_text(member, interner)),
@@ -816,9 +818,9 @@ pub(crate) fn untainted_toward(
         return ty;
     }
     match (interner.get(ty).clone(), interner.get(expected).clone()) {
-        (Ty::Array(elem), Ty::Array(want)) => {
+        (Ty::Array(elem, key), Ty::Array(want, _)) => {
             let elem = untainted_toward(elem, want, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         (Ty::Shape(fields), Ty::Shape(want)) => {
             let fields = fields
@@ -856,11 +858,11 @@ pub(crate) fn untainted_toward(
                 None => ty,
             }
         }
-        (Ty::Array(_), Ty::Union(arms)) => {
+        (Ty::Array(..), Ty::Union(arms)) => {
             let array = arms
                 .iter()
                 .copied()
-                .find(|&arm| matches!(interner.get(arm), Ty::Array(_)));
+                .find(|&arm| matches!(interner.get(arm), Ty::Array(..)));
             match array {
                 Some(arm) => untainted_toward(ty, arm, interner),
                 None => ty,
@@ -891,13 +893,13 @@ pub(crate) fn untainted_entries(
     interner: &mut TypeInterner,
 ) -> TypeId {
     let entries = match (interner.get(expected), interner.get(ty)) {
-        (Ty::Array(want), Ty::Array(elem)) => Some((*want, *elem)),
+        (Ty::Array(want, _), Ty::Array(elem, key)) => Some((*want, *elem, *key)),
         _ => None,
     };
     match entries {
-        Some((want, elem)) => {
+        Some((want, elem, key)) => {
             let elem = untainted_entries(elem, want, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         None => untainted(ty, interner),
     }
@@ -932,9 +934,9 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 pub(crate) fn mixed_without_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(ty).clone() {
         Ty::SecretMixed => interner.mixed(),
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = mixed_without_secret(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Shape(fields) => {
             let fields = fields
@@ -978,9 +980,9 @@ pub(crate) fn mixed_without_secret(ty: TypeId, interner: &mut TypeInterner) -> T
 pub(crate) fn mixed_admitting_secret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(ty).clone() {
         Ty::Mixed => interner.secret_mixed(),
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = mixed_admitting_secret(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Shape(fields) => {
             let fields = fields
@@ -1017,9 +1019,9 @@ pub(crate) fn erased_qualifiers(ty: TypeId, interner: &mut TypeInterner) -> Type
     match interner.get(ty).clone() {
         Ty::SecretMixed => interner.mixed(),
         Ty::StringHoles { key, .. } => interner.string_holes(key, false),
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = erased_qualifiers(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
@@ -1045,9 +1047,9 @@ pub(crate) fn secret_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
     match interner.get(ty).clone() {
         Ty::Mixed => interner.secret_mixed(),
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = secret_result(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
@@ -1087,9 +1089,9 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
         // `rule:types/string-holes`: the text between the holes is the
         // caller's, so the qualifier stays on it.
         Ty::StringHoles { key, .. } => interner.string_holes(key, true),
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = tainted_result(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
@@ -1135,7 +1137,7 @@ pub(crate) fn tainted_walks(declared: TypeId, interner: &mut TypeInterner) -> Ty
             let elem = tainted_result(args[0], interner);
             interner.generic_class(q, vec![elem])
         }
-        Ty::Array(_) => tainted_result(declared, interner),
+        Ty::Array(..) => tainted_result(declared, interner),
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
                 .iter()
@@ -1205,7 +1207,7 @@ pub(crate) fn admits_tainted_argument(
 fn all_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         Ty::Mixed | Ty::SecretMixed => true,
-        Ty::Array(elem) => all_unchecked(*elem, interner),
+        Ty::Array(elem, _) => all_unchecked(*elem, interner),
         _ => false,
     }
 }
@@ -1590,7 +1592,7 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
         return true;
     }
     match interner.get(ty) {
-        Ty::Array(elem) => contains_secret(*elem, interner),
+        Ty::Array(elem, _) => contains_secret(*elem, interner),
         Ty::Shape(fields) => fields.iter().any(|f| contains_secret(f.ty, interner)),
         Ty::CoreShape(shape) => shape
             .fields
@@ -1617,7 +1619,7 @@ pub(crate) fn carries_qualifier(ty: TypeId, interner: &TypeInterner) -> bool {
         return true;
     }
     match interner.get(ty) {
-        Ty::Array(elem) => carries_qualifier(*elem, interner),
+        Ty::Array(elem, _) => carries_qualifier(*elem, interner),
         Ty::Shape(fields) => fields.iter().any(|f| carries_qualifier(f.ty, interner)),
         Ty::CoreShape(shape) => shape
             .fields
@@ -2117,7 +2119,7 @@ fn walks_outside_text(
     match env.interner.get(ty).clone() {
         // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
         Ty::Mixed | Ty::SecretMixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
-        Ty::Array(elem) => walks_outside_text(elem, seen, env),
+        Ty::Array(elem, _) => walks_outside_text(elem, seen, env),
         Ty::Shape(fields) => fields
             .iter()
             .any(|field| walks_outside_text(field.ty, seen, env)),

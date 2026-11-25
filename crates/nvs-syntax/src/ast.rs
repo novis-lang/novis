@@ -138,8 +138,12 @@ pub enum TypeAtom {
     /// `secret mixed` — `rule:security/secret-qualifier`'s third carrier. A
     /// `mixed` that may hold a `secret` value, and the only `mixed` that may.
     SecretMixed,
-    /// `array`, or `array<T>` when a type argument is given.
-    Array(Option<Box<Type>>),
+    /// `array`, `array<T>` when a type argument is given, or `array<K, T>`
+    /// when a key type is written in front of it. The first field is `T`, the
+    /// second `K`. A key is only ever present beside an element type, and only
+    /// an enum is a valid one: the checker says so where it is resolved, as it
+    /// does for [`Self::ClassRef`]'s argument.
+    Array(Option<Box<Type>>, Option<Box<Type>>),
     /// `class<T>` — `rule:types/class-reference`'s class reference, whose value is the
     /// run-time class descriptor of a class that is a `T`.
     ///

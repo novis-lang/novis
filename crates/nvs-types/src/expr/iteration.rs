@@ -101,9 +101,15 @@ pub(crate) fn infer_yield_from(
 /// diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ForeachSource {
-    /// An `array<T>`, iterated directly by the IR with no interface call at
-    /// all. The only shape with keys.
-    Array { value: TypeId },
+    /// An `array<T>` or an `array<E, T>`, iterated directly by the IR with
+    /// no interface call at all. `key` is the enum `E` of the keyed form, whose
+    /// cases are the keys, and `None` for string keys.
+    Array {
+        /// The element type.
+        value: TypeId,
+        /// The enum whose cases are the keys, if any.
+        key: Option<TypeId>,
+    },
     /// An `Iterable<T>` or `Iterator<T>`, written as such or reached through
     /// a class that implements one. A cursor has no key: `rule:iteration/two-interfaces`'s
     /// member set is `advance`/`current` and nothing else.
@@ -140,7 +146,7 @@ impl ForeachSource {
     /// subject that carries none.
     pub(crate) fn value_ty(self) -> Option<TypeId> {
         match self {
-            Self::Array { value } | Self::Cursor { value, .. } | Self::Keyed { value, .. } => {
+            Self::Array { value, .. } | Self::Cursor { value, .. } | Self::Keyed { value, .. } => {
                 Some(value)
             }
             Self::Unchecked => None,
@@ -195,7 +201,7 @@ pub(crate) fn classify_foreach_source(
     env: &mut Env<'_>,
 ) -> ForeachSource {
     match env.interner.get(subject_ty).clone() {
-        Ty::Array(elem) => ForeachSource::Array { value: elem },
+        Ty::Array(elem, key) => ForeachSource::Array { value: elem, key },
         // Neither `mixed` nor `iterable` says which of the three loops to
         // run, so the subject is converted where it is written.
         Ty::Mixed | Ty::Iterable => {
@@ -391,7 +397,7 @@ pub(crate) fn check_foreach_inout(
             );
             return;
         }
-        ForeachSource::Array { value } => value,
+        ForeachSource::Array { value, .. } => value,
     };
     if !matches!(subject.kind, ExprKind::Variable(_)) {
         env.diags.report(
@@ -441,7 +447,8 @@ pub(crate) fn foreach_key_ty(
     subject_ty: TypeId,
     env: &mut Env<'_>,
 ) -> TypeId {
-    if let ForeachSource::Keyed { key, .. } = *source {
+    if let ForeachSource::Keyed { key, .. } | ForeachSource::Array { key: Some(key), .. } = *source
+    {
         return key;
     }
     if super::quals::keys_from_outside(subject_ty, env.interner) {
@@ -497,7 +504,10 @@ pub(crate) fn check_foreach_key(
     if matches!(source, ForeachSource::Unchecked) {
         return;
     }
-    if let ForeachSource::Keyed { key, .. } = *source {
+    // An `array<E, T>`'s key is a case of `E`, and a written key is checked
+    // as the keyed pair's is: assignable from `E`.
+    if let ForeachSource::Keyed { key, .. } | ForeachSource::Array { key: Some(key), .. } = *source
+    {
         check_keyed_key(key, declared, binding, env);
         return;
     }

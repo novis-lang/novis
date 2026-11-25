@@ -2861,7 +2861,7 @@ fn takes_a_string(ty: &Type) -> bool {
                 | TypeAtom::TaintedBytes
                 | TypeAtom::SecretBytes
                 | TypeAtom::SecretTaintedBytes
-                | TypeAtom::Array(_)
+                | TypeAtom::Array(..)
                 | TypeAtom::ClassRef(_)
                 | TypeAtom::Object
                 | TypeAtom::Shape(_)
@@ -3403,8 +3403,13 @@ fn type_names(ty: &Type, found: &mut Vec<Span>, qualified: &mut Vec<(Span, Span)
             TypeAtom::Member(owner, member) | TypeAtom::MemberCase(owner, member, _) => {
                 qualified.push((owner.span, *member));
             }
-            TypeAtom::Array(Some(arg))
-            | TypeAtom::ClassRef(arg)
+            TypeAtom::Array(Some(arg), key) => {
+                if let Some(key) = key {
+                    type_names(key, found, qualified);
+                }
+                type_names(arg, found, qualified);
+            }
+            TypeAtom::ClassRef(arg)
             | TypeAtom::PropertyKey(arg)
             | TypeAtom::PropertyPath(arg)
             | TypeAtom::StringHoles { key: arg, .. } => type_names(arg, found, qualified),

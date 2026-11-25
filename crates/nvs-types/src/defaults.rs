@@ -456,7 +456,7 @@ pub(crate) fn eval_property_default(
         return Some(ConstArg::Null);
     }
     let empty_array = matches!(&expr.kind, ExprKind::ArrayLiteral(items) if items.is_empty())
-        && matches!(env.interner.get(declared), Ty::Array(_));
+        && matches!(env.interner.get(declared), Ty::Array(..));
     let mut reported = false;
     let value = if empty_array {
         Some(ConstArg::EmptyArray)
@@ -944,7 +944,7 @@ pub(crate) fn eval_const_value(
     {
         return Some(value);
     }
-    let Ty::Array(element) = *env.interner.get(declared) else {
+    let Ty::Array(element, _) = *env.interner.get(declared) else {
         return None;
     };
     let ExprKind::ArrayLiteral(items) = &expr.kind else {

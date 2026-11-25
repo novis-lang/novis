@@ -814,10 +814,15 @@ fn infer_kind(
             let base_ty = check_expr(base, None, live, scope, ctx, env);
             let base_reported = env.diags.len() != before;
             let mut written_key = None;
+            // The enum `E` of an `array<E, T>` base, or of a `?array<E, T>`
+            // one under a `??`: each key must be a case of it, and `[]` has no
+            // next key to append under.
+            let unwrapped = env.interner.without_null(base_ty);
+            let key_expected = env.interner.array_enum_key(unwrapped);
             match index {
                 Some(index) => {
                     let index_ty = check_expr(index, None, live, scope, ctx, env);
-                    check_array_key_type(index_ty, index.span, env);
+                    check_array_key_type(index_ty, key_expected, index.span, env);
                     if env.write_target_levels.contains_key(&expr.span) && !env.unset_target {
                         written_key = Some((index.span, index_ty));
                     }
@@ -842,7 +847,16 @@ fn infer_kind(
                         ),
                     );
                 }
-                None => {}
+                None => {
+                    if let Some(key) = key_expected {
+                        literals::report_enum_keyed_append(
+                            expr.span,
+                            key,
+                            literals::KeyedAppend::Subscript,
+                            env,
+                        );
+                    }
+                }
             }
             let guarded = env.coalesce_guarded.contains(&expr.span);
             // A guarded level's *base* may itself be a guarded read, and one of
@@ -887,7 +901,7 @@ fn infer_kind(
             // A read out of `secret mixed` is `secret mixed` too
             // (`rule:security/secret-propagation`).
             let elem_ty = match env.interner.get(base_ty) {
-                Ty::Array(elem) => Some(*elem),
+                Ty::Array(elem, _) => Some(*elem),
                 Ty::Error => Some(error),
                 Ty::Mixed if deferred_to_the_tag => Some(mixed),
                 Ty::SecretMixed if deferred_to_the_tag => Some(secret_mixed),
@@ -1391,7 +1405,7 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 /// `null` and the subscript is then an ordinary one.
 fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
     let residue = env.interner.without_null(base_ty);
-    let nullable_array = residue != base_ty && matches!(env.interner.get(residue), Ty::Array(_));
+    let nullable_array = residue != base_ty && matches!(env.interner.get(residue), Ty::Array(..));
     let help = if nullable_array {
         "a nullable array has no elements until it is known not to be `null` — put the \
          subscript inside an `if ($x != null) { … }`, which narrows the binding to its \

@@ -2017,8 +2017,13 @@ pub(crate) fn type_names(ty: &Type, found: &mut Vec<Span>) {
             }
         }
         TypeKind::Atom(atom) => match atom {
-            TypeAtom::Array(Some(arg))
-            | TypeAtom::ClassRef(arg)
+            TypeAtom::Array(Some(arg), key) => {
+                if let Some(key) = key {
+                    type_names(key, found);
+                }
+                type_names(arg, found);
+            }
+            TypeAtom::ClassRef(arg)
             | TypeAtom::PropertyKey(arg)
             | TypeAtom::PropertyPath(arg)
             | TypeAtom::StringHoles { key: arg, .. } => {
@@ -2068,8 +2073,11 @@ fn type_in(ty: &Type, offset: BytePos) -> Option<&Type> {
 /// arguments, and `None` for an atom that writes none.
 fn atom_type(atom: &TypeAtom, offset: BytePos) -> Option<&Type> {
     match atom {
-        TypeAtom::Array(Some(arg))
-        | TypeAtom::ClassRef(arg)
+        TypeAtom::Array(Some(arg), key) => key
+            .as_deref()
+            .and_then(|key| type_in(key, offset))
+            .or_else(|| type_in(arg, offset)),
+        TypeAtom::ClassRef(arg)
         | TypeAtom::PropertyKey(arg)
         | TypeAtom::PropertyPath(arg)
         | TypeAtom::StringHoles { key: arg, .. } => type_in(arg, offset),

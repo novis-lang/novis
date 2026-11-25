@@ -126,7 +126,7 @@ fn collect_signatures(tested: TypeId, interner: &TypeInterner, out: &mut Vec<Typ
                 collect_signatures(*member, interner, out);
             }
         }
-        Ty::Array(element) => collect_signatures(*element, interner, out),
+        Ty::Array(element, _) => collect_signatures(*element, interner, out),
         Ty::Shape(fields) => {
             for field in fields {
                 collect_signatures(field.ty, interner, out);

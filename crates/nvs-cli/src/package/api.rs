@@ -759,8 +759,11 @@ impl<'a> Api<'_, 'a> {
             TypeAtom::SecretBytes => "secret bytes".to_owned(),
             TypeAtom::SecretTaintedString => "secret tainted string".to_owned(),
             TypeAtom::SecretTaintedBytes => "secret tainted bytes".to_owned(),
-            TypeAtom::Array(None) => "array".to_owned(),
-            TypeAtom::Array(Some(arg)) => format!("array<{}>", inner(arg)),
+            TypeAtom::Array(None, _) => "array".to_owned(),
+            TypeAtom::Array(Some(arg), None) => format!("array<{}>", inner(arg)),
+            TypeAtom::Array(Some(arg), Some(key)) => {
+                format!("array<{}, {}>", inner(key), inner(arg))
+            }
             TypeAtom::ClassRef(arg) => format!("class<{}>", inner(arg)),
             TypeAtom::PropertyKey(arg) => format!("property<{}>", inner(arg)),
             TypeAtom::PropertyPath(arg) => format!("propertyPath<{}>", inner(arg)),

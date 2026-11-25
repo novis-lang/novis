@@ -455,9 +455,9 @@ fn tainted_output(returns: TypeId, interner: &mut TypeInterner) -> TypeId {
                 .collect();
             interner.shape(fields)
         }
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = tainted_output(elem, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members

@@ -2166,7 +2166,7 @@ fn placed_by_the_literal_grid(ty: TypeId, env: &Env<'_>) -> bool {
         | Ty::SecretTaintedString
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_) => true,
-        Ty::Array(element) => placed_by_the_literal_grid(*element, env),
+        Ty::Array(element, _) => placed_by_the_literal_grid(*element, env),
         Ty::Union(members) => members.iter().all(|&m| placed_by_the_literal_grid(m, env)),
         _ => false,
     }
@@ -2733,7 +2733,13 @@ pub(crate) fn static_use(
                         visit(t, in_param, in_key, short, src, out);
                     }
                 }
-                TypeAtom::Array(Some(t)) | TypeAtom::ClassRef(t) => {
+                TypeAtom::Array(Some(t), key) => {
+                    if let Some(key) = key {
+                        visit(key, in_param, in_key, short, src, out);
+                    }
+                    visit(t, in_param, in_key, short, src, out);
+                }
+                TypeAtom::ClassRef(t) => {
                     visit(t, in_param, in_key, short, src, out);
                 }
                 TypeAtom::PropertyKey(t) | TypeAtom::PropertyPath(t) => {
@@ -2870,9 +2876,9 @@ pub(crate) fn bind_static(
                 .collect();
             interner.generic_class(q, args)
         }
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = bind_static(elem, declaring, to, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::ClassRef(inner) => {
             let inner = bind_static(inner, declaring, to, interner);
@@ -2950,9 +2956,9 @@ pub(crate) fn static_key_as_text(
         Ty::StringHoles { key, tainted } if static_key_as_text(key, declaring, interner) != key => {
             crate::expr::quals::qualified_scalar(false, tainted, false, interner)
         }
-        Ty::Array(elem) => {
+        Ty::Array(elem, key) => {
             let elem = static_key_as_text(elem, declaring, interner);
-            interner.array(elem)
+            interner.array_keyed(elem, key)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members

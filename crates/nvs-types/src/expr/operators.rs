@@ -902,7 +902,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         // this one.
         Ty::SingleValueString(_) => EqDomain::Str,
         Ty::SingleValueInt(_) => EqDomain::Numeric,
-        Ty::Array(_) => EqDomain::Array,
+        Ty::Array(..) => EqDomain::Array,
         Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::PropertyPath(_) => EqDomain::PropertyPath,
@@ -1687,8 +1687,8 @@ fn reject_array_combination(
     span: Span,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
-    let lhs_is_array = matches!(env.interner.get(lhs), Ty::Array(_));
-    let rhs_is_array = matches!(env.interner.get(rhs), Ty::Array(_));
+    let lhs_is_array = matches!(env.interner.get(lhs), Ty::Array(..));
+    let rhs_is_array = matches!(env.interner.get(rhs), Ty::Array(..));
     if !lhs_is_array && !rhs_is_array {
         return None;
     }
@@ -2502,7 +2502,7 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// element type: `array<mixed>` converts, and each element is converted where
 /// it is read.
 fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Array(element) = env.interner.get(to) else {
+    let Ty::Array(element, _) = env.interner.get(to) else {
         return;
     };
     let mut element = *element;
@@ -2518,7 +2518,7 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
             | Ty::Bytes
             | Ty::Mixed
             | Ty::Error => return,
-            Ty::Array(inner) if level + 1 < ARRAY_ELEMENT_TAG_LEVELS => element = *inner,
+            Ty::Array(inner, _) if level + 1 < ARRAY_ELEMENT_TAG_LEVELS => element = *inner,
             _ => break,
         }
     }
@@ -2632,7 +2632,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => ConvKind::Bytes,
         Ty::Null => ConvKind::Null,
         Ty::Void => ConvKind::Void,
-        Ty::Array(_) => ConvKind::Array,
+        Ty::Array(..) => ConvKind::Array,
         Ty::ClassRef(_) => ConvKind::ClassRef,
         Ty::PropertyKey(_) => ConvKind::PropertyKey,
         Ty::PropertyPath(_) => ConvKind::PropertyPath,
@@ -3130,7 +3130,7 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => {
             "`bytes` is not converted to text for you. Write `$b as string`"
         }
-        Ty::Array(_) => {
+        Ty::Array(..) => {
             "an `array<T>` is not text. Use `Core\\Json::encode($a)`, or build the string from \
              its elements"
         }

@@ -1550,7 +1550,7 @@ enum Nested {
 /// Which of [`Nested`]'s answers `declared` is.
 fn nested_of(declared: TypeId, interner: &crate::ty::TypeInterner) -> Nested {
     match interner.get(declared) {
-        Ty::Array(element) => Nested::Array(*element),
+        Ty::Array(element, _) => Nested::Array(*element),
         Ty::Shape(fields) => Nested::Shape(fields.iter().map(|f| f.name.clone()).collect()),
         _ => Nested::No,
     }
@@ -2462,7 +2462,7 @@ pub(crate) fn classes_reached(
 pub(crate) fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(declared) {
         Ty::String | Ty::Bytes | Ty::SecretString | Ty::SecretBytes => true,
-        Ty::Array(element) => unqualified_text(*element, interner),
+        Ty::Array(element, _) => unqualified_text(*element, interner),
         Ty::Union(arms) => arms.iter().any(|arm| unqualified_text(*arm, interner)),
         Ty::Shape(fields) => fields
             .iter()
@@ -2596,8 +2596,8 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         // dimension only: `array<array<T>>` is a column type no driver of the
         // five reads back, and `nvs_stdlib::CodecField::element` has no room
         // to describe it either.
-        Ty::Array(elem) => {
-            !matches!(interner.get(*elem), Ty::Array(_)) && db_reachable(*elem, interner)
+        Ty::Array(elem, _) => {
+            !matches!(interner.get(*elem), Ty::Array(..)) && db_reachable(*elem, interner)
         }
         Ty::Class(class, _) => {
             let label = class.to_string();
@@ -2685,7 +2685,7 @@ fn json_reachable(
         Ty::Shape(fields) => fields
             .iter()
             .all(|field| json_reachable(field.ty, interner, signatures, exprs)),
-        Ty::Array(elem) => json_reachable(*elem, interner, signatures, exprs),
+        Ty::Array(elem, _) => json_reachable(*elem, interner, signatures, exprs),
         Ty::Class(class, _) => class_has_codec(class, signatures, exprs),
         // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a
         // separate type for that reason), `object`, `callable` and `iterable`

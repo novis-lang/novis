@@ -2175,8 +2175,9 @@ fn walk_destructure_target(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    let key_expected = subject.and_then(|subject| env.interner.array_enum_key(subject));
     let elem_ty = subject.and_then(|subject| match env.interner.get(subject) {
-        Ty::Array(elem) => Some(*elem),
+        Ty::Array(elem, _) => Some(*elem),
         // A subject that did not resolve has reported already
         // (`rule:types/one-mistake-reports-once`).
         Ty::Error => None,
@@ -2206,7 +2207,7 @@ fn walk_destructure_target(
                 name,
                 span,
             } => {
-                check_destructure_key(key.as_ref(), live, scope, ctx, env);
+                check_destructure_key(key.as_ref(), key_expected, live, scope, ctx, env);
                 if *inout {
                     report_inout_leaf(*span, env);
                 }
@@ -2230,7 +2231,7 @@ fn walk_destructure_target(
                 live.insert(name_str);
             }
             DestructureElement::Nested { key, target, span } => {
-                check_destructure_key(key.as_ref(), live, scope, ctx, env);
+                check_destructure_key(key.as_ref(), key_expected, live, scope, ctx, env);
                 walk_destructure_target(target, elem_ty, *span, live, scope, ctx, env);
             }
             _ => {}
@@ -2245,6 +2246,7 @@ fn walk_destructure_target(
 /// alike and panics on a key it cannot render.
 fn check_destructure_key(
     key: Option<&Expr>,
+    key_expected: Option<TypeId>,
     live: &mut Live,
     scope: &mut LocalScope,
     ctx: &Ctx<'_>,
@@ -2254,7 +2256,7 @@ fn check_destructure_key(
         return;
     };
     let key_ty = check_expr(key, None, live, scope, ctx, env);
-    check_array_key_type(key_ty, key.span, env);
+    check_array_key_type(key_ty, key_expected, key.span, env);
 }
 
 /// `[inout int $x] = $pair;` — refused, with [`code::E_ARRAY_ELEMENT_BY_REFERENCE`]'s

@@ -260,12 +260,15 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::SecretBytes => env.interner.secret_bytes(),
         TypeAtom::SecretTaintedString => env.interner.secret_tainted_string(),
         TypeAtom::SecretTaintedBytes => env.interner.secret_tainted_bytes(),
-        TypeAtom::Array(inner) => {
+        TypeAtom::Array(inner, key) => {
             let elem = match inner {
                 Some(t) => lower_type_at_depth(t, depth + 1, ctx, env),
                 None => env.interner.mixed(),
             };
-            env.interner.array(elem)
+            match key {
+                Some(key) => lower_array_key(key, elem, depth, ctx, env),
+                None => env.interner.array(elem),
+            }
         }
         TypeAtom::ClassRef(inner) => lower_class_ref(inner, depth, ctx, env),
         TypeAtom::PropertyKey(inner) => lower_property_key(inner, false, depth, ctx, env),
@@ -339,6 +342,42 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         }
         _ => env.interner.mixed(),
     }
+}
+
+/// `array<K, T>`'s key type: an enum, file-scope or class-scoped, and
+/// anything else is refused where it is written.
+///
+/// [`lower_class_ref`]'s guard and recovery: a key that already reported, such
+/// as an undeclared name, is not reported twice, and a refused key gives the
+/// error type.
+fn lower_array_key(
+    key: &Type,
+    elem: TypeId,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let before = env.diags.error_count();
+    let arg = lower_type_at_depth(key, depth + 1, ctx, env);
+    if matches!(env.interner.get(arg), crate::ty::Ty::Enum(..)) {
+        return env.interner.enum_array(arg, elem);
+    }
+    if env.diags.error_count() == before && !env.interner.is_error(arg) {
+        let described = env.interner.describe(arg);
+        let elem = env.interner.describe(elem);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ARRAY_KEY_TYPE_NOT_ENUM,
+                format!("`{described}` is not an enum, so it cannot be the key type of an array"),
+            )
+            .with_primary(key.span, "an enum is required here")
+            .with_help(format!(
+                "The keys of an array are strings already. Write `array<{elem}>` for an array \
+                 with string keys."
+            )),
+        );
+    }
+    env.interner.error()
 }
 
 /// `rule:types/class-reference`'s `class<T>`: the argument names one class or one interface,
@@ -1412,7 +1451,7 @@ mod tests {
         // `array<...>` to exercise class-name resolution instead.
         let (id, interner, diags) = lower_alias("<?nvs\nclass Foo {}\ntype Probe = array<Foo>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
-        let Ty::Array(elem) = interner.get(id) else {
+        let Ty::Array(elem, _) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(matches!(interner.get(*elem), Ty::Class(q, _) if q.to_string() == "Foo"));
@@ -1426,7 +1465,7 @@ mod tests {
         // qname. `array<...>` for the same `rule:types/alias-is-never-a-bare-class` reason as above.
         let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<Core\\Hash::Digest>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
-        let Ty::Array(elem) = interner.get(id) else {
+        let Ty::Array(elem, _) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(
@@ -1442,7 +1481,7 @@ mod tests {
         // trusted the same way a `Core\*` name is.
         let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<LogicError>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
-        let Ty::Array(elem) = interner.get(id) else {
+        let Ty::Array(elem, _) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(matches!(interner.get(*elem), Ty::Class(q, _) if q.to_string() == "LogicError"));
@@ -1453,7 +1492,7 @@ mod tests {
         let (id, interner, diags) =
             lower_alias("<?nvs\nenum Status: uint { Active }\ntype Probe = array<Status>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
-        let Ty::Array(elem) = interner.get(id) else {
+        let Ty::Array(elem, _) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(matches!(interner.get(*elem), Ty::Enum(q, _) if q.to_string() == "Status"));

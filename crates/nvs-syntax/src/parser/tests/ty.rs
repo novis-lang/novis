@@ -13,12 +13,12 @@ fn nested_array_generic_closes_through_a_split_shift_token() {
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
     };
-    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = ty.kind else {
         panic!("expected `array<...>`: {ty:?}");
     };
     assert!(matches!(
         inner.kind,
-        TypeKind::Atom(TypeAtom::Array(Some(_)))
+        TypeKind::Atom(TypeAtom::Array(Some(_), None))
     ));
 }
 
@@ -52,7 +52,7 @@ fn a_class_reference_is_a_type_atom_with_one_class_argument() {
     let StmtKind::TypeAliasDecl(alias) = s.kind else {
         panic!("expected a type alias: {s:?}");
     };
-    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = alias.ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = alias.ty.kind else {
         panic!("expected an array type: {alias:?}");
     };
     assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::ClassRef(_))));
@@ -88,7 +88,7 @@ fn a_property_key_is_a_type_atom_with_one_class_argument() {
     let StmtKind::TypeAliasDecl(alias) = s.kind else {
         panic!("expected a type alias: {s:?}");
     };
-    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = alias.ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = alias.ty.kind else {
         panic!("expected an array type: {alias:?}");
     };
     assert!(matches!(
@@ -153,7 +153,7 @@ fn a_nested_generic_name_closes_through_a_split_shift_token() {
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
     };
-    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = ty.kind else {
         panic!("expected `array<...>`: {ty:?}");
     };
     let TypeKind::Atom(TypeAtom::Name(_, args)) = inner.kind else {
@@ -567,7 +567,7 @@ fn a_tainted_shape_rewrites_every_text_field_including_nested_ones() {
         TypeKind::Atom(TypeAtom::TaintedString)
     ));
 
-    let TypeKind::Atom(TypeAtom::Array(Some(elem))) = &fields[4].ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(elem), None)) = &fields[4].ty.kind else {
         panic!("expected an `array<...>`: {:?}", fields[4].ty);
     };
     assert!(matches!(elem.kind, TypeKind::Atom(TypeAtom::TaintedBytes)));
@@ -823,7 +823,7 @@ fn shape_type_can_be_empty_and_composes_with_array_and_union() {
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
     };
-    let TypeKind::Atom(TypeAtom::Array(Some(inner))) = ty.kind else {
+    let TypeKind::Atom(TypeAtom::Array(Some(inner), None)) = ty.kind else {
         panic!("expected an array type: {ty:?}");
     };
     assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::Shape(_))));
