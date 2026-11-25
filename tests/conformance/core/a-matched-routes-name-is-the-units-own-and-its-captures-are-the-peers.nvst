@@ -30,7 +30,7 @@ if ($matched != null) {
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `string`, found `string|uint|int|decimal|tainted string|Core\Uuid|Parses`
+error[E0401]: expected `string`, found `string|uint|int|bool|decimal|tainted string|Core\Uuid|Parses`
    --> case.nvs:24:23
 %A
 error: aborting due to 1 error

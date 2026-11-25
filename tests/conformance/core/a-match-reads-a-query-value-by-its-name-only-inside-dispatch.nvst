@@ -1,0 +1,79 @@
+--TEST--
+Inside `Core\Router::dispatch`, `Core\Router\Match` has each converted `#[Core\Query]` value under its parameter's name: an absent `?T $x = null` key is not in it, an absent key with a default has the default, and the match from `Core\Request::route()` has no query value (`rule:routing/matched-once-before-the-handler`)
+--FILE--
+<?nvs
+// covers: Core\Router\Match::parameters, Core\Router\Match::parameter
+// `allows` prints what the match has. The route method prints what
+// `Core\Request::route()` returns for the same names.
+
+enum Mode: uint { Fast = 1, Slow = 2 }
+
+class Search {
+    #[Core\Route(path: "/find/{shop}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function find(
+        uint $shop,
+        #[Core\Query] uint $page = 1,
+        #[Core\Query] ?Mode $mode = null,
+        #[Core\Query] bool $all = false,
+        #[Core\Query] ?string $word = null,
+    ): void {
+        var $route = Core\Request::route();
+        if ($route == null) {
+            echo "no route\n";
+            return;
+        }
+        echo "route: shop ", $route->parameter("shop"), ", ";
+        echo "page ", $route->parameter("page") == null ? "null" : "set", ", ";
+        echo Core\Arr::count($route->parameters()), " value\n";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        echo "keys: ", Core\Str::join(Core\Arr::keys($route->parameters()), ", "), "\n";
+        echo "page ", $route->parameter("page"), "\n";
+        var $mode = $route->parameter("mode");
+        echo "mode ", $mode == null ? "null" : $mode, "\n";
+        echo "all ", $route->parameter("all") == true ? "yes" : "no", "\n";
+        var $word = $route->parameter("word");
+        echo "word ", $word == null ? "null" : $word, "\n";
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $targets = [
+        "/find/7",
+        "/find/7?page=3&mode=2&all=1&word=red",
+    ];
+    foreach ($targets as string $target) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, $target);
+        echo $target, " -> ", $answer->status(), "\n", $answer->body();
+    }
+}
+--EXPECT--
+/find/7 -> 200
+keys: shop, page, all
+page 1
+mode null
+all no
+word null
+route: shop 7, page null, 1 value
+/find/7?page=3&mode=2&all=1&word=red -> 200
+keys: shop, page, mode, all, word
+page 3
+mode 2
+all yes
+word red
+route: shop 7, page null, 1 value

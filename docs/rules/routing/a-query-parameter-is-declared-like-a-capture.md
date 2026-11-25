@@ -7,7 +7,11 @@ on a method that declares no route is refused rather than ignored.
 The parameter takes the type list of a path capture and launders the same way
 (`rule:security/route-capture-is-laundered-by-its-type`): `string`, `int`, `uint`, `decimal`,
 `Core\Uuid`, `bool` (written `1` or `0`, which a path capture may not declare), an enum, a closed set (`rule:routing/a-capture-narrows-to-a-closed-set`), or a class
-implementing `Parses`; anything else is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
+implementing `Parses`; anything else is a compile error at the parameter. **A parameter is filled by a
+capture or by the query string, never both:** a `#[Query]` parameter that a capture of the route's path
+also names is `E1009` at the parameter, and its help says to delete `#[Query]` or the capture. So every
+key of `Core\Router\Match::parameters()` names one capture or one query value, and no order between
+the two is needed. **A default is what makes the key optional**; a parameter without
 one is required. **`?T $x = null` is the default `null`:** the key may be absent, and then the value is
 `null`; a present key converts as `T`, and a value `T` refuses is the same `400`. It works for every type
 on the list, a `Parses` class included, and it is row 4 of `rule:core-api/required-optional-and-nullable`.

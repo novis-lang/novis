@@ -493,6 +493,14 @@ static(...)`, `null`, a call on `static::`, `self::`, `parent::` or `$this` whos
 `static`, a `? :` of two of these, or an array literal of them. A local variable is none of these, so
 an `array<static>` built up in a loop is refused, and declaring `array<self>` is the way to write it.
 
+**In a `final` class, `static` is exactly that class**, because no subclass can be the class a call
+names. So a body there may return any value its declared type accepts with `static` read as the class:
+a local variable, `new Point(...)`, a record a `parse` loaded from a store. And an override in a
+`final` class may write the class's own name or `self` wherever the parent or the interface writes
+`static` (`E0404`), as `final class Order implements Parses` may declare `parse(...): Order`. A call
+site reads the same type either way, since the only class it can name is that one. A class that is not
+`final` keeps the list above.
+
 The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
 function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).

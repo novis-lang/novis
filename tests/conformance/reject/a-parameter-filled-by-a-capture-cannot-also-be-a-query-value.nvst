@@ -1,0 +1,21 @@
+--TEST--
+A route method's parameter that a path capture names cannot also have `#[Core\Query]`: one parameter gets one value, from the path or from the query string — `rule:routing/a-query-parameter-is-declared-like-a-capture`
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(#[Core\Query] uint $id): string {
+        return "";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1009]: `$id` is filled by the capture `{id}` of the path, so it cannot also be a `#[Query]` parameter
+  --> case.nvs:5:26
+%A
+  = help: delete `#[Core\Query]` to read `$id` from the path, or delete `{id}` from the path to read it from the query string
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

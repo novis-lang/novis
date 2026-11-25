@@ -2243,7 +2243,8 @@ fn collect_route(
         }
     };
     let mut params = check_captures(&captures, path_span, m, class, handler, env);
-    params.extend(query_params(m, class, ctx, env));
+    let queries = query_params(m, class, &params, ctx, env);
+    params.extend(queries);
     let slotted = folded_bool(attr, SLOTTED, env).unwrap_or(false);
     // Read before `access` is resolved to its name, because it is a field of
     // the attribute and that binding is about to become the string the row
@@ -3183,9 +3184,15 @@ fn ambiguous_case_value(
 /// `rule:routing/a-bad-query-value-is-a-400`'s `400`: the
 /// `400` is what a bad *value* gets at run time, and this is the declaration
 /// saying it would have nothing to arrive at whatever the value was.
+///
+/// **A parameter a capture in `captured` names is `E1009`**, and gets no query
+/// key: one parameter has one value, so it is the path's or the query
+/// string's. Without the check the parameter would be claimed twice, and
+/// `Core\Router\Match::parameters()` would hold two values for one key.
 fn query_params(
     m: &MethodMember,
     class: &QName,
+    captured: &[RouteParam],
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Vec<RouteParam> {
@@ -3203,6 +3210,26 @@ fn query_params(
             continue;
         }
         let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
+        if captured
+            .iter()
+            .any(|capture| capture.source == ParamIn::Path && capture.name == name)
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ROUTE_PARAM_CAPTURED_AND_QUERIED,
+                    format!(
+                        "`${name}` is filled by the capture `{{{name}}}` of the path, so it \
+                         cannot also be a `#[Query]` parameter"
+                    ),
+                )
+                .with_primary(param.span, "this parameter is also a capture")
+                .with_help(format!(
+                    "delete `#[Core\\Query]` to read `${name}` from the path, or delete \
+                     `{{{name}}}` from the path to read it from the query string"
+                )),
+            );
+            continue;
+        }
         let written = sig.and_then(|sig| sig.params.get(index).copied());
         let default = sig
             .and_then(|sig| sig.defaults.get(index))

@@ -26,7 +26,17 @@ lines of one signature knows they fail two ways.
 and before `allows`. It reads the query string through the parser `Core\Request::queryParameter()` uses, once per
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
-`BadCapture` and the match.
+`BadCapture` and the match, which then holds the captures alone.
+
+**Each bound value is written into the match before `allows`**, under its parameter's name, so
+`Core\Router\Match::parameter('order')` reads a `#[Query] Order $order` exactly as it reads an
+`{order}` capture, and the gate checks every input the route method will receive. An absent
+`?T $x = null` key is left out, as an absent optional capture is, so `parameter()` reads `null`; an
+absent key with another default holds that default. An enum value stays the plain integer, as an enum
+capture does. **`Core\Request::route()` reads no query value**: it is the door's match, built before
+any query string is read, so `parameter()` is `null` for a `#[Query]` name there. A program that
+dispatches by hand reads the query string itself. **What it spends:** one array entry per bound value
+per matched request, a second reference to the value `dispatch` already holds, so nothing is copied.
 
 **Declined:**
 - **A lenient mode, where a value that does not convert gives the default.** A stale link such as
@@ -34,3 +44,5 @@ more. An absent optional key gives the declared default. Every failure above is 
   fallback would hide a typo or a probe. A route that wants the fallback declares the parameter
   `string` and converts it itself — `($page as ?uint) ?? 1` — so the choice is written where it is
   made.
+- **Leaving the query values off the match.** `allows` would then never see a record a query value's
+  `parse` loaded, and the route method would receive it unchecked — the hole the gate exists to close.

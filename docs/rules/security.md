@@ -2124,11 +2124,18 @@ declared type is what the segment is converted to during matching. A failed conv
 match**: matching continues, and if nothing else matches the result is a 404 — which is what every
 framework otherwise writes by hand as a digit constraint on the placeholder.
 
-**A capture or a `#[Query]` parameter declared `bool`, `true` or `false` is `E0752`.** A segment is
-text, and no spelling of a `bool` is the one a link would build and a match would read, so a `bool`
-capture would match every segment and arrive as text. A command's `bool` option is a flag given by
-being written, which is why the conversion list [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled) shares with this
-rule admits it there and not here.
+**A path capture declared `bool`, `true` or `false` is `E0752`.** A path names a resource and a
+yes-or-no filters it, which is the query string's job, and a segment `1` would be claimed by a `bool`
+and a `uint` capture at one position. **A `#[Query]` parameter may be declared `bool`, and its value
+is written `1` or `0` only:** `1` is `true`, `0` is `false`, and any other text is the `400` of
+[`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400) — `true`, `on`, an empty value and a bare key included.
+`true` and `false` alone each admit only their own digit. One value has one spelling, and it is the
+one `Core\Router::url` and `Core\Uri::buildQuery` already write, so a link a program builds is a link
+its route reads. A command's `bool` option is a flag given by being written, which is why the
+conversion list [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled) shares with this rule admits it there as a flag.
+The API document lists a `bool` query value as the integer `0` or `1`, because a generated client
+given `"type": "boolean"` writes `true`. A form author writes `value="1"` on a checkbox, because a
+browser sends `on` by default. **What it spends:** one comparison of the value's text with `1` and `0`.
 
 **A capture typed at a class built from text is the one exception, and it fails the other way.** The
 matcher narrows on the conversions it reads natively — `int`, `uint`, `decimal`, `Core\Uuid` and a
@@ -2142,8 +2149,10 @@ a `404` ([`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-v
 two ways, and what decides which is who runs at the door. The refusal is the class's own throw and
 travels unchanged, so a program that reads the match without a `catch` fails the request; a handler
 that wants the non-throwing answer calls the class's `tryParse` ([`expressions/try-parse`](expressions.md#expressions-try-parse)). The
-captures cross as `array<tainted string|int|uint|decimal|Core\Uuid|Parses>`, the last member an
-interface because the set of classes it means is open.
+captures cross as `array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>`, the last member an
+interface because the set of classes it means is open. `bool` is there for the query values the match
+also holds inside `Core\Router::dispatch` ([`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400)); no path
+capture is one.
 
 **A converted capture arrives unqualified.** A checked conversion launders
 ([`security/taint-propagation`](security.md#security-taint-propagation)), so an integer or enum capture is a plain value, while a `string`
@@ -2159,7 +2168,25 @@ and nowhere else, and its row holds one extra string, the class's name. `Core\Re
 the match by clone, one reference-count bump on the row plus one string per capture. A request that
 matches nothing pays nothing.
 
+**A `final` class's `parse` may load a stored record** and return it, since `static` is that class
+([`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)). Every typed capture is bound before `Gate::allows`,
+so `allows` reads the loaded record with `$route->parameter(...)` and checks it like any other input.
+**What it spends:** the program's lookup runs for every request that matches the route, before
+`allows`, signed in or not — a read of the program's own store per matched request, chosen by the
+program when it declares the type. A missing id is the `400` of a refused `parse` and a forbidden one
+the `403` of a denied route, so a program that must not show which ids exist sets the same status for
+`Refusal::BadCapture` and `Refusal::Denied` in `refused`. The time the lookup takes is not hidden: a
+program that must not show whether an id exists even by timing declares the capture `string` and
+loads the record in the route method, after `allows`.
+
 **Declined:**
+- **A `bool` path capture.** A path names a resource and a yes-or-no filters it, which is the query
+  string's job. A segment `1` would also be claimed by a `bool` and a `uint` capture at one position.
+- **Reading `true`, `false`, `on`, `yes` or an empty value as a `bool` query value.** One value has
+  one spelling, and `Core\Router::url` and `Core\Uri::buildQuery` write `1` and `0`. A second spelling
+  makes two URLs for one page.
+- **A `bool` query value refused like a `bool` capture.** Every yes-or-no filter would be declared
+  `string` and compared by hand, which is the conversion this rule exists to make once.
 - **Arming a class table at the door, so the matcher calls `parse`.** It keeps one failure mode for
   every capture, and puts an unbounded, application-authored body on the unauthenticated request path
   ahead of any rate limit.

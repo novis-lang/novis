@@ -322,11 +322,20 @@ key. It is one of the compiler-recognised attributes and is matched nominally
 ([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)): a userland `type Query = {...};` binds nothing, and a `#[Query]`
 on a method that declares no route is refused rather than ignored.
 
-The parameter takes the same type list as a path capture and launders the same way
+The parameter takes the type list of a path capture and launders the same way
 ([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), or a class
-implementing `Parses`; anything else is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
-one is required. Both facts are what the generated API document reads
+`Core\Uuid`, `bool` (written `1` or `0`, which a path capture may not declare), an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), or a class
+implementing `Parses`; anything else is a compile error at the parameter. **A parameter is filled by a
+capture or by the query string, never both:** a `#[Query]` parameter that a capture of the route's path
+also names is `E1009` at the parameter, and its help says to delete `#[Query]` or the capture. So every
+key of `Core\Router\Match::parameters()` names one capture or one query value, and no order between
+the two is needed. **A default is what makes the key optional**; a parameter without
+one is required. **`?T $x = null` is the default `null`:** the key may be absent, and then the value is
+`null`; a present key converts as `T`, and a value `T` refuses is the same `400`. It works for every type
+on the list, a `Parses` class included, and it is row 4 of [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable).
+A query string cannot carry `null`, so `?T` with no default, or with a default that is not `null`, is
+`E0752`, and its help says to write `= null`. The route row records the parameter's type as `T`, so the
+API document lists the key as optional and typed by `T`. Both facts are what the generated API document reads
 ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), and a declared `#[Query]` key is what
 `Core\Router::url` accepts beyond the captures ([`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string)).
 
@@ -338,6 +347,8 @@ all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#
 - **No query binding, and no query parameters in the generated document.** Every endpoint would
   validate its own query by hand, and the document would miss most of its parameters, which is most
   of what a client author reads it for.
+- **`?T $x = 1`, a nullable query value with a default that is not `null`.** A query string cannot
+  carry `null`, so the `?` would say nothing.
 - **A `query:` field on `#[Route]`.** It puts a list of bindings away from the parameters it names. A
   sibling attribute is how `#[Route]` is extended, as `#[Access]` already is.
 
@@ -353,7 +364,9 @@ A `#[Query]` parameter's value converts to its declared type and arrives unquali
 capture does, and fails differently. A path capture that the matcher cannot convert means *this route is
 not the one*: matching continues, and a miss is a `404`. A query value takes no part in choosing a route,
 so there is nothing to continue to: the route matched and the input is bad, which is what `400` means. A
-required key that is absent is a `400` for the same reason, and the handler's own body never runs.
+required key that is absent is a `400` for the same reason, and the handler's own body never runs. A
+`bool` value is `1` or `0`, and any other text, an empty value or a bare key is a `400`
+([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)).
 
 **A path capture at a class built from text is on the query value's side of that line**, and for the
 query value's reason. That class is not one of the conversions the matcher performs
@@ -375,7 +388,17 @@ lines of one signature knows they fail two ways.
 and before `allows`. It reads the query string through the parser `Core\Request::queryParameter()` uses, once per
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
-`BadCapture` and the match.
+`BadCapture` and the match, which then holds the captures alone.
+
+**Each bound value is written into the match before `allows`**, under its parameter's name, so
+`Core\Router\Match::parameter('order')` reads a `#[Query] Order $order` exactly as it reads an
+`{order}` capture, and the gate checks every input the route method will receive. An absent
+`?T $x = null` key is left out, as an absent optional capture is, so `parameter()` reads `null`; an
+absent key with another default holds that default. An enum value stays the plain integer, as an enum
+capture does. **`Core\Request::route()` reads no query value**: it is the door's match, built before
+any query string is read, so `parameter()` is `null` for a `#[Query]` name there. A program that
+dispatches by hand reads the query string itself. **What it spends:** one array entry per bound value
+per matched request, a second reference to the value `dispatch` already holds, so nothing is copied.
 
 **Declined:**
 - **A lenient mode, where a value that does not convert gives the default.** A stale link such as
@@ -383,6 +406,8 @@ more. An absent optional key gives the declared default. Every failure above is 
   fallback would hide a typo or a probe. A route that wants the fallback declares the parameter
   `string` and converts it itself — `($page as ?uint) ?? 1` — so the choice is written where it is
   made.
+- **Leaving the query values off the match.** `allows` would then never see a record a query value's
+  `parse` loaded, and the route method would receive it unchecked — the hole the gate exists to close.
 
 <sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
@@ -432,8 +457,8 @@ Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] �
 Core\Router::url(callable $route, array<string, mixed> $params = []): string;         // launder (URL path)
 Core\Router::urlAbsolute(callable $route, array<string, mixed> $params = []): string; // launder (URL)
 Core\Router\Match::is(callable $route): bool;                           // did this method's route match
-Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>;
-Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses);
+Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>;
+Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Parses);
 Core\Router\Match::method(): Http\Method;
 Core\Router\Match::access(): ?string;                                   // the resolved name of `allow:`
 Core\Router\Match::accessAs<E>(): ?E;                                   // `allow:` as a case of enum E
@@ -594,6 +619,13 @@ that match. `null` means the table claimed nothing for this method and path — 
 `#[Route]` at all, which builds no table and matches nothing. Nothing during the request can move it:
 the match lives on the request carrier rather than on the context, so there is no place a second match
 could be written from inside the program.
+
+**What the match holds:** the matched row's verb, its access decision, the row's place in the table,
+and the converted captures keyed by the parameter each fills. That is all `Core\Request::route()`
+returns. `Core\Router::dispatch` builds its own match from the same row and adds each converted
+`#[Query]` value under its parameter's name before `allows`
+([`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400)). The door's match reads no query string, so a query value
+is `null` there.
 
 It is what three readers were written against. The CSRF check ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default))
 needs to know which handler a `POST` is for, the `route` metric label needs the route's path pattern, and the
@@ -978,7 +1010,9 @@ percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells i
 `url("posts.index", {page: 3, sort: "desc"})` on `/posts/{page?}` folds to `/posts/3?sort=desc`. The
 link is still the launderer's ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)) — a paginated link has a
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
-and re-taints the result.
+and re-taints the result. **A `null` value writes no key**, as `Core\Uri::buildQuery` drops one, so a
+link to a `#[Query] ?T $x = null` parameter is built from a variable that may be `null`, and the route
+reads the absent key as `null` again.
 
 The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters ([`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture)) is a

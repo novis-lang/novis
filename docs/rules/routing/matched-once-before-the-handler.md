@@ -5,6 +5,13 @@ that match. `null` means the table claimed nothing for this method and path — 
 the match lives on the request carrier rather than on the context, so there is no place a second match
 could be written from inside the program.
 
+**What the match holds:** the matched row's verb, its access decision, the row's place in the table,
+and the converted captures keyed by the parameter each fills. That is all `Core\Request::route()`
+returns. `Core\Router::dispatch` builds its own match from the same row and adds each converted
+`#[Query]` value under its parameter's name before `allows`
+(`rule:routing/a-bad-query-value-is-a-400`). The door's match reads no query string, so a query value
+is `null` there.
+
 It is what three readers were written against. The CSRF check (`rule:security/csrf-is-on-by-default`)
 needs to know which handler a `POST` is for, the `route` metric label needs the route's path pattern, and the
 access decision rides on it uninterpreted (`rule:security/access-is-checked-for-presence-not-meaning`).

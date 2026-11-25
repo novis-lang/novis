@@ -96,4 +96,17 @@ codes! {
          `Core\\Router\\Match::attribute` and `Core\\Program::implementingWith`. A shape, a class \
          or a `type` alias is not allowed there. Write the name of the attribute you want to find.",
     );
+    /// A `#[Core\Query]` parameter whose name a capture of the route's path
+    /// also names
+    /// (`rule:routing/a-query-parameter-is-declared-like-a-capture`). One
+    /// parameter gets one value, so it is filled by the path or by the query
+    /// string, never both. With this refused, every key of
+    /// `Core\Router\Match::parameters()` names exactly one capture or one query
+    /// value.
+    pub const E_ROUTE_PARAM_CAPTURED_AND_QUERIED: Code = Code::new("E1009").card(
+        "A route method's parameter gets its value from the path or from the query string, not \
+         from both. This parameter has `#[Core\\Query]`, and the route's path also has a capture \
+         with its name, such as `{id}` for `$id`. Delete `#[Core\\Query]` to read the value from \
+         the path. Or delete the capture from the path to read it from the query string.",
+    );
 }

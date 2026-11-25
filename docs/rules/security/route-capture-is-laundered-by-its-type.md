@@ -28,8 +28,10 @@ a `404` (`rule:routing/a-bad-query-value-is-a-400`). Two captures spelled the sa
 two ways, and what decides which is who runs at the door. The refusal is the class's own throw and
 travels unchanged, so a program that reads the match without a `catch` fails the request; a handler
 that wants the non-throwing answer calls the class's `tryParse` (`rule:expressions/try-parse`). The
-captures cross as `array<tainted string|int|uint|decimal|Core\Uuid|Parses>`, the last member an
-interface because the set of classes it means is open.
+captures cross as `array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>`, the last member an
+interface because the set of classes it means is open. `bool` is there for the query values the match
+also holds inside `Core\Router::dispatch` (`rule:routing/a-bad-query-value-is-a-400`); no path
+capture is one.
 
 **A converted capture arrives unqualified.** A checked conversion launders
 (`rule:security/taint-propagation`), so an integer or enum capture is a plain value, while a `string`

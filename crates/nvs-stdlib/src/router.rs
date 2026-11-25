@@ -676,9 +676,10 @@ const MATCH_ROW: usize = 3;
 /// **Every conversion the matcher performs is a member here**, and a type that
 /// rule admits that it does not convert yet arrives on the text arm — which is what
 /// makes this union the readable statement of where
-/// [`nvs_runtime::routes::CaptureConv`] currently stands. A `decimal` and a
-/// `Core\Uuid` joined it once the parses reached the crate the walk is in; a
-/// `bool` has not. An **enum capture needs no member of its own**: a case is
+/// [`nvs_runtime::routes::CaptureConv`] currently stands. A `bool` is a member
+/// for the query values `dispatch` writes into the match ([`bind_queries`]):
+/// a path capture never declares one, and a `#[Query]` parameter may. An
+/// **enum capture needs no member of its own**: a case is
 /// its backing integer by the time it is a value
 /// (`rule:enums/no-class-machinery`), so the match hands over the `int` or the
 /// `uint` it already converted to and the program reads the case rather than
@@ -697,6 +698,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
     CoreTy::Int,
     CoreTy::Uint,
     CoreTy::Decimal,
+    CoreTy::Bool,
     CoreTy::Instance(crate::uuid::NAME),
     CoreTy::Instance(PARSES_NAME),
 ]);
@@ -855,7 +857,8 @@ const MATCH_CARD: ClassDoc = ClassDoc {
     short: "The route that a path matched. `Core\\Request::route()` returns the match of the \
             request being served, and `Core\\Router::match()` returns the match of a path you \
             choose. `is()` checks which method the route belongs to. `parameters()` and `parameter()` \
-            return the values captured from the path, and `method()` returns the route's HTTP \
+            return the values captured from the path, and the query values inside \
+            `Core\\Router::dispatch`. `method()` returns the route's HTTP \
             method. \
             `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and \
             `access()` returns the same rule as its name. `attribute<T>()` returns an attribute \
@@ -883,28 +886,35 @@ const MATCH_IS_DOC: MethodDoc = MethodDoc {
 /// `Core\Router\Match::parameters`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     short: "Returns every value captured from the path, in the order of the path. Each key is \
-            the capture's name.",
+            the capture's name. Inside `Core\\Router::dispatch`, the array also has each \
+            `#[Core\\Query]` value, under its parameter's name. So `Gate::allows` can check \
+            every value the route method gets.",
     params: &[],
     ret: "An array of the captures. Each value is already percent-decoded, so `%20` is a space. \
           Each value has the type of its handler parameter: `{id}` read by `uint $id` is a \
           number. A `string` capture is `tainted`, because the request sent it. An optional \
-          capture that the path does not have is not in the array. A route with no captures \
-          returns an empty array.",
+          capture that the path does not have is not in the array. A query key that is absent \
+          and has the default `null` is not in the array either. The match from \
+          `Core\\Request::route()` or `Core\\Router::match()` has no query values. A route with \
+          no captures returns an empty array.",
     errors: &[],
 };
 
 /// `Core\Router\Match::parameter`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     short: "Returns one value captured from the path, found by its name. It is the same value \
-            that `parameters()` has under that key.",
+            that `parameters()` has under that key. Inside `Core\\Router::dispatch`, it also \
+            returns a `#[Core\\Query]` value by its parameter's name.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The capture's name as the route's path writes it, without the braces.",
+        desc: "The capture's name as the route's path writes it, without the braces, or the \
+               name of a `#[Core\\Query]` parameter without the `$`.",
         shape: &[],
     }],
-    ret: "The capture, with the type of its handler parameter. The result is `null` when the \
-          route has no capture with this name, and when an optional `{name?}` is not in the \
-          path.",
+    ret: "The value, with the type of its handler parameter. The result is `null` when the \
+          route has no capture or query value with this name, and when an optional `{name?}` \
+          is not in the path. A query value read from the match of `Core\\Request::route()` \
+          is `null`, because only `Core\\Router::dispatch` reads the query string.",
     errors: &[],
 };
 
@@ -2691,11 +2701,14 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>`
-    /// — every capture the path filled, keyed by the parameter it binds.
+    /// `Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>`
+    /// — every capture the path filled, keyed by the parameter it binds, and
+    /// inside `Core\Router::dispatch` every bound `#[Query]` value too.
     ///
-    /// The array is built once by [`match_value`] and read back here, so the
-    /// two members answer the same values rather than two walks of one row.
+    /// The array is built once by [`match_value`], [`bind_queries`] adds the
+    /// query values before `allows`, and it is read back here, so the two
+    /// members return the same values. A match `Core\Request::route()` or
+    /// `Core\Router::match` builds has no query value.
     fn nvs_core_router_match_parameters(_ctx, args: [1]) {
         match_slot(args, MATCH_PARAMS, "parameters")
     }
@@ -2844,8 +2857,9 @@ fn case_value(desc: &nvs_runtime::EnumDesc, case: &str) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
-    /// — [`nvs_core_router_match_parameters`] read at one key.
+    /// `Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Parses)`
+    /// — [`nvs_core_router_match_parameters`] read at one key, so a query
+    /// value inside `dispatch` and `null` for one outside it.
     ///
     /// **`null` for a name the route does not declare**, rather than a throw,
     /// and that is [`MATCH_PARAM_DOC`]'s stated answer rather than
@@ -2858,8 +2872,8 @@ nvs_runtime::nvs_helper! {
         let receiver = crate::instance::receiver(args[0], &MATCH, "parameter")?;
         let params = crate::instance::slot(receiver, MATCH_PARAMS);
         // Unreachable from source: the slot's layout is this crate's on both
-        // sides — [`match_value`] is the only writer of it and always writes a
-        // `Value::array` — and a program can reach a `Core\Router\Match` no
+        // sides — [`match_value`] and [`bind_queries`] are its only writers and always
+        // write a `Value::array` — and a program can reach a `Core\Router\Match` no
         // other way, since `CoreTy::Instance` gives the class no constructor
         // and `E0401` refuses a receiver that is not one.
         let array = params.array_ptr().ok_or_else(|| {
@@ -3058,7 +3072,8 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
     // and not a miss: the `400`, before `allows`, told the match it belongs to.
     let outcome = match query_values(ctx, matched.route()) {
         Ok(bound) => {
-            let outcome = dispatch_matched(ctx, gate, matched.route(), route, &bound);
+            let outcome = bind_queries(route, matched.route(), &bound)
+                .and_then(|()| dispatch_matched(ctx, gate, matched.route(), route, &bound));
             bound.into_iter().for_each(release);
             outcome
         }
@@ -3123,6 +3138,65 @@ fn query_values(
         }
     }
     Ok(bound)
+}
+
+/// Writes each bound query value into `route`'s parameters under its
+/// parameter's name, so `Gate::allows` reads every value the route method
+/// receives. A `null`, which only an absent `?T $x = null` key gives, is left
+/// out, as an absent optional capture is.
+///
+/// An enum value stays the plain `int` or `uint` [`CAPTURE`] says the match
+/// holds, as an enum capture's does; [`as_case`] tags it only for the call.
+/// The checker refuses a parameter that is both a capture and a query value,
+/// so no key written here overwrites a capture.
+///
+/// What it spends: one array entry per bound query value per matched
+/// request. The entry is a second reference to the value `bound` already
+/// holds, so nothing is copied. The array is the match's alone, so the write
+/// is in place.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a `route` that is not a [`MATCH`], which only a
+/// change to [`match_value`] could cause.
+fn bind_queries(
+    route: Value,
+    row: &nvs_runtime::routes::Route,
+    bound: &[Value],
+) -> Result<(), Fault> {
+    if bound.iter().all(|value| value.tag() == Some(Tag::Null)) {
+        return Ok(());
+    }
+    let receiver = crate::instance::receiver(route, &MATCH, "dispatch")?;
+    let held = crate::instance::take_slot(receiver, MATCH_PARAMS);
+    // Unreachable from source: [`match_value`] and [`bind_queries`] are the
+    // slot's only writers, and both write an array.
+    let Some(array) = held.array_ptr() else {
+        crate::instance::set_slot(receiver, MATCH_PARAMS, held);
+        return Err(Fault::fatal("internal error: a match holds no parameter array"));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`take_slot` handed this frame the slot's own reference, which the handle \
+                  takes over and `set_slot` hands back"
+    )]
+    let mut params = unsafe { NvsArray::from_raw(array) };
+    for (query, value) in row.queries().iter().zip(bound) {
+        if value.tag() == Some(Tag::Null) {
+            continue;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "`bound` owns a live reference for the length of the call, and the array \
+                      takes over the one retained here"
+        )]
+        unsafe {
+            value.retain();
+        }
+        params.set(NvsStr::new(query.name.as_bytes()), *value);
+    }
+    crate::instance::set_slot(receiver, MATCH_PARAMS, Value::array(params));
+    Ok(())
 }
 
 /// One `#[Query]` parameter's value, out of the parsed `fields` and the number
@@ -3350,8 +3424,8 @@ fn call_handler(
         crate::instance::receiver(route, &MATCH, "dispatch")?,
         MATCH_PARAMS,
     );
-    // Unreachable from source: [`match_value`] is the only writer of the slot,
-    // and it always writes an array.
+    // Unreachable from source: [`match_value`] and [`bind_queries`] are the
+    // slot's only writers, and both write an array.
     let captures = captures
         .array_ptr()
         .ok_or_else(|| Fault::fatal("internal error: a match holds no capture array"))?;
