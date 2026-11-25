@@ -416,11 +416,16 @@ writing subagents run side by side, none of them builds: `stream.tsx` with `log.
 `exceptions.tsx`, `search.tsx`, and `compare.tsx` with `replay.tsx`, `to-test.tsx` and
 `coverage.tsx`. Each gets the list's signature, `ui.css`, the drawing and its view's browser test.
 
-- [ ] `viewer/src/ui/list.tsx:1`: the one virtual list: fixed row height, selection, `j`, `k`,
+- [x] `viewer/src/ui/list.tsx:1`: the one virtual list: fixed row height, selection, `j`, `k`,
   `Home`, `End`, the page keys, `Enter`, follow and pause with the arrived count. It keeps the
   WAI-ARIA listbox roles.
-- [ ] `viewer/src/views/requests.tsx:230`: the list and its keys come from `List`. The columns are
+  - [x] `List`: virtual rows, selection by key, the shared keys and a view's own through `keys`
+  - [x] `createFeed`: the newest page, follow, pause, the arrived count and older pages
+  - [x] the list's styles in `ui.css`
+- [x] `viewer/src/views/requests.tsx:230`: the list and its keys come from `List`. The columns are
   the drawing's: method chip, path with the route beside it, status, duration, queries, age.
+  - [x] the view is `List` and `createFeed` with the drawing's columns and a 38 pixel row
+  - [x] `requests.browser.test.ts` reads the new cells and is green
 - [ ] `viewer/src/views/stream.tsx:246` and `log.tsx`: on `List`, with a level chip and a kind dot
   in the kind's tone. `Feed` and `FilterForm` move to their own files.
 - [ ] `viewer/src/views/exceptions.tsx:110`: on `List`, with `Spark` for throws over time.

@@ -363,6 +363,136 @@ a.btn {
   opacity: 0.6;
 }
 
+/* --------------------------------------------------------------- list */
+/* `List` in `ui/list.tsx`. A row's height is set on the row, and each view's grid class sets its
+   columns. */
+.list-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.follow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-2);
+}
+
+.follow-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.follow-state .dot {
+  color: var(--ok);
+}
+
+.follow-state .dot.paused {
+  color: var(--faint);
+  box-shadow: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.btn.arrived {
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  background: var(--wash);
+  color: var(--link);
+}
+
+.list-view > .note {
+  margin: var(--space-2) var(--space-4);
+}
+
+.cols,
+.row {
+  display: grid;
+  gap: 0 var(--space-3);
+  align-items: center;
+  padding: 0 var(--space-4);
+}
+
+.cols {
+  height: 28px;
+  flex: none;
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+.list:focus-visible {
+  outline-offset: -2px;
+}
+
+.list-space {
+  position: relative;
+}
+
+.row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.row[aria-selected="true"] {
+  background: var(--wash);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.row.marked,
+.group.marked {
+  box-shadow: inset 3px 0 var(--warn);
+}
+
+.s4 {
+  color: var(--warn);
+}
+
+.s5,
+.exc {
+  color: var(--bad);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------ notes */
 .note {
   color: var(--muted);

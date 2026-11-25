@@ -1,35 +1,30 @@
 // The request list, the viewer's main view: newest first, following each watermark `/api/events`
-// pushes, and paused by a key or by scrolling away from the newest row.
+// pushes, and paused by a key or by scrolling away from the newest row. The list, its keys and the
+// follow bar are the shared `List` and `createFeed` (`ui/list.tsx`); this file has the columns.
 //
-// The list is virtual. Every row has the same height, so the rows on screen follow from the scroll
-// position alone, and only they and a few rows on each side are in the DOM. The browser's cost is the
-// screen, not the index. Older pages load with `before` as the end comes near.
-//
-// A paused list never changes what is on screen: what arrives is kept aside and counted, and resuming
-// puts it on top. A `since` page that is not complete (`older` set) means more arrived than one page,
-// so the newest page is loaded again instead.
+// A row shows the method, the path with its route beside it, the status, the duration, the queries,
+// the dumps and the age. A request that threw shows its exception's class and site after the path.
 //
 // `m` or the Mark button marks the selected request, and opening a second request then opens the two
 // side by side (`compare.tsx`).
 //
-// What it spends: the rows loaded so far, at most `KEEP` while following, plus what arrived while
-// paused. Each row is a few hundred bytes.
+// What it spends: what `createFeed` keeps, a few hundred bytes a row, and one timer that redraws the
+// ages every ten seconds.
 
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { requests, watermarks, type RequestPage, type RequestRow } from "../api.ts";
-import { ignored } from "../keys.ts";
+import { createSignal, onCleanup, Show } from "solid-js";
+import { requests, type RequestRow } from "../api.ts";
 import { navigate } from "../router.ts";
+import { Method, Status } from "../ui/badges.tsx";
+import { Empty } from "../ui/empty.tsx";
+import { createFeed, List, type RowKey } from "../ui/list.tsx";
 import { Site } from "../ui/site.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 
-/** A row's height in pixels. `.row` in `styles/requests.css` has the same. */
-export const ROW_HEIGHT = 28;
-/** Rows kept in the DOM above and below the screen, so a short scroll shows no gap. */
-const OVERSCAN = 6;
-/** How close to the last loaded row the screen comes before the next older page loads. */
-const NEAR_END = 40;
-/** The rows a following list keeps. Older ones are dropped and load again with `before`. */
-const KEEP = 2000;
+// TEMP(stage 3): stream.tsx and exceptions.tsx still import it from here until they move onto `List`.
+export { ROW_HEIGHT } from "../ui/list.tsx";
+
+/** A request row's height in pixels. */
+export const REQUEST_ROW = 38;
 
 /** `duration_us` the way a person reads it: microseconds, milliseconds or seconds. */
 export function duration(us: number): string {
@@ -43,325 +38,136 @@ export function statusClass(status: number): string {
   return status >= 500 ? "s5" : status >= 400 ? "s4" : "";
 }
 
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+/** How long ago `us` (microseconds since the epoch) was, at `now` (milliseconds): `4 s`, `2 min`,
+ *  `3 h` or `5 d`. */
+export function age(us: number, now: number): string {
+  const s = Math.max(0, Math.floor((now - us / 1000) / 1000));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86_400) return `${Math.floor(s / 3600)} h`;
+  return `${Math.floor(s / 86_400)} d`;
+}
+
+/** The time now in milliseconds, updated every ten seconds while the owner lives. */
+export function createNow() {
+  const [now, setNow] = createSignal(Date.now());
+  const timer = setInterval(() => setNow(Date.now()), 10_000);
+  onCleanup(() => clearInterval(timer));
+  return now;
 }
 
 /** The column heads above a list of request rows. */
 export function RequestColumns() {
   return (
-    <div class="cols" aria-hidden="true">
+    <>
       <span>Method</span>
-      <span>Route</span>
-      <span class="num">Status</span>
+      <span>Path</span>
+      <span>Status</span>
       <span class="num">Duration</span>
       <span class="num">Queries</span>
       <span class="num">Dumps</span>
-      <span>Exception</span>
-      <span>Thrown at</span>
-    </div>
+      <span class="num">Age</span>
+    </>
   );
 }
 
 /** The cells of one request row. The site of its exception is a link to the editor, which the
  *  row's own click leaves alone. */
-export function RequestCells(props: { row: RequestRow }) {
+export function RequestCells(props: { row: RequestRow; now?: number }) {
   const row = () => props.row;
+  const route = () => {
+    const r = row().route;
+    return r && r !== row().path ? r : null;
+  };
   return (
     <>
-      <span class="method">{row().method}</span>
-      <span class="route" title={row().path}>
-        {row().route ?? row().path}
+      <span class="method-cell">
+        <Method value={row().method} />
       </span>
-      <span class={`num status ${statusClass(row().status)}`}>{row().status}</span>
+      <span class="path" title={row().route ?? row().path}>
+        <span class="path-text">{row().path}</span>
+        <Show when={route()}>{(r) => <small class="route">{r()}</small>}</Show>
+        <Show when={row().exception}>
+          {(threw) => (
+            <>
+              <span class="exc">{threw().class}</span>
+              <span class="site exc-at">
+                <Site site={threw()} tabindex={-1} />
+              </span>
+            </>
+          )}
+        </Show>
+      </span>
+      <span class="status-cell">
+        <Status code={row().status} />
+      </span>
       <span class="num duration">{duration(row().duration_us)}</span>
       <span class="num queries">{row().queries}</span>
       <span class="num dumps">{row().dumps}</span>
-      <span class="exc">{row().exception?.class ?? ""}</span>
-      <span class="site exc-at">
-        <Show when={row().exception}>{(threw) => <Site site={threw()} tabindex={-1} />}</Show>
-      </span>
+      <span class="num age">{age(row().start_us, props.now ?? Date.now())}</span>
     </>
   );
 }
 
 export function RequestList() {
-  const [rows, setRows] = createSignal<RequestRow[]>([]);
-  const [older, setOlder] = createSignal<number | null>(null);
-  const [loaded, setLoaded] = createSignal(false);
-  const [loadingOlder, setLoadingOlder] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const [paused, setPaused] = createSignal(false);
-  /** What arrived while paused, newest first. */
-  const [arrived, setArrived] = createSignal<RequestRow[]>([]);
-  /** More arrived while paused than one page gave, so resuming loads the newest page again. */
-  const [overflow, setOverflow] = createSignal(false);
-  /** The selected row's id. An id, not a position, so rows put on top do not move the selection. */
-  const [selected, setSelected] = createSignal<number | null>(null);
-  const [scrollTop, setScrollTop] = createSignal(0);
-  const [height, setHeight] = createSignal(0);
-  let list!: HTMLDivElement;
-  /** The last watermark this list is complete up to. */
-  let seen = 0;
-  /** Rises with every reload of the newest page, so an older page asked for before it is dropped. */
-  let generation = 0;
-  /** Loads and live updates run one after another, so two never interleave their rows. */
-  let chain = Promise.resolve();
-  const abort = new AbortController();
-  const serial = (job: () => Promise<void>) => {
-    chain = chain.then(job).catch((err) => {
-      if (!abort.signal.aborted) setError(message(err));
-    });
-  };
-
-  const index = createMemo(() => new Map(rows().map((row, i) => [row.id, i])));
-  const current = () => {
-    const id = selected();
-    return id === null ? -1 : (index().get(id) ?? -1);
-  };
-  const first = createMemo(() => Math.max(0, Math.floor(scrollTop() / ROW_HEIGHT) - OVERSCAN));
-  const end = createMemo(() => Math.min(rows().length, Math.ceil((scrollTop() + height()) / ROW_HEIGHT) + OVERSCAN));
-  const visible = createMemo(() => rows().slice(first(), end()));
-  /** `aria-setsize`: the loaded rows, or `-1` (unknown) while older pages remain. */
-  const setSize = () => (older() === null ? rows().length : -1);
-  const active = () => {
-    const i = current();
-    return i >= first() && i < end() ? `request-${selected()}` : undefined;
-  };
-
-  const keep = (next: RequestRow[]) => {
-    if (next.length <= KEEP) return setRows(next);
-    const kept = next.slice(0, KEEP);
-    setRows(kept);
-    setOlder(kept[KEEP - 1]!.id);
-  };
-
-  const showNewest = (page: RequestPage) => {
-    generation++;
-    seen = page.watermark;
-    setRows(page.requests);
-    setOlder(page.older);
-    setArrived([]);
-    setOverflow(false);
-    if (current() < 0) setSelected(page.requests[0]?.id ?? null);
-    setLoaded(true);
-  };
-
-  const onBatch = (batch: number) =>
-    serial(async () => {
-      if (batch <= seen) return;
-      const page = await requests({ since: seen }, abort.signal);
-      if (page.older !== null) {
-        if (!paused()) return showNewest(await requests({}, abort.signal));
-        seen = page.watermark;
-        setOverflow(true);
-        setArrived([...page.requests, ...arrived()]);
-        return;
-      }
-      seen = Math.max(seen, page.watermark);
-      const top = (arrived()[0] ?? rows()[0])?.id ?? 0;
-      const fresh = page.requests.filter((row) => row.id > top);
-      if (fresh.length === 0) return;
-      if (paused()) setArrived([...fresh, ...arrived()]);
-      else keep([...fresh, ...rows()]);
-    });
-
-  const resume = () => {
-    setPaused(false);
-    if (overflow()) serial(async () => showNewest(await requests({}, abort.signal)));
-    else {
-      keep([...arrived(), ...rows()]);
-      setArrived([]);
-    }
-    list.scrollTop = 0;
-  };
-  const toggle = () => (paused() ? resume() : setPaused(true));
-
-  const loadOlder = (before: number) => {
-    const asked = generation;
-    setLoadingOlder(true);
-    requests({ before }, abort.signal)
-      .then((page) => {
-        if (asked !== generation) return;
-        const bottom = rows().at(-1)?.id ?? Infinity;
-        setRows([...rows(), ...page.requests.filter((row) => row.id < bottom)]);
-        setOlder(page.older);
-      })
-      .catch((err) => {
-        if (!abort.signal.aborted) setError(message(err));
-      })
-      .finally(() => setLoadingOlder(false));
-  };
-
-  createEffect(() => {
-    const before = older();
-    if (loaded() && before !== null && !loadingOlder() && !error() && end() >= rows().length - NEAR_END) loadOlder(before);
+  const feed = createFeed<RequestRow, number>({
+    load: async (at, signal) => {
+      const page = await requests(at, signal);
+      return { rows: page.requests, older: page.older, watermark: page.watermark };
+    },
+    key: (row) => row.id,
+    cursor: (row) => row.id,
   });
-
-  const onScroll = () => {
-    const top = list.scrollTop;
-    setScrollTop(top);
-    if (top > ROW_HEIGHT / 2 && !paused()) setPaused(true);
-    else if (top === 0 && paused()) resume();
-  };
-
-  /** Selects the row at position `to`, kept inside the list, and scrolls it onto the screen. */
-  const move = (to: number) => {
-    const all = rows();
-    if (all.length === 0) return;
-    const i = Math.min(all.length - 1, Math.max(0, to));
-    setSelected(all[i]!.id);
-    const top = i * ROW_HEIGHT;
-    if (top < list.scrollTop) list.scrollTop = top;
-    else if (top + ROW_HEIGHT > list.scrollTop + list.clientHeight) list.scrollTop = top + ROW_HEIGHT - list.clientHeight;
-    list.focus({ preventScroll: true });
-  };
-  const open = (row: RequestRow) => navigate(openLink(row));
-  const selectedRow = () => rows()[current()];
-  const mark = () => {
-    const row = selectedRow();
+  const [selected, setSelected] = createSignal<RowKey | null>(null);
+  const now = createNow();
+  const selectedRow = () => feed.rows().find((row) => row.id === selected());
+  const mark = (row: RequestRow | undefined) => {
     if (row) toggleMark(row);
-  };
-  const screen = () => Math.max(1, Math.floor(list.clientHeight / ROW_HEIGHT) - 1);
-
-  const onKey = (e: KeyboardEvent) => {
-    if (ignored(e)) return;
-    switch (e.key) {
-      case "j":
-      case "ArrowDown":
-        move(current() + 1);
-        break;
-      case "k":
-      case "ArrowUp":
-        move(current() - 1);
-        break;
-      case "Home":
-        move(0);
-        break;
-      case "End":
-        move(rows().length - 1);
-        break;
-      case "PageDown":
-        move(current() + screen());
-        break;
-      case "PageUp":
-        move(current() - screen());
-        break;
-      case "Enter": {
-        const row = rows()[current()];
-        if (!row) return;
-        open(row);
-        break;
-      }
-      case "p":
-      case " ":
-        toggle();
-        break;
-      case "m":
-        mark();
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-  };
-
-  onMount(() => {
-    setHeight(list.clientHeight);
-    const resize = new ResizeObserver(() => setHeight(list.clientHeight));
-    resize.observe(list);
-    document.addEventListener("keydown", onKey);
-    serial(async () => showNewest(await requests({}, abort.signal)));
-    watermarks(onBatch, abort.signal);
-    onCleanup(() => {
-      abort.abort();
-      resize.disconnect();
-      document.removeEventListener("keydown", onKey);
-    });
-  });
-
-  const arrivedText = () => {
-    const n = arrived().length;
-    if (overflow()) return `More than ${n} new requests`;
-    return n === 1 ? "1 new request" : `${n} new requests`;
   };
 
   return (
     <section class="requests" aria-label="Requests">
-      <div class="follow">
-        <span role="status" class="follow-state">
-          {paused() ? "Paused." : "Following new requests."}
-        </span>
-        <Show
-          when={paused() && arrived().length > 0}
-          fallback={
-            <button type="button" class="btn" onClick={toggle} aria-keyshortcuts="p">
-              {paused() ? "Follow" : "Pause"}
+      <List
+        rows={feed.rows()}
+        key={(row) => row.id}
+        idPrefix="request"
+        label="Requests, newest first"
+        selected={selected()}
+        onSelect={setSelected}
+        onOpen={(row) => navigate(openLink(row))}
+        openOnClick
+        grid="request-grid"
+        rowHeight={REQUEST_ROW}
+        rowClass={(row) => ({ threw: row.exception !== null, marked: isMarked(row) })}
+        describe={(row) => (isMarked(row) ? "Marked to compare" : undefined)}
+        cols={<RequestColumns />}
+        feed={feed}
+        noun={["request", "requests"]}
+        keys={{ m: mark }}
+        empty={
+          <Empty icon="requests" title="No requests yet">
+            They show here when your server handles them.
+          </Empty>
+        }
+        actions={
+          <>
+            <span class="spacer" />
+            <button
+              type="button"
+              class="btn small mark"
+              onClick={() => mark(selectedRow())}
+              disabled={!selectedRow()?.span}
+              aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
+              aria-keyshortcuts="m"
+            >
+              Mark to compare
             </button>
-          }
-        >
-          <button type="button" class="btn arrived" onClick={resume} aria-keyshortcuts="p">
-            {arrivedText()}
-          </button>
-        </Show>
-        <button
-          type="button"
-          class="btn mark"
-          onClick={mark}
-          disabled={!selectedRow()?.span}
-          aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
-          aria-keyshortcuts="m"
-        >
-          Mark to compare
-        </button>
-        <MarkState />
-      </div>
-      <Show when={error()}>
-        <p class="note bad" role="alert">
-          The list could not load: {error()}
-        </p>
-      </Show>
-      <Show when={loaded() && rows().length === 0}>
-        <p class="note">No requests yet. They show here when your server handles them.</p>
-      </Show>
-      <RequestColumns />
-      <div
-        ref={list}
-        class="list"
-        role="listbox"
-        tabindex="0"
-        aria-label="Requests, newest first"
-        aria-activedescendant={active()}
-        data-rows={rows().length}
-        onScroll={onScroll}
+            <MarkState />
+          </>
+        }
       >
-        <div class="list-space" role="none" style={{ height: `${rows().length * ROW_HEIGHT}px` }}>
-          <For each={visible()}>
-            {(row, i) => {
-              const at = () => first() + i();
-              return (
-                <div
-                  id={`request-${row.id}`}
-                  role="option"
-                  class="row"
-                  classList={{ threw: row.exception !== null, marked: isMarked(row) }}
-                  aria-description={isMarked(row) ? "Marked to compare" : undefined}
-                  aria-selected={selected() === row.id ? "true" : "false"}
-                  aria-posinset={at() + 1}
-                  aria-setsize={setSize()}
-                  style={{ transform: `translateY(${at() * ROW_HEIGHT}px)` }}
-                  onClick={() => {
-                    setSelected(row.id);
-                    open(row);
-                  }}
-                >
-                  <RequestCells row={row} />
-                </div>
-              );
-            }}
-          </For>
-        </div>
-      </div>
+        {(row) => <RequestCells row={row} now={now()} />}
+      </List>
     </section>
   );
 }
