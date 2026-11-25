@@ -1033,7 +1033,10 @@ mod tests {
         let subject = Value::text("F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4");
         let parsed = run(super::nvs_core_uuid_parse, &[subject]).expect("that is a UUID");
         let formatted = run(super::nvs_core_uuid_format, &[parsed]).expect("a built UUID formats");
-        let text = formatted.as_text().expect("`format` returns a `string`").to_owned();
+        let text = formatted
+            .as_text()
+            .expect("`format` returns a `string`")
+            .to_owned();
         assert_eq!(text, "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4");
         assert_eq!(
             super::format_text(parsed).ok().flatten().as_deref(),

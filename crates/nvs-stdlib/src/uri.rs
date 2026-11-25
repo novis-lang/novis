@@ -2610,8 +2610,11 @@ pub(crate) fn parses_text(
     unsafe {
         written.release();
     }
-    text.map(Some)
-        .ok_or_else(|| Fault::fatal(format!("{what}: `format` answered something that is not a string")))
+    text.map(Some).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{what}: `format` answered something that is not a string"
+        ))
+    })
 }
 
 /// `root` written as a query string: depth-first in entry order, every name

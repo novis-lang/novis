@@ -1249,13 +1249,8 @@ fn takes(value: crate::TypeId, param: crate::TypeId, types: &mut Types<'_>) -> b
     {
         return true;
     }
-    crate::expr::assign::is_assignable(
-        value,
-        param,
-        types.interner,
-        types.graph,
-        types.signatures,
-    ) || reads_text_of(types.interner.get(value), types.interner.get(param))
+    crate::expr::assign::is_assignable(value, param, types.interner, types.graph, types.signatures)
+        || reads_text_of(types.interner.get(value), types.interner.get(param))
 }
 
 /// Whether the conversion of a parameter declared `param` reads the text a

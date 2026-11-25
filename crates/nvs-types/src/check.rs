@@ -659,7 +659,14 @@ fn after_walk(
         graph: &module.graph,
         signatures,
     };
-    crate::links::resolve(&routes, &module.link_targets, links, &mut types, exprs, diags);
+    crate::links::resolve(
+        &routes,
+        &module.link_targets,
+        links,
+        &mut types,
+        exprs,
+        diags,
+    );
     // `rule:core-classes/derive-property-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.

@@ -4766,7 +4766,10 @@ pub fn implements_parses(class: &str) -> bool {
 /// looks the class up in the program's own class table, which holds no `Core` class, so those
 /// sites ask here first. `Core\Uuid` has no arm: the matcher and the command reader convert it
 /// themselves and never call its `parse`.
-pub(crate) fn core_parse(class: &str, text: nvs_runtime::Value) -> Option<Result<nvs_runtime::Value, nvs_runtime::Fault>> {
+pub(crate) fn core_parse(
+    class: &str,
+    text: nvs_runtime::Value,
+) -> Option<Result<nvs_runtime::Value, nvs_runtime::Fault>> {
     match class {
         crate::queue::ID_NAME => Some(crate::queue::parse_id_value(text)),
         _ => None,
@@ -5900,7 +5903,11 @@ mod tests {
             unsafe {
                 text.release();
             }
-            assert!(outcome.is_some(), "`{}` has no arm in `core_parse`", class.name);
+            assert!(
+                outcome.is_some(),
+                "`{}` has no arm in `core_parse`",
+                class.name
+            );
         }
         assert!(core_parse(r"App\Models\Slug", nvs_runtime::Value::null()).is_none());
     }
