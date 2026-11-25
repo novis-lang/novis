@@ -498,7 +498,7 @@ classes are the ones that goal makes compare by value.
 
 - [x] `crates/nvs-hir/src/hierarchy.rs:424`: the program-wide collision check: type member, other block,
   descendant member, with both places in the error. The three cases the check `collisions` names.
-- [ ] `crates/nvs-types/src/conformance.rs:445`: an added member discharges no obligation;
+- [x] `crates/nvs-types/src/conformance.rs:445`: an added member discharges no obligation;
   `crates/nvs-types/src/expr/operators.rs:976`: ordering never reads one; the refused-name list in the
   block shape check. The cases the check `dynamic-paths` names.
 - [ ] `crates/nvs-types/src/expr/calls.rs:379` and `:506`: the union rule. Interfaces: an added member
@@ -511,7 +511,7 @@ classes are the ones that goal makes compare by value.
   the place; an entry naming `<Block>::<member>`; an entry on a type not holding added members. Edit
   `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:13` and `:62`. The two cases
   the check `restrict` names.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:1940`: confirm no roster lists an added member, and the
+- [x] `crates/nvs-stdlib/src/reflect.rs:1940`: confirm no roster lists an added member, and the
   `dynamic-paths` mixed-and-Reflect case pins it.
 
 ### 5. added properties: get hooks on every type, stored values in one hidden slot
@@ -583,44 +583,42 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 is open, with its first item done and two refusals in.
+Stages 1 to 3 are done. Stage 4 is open: items 1, 2 and 6 are done, and `collisions` and
+`dynamic-paths` are green. How it works is in `crates/nvs-types/src/extend.rs`'s module docs.
 
-- **Collisions, `E1011`** (`E_ADDED_MEMBER_COLLIDES`, `types_e10.rs`). The check is
-  `check_collisions` in `crates/nvs-types/src/extend.rs`, not in `hierarchy.rs`: it needs the
-  signature table, and `Env::graph` and `Env::signatures` hold the whole program before any body
-  is checked. Per added method, constant or property it looks in three places, in this order: the
-  target and its ancestors (an enum case counts as a constant), another block whose target is
-  related either way (reported once, at the block whose name sorts last), and a class or interface
-  of the program below the target. `member_span` finds the other place through the symbol's
-  `decl_span` and the file's statements, so the error shows both places. A `Core` member has no
-  source and gets no second label. The three `collisions` cases pass, and `looper check --name
-  collisions` is green.
-- **`static::` and `parent::` in a block are `E0338`**, in `check_member_ref`
-  (`crates/nvs-hir/src/members.rs`), through the new `Env::in_block` flag that the `ExtendDecl` arm
-  sets around `check_members`. `new static` is not refused yet.
-- **`yield` in an added static method, or in any method of a block on an enum, is `E0338`**, in
-  `extend.rs` `check_member`. Case:
-  `reject/an-extend-block-uses-self-and-no-yield-in-a-static-method.nvst`, run once.
-
-How stage 3 works is in the module docs of `extend.rs` and in the commits `d5fed477e7` and
-`0b7af366fc`: the used blocks come from the file's `use` map, the block's members sit in the
-signature table under the block's name with `added_to`, and calls lower as direct calls.
+- **`E1011`**: `check_collisions` in `extend.rs` looks in the target and its ancestors, in other
+  blocks of related targets, and in the program's classes below the target, and both places show.
+- **`E1012`**: `runtime_calls` in `extend.rs` refuses an added method named like a member of an
+  interface on `nvs_hir::interfaces::RESERVED`, read from the seeded signatures. It runs before the
+  collision lookup, so `Date::compareTo` gets only `E1012`. Conformance and ordering needed no code:
+  an added method lives under the block's name, and `compareTo` can no longer be added.
+- **`E0338` in a body**: `static::`, `parent::`, `new static` and `new parent`, in
+  `crates/nvs-hir/src/members.rs` through `Env::in_block`; `yield` in an added static method or a
+  block on an enum, in `extend.rs` `check_member`.
+- **Dynamic paths** needed no code: a `mixed` call, `Reflect`'s `methods()` and `ClassInfo::call`
+  miss an added method, pinned by `class/an-added-method-is-not-found-through-a-mixed-value-or-reflect.nvst`.
+- Stage 3: blocks come from the file's `use` map, members sit in the signature table under the
+  block's name with `added_to`, and calls lower as direct calls (commits `d5fed477e7`, `0b7af366fc`).
 
 ### Next
 
-1. `new static` inside a block: refuse it with the same `E0338` as `static::`. The class side of
-   `new` is resolved in `crates/nvs-types/src/expr/calls.rs` (`resolve_class_expr`, `:~1114`), and
-   `Env::extend_block` is `Some` there.
-2. Stage 4's second item: the refused-name list. An `Explore` subagent lists the names a `Core`
-   interface or an operator dispatches by name (`conformance.rs`, `expr/operators.rs:976`) as the
-   stage's **Split** line says. Refuse each as `E1012` in `extend.rs`. Then the `dynamic-paths`
-   cases.
-3. Unions: `infer_union_method_call` (`calls.rs:~395`) does not consult blocks yet. Then the
-   interface case and the generic `Core` block (`class_type_params`) for `reach`.
+1. Stage 4's third item, the `reach` check. Unions: `infer_union_method_call`
+   (`crates/nvs-types/src/expr/calls.rs:~395`) does not consult blocks yet. A union finds an added
+   method only when every member gets it from one block, else `E1013` with help to narrow with
+   `is`. `extend.rs` `added_method` (`:~490`) is the lookup to reuse. Then an added method on an
+   interface reached on every implementer, and a generic `Core` block binding
+   `class_type_params` (`crates/nvs-types/src/expr/args.rs:2629`).
+2. Stage 4's fourth item, `nested`: a block's nested enum as `<Type>::<Enum>`
+   (`crates/nvs-hir/src/resolve.rs:157`), and a block's nested attribute owned by the extended type
+   (`crates/nvs-types/src/attributes.rs:975`).
+3. Stage 4's fifth item, `restrict` (`crates/nvs-types/src/restrict.rs:709`): the block is the
+   place, and an entry names `<Block>::<member>`.
 
 Tests that may go red: any case pinning E0329's diagnostic with no `%A` after its primary label,
 because the diagnostic now has a help line. A program that declares two blocks adding one name to
-related types now fails with `E1011`.
+related types now fails with `E1011`. A block that adds a method named `compareTo`, `toString`,
+`parse`, `format`, `iterate`, `current`, `key` or `advance` now fails with `E1012`. No case in the
+tree does.
 
 ### Backlog
 
