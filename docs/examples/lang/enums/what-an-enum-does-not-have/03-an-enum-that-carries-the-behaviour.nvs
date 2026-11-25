@@ -1,0 +1,52 @@
+<?nvs
+// Shows where the behaviour of an enum goes. The enum has the states of an
+// order, and its methods say what each state means.
+
+enum Status
+{
+    Placed,
+    Paid,
+    Shipped,
+    Cancelled,
+
+    // Returns the text shown to a customer for this status.
+    public function label(): string
+    {
+        return match ($this) {
+            Status::Placed => 'waiting for payment',
+            Status::Paid => 'ready to ship',
+            Status::Shipped => 'on its way',
+            Status::Cancelled => 'cancelled',
+        };
+    }
+
+    // Returns `true` when nothing more happens to an order in this status.
+    public function isFinal(): bool
+    {
+        return $this == Status::Shipped || $this == Status::Cancelled;
+    }
+
+    // Returns the status after this one, or `null` when there is none.
+    public function next(): ?Status
+    {
+        return match ($this) {
+            Status::Placed => Status::Paid,
+            Status::Paid => Status::Shipped,
+            Status::Shipped => null,
+            Status::Cancelled => null,
+        };
+    }
+}
+
+Status $order = Status::Paid;
+
+// This prints `ready to ship` and `no`.
+echo $order->label(), "\n";
+echo $order->isFinal() ? 'yes' : 'no', "\n";
+
+// The order moves to its next status. This prints `on its way` and `yes`.
+?Status $after = $order->next();
+if ($after != null) {
+    echo $after->label(), "\n";
+    echo $after->isFinal() ? 'yes' : 'no', "\n";
+}

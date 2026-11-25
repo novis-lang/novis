@@ -1,19 +1,21 @@
 <?nvs
-// Shows the list of every case. An enum has no `cases()`, so the list is an
-// ordinary static method that returns `array<Level>`.
+// Shows the list of every case. An enum has no `cases()`, so the list is a
+// static method of the enum that returns `array<Level>`.
 
-class Levels
+enum Level
 {
-    enum Level { Debug, Info, Warn }
+    Debug,
+    Info,
+    Warn,
 
     public static function all(): array<Level>
     {
         return [Level::Debug, Level::Info, Level::Warn];
     }
 
-    public static function name(Level $l): string
+    public function name(): string
     {
-        return match ($l) {
+        return match ($this) {
             Level::Debug => 'debug',
             Level::Info => 'info',
             Level::Warn => 'warn',
@@ -23,8 +25,8 @@ class Levels
     // Returns the level with this name, or `null` when there is none.
     public static function byName(string $wanted): ?Level
     {
-        foreach (Levels::all() as Level $l) {
-            if (Levels::name($l) == $wanted) {
+        foreach (self::all() as Level $l) {
+            if ($l->name() == $wanted) {
                 return $l;
             }
         }
@@ -33,13 +35,13 @@ class Levels
 }
 
 // This prints `debug`, `info` and `warn`, one per line.
-foreach (Levels::all() as Levels::Level $l) {
-    echo Levels::name($l), "\n";
+foreach (Level::all() as Level $l) {
+    echo $l->name(), "\n";
 }
 
 // This prints 3.
-echo Core\Arr::count(Levels::all()), "\n";
+echo Core\Arr::count(Level::all()), "\n";
 
 // A name nobody wrote gives `null`, so the program picks its own level.
 // This prints 1.
-echo (Levels::byName('loud') ?? Levels::Level::Info) as int, "\n";
+echo (Level::byName('loud') ?? Level::Info) as int, "\n";

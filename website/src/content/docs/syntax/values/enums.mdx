@@ -29,7 +29,8 @@ declare it at the top level of the file.
 <FeatureSection examples="lang/enums/what-an-enum-does-not-have" heading="Names and lists of cases" id="names-and-lists-of-cases" />
 
 Many `Core` methods take an enum from `Core`, such as `Core\Arr::Order`, `Core\RoundMode` or
-`Core\Time\Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one.
+`Core\Time\Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one. To add a method to a
+`Core` enum, write an [`extend` block](/syntax/classes/extend-blocks/).
 
 <FeatureSection examples="lang/enums/core-enums" heading="Enums from Core" id="enums-from-core" />
 
@@ -38,5 +39,6 @@ Many `Core` methods take an enum from `Core`, such as `Core\Arr::Order`, `Core\R
 - Do use an enum for a fixed set of choices, such as a status or a mode.
 - Do use `as ?Status` for a number from outside the program. You then handle `null`.
 - Don't use a case as an array key. Use its number: `$names[$status as int]`.
-- Don't add behaviour to an enum. Put it in a class that takes the enum.
+- Do put a method that reads the case in the enum body. `$this` is the case.
+- Don't try to store a value in a case. An enum has no properties. Use a class for state.
 - Do declare an enum inside the class that uses it. Write `Status`, not `OrderStatus`.

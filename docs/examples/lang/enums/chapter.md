@@ -1,8 +1,8 @@
 ---
 order: 55
 title: Enums
-summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have
-keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
+summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, the methods and constants an enum body declares, and what an enum does not have
+keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, enum method, enum constant, Core\Arr::Order
 ---
 
 # Declaring an enum

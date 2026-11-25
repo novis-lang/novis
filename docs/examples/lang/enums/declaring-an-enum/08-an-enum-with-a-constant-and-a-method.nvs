@@ -1,0 +1,33 @@
+<?nvs
+// Shows an enum with a constant and a method. Inside the method, `$this` is the
+// case that the method is called on.
+
+enum Priority
+{
+    Low,
+    Normal,
+    Urgent,
+
+    // The most hours a support ticket may wait for an answer.
+    public const int MAX_WAIT_HOURS = 72;
+
+    // Returns the hours a ticket with this priority may wait.
+    public function waitHours(): int
+    {
+        return match ($this) {
+            Priority::Low => self::MAX_WAIT_HOURS,
+            Priority::Normal => 24,
+            Priority::Urgent => 2,
+        };
+    }
+}
+
+// This prints 72.
+echo Priority::MAX_WAIT_HOURS, "\n";
+
+// This prints 2.
+echo Priority::Urgent->waitHours(), "\n";
+
+// The method also works on a variable. This prints 24.
+Priority $p = Priority::Normal;
+echo $p->waitHours(), "\n";

@@ -1,7 +1,7 @@
 {
   "slug": "enums",
   "title": "Enums",
-  "summary": "`enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods",
+  "summary": "`enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, the methods and constants an enum body declares, and what an enum does not have",
   "keywords": [
     "enum",
     "case",

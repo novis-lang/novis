@@ -10,13 +10,23 @@ A comma after the last case is allowed. An enum with no cases compiles.
 
 Two cases with the same value are equal: `Suit::A == Suit::B` is `true` when both are `1`.
 
+A method or a constant of an enum may be `public` or `private`. A method may be `static`. Inside the
+enum, `self` is the enum, so `self::Hearts`, `self::MAX` and `self::label()` work. A method reference
+such as `Suit::Hearts->label(...)` gives a function you can call later.
+
+To add a method to an enum from another package or from `Core`, write an `extend` block. An `extend`
+block for an enum that your own program declares is the error `E0337`. Write the method in the enum.
+
 The enum name and every case name are PascalCase. A name that starts with a lowercase letter or has
 an underscore, such as `hearts` or `Big_One`, is the error `E0110`. The help gives the fixed name.
 
 These forms do not compile:
 
 - `case` before a case name is the error `E0239`.
-- A constant, a method, or a `;` between cases is the error `E0220`.
+- A property in an enum body is the error `E0220`. Its help shows how to keep the value in a class.
+- An enum inside an enum body is the error `E0220`. So is a method that uses `yield`.
+- A constant with the same name as a case is the error `E0304`.
+- A `;` between cases is a syntax error (`E0101`).
 - `implements` on an enum is the error `E0218`.
 - `enum Suit: string` is the error `E0219`. Any other backing type except `int` and `uint` is
   `E0438`.

@@ -8,7 +8,8 @@ A case is written `Core\Arr::Order::Desc`. You pass it to a method that needs it
 variable of type `Core\Arr::Order`, compare it with `==`, use it in a `match`, and convert it to its
 number with `as int`.
 
-Nothing about these enums is special. They have no methods and no `->value`, the same as your own.
+Nothing about these enums is special. They have no `->value`, the same as your own. To add a method
+to one, write an `extend` block.
 `as Core\Arr::Order` or `as ?Core\Arr::Order` converts a number back into a case. A method that takes
 one of these enums accepts only its cases. A wrong value is an error when the program is compiled.
 
