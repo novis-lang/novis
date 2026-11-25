@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A change to a test makes every member its `// covers:` line names stale on the website.** In
+  `extend-blocks` stage 8, a Miri ignore on nine `Core\Time` tests made seven members' `about.md`
+  and help stale, and `close` listed only some of them, so it took two close runs. After a test-only
+  change, run `bun nv site --check stale` alone. Then stamp every key it names with
+  `bun nv site --stamp`, once the texts are still right. See `tools/nv/cmd/site.ts`.
 - **`cargo test --lib <name>` never runs a unit test of `nvs-cli`, because it is a binary crate.**
   In `extend-blocks` stage 6, the check `agent` reported "did not run" for a test that passed. Every
   test filtered out, and the result still said `ok`. A goal check over a test in `crates/nvs-cli/src/`
