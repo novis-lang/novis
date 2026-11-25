@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-types/src/iter_lib.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-types/src/links.rs, crates/nvs-diagnostics/src/code/types_e07.rs, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/expressions/try-parse.md]
   - id: 9
     title: "stages 1 to 4 have their feature proofs, and the query example shows the string fallback"
-    status: open
+    status: done
     context: [docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/examples/lang/classes/parses/about.md]
   - id: 10
     title: "stages 5 to 8 have their feature proofs, and the website says what changed"
@@ -634,25 +634,25 @@ each, before the first edit.
 `docs/examples/lang/classes/parses/` and `tests/hostile/lang/classes/parses/`. The session checks
 each file against AGENTS.md § *Text an end user reads* and runs `bun nv proofs --comments` over them.
 
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`
+- [x] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`
   gains a second route with `#[Core\Query] string $page = ''` and `($page as ?uint) ?? 1`, and `?page=abc`
   shows page 1; its `.out` is regenerated and read. That folder's `about.md:1` and `details.md:1` say
   when to use it and that a typed value with a bad text is a `400`.
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/08-a-query-value-that-may-be-missing.nvs:1`
+- [x] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/08-a-query-value-that-may-be-missing.nvs:1`
   (`?uint $page = null` and a `?` `Parses` class) and `09-a-yes-or-no-query-value.nvs:1` (`bool`, `1`
   and `0`, and a checkbox with `value="1"`); `about.md` says both in one paragraph each.
-- [ ] `docs/examples/lang/classes/parses/06-a-final-class-loads-a-stored-record.nvs:1`: a `final`
+- [x] `docs/examples/lang/classes/parses/06-a-final-class-loads-a-stored-record.nvs:1`: a `final`
   `Order` whose `parse` loads a record, read once as a path capture and once as
   `#[Core\Query] Order $order`, `allows` checking it through `$route->parameter('order')` in both,
   and `refused` setting `404` for `BadCapture` and `Denied`. That folder's `about.md:1` says when the
   lookup runs, and that `allows` checks a query value as it checks a capture.
-- [ ] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/03-query-values-written-another-way.nvs:1`
+- [x] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/03-query-values-written-another-way.nvs:1`
   (`true`, `on`, an empty value and a bare key for a `bool`, and `page[]=1` for an optional value) and
   `tests/hostile/lang/classes/parses/02-a-visitor-guesses-ids.nvs:1` (a missing id and a forbidden id
   get the same `404`).
-- [ ] `docs/examples/core/Router-Match/parameter/` and `parameters/` each gain an example of a query
+- [x] `docs/examples/core/Router-Match/parameter/` and `parameters/` each gain an example of a query
   value read in `allows`, and `null` from `Core\Request::route()`.
-- [ ] The rest of what `bun nv proofs --owed --goal route-values` names for stages 1 to 4, at the
+- [x] The rest of what `bun nv proofs --owed --goal route-values` names for stages 1 to 4, at the
   paths it prints, such as `lang:classes/methods-self-static-and-parent`'s example of `static` in a
   `final` class.
 
@@ -712,21 +712,18 @@ website.
 
 ### State
 
-Stages 1 to 8 are done. Stage 8 closed this session: every `Parses` class in the tree declares
-`format()`, and the case for a class with no members expects two `E0449` errors, `format` before
-`parse`. The `E1010` check (`fits_type`, `crates/nvs-types/src/links.rs`) had refused an enum case
-for a parameter narrowed to cases of that enum, because a written case has its whole enum's type; a
-value of the enum now passes there and `within_set` judges the case. Three link cases changed for
-`E1010`: a `float` for a `uint` is `E1010`, and a nested query value is written from a `mixed`
-variable. `bun nv suite` over the stage 8 cases ran 37 reached cases, green; `cargo test --test
-routes --test commands` and `cargo test --lib conformance` are green. The parses examples, the
-`types/Parses` example, the attack and `examples/parses.nvs` declare `format` but do not print it.
-`docs/examples/lang/classes/parses/details.md` and the route table's `details.md` say what `format`
-does and that a link value's type is checked; `about.md` in both folders is stage 9's and 10's.
+Stages 1 to 9 are done. Stage 9 added route-table examples 08 and 09 and the fallback route in 07,
+the attacks `03-query-values-written-another-way.nvs` and parses `02-a-visitor-guesses-ids.nvs`,
+parses example 06, `Router-Match/parameter(s)/04-*` and `methods-self-static-and-parent/06-*`.
+`parses/about.md` already names `format`, which covers stage 10's sentence on it. `bun nv proofs
+--run --only` over the four features was green, and `--comments` passes over all ten files.
+What `--owed` still lists is stage 10's: `perf` reruns, `reviewed` stamps, and every proof of
+`Core\Uuid::format` and `Core\Queue\Id::format`.
 
 **Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url`, `buildQuery`, `E0756`
 and `E0821` cards, the `format` cards of `Core\Uuid` and `Core\Queue\Id`, and `E1010`, quoted in
-`website/src/data/core.json` and `website/public/llms-full.txt`.
+`website/src/data/core.json` and `website/public/llms-full.txt`. The examples stage 9 added or
+changed also make their pages' questions stale: run `bun nv site --check questions` and stamp.
 **Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test asserting
 `CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a `nvs meta --json`
 golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case or test that builds a
@@ -734,20 +731,18 @@ link from a `Core\Uuid` (it threw before and now writes the text).
 
 ### Next
 
-Stage 9, by its **Split:** line. First list what is owed with `bun nv proofs --owed --goal route-values`.
+Stage 10, by its **Split:** line: three writing subagents, then the session writes the website.
 
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`:
-  the string fallback route, its `.out` regenerated and read, and `about.md` and `details.md`.
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/08-a-query-value-that-may-be-missing.nvs:1`
-  and `09-a-yes-or-no-query-value.nvs`, as stage 9's item says.
-- [ ] `docs/examples/lang/classes/parses/06-a-final-class-loads-a-stored-record.nvs:1`, with `format`
-  on its `Order`; `tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst:9` is
-  the shape.
-- [ ] `tests/hostile/lang/classes/parses/02-a-visitor-guesses-ids.nvs:1` and the route-table attack
-  `03-query-values-written-another-way.nvs`, then `docs/examples/core/Router-Match/parameter/` and
-  `parameters/`, then the rest `--owed` names for stages 1 to 4.
-- [ ] `docs/goals/route-values.md:41`: set stage 9 to done once `bun nv proofs --comments` passes over
-  every file it wrote.
+- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/10-a-date-in-the-path-and-a-time-in-the-query.nvs:1`
+  and the route-table attack `04-time-values-written-another-way.nvs`, as stage 10's items say.
+- [ ] `docs/examples/core/Router/url/05-a-link-to-a-route-that-reads-a-class.nvs:1` and
+  `tests/hostile/lang/classes/parses/03-a-format-that-writes-a-slash.nvs`; `parses/about.md` already
+  says what `format` does.
+- [ ] `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/11-dates-durations-zones-and-ids-as-text.nvs:1`
+  and the JSON, `shapeAs`, API document and command-table examples `--owed` names.
+- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:36` and the other pages stage 10 names,
+  `website/src/data/changes.json`, `bun nv render --website`, the `reviewed` stamps and the `perf`
+  reruns, until `bun nv proofs --owed --goal route-values` names nothing.
 
 ### Backlog
 
