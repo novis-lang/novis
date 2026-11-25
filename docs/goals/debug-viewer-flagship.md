@@ -18,7 +18,7 @@ stages:
     context: [viewer/src/views/requests.tsx, viewer/src/views/stream.tsx, viewer/src/views/exceptions.tsx, viewer/src/views/search.tsx, viewer/src/views/compare.tsx]
   - id: 4
     title: the index holds each request's time by kind and its repeated statements, and the API filters and summarises
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/index.rs, crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/ingest.rs, crates/nvs-cli/tests/debug_api.rs, crates/nvs-lsp/src/recorded.rs]
   - id: 5
     title: the request list has filters, summary tiles, a time split per row and a peek pane
@@ -227,6 +227,35 @@ columns and its data, never list mechanics. The stylesheet is split by layer int
 - **Test hooks**: the theme is `button.theme` with `aria-label` `Theme: <name>`, `.editor-open` is
   the rail's Settings item, and the hostile test allows `svg.icon[aria-hidden]`.
 
+**The names stages 3 and 4 gave, which later stages use.** Stage 3:
+
+- `viewer/src/ui/list.tsx`: `List` (virtual rows, selection by key, the shared keys, a view's own
+  keys through `keys`, the follow bar, `actions`, `empty`, `cols` and `grid`) and `createFeed`
+  (newest page, follow, pause, arrived count, older pages). A list that reloads its first page on
+  each watermark, as both exception lists do, passes `rows`, `more`, `onEnd`, `loaded` and `error`
+  to `List` and keeps its own loader.
+- `views/requests.tsx` exports `RequestCells`, `RequestColumns`, `REQUEST_ROW` (38), `age()` and
+  `createNow()`. The request grid is `.request-grid`. `views/feed.tsx` holds `Feed`, `KindDot`,
+  `LevelChip`, `RecordDetail` and the stream helpers, and `views/filter-form.tsx` holds `FilterForm`.
+- Only four event kinds have a `--k-*` tone in `tokens.css`. `stream.css` maps the others onto
+  roles with `.rk-<kind>`.
+
+Stage 4:
+
+- The index is schema 10. `requests` has `db_us`, `http_us`, `cache_us`, `session_us`, `file_us`,
+  `gc_us`, `spawn_us` and `repeats`, kept by `requests_search_in` and `events_count`, and the
+  index `requests_route`. The editor's lens reads no column that changed and checks no schema.
+- A request row's JSON has `time_us` (`{query, http, cache, session, file, gc, spawn}`) and
+  `repeats`. `api::ROW_LEN` is the column count of `api::ROW`, which every query that selects
+  more after it uses.
+- `GET /api/requests` takes `method`, `status` (`404` or `5xx`), `route`, `min_us` and
+  `threw=true|false`. A filtered page can be short with `older` set (*The API's new answers*).
+- `crates/nvs-cli/src/debug/summary.rs` serves `/api/summary?until=`, `/api/routes`,
+  `/api/statements` and `/api/health`. `viewer/src/api.ts` has `summary()`, `routes()`,
+  `statements()`, `health()`, their types, `TimeByKind` and `EventKind` (all eight).
+- `timeline.tsx`'s `KIND_NAMES` names `cache`, `session` and `file`, but they have no tone yet.
+  `RECORD_KINDS`, the stream's filter list, still lacks them; the service takes all eight.
+
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
 while paused, as the rule already says.
@@ -252,14 +281,23 @@ eight integers per request row.
 
 | Route | Answers | Bound |
 |---|---|---|
-| `GET /api/requests` | the page, filtered by `method`, `status` (a code or a class such as `5xx`), `route`, `min_us`, `threw`, each an indexed predicate | the page size |
+| `GET /api/requests` | the page, filtered by `method`, `status` (a code or a class such as `5xx`), `route`, `min_us`, `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 ids below its cursor |
 | `GET /api/summary` | twelve buckets over the last five minutes of count and errors, and p50, p95 and max duration | the newest 10,000 rows of the window, and the answer says when it was cut |
-| `GET /api/routes` | per method and route: count, error count, mean queries, max duration, last seen, p50 and p95 | 200 routes by count; the percentiles read each route's newest 500 durations through a new index on `(method, route, start_us)` |
-| `GET /api/statements` | per call site: the newest statement text, count, total and max time, requests reached, requests where it repeated | 200 sites by total time, through `events_site` |
+| `GET /api/routes` | per method and route: count, error count, mean queries, max duration, last seen, p50 and p95 | the newest 10,000 requests and 200 routes by count; the percentiles read each route's newest 500 durations through a new index on `(method, route, start_us)` |
+| `GET /api/statements` | per call site: the newest statement text, count, total and max time, requests reached, requests where it repeated | the newest 100,000 event ids and 200 sites by total time |
 | `GET /api/health` | the counts of `dropped`, `unparseable` and `quarantine` rows, and whether a replay target is known | three counts |
 
 A percentile is computed in Rust from the sorted durations, because SQLite has none. No route
-changes a record. The fixtures under `viewer/test/fixtures/` gain one file per new route, written by
+changes a record.
+
+Stage 4 bounded each read by rows, never by the index's size, because the rule declines an
+aggregate with no bound. A filtered request page reads at most 20,000 ids below its cursor, and
+when it stops short of its limit, `older` names the floor it stopped at, so the viewer loads the
+next range on scroll as it does a full page. Declined: an index per filter column, because
+`ORDER BY id` over a status range or a duration bound then sorts every match. The routes count
+the newest 10,000 requests, and the statements the newest 100,000 event ids. Each answer has
+`partial` when older rows were not read, and a route has `durations`, the count its percentiles
+stand on. The fixtures under `viewer/test/fixtures/` gain one file per new route, written by
 `crates/nvs-cli/tests/debug_api.rs` and checked by `viewer/test/api.test.ts`, as the rule demands.
 
 **The request page is tabs, and a body is never run.** Timeline, Request, Response, Queries, Dumps,
@@ -446,16 +484,16 @@ writing subagents run side by side, none of them builds: `stream.tsx` with `log.
 
 **Split:** none, one session. It shares no file with stages 2 and 3.
 
-- [ ] `crates/nvs-cli/src/debug/index.rs:78`: the eight columns, their trigger beside the one at
+- [x] `crates/nvs-cli/src/debug/index.rs:78`: the eight columns, their trigger beside the one at
   `:318`, the index on `(method, route, start_us)`, and the schema version raised.
-- [ ] `crates/nvs-cli/src/debug/api.rs:319`: the filters of `GET /api/requests`, each a bound
+- [x] `crates/nvs-cli/src/debug/api.rs:319`: the filters of `GET /api/requests`, each a bound
   parameter.
-- [ ] `crates/nvs-cli/src/debug/summary.rs:1`: `/api/summary`, `/api/routes`, `/api/statements` and
+- [x] `crates/nvs-cli/src/debug/summary.rs:1`: `/api/summary`, `/api/routes`, `/api/statements` and
   `/api/health`, with the bounds of the table, and their rows in the route table
   (`crates/nvs-cli/src/debug/listen.rs:326`).
-- [ ] `crates/nvs-lsp/src/recorded.rs`: an `Explore` subagent first reports whether the lens reads a
+- [x] `crates/nvs-lsp/src/recorded.rs`: an `Explore` subagent first reports whether the lens reads a
   column this stage changes. The lens keeps working against the new schema version.
-- [ ] `crates/nvs-cli/tests/debug_api.rs`: a test per filter and per new route, and the fixtures
+- [x] `crates/nvs-cli/tests/debug_api.rs`: a test per filter and per new route, and the fixtures
   `viewer/test/fixtures/{summary,routes,statements,health}.json`. `viewer/src/api.ts:84` gains their
   types and the eight event kinds, and `viewer/test/api.test.ts` checks them. The check `api` is
   green.
@@ -596,37 +634,30 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1, 2 and 3 are done. Five rules are `designed` and owned by this goal, and
-`testing/the-viewer-wears-the-websites-palette` is `shipped`. The stage that ships each one sets
-its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`,
-keeping the key order `title`, `status`, `seeAlso`, `guardedBy`, `goal`. The `path:line` anchors
-in later stages come from surveys, so a stage checks an anchor before it edits.
+Stages 1 to 4 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+`testing/the-viewer-wears-the-websites-palette` and
+`testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
+record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
+`path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
+The names stages 3 and 4 gave are under Standing decisions.
 
-Stage 3 built the shared list and put every view in the new design. The names it gave:
-
-- `viewer/src/ui/list.tsx`: `List` (virtual rows, selection by key, the shared keys, a view's own
-  keys through `keys`, the follow bar, `actions`, `empty`, `cols` and `grid`) and `createFeed`
-  (newest page, follow, pause, arrived count, older pages). A list that reloads its first page on
-  each watermark, as both exception lists do, passes `rows`, `more`, `onEnd`, `loaded` and `error`
-  to `List` and keeps its own loader.
-- `views/requests.tsx` exports `RequestCells`, `RequestColumns`, `REQUEST_ROW` (38), `age()` and
-  `createNow()`. The request grid is `.request-grid`. `views/feed.tsx` holds `Feed`, `KindDot`,
-  `LevelChip`, `RecordDetail` and the stream helpers, and `views/filter-form.tsx` holds `FilterForm`.
-- `Dialog` takes `describedby` and carries `role="dialog"` and `aria-modal`. The toast region is a
-  manual popover, shown again with each message, so it draws above an open modal dialog.
-- Only four event kinds have a `--k-*` tone in `tokens.css`. `stream.css` maps the others
-  (`request`, `call`, `dump`, `log`, `dropped`, `unparseable`) onto roles with `.rk-<kind>`.
-
-All seven browser tests (with `frame`) were green at the stage's end, 51 pass, and
-`bun nv viewer --check` is green. The bundle is 126,192 bytes of JavaScript and 37,176 of CSS.
+The check `api` (`cargo test --test debug_api`, 6 cases) is green, and so are
+`bun nv viewer --check`, `tsc`, `viewer/test/api.test.ts` and clippy. No browser test ran. The
+fixtures `requests.json`, `request.json`, `stream.json` and `search.json` changed, so the
+requests, stream and search browser tests may need a count updated. The bundle is 126,236 bytes of
+JavaScript and 37,176 of CSS. The nightly failures the sweep named were already fixed on disk by
+`1c3196b0e8` and `8ca2f09e1b`.
 
 ### Next
 
-Stage 4 from its first item: `crates/nvs-cli/src/debug/index.rs:78`, the eight columns and their
-trigger, then the API's filters and the new routes as its items list. It shares no file with
-`viewer/`. Then stage 5 builds the request list's filters, tiles, time split and peek pane on
-`List`'s `actions` and `.request-grid` in `viewer/src/views/requests.tsx`.
-`bun nv site --check shots` stays red until stage 11 takes the screenshots again.
+Stage 5 from its first item, in `viewer/src/views/requests.tsx`: the filters, the summary tiles,
+the time split per row and the peek pane on `List`'s `actions` and `.request-grid`, reading
+`requests()` with the new `RequestFilter` keys, `summary()` and a row's `time_us` and `repeats`.
+A short filtered page with `older` set must load the next range, not show the list as ended.
+Run `NV_BROWSER=1 bun test viewer/test/requests.browser.test.ts`, `stream` and `search` once
+first, since their fixtures changed. Add `cache`, `session` and `file` to `RECORD_KINDS` and give
+them a tone when stage 6 draws the timeline's eight kinds. `bun nv site --check shots` stays red
+until stage 11 takes the screenshots again.
 
 ### Backlog
 
