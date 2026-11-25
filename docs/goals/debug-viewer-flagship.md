@@ -10,8 +10,8 @@ stages:
     context: [docs/agent/doc-style.md, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md, docs/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.md, docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md, website/src/styles/custom.css]
   - id: 2
     title: the viewer has the website's palette in the system's fonts, a frame with a rail and a command palette, and one set of shared components
-    status: open
-    context: [viewer/src/style.css, viewer/src/keys.ts, viewer/src/theme.ts, viewer/build.ts, tools/nv/cmd/viewer.ts, website/src/styles/custom.css]
+    status: done
+    context: [viewer/src/styles/tokens.css, viewer/src/keys.ts, viewer/src/theme.ts, viewer/build.ts, tools/nv/cmd/viewer.ts, website/src/styles/custom.css]
   - id: 3
     title: every list view is the shared list, and every view wears the new design
     status: open
@@ -142,7 +142,7 @@ figures, the handler link and the response size in the drawing arrive with the g
 `deeper-debug-records`. Each view leaves their place and draws one only when its record has the
 field.
 
-**The palette is the website's block, copied once.** `viewer/src/style.css` starts with the seven
+**The palette is the website's block, copied once.** `viewer/src/styles/tokens.css` starts with the seven
 colours of `website/src/styles/custom.css:66` (`--nv-crimson`, `--nv-orange`, `--nv-gold`,
 `--nv-blue`, `--nv-ink`, `--nv-fog`, `--nv-ground`) and derives every other colour with `color-mix()`
 as the website does, in both themes, with the Display-P3 copy. The viewer names roles (`--surface`,
@@ -185,6 +185,15 @@ opened). The live state is one pill: *Live* with the replay target's port when a
 service, *Recording stopped* when the service runs alone, and it turns to the warn colour with a
 count when records were lost. Below 900 pixels the rail shows icons alone.
 
+Stage 2 built it this way, and later stages keep it. The rail is 11rem wide, an icon beside its
+label, with the saved filters under the views, because a name does not fit under an icon. Below 900
+pixels the labels and the saved filters are hidden from sight, and the palette lists the filters.
+Routes and Queries join the rail in stage 7, when their views exist, and the Errors count and the
+pill's states come with stage 7's health route. Search is not a rail item: the top bar's box and
+the palette open it. Settings at the rail's foot opens the editor settings dialog until stage 7's
+settings page. The theme button walks System, Dark and Light, and its `aria-label` names the
+current one.
+
 **One key map.** `viewer/src/keys.ts` becomes the map every view registers with, and the `?` dialog
 prints it, so a key cannot be bound twice. `Ctrl+K` (`Cmd+K` on macOS) opens the command palette:
 views, saved filters, the actions of the page, and the search. `/` still focuses the search box. `t`
@@ -197,6 +206,26 @@ keys, follow and pause), `Chip`, `Method`, `Status`, `Tabs`, `Dialog`, `Toast`, 
 columns and its data, never list mechanics. The stylesheet is split by layer into
 `viewer/src/styles/` (`tokens.css`, `base.css`, `ui.css`, one file per view) and imported from
 `main.tsx`, so the bundle stays one CSS file.
+
+**The names stage 2 gave, which later stages use.**
+
+- **Styles** are `viewer/src/styles/`: `tokens.css`, `base.css`, `ui.css` (frame and components),
+  and one file per view, imported in order by `viewer/src/main.tsx`. Each role is a `light-dark()`
+  pair, which Bun's CSS build lowers to `--buncss-light` and `--buncss-dark` toggles keyed on
+  `prefers-color-scheme` and `data-theme`. The roles are the rule's, plus `--accent` and
+  `--highlight` (blue and gold as drawn, never text), `--primary` (the crimson fill), `--k-<kind>`
+  and the `.k-<kind>` fill classes.
+- **Components** are `viewer/src/ui/`: `icon.tsx` (`Icon`), `badges.tsx` (`Chip`, `Method`,
+  `Status`, `Repeat`), `tabs.tsx`, `dialog.tsx`, `toast.tsx` (`toast()`, and `Toasts` rendered once
+  by the frame), `empty.tsx`, `tile.tsx` (`Tile`, `Spark`, `Meter`), `site.tsx` and `palette.tsx`.
+- **Keys**: `keys.ts` has `bind()`, which throws on a key bound twice, `dispatch()`, `label()`,
+  `VIEW_KEYS` and `ignored()`. The frame binds `Mod+k`, `/` and `?`. A view's own keys are listed in
+  `VIEW_KEYS` until its list binds them.
+- **Palette**: a page adds actions with `onCleanup(addCommands([...]))`. Its list is in the DOM only
+  while it is open, because the browser tests count every `[role=option]` and focus the first
+  `[role=listbox]` on the page.
+- **Test hooks**: the theme is `button.theme` with `aria-label` `Theme: <name>`, `.editor-open` is
+  the rail's Settings item, and the hostile test allows `svg.icon[aria-hidden]`.
 
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
@@ -355,24 +384,30 @@ stage that crossed it says in the rule what the bytes buy.
 **Split:** none. The session writes the tokens, the frame and `viewer/src/ui/` itself, because every
 later stage builds on their names.
 
-- [ ] `viewer/src/styles/tokens.css:1`: the palette block, the roles in both themes, the P3 copy,
+- [x] `viewer/src/styles/tokens.css:1`: the palette block, the roles in both themes, the P3 copy,
   the scales for space, radius and motion from `website/src/styles/custom.css:74`. `base.css` and
   `ui.css` beside it. `viewer/src/style.css` is deleted once every rule in it has moved or gone.
-- [ ] `viewer/src/styles/tokens.css:1` and `base.css:1`: the two font stacks and the type scale of
+  - [x] the tokens, with each role a `light-dark()` pair and the P3 copy
+  - [x] the view rules split into `viewer/src/styles/<view>.css` on the new role names
+  - [x] `style.css` deleted, `main.tsx` imports the layers
+- [x] `viewer/src/styles/tokens.css:1` and `base.css:1`: the two font stacks and the type scale of
   the standing decision, with tabular figures and no ligatures in code. No rule outside
   `tokens.css` names a face.
-- [ ] `tools/nv/cmd/viewer.ts`: `--check` tests that the seven palette values equal the website's,
+- [x] `tools/nv/cmd/viewer.ts`: `--check` tests that the seven palette values equal the website's,
   and that the built stylesheet has no `@font-face`.
-- [ ] `viewer/src/ui/`: `Icon`, `Chip`, `Method`, `Status`, `Tabs`, `Dialog`, `Toast`, `Empty`,
+  - [x] `paletteDrift` and `hasFontFace`, with unit tests in `tools/nv/test/viewer.test.ts`
+- [x] `viewer/src/ui/`: `Icon`, `Chip`, `Method`, `Status`, `Tabs`, `Dialog`, `Toast`, `Empty`,
   `Tile`, `Spark`, `Meter`, `Site`, each with its styles in `ui.css`.
-- [ ] `viewer/src/keys.ts:1`: the key map views register with, and the `?` dialog prints it.
+- [x] `viewer/src/keys.ts:1`: the key map views register with, and the `?` dialog prints it.
   `viewer/src/app.tsx:60` binds through it, and `t` no longer changes the theme.
-- [ ] `viewer/src/app.tsx:90`: the frame of the drawing: the top bar, the rail, the live pill (its
+- [x] `viewer/src/app.tsx:90`: the frame of the drawing: the top bar, the rail, the live pill (its
   state comes in stage 7, and it shows *Live* until then) and the theme button.
-- [ ] `viewer/src/ui/palette.tsx:1`: the command palette on `Ctrl+K`, a dialog with a listbox, fed
+- [x] `viewer/src/ui/palette.tsx:1`: the command palette on `Ctrl+K`, a dialog with a listbox, fed
   by the views, the saved filters and the actions a view registers.
-- [ ] `NV_BROWSER=1 bun test viewer/test/frame.browser.test.ts` is green, with one new case: the
+- [x] `NV_BROWSER=1 bun test viewer/test/frame.browser.test.ts` is green, with one new case: the
   rail's current item has `aria-current="page"`. The check `viewer-built` is green.
+  - [x] three new cases: the rail's `aria-current`, the palette on `Ctrl+K`, and the key list
+  - [x] `requests` and `hostile` browser tests updated for the theme button and the icons
 
 ### 3. every list view is the shared list, and every view wears the new design
 
@@ -549,29 +584,31 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stage 1 is done: the rules are written and `bun nv rules --check` is green. Six new rules are
-`designed`, owned by this goal: `testing/the-viewer-wears-the-websites-palette`,
-`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`,
-`testing/the-viewer-answers-per-route-and-per-statement`,
-`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`,
-`ide/the-debug-viewer-opens-from-one-button` and `ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`.
-The stage that ships each one sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops
-`goal` and fills `guardedBy`. The key order of a record is `title`, `status`, `seeAlso`,
-`guardedBy`, `goal`, or `rules --check` fails on its layout. The rules name the route index
-`requests_route` on `(method, route, start_us)`, and the palette's file `viewer/src/styles/tokens.css`.
-Nothing of the viewer is built yet but the drawing, `viewer/design/reference.html`. The `path:line`
-anchors in later stages come from surveys, so a stage checks an anchor before it edits there.
+Stages 1 and 2 are done. Six rules are `designed` and owned by this goal. The stage that ships each
+one sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills
+`guardedBy`, keeping the key order `title`, `status`, `seeAlso`, `guardedBy`, `goal`. The
+`path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
 
-The nightly run the sweep reported (its SHA `53e94a9`) failed on Miri zone-database tests, the
-quotient attack and the macOS json-api allocation count. `1c3196b0e8` and `8ca2f09e1b` had already
-fixed all three on `main`, and every named test is checked to carry its fix.
+Stage 2 built the tokens, the frame, the key map, the palette and `viewer/src/ui/`. Standing
+decisions § *The names stage 2 gave* lists them. The view stylesheets are the old rules split per
+view and renamed onto the roles (`--fg` is `--text`, `--accent` is `--link`, `--select` is
+`--wash`). They are not restyled yet: that is stage 3. Only `Icon`, `Dialog`, `Palette`, `Toasts`
+and `Site` are used so far, and the views still run their own key handlers.
+
+`bun nv viewer --check` also fails on palette drift from the website and on an `@font-face`. All
+eight browser tests and `viewer-built` were green at the stage's end. The bundle is 126,768 bytes
+of JavaScript, against 119,491 at the goal's first commit.
 
 ### Next
 
-Stage 2 from its first item (`viewer/src/style.css`, `viewer/src/keys.ts`, `viewer/src/theme.ts`,
-`tools/nv/cmd/viewer.ts` for the palette-equality check). Stage 4 (`crates/nvs-cli/src/debug/index.rs:78`,
-the `requests` table) shares no file with stages 2 and 3 and can run beside them. No test is expected
-to go red from stage 1, which changed prose alone.
+Stage 3 from its first item: `viewer/src/ui/list.tsx`, then `viewer/src/views/requests.tsx`
+(about line 230, its key handler) onto it, then the four writing subagents its split names. Give
+them `viewer/src/styles/ui.css`, the component list above and the drawing. Stage 3 sets
+`testing/the-viewer-wears-the-websites-palette` to `shipped` once every view wears it. Its record
+`guardedBy` should name `tools/nv/test/viewer.test.ts` and `viewer/test/frame.browser.test.ts`.
+Stage 4 (`crates/nvs-cli/src/debug/index.rs:78`) shares no file with stage 3 and can run beside it.
+`bun nv site --check shots` is expected to be red from now on, because the frame changed. Stage 11
+takes the screenshots again.
 
 ### Backlog
 
