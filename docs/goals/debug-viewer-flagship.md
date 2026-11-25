@@ -620,9 +620,6 @@ Stage 3 built the shared list and put every view in the new design. The names it
 All seven browser tests (with `frame`) were green at the stage's end, 51 pass, and
 `bun nv viewer --check` is green. The bundle is 126,192 bytes of JavaScript and 37,176 of CSS.
 
-The nightly run of 2026-11-25 (`45609291264`) ran at `53e94a9`, before `1c3196b0e8`, which fixes
-all ten of its failures: the nine zone tests under Miri, the quotient attack and the macOS count.
-
 ### Next
 
 Stage 4 from its first item: `crates/nvs-cli/src/debug/index.rs:78`, the eight columns and their
