@@ -2446,7 +2446,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "c17381a1cc996d3f",
+    "hash": "bc1af578806ed030",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -6686,7 +6686,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "3b0b6fb507e86332",
+    "hash": "f93480c19927262c",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6710,7 +6710,7 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "5a90da28f4f98c18",
+    "hash": "525ca68e90e0e8bc",
     "questions": [
       "How do I convert an array to a JSON string?",
       "Write an object with dates and UUIDs as JSON text",
@@ -13336,7 +13336,7 @@
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "3fd7d876c5b63fd0",
+    "hash": "b3b431c12bba1b4d",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
@@ -13379,7 +13379,7 @@
   },
   "/reference/core/router/url/": {
     "feature": "Core\\Router::url",
-    "hash": "5bacc61f1a24be4d",
+    "hash": "fd3e22ff50b9a5a0",
     "questions": [
       "How do I build a link to the method of a route?",
       "Generate a URL with path values and optional query values",
@@ -15662,7 +15662,7 @@
   },
   "/reference/core/time-date/fromiso/": {
     "feature": "Core\\Time\\Date::fromIso",
-    "hash": "46f9a818797deb9a",
+    "hash": "cbbd2e1546c3a404",
     "questions": [
       "How do I create a date from text like 2024-03-01?",
       "Read a date from a form field or a URL",
@@ -18654,7 +18654,7 @@
   },
   "/reference/types/router-gate/": {
     "feature": "Core\\Router\\Gate",
-    "hash": "678d18f4aad4225c",
+    "hash": "f4f02e3efff74d1e",
     "questions": [
       "How do I check permissions before every route runs?",
       "Write a custom 404 page for the router",
@@ -18666,7 +18666,7 @@
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "ae3c6886da17c014",
+    "hash": "49aef7628fbc2543",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",

@@ -2701,23 +2701,21 @@ orders of 2026-03-14 since the start of the day
 # `#[Core\Command]` and `#[Core\Option]`: the command table
 
 `#[Core\Command]` makes a static method a command for the command line, and `#[Core\Option]` makes
-one of its parameters an option. The compiler collects every command in the program into one table
-and checks it.
+one of its parameters an option. The compiler collects every command into one table and checks it.
 
-A command needs a `name:`, which is the word that selects it, and the name is unique across the
-program. A parameter is a positional argument unless it carries `#[Core\Option]`, and a `bool` option
-is a flag. Every option or positional parameter needs a type that text converts to: `string`, `int`,
-`uint`, `decimal`, `bool`, an enum, a time value, or a class that implements `Parses`. A time value is
-a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`, written as ISO text such as `2026-03-14`.
-A `DateTime` needs its time zone, as in `2026-03-14T09:00:00+01:00[Europe/Vienna]`. A word that does
-not convert is a usage error. The method is `static` and returns `void` or the exit status as a `uint`.
+A command needs a `name:`, the word that selects it, and the name is unique in the program. A
+parameter is a positional argument unless it has `#[Core\Option]`, and a `bool` option is a flag.
+Each parameter needs a type that text converts to: `string`, `int`, `uint`, `decimal`, `bool`, an
+enum, a time value, or a class that implements `Parses`. A time value is written as ISO text, such as
+`2026-03-14`. A word that does not convert is a usage error. The method returns `void` or the exit
+status as a `uint`.
 
-`Core\Command::run()` reads the program's command line and calls the command that the first word
-names. `Core\Command::help` returns the help page for one command, or the list of every command.
-`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command, and
-`Core\Attributes::get<Core\Option>` returns the fields of one option. The fourth example shows an
-option that does not compile. The fifth example reads a date and a moment in time from the command
-line.
+`Core\Command::run()` calls the command that the first word names. `Core\Command::help` returns the
+help page of one command, or the list of all commands. `Core\Attributes::get` reads the fields of a
+command or an option.
+
+The fourth example shows an option that does not compile. The fifth reads a date and a moment in
+time from the command line.
 
 `#[Core\Command]` has two fields, `name` and `about`. A command with no `name` is `E0767`, and a
 `name` that is not a string is `E0401`. `about` is optional. `#[Core\Option]` has three fields,
@@ -2747,6 +2745,12 @@ form `--retries=7` is not an option. A `bool` option is `true` when it is writte
 is not, even with the default value `true`. An option with a default value may be left out. An enum
 parameter takes the name of a case, written exactly, so `Fast` works and `fast` does not.
 `--help` is not an option of its own, so `deploy --help` is a usage error.
+
+A time value is a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. A `DateTime` needs its time
+zone, as in `2026-03-14T09:00:00+01:00[Europe/Vienna]`.
+
+`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command.
+`Core\Attributes::get<Core\Option>` returns the fields of one option.
 
 ## Example 01: declare a command line command
 

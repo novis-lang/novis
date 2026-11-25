@@ -26,3 +26,9 @@ form `--retries=7` is not an option. A `bool` option is `true` when it is writte
 is not, even with the default value `true`. An option with a default value may be left out. An enum
 parameter takes the name of a case, written exactly, so `Fast` works and `fast` does not.
 `--help` is not an option of its own, so `deploy --help` is a usage error.
+
+A time value is a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. A `DateTime` needs its time
+zone, as in `2026-03-14T09:00:00+01:00[Europe/Vienna]`.
+
+`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command.
+`Core\Attributes::get<Core\Option>` returns the fields of one option.

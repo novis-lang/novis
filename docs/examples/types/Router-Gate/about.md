@@ -1,6 +1,5 @@
-The interface your class implements to control `Core\Router::dispatch`.
-
-You pass an instance of your class to `Core\Router::dispatch`. The class has three methods:
+The interface your class implements to control `Core\Router::dispatch`. You pass an instance of the
+class to `dispatch`, and it calls three methods:
 
 | Method | When `dispatch` calls it |
 |---|---|
@@ -8,17 +7,15 @@ You pass an instance of your class to `Core\Router::dispatch`. The class has thr
 | `refused($reason, $route)` | When no route method runs. `$reason` is a `Core\Router\Refusal`. |
 | `failed($route, $error)` | When the route method threw an error. The status is `500`. |
 
-When `allows` returns `false`, the status is `403` and `dispatch` calls `refused` with
-`Refusal::Denied`. An error thrown in `allows` has the same result.
+When `allows` returns `false` or throws an error, the status is `403` and `refused` gets
+`Refusal::Denied`.
 
-Every capture and `#[Core\Query]` value is converted before `allows` runs. `$route->parameter()`
-returns each one with its type. If a class's `parse` method loads a stored record, `allows` can
-check that record.
+Every capture and `#[Core\Query]` value is converted before `allows` runs, and
+`$route->parameter()` returns it with its type. So `allows` can check a record that a `parse` method
+loaded.
 
-Before `dispatch` calls `refused` or `failed`, it sets the status of the response. Your method writes
-the body. It can also set another status with `Core\Response::setStatus`.
+`dispatch` sets the status before it calls `refused` or `failed`. Your method writes the body, and
+`Core\Response::setStatus` can change the status.
 
-**Good to know:** if `refused` or `failed` throws an error, `dispatch` throws the same error. A
-`Gate` does not use the value that a route method returns. Implement `Core\Router\Responder` to send
-that value. `nvs check` gives a warning when a route method returns a value and the gate is not a
-`Responder`.
+**Good to know:** an error in `refused` or `failed` is thrown again by `dispatch`. To send the value
+a route method returns, implement `Core\Router\Responder`. Otherwise `nvs check` gives a warning.
