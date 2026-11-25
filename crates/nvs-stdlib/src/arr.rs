@@ -2018,8 +2018,9 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "a",
         desc: "The loose values to read: a form, a query string, a decoded document, or an \
-               array a program built. Text from outside the program is `tainted`, so a text \
-               field of `T` that it fills must be `tainted` too.",
+               array a program built. Text from outside the program, such as a form, is \
+               `tainted`. You must check tainted text before you use it. So a text field of `T` \
+               that such text fills must be `tainted` too.",
         shape: &[],
     }],
     ret: "A new `T` where every field has its declared type. For an `array<T>`, one `T` per \

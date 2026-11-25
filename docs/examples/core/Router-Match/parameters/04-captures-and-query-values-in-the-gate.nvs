@@ -9,7 +9,7 @@ class Shops
     public function products(uint $shop, #[Core\Query] uint $page = 1, #[Core\Query] ?string $tag = null): void
     {
         // `Core\Request::route()` returns a match that has only the path captures.
-        // This prints `1 value`.
+        // This route has one capture, `shop`, so this prints `1 value` for each request.
         ?Core\Router\Match $route = Core\Request::route();
         if ($route != null) {
             echo Core\Arr::count($route->parameters()), " value\n";
@@ -45,7 +45,8 @@ class Gate implements Core\Router\Gate
 if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
-    // `page` has a default value and `tag` is missing. The gate prints `gate: shop=7 page=1`.
+    // This request has no `page` and no `tag`. `page` gets its default value 1,
+    // and `tag` is not in the array. The gate prints `gate: shop=7 page=1`.
     echo Core\Test::request(Method::Get, '/shops/7')->body();
 
     // The gate prints `gate: shop=7 page=3 tag=red`.

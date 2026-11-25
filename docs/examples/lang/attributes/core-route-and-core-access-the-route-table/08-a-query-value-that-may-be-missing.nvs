@@ -42,7 +42,8 @@ class Gate implements Core\Router\Gate
         return true;
     }
 
-    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    // When a query value does not convert to its type, the route method does not run.
+    // The server calls `refused` instead, with the reason `Refusal::BadCapture`.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         echo 'The address is not valid.';

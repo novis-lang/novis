@@ -17415,10 +17415,12 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A class that implements it writes two methods. The static method `parse(tainted string $s): static`
 returns an object of the class, or throws an error when the text is not valid. `tainted` says the
 text came from outside your program. The method `format()` returns the text that `parse` reads.
-`Core\Router::url` calls `format` to write the value into a link.
+Its return type is `tainted string`, or `string` when the text is always safe. `Core\Router::url`
+and `Core\Uri::buildQuery` call `format` to write the value into a link.
 
 Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or a command argument
-has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`.
+has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`. In a
+`final` class, `parse` may return an object that already exists, such as a record from a database.
 
 **The examples below** show a product code built from text, what a subclass gets back, values from a
 form, a class used in a route, a route that does not compile, and a `final` class that loads a
@@ -28253,7 +28255,7 @@ value is a `400`, and the route method does not run.
 `Core\Router::url` builds a link to the route of a method, such as `Shop::show`. Your entry file calls `Core\Router::dispatch`, which calls the
 method of the route that matches.
 
-A `Date` or an `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
+A `Core\Time\Date`, `TimeOfDay` or `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
 because its zone name, such as `Europe/Vienna`, has a `/`.
 
 **The examples below** show links, captures, query values that may be missing, `bool` and time
@@ -29586,22 +29588,22 @@ orders of 2026-03-14 since the start of the day
 
 ### `#[Core\Command]` and `#[Core\Option]`: the command table
 
-`#[Core\Command]` marks a static method as a command for the command line, and `#[Core\Option]` marks
-one of its parameters as an option. The compiler collects every command in the program into one table
-and checks it.
+`#[Core\Command]` makes a static method a command for the command line, and `#[Core\Option]` makes
+one of its parameters an option. The compiler collects every command into one table and checks it.
 
-A command needs a `name:`, which is the word that selects it, and the name is unique across the
-program. A parameter is a positional argument unless it carries `#[Core\Option]`, and a `bool` option
-is a flag. Every option or positional parameter needs a type that text converts to: `string`, `int`,
-`uint`, `decimal`, `bool`, an enum, a time value, or a class that implements `Parses`. A time value is
-a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`, written as ISO text such as `2026-03-14`.
-The method is `static` and returns `void` or the exit status as a `uint`.
+A command needs a `name:`, the word that selects it, and the name is unique in the program. A
+parameter is a positional argument unless it has `#[Core\Option]`, and a `bool` option is a flag.
+Each parameter needs a type that text converts to: `string`, `int`, `uint`, `decimal`, `bool`, an
+enum, a time value, or a class that implements `Parses`. A time value is written as ISO text, such as
+`2026-03-14`. A word that does not convert is a usage error. The method returns `void` or the exit
+status as a `uint`.
 
-`Core\Command::run()` reads the program's command line and calls the command that the first word
-names. `Core\Command::help` returns the help page for one command, or the list of every command.
-`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command, and
-`Core\Attributes::get<Core\Option>` returns the fields of one option. The fourth example shows an
-option that does not compile.
+`Core\Command::run()` calls the command that the first word names. `Core\Command::help` returns the
+help page of one command, or the list of all commands. `Core\Attributes::get` reads the fields of a
+command or an option.
+
+The fourth example shows an option that does not compile. The fifth reads a date and a moment in
+time from the command line.
 
 `#[Core\Command]` has two fields, `name` and `about`. A command with no `name` is `E0767`, and a
 `name` that is not a string is `E0401`. `about` is optional. `#[Core\Option]` has three fields,
@@ -29631,6 +29633,12 @@ form `--retries=7` is not an option. A `bool` option is `true` when it is writte
 is not, even with the default value `true`. An option with a default value may be left out. An enum
 parameter takes the name of a case, written exactly, so `Fast` works and `fast` does not.
 `--help` is not an option of its own, so `deploy --help` is a usage error.
+
+A time value is a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. A `DateTime` needs its time
+zone, as in `2026-03-14T09:00:00+01:00[Europe/Vienna]`.
+
+`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command.
+`Core\Attributes::get<Core\Option>` returns the fields of one option.
 
 #### Example 01: declare a command line command
 
@@ -34763,7 +34771,7 @@ Reads `$a` as the type `T` written at the call site. `T` is an inline shape such
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<mixed>` | The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program is `tainted`, so a text field of `T` that it fills must be `tainted` too. |
+| `$a` | `array<mixed>` | The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program, such as a form, is `tainted`. You must check tainted text before you use it. So a text field of `T` that such text fills must be `tainted` too. |
 
 **Returns** `T` — A new `T` where every field has its declared type. For an `array<T>`, one `T` per entry, in the array's own order.
 
@@ -36715,7 +36723,7 @@ Converts `$value` to JSON text. It can be a scalar, an array, an anonymous objec
 | `{ pretty: … }` | `bool` (default `false`) | Writes the output across several lines, with indentation. By default, the output is on one line. |
 | `{ escapeUnicode: … }` | `bool` (default `false`) | Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is. |
 
-**Returns** `string` — The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
+**Returns** `string` — The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. Tainted text is text that you must check before you use it. A `tainted` string, or a `mixed` or `object` value, anywhere inside `$value` makes the result tainted.
 
 **Throws** `LogicError` — `$value` contains something that JSON cannot represent. This is a `NaN` or infinite `float`, a value of a type with no JSON form, an instance of a class without `#[Json\Derive]`, or more than 1024 levels of nesting.
 
@@ -36753,7 +36761,7 @@ Parses the JSON object `$json` into an instance of `T`. `T` is a class with the 
 
 **Returns** `T` — A new `T` created from the fields of the document. For an `array<C>`, it is one new `C` per element, in the order of the document.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, has an object with the same key twice, or contains a whole number too large for `int`. It is also thrown when the top level is not an object, or not an array for an `array<C>`. Fields that are missing or have the wrong type throw it too. The error has a list of issues: one for each wrong field or list element. Each issue has a path, such as `items.2.price`, and a message. The error message gives the number of issues. For an `array<C>` the decode stops at the first bad element. The list has at most 64 issues. When there are more, the last issue says so, and its path is the empty string.; `LogicError` — `T` cannot be read from JSON because it does not have `#[Json\Derive]`. It is also thrown when `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack has no more room when a constructor is called. This happens when a constructor calls itself many times, or when `decodeAs` is called from deep recursion. A deeply nested document within `maxDepth` does not throw this error.
+**Throws** `ParseError` — When `$json` is not a valid JSON document, or nests deeper than `maxDepth`. When it has an object with the same key twice, or a whole number too large for `int`. When the top level is not an object, or not an array for an `array<C>`. When fields are missing or have the wrong type. The error has a list of issues, one for each wrong field. A list inside the object gets one issue for each wrong element. Each issue has a path, such as `items.2.price`, and a message. The error message gives the number of issues. When the whole document is read as an `array<C>`, the decode stops at the first bad element. The issues are then the wrong fields of that element. The list has at most 64 issues. When there are more, the last issue says so, and its path is the empty string.; `LogicError` — `T` cannot be read from JSON because it does not have `#[Json\Derive]`. It is also thrown when `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack has no more room when a constructor is called. This happens when a constructor calls itself many times, or when `decodeAs` is called from deep recursion. A deeply nested document within `maxDepth` does not throw this error.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`
@@ -39957,7 +39965,7 @@ $date->toIso(): string
 
 Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text back. `Core\Json::encode`, `Core\Router::url` and `Core\Uri::buildQuery` write a `Date` as this text.
 
-**Returns** `string` — A `string` with the year, the month and the day. The year has four digits, and a year before year 1 starts with `-`.
+**Returns** `string` — A `string` with the year, the month and the day. The year has four digits, and a year before year 0 starts with `-`. Year 0 is `0000`.
 
 <a id="core-core-time-date-weekday"></a>
 #### `Core\Time\Date->weekday`
@@ -42329,7 +42337,7 @@ Writes the array `$parameters` as a query string, such as `page=2&sort=name`. `C
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. A value may also be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`, or an object whose class implements `Parses`, such as a `Core\Uuid`. |
+| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A value in a nested array is written under its whole path, such as `filter[size][0]=M`. The brackets are escaped as `%5B` and `%5D`. A value can also be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. It can also be an object of a class that implements `Parses`, such as a `Core\Uuid`. |
 
 **Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is `%2B`. A `Parses` object is written as the text its `format` method returns. A `null` value writes nothing, and neither does an empty array.
 
@@ -42636,7 +42644,7 @@ https://example.test/users/7
 Core\Router::url(callable $route, array<mixed> $params = []): string
 ```
 
-Builds the link to the route of the method `$route`. Each value in `$params` fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link. `$route` may be a route of another module on the same server, when its class is under an `autoload links` folder. The link then goes through the mount that the server picks for that module.
+Builds the link to the route of the method `$route`. Each value in `$params` fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link. `$route` may be a route of another module on the same server, when its class is under an `autoload links` folder. A mount is a path at which the server runs a module. The link then starts with the mount that the server picks for that module.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -42645,7 +42653,7 @@ Builds the link to the route of the method `$route`. Each value in `$params` fil
 
 **Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are. A query value that is `null` is left out of the link. A `bool` is written `1` or `0`. A `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` value is written as its `toIso` text. In the path that text is not encoded, so `08:30` stays `08:30`. An object of a class that implements `Parses` is written as the text its `format` method returns.
 
-**Throws** `RuntimeError` — When `$route` is a variable and not a method reference written in the call. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
+**Throws** `RuntimeError` — When `$route` is a variable, and its value is not a method that has a `#[Route]`. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`. When a `{name...}` value has `.` or `..` between its `/` characters. A browser would move such a link to another path.
 
 <a id="core-core-router-urlabsolute"></a>
 #### `Core\Router::urlAbsolute`
@@ -42732,7 +42740,7 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 |---|---|---|
 | `$path` | `string` (neutral) | The path, with no query string. The path of a request already has its mount prefix removed. |
 
-**Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A path does not match when a capture is not a valid value of its handler parameter's type, such as `int`, `Core\Uuid` or `Core\Time\Date`. It also does not match when the capture is not one of the values its parameter allows.
+**Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A capture is a value from the path. Each capture must be a valid value of its handler parameter's type, such as `int`, `Core\Uuid` or `Core\Time\Date`. Otherwise the path does not match. It also does not match when the capture is not one of the values its parameter allows.
 
 <a id="core-core-router-dispatch"></a>
 #### `Core\Router::dispatch`
@@ -42749,7 +42757,7 @@ Calls the method of the route that the request matched. Each value captured from
 
 **Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::sendHtml`. When the gate implements `Core\Router\Responder`, `dispatch` passes the value that a route method returns to `$gate->respond()`. Otherwise `dispatch` does not send that value. An error that `refused()`, `failed()` or `respond()` throws is thrown by `dispatch`.
 
-**Throws** `LogicError` — When the program has no `#[Route]`. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no capture and no query value fills, such as an optional capture that the path does not have.
+**Throws** `LogicError` — When the program has no `#[Route]`. When the program is not handling a request, for example a command-line program, a job or a test. When no capture and no query value fills a parameter of the route method. An optional capture that the path does not have is an example.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
@@ -42837,7 +42845,7 @@ $match->parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Core\
 
 Returns every value captured from the path, in the order of the path. Each key is the capture's name. Inside `Core\Router::dispatch`, the array also has each `#[Core\Query]` value, under its parameter's name. So `Gate::allows` can check every value the route method gets.
 
-**Returns** `array<tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses>` — An array of the captures. Each value is already percent-decoded, so `%20` is a space. Each value has the type of its handler parameter: `{id}` read by `uint $id` is a number. A `string` capture is `tainted`, because the request sent it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default `null` is not in the array either. The match from `Core\Request::route()` or `Core\Router::match()` has no query values. A route with no captures returns an empty array.
+**Returns** `array<tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses>` — An array of the captures. Each value is already percent-decoded, so `%20` is a space. Each value has the type of its handler parameter: `{id}` read by `uint $id` is a number. A `string` capture is `tainted`: it is text from outside the program, which you must check before you use it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default `null` is not in the array either. The match from `Core\Request::route()` or `Core\Router::match()` has no query values. A route with no captures returns an empty array.
 
 <a id="core-core-router-match-parameter"></a>
 #### `Core\Router\Match->parameter`
@@ -42852,7 +42860,7 @@ Returns one value captured from the path, found by its name. It is the same valu
 |---|---|---|
 | `$name` | `string` (neutral) | The capture's name as the route's path writes it, without the braces, or the name of a `#[Core\Query]` parameter without the `$`. |
 
-**Returns** `?tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses` — The value, with the type of its handler parameter. The result is `null` when the route has no capture or query value with this name, and when an optional `{name?}` is not in the path. A query value read from the match of `Core\Request::route()` is `null`, because only `Core\Router::dispatch` reads the query string.
+**Returns** `?tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses` — The value, with the type of its handler parameter. A `string` value is `tainted`: it is text from outside the program, which you must check before you use it. The result is `null` when the route has no capture or query value with this name. It is also `null` when an optional `{name?}` is not in the path. A query value read from the match of `Core\Request::route()` or `Core\Router::match()` is `null`. Only `Core\Router::dispatch` reads the query string.
 
 <a id="core-core-router-match-method"></a>
 #### `Core\Router\Match->method`

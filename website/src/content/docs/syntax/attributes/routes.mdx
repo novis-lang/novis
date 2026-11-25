@@ -18,7 +18,8 @@ A few facts the examples do not show:
   the `origin` setting under `[[app]]` in `nvs.toml`.
 - `Post`, `Put`, `Patch` and `Delete` requests are checked for CSRF (a request sent from another
   site). A `Get` request that opens a WebSocket from another site is not allowed.
-- `csrf: false` turns both checks off for one method. You write it in `#[Core\Access]`, as in
+- `csrf: false` turns off both checks for one method: the CSRF check, and the check of a WebSocket
+  from another site. You write it in `#[Core\Access]`, as in
   `#[Core\Access(allow: Core\Audience::Public, csrf: false)]`. On `#[Core\Route]`, it does not compile.
 - Use `csrf: false` only on a route that does not use the session cookie. A webhook that another
   server signs is one example. Without the check, another site can send a form with your visitor's
@@ -80,7 +81,8 @@ another module. It declares the classes of the other modules with `autoload link
 - The class is not compiled into your program. Your program cannot call its methods.
 - The compiler checks the link as it checks a local link. The method must exist and have a
   `#[Core\Route]`, and every capture needs a value.
-- The server picks the mount that the link uses.
+- `nvs.toml` says where each module is served, such as under the path `/shop`. This place is called
+  a mount. When the server starts, it adds the other module's mount to the link.
 - `Core\Router::urlSigned` cannot link to another module. Such a call does not compile.
 
 The page [Many modules on one server](/guides/how-to-use/modules/) shows a complete setup.

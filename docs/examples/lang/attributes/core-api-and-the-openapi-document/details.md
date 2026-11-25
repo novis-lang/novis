@@ -4,9 +4,11 @@
 `#[Core\Route]` writes no document. The command prints a message to standard error that says so, and
 exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
-Two routes can have the same OpenAPI path: `/files/{path}` and `/files/{path...}` with one HTTP
-method, or `/a/{id}` and `/a/{key}` with any two. Then the command prints an error that names both
-routes, and writes no document.
+Some pairs of routes cannot both be in the document. `/files/{path}` and `/files/{path...}` both
+give the path `/files/{path}`, so they collide when they use the same HTTP method. `/a/{id}` and
+`/a/{key}` differ only in the name of the capture. OpenAPI treats them as one path, so they collide
+for any HTTP methods. For a collision, the command prints an error that names both routes. It writes
+no document.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
 the same file give the same bytes. Each operation's `operationId` is the full name of its method,

@@ -1367,8 +1367,8 @@ value is a `400`, and the route method does not run.
 `Core\Router::url` builds a link to the route of a method, such as `Shop::show`. Your entry file calls `Core\Router::dispatch`, which calls the
 method of the route that matches.
 
-A `Core\Time\Date`, `TimeOfDay` or `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
-because its zone name, such as `Europe/Vienna`, has a `/`.
+A `Core\Time\Date`, `TimeOfDay` or `Instant` can be a capture or a query value. A `DateTime` can only be a query value.
+Its zone name, such as `Europe/Vienna`, has a `/`, and in a path a `/` would split the value.
 
 **The examples below** show links, captures, query values that may be missing, `bool` and time
 values, and a missing `#[Core\Access]`.
@@ -1387,10 +1387,11 @@ is a `400`. A checkbox in a form sends `on`, so give it `value="1"`.
 
 A capture or a query value may be a `Core\Time\Date`, `TimeOfDay` or `Instant`. A `#[Core\Query]`
 value may also be a `Core\Time\DateTime`. Each is read from the text its `toIso` method writes, such
-as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. A `DateTime` needs its zone in brackets, such
-as `2026-01-05T14:00:00+01:00[Europe/Vienna]`. The offset may be left out. A `DateTime` path capture
-is `E0752`, because the server does not accept a path with `%2F` in it. Use an `Instant` in the path
-instead.
+as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. An `Instant` needs `Z` or an offset such as
+`+01:00`. A `DateTime` needs its zone in brackets, such as `2026-01-05T14:00:00+01:00[Europe/Vienna]`.
+For a `DateTime`, the offset `+01:00` may be left out. A `DateTime` path capture is `E0752`. The zone
+name has a `/`, which a path can only carry as `%2F`, and the server does not accept `%2F` in a path.
+Use an `Instant` in the path instead.
 
 A time capture is read as it arrived, so `08%3A30` is not `08:30`. A capture that does not convert is
 a `404`, and a query value that does not convert is a `400`. In a query string, a `+` that you type
@@ -1431,10 +1432,11 @@ are a `400`, and the route method does not run:
 For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
 does not convert is a `404`, because then no route matches the request.
 
-A program can also give a default for a bad value, and then the request is not a `400`. Declare the
-parameter as a `string` with a default, such as `string $page = ''`. Any valid UTF-8 text converts to
-a `string`. Then convert it in the route method, such as `($page as ?uint) ?? 1`. Use this only when a wrong link should still show a
-page. A typed parameter is the better choice in most cases, because it checks the value for you.
+Sometimes a wrong link should still show a page. For this, declare the parameter as a `string` with
+a default, such as `string $page = ''`. Any valid UTF-8 text converts to a `string`, so the request
+is not a `400`. Then convert the value in the route method, such as `($page as ?uint) ?? 1`. A bad
+value gives `1`. A typed parameter is the better choice in most cases, because it checks the value
+for you.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
@@ -1461,8 +1463,8 @@ of the enum has a written value, the capture matches that value instead. For `en
 De = 7 }`, `/7` matches and `/De` does not.
 
 A capture of a class that implements `Parses` matches any segment. The class's `parse` method runs
-when `Core\Router::match` returns the result. If `parse` throws an error, that error comes out of
-`Core\Router::match`.
+inside `Core\Router::match`, before it returns. If `parse` throws an error, `Core\Router::match`
+throws the same error.
 
 `$match->parameter("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
 it with `as`. A `string` capture gives a `tainted string`. A name that is not a capture gives `null`.
@@ -1892,7 +1894,8 @@ class Gate implements Core\Router\Gate
         return true;
     }
 
-    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    // When a query value does not convert to its type, the route method does not run.
+    // The server calls `refused` instead, with the reason `Refusal::BadCapture`.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         echo 'The address is not valid.';
@@ -1996,7 +1999,8 @@ class Gate implements Core\Router\Gate
         return true;
     }
 
-    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    // When a query value does not convert to its type, the route method does not run.
+    // The server calls `refused` instead, with the reason `Refusal::BadCapture`.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         echo 'The address is not valid.';
@@ -2074,7 +2078,8 @@ class Gate implements Core\Router\Gate
         return true;
     }
 
-    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    // When a query value does not convert to its type, the route method does not run.
+    // The server calls `refused` instead, with the reason `Refusal::BadCapture`.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         echo 'The address is not valid.';
@@ -2132,8 +2137,8 @@ use Core\Time\Instant;
 
 class Calendar
 {
-    // `{day}` is a `Date` such as `2026-01-05`. `{since}` is an `Instant` such as
-    // `2026-01-05T07:30:00Z`. A `DateTime` has its zone, so it can only be a query value.
+    // `{day}` is a `Date`, and `{since}` is an `Instant`. A `DateTime` can only be a query value.
+    // Its zone name, such as `Europe/Vienna`, has a `/`, and in a path a `/` would split the value.
     #[Core\Route(path: '/days/{day}/since/{since}', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function day(Date $day, Instant $since, #[Core\Query] ?DateTime $meeting = null): void
@@ -2394,16 +2399,16 @@ method that has a `#[Core\Route]`.
 
 Most of the document comes from the code: the path, the parameters, their types and the return type.
 The `///` comment above the method gives the summary and the description. `#[Core\Api]` adds the
-rest: `tags:` groups the operation, `security:` names the scheme a client must use, `errors:` lists
-the error responses, and `example:` shows one answer.
+rest. `tags:` groups the operation, and `security:` names the scheme a client must use. `errors:`
+lists the error responses, and `example:` shows one response. `operationId:` sets the operation's
+name.
 
-A parameter's type gives its schema. A `Core\Time\Date` is a string with the format `date`, and a
-`Core\Time\Instant` has the format `date-time`. A `#[Core\Query] ?T $x = null` is not
-required. A `bool` query value is the integer `0` or `1`.
+A parameter's type gives its schema. A `Core\Time\Date` is a string with the format `date`. A
+`#[Core\Query] ?T $x = null` is not required.
 
 Novis checks `#[Core\Api]` against the code when it compiles. A class in `errors:` must exist, and
 every key in `example:` must be a property of the return type. Each name in `security:` must be
-declared by a `#[Core\Api\Scheme]` on a class of your program.
+declared by a `#[Core\Api\Scheme]` in your program.
 
 **The examples below** add one tag, then errors and a security scheme, then a small API for a client
 generator. The fourth shows an `example:` that does not compile. The fifth shows dates and query
@@ -2415,9 +2420,11 @@ values.
 `#[Core\Route]` writes no document. The command prints a message to standard error that says so, and
 exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
-Two routes can have the same OpenAPI path: `/files/{path}` and `/files/{path...}` with one HTTP
-method, or `/a/{id}` and `/a/{key}` with any two. Then the command prints an error that names both
-routes, and writes no document.
+Some pairs of routes cannot both be in the document. `/files/{path}` and `/files/{path...}` both
+give the path `/files/{path}`, so they collide when they use the same HTTP method. `/a/{id}` and
+`/a/{key}` differ only in the name of the capture. OpenAPI treats them as one path, so they collide
+for any HTTP methods. For a collision, the command prints an error that names both routes. It writes
+no document.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
 the same file give the same bytes. Each operation's `operationId` is the full name of its method,
@@ -2730,10 +2737,11 @@ A method that is not `static` is `E0789`. A return type other than `void` or `ui
 and that includes `int`. `#[Core\Option]` on a parameter of a method with no `#[Core\Command]` is
 `E0766`.
 
-Each option has a long spelling. It is `--` and the `long` value, or `--` and the parameter's name when
-there is no `long`. With `short: "v"`, the option also has the spelling `-v`. Two options of one command
-with the same spelling are `E0745`. So `long: "name"` on one parameter and a second parameter called
-`$name` are `E0745`. `short: "v"` and `short: "V"` are two different spellings.
+Each option has a long form. It is `--` and the `long` value, or `--` and the parameter's name when
+there is no `long`. With `short: "v"`, the option can also be written `-v`. Two options of one command
+that are written the same way are `E0745`. For example, one parameter has `long: "name"`, and a second
+parameter is called `$name`. Both options are `--name`, so this is `E0745`. Case matters, so
+`short: "v"` and `short: "V"` can be used in one command.
 
 An option of a type that text does not convert to is `E0746`. A `?string` option is `E0746` too. A
 positional parameter is not checked this way. A positional `float` compiles, and `Core\Command::run`

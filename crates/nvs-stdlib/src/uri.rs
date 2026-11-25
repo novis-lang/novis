@@ -850,11 +850,11 @@ const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
             `Core\\Uri::parseQuery` reads it back to the same array.",
     params: &[ParamDoc {
         name: "parameters",
-        desc: "The names and values to write. A value is a scalar or another array. A nested \
-               value is written under its whole path, such as `filter[size][0]=M`, with the \
-               brackets escaped as `%5B` and `%5D`. A value may also be a `Core\\Time\\Date`, \
-               `TimeOfDay`, `Instant` or `DateTime`, or an object whose class implements \
-               `Parses`, such as a `Core\\Uuid`.",
+        desc: "The names and values to write. A value is a scalar or another array. A value \
+               in a nested array is written under its whole path, such as \
+               `filter[size][0]=M`. The brackets are escaped as `%5B` and `%5D`. A value can \
+               also be a `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime`. It can also \
+               be an object of a class that implements `Parses`, such as a `Core\\Uuid`.",
         shape: &[],
     }],
     ret: "The query string, without a leading `?`. Names and values are escaped as \

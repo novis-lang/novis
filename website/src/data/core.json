@@ -2606,7 +2606,7 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program is <code>tainted</code>, so a text field of <code>T</code> that it fills must be <code>tainted</code> too."
+                "descHtml": "The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program, such as a form, is <code>tainted</code>. You must check tainted text before you use it. So a text field of <code>T</code> that such text fills must be <code>tainted</code> too."
               }
             ],
             "returnHtml": "A new <code>T</code> where every field has its declared type. For an <code>array&lt;T&gt;</code>, one <code>T</code> per entry, in the array's own order.",
@@ -18647,7 +18647,7 @@
                 "descHtml": "Writes every non-ASCII character as a <code>\\uXXXX</code> escape. By default, UTF-8 text is written as it is."
               }
             ],
-            "returnHtml": "The JSON text. It is a <code>tainted string</code> when <code>$value</code> can contain text from outside the program. That is a <code>tainted</code> string, or a <code>mixed</code> or <code>object</code> value, anywhere inside it.",
+            "returnHtml": "The JSON text. It is a <code>tainted string</code> when <code>$value</code> can contain text from outside the program. Tainted text is text that you must check before you use it. A <code>tainted</code> string, or a <code>mixed</code> or <code>object</code> value, anywhere inside <code>$value</code> makes the result tainted.",
             "errors": [
               {
                 "error": "LogicError",
@@ -18751,7 +18751,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, has an object with the same key twice, or contains a whole number too large for <code>int</code>. It is also thrown when the top level is not an object, or not an array for an <code>array&lt;C&gt;</code>. Fields that are missing or have the wrong type throw it too. The error has a list of issues: one for each wrong field or list element. Each issue has a path, such as <code>items.2.price</code>, and a message. The error message gives the number of issues. For an <code>array&lt;C&gt;</code> the decode stops at the first bad element. The list has at most 64 issues. When there are more, the last issue says so, and its path is the empty string."
+                "descHtml": "When <code>$json</code> is not a valid JSON document, or nests deeper than <code>maxDepth</code>. When it has an object with the same key twice, or a whole number too large for <code>int</code>. When the top level is not an object, or not an array for an <code>array&lt;C&gt;</code>. When fields are missing or have the wrong type. The error has a list of issues, one for each wrong field. A list inside the object gets one issue for each wrong element. Each issue has a path, such as <code>items.2.price</code>, and a message. The error message gives the number of issues. When the whole document is read as an <code>array&lt;C&gt;</code>, the decode stops at the first bad element. The issues are then the wrong fields of that element. The list has at most 64 issues. When there are more, the last issue says so, and its path is the empty string."
               },
               {
                 "error": "LogicError",
@@ -41672,7 +41672,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Builds the link to the route of the method <code>$route</code>. Each value in <code>$params</code> fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link. <code>$route</code> may be a route of another module on the same server, when its class is under an <code>autoload links</code> folder. The link then goes through the mount that the server picks for that module.",
+            "shortHtml": "Builds the link to the route of the method <code>$route</code>. Each value in <code>$params</code> fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link. <code>$route</code> may be a route of another module on the same server, when its class is under an <code>autoload links</code> folder. A mount is a path at which the server runs a module. The link then starts with the mount that the server picks for that module.",
             "params": [
               {
                 "name": "route",
@@ -41687,7 +41687,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$route</code> is a variable and not a method reference written in the call. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>, or a <code>{name...}</code> value has one of them between its <code>/</code> characters, because a browser would move that link to another path."
+                "descHtml": "When <code>$route</code> is a variable, and its value is not a method that has a <code>#[Route]</code>. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>. When a <code>{name...}</code> value has <code>.</code> or <code>..</code> between its <code>/</code> characters. A browser would move such a link to another path."
               }
             ]
           },
@@ -41946,7 +41946,7 @@
                 "descHtml": "The path, with no query string. The path of a request already has its mount prefix removed."
               }
             ],
-            "returnHtml": "The methods, each one once. An empty array means that no route has this path, so the status is <code>404</code>. Otherwise the status is <code>405</code>, and the array is the list for the <code>Allow</code> header. A path does not match when a capture is not a valid value of its handler parameter's type, such as <code>int</code>, <code>Core\\Uuid</code> or <code>Core\\Time\\Date</code>. It also does not match when the capture is not one of the values its parameter allows."
+            "returnHtml": "The methods, each one once. An empty array means that no route has this path, so the status is <code>404</code>. Otherwise the status is <code>405</code>, and the array is the list for the <code>Allow</code> header. A capture is a value from the path. Each capture must be a valid value of its handler parameter's type, such as <code>int</code>, <code>Core\\Uuid</code> or <code>Core\\Time\\Date</code>. Otherwise the path does not match. It also does not match when the capture is not one of the values its parameter allows."
           },
           "slug": "methodsfor",
           "url": "/reference/core/router/methodsfor/",
@@ -41983,7 +41983,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "When the program has no <code>#[Route]</code>. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no capture and no query value fills, such as an optional capture that the path does not have."
+                "descHtml": "When the program has no <code>#[Route]</code>. When the program is not handling a request, for example a command-line program, a job or a test. When no capture and no query value fills a parameter of the route method. An optional capture that the path does not have is an example."
               }
             ]
           },
@@ -42073,7 +42073,7 @@
           "returnType": "array<tainted string|int|uint|decimal|bool|Core\\Uuid|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Time\\Instant|Core\\Time\\DateTime|Parses>",
           "doc": {
             "shortHtml": "Returns every value captured from the path, in the order of the path. Each key is the capture's name. Inside <code>Core\\Router::dispatch</code>, the array also has each <code>#[Core\\Query]</code> value, under its parameter's name. So <code>Gate::allows</code> can check every value the route method gets.",
-            "returnHtml": "An array of the captures. Each value is already percent-decoded, so <code>%20</code> is a space. Each value has the type of its handler parameter: <code>{id}</code> read by <code>uint $id</code> is a number. A <code>string</code> capture is <code>tainted</code>, because the request sent it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default <code>null</code> is not in the array either. The match from <code>Core\\Request::route()</code> or <code>Core\\Router::match()</code> has no query values. A route with no captures returns an empty array."
+            "returnHtml": "An array of the captures. Each value is already percent-decoded, so <code>%20</code> is a space. Each value has the type of its handler parameter: <code>{id}</code> read by <code>uint $id</code> is a number. A <code>string</code> capture is <code>tainted</code>: it is text from outside the program, which you must check before you use it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default <code>null</code> is not in the array either. The match from <code>Core\\Request::route()</code> or <code>Core\\Router::match()</code> has no query values. A route with no captures returns an empty array."
           },
           "slug": "parameters",
           "url": "/reference/core/router-match/parameters/",
@@ -42106,7 +42106,7 @@
                 "descHtml": "The capture's name as the route's path writes it, without the braces, or the name of a <code>#[Core\\Query]</code> parameter without the <code>$</code>."
               }
             ],
-            "returnHtml": "The value, with the type of its handler parameter. The result is <code>null</code> when the route has no capture or query value with this name, and when an optional <code>{name?}</code> is not in the path. A query value read from the match of <code>Core\\Request::route()</code> is <code>null</code>, because only <code>Core\\Router::dispatch</code> reads the query string."
+            "returnHtml": "The value, with the type of its handler parameter. A <code>string</code> value is <code>tainted</code>: it is text from outside the program, which you must check before you use it. The result is <code>null</code> when the route has no capture or query value with this name. It is also <code>null</code> when an optional <code>{name?}</code> is not in the path. A query value read from the match of <code>Core\\Request::route()</code> or <code>Core\\Router::match()</code> is <code>null</code>. Only <code>Core\\Router::dispatch</code> reads the query string."
           },
           "slug": "parameter",
           "url": "/reference/core/router-match/parameter/",
@@ -50157,7 +50157,7 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the date as ISO text, such as <code>2026-01-05</code>. <code>Date::fromIso</code> reads this text back. <code>Core\\Json::encode</code>, <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> write a <code>Date</code> as this text.",
-            "returnHtml": "A <code>string</code> with the year, the month and the day. The year has four digits, and a year before year 1 starts with <code>-</code>."
+            "returnHtml": "A <code>string</code> with the year, the month and the day. The year has four digits, and a year before year 0 starts with <code>-</code>. Year 0 is <code>0000</code>."
           },
           "slug": "toiso",
           "url": "/reference/core/time-date/toiso/",
@@ -53959,7 +53959,7 @@
             "params": [
               {
                 "name": "parameters",
-                "descHtml": "The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as <code>filter[size][0]=M</code>, with the brackets escaped as <code>%5B</code> and <code>%5D</code>. A value may also be a <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code>, or an object whose class implements <code>Parses</code>, such as a <code>Core\\Uuid</code>."
+                "descHtml": "The names and values to write. A value is a scalar or another array. A value in a nested array is written under its whole path, such as <code>filter[size][0]=M</code>. The brackets are escaped as <code>%5B</code> and <code>%5D</code>. A value can also be a <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code>. It can also be an object of a class that implements <code>Parses</code>, such as a <code>Core\\Uuid</code>."
               }
             ],
             "returnHtml": "The query string, without a leading <code>?</code>. Names and values are escaped as <code>Core\\Uri::encodeFormValue</code> escapes them, so a space is <code>+</code>. <code>true</code> is written as <code>1</code> and <code>false</code> as <code>0</code>. A time value is written as its <code>toIso</code> text, so a <code>+</code> in it is <code>%2B</code>. A <code>Parses</code> object is written as the text its <code>format</code> method returns. A <code>null</code> value writes nothing, and neither does an empty array.",

@@ -12,7 +12,8 @@ class Exports
     }
 }
 
-// An earlier request saved this id.
+// This is the id of a job in the queue `exports`.
+// A real program gets it from `Core\Queue::push` and saves it.
 var $job = Id::parse('42.q3vX9bT0LmN2pR8sK4dYfw.ZXhwb3J0cw');
 
 // `Core\Router::url` calls `format` to write the id into the path.

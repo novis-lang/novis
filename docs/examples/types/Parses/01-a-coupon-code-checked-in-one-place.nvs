@@ -1,7 +1,7 @@
 <?nvs
-// A class that can be built from a piece of text says so with `Parses`.
-// Here a coupon code is checked once, in the class, and every later line
-// holds a `CouponCode` rather than text somebody may have typed wrong.
+// A class that implements `Parses` can be built from a piece of text.
+// Here the class checks a coupon code in one place. After that, every line
+// uses a `CouponCode` object that is already checked.
 
 class CouponCode implements Parses
 {
@@ -35,15 +35,15 @@ class CouponCode implements Parses
 // Text the class accepts gives you the class.
 echo 'accepted ', CouponCode::parse('SUMMER24')->text, "\n";
 
-// Text it refuses throws, and the message is the one the class wrote.
+// Text that is not valid throws a `ParseError`. The message is the one the class wrote.
 try {
     echo CouponCode::parse('summer24')->text, "\n";
 } catch (ParseError $refusal) {
     echo 'refused: ', $refusal->message, "\n";
 }
 
-// A list of codes pasted into a form by hand. Each row is offered to the class,
-// the ones it refuses are reported and dropped, and the rest are kept.
+// A list of codes that somebody pasted into a form. Each code is passed to `parse`.
+// A code that is not valid is reported and skipped. The other codes are kept.
 array<string> $pasted = ['SUMMER24', 'AUTUMN7', 'spring01', 'WINTER10'];
 uint $kept = 0;
 foreach ($pasted as string $row) {

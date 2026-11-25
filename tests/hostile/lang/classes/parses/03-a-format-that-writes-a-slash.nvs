@@ -66,8 +66,8 @@ class Gate implements Core\Router\Gate
 
 class Attack
 {
-    // This returns 1 when the link reached the route it was built for.
-    // Each route prints the length of the text, so the length must be the same.
+    // `held` follows one link. Each route prints its name and the length of its text, such as `file 12`.
+    // `held` returns 1 when both match the route and the text the link was built for.
     public static function held(string $link, string $expected): uint
     {
         var $answer = Core\Test::request(Method::Get, $link);

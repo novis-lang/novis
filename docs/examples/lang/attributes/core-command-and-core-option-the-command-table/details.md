@@ -11,10 +11,11 @@ A method that is not `static` is `E0789`. A return type other than `void` or `ui
 and that includes `int`. `#[Core\Option]` on a parameter of a method with no `#[Core\Command]` is
 `E0766`.
 
-Each option has a long spelling. It is `--` and the `long` value, or `--` and the parameter's name when
-there is no `long`. With `short: "v"`, the option also has the spelling `-v`. Two options of one command
-with the same spelling are `E0745`. So `long: "name"` on one parameter and a second parameter called
-`$name` are `E0745`. `short: "v"` and `short: "V"` are two different spellings.
+Each option has a long form. It is `--` and the `long` value, or `--` and the parameter's name when
+there is no `long`. With `short: "v"`, the option can also be written `-v`. Two options of one command
+that are written the same way are `E0745`. For example, one parameter has `long: "name"`, and a second
+parameter is called `$name`. Both options are `--name`, so this is `E0745`. Case matters, so
+`short: "v"` and `short: "V"` can be used in one command.
 
 An option of a type that text does not convert to is `E0746`. A `?string` option is `E0746` too. A
 positional parameter is not checked this way. A positional `float` compiles, and `Core\Command::run`

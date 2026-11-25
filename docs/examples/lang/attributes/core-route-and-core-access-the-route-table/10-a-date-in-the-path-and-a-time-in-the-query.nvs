@@ -7,8 +7,8 @@ use Core\Time\Instant;
 
 class Calendar
 {
-    // `{day}` is a `Date` such as `2026-01-05`. `{since}` is an `Instant` such as
-    // `2026-01-05T07:30:00Z`. A `DateTime` has its zone, so it can only be a query value.
+    // `{day}` is a `Date`, and `{since}` is an `Instant`. A `DateTime` can only be a query value.
+    // Its zone name, such as `Europe/Vienna`, has a `/`, and in a path a `/` would split the value.
     #[Core\Route(path: '/days/{day}/since/{since}', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function day(Date $day, Instant $since, #[Core\Query] ?DateTime $meeting = null): void

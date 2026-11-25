@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a program writes UUIDs into links and query strings very many times, in every letter case.
-// Each text should be 36 lower-case characters, read back to the same UUID, and be freed.
+// Each text should be 36 lower-case characters and read back to the same UUID. Memory should not grow.
 
 class Orders
 {
@@ -12,12 +12,12 @@ class Orders
     }
 }
 
-// 1. The nil UUID and the max UUID, read in upper case.
+// 1. The UUID of all zeros and the UUID of all `f`, read in upper case.
 // This prints 36 zeros and hyphens, and then 36 of "f" and hyphens.
 echo Core\Uuid::parse('00000000-0000-0000-0000-000000000000')->format(), "\n";
 echo Core\Uuid::parse('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')->format(), "\n";
 
-// 2. The text of one UUID is asked for one million times. Each copy is freed.
+// 2. `format` is called on one UUID one million times. Each text is deleted before the next one.
 // This prints 36000000.
 var $id = Core\Uuid::v7();
 uint $total = 0;

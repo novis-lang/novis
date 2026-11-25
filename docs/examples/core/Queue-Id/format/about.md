@@ -1,6 +1,7 @@
 Returns the string that `Core\Queue\Id::parse` reads. `format` returns the same string as
 `toString`. The string has three parts joined by dots: the job's number, a random token and the
-queue. It contains only letters, digits, `.`, `_` and `-`.
+name of the queue. The name is encoded, so `exports` is written `ZXhwb3J0cw`. The string contains
+only letters, digits, `.`, `_` and `-`.
 
 `Core\Queue\Id` implements the `Parses` interface, and `format` is the method that interface needs.
 `Core\Router::url` calls it to write a job id into a link, in the path or in the query string.

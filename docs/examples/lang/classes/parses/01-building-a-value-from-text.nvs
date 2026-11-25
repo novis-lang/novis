@@ -9,7 +9,8 @@ final class Sku implements Parses
 
     public static function parse(tainted string $s): static
     {
-        // The text comes from outside the program, so every rule is checked here.
+        // `tainted` means the text came from outside the program, such as a request.
+        // So every rule is checked here.
         if (Core\Str::length($s) != 8) {
             throw new ParseError('a product code has 8 characters');
         }

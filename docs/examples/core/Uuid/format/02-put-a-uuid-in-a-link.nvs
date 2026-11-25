@@ -11,7 +11,8 @@ class Orders
     }
 }
 
-// The gate lets every request through.
+// A gate is the class that `Core\Router::dispatch` calls to check each request.
+// This gate allows every request.
 class Open implements Core\Router\Gate
 {
     public function allows(Core\Router\Match $route): bool

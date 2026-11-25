@@ -618,14 +618,14 @@ Three keywords call a method without writing the class name. `self` is the
 class the code is written in. `static` is the class the call was made on, which may be a subclass.
 `parent` is the class this one extends, so `parent::format()` calls the parent's version.
 
-**Good to know:** a method that says it returns `static` must return the object it was called on, or
-a new object of the same class. In a `final` class, `static` is that class, so the method may return
+**Good to know:** a method with the return type `static` returns the object it was called on, or a
+new object of the same class. In a `final` class, `static` is that class, so the method may return
 any object of it, such as a stored one.
 
 **The examples below** show the two kinds of method, `self` beside `static` in a subclass, and a
 subclass that calls its parent's version. Then come a chain of calls with an anonymous function that
 keeps `$this`, and a return type `static` that does not compile. The last one shows a `final` class
-whose method returns a stored object.
+that returns a stored object.
 
 An anonymous function written inside a method keeps that method's `$this`. It may read the class's
 `private` properties and call its `private` methods.
@@ -3702,17 +3702,18 @@ Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or
 has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`. In a
 `final` class, `parse` may return an object that already exists, such as a record from a database.
 
-**The examples below** show a product code built from text, what a subclass gets back, values from a
-form, a class used in a route, a route that does not compile, and a `final` class that loads a
-stored order.
+**The examples below** show a product code built from text, what a subclass gets back, and values
+from a form. Then come a class used in a route and a route that does not compile. The last one shows
+a `final` class that loads a stored order.
 
 The two methods are `public static function parse(tainted string $s): static` and
 `public function format(): tainted string`. `tainted` text comes from outside your program, such as
 a web request or a command line.
 
-Novis needs this interface everywhere text from outside becomes a value: a piece of a route path, a
-`#[Core\Query]` parameter, a command argument and a command option. A parameter typed at a class that
-does not implement `Parses` does not compile, and the error says so.
+Novis needs this interface wherever it builds an object of your class from text that came from
+outside. This happens for a route capture, a `#[Core\Query]` parameter, a command argument and a
+command option. If the parameter's class does not implement `Parses`, the program does not compile.
+The error says so.
 
 In a route, `parse` runs before `Core\Router\Gate::allows`. So `allows` can check the object with
 `$route->parameter('name')`, and this works the same for a path capture and a query value. If
@@ -3724,8 +3725,9 @@ object of the subclass back. In a `final` class, `static` is that class. There, 
 object that already exists, such as a record it loads by its id.
 
 `parse` runs for every request that matches the route, before `allows`. It runs whether the visitor
-is signed in or not. Sometimes even the time of a lookup must not show whether a record exists. Then
-declare the parameter as `string` and load the record after `allows`.
+is signed in or not. A visitor can measure how long a response takes. A lookup may take longer when
+the record exists, so the time can show this. To prevent that, declare the parameter as `string`.
+Then load the record in the route method, after `allows` has run.
 
 `Core\Router::url` puts the text that `format` returns into its own path segment and percent-encodes
 it. A `/`, `?` or `#` in that text cannot reach another route or start the query string.
@@ -3741,19 +3743,25 @@ throw any error. `ParseError` is the usual one.
 to write the value into a link. Its return type is `tainted string`. A class whose text is not
 tainted may write `string`.
 
-The text keeps its `tainted` qualifier. A property that stores it must have the type
-`tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
+The text that `parse` gets is still `tainted` after `parse` reads it. A property that stores it must
+have the type `tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
 tainted.
 
-A route capture or a `#[Core\Query]` parameter accepts these types: `string`, `int`, `uint`,
-`decimal`, `Core\Uuid`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values such as
-`'a'|'b'`, and a class that implements `Parses`. A `#[Core\Query]` parameter also accepts `bool` and
-`DateTime`. Any other class is the error `E0752`.
+A route capture or a `#[Core\Query]` parameter can have these types:
 
-A path capture fails in two ways. The router converts some types itself while it matches the path:
-`int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. A segment that does not convert is
-no match. If no other route matches, the response is `404`. For any other `Parses` class, the router matches the path first.
-Then it calls `parse`. If `parse` throws, the response is `400`, and the method does not run.
+- `string`, `int`, `uint` or `decimal`,
+- `Core\Uuid`, `Date`, `TimeOfDay` or `Instant`,
+- an enum, or a set of allowed values such as `'a'|'b'`,
+- a class that implements `Parses`.
+
+A `#[Core\Query]` parameter can also be a `bool` or a `DateTime`. Any other class is the error
+`E0752`.
+
+A path capture with a bad value gives one of two statuses. The router converts some types itself
+while it matches the path: `int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. If the
+segment does not convert, this route does not match. If no other route matches, the response is
+`404`. For a `Parses` class, the router matches the path first. Then it calls `parse`. If `parse`
+throws, the response is `400`, and the method does not run.
 
 ## Example 01: building a value from text
 
@@ -3769,7 +3777,8 @@ final class Sku implements Parses
 
     public static function parse(tainted string $s): static
     {
-        // The text comes from outside the program, so every rule is checked here.
+        // `tainted` means the text came from outside the program, such as a request.
+        // So every rule is checked here.
         if (Core\Str::length($s) != 8) {
             throw new ParseError('a product code has 8 characters');
         }
@@ -3846,7 +3855,8 @@ if ($supplier is SupplierCode) {
     echo $supplier->text, " is a supplier code\n";
 }
 
-// Both are also a `Code`, so one list holds them together.
+// `CustomerCode` and `SupplierCode` both extend `Code`.
+// So one `array<Code>` can contain both objects.
 array<Code> $codes = [$customer, $supplier];
 echo Core\Arr::count($codes), " codes\n";
 ```
@@ -3871,7 +3881,8 @@ final class Recipient implements Parses
 
     public static function parse(tainted string $s): static
     {
-        // Text that came from outside stays `tainted` through `Core\Str::trim`.
+        // `tainted` means the text came from outside the program, such as a form.
+        // `Core\Str::trim` returns a `tainted string` too.
         tainted string $clean = Core\Str::trim($s);
         if (!Core\Str::contains($clean, '@')) {
             throw new ParseError('an address needs an @');
@@ -4076,8 +4087,8 @@ class Gate implements Core\Router\Gate
         return $order->owner == 'ann';
     }
 
-    // A missing order gives `BadCapture`, and another person's order gives `Denied`.
-    // Both get status `404`, so a visitor cannot find out which ids exist.
+    // A missing order gives `BadCapture` (by default `400`), and another person's order gives `Denied` (`403`).
+    // This method sets `404` for both, so a visitor cannot find out which ids exist.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {

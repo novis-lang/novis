@@ -754,8 +754,9 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The JSON text. It is a `tainted string` when `$value` can contain text from outside \
-          the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere \
-          inside it.",
+          the program. Tainted text is text that you must check before you use it. A `tainted` \
+          string, or a `mixed` or `object` value, anywhere inside `$value` makes the result \
+          tainted.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$value` contains something that JSON cannot represent. This is a `NaN` or \
@@ -825,16 +826,17 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, has an \
-                   object with the same key twice, or contains a whole number too large for \
-                   `int`. It is also thrown when the top level is not an object, or not an array \
-                   for an `array<C>`. Fields that are missing or have the wrong type throw it too. \
-                   The error has a list of issues: one for each wrong field or list element. \
-                   Each issue has a path, such as `items.2.price`, and a message. The error \
-                   message gives the number of issues. For an \
-                   `array<C>` the decode stops at the first bad element. The list has at most \
-                   64 issues. When there are more, the last issue says so, and its path is the \
-                   empty string.",
+            desc: "When `$json` is not a valid JSON document, or nests deeper than `maxDepth`. \
+                   When it has an object with the same key twice, or a whole number too large \
+                   for `int`. When the top level is not an object, or not an array for an \
+                   `array<C>`. When fields are missing or have the wrong type. The error has a \
+                   list of issues, one for each wrong field. A list inside the object gets one \
+                   issue for each wrong element. Each issue has a path, such as \
+                   `items.2.price`, and a message. The error message gives the number of \
+                   issues. When the whole document is read as an `array<C>`, the decode stops \
+                   at the first bad element. The issues are then the wrong fields of that \
+                   element. The list has at most 64 issues. When there are more, the last \
+                   issue says so, and its path is the empty string.",
         },
         ErrorDoc {
             error: "LogicError",

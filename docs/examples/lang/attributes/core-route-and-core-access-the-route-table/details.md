@@ -12,10 +12,11 @@ is a `400`. A checkbox in a form sends `on`, so give it `value="1"`.
 
 A capture or a query value may be a `Core\Time\Date`, `TimeOfDay` or `Instant`. A `#[Core\Query]`
 value may also be a `Core\Time\DateTime`. Each is read from the text its `toIso` method writes, such
-as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. A `DateTime` needs its zone in brackets, such
-as `2026-01-05T14:00:00+01:00[Europe/Vienna]`. The offset may be left out. A `DateTime` path capture
-is `E0752`, because the server does not accept a path with `%2F` in it. Use an `Instant` in the path
-instead.
+as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. An `Instant` needs `Z` or an offset such as
+`+01:00`. A `DateTime` needs its zone in brackets, such as `2026-01-05T14:00:00+01:00[Europe/Vienna]`.
+For a `DateTime`, the offset `+01:00` may be left out. A `DateTime` path capture is `E0752`. The zone
+name has a `/`, which a path can only carry as `%2F`, and the server does not accept `%2F` in a path.
+Use an `Instant` in the path instead.
 
 A time capture is read as it arrived, so `08%3A30` is not `08:30`. A capture that does not convert is
 a `404`, and a query value that does not convert is a `400`. In a query string, a `+` that you type
@@ -56,10 +57,11 @@ are a `400`, and the route method does not run:
 For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
 does not convert is a `404`, because then no route matches the request.
 
-A program can also give a default for a bad value, and then the request is not a `400`. Declare the
-parameter as a `string` with a default, such as `string $page = ''`. Any valid UTF-8 text converts to
-a `string`. Then convert it in the route method, such as `($page as ?uint) ?? 1`. Use this only when a wrong link should still show a
-page. A typed parameter is the better choice in most cases, because it checks the value for you.
+Sometimes a wrong link should still show a page. For this, declare the parameter as a `string` with
+a default, such as `string $page = ''`. Any valid UTF-8 text converts to a `string`, so the request
+is not a `400`. Then convert the value in the route method, such as `($page as ?uint) ?? 1`. A bad
+value gives `1`. A typed parameter is the better choice in most cases, because it checks the value
+for you.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
@@ -86,8 +88,8 @@ of the enum has a written value, the capture matches that value instead. For `en
 De = 7 }`, `/7` matches and `/De` does not.
 
 A capture of a class that implements `Parses` matches any segment. The class's `parse` method runs
-when `Core\Router::match` returns the result. If `parse` throws an error, that error comes out of
-`Core\Router::match`.
+inside `Core\Router::match`, before it returns. If `parse` throws an error, `Core\Router::match`
+throws the same error.
 
 `$match->parameter("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
 it with `as`. A `string` capture gives a `tainted string`. A name that is not a capture gives `null`.

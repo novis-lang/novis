@@ -49,7 +49,7 @@ class Gate implements Core\Router\Gate
 
 class Attack
 {
-    // This returns 1 when the request got the expected status and the method did not run.
+    // `held` sends one request. It returns 1 when the request got the expected status and the method did not run.
     public static function held(string $target, int $status): uint
     {
         var $answer = Core\Test::request(Method::Get, $target);
@@ -64,7 +64,7 @@ class Attack
 if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
-    // 1. Good values. The method runs, so the refusals below come from the bad values.
+    // 1. Good values. The method runs, so each error status below comes from a bad value.
     array<string> $good = [
         '/days/2026-01-05/since/2026-01-05T07:30:00Z',
         '/opens/08:30',
@@ -83,7 +83,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         '/days/2026-01-05/since/2026-01-05T07%3A30%3A00Z',
         // 3. A fraction of a second with ten digits. Nine is the most.
         '/days/2026-01-05/since/2026-01-05T07:30:00.1234567890Z',
-        // 4. A day that does not exist, a date with no dashes, and a time with no offset.
+        // 4. A day that does not exist, a date with no dashes, and an `Instant` with no `Z` or offset.
         '/days/2026-02-30/since/2026-01-05T07:30:00Z',
         '/days/20260105/since/2026-01-05T07:30:00Z',
         '/days/2026-01-05/since/2026-01-05T07:30:00',

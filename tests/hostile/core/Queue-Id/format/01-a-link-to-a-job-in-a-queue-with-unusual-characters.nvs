@@ -53,14 +53,14 @@ Check::queue('2', 'x&job=1.AAAAAAAAAAAAAAAAAAAAAA.YQ');
 // 3. A queue name that looks like a path to another directory.
 Check::queue('3', '../../admin');
 
-// 4. A queue name with a percent sign, a space, a new line and a NUL character.
+// 4. A queue name with a percent sign, a space, a new line and a NUL character (the byte zero).
 Check::queue('4', "%2F %0A\n\0end");
 
 // 5. A queue name of 255 emoji, which each take four bytes.
 Check::queue('5', Core\Str::repeat("\u{1F600}", 255));
 
-// 6. The id of one job is written into a link 100000 times. Each string is freed.
-// This prints 100000.
+// 6. The id of one job is written into a link 100000 times.
+// Memory should not grow, because each link is deleted before the next one. This prints 100000.
 var $job = Queue::push('jobs/a.nvs', { queue: 'many' });
 string $expected = '/exports/' . $job->format();
 int $exact = 0;

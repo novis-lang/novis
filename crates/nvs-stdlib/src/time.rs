@@ -3522,7 +3522,7 @@ const DATE_TO_ISO_DOC: MethodDoc = MethodDoc {
             `Date` as this text.",
     params: &[],
     ret: "A `string` with the year, the month and the day. The year has four digits, and a year \
-          before year 1 starts with `-`.",
+          before year 0 starts with `-`. Year 0 is `0000`.",
     errors: &[],
 };
 
@@ -4455,7 +4455,7 @@ pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
 }
 
 /// `at`'s RFC 3339 text in UTC, with the year in `fromIso`'s one form: four
-/// digits, and a `-` before them for a year before year 1.
+/// digits, and a `-` before them for a year before year 0.
 ///
 /// jiff writes a year outside `0000`..=`9999` as a sign and six digits, so the
 /// first instant would be `-009999-01-02T01:59:59Z`, a text [`iso::instant`]

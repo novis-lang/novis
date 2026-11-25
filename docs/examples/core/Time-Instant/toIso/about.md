@@ -5,7 +5,7 @@ APIs expect dates in this format, and `Core\Time\Instant::fromIso` reads it back
 instant. The seconds have a fraction only when the fraction is not zero. For example, half a second
 past noon is written `12:00:00.5Z`.
 
-The year always has four digits. A year before year 1 has a `-` in front, so the earliest instant
+The year always has four digits. A year before year 0 has a `-` in front, so the earliest instant
 is written `-9999-01-02T01:59:59Z`.
 
 An instant has no time zone, so the text is the same wherever the program runs. To show the

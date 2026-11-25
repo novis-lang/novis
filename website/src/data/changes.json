@@ -780,7 +780,7 @@
       "features": [
         "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec"
       ],
-      "text": "A `#[Core\\Json\\Derive]` class with a property of a `Core` class such as `Core\\Time\\Date` or `Core\\Uuid` stopped the program with an internal error. It is now the compile error `E0756` at that property, because only `Core\\Time\\Instant` has a JSON form. For the others, declare the property `string` and convert the text after the decode."
+      "text": "A `#[Core\\Json\\Derive]` class with a property of a `Core` class that has no JSON form, such as `Core\\Uri`, stopped the program with an internal error. It is now the compile error `E0756` at that property. Declare such a property `string`, and convert the text after the decode."
     },
     {
       "kind": "fixed",
@@ -1087,7 +1087,7 @@
       "features": [
         "lang:types/qualifiers-tainted-and-secret"
       ],
-      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. A `tainted` value may reach a parameter that does not take it. The error then names the method that makes the value safe for that parameter."
+      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. You may pass a `tainted` value to a parameter that does not accept `tainted` text. The compile error then names the method that makes the value safe for that parameter."
     },
     {
       "kind": "fixed",

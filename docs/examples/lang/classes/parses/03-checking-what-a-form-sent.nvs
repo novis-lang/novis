@@ -9,7 +9,8 @@ final class Recipient implements Parses
 
     public static function parse(tainted string $s): static
     {
-        // Text that came from outside stays `tainted` through `Core\Str::trim`.
+        // `tainted` means the text came from outside the program, such as a form.
+        // `Core\Str::trim` returns a `tainted string` too.
         tainted string $clean = Core\Str::trim($s);
         if (!Core\Str::contains($clean, '@')) {
             throw new ParseError('an address needs an @');

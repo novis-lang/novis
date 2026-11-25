@@ -9,7 +9,7 @@ class Reports
     public function list(#[Core\Query] uint $limit = 10): void
     {
         // `Core\Request::route()` returns a match that has no query values.
-        // So `parameter("limit")` is `null` here, and this prints `null`.
+        // In the route method, `parameter("limit")` on that match is `null`. This prints `null`.
         ?Core\Router\Match $route = Core\Request::route();
         echo ' route: ', $route?->parameter('limit') == null ? 'null' : 'set';
     }

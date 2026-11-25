@@ -2446,7 +2446,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "bc1af578806ed030",
+    "hash": "e69a35157233dac8",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -6686,7 +6686,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "f93480c19927262c",
+    "hash": "20d9850121b38a03",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6710,7 +6710,7 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "525ca68e90e0e8bc",
+    "hash": "419a95cdcb9f00df",
     "questions": [
       "How do I convert an array to a JSON string?",
       "Write an object with dates and UUIDs as JSON text",
@@ -11694,7 +11694,7 @@
   },
   "/reference/core/queue-id/format/": {
     "feature": "Core\\Queue\\Id::format",
-    "hash": "cf6f1a874f5b48e3",
+    "hash": "26b8e26478c4f72b",
     "questions": [
       "How does a job id get written into a link?",
       "Put a job id in the query string of a link",
@@ -13336,7 +13336,7 @@
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "b3b431c12bba1b4d",
+    "hash": "6a05623eca14a918",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
@@ -13358,7 +13358,7 @@
   },
   "/reference/core/router/methodsfor/": {
     "feature": "Core\\Router::methodsFor",
-    "hash": "a40c25b4b5d89ec5",
+    "hash": "e9ed15269351fb76",
     "questions": [
       "How do I choose between a 404 and a 405 response?",
       "List the HTTP methods a path accepts",
@@ -13379,7 +13379,7 @@
   },
   "/reference/core/router/url/": {
     "feature": "Core\\Router::url",
-    "hash": "fd3e22ff50b9a5a0",
+    "hash": "68e9b1a867f77d15",
     "questions": [
       "How do I build a link to the method of a route?",
       "Generate a URL with path values and optional query values",
@@ -13478,7 +13478,7 @@
   },
   "/reference/core/router-match/parameter/": {
     "feature": "Core\\Router\\Match::parameter",
-    "hash": "b2cf8085aabfc17c",
+    "hash": "5a990d9da4f20c8c",
     "questions": [
       "How do I read one value from the URL path?",
       "Get the id from a path like /users/42",
@@ -13489,7 +13489,7 @@
   },
   "/reference/core/router-match/parameters/": {
     "feature": "Core\\Router\\Match::parameters",
-    "hash": "b5a7769824da977c",
+    "hash": "cf4dd6e3f2f2d8ee",
     "questions": [
       "How do I get all values captured from the path?",
       "List every path parameter of a request as an array",
@@ -15797,7 +15797,7 @@
   },
   "/reference/core/time-date/toiso/": {
     "feature": "Core\\Time\\Date::toIso",
-    "hash": "f52169a813b10fa0",
+    "hash": "f01ba7ad8a2d066b",
     "questions": [
       "Write a date as text to save in a database",
       "Turn a date into 2026-05-20 text",
@@ -16541,7 +16541,7 @@
   },
   "/reference/core/time-instant/toiso/": {
     "feature": "Core\\Time\\Instant::toIso",
-    "hash": "d6378ae624b25103",
+    "hash": "4066bed83441e0c6",
     "questions": [
       "How do I format a timestamp as an ISO 8601 string?",
       "Convert a moment to RFC 3339 text in UTC",
@@ -16820,7 +16820,7 @@
   },
   "/reference/core/uri/buildquery/": {
     "feature": "Core\\Uri::buildQuery",
-    "hash": "46388dc7fff7509f",
+    "hash": "53eb9b7efb2f9b67",
     "questions": [
       "How do I turn an array into a query string?",
       "Build the part of a URL after the question mark",
@@ -17087,7 +17087,7 @@
   },
   "/reference/core/uuid/format/": {
     "feature": "Core\\Uuid::format",
-    "hash": "228a1ef4e1ec7efa",
+    "hash": "e862a36404bc0989",
     "questions": [
       "How is a UUID written into a link?",
       "Link to a route that takes a UUID in its path",
@@ -18525,7 +18525,7 @@
   },
   "/reference/types/parses/": {
     "feature": "Parses",
-    "hash": "8eb56d629b0ecab6",
+    "hash": "2c01a159d7bb6d6a",
     "questions": [
       "How do I turn a URL path segment into my own class?",
       "Build an object from a text value in one checked place",
@@ -18666,7 +18666,7 @@
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "49aef7628fbc2543",
+    "hash": "0f57fae96c381191",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",
@@ -18870,7 +18870,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "f2a29d722c92c4f3",
+    "hash": "80e83598b3c994db",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",

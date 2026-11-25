@@ -42,7 +42,7 @@ class Gate implements Core\Router\Gate
 
 class Attack
 {
-    // This returns 1 when the request got `400` and the method did not run.
+    // `held` sends one request. It returns 1 when the request got `400` and the method did not run.
     public static function held(string $target): uint
     {
         var $answer = Core\Test::request(Method::Get, $target);

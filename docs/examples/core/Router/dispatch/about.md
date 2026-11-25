@@ -7,12 +7,12 @@ returns `true`. `refused` writes the page when no route method runs, such as a m
 writes the page when the route method throws an error. `dispatch` sets the status first, so the
 right code is sent.
 
-Each capture and `#[Core\Query]` value is converted to its parameter's type before `allows` runs. So
-`allows` can read each one with `$route->parameter()`.
+A capture is a value from the path, such as `42` in `/articles/42`. Each capture and `#[Core\Query]`
+value is converted to its parameter's type before `allows` runs. `allows` reads them with
+`$route->parameter()`.
 
 **Good to know:** if `allows` throws an error, the route method does not run. When a route method
 returns a value, a gate that implements `Core\Router\Responder` sends it with `respond`. A plain gate
 does not use the value, and `nvs check` gives a warning.
 
-**The examples below** show two routes and a missing page, a gate that checks a login, and an error
-page for a method that fails.
+**The examples below** show two routes, a gate that checks a login, and an error page.

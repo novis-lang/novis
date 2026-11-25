@@ -2,9 +2,10 @@ The two methods are `public static function parse(tainted string $s): static` an
 `public function format(): tainted string`. `tainted` text comes from outside your program, such as
 a web request or a command line.
 
-Novis needs this interface everywhere text from outside becomes a value: a piece of a route path, a
-`#[Core\Query]` parameter, a command argument and a command option. A parameter typed at a class that
-does not implement `Parses` does not compile, and the error says so.
+Novis needs this interface wherever it builds an object of your class from text that came from
+outside. This happens for a route capture, a `#[Core\Query]` parameter, a command argument and a
+command option. If the parameter's class does not implement `Parses`, the program does not compile.
+The error says so.
 
 In a route, `parse` runs before `Core\Router\Gate::allows`. So `allows` can check the object with
 `$route->parameter('name')`, and this works the same for a path capture and a query value. If
@@ -16,8 +17,9 @@ object of the subclass back. In a `final` class, `static` is that class. There, 
 object that already exists, such as a record it loads by its id.
 
 `parse` runs for every request that matches the route, before `allows`. It runs whether the visitor
-is signed in or not. Sometimes even the time of a lookup must not show whether a record exists. Then
-declare the parameter as `string` and load the record after `allows`.
+is signed in or not. A visitor can measure how long a response takes. A lookup may take longer when
+the record exists, so the time can show this. To prevent that, declare the parameter as `string`.
+Then load the record in the route method, after `allows` has run.
 
 `Core\Router::url` puts the text that `format` returns into its own path segment and percent-encodes
 it. A `/`, `?` or `#` in that text cannot reach another route or start the query string.
@@ -33,16 +35,22 @@ throw any error. `ParseError` is the usual one.
 to write the value into a link. Its return type is `tainted string`. A class whose text is not
 tainted may write `string`.
 
-The text keeps its `tainted` qualifier. A property that stores it must have the type
-`tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
+The text that `parse` gets is still `tainted` after `parse` reads it. A property that stores it must
+have the type `tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
 tainted.
 
-A route capture or a `#[Core\Query]` parameter accepts these types: `string`, `int`, `uint`,
-`decimal`, `Core\Uuid`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values such as
-`'a'|'b'`, and a class that implements `Parses`. A `#[Core\Query]` parameter also accepts `bool` and
-`DateTime`. Any other class is the error `E0752`.
+A route capture or a `#[Core\Query]` parameter can have these types:
 
-A path capture fails in two ways. The router converts some types itself while it matches the path:
-`int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. A segment that does not convert is
-no match. If no other route matches, the response is `404`. For any other `Parses` class, the router matches the path first.
-Then it calls `parse`. If `parse` throws, the response is `400`, and the method does not run.
+- `string`, `int`, `uint` or `decimal`,
+- `Core\Uuid`, `Date`, `TimeOfDay` or `Instant`,
+- an enum, or a set of allowed values such as `'a'|'b'`,
+- a class that implements `Parses`.
+
+A `#[Core\Query]` parameter can also be a `bool` or a `DateTime`. Any other class is the error
+`E0752`.
+
+A path capture with a bad value gives one of two statuses. The router converts some types itself
+while it matches the path: `int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. If the
+segment does not convert, this route does not match. If no other route matches, the response is
+`404`. For a `Parses` class, the router matches the path first. Then it calls `parse`. If `parse`
+throws, the response is `400`, and the method does not run.

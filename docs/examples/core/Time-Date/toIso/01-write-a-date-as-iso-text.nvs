@@ -8,5 +8,5 @@ echo $date->toIso(), "\n";
 // The year always has four digits. This prints 0005-01-02.
 echo Core\Time\Date::at(5, 1, 2)->toIso(), "\n";
 
-// A year before year 1 starts with `-`. This prints -0044-03-15.
+// A year before year 0 starts with `-`. This prints -0044-03-15.
 echo Core\Time\Date::at(-44, 3, 15)->toIso(), "\n";

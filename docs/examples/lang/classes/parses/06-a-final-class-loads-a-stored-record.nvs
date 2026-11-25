@@ -71,8 +71,8 @@ class Gate implements Core\Router\Gate
         return $order->owner == 'ann';
     }
 
-    // A missing order gives `BadCapture`, and another person's order gives `Denied`.
-    // Both get status `404`, so a visitor cannot find out which ids exist.
+    // A missing order gives `BadCapture` (by default `400`), and another person's order gives `Denied` (`403`).
+    // This method sets `404` for both, so a visitor cannot find out which ids exist.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
         if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {

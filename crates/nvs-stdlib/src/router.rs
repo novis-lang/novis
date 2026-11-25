@@ -454,8 +454,8 @@ const URL_DOC: MethodDoc = MethodDoc {
             capture with the same name, and the other values become the query string. Every \
             value is percent-encoded, so it stays inside its own part of the link. `$route` may \
             be a route of another module on the same server, when its class is under an \
-            `autoload links` folder. The link then goes through the mount that the server \
-            picks for that module.",
+            `autoload links` folder. A mount is a path at which the server runs a module. The \
+            link then starts with the mount that the server picks for that module.",
     params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
@@ -466,10 +466,11 @@ const URL_DOC: MethodDoc = MethodDoc {
           `format` method returns.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$route` is a variable and not a method reference written in the call. When `$params` has no \
-               value for a capture that the path needs. When a value cannot be written as text. When a \
-               value is `.` or `..`, or a `{name...}` value has one of them between its `/` \
-               characters, because a browser would move that link to another path.",
+        desc: "When `$route` is a variable, and its value is not a method that has a \
+               `#[Route]`. When `$params` has no value for a capture that the path needs. When \
+               a value cannot be written as text. When a value is `.` or `..`. When a \
+               `{name...}` value has `.` or `..` between its `/` characters. A browser would \
+               move such a link to another path.",
     }],
 };
 
@@ -611,9 +612,10 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The methods, each one once. An empty array means that no route has this path, so the \
           status is `404`. Otherwise the status is `405`, and the array is the list for the \
-          `Allow` header. A path does not match when a capture is not a valid value of its \
-          handler parameter's type, such as `int`, `Core\\Uuid` or `Core\\Time\\Date`. It also \
-          does not match when the capture is not one of the values its parameter allows.",
+          `Allow` header. A capture is a value from the path. Each capture must be a valid \
+          value of its handler parameter's type, such as `int`, `Core\\Uuid` or \
+          `Core\\Time\\Date`. Otherwise the path does not match. It also does not match when \
+          the capture is not one of the values its parameter allows.",
     errors: &[],
 };
 
@@ -638,9 +640,9 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "When the program has no `#[Route]`. When the program is not handling a request, \
-               for example a command-line program, a job or a test. When the route method has a \
-               parameter that no capture and no query value fills, such as an optional capture \
-               that the path does not have.",
+               for example a command-line program, a job or a test. When no capture and no \
+               query value fills a parameter of the route method. An optional capture that the \
+               path does not have is an example.",
     }],
 };
 
@@ -904,7 +906,8 @@ const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "An array of the captures. Each value is already percent-decoded, so `%20` is a space. \
           Each value has the type of its handler parameter: `{id}` read by `uint $id` is a \
-          number. A `string` capture is `tainted`, because the request sent it. An optional \
+          number. A `string` capture is `tainted`: it is text from outside the program, which \
+          you must check before you use it. An optional \
           capture that the path does not have is not in the array. A query key that is absent \
           and has the default `null` is not in the array either. The match from \
           `Core\\Request::route()` or `Core\\Router::match()` has no query values. A route with \
@@ -923,10 +926,12 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
                name of a `#[Core\\Query]` parameter without the `$`.",
         shape: &[],
     }],
-    ret: "The value, with the type of its handler parameter. The result is `null` when the \
-          route has no capture or query value with this name, and when an optional `{name?}` \
-          is not in the path. A query value read from the match of `Core\\Request::route()` \
-          is `null`, because only `Core\\Router::dispatch` reads the query string.",
+    ret: "The value, with the type of its handler parameter. A `string` value is `tainted`: it \
+          is text from outside the program, which you must check before you use it. The result \
+          is `null` when the route has no capture or query value with this name. It is also \
+          `null` when an optional `{name?}` is not in the path. A query value read from the \
+          match of `Core\\Request::route()` or `Core\\Router::match()` is `null`. Only \
+          `Core\\Router::dispatch` reads the query string.",
     errors: &[],
 };
 

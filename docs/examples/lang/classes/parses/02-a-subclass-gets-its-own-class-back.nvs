@@ -40,6 +40,7 @@ if ($supplier is SupplierCode) {
     echo $supplier->text, " is a supplier code\n";
 }
 
-// Both are also a `Code`, so one list holds them together.
+// `CustomerCode` and `SupplierCode` both extend `Code`.
+// So one `array<Code>` can contain both objects.
 array<Code> $codes = [$customer, $supplier];
 echo Core\Arr::count($codes), " codes\n";

@@ -10,6 +10,6 @@ Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or
 has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`. In a
 `final` class, `parse` may return an object that already exists, such as a record from a database.
 
-**The examples below** show a product code built from text, what a subclass gets back, values from a
-form, a class used in a route, a route that does not compile, and a `final` class that loads a
-stored order.
+**The examples below** show a product code built from text, what a subclass gets back, and values
+from a form. Then come a class used in a route and a route that does not compile. The last one shows
+a `final` class that loads a stored order.

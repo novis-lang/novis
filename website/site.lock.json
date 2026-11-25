@@ -336,7 +336,7 @@
     "Core\\Arr::reverse": "b8f8916dc019fdbd"
   },
   "docs/examples/core/Arr/shapeAs/about.md": {
-    "Core\\Arr::shapeAs": "5822bc726367cf10"
+    "Core\\Arr::shapeAs": "d87a6ae1bf6850be"
   },
   "docs/examples/core/Arr/slice/about.md": {
     "Core\\Arr::slice": "bb7a4a6229f4837c"
@@ -1323,13 +1323,13 @@
     "Core\\Json::decode": "b970c6ed14832243"
   },
   "docs/examples/core/Json/decodeAs/about.md": {
-    "Core\\Json::decodeAs": "f80a201969447e92"
+    "Core\\Json::decodeAs": "5da6d941dc48ddd9"
   },
   "docs/examples/core/Json/decodeEach/about.md": {
     "Core\\Json::decodeEach": "4b73468d678b3db7"
   },
   "docs/examples/core/Json/encode/about.md": {
-    "Core\\Json::encode": "6d4576c26cffea85"
+    "Core\\Json::encode": "4215553036e0405b"
   },
   "docs/examples/core/Json/encodeEach/about.md": {
     "Core\\Json::encodeEach": "77fedd5c346a3a3c"
@@ -2100,7 +2100,7 @@
     "Core\\Queue::status": "1fcd2e1f04aa0bac"
   },
   "docs/examples/core/Queue-Id/format/about.md": {
-    "Core\\Queue\\Id::format": "998e7a37e5160879"
+    "Core\\Queue\\Id::format": "f8f62db5b102514b"
   },
   "docs/examples/core/Queue-Id/parse/about.md": {
     "Core\\Queue\\Id::parse": "3d7ac1d22db54d2d"
@@ -2496,19 +2496,19 @@
     "Core\\Response\\Stream::write": "522ee58bff46be0f"
   },
   "docs/examples/core/Router/dispatch/about.md": {
-    "Core\\Router::dispatch": "f08efd79a9fe37f7"
+    "Core\\Router::dispatch": "8a72576ba6b61f1d"
   },
   "docs/examples/core/Router/match/about.md": {
     "Core\\Router::match": "7e58953ba7f1d631"
   },
   "docs/examples/core/Router/methodsFor/about.md": {
-    "Core\\Router::methodsFor": "42f897618b1a9107"
+    "Core\\Router::methodsFor": "3e2da7f38607df03"
   },
   "docs/examples/core/Router/signedRoute/about.md": {
     "Core\\Router::signedRoute": "0d6e9f6debf0b4c5"
   },
   "docs/examples/core/Router/url/about.md": {
-    "Core\\Router::url": "9ee81174d4e2341b"
+    "Core\\Router::url": "72e1902e5bda96ec"
   },
   "docs/examples/core/Router/urlAbsolute/about.md": {
     "Core\\Router::urlAbsolute": "a87ea4065ffd30f8"
@@ -2532,10 +2532,10 @@
     "Core\\Router\\Match::method": "54381c59985403c5"
   },
   "docs/examples/core/Router-Match/parameter/about.md": {
-    "Core\\Router\\Match::parameter": "d83c00fb7c043a55"
+    "Core\\Router\\Match::parameter": "42fd5a0a05bc8151"
   },
   "docs/examples/core/Router-Match/parameters/about.md": {
-    "Core\\Router\\Match::parameters": "62c9c4069af35664"
+    "Core\\Router\\Match::parameters": "c081f50c2b04c775"
   },
   "docs/examples/core/Script/arguments/about.md": {
     "Core\\Script::arguments": "de32203abe884c1d"
@@ -3111,7 +3111,7 @@
     "Core\\Time\\Date::startOf": "a4bcfe05db43a7db"
   },
   "docs/examples/core/Time-Date/toIso/about.md": {
-    "Core\\Time\\Date::toIso": "2d74fecfea19ffd1"
+    "Core\\Time\\Date::toIso": "8490592939987afb"
   },
   "docs/examples/core/Time-Date/weekday/about.md": {
     "Core\\Time\\Date::weekday": "92d5df8185b222c4"
@@ -3381,7 +3381,7 @@
     "Core\\Totp::code": "956450550e910d76"
   },
   "docs/examples/core/Uri/buildQuery/about.md": {
-    "Core\\Uri::buildQuery": "a57b9e58d8c6bcfb"
+    "Core\\Uri::buildQuery": "8dd45add35a37a6a"
   },
   "docs/examples/core/Uri/compareTo/about.md": {
     "Core\\Uri::compareTo": "51f5a4967574bf9f"
@@ -3450,7 +3450,7 @@
     "Core\\Uri::withQueryParameter": "93c0b74988cbe8fd"
   },
   "docs/examples/core/Uuid/format/about.md": {
-    "Core\\Uuid::format": "f861de72304ffc89"
+    "Core\\Uuid::format": "dc81e886a388b988"
   },
   "docs/examples/core/Uuid/fromBytes/about.md": {
     "Core\\Uuid::fromBytes": "323d5223ecadaffa"
@@ -3591,10 +3591,10 @@
     "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "97b6cebf88d06bec"
   },
   "docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md": {
-    "lang:attributes/core-api-and-the-openapi-document": "03fb2d4e4b5b1635"
+    "lang:attributes/core-api-and-the-openapi-document": "5aabc6ba0a7ec46f"
   },
   "docs/examples/lang/attributes/core-command-and-core-option-the-command-table/about.md": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "6622d949184382f3"
+    "lang:attributes/core-command-and-core-option-the-command-table": "d268dbada7bd507d"
   },
   "docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md": {
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "444e7303356da7e7"
@@ -3606,7 +3606,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "8b8d176a4d6317e9"
   },
   "docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md": {
-    "lang:attributes/core-route-and-core-access-the-route-table": "bbc21d7fa630e321"
+    "lang:attributes/core-route-and-core-access-the-route-table": "b58b44227690e6dc"
   },
   "docs/examples/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/about.md": {
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "b99a40e719ee7dd2"
@@ -3651,7 +3651,7 @@
     "lang:classes/objects-are-handles": "b2547845ca372754"
   },
   "docs/examples/lang/classes/parses/about.md": {
-    "lang:classes/parses": "57406283901d77ba"
+    "lang:classes/parses": "681766a31b754964"
   },
   "docs/examples/lang/classes/properties/about.md": {
     "lang:classes/properties": "77f98a389e344932"
@@ -4956,7 +4956,7 @@
     "ParseError": "06ea1a73d966ae48"
   },
   "docs/examples/types/Parses/about.md": {
-    "Parses": "e55f061db4028016"
+    "Parses": "40371c6979e10f55"
   },
   "docs/examples/types/Passkey-Credential-Algorithm/about.md": {
     "Core\\Passkey\\Credential::Algorithm": "3b7ccd5d585c61f4"
@@ -7065,7 +7065,7 @@
     "Core\\Queue::status": "8fc02913e4a6dc8d"
   },
   "help:Core\\Queue\\Id::format": {
-    "Core\\Queue\\Id::format": "125b2de28e1d350b"
+    "Core\\Queue\\Id::format": "8da495bed2548812"
   },
   "help:Core\\Queue\\Id::parse": {
     "Core\\Queue\\Id::parse": "63ff23ad24ed80aa"
@@ -7473,7 +7473,7 @@
     "Core\\RoundMode": "c41f780e07e6d2dc"
   },
   "help:Core\\Router::dispatch": {
-    "Core\\Router::dispatch": "046b6e96b3f9cde1"
+    "Core\\Router::dispatch": "6eee7a5a5cf8eb88"
   },
   "help:Core\\Router::match": {
     "Core\\Router::match": "0bc0a7f99d0a714a"
@@ -7485,7 +7485,7 @@
     "Core\\Router::signedRoute": "a4f9da9f9ab29d1d"
   },
   "help:Core\\Router::url": {
-    "Core\\Router::url": "c65d7128c831d678"
+    "Core\\Router::url": "fc3f518cf4f25f4a"
   },
   "help:Core\\Router::urlAbsolute": {
     "Core\\Router::urlAbsolute": "1e842af81707abd1"
@@ -7512,13 +7512,13 @@
     "Core\\Router\\Match::method": "f16697222555c142"
   },
   "help:Core\\Router\\Match::parameter": {
-    "Core\\Router\\Match::parameter": "3783d20a6a198b52"
+    "Core\\Router\\Match::parameter": "93fa20c26562fc57"
   },
   "help:Core\\Router\\Match::parameters": {
-    "Core\\Router\\Match::parameters": "b08859c6b34f4ef2"
+    "Core\\Router\\Match::parameters": "442a6a9f7bb1db03"
   },
   "help:Core\\Router\\Refusal": {
-    "Core\\Router\\Refusal": "61741695eeb37dd3"
+    "Core\\Router\\Refusal": "6a1afe85601234f6"
   },
   "help:Core\\Router\\Responder": {
     "Core\\Router\\Responder": "c83f5e4ac8112cb1"
@@ -8109,7 +8109,7 @@
     "Core\\Time\\Date::startOf": "f7153875ba721719"
   },
   "help:Core\\Time\\Date::toIso": {
-    "Core\\Time\\Date::toIso": "d7c0dac5856fd8d7"
+    "Core\\Time\\Date::toIso": "dfcac8b3c820ae97"
   },
   "help:Core\\Time\\Date::weekday": {
     "Core\\Time\\Date::weekday": "adf2e46405ab69d0"
@@ -8313,7 +8313,7 @@
     "Core\\Time\\Instant::toEpochSeconds": "ef295d133ad0628c"
   },
   "help:Core\\Time\\Instant::toIso": {
-    "Core\\Time\\Instant::toIso": "9e59dd984d4dc139"
+    "Core\\Time\\Instant::toIso": "140f7f432a33612f"
   },
   "help:Core\\Time\\TimeOfDay::at": {
     "Core\\Time\\TimeOfDay::at": "3f890ddefd37ab18"
@@ -8454,7 +8454,7 @@
     "Core\\Uri::withQueryParameter": "75ae2ee1e0b10140"
   },
   "help:Core\\Uuid::format": {
-    "Core\\Uuid::format": "c02cba9e5908a53c"
+    "Core\\Uuid::format": "8f5746463dbe6c6c"
   },
   "help:Core\\Uuid::fromBytes": {
     "Core\\Uuid::fromBytes": "b58c2a2941f917ee"
@@ -9369,7 +9369,7 @@
     "ParseError": "bf3b7ed78cb94f38"
   },
   "help:Parses": {
-    "Parses": "0e6da93ad0dc014b"
+    "Parses": "7ec5242ed011ab96"
   },
   "help:PropertyGuard": {
     "PropertyGuard": "03a066850e39f20a"
@@ -9657,7 +9657,7 @@
     "tools:server/when-the-client-goes-away": "0f7101d1cea59208"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "1f1b5bf9b9a5b8b7",
+    "lang:attributes/core-command-and-core-option-the-command-table": "dee7648fcc92fbb3",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "fdd6e4a068b16d61",
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e4c9ab67937b5dbe"
   },
@@ -9665,12 +9665,12 @@
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "69be55a38c453c26"
   },
   "syntax/attributes/routes.mdx": {
-    "Core\\Router::dispatch": "69d35a9df1446150",
+    "Core\\Router::dispatch": "b49c07bd7c088da9",
     "Core\\Router\\Gate": "314936e0bc977043",
-    "Core\\Router\\Refusal": "00a268b30371319a",
+    "Core\\Router\\Refusal": "5d310be12276fd8b",
     "Core\\Router\\Responder": "655a5264b89d1db2",
-    "lang:attributes/core-api-and-the-openapi-document": "baae106692aaba5d",
-    "lang:attributes/core-route-and-core-access-the-route-table": "f14ba2d56f56f154",
+    "lang:attributes/core-api-and-the-openapi-document": "dbc34a0f7cc95e98",
+    "lang:attributes/core-route-and-core-access-the-route-table": "54c275114d469f4c",
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "aefc12e9ea3146c5"
   },
   "syntax/attributes/writing-and-reading.mdx": {
@@ -9707,7 +9707,7 @@
   },
   "syntax/classes/methods-and-inheritance.mdx": {
     "lang:classes/inheritance": "3f22cc5b0d9c66bb",
-    "lang:classes/methods-self-static-and-parent": "771ee507e5873cec"
+    "lang:classes/methods-self-static-and-parent": "7377a237cbc6f04d"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "33f2b2b1930580fe",
@@ -9742,9 +9742,9 @@
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
     "lang:classes/comparable": "930aac4adee213e9",
-    "lang:classes/parses": "c73bce3e224ec81e",
+    "lang:classes/parses": "69eb8751e86a9e78",
     "lang:classes/stringable": "33fdc04b0d92eee6",
-    "Parses": "fc66b9687e3e1334",
+    "Parses": "025b90ce877bab36",
     "Stringable": "536c3bdb6784fac9"
   },
   "syntax/concurrency/channels.mdx": {
