@@ -1,0 +1,74 @@
+--TEST--
+an `extend` block adds stored properties to a class of another package: each object has its own values, a read before the first write gives the default or `null`, every write form stores, and a subclass and a second block on the subclass reach them — `rule:classes/an-added-property-lives-in-one-hidden-slot`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Arr;
+use Core\Str;
+use Acme\Shop\Order;
+use Acme\Shop\GiftOrder;
+use App\OrderNotes;
+use App\GiftNotes;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderNotes {
+    public int $visits = 0;
+    public ?string $note;
+    public array<string> $tags = [];
+
+    public function visit(): void
+    {
+        $this->visits++;
+    }
+}
+
+extend GiftOrder as GiftNotes {
+    public string $wrapping = "plain";
+}
+
+var $first = new Order(100);
+var $second = new Order(200);
+echo $first->visits, " ", $first->note ?? "no note", " ", Arr::count($first->tags), "\n";
+$first->visit();
+$first->visit();
+$first->visits += 10;
+$first->note = "rush";
+var $tags = $first->tags;
+$tags[] = "big";
+$tags[] = "paid";
+$first->tags = $tags;
+echo $first->visits, " ", $first->note, " ", Str::join($first->tags, ","), "\n";
+echo $second->visits, " ", $second->note ?? "no note", "\n";
+
+var $gift = new GiftOrder(50);
+$gift->visit();
+$gift->wrapping = "gold";
+echo $gift->visits, " ", $gift->wrapping, " ", $gift->total, "\n";
+$first->note = null;
+echo $first->note ?? "cleared", "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+}
+--FILE vendor/acme/shop/src/GiftOrder.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class GiftOrder extends Order
+{
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+0 no note 0
+12 rush big,paid
+0 no note
+1 gold 50
+cleared

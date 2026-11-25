@@ -1280,6 +1280,19 @@ fn lower_program_as(
                                 // abstract `get;`) is skipped for exactly the
                                 // reason an `abstract` method is.
                                 ClassMemberKind::Property(p) => {
+                                    // A stored property a block adds has two
+                                    // accessors of its own, which use the
+                                    // object's added slot.
+                                    if added && let Some(stored) = exprs.added_stored(p.name) {
+                                        out.extend(lower_added_accessors(
+                                            stored,
+                                            p,
+                                            src,
+                                            exprs,
+                                            checked_types,
+                                            enums,
+                                        ));
+                                    }
                                     for hook in p.hooks.iter().flatten() {
                                         if hook.body.is_none() {
                                             continue;
@@ -2411,6 +2424,129 @@ pub fn lower_property_hook(
         low.seal(cur, Terminator::Return(None));
     }
     low.into_lowered(name, param_tys, entry)
+}
+
+/// The two accessors of a stored property an `extend` block adds
+/// (`rule:classes/an-added-property-lives-in-one-hidden-slot`), under the
+/// `get` and `set` labels `stored` names. Every access is recorded as a
+/// hooked property's, so every read and write form calls one of these.
+///
+/// The `get` accessor reads the entry of the object's added slot. Before the
+/// first write it gives the declared default, `null` for a `?T` with none,
+/// and throws for `lateinit`, as an unwritten class property does
+/// (`rule:classes/an-unwritten-property-read-throws`). The `set` accessor
+/// writes the entry.
+///
+/// **What it costs:** a direct call and one or two helper calls per access,
+/// and no memory per call. The value is the object's, in the array its added
+/// slot holds.
+pub fn lower_added_accessors(
+    stored: &nvs_types::expr_table::AddedStored,
+    p: &nvs_syntax::ast::PropertyMember,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> [Function; 2] {
+    let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
+    let field = strip_sigil(span_text(src, p.name)).to_owned();
+    let index = i64::try_from(stored.index).expect("far fewer added properties than i64::MAX");
+
+    // get
+    let get = {
+        let name = stored.get.as_str();
+        let mut low = Lowering::new(name, Some(name), src, prop_ty, exprs, checked_types, enums);
+        let entry = low.new_block();
+        let mut env = Env::default();
+        let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+        env.insert("this".to_owned(), (this_v, Ty::Object));
+        low.this = Some(this_v);
+        low.emit_safepoint(entry, &env);
+        let (index_v, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(index));
+        let mut cur = entry;
+        if let Some(default) = stored.default.as_ref().filter(|_| !stored.lateinit) {
+            let (has, _) = low.emit_fallible(
+                entry,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::AddedHas,
+                    args: vec![this_v, index_v],
+                },
+                &env,
+            );
+            let written = low.new_block();
+            let unwritten = low.new_block();
+            let then_edge = low.ids.next_edge(p.name);
+            let else_edge = low.ids.next_edge(p.name);
+            low.seal(
+                entry,
+                Terminator::Branch {
+                    cond: has,
+                    then_block: written,
+                    then_edge,
+                    else_block: unwritten,
+                    else_edge,
+                },
+            );
+            let (v, ty) = low.emit_const_arg(default, Some(prop_ty), &mut env, unwritten);
+            let v = low.coerce(unwritten, v, ty, prop_ty, &mut env);
+            low.release_all_locals(unwritten, &env, None);
+            low.seal(unwritten, Terminator::Return(Some(v)));
+            cur = written;
+        }
+        let mark = low.temporaries_mark();
+        let (name_v, _) = if stored.lateinit {
+            low.emit(cur, Ty::Str, InstKind::ConstStr(field.clone()))
+        } else {
+            low.emit(cur, Ty::Null, InstKind::ConstNull)
+        };
+        if stored.lateinit {
+            low.own_temporary(name_v);
+        }
+        let (v, _) = low.emit_fallible(
+            cur,
+            prop_ty,
+            InstKind::HelperCall {
+                helper: Helper::AddedGet,
+                args: vec![this_v, index_v, name_v],
+            },
+            &env,
+        );
+        low.release_temporaries_since(mark, cur);
+        low.release_all_locals(cur, &env, None);
+        low.seal(cur, Terminator::Return(Some(v)));
+        low.into_lowered(name, vec![Ty::Object], entry).function
+    };
+
+    // set
+    let set = {
+        let name = stored.set.as_str();
+        let mut low = Lowering::new(name, Some(name), src, Ty::Void, exprs, checked_types, enums);
+        let entry = low.new_block();
+        let mut env = Env::default();
+        let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+        env.insert("this".to_owned(), (this_v, Ty::Object));
+        low.this = Some(this_v);
+        let (value_v, _) = low.emit(entry, prop_ty, InstKind::Param(1));
+        env.insert(nvs_types::HOOK_VALUE_PARAM.to_owned(), (value_v, prop_ty));
+        low.emit_safepoint(entry, &env);
+        let (index_v, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(index));
+        let landing = low.landing_block(&env);
+        low.block_insts[entry.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::AddedSet,
+                args: vec![this_v, index_v, value_v],
+            },
+            on_error: Some(landing),
+            raise_site: None,
+        });
+        low.release_all_locals(entry, &env, None);
+        low.seal(entry, Terminator::Return(None));
+        low.into_lowered(name, vec![Ty::Object, prop_ty], entry).function
+    };
+    [get, set]
 }
 
 /// Who enters a script frame — which is the whole of what a file that runs

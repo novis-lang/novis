@@ -24,11 +24,17 @@ values. The precedent is the hidden slot 0 of a revocable class (`rule:classes/r
 A stored property added to a class that takes no slot, to an interface or to an enum is **`E1014`**,
 whose help names a wrapper class of your own for data that belongs to such a value.
 
-**Reading and writing.** A read is a load of the slot, a null test and an indexed load. An unwritten
-property reads its default, or `null` for a `?` type with none. An unwritten `lateinit` property
-throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
+**Reading and writing.** The compiler gives each stored property a `get` and a `set` accessor, and
+every read and write form calls one of them directly, as it calls a hook. The `get` accessor loads the
+slot and the property's entry in its array. An entry's index counts the added properties of the
+class's ancestors first, root first, then the class's own: its blocks sorted by name, and each block's
+properties in declaration order. So an index holds for every subclass, as a slot index does. An
+unwritten property reads its default, or `null` for a `?` type with none. An unwritten `lateinit`
+property throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
 property, and so is a stored one with none of the three
-(`rule:classes/an-extend-block-adds-members-to-a-type`).
+(`rule:classes/an-extend-block-adds-members-to-a-type`). An element write through an added property,
+`$order->tags[] = "x"`, is `E0478`: it would copy the whole array on each write, so the program reads
+the array into a variable, writes there and assigns it back.
 
 **Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
 session store skip it, and a revoke releases it with the other slots.

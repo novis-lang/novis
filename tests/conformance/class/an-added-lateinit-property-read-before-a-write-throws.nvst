@@ -1,0 +1,44 @@
+--TEST--
+an added `lateinit` property throws a catchable `LogicError` when it is read before its first write, and reads its value after it; `isset` of an unwritten added `?T` property is `false` — `rule:classes/an-added-property-lives-in-one-hidden-slot`, `rule:classes/an-unwritten-property-read-throws`
+--FILE--
+<?nvs
+namespace App;
+
+use LogicError;
+use Acme\Mail\Message;
+use App\MessageNotes;
+
+autoload 'Acme\Mail' from './vendor/acme/mail/src';
+
+extend Message as MessageNotes {
+    public lateinit string $trackingId;
+    public ?string $note;
+}
+
+var $message = new Message("hello");
+try {
+    echo $message->trackingId, "\n";
+} catch (LogicError $e) {
+    echo "unwritten: ", $e->message, "\n";
+}
+echo isset($message->note) ? "set" : "not set", "\n";
+$message->trackingId = "t-1";
+$message->note = "seen";
+echo $message->trackingId, " ", $message->note, "\n";
+echo isset($message->note) ? "set" : "not set", "\n";
+--FILE vendor/acme/mail/src/Message.nvs--
+<?nvs
+namespace Acme\Mail;
+
+class Message
+{
+    public function constructor(public string $body) {}
+}
+--FILE vendor/acme/mail/package.toml--
+[package]
+name = 'Acme\Mail'
+--EXPECT--
+unwritten: `Acme\Mail\Message`'s property `$trackingId` is read before it is initialized
+not set
+t-1 seen
+set

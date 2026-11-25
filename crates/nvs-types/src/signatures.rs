@@ -728,6 +728,10 @@ pub struct ClassSignature {
     /// the block binds the class's type parameters to, in order. A call
     /// substitutes the receiver's type arguments for them.
     pub added_params: Vec<String>,
+    /// On an `extend` block's entry, each stored property it adds, in the
+    /// order the block declares them. A stored added property's index in its
+    /// object's added slot counts these (`crate::extend::added_index`).
+    pub added_stored: Vec<String>,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -1542,6 +1546,18 @@ fn collect_stmts(
                 let entry = table.entry(block.clone());
                 entry.added_to = Some(target.clone());
                 entry.added_params.clone_from(&params);
+                entry.added_stored = decl
+                    .members
+                    .iter()
+                    .filter_map(|member| match &member.kind {
+                        nvs_syntax::ast::ClassMemberKind::Property(p)
+                            if crate::extend::is_stored_added(p) =>
+                        {
+                            Some(strip_sigil(span_text(env.src, p.name)).to_owned())
+                        }
+                        _ => None,
+                    })
+                    .collect();
                 let outer = std::mem::replace(&mut env.extend_type_params, params);
                 collect_members(&decl.members, &block, &ctx, table, env);
                 env.extend_type_params = outer;

@@ -1,0 +1,39 @@
+--TEST--
+an `extend` block adds a stored property to `Core\Router\Match`, the `Core` object a request gives for its route: it reads its default, keeps what is written on that object, and a block method reads it — `rule:classes/an-added-property-lives-in-one-hidden-slot`
+--GET--
+page=2
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Router\Match;
+use App\MatchNotes;
+
+class Home {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "home"; }
+}
+
+extend Match as MatchNotes {
+    public int $hits = 0;
+    public ?string $source;
+
+    public function describe(): string
+    {
+        return $this->hits . " from " . ($this->source ?? "nowhere");
+    }
+}
+
+?Match $matched = Core\Request::route();
+if ($matched != null) {
+    echo $matched->describe(), "\n";
+    $matched->hits += 2;
+    $matched->source = "the door";
+    echo $matched->describe(), "\n";
+    echo $matched->is(Home::index) ? "Home::index" : "another route", "\n";
+}
+--EXPECT--
+0 from nowhere
+2 from the door
+Home::index

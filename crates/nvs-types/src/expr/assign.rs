@@ -1469,6 +1469,28 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         .hooked_property(root.span)
         .or_else(|| env.exprs.lookup(root.span));
     match root_record {
+        Some(ExprInfo::HookedProperty { class, name, .. })
+            if crate::signatures::resolve_property_owned(class, name, env.signatures, env.graph)
+                .is_none() =>
+        {
+            // A property an `extend` block adds is read and written through
+            // two calls. An element write would copy the whole array on each
+            // write, so it is refused for both kinds of added property.
+            let name = name.clone();
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ELEMENT_WRITE_THROUGH_HOOK,
+                    format!(
+                        "an array element cannot be written through the added property `{name}`"
+                    ),
+                )
+                .with_primary(root.span, "an `extend` block adds this property")
+                .with_help(
+                    "read the property into a variable, write the element there, and assign \
+                     the variable back to the property",
+                ),
+            );
+        }
         Some(ExprInfo::HookedProperty { name, .. }) => {
             let name = name.clone();
             env.diags.report(

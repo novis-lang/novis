@@ -5676,6 +5676,153 @@ crate::nvs_helper! {
     }
 }
 
+/// The object `args[0]` and the index `args[1]` of one stored added property
+/// (`rule:classes/an-added-property-lives-in-one-hidden-slot`), and the
+/// object's added slot. A receiver with no added slot is a compiler bug: the
+/// checker refuses a stored added property on every class that has none.
+fn added_place(helper: &str, args: &[Value]) -> Result<(*mut ObjHeader, i64, usize), Fault> {
+    let ptr = args
+        .first()
+        .and_then(|value| value.obj_ptr())
+        .filter(|ptr| !ptr.is_null())
+        .ok_or_else(|| Fault::fatal(format!("{helper}: the receiver is not an object")))?;
+    let index = args
+        .get(1)
+        .and_then(|value| value.as_int())
+        .ok_or_else(|| Fault::fatal(format!("{helper}: the index is not an `int`")))?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so it is live \
+                  and its descriptor is too"
+    )]
+    let class = unsafe { &*NvsObj::class_of(ptr) };
+    let slot = class.added_slot().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{helper}: `{}` has no slot for added properties",
+            class.name()
+        ))
+    })?;
+    Ok((ptr, index, slot))
+}
+
+/// The value the added property at `index` has on the object at `ptr`,
+/// borrowed, or `None` when it was never written. The slot holds `null` until
+/// the first write of any added property, and an array of the written ones
+/// after it.
+fn added_entry(ptr: *mut ObjHeader, index: i64, slot: usize) -> Option<Value> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to the object, and the handle is \
+                  never dropped"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+    let held = object.field(slot);
+    let array = held.array_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "the slot owns a reference to the array, and the handle is \
+                  never dropped"
+    )]
+    let array = std::mem::ManuallyDrop::new(unsafe { crate::array::NvsArray::from_raw(array) });
+    array.get_index(index)
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::AddedHas`: whether the stored added property at
+    /// `args[1]` was written on the object `args[0]`. The result is a `bool`.
+    ///
+    /// **What it spends:** one load of the slot and one indexed lookup.
+    fn nvs_added_has(_ctx, args: [2]) {
+        let (ptr, index, slot) = added_place("nvs_added_has", args)?;
+        Ok(Value::bool(added_entry(ptr, index, slot).is_some()))
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::AddedGet`: the value of the stored added property at
+    /// `args[1]` on the object `args[0]`, with a reference the caller owns.
+    ///
+    /// A property that was never written gives `null` when `args[2]` is
+    /// `null`. When `args[2]` is the property's name, it is a `lateinit`
+    /// property, and the read throws the `LogicError` of
+    /// `rule:classes/an-unwritten-property-read-throws`.
+    fn nvs_added_get(_ctx, args: [3]) {
+        let (ptr, index, slot) = added_place("nvs_added_get", args)?;
+        if let Some(value) = added_entry(ptr, index, slot) {
+            #[expect(
+                unsafe_code,
+                reason = "the entry is live because the object's array holds it, \
+                          and the result is a second owner of it"
+            )]
+            unsafe {
+                value.retain();
+            }
+            return Ok(value);
+        }
+        match args.get(2).and_then(|name| name.as_text()) {
+            Some(name) => {
+                #[expect(unsafe_code, reason = "a live object's descriptor outlives it")]
+                let class = unsafe { &*NvsObj::class_of(ptr) };
+                Err(Fault::thrown_as(
+                    crate::ThrownClass::Logic,
+                    format!(
+                        "`{}`'s property `${name}` is read before it is initialized",
+                        class.name()
+                    ),
+                ))
+            }
+            None => Ok(Value::null()),
+        }
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::AddedSet`: writes `args[2]` as the stored added
+    /// property at `args[1]` on the object `args[0]`. The value stays the
+    /// caller's, and the object takes a reference of its own.
+    ///
+    /// The first write makes the array the slot holds. An entry that was
+    /// never written has no key in it, so a read finds it absent.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): one array per
+    /// object that has an added value, charged to the request and freed with
+    /// the object by the sweep that frees its other slots.
+    fn nvs_added_set(_ctx, args: [3]) {
+        let (ptr, index, slot) = added_place("nvs_added_set", args)?;
+        let value = args
+            .get(2)
+            .copied()
+            .ok_or_else(|| Fault::fatal("nvs_added_set: no value"))?;
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns a reference to the object, and the handle is \
+                      never dropped"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let held = object.take_field(slot);
+        let mut array = match held.array_ptr() {
+            #[expect(
+                unsafe_code,
+                reason = "`take_field` moved the slot's one reference to the array \
+                          into this frame"
+            )]
+            Some(array) => unsafe { crate::array::NvsArray::from_raw(array) },
+            None => crate::array::NvsArray::new(),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the value is live because the caller owns it, and the array \
+                      becomes a second owner of it"
+        )]
+        unsafe {
+            value.retain();
+        }
+        array.set_index(index, value);
+        object.set_field(slot, Value::array(array));
+        Ok(Value::null())
+    }
+}
+
 /// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Object` operand.
 ///
 /// Compiled code does not call this: `nvs-codegen`'s `emit_refcount` repeats

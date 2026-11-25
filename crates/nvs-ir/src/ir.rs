@@ -3471,6 +3471,21 @@ pub enum Helper {
     /// `rule:errors/propagation`'s error edge. The operand keeps the ordinary
     /// convention and is the caller's.
     CloneGuard,
+    /// Two arguments: an object and the index of one stored added property
+    /// (`rule:classes/an-added-property-lives-in-one-hidden-slot`). The result
+    /// is a [`crate::ty::Ty::Bool`]: whether the property was written on that
+    /// object. Both arguments are borrowed.
+    AddedHas,
+    /// Three arguments: an object, the index of one stored added property,
+    /// and `null` or the property's name. The result is the property's value,
+    /// with a reference the caller owns. An unwritten property gives `null`,
+    /// or throws the unwritten-property `LogicError` when the name is given,
+    /// which is a `lateinit` property's read.
+    AddedGet,
+    /// Three arguments: an object, the index of one stored added property,
+    /// and the value to write. Every argument stays the caller's: the object
+    /// takes a reference of its own. It defines no value.
+    AddedSet,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
     /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose
     /// `rule:expressions/equality-semantics` row is a runtime
@@ -4732,6 +4747,11 @@ impl Helper {
             | Helper::CloneOperandNotAnObject
             // `nvs_clone_guard` reads a class flag.
             | Helper::CloneGuard
+            // `nvs_added_has`, `nvs_added_get` and `nvs_added_set` read and
+            // write an entry of the object's added slot.
+            | Helper::AddedHas
+            | Helper::AddedGet
+            | Helper::AddedSet
             // `nvs_value_identical` compares objects by address, with no
             // hook.
             | Helper::Identical

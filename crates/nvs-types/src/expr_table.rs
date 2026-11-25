@@ -1707,6 +1707,29 @@ pub struct CallArg {
     pub inout: bool,
 }
 
+/// A stored property an `extend` block adds
+/// (`rule:classes/an-added-property-lives-in-one-hidden-slot`). Its value
+/// lives in its object's added slot, at [`Self::index`] of the array the slot
+/// holds. An access is recorded as [`ExprInfo::HookedProperty`] with the two
+/// accessor labels below, so every read and write form reaches it as it
+/// reaches a hooked property. `nvs-ir` compiles both accessors.
+#[derive(Clone, Debug)]
+pub struct AddedStored {
+    /// The label of the accessor a read calls.
+    pub get: String,
+    /// The label of the accessor a write calls.
+    pub set: String,
+    /// The property's entry in the array the added slot holds. A class's
+    /// ancestors' added properties come first, so an index holds for every
+    /// subclass (`crate::extend::added_index`).
+    pub index: usize,
+    /// The declared default, which a read before the first write gives.
+    pub default: Option<ConstArg>,
+    /// Whether the property is `lateinit`: a read before the first write
+    /// throws.
+    pub lateinit: bool,
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -1719,6 +1742,9 @@ pub struct ExprTypeTable {
     methods: FxHashMap<Span, String>,
     /// Each `extend` block's target, keyed by the span of the block's name.
     extend_targets: FxHashMap<Span, QName>,
+    /// Each stored property an `extend` block adds, keyed by the span of its
+    /// name: what `nvs-ir` compiles its two accessors from.
+    added_stored: FxHashMap<Span, AddedStored>,
     unresolved_calls: FxHashMap<Span, UnresolvedCall>,
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
@@ -1924,6 +1950,7 @@ impl ExprTypeTable {
             by_span,
             methods,
             extend_targets,
+            added_stored,
             unresolved_calls,
             types,
             float_widened,
@@ -1996,6 +2023,7 @@ impl ExprTypeTable {
         );
         self.methods.extend(methods);
         self.extend_targets.extend(extend_targets);
+        self.added_stored.extend(added_stored);
         self.unresolved_calls.extend(unresolved_calls);
         self.types.extend(types);
         self.float_widened.extend(float_widened);
@@ -2567,6 +2595,19 @@ impl ExprTypeTable {
     #[must_use]
     pub fn extend_target(&self, span: Span) -> Option<&QName> {
         self.extend_targets.get(&span)
+    }
+
+    /// Records the stored added property whose name sits at `span`.
+    pub(crate) fn record_added_stored(&mut self, span: Span, stored: AddedStored) {
+        self.added_stored.insert(span, stored);
+    }
+
+    /// The stored property an `extend` block adds, whose name sits at `span`,
+    /// or `None` for any other property. `nvs-ir` compiles its `get` and `set`
+    /// accessors from it.
+    #[must_use]
+    pub fn added_stored(&self, span: Span) -> Option<&AddedStored> {
+        self.added_stored.get(&span)
     }
 
     /// Records that the expression at `span` uses deprecated code and checks

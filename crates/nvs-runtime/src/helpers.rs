@@ -4045,6 +4045,18 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::nvs_clone_guard as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_added_has",
+            (crate::object::nvs_added_has as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_added_get",
+            (crate::object::nvs_added_get as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_added_set",
+            (crate::object::nvs_added_set as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_object_retain",
             (crate::object::nvs_object_retain as *const ()).cast::<u8>(),
         ),

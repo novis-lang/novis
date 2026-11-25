@@ -66,6 +66,7 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
         check_member(member, kind, env);
         if let ClassMemberKind::Property(p) = &member.kind {
             refuse_stored(&target, kind, p, env);
+            record_stored(&block, &target, p, env);
         }
         if sealed && let ClassMemberKind::Attribute(nested) = &member.kind {
             refuse_sealed_attribute(&target, nested.name.span, env);
@@ -501,10 +502,94 @@ fn is_computed_decl(p: &PropertyMember) -> bool {
     })
 }
 
+/// Records a stored property `block` adds to `target`, for `nvs-ir` to
+/// compile its two accessors from. A property this pass refuses is recorded
+/// too: nothing compiles once an error is reported.
+fn record_stored(block: &QName, target: &QName, p: &PropertyMember, env: &mut Env<'_>) {
+    if !is_stored_added(p) || p.hooks.as_ref().is_some_and(|hooks| !hooks.is_empty()) {
+        return;
+    }
+    let name = crate::strip_sigil(span_text(env.src, p.name)).to_owned();
+    let Some(index) = added_index(target, block, &name, env.signatures, env.graph) else {
+        return;
+    };
+    let default = env.signatures.get(block).and_then(|sig| {
+        sig.property_defaults
+            .iter()
+            .find(|(written, _)| *written == name)
+            .map(|(_, default)| default.clone())
+    });
+    let label = |kind| crate::signatures::hook_label(block, &name, kind);
+    let stored = crate::expr_table::AddedStored {
+        get: label(PropertyHookKind::Get),
+        set: label(PropertyHookKind::Set),
+        index,
+        default,
+        lateinit: p.modifiers.contains(&Modifier::Lateinit),
+    };
+    env.exprs.record_added_stored(p.name, stored);
+}
+
+/// The index of the stored property `name` that `block` adds to `target`, in
+/// the array its objects' added slot holds. The added properties of
+/// `target`'s ancestors come first, root first, and then its own. Within one
+/// class, its blocks are sorted by name, and each block's properties are in
+/// declaration order. So an index computed against a class holds for every
+/// subclass, as a slot index does.
+pub(crate) fn added_index(
+    target: &QName,
+    block: &QName,
+    name: &str,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<usize> {
+    let mut chain = vec![target.clone()];
+    while let Some(parent) = graph
+        .get(chain.last()?)
+        .and_then(|links| links.extends.first())
+    {
+        // A cycle is reported by the link pass; this walk only stops.
+        if chain.contains(parent) {
+            break;
+        }
+        chain.push(parent.clone());
+    }
+    let mut index = 0;
+    for class in chain.iter().rev() {
+        let mut blocks: Vec<&QName> = graph
+            .blocks()
+            .filter(|(_, added_to)| *added_to == class)
+            .map(|(added, _)| added)
+            .collect();
+        blocks.sort_by_cached_key(|added| added.to_string());
+        for added in blocks {
+            let stored = table.get(added).map_or(&[][..], |sig| &sig.added_stored[..]);
+            if added == block {
+                return stored
+                    .iter()
+                    .position(|written| written == name)
+                    .map(|at| index + at);
+            }
+            index += stored.len();
+        }
+    }
+    None
+}
+
+/// Whether the objects of `target` have the added slot
+/// (`rule:classes/an-added-property-lives-in-one-hidden-slot`): a class of a
+/// program, or a `Core` class whose decision is to reserve it. An interface,
+/// an enum and a `Core` namespace class never have one.
+fn has_added_slot(target: &QName, kind: SymbolKind) -> bool {
+    kind == SymbolKind::Class
+        && (!target.is_core()
+            || nvs_stdlib::added_slot::decision(&target.to_string())
+                == Some(nvs_stdlib::added_slot::AddedSlot::Reserved))
+}
+
 /// `E1014` for a stored property added to `target`, whose objects have no
-/// added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`). An
-/// interface and an enum never have one. No class takes the slot yet, so a
-/// stored property is refused on every type until the runtime gives it.
+/// added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`), and
+/// `E0338` for a stored added property with a hook.
 fn refuse_stored(target: &QName, kind: SymbolKind, p: &PropertyMember, env: &mut Env<'_>) {
     // A `static`, a `readonly` and a property with no start are refused as
     // `E0338` already (`check_property`), one mistake reported once.
@@ -515,6 +600,18 @@ fn refuse_stored(target: &QName, kind: SymbolKind, p: &PropertyMember, env: &mut
         || p.modifiers.contains(&Modifier::Static)
         || p.modifiers.contains(&Modifier::Readonly)
     {
+        return;
+    }
+    if has_added_slot(target, kind) {
+        if p.hooks.as_ref().is_some_and(|hooks| !hooks.is_empty()) {
+            refuse(
+                p.name,
+                "a stored property with a hook",
+                "remove the hooks, or give the property only a `get` hook so it computes its \
+                 value on each read",
+                env,
+            );
+        }
         return;
     }
     let what = match kind {

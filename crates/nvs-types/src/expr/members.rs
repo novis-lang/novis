@@ -2733,11 +2733,13 @@ pub(crate) fn check_property_member(
 /// to `qname` (`rule:classes/an-extend-block-adds-members-to-a-type`), and the
 /// property's type. `None` when no used block adds `name`.
 ///
-/// A computed property is a call of its block's `get` hook, recorded as
-/// [`ExprInfo::HookedProperty`] with no `set` hook, so a write is refused as
-/// for any `get`-only property. It is a call inside its own hook too, because
-/// it has no stored value to read there. A class's `PropertyGuard` and
-/// `PropertyObserver` never see an added property.
+/// Both kinds are recorded as [`ExprInfo::HookedProperty`]. A computed
+/// property is a call of its block's `get` hook, with no `set` hook, so a
+/// write is refused as for any `get`-only property. It is a call inside its
+/// own hook too, because it has no stored value to read there. A stored
+/// property has a `get` and a `set` accessor, which `nvs-ir` compiles from
+/// [`crate::expr_table::AddedStored`] to use the object's added slot. A
+/// class's `PropertyGuard` and `PropertyObserver` never see an added property.
 fn added_property_access(
     span: Span,
     qname: &QName,
@@ -2756,20 +2758,20 @@ fn added_property_access(
         ctx,
         env,
     );
-    if !crate::extend::is_computed(&block, name, env.signatures) {
-        // A stored added property needs the object's added slot, which the
-        // runtime does not give yet: refused where it is declared.
-        return Some(env.interner.error());
-    }
-    let get = crate::signatures::hook_label(&block, name, nvs_syntax::ast::PropertyHookKind::Get);
+    let label = |kind| crate::signatures::hook_label(&block, name, kind);
+    let get = Some(label(nvs_syntax::ast::PropertyHookKind::Get));
+    // A stored added property is read and written through the two accessors
+    // `nvs-ir` compiles for it, which use the object's added slot.
+    let set = (!crate::extend::is_computed(&block, name, env.signatures))
+        .then(|| label(nvs_syntax::ast::PropertyHookKind::Set));
     env.exprs.record(
         span,
         ExprInfo::HookedProperty {
             class: qname.clone(),
             name: name.to_owned(),
             ty,
-            get: Some(get),
-            set: None,
+            get,
+            set,
             observer: None,
             guard: None,
         },

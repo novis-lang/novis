@@ -1,0 +1,43 @@
+--TEST--
+`clone` and the graph copy a task's value takes (`Core\Serialize` runs the same walk) copy an object's own properties and start its added properties empty, so a copy reads each default — `rule:classes/an-added-property-lives-in-one-hidden-slot`, `rule:classes/graph-copy`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Cart;
+use App\CartNotes;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Cart as CartNotes {
+    public int $views = 0;
+    public ?string $owner;
+}
+
+var $cart = new Cart(3);
+$cart->views = 7;
+$cart->owner = "sam";
+
+var $cloned = clone $cart;
+echo $cloned->items, " ", $cloned->views, " ", $cloned->owner ?? "nobody", "\n";
+
+var $copied = Core\Serialize::decode(Core\Serialize::encode($cart)) as Cart;
+echo $copied->items, " ", $copied->views, " ", $copied->owner ?? "nobody", "\n";
+
+$cloned->views = 1;
+echo $cart->views, " ", $cart->owner ?? "nobody", "\n";
+--FILE vendor/acme/shop/src/Cart.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Cart
+{
+    public function constructor(public int $items) {}
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+3 0 nobody
+3 0 nobody
+7 sam
