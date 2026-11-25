@@ -42,7 +42,7 @@ stages:
     context: [docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/examples/lang/classes/parses/about.md]
   - id: 10
     title: "stages 5 to 8 have their feature proofs, and the website says what changed"
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/syntax/attributes/json.mdx, website/src/data/changes.json]
   - id: 11
     title: "the goal is verified once, and every failure is fixed"
@@ -684,9 +684,9 @@ website.
   `bun nv proofs --owed --goal route-values` names for `Core\Json::encode`, `Core\Json::decodeAs`,
   `Core\Arr::shapeAs`, `Core\Router::url`, `Core\Uri::buildQuery`, the API document and the command
   table.
-- [ ] `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:1` measures a
+- [x] `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:1` measures a
   request through a `Date` capture, and its growth row is rerecorded.
-- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:36`: an optional query value, a `bool`
+- [x] `website/src/content/docs/syntax/attributes/routes.mdx:36`: an optional query value, a `bool`
   query value and the time values. `website/src/content/docs/syntax/attributes/json.mdx:9`: the value
   types that cross as text. `website/src/content/docs/tools/api-document/index.mdx:110`: an optional
   query value and the formats. `website/src/content/docs/syntax/attributes/commands-and-discovery.mdx:1`:
@@ -700,11 +700,11 @@ website.
   `Core\Router\Match::parameter` and `Core\Router\Match::parameters` (they read query values),
   `lang:attributes/core-api-and-the-openapi-document` and
   `lang:attributes/core-command-and-core-option-the-command-table`.
-- [ ] `bun nv proofs --owed --goal route-values` names nothing.
+- [x] `bun nv proofs --owed --goal route-values` names nothing.
 
 ### 11. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 9 and 10 touched.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 9 and 10 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -712,35 +712,33 @@ website.
 
 ### State
 
-Stage 10's examples, attacks, Rust and `.nvst` tests, website pages and `changes.json` landed in
-`8d79fe8afa` and `44d9ebfbbb`. `Core\Uuid::format` and `Core\Queue\Id::format` have every proof
-but `perf` and `reviewed`. `bun nv site --check changes` is green. The route-table bench now
-matches a path through a `Date` capture and declares `calls 1`, which a `--count` run confirmed.
-A subagent found that a route or command value typed `Core\Queue\Id` was a `500`: binding called
-`parse` through the program's class table, which has no `Core` class. `b6cfcd579f` fixes it with
-`registry::core_parse` (`crates/nvs-stdlib/src/registry.rs`), and
-`tests/conformance/core/a-route-that-takes-a-queue-id-receives-the-id-its-link-wrote.nvst` pins it.
-`target/release/nvs` is built from the tree as of the fix, and `core.json` was rendered from it.
+Stage 10 is done. Every page, `about.md` and help card the goal reached was reread and stamped
+(`5b3f38351c`), and their search questions rewritten (`81a7be77a9`). Nine `about.md` files were
+brought back under 200 words (`2d46da4a12`). The newcomer review ran over all 90 texts in six
+`reader` batches, and every finding is fixed in `bef8f4d105`. Two were real errors:
+`types/Router-Refusal/about.md` gave `BadCapture` for a built-in path value that does not convert
+(it is `NotFound`), and `Date::toIso` and `Instant::toIso` put the `-` before year 1, where the
+code puts it before year 0. `bun nv site --check stale questions changes review` is green,
+`bun nv proofs --gate --goal route-values` owes nothing, and perf is current (`d0fb9381f0`,
+`342aeed5f2`). `target/release/nvs` and `core.json` are built from the tree as of `bef8f4d105`.
 
-**Expected red at the gate:** as before, a `.out` pinning the old `E0756` or `E0821` text, a test
+**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test
 asserting `CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a
-`nvs meta --json` golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case
-that builds a link from a `Core\Uuid`. New: a test pinning `E0746`'s card text, which now names the
-time values (`crates/nvs-diagnostics/src/code/types_e07.rs:902`).
+`nvs meta --json` golden or hover `.lspt` quoting `Core\Uuid`'s instance members or a help card
+this stage reworded (`Core\Router::url`, `::dispatch`, `::methodsFor`,
+`Core\Router\Match::parameter` and `::parameters`, `Core\Json::encode`, `::decodeAs`,
+`Core\Arr::shapeAs`, `Core\Uri::buildQuery`, `Date::toIso`, `Instant::toIso`), any case that
+builds a link from a `Core\Uuid`, and a test pinning `E0746`'s card text
+(`crates/nvs-diagnostics/src/code/types_e07.rs:902`).
 
 ### Next
 
-- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:1`: `bun nv site --check stale questions review`
-  names 55 stale stamps. Reread each page and `about.md` it names, fix what a newcomer would trip
-  on, and stamp with `bun nv site --stamp` and `bun nv site --review --stamp`
-  (`MSYS_NO_PATHCONV=1`). This is wide: give the `about.md` and help reviews to a writing subagent.
-- [ ] `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:1`: record perf
-  last, after every stamp edit. List the stale figures with `bun nv proofs --gate --limit 0`
-  grepped for `perf`, about 200, and record them with `xargs -n 100` and
-  `bun nv proofs --record-perf --nvs target/release/nvs.exe --only`. Rebuild the release binary
-  first with `bun nv relink --build` if any source changed.
-- [ ] `docs/goals/route-values.md:703`: `bun nv proofs --owed --goal route-values` names nothing,
-  then set stage 10 done.
+- [ ] `docs/goals/route-values.md:708`: stage 11 is a close, not a full gate. Run `cargo build`,
+  `cargo clippy --all-targets -- -D warnings`, each acceptance check by name with
+  `looper check --name <id>`, and `bun nv close --goal route-values`. Fix every red in one pass
+  and run it once more.
+- [ ] `docs/goals/route-values.md:1`: before `DONE`, move each decision only this file holds to the
+  rule its Standing decisions name, then delete the file and run `bun nv relink --build`.
 
 ### Backlog
 

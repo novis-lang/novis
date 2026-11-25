@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A reread that adds a goal's facts to an `about.md` can push it past 200 words.** In
+  `route-values` stage 10, nine files went over after a stale-stamp pass, and only
+  `bun nv proofs --gate` caught it, after they were stamped. Tell a writing subagent the bound
+  (at most 190 by `wc -w`), and run the gate before you stamp. Cut a key from `site --check stale`
+  at its first `: `, because a feature id holds `::`. See `tools/nv/cmd/proofs.ts`.
 - **A `bun nv splice` patch written through a shell heredoc can lose a backslash.** In
   `route-values` stage 5, `"#[Core\\Query]"` in a Rust string reached the patch file as `Core\Query`,
   though the heredoc was quoted, and the build then failed on an unknown escape. Write a patch
