@@ -1,0 +1,20 @@
+--TEST--
+a call of a method an `extend` block adds, in a file that does not use the block, is `E0405`, and its fix writes the block's `use` line after the file's last one — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+
+var $day = Date::at(2026, 9, 17);
+bool $open = $d<|>ay->isBusinessDay();
+--REQUEST--
+codeAction
+--EXPECT--
+4:20-4:20 quickfix import `Shop\BusinessDays` -> "\nuse Shop\BusinessDays;"

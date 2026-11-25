@@ -1489,7 +1489,7 @@ fn front_end_in(
         let owned = loaded
             .iter()
             .filter(|file| !map.file(file.id).path().is_some_and(check::vendored));
-        let unused = nvs_lsp::diagnostics::unused_uses(&map, owned, &module.imports);
+        let unused = nvs_lsp::diagnostics::unused_uses(&map, owned, &loaded, &module);
         diags.extend(unused);
     }
     // `nvs check`'s too: the copies an easy edit removes

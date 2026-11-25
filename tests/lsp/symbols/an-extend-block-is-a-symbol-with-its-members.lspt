@@ -1,0 +1,22 @@
+--TEST--
+an `extend` block is in the outline as a class under its own name, with what it adds nested under it in the order it was written — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public const int CLOSED_DAY = 19;
+
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+Shop namespace
+BusinessDays class
+  CLOSED_DAY constant
+  isBusinessDay method

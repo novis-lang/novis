@@ -1,0 +1,28 @@
+--TEST--
+a method an `extend` block adds is renamed at its declaration in the block, at a call through `$this` inside the block, and at a call on a value of the extended type — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\BusinessDays;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+
+    public function isClosed(): bool {
+        return !$this->isBusinessDay();
+    }
+}
+
+var $day = Date::at(2026, 9, 17);
+echo $day->isBusi<|>nessDay() ? "open" : "closed";
+echo $day->isClosed() ? "closed" : "open";
+--REQUEST--
+rename to=isOpen
+--EXPECT--
+case.nvs:8:21 isOpen
+case.nvs:13:24 isOpen
+case.nvs:18:12 isOpen

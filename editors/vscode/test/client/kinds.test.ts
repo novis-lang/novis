@@ -15,9 +15,16 @@ describe("a file's badge", () => {
     assert.equal(METHOD, "nvs/fileKinds");
   });
 
-  it("has its own letter for each of the five kinds", () => {
+  it("has its own letter for each of the six kinds", () => {
     const letters = Object.values(BADGES).map((badge) => badge.letter);
-    assert.deepEqual(letters, ["C", "I", "E", "T", "A"]);
+    assert.deepEqual(letters, ["C", "I", "E", "T", "A", "X"]);
+  });
+
+  it("shows `X` for a file that declares one extend block", () => {
+    assert.deepEqual(badgeOf({ uri: "file:///a", kind: "extend" }), {
+      letter: "X",
+      tooltip: "This file adds methods and properties to an existing type.",
+    });
   });
 
   it("shows `A` for a file that declares one attribute", () => {
@@ -33,8 +40,8 @@ describe("a file's badge", () => {
     }
   });
 
-  it("knows the five words and no other", () => {
-    for (const word of ["class", "interface", "enum", "type", "attribute"]) {
+  it("knows the six words and no other", () => {
+    for (const word of ["class", "interface", "enum", "type", "attribute", "extend"]) {
       assert.equal(isKind(word), true, word);
     }
     for (const word of ["trait", "toString", "constructor", "", undefined]) {

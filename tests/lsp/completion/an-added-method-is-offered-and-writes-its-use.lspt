@@ -1,0 +1,24 @@
+--TEST--
+a value of a type an `extend` block adds to is offered the block's public methods after the type's own, each followed by the block's name, whether or not the file uses the block; accepting one in a file that does not writes the `use` line, and a private one is offered only inside its block — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+
+    private function isBusyDay(): bool {
+        return false;
+    }
+}
+
+var $day = Date::at(2026, 9, 17);
+$day-><|>
+--REQUEST--
+completion prefix=isBu
+--EXPECT--
+isBusinessDay() [Shop\BusinessDays] method    bool

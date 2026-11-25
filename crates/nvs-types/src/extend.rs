@@ -563,7 +563,9 @@ pub(crate) fn added_index(
             .collect();
         blocks.sort_by_cached_key(|added| added.to_string());
         for added in blocks {
-            let stored = table.get(added).map_or(&[][..], |sig| &sig.added_stored[..]);
+            let stored = table
+                .get(added)
+                .map_or(&[][..], |sig| &sig.added_stored[..]);
             if added == block {
                 return stored
                     .iter()

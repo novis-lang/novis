@@ -1364,7 +1364,16 @@ included, and inside the block's own body. The block's own namespace is no
 exception: names load lazily through the autoload map, and nothing but a `use` names a block. A call
 that would resolve only through a block the file does not use is the ordinary unknown-member error
 (`E0405` for `->`, `E0309` for `::`), and its help names the block and the `use` line when the
-program's autoload map knows a block that adds the name.
+program's autoload map knows a block that adds the name. That `use` line is also the error's fix.
+
+**In the editor.** Completion after `->` and `::` offers every member a block of the project adds to
+the type or a type above it, after the type's own members and with the block's name beside each.
+Accepting one from a block the file does not use writes the `use` line too. Hover on an added member
+names the block, go-to-definition opens the member in the block, and references and rename reach the
+declaration and every call. The outline shows a block as a class with its members, ordering members
+orders a block's as a class's, and the file list marks a file whose one declaration is a block with
+`X` ([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)). A block the program has not loaded is read off its
+file for each member list, one parse per such block, dropped with the answer.
 
 **What a block may add.**
 
@@ -1379,6 +1388,14 @@ program's autoload map knows a block that adds the name.
 | stored property, with or without hooks | yes, when the class takes the added slot | no | no |
 
 The stored property and its slot are [`classes/an-added-property-lives-in-one-hidden-slot`](classes.md#classes-an-added-property-lives-in-one-hidden-slot).
+
+A nested enum or attribute belongs to the extended type, as one in the type's own body would: it is
+`<Type>::<Name>` from a file that uses the block, and a bare `<Name>` inside the block. A file that
+does not use the block cannot name it, and the error's help names the `use` line. An added attribute
+is used on the type's descendants or implementers ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)),
+so one added to a `Core` class, or to a `Core` interface only `Core` classes implement, could be used
+nowhere and is **`E0338`**. Two blocks that add one enum name to a type, or a block whose enum name
+the type already declares, are the duplicate-declaration error.
 
 **What a block may not add.** Each is **`E0338`** at the member, and its help names what to write
 instead: a constructor (a static factory), a `protected`, `abstract` or `final` member (a `public` or
@@ -1524,11 +1541,23 @@ values. The precedent is the hidden slot 0 of a revocable class ([`classes/revoc
 A stored property added to a class that takes no slot, to an interface or to an enum is **`E1014`**,
 whose help names a wrapper class of your own for data that belongs to such a value.
 
-**Reading and writing.** A read is a load of the slot, a null test and an indexed load. An unwritten
-property reads its default, or `null` for a `?` type with none. An unwritten `lateinit` property
-throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
+**Reading and writing.** The compiler gives each stored property a `get` and a `set` accessor, and
+every read and write form calls one of them directly, as it calls a hook. The `get` accessor loads the
+slot and the property's entry in its array. An entry's index counts the added properties of the
+class's ancestors first, root first, then the class's own: its blocks sorted by name, and each block's
+properties in declaration order. So an index holds for every subclass, as a slot index does. An
+unwritten property reads its default, or `null` for a `?` type with none. An unwritten `lateinit`
+property throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
 property, and so is a stored one with none of the three
-([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)).
+([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)). An element write through an added property,
+`$order->tags[] = "x"`, is `E0478`: it would copy the whole array on each write, so the program reads
+the array into a variable, writes there and assigns it back.
+
+**Hooks.** A stored added property may have a `set` hook, or a `get` and a `set` hook. A read or a
+write calls the hook the block writes, and the accessor where the block writes none. Inside its own
+hooks, `$this->p` calls the accessors, so it reads and writes the entry, as a class's hook reads its
+backing slot. A short `set => expr;` hook stores through the `set` accessor. A hooked property takes
+no default ([`classes/property-hooks`](classes.md#classes-property-hooks)), so a hooked stored one is `?T` or `lateinit`.
 
 **Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
 session store skip it, and a revoke releases it with the other slots.

@@ -1331,7 +1331,8 @@ pub(crate) fn analyse_through(
     diags.extend(crate::diagnostics::unused_uses(
         &map,
         loaded.iter().filter(|file| file.id == entry),
-        &module.imports,
+        &loaded,
+        &module,
     ));
     // `nvs check` adds the same note on its failed compile
     // (`rule:core-api/a-moved-name-says-where-it-went`). A diagnostic about any

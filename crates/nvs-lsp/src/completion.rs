@@ -293,6 +293,16 @@
 //! none and `nvs_stdlib::registry::CoreTy::Instance` owns why — so `$m->groups`
 //! is an unknown member and `$m->groups()` is the member.
 //!
+//! **A member an `extend` block adds is offered after the type's own.** Every
+//! block of the project that adds to the receiver's type or a type above it
+//! contributes its members ([`added_members`]), each row sorted after the
+//! type's own, its label followed by the block's name and its `detail` spelled
+//! on the block. A row from a block the file does not `use` writes the `use`
+//! line when accepted, as an unimported type's row does
+//! (`rule:classes/an-extend-block-adds-members-to-a-type`). Inside a block's
+//! body a member is written as in a class body, and `$this` is the extended
+//! type the checker gives it.
+//!
 //! # What a written path offers
 //!
 //! Inside the literal of a `require`, of an `autoload` root or `discover`
@@ -376,7 +386,7 @@ use nvs_stdlib::registry::{
 };
 use nvs_syntax::ast::{
     AttributeDecl, AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment,
-    DocTagKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
+    DocTagKind, EnumCase, ExtendDecl, MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -665,7 +675,7 @@ enum Asked {
 /// Every member of `class` that `reach` reaches, whoever declared it.
 fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
     let name = class.to_string();
-    if let Some(core) = registry::class(&name) {
+    let mut items = if let Some(core) = registry::class(&name) {
         core_members(cursor, core, reach)
     } else if let Some(core) = registry::core_enum(&name) {
         core_cases(core, reach)
@@ -673,7 +683,208 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
         extension_members(cursor, manifest, reach)
     } else {
         declared_members(cursor, class, reach)
+    };
+    let own: FxHashSet<String> = items.iter().map(|item| item.label.clone()).collect();
+    items.extend(
+        added_members(cursor, class, reach)
+            .into_iter()
+            .filter(|item| !own.contains(&item.label)),
+    );
+    items
+}
+
+/// The first character of the `sortText` of a member an `extend` block adds:
+/// `}` is after every letter, digit, `_` and `$` a member's own label starts
+/// with, and before [`LAST`].
+const ADDED: char = '}';
+
+/// Every member an `extend` block in the project adds to `class` or to a type
+/// above it that `reach` reaches
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`), whether or not this
+/// file uses the block.
+///
+/// Each row sorts after the type's own members ([`ADDED`]), its `detail` is
+/// spelled on the block (`Shop\BusinessDays::isBusinessDay(): bool`), and its
+/// label is followed by the block's name, as a type row is by its namespace.
+/// Accepting a row from a block the file does not `use` writes the `use` line
+/// too, at [`nvs_hir::import_site`], as accepting an unimported type does
+/// ([`in_reach`]). A non-public member is offered only inside its own block.
+///
+/// The blocks are the program's, read off its analysis, and then each block
+/// the workspace index holds that the program has not loaded, read off its
+/// file ([`unloaded_blocks`]). **Cost:** one parse per such file per member
+/// list asked for, dropped with the answer.
+fn added_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
+    let analysed = cursor.analysed;
+    let above: FxHashSet<QName> = lineage(analysed, class).into_iter().collect();
+    let inside = block_around(analysed, cursor.offset);
+    let mut loaded: Vec<&QName> = analysed
+        .module
+        .graph
+        .blocks()
+        .filter(|(_, target)| above.contains(*target))
+        .map(|(block, _)| block)
+        .collect();
+    loaded.sort_by_key(|block| block.to_string());
+    let mut found: Vec<(QName, CompletionItem)> = Vec::new();
+    for block in loaded {
+        let Some((stmt, file)) = declared_type(analysed, block) else {
+            continue;
+        };
+        let StmtKind::ExtendDecl(decl) = &stmt.kind else {
+            continue;
+        };
+        for (key, item) in block_rows(cursor, block, file, &decl.members, reach, inside.as_ref()) {
+            let item = match key {
+                Some(key) => tagged(cursor, block, key, item),
+                None => item,
+            };
+            found.push((block.clone(), item));
+        }
     }
+    found.extend(unloaded_blocks(cursor, &above, reach, inside.as_ref()));
+    let imports = imports_of(analysed);
+    let entry = analysed.map.file(analysed.entry);
+    let site = crate::imports::entry_stmts(analysed)
+        .and_then(|stmts| nvs_hir::import_site(stmts, entry, cursor.offset));
+    found
+        .into_iter()
+        .map(|(block, mut item)| {
+            if item
+                .sort_text
+                .as_deref()
+                .is_none_or(|sort| !sort.starts_with(LAST))
+            {
+                item.sort_text = Some(format!("{ADDED}{}", item.label));
+            }
+            let used =
+                inside.as_ref() == Some(&block) || imports.values().any(|target| *target == block);
+            let taken = imports.contains_key(block.short_name());
+            if let Some(site) = site.filter(|_| !used && !taken) {
+                item.additional_text_edits = Some(vec![importing(
+                    entry,
+                    site,
+                    &block.to_string(),
+                    cursor.encoding,
+                )]);
+            }
+            item
+        })
+        .collect()
+}
+
+/// The rows the members `block` writes give at a cursor that reaches `reach`,
+/// each with the key a deprecation is looked up by: public ones, and every one
+/// where the cursor is `inside` the block itself. Each label is followed by
+/// ` [Block]`.
+fn block_rows(
+    cursor: &Cursor<'_>,
+    block: &QName,
+    file: &SourceFile,
+    members: &[ClassMember],
+    reach: Reach,
+    inside: Option<&QName>,
+) -> Vec<(Option<Member>, CompletionItem)> {
+    let owner = block.to_string();
+    let own = inside == Some(block);
+    members
+        .iter()
+        .filter(|member| own || visibility_of_member(member) == Visibility::Public)
+        .filter_map(|member| {
+            let mut item = declared_member(cursor, file, &owner, member, reach)?;
+            let details = item.label_details.get_or_insert_with(Default::default);
+            let written = details.detail.take().unwrap_or_default();
+            details.detail = Some(format!("{written} [{owner}]"));
+            Some((member_of(file, member), item))
+        })
+        .collect()
+}
+
+/// The blocks the workspace index holds that the program has not loaded and
+/// that add members to a type in `above`, with the rows [`block_rows`] gives
+/// for each, in block name order.
+///
+/// A block's target is resolved by `nvs_hir::HierarchyResolver::written_blocks`
+/// off its own file's namespace and imports, which is the reading the checker
+/// gives it once a program loads the file.
+fn unloaded_blocks(
+    cursor: &Cursor<'_>,
+    above: &FxHashSet<QName>,
+    reach: Reach,
+    inside: Option<&QName>,
+) -> Vec<(QName, CompletionItem)> {
+    let analysed = cursor.analysed;
+    let mut declared: Vec<&Declaration> = cursor
+        .symbols
+        .all_declarations()
+        .filter(|declared| declared.kind == DeclKind::Extend)
+        .filter(|declared| {
+            analysed
+                .module
+                .symbols
+                .get(&QName::parse(&declared.symbol))
+                .is_none()
+        })
+        .collect();
+    declared.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+    declared.dedup_by(|a, b| a.symbol == b.symbol);
+    let mut found = Vec::new();
+    for declared in declared {
+        let block = QName::parse(&declared.symbol);
+        let mut map = nvs_diagnostics::SourceMap::new();
+        let Ok(id) = map.load(&declared.site.path) else {
+            continue;
+        };
+        let file = map.file(id);
+        let stmts = nvs_syntax::parse_file(file, &mut Diagnostics::new());
+        let mut hierarchy = nvs_hir::HierarchyResolver::new(nvs_hir::CoreRoster::Trusted);
+        hierarchy.collect_links(&stmts, file);
+        let reaches = hierarchy
+            .written_blocks()
+            .into_iter()
+            .any(|(name, target)| name == block && above.contains(&target));
+        if !reaches {
+            continue;
+        }
+        let Some(decl) = extend_decl_at(&stmts, declared.site.start) else {
+            continue;
+        };
+        for (_, item) in block_rows(cursor, &block, file, &decl.members, reach, inside) {
+            found.push((block.clone(), item));
+        }
+    }
+    found
+}
+
+/// The `extend` block in `stmts` whose name starts at `start`, looked for in a
+/// bracketed namespace's body too.
+fn extend_decl_at(stmts: &[nvs_syntax::ast::Stmt], start: BytePos) -> Option<&ExtendDecl> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::ExtendDecl(decl) if decl.name.span.start == start => Some(decl),
+        StmtKind::NamespaceDecl(decl) => extend_decl_at(&decl.body.as_ref()?.stmts, start),
+        _ => None,
+    })
+}
+
+/// The `extend` block of the entry document whose body `offset` is in, by its
+/// fully-qualified name. Its own members are visible there without a `use`,
+/// private ones included.
+fn block_around(analysed: &Analysed, offset: BytePos) -> Option<QName> {
+    fn find(stmts: &[nvs_syntax::ast::Stmt], offset: BytePos) -> Option<&ExtendDecl> {
+        stmts.iter().find_map(|stmt| match &stmt.kind {
+            StmtKind::ExtendDecl(decl) if decl.span.start <= offset && offset < decl.span.end => {
+                Some(decl)
+            }
+            StmtKind::NamespaceDecl(decl) => find(&decl.body.as_ref()?.stmts, offset),
+            _ => None,
+        })
+    }
+    let decl = find(crate::imports::entry_stmts(analysed)?, offset)?;
+    let file = analysed.map.file(analysed.entry);
+    Some(QName::join(
+        &namespace_at(analysed, offset),
+        text_of(file, decl.name.span),
+    ))
 }
 
 /// Every member of an extension class that `reach` reaches, spelled from its
@@ -3238,7 +3449,9 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
         {
             declaration_words(cursor, &["attribute"])
         }
-        Some(node) if matches!(node.kind, "ClassDecl" | "InterfaceDecl") => member(cursor),
+        Some(node) if matches!(node.kind, "ClassDecl" | "InterfaceDecl" | "ExtendDecl") => {
+            member(cursor)
+        }
         Some(node) if node.kind == "EnumDecl" => words(CASE_WORDS),
         Some(node) if node.kind == "Property" && before_its_variable(cursor, node) => {
             member(cursor)
@@ -4722,23 +4935,27 @@ fn own_members(
         })
         .filter_map(|member| {
             let item = declared_member(cursor, file, &owner, member, reach)?;
-            let key = match &member.kind {
-                ClassMemberKind::Method(method) => {
-                    Member::Method(text_of(file, method.name).to_owned())
-                }
-                ClassMemberKind::Property(property) => Member::Property(
-                    text_of(file, property.name)
-                        .trim_start_matches('$')
-                        .to_owned(),
-                ),
-                ClassMemberKind::Const(constant) => {
-                    Member::Const(text_of(file, constant.name).to_owned())
-                }
-                _ => return Some(item),
-            };
-            Some(tagged(cursor, class, key, item))
+            Some(match member_of(file, member) {
+                Some(key) => tagged(cursor, class, key, item),
+                None => item,
+            })
         })
         .collect()
+}
+
+/// The key a deprecation of `member` is looked up by, and `None` for a member
+/// that carries none: an owned enum or attribute.
+fn member_of(file: &SourceFile, member: &ClassMember) -> Option<Member> {
+    Some(match &member.kind {
+        ClassMemberKind::Method(method) => Member::Method(text_of(file, method.name).to_owned()),
+        ClassMemberKind::Property(property) => Member::Property(
+            text_of(file, property.name)
+                .trim_start_matches('$')
+                .to_owned(),
+        ),
+        ClassMemberKind::Const(constant) => Member::Const(text_of(file, constant.name).to_owned()),
+        _ => return None,
+    })
 }
 
 /// The visibility a member's modifiers write, which is `public` where they

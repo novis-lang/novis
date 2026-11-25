@@ -10,8 +10,8 @@
 //!
 //! # What is renamed
 //!
-//! - **A type** — a class, an interface, an enum or a type alias declared
-//!   outside a class — at its declaration, at every occurrence the index holds
+//! - **A type** — a class, an interface, an enum, a type alias declared
+//!   outside a class, or an `extend` block's own name — at its declaration, at every occurrence the index holds
 //!   and in every `use` line that imports it. Only the last segment changes, so
 //!   `\Shop\User` and `use Shop\User;` keep their namespace. Before any edit,
 //!   every file the index holds is read for the old name as a name or at the
@@ -31,7 +31,9 @@
 //!   ([`SymbolIndex::declaration`], [`SymbolIndex::occurrences`]). A method
 //!   takes its whole override family with it, closed over
 //!   [`SymbolIndex::overridden`] and [`SymbolIndex::overriders`] in both
-//!   directions, so no override stops overriding. A property site keeps or
+//!   directions, so no override stops overriding. A member an `extend` block
+//!   adds is the block's (`Block::method`), and every call of it is a site,
+//!   on whatever receiver it was written. A property site keeps or
 //!   drops the `$` the way its own text has it: `public string $name` and
 //!   `User::$count` write it, `$u->name` does not.
 //! - **A local** of a function, a method or a script body: every `$name` the
@@ -526,7 +528,11 @@ fn member(index: &SymbolIndex, symbol: &str, at: Site) -> Result<Subject, String
     let kind = declared.kind;
     if matches!(
         kind,
-        DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias
+        DeclKind::Class
+            | DeclKind::Interface
+            | DeclKind::Enum
+            | DeclKind::TypeAlias
+            | DeclKind::Extend
     ) {
         if let Some((owner, old)) = symbol.rsplit_once("::") {
             return Ok(Subject {

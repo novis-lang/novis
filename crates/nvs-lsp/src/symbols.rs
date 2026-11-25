@@ -30,6 +30,11 @@
 //! and a signature would belong there, but the rendering that freezes an answer
 //! has no column for one, so filling it would put a field no `.lspt` case can
 //! see into every symbol the server sends.
+//!
+//! **An `extend` block is a `Class` symbol under its own name**, its added
+//! members nested under it the way a class's are. It carries no `extend <Type>`
+//! detail either, for the reason above: the block's name is what the file
+//! declares and what a `use` line names, and the target is one hover away.
 
 use lsp_types::{DocumentSymbol, SymbolKind};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
@@ -87,6 +92,16 @@ fn declared(stmt: &Stmt, file: &SourceFile, encoding: PositionEncoding) -> Vec<D
             decl.name.span,
             whole,
             SymbolKind::INTERFACE,
+            members(&decl.members, file, encoding),
+        )),
+        // A block is outlined as the class-like thing it is: its own name, and
+        // what it adds nested under it (`rule:classes/an-extend-block-adds-members-to-a-type`).
+        StmtKind::ExtendDecl(decl) => one(symbol(
+            file,
+            encoding,
+            decl.name.span,
+            whole,
+            SymbolKind::CLASS,
             members(&decl.members, file, encoding),
         )),
         StmtKind::EnumDecl(decl) => one(symbol(

@@ -589,6 +589,23 @@ impl<'a> HierarchyResolver<'a> {
             })
             .collect()
     }
+
+    /// Every `extend` block collected so far, with the type it adds members
+    /// to resolved by [`resolve_ref`] alone, on [`Self::written`]'s terms: a
+    /// target nothing declares is kept as written. It is for an editor that
+    /// offers what a block the program has not loaded adds
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`).
+    #[must_use]
+    pub fn written_blocks(&self) -> Vec<(QName, QName)> {
+        self.blocks
+            .iter()
+            .filter_map(|block| {
+                let raw = block.extends.first()?;
+                let target = resolve_ref(&raw.text, &block.namespace, &block.imports);
+                Some((block.qname.clone(), target))
+            })
+            .collect()
+    }
 }
 
 /// Puts [`crate::errors::TREE`]'s own `extends` links into `graph` before any

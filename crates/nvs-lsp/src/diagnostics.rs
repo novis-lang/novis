@@ -374,17 +374,23 @@ fn deprecated_value(
 /// Each warning carries one safe edit that deletes the statement. When nothing
 /// but blank space or a comment shares its line, the edit deletes the whole
 /// line, so the file keeps no empty line where the import was.
+///
+/// `all` is every file the program loaded, and `module` its resolution: an
+/// `extend` block's `use` is read by a call of a member the block adds, and
+/// the block may be declared in any of them.
 #[must_use]
 pub fn unused_uses<'a>(
     map: &SourceMap,
     files: impl IntoIterator<Item = &'a Loaded>,
-    imports: &[nvs_hir::Import],
+    all: &[Loaded],
+    module: &nvs_hir::Module,
 ) -> Vec<Diagnostic> {
+    let added = crate::index::added_names(map, all, module);
     files
         .into_iter()
         .flat_map(|loaded| {
             let file = map.file(loaded.id);
-            crate::index::reads(file, loaded, imports)
+            crate::index::reads(file, loaded, &module.imports, &added)
                 .into_iter()
                 .filter(|found| !found.read && found.import.resolved)
                 .map(|found| {

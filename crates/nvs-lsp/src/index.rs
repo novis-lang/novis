@@ -15,6 +15,9 @@
 //! checker resolved, then the member as its own source writes it, `$` sigil
 //! included for a property because that is what tells it from a method of the
 //! same name (`class C { public int $x; public function x(): int … }` is legal).
+//! A member an `extend` block adds is spelled after the block, `Shop\BusinessDays::isBusinessDay`,
+//! because the checker records a call of it on the block and the declaration
+//! is in the block's body (`rule:classes/an-extend-block-adds-members-to-a-type`).
 //! A field of an `attribute` declaration is `App\Job::queue`, after the
 //! declaration's own name, which is `App\Storable::Index` for one a body owns.
 //! A field's declaration is its name in the body, and each key a payload writes
@@ -23,7 +26,7 @@
 //! shape, and records no link back to the declaration.
 //!
 //! A string rather than an id because both sides of the index are read *back*
-//! from the checker: `crate::definition::target_of` is what turns one
+//! from the checker: `crate::definition::target_in` is what turns one
 //! recorded expression into the name it resolved to, and it is the same
 //! function `definition` and `hover` already answer a cursor with. An id would
 //! need a table mapping it to that resolution, which is the same string keyed
@@ -120,7 +123,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
     FileScope, Target, attribute_uses, body_of, covers, named_at, paired, supertype_names,
-    target_of, text_of, written_types_in,
+    target_in, text_of, written_types_in,
 };
 use crate::disk_index::{self, Input, Stamp};
 use crate::document::{Analysed, Documents, Entry, Reads, Work, analyse_through};
@@ -3000,7 +3003,7 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// `rule:ide/five-features-are-one-reference-index`'s occurrence side and
 /// `rule:ide/the-request-set-is-closed`'s resolution applied to every
 /// occurrence rather than to the one under a cursor. Nothing is
-/// re-resolved here: [`target_of`] is the same reading `definition` and `hover`
+/// re-resolved here: [`target_in`] is the same reading `definition` and `hover`
 /// answer a cursor with, so a reference list and a jump cannot disagree.
 ///
 /// The `extends` and `implements` clauses are the second walk, because a clause
@@ -3061,7 +3064,7 @@ fn occurrences<'a>(
             {
                 queries.push((node.span.start, node.span.end));
             }
-            let resolved = info.and_then(|info| Some((info, target_of(info)?)));
+            let resolved = info.and_then(|info| Some((info, target_in(analysed, info)?)));
             let Some((info, target)) = resolved else {
                 // A call by name that resolved to no one method: on a `mixed`
                 // receiver, or one the checker reported.
@@ -3463,6 +3466,7 @@ fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
         analysed.map.file(loaded.id),
         loaded,
         &analysed.module.imports,
+        &added_names(&analysed.map, &analysed.loaded, &analysed.module),
     )
     .into_iter()
     .map(|found| Import {
@@ -3581,7 +3585,55 @@ pub(crate) struct Read<'a> {
     /// method or a property spelled like the import counts as a read, so an
     /// unused import can go unreported, and an import a name needs is never
     /// reported.
+    ///
+    /// An `extend` block is never written by its name outside its `use`: a
+    /// file reaches it through the members it adds
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). So an import of
+    /// a block is also read by an identifier written right after `->`, `?->`
+    /// or `::` in its scope that spells one of the names [`added_names`] gives
+    /// the block. That errs the same one way: a member of another type spelled
+    /// like an added one counts as a read.
     pub(crate) read: bool,
+}
+
+/// The names each `extend` block of the program adds, keyed by the block: its
+/// methods, properties without the `$`, constants, enums and attributes.
+///
+/// `files` is every file the analysis loaded, so a block declared in another
+/// file of the graph is found. A block whose file is not among them adds no
+/// name here. Cost: one walk of each block's members per call, and one string
+/// per added member, dropped with the answer.
+pub(crate) fn added_names(
+    map: &nvs_diagnostics::SourceMap,
+    files: &[Loaded],
+    module: &nvs_hir::Module,
+) -> FxHashMap<QName, Vec<String>> {
+    module
+        .graph
+        .blocks()
+        .filter_map(|(block, _)| {
+            let symbol = module.symbols.get(block)?;
+            let loaded = files
+                .iter()
+                .find(|loaded| loaded.id == symbol.decl_span.file)?;
+            let file = map.file(loaded.id);
+            let stmt = crate::definition::declaration(&loaded.stmts, symbol.decl_span)?;
+            let (_, members) = body_of(stmt)?;
+            let names = members
+                .iter()
+                .filter_map(|member| match &member.kind {
+                    ClassMemberKind::Method(method) => Some(method.name),
+                    ClassMemberKind::Property(property) => Some(property.name),
+                    ClassMemberKind::Const(constant) => Some(constant.name),
+                    ClassMemberKind::Enum(decl) => Some(decl.name.span),
+                    ClassMemberKind::Attribute(decl) => Some(decl.name.span),
+                    _ => None,
+                })
+                .map(|span| text_of(file, span).trim_start_matches('$').to_owned())
+                .collect();
+            Some((block.clone(), names))
+        })
+        .collect()
 }
 
 /// Every `use` import `file` writes, of the `imports` name resolution saw,
@@ -3595,6 +3647,7 @@ pub(crate) fn reads<'a>(
     file: &SourceFile,
     loaded: &Loaded,
     imports: &'a [nvs_hir::Import],
+    added: &FxHashMap<QName, Vec<String>>,
 ) -> Vec<Read<'a>> {
     // The file parsed already, so lexing it again reports nothing new.
     let tokens = tokenize(file, &mut Diagnostics::new());
@@ -3608,14 +3661,18 @@ pub(crate) fn reads<'a>(
         .filter(|import| import.span.file == loaded.id)
         .map(|import| {
             let scope = scope_of(&scopes, import.span.start);
+            let adds = added.get(&import.target).map_or(&[][..], Vec::as_slice);
             let read = tokens.iter().enumerate().any(|(at, token)| {
-                token.kind == TokenKind::Ident
-                    && text_of(file, token.span) == import.short_name
-                    && scope_of(&scopes, token.span.start) == scope
+                if token.kind != TokenKind::Ident || scope_of(&scopes, token.span.start) != scope {
+                    return false;
+                }
+                let text = text_of(file, token.span);
+                let named = text == import.short_name
                     && !statements
                         .iter()
                         .any(|used| covers(*used, token.span.start))
-                    && !beside_a_backslash(&tokens, at)
+                    && !beside_a_backslash(&tokens, at);
+                named || (adds.iter().any(|name| name == text) && after_an_access(&tokens, at))
             });
             let statement = statements
                 .iter()
@@ -3672,6 +3729,19 @@ fn use_statements(stmts: &[Stmt], found: &mut Vec<Span>) {
             _ => {}
         }
     }
+}
+
+/// Whether the token at `at` is a member name: right after `->`, `?->` or
+/// `::`.
+fn after_an_access(tokens: &[Token], at: usize) -> bool {
+    at.checked_sub(1)
+        .and_then(|before| tokens.get(before))
+        .is_some_and(|token| {
+            matches!(
+                token.kind,
+                TokenKind::Arrow | TokenKind::NullsafeArrow | TokenKind::DoubleColon
+            )
+        })
 }
 
 /// Whether the token at `at` has a `\` on either side, which makes it one

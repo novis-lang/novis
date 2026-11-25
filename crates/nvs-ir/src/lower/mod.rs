@@ -2568,7 +2568,8 @@ pub fn lower_added_accessors(
         });
         low.release_all_locals(entry, &env, None);
         low.seal(entry, Terminator::Return(None));
-        low.into_lowered(name, vec![Ty::Object, prop_ty], entry).function
+        low.into_lowered(name, vec![Ty::Object, prop_ty], entry)
+            .function
     };
     [get, set]
 }

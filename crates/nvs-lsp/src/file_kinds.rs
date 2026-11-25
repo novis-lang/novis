@@ -3,8 +3,8 @@
 //! `nvs/fileKinds` is the seventh request of Novis's own
 //! (`rule:ide/the-request-set-is-closed`), and it is
 //! `rule:ide/a-file-shows-what-it-declares`: every file the index holds that
-//! declares exactly one class, interface, enum, `type` alias or attribute and
-//! nothing else, with that kind, and every file with a route handler in it, with its
+//! declares exactly one class, interface, enum, `type` alias, attribute or
+//! `extend` block and nothing else, with that kind, and every file with a route handler in it, with its
 //! routes. The editor shows the kind, or that the file serves routes, beside
 //! the file's name.
 //!
@@ -57,7 +57,7 @@ pub const CHANGED: &str = "nvs/fileKindsChanged";
 pub struct FileKind {
     /// The file, as a `file:` URI.
     pub uri: String,
-    /// `class`, `interface`, `enum` or `type`, and absent for a file that
+    /// `class`, `interface`, `enum`, `type`, `attribute` or `extend`, and absent for a file that
     /// declares anything but exactly one type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<&'static str>,
@@ -99,7 +99,7 @@ pub fn answer(index: &SymbolIndex) -> Vec<FileKind> {
 
 /// The word the wire carries for a kind a file may declare on its own, and
 /// `None` for a member, which no file declares on its own. An attribute
-/// declaration is `attribute`. A client that does not know that word draws
+/// declaration is `attribute`, and an `extend` block is `extend`. A client that does not know a word draws
 /// nothing for the file, so an older client needs no version check.
 const fn word(kind: DeclKind) -> Option<&'static str> {
     match kind {

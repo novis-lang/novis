@@ -4,7 +4,9 @@
 //! this server offers is made of [`nvs_diagnostics::Suggestion`]s a diagnostic
 //! is already carrying — the casing rename (`rule:core-api/identifier-casing`),
 //! the legacy cast's `expr as T` (`rule:types/no-legacy-cast`), an undeclared
-//! name's import, and a deprecated use's rewrite with the `use` line it needs
+//! name's import, the `use` line of the `extend` block that adds a member the
+//! file does not reach (`E0405`, `E0309`,
+//! `rule:classes/an-extend-block-adds-members-to-a-type`), and a deprecated use's rewrite with the `use` line it needs
 //! (`rule:attributes/a-deprecation-names-its-replacement-as-code`) come from the
 //! compiler, and a deprecated completion-file value's `replacement` is the one
 //! the server adds — so this module reads the diagnostics `publishDiagnostics`

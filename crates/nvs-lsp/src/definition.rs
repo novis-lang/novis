@@ -27,6 +27,14 @@
 //! requests ask the same question about *where* and differ only in which field
 //! of the answer they use.
 //!
+//! **A member an `extend` block adds is found inside the block.** The checker
+//! records an added method's call and an added constant's read on the block's
+//! name (`nvs_types::ResolvedCall::class`), and a block is a symbol like a
+//! class, so [`site`] walks into the `ExtendDecl` the way it walks into a
+//! class (`rule:classes/an-extend-block-adds-members-to-a-type`). An added
+//! property's access is recorded on the receiver's class, and [`target_in`]
+//! reads the block off the accessor label the checker recorded with it.
+//!
 //! **A local variable is asked first.** A local is no name the checker
 //! resolves to a declaration, so the walk over the nodes would step out to
 //! whatever holds it: the call a `$markup` is an argument of, or the member of
@@ -759,11 +767,13 @@ pub(crate) fn owned_enum_decl<'a>(
 }
 
 /// The cases and the members a declaration's body writes, and nothing for a
-/// declaration with no body. Only an enum has cases.
+/// declaration with no body. Only an enum has cases. An `extend` block's body
+/// is the members it adds.
 pub(crate) fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
     match &stmt.kind {
         StmtKind::ClassDecl(decl) => Some((&[], &decl.members)),
         StmtKind::InterfaceDecl(decl) => Some((&[], &decl.members)),
+        StmtKind::ExtendDecl(decl) => Some((&[], &decl.members)),
         StmtKind::EnumDecl(decl) => Some((&decl.cases, &decl.members)),
         _ => None,
     }
@@ -777,7 +787,7 @@ pub(crate) fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
 /// chose. A bracketed namespace body is descended into because its declarations
 /// are the file's, written one level in; the statement form holds none of its
 /// own.
-fn declaration(stmts: &[Stmt], name: Span) -> Option<&Stmt> {
+pub(crate) fn declaration(stmts: &[Stmt], name: Span) -> Option<&Stmt> {
     stmts.iter().find_map(|stmt| match &stmt.kind {
         StmtKind::NamespaceDecl(decl) => declaration(&decl.body.as_ref()?.stmts, name),
         _ => (declared_span(stmt) == Some(name)).then_some(stmt),
@@ -793,6 +803,7 @@ fn declared_span(stmt: &Stmt) -> Option<Span> {
         StmtKind::EnumDecl(decl) => Some(decl.name.span),
         StmtKind::TypeAliasDecl(decl) => Some(decl.name.span),
         StmtKind::AttributeDecl(decl) => Some(decl.name.span),
+        StmtKind::ExtendDecl(decl) => Some(decl.name.span),
         _ => None,
     }
 }
@@ -814,10 +825,10 @@ fn declarations_into<'a>(stmts: &'a [Stmt], found: &mut FxHashMap<Span, &'a Stmt
 
 /// The `///` run above a declaration.
 ///
-/// The five shapes are exactly the five `nvs_hir::SymbolKind` names, which is
+/// The six shapes are exactly the six `nvs_hir::SymbolKind` names, which is
 /// why nothing checks which kind the symbol was: a span that reached the symbol
-/// table came from one of these, and a sixth declaration shape has to be added
-/// to both places at once.
+/// table came from one of these, and a seventh declaration shape has to be
+/// added to both places at once.
 fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
     match &stmt.kind {
         StmtKind::ClassDecl(decl) => decl.doc.as_ref(),
@@ -825,6 +836,7 @@ fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
         StmtKind::EnumDecl(decl) => decl.doc.as_ref(),
         StmtKind::TypeAliasDecl(decl) => decl.doc.as_ref(),
         StmtKind::AttributeDecl(decl) => decl.doc.as_ref(),
+        StmtKind::ExtendDecl(decl) => decl.doc.as_ref(),
         _ => None,
     }
 }
@@ -986,7 +998,7 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
                 Target::Type(Cow::Borrowed(class_named_by(&analysed.interner, *tested)?)),
                 *node,
             )),
-            _ => Some((target_of(info)?, *node)),
+            _ => Some((target_in(analysed, info)?, *node)),
         }
     })
 }
@@ -1212,6 +1224,34 @@ pub(crate) fn paired<'a, 'b>(
 /// hierarchy request has always asked a declaration about.
 pub(crate) const fn covers(span: Span, offset: BytePos) -> bool {
     span.start <= offset && offset <= span.end
+}
+
+/// [`target_of`], with an `extend` block's property named on the block.
+///
+/// The checker records an access to a property a block adds on the receiver's
+/// class, as it records every property access, and the block only in the
+/// accessor labels it records beside it (`Block::$name::get`, or
+/// `Block::$name::get#entry` for a stored one with no hook of its own). The
+/// declaration is in the block, so the block is the class the target names.
+/// Any other target is [`target_of`]'s.
+pub(crate) fn target_in<'a>(analysed: &'a Analysed, info: &'a ExprInfo) -> Option<Target<'a>> {
+    let target = target_of(info)?;
+    if let ExprInfo::HookedProperty { get, set, name, .. } = info
+        && let Some(block) = get
+            .iter()
+            .chain(set.iter())
+            .find_map(|label| added_by(analysed, label))
+    {
+        return Some(Target::Property { class: block, name });
+    }
+    Some(target)
+}
+
+/// The `extend` block an accessor label names, when its class half is one.
+fn added_by<'a>(analysed: &'a Analysed, label: &str) -> Option<&'a QName> {
+    let (class, _) = label.split_once("::$")?;
+    let symbol = analysed.module.symbols.get(&QName::parse(class))?;
+    (symbol.kind == nvs_hir::SymbolKind::Extend).then_some(&symbol.qname)
 }
 
 /// The name one recorded expression carries, or `None` for one that carries

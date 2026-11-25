@@ -3273,6 +3273,14 @@ pub(crate) fn report_unknown_member(
             "the `extend` block `{block}` adds `{name}`. Write `use {block};` at the top of this \
              file to call it"
         ));
+        // The help's `use` line is the fix an editor offers.
+        if let Some(site) = nvs_hir::import_site(env.stmts, env.src, span.start) {
+            diagnostic = diagnostic.with_fix(
+                site.span(span.file),
+                site.use_line(&block),
+                format!("import `{block}`"),
+            );
+        }
     }
     env.diags.report(diagnostic);
 }

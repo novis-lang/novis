@@ -1470,8 +1470,13 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         .or_else(|| env.exprs.lookup(root.span));
     match root_record {
         Some(ExprInfo::HookedProperty { class, name, .. })
-            if crate::signatures::resolve_property_owned(class, name, env.signatures, env.graph)
-                .is_none() =>
+            if crate::signatures::resolve_property_owned(
+                class,
+                name,
+                env.signatures,
+                env.graph,
+            )
+            .is_none() =>
         {
             // A property an `extend` block adds is read and written through
             // two calls. An element write would copy the whole array on each

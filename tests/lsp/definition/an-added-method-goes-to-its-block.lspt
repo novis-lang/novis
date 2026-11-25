@@ -1,0 +1,25 @@
+--TEST--
+a call of a method an `extend` block adds jumps to the method inside the block, in the file the block is autoloaded from, and not to the extended `Core` class's stub — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+autoload 'Shop' from './shop';
+
+use Core\Time\Date;
+use Shop\BusinessDays;
+
+echo Date::at(2026, 9, 17)->isBusi<|>nessDay() ? "open" : "closed";
+--FILE shop/BusinessDays.nvs--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+shop/BusinessDays.nvs:7:21

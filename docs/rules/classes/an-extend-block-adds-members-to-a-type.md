@@ -28,7 +28,16 @@ included, and inside the block's own body. The block's own namespace is no
 exception: names load lazily through the autoload map, and nothing but a `use` names a block. A call
 that would resolve only through a block the file does not use is the ordinary unknown-member error
 (`E0405` for `->`, `E0309` for `::`), and its help names the block and the `use` line when the
-program's autoload map knows a block that adds the name.
+program's autoload map knows a block that adds the name. That `use` line is also the error's fix.
+
+**In the editor.** Completion after `->` and `::` offers every member a block of the project adds to
+the type or a type above it, after the type's own members and with the block's name beside each.
+Accepting one from a block the file does not use writes the `use` line too. Hover on an added member
+names the block, go-to-definition opens the member in the block, and references and rename reach the
+declaration and every call. The outline shows a block as a class with its members, ordering members
+orders a block's as a class's, and the file list marks a file whose one declaration is a block with
+`X` (`rule:ide/a-file-shows-what-it-declares`). A block the program has not loaded is read off its
+file for each member list, one parse per such block, dropped with the answer.
 
 **What a block may add.**
 

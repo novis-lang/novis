@@ -1,0 +1,33 @@
+--TEST--
+an import of an `extend` block is read by a call of a member the block adds, and one whose members nothing calls is the faded warning — `rule:statements/an-unused-use-is-a-warning`, `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+require 'lib/days.nvs';
+
+use Core\Time\Date;
+use Shop\BusinessDays;
+use Shop\Holidays;
+
+var $day = Date::at(2026, 9, 17);
+echo $day->isBusinessDay() ? "open" : "closed";
+--FILE lib/days.nvs--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+
+extend Date as Holidays {
+    public function isHoliday(): bool {
+        return $this->day() == 25;
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+6:5-6:18 warning W1026 `Shop\Holidays` is imported, but this file never uses it

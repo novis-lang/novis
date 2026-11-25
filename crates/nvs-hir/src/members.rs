@@ -2557,6 +2557,14 @@ fn check_member_ref(
             "the `extend` block `{block}` adds `{name}`. Write `use {block};` at the top of this \
              file to use it"
         ));
+        // The help's `use` line is the fix an editor offers.
+        if let Some(site) = crate::imports::import_site(env.stmts, src, class_expr.span.start) {
+            diagnostic = diagnostic.with_fix(
+                site.span(class_expr.span.file),
+                site.use_line(&block),
+                format!("import `{block}`"),
+            );
+        }
     }
     env.diags.report(diagnostic);
 }

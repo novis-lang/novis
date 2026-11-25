@@ -1,0 +1,27 @@
+--TEST--
+hovering a call of a method an `extend` block adds shows its signature on the extended type, a sentence naming the block that adds it, and then its `///` run — `rule:classes/an-extend-block-adds-members-to-a-type`, `rule:tooling/doc-comment-attaches-to-the-next-declaration`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\BusinessDays;
+
+extend Date as BusinessDays {
+    /// Whether the shop is open on this day.
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+
+echo Date::at(2026, 9, 17)->isBusi<|>nessDay() ? "open" : "closed";
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Time\Date::isBusinessDay(): bool
+```
+
+`Shop\BusinessDays` adds this method to `Core\Time\Date`.
+
+Whether the shop is open on this day.

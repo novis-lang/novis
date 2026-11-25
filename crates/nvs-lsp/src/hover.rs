@@ -46,6 +46,12 @@
 //! often in a required file. What is read instead is that file's statements,
 //! which the graph walk parsed once and kept.
 //!
+//! **A member an `extend` block adds names its block.** The target is on the
+//! block (`crate::definition::target_in`), and [`added`] answers a method's
+//! signature on the extended type, a sentence naming the block and the type,
+//! and then the member's own `///` run, so a reader sees which `use` brought
+//! the member in.
+//!
 //! **A `Core` member is answered before that walk, not after it fails.** It is
 //! declared in Rust and has no `nvs_hir::Symbol`, so the walk reaches nothing
 //! and there is no `///` run anywhere to find: what it documents is its
@@ -136,7 +142,7 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    DocNamed, MemberKind, Target, attribute_at, clause_at, import_at, site, target_of,
+    DocNamed, MemberKind, Target, attribute_at, clause_at, import_at, site, target_in, target_of,
     type_member_at, type_name_at, written_class_name_at,
 };
 use crate::document::Analysed;
@@ -740,11 +746,12 @@ fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(St
                     .get(inner.range())
                     .is_some_and(|written| written.bytes().all(is_name_byte))
         });
-        let value = target_of(info)
+        let value = target_in(analysed, info)
             .and_then(|target| {
                 written(analysed, &target, *node, offset, receiver)
                     .or_else(|| core(analysed, &target))
                     .or_else(|| extension(analysed, &target))
+                    .or_else(|| added(analysed, &target))
                     .or_else(|| owned_enum(analysed, &target))
                     .or_else(|| run(analysed, &target))
                     .or_else(|| enclosing_run(analysed, &target))
@@ -1223,6 +1230,35 @@ fn revocable(class: &QName, member: Option<&str>) -> Option<String> {
         None => format!("```nvs\ninterface Revocable\n```\n\n{card}"),
         Some(_) => format!("\n\n{card}"),
     })
+}
+
+/// A member an `extend` block adds, named with the block that adds it
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`): a method's
+/// signature on the extended type, one sentence naming the block and the
+/// type, then the member's own `///` run and deprecation. `None` for a target
+/// on anything but a block.
+fn added(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let block = class_of(target);
+    let symbol = analysed.module.symbols.get(block)?;
+    if symbol.kind != SymbolKind::Extend {
+        return None;
+    }
+    let extended = analysed.module.graph.block_target(block)?;
+    let (line, what) = match target {
+        Target::Method(call) => (
+            Some(signature(&extended.to_string(), call, &analysed.interner).0),
+            "method",
+        ),
+        Target::Property { .. } => (None, "property"),
+        Target::Constant { .. } => (None, "constant"),
+        Target::Type(_) | Target::TypeAlias { .. } => return None,
+    };
+    let mut value = line.map_or_else(String::new, |line| format!("```nvs\n{line}\n```\n\n"));
+    let _ = write!(value, "`{block}` adds this {what} to `{extended}`.");
+    if let Some(run) = run(analysed, target) {
+        let _ = write!(value, "\n\n{run}");
+    }
+    Some(value)
 }
 
 /// An extension member's signature and help text, read from its class's

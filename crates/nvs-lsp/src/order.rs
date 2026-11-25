@@ -2,7 +2,7 @@
 //! function `nvs code order` calls.
 //!
 //! [`of`] writes the member order `rule:tooling/class-members-have-one-order`
-//! gives to every class and interface in one file. The
+//! gives to every class, interface and `extend` block in one file. The
 //! editor's action and the command are two clients of it, so they write the
 //! same bytes. `nvs fmt` never calls it
 //! (`rule:tooling/fmt-never-reorders-members`), and no save runs the action:
@@ -239,7 +239,8 @@ impl Scope {
     }
 }
 
-/// Every class and interface `stmts` declares, in the order they are written.
+/// Every class, interface and `extend` block `stmts` declares, in the order
+/// they are written.
 ///
 /// A class is declared at the top of a file or of a namespace's block, and
 /// nowhere else. Novis has no anonymous class (`E0244`), so no expression
@@ -280,6 +281,21 @@ fn collect<'a>(stmts: &'a [Stmt], file: &SourceFile, scope: &mut Scope, out: &mu
                     end: decl.span.end,
                     derive: scope.carries(&decl.attributes, file, DERIVE),
                     keep: scope.carries(&decl.attributes, file, KEEP_KEY_ORDER),
+                });
+            }
+            // A block's body is a class body, and it gets a class's order.
+            // It carries no codec attribute: what it adds is never a field.
+            StmtKind::ExtendDecl(decl) => {
+                out.push(Body {
+                    class: Class {
+                        name: QName::join(&scope.namespace, text_of(file, decl.name.span))
+                            .to_string(),
+                        at: decl.span.start,
+                    },
+                    members: &decl.members,
+                    end: decl.span.end,
+                    derive: false,
+                    keep: false,
                 });
             }
             StmtKind::InterfaceDecl(decl) => {
