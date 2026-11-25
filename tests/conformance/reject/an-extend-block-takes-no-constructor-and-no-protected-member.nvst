@@ -1,0 +1,23 @@
+--TEST--
+an `extend` block adds members and never changes how its type is built or inherited: a constructor and a `protected` method are each refused at the member, and the help names what to write instead (`rule:classes/an-extend-block-adds-members-to-a-type`)
+--FILE--
+<?nvs
+namespace Shop;
+
+extend Core\Time\Date as DateTools {
+    public function constructor(int $days) {
+    }
+
+    protected function weekdayName(): string {
+        return "Monday";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: an `extend` block cannot add a constructor
+%A
+error[E0338]: an `extend` block cannot add a `protected` method
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

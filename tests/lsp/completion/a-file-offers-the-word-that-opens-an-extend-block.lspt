@@ -1,0 +1,11 @@
+--TEST--
+at the top of a file a statement may start, so the list offers `extend`, which opens a block that adds members to a type, `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+namespace Shop;
+
+exte<|>
+--REQUEST--
+completion prefix=exte
+--EXPECT--
+extend  keyword

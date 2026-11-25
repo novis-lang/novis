@@ -109,6 +109,9 @@
           "include": "#attribute-declaration"
         },
         {
+          "include": "#extend-declaration"
+        },
+        {
           "include": "#signature"
         },
         {
@@ -525,6 +528,23 @@
           "include": "#shape-type"
         }
       ]
+    },
+    "extend-declaration": {
+      "match": "^\\s*(extend)\\s+(\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)(?:\\s*<[^>{]*>)?\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": {
+          "name": "storage.type.class.nvs"
+        },
+        "2": {
+          "name": "entity.other.inherited-class.nvs"
+        },
+        "3": {
+          "name": "keyword.operator.nvs"
+        },
+        "4": {
+          "name": "entity.name.type.class.nvs"
+        }
+      }
     },
     "attribute-sites": {
       "begin": "\\G",

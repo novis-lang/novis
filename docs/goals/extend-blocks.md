@@ -6,7 +6,7 @@ context: [crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/resolve.rs, crates/nv
 stages:
   - id: 1
     title: "the rules are written, and an extend block parses, resolves its target and loads by its name"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/stmt.rs, crates/nvs-syntax/src/token.rs, crates/nvs-syntax/src/walk.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-fmt/src/chain.rs, docs/rules/programs/one-declaration-per-autoloaded-file.md, docs/rules/classes/a-type-is-declared-at-file-scope.md, docs/agent/conventions.md]
   - id: 2
     title: "an enum body takes methods and constants"
@@ -414,7 +414,7 @@ classes are the ones that goal makes compare by value.
   `crates/nvs-syntax/src/index.rs:1`: the new kind. `crates/nvs-fmt/src/chain.rs:244`, `blank.rs:120`,
   `doc_tags.rs:82`, `brace.rs:52`, `modifiers.rs:1` and the contextual-word gap through the mechanism
   `attribute` uses (`gap.rs:80`). `cargo test --test layout_coverage` once.
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:270` and `:161`: `extend` as a declaration word,
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json:270` and `:161`: `extend` as a declaration word,
   `as <Name>` as the declared name; then `bun nv render` for `website/config/novis.tmLanguage.json`.
   `crates/nvs-lsp/src/completion.rs:1822`: `extend` offered at statement start
   (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`).
@@ -425,7 +425,7 @@ classes are the ones that goal makes compare by value.
   the map found it; `sole_declaration` (`:1505`) returns it. Edit
   `docs/rules/programs/one-declaration-per-autoloaded-file.md:1` and
   `docs/rules/classes/a-type-is-declared-at-file-scope.md:1` to say so.
-- [ ] The shape errors, with their codes in `crates/nvs-diagnostics/src/code/names.rs:254`'s area: a
+- [x] The shape errors, with their codes in `crates/nvs-diagnostics/src/code/names.rs:254`'s area: a
   target that is not a class, interface or enum; a target in the block's own package; each refused
   member kind. The three reject cases the check `shape` names, run once by name.
 

@@ -1,0 +1,22 @@
+--TEST--
+an `extend` block may not extend a type its own package declares: a file with no package is the application, so a class in the same file is its own, and the help says to add the member to the class (`rule:classes/an-extend-block-adds-members-to-a-type`)
+--FILE--
+<?nvs
+namespace Shop;
+
+class Order {
+    public int $total = 0;
+}
+
+extend Order as OrderTools {
+    public function isEmpty(): bool {
+        return $this->total == 0;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0337]: `Shop\Order` is declared in your own code
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

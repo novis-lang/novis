@@ -59,6 +59,7 @@
         { "include": "#legacy-cast" },
         { "include": "#type-alias" },
         { "include": "#attribute-declaration" },
+        { "include": "#extend-declaration" },
         { "include": "#signature" },
         { "include": "#names" },
         { "include": "#keywords" },
@@ -330,6 +331,16 @@
         { "include": "#comments" },
         { "include": "#shape-type" }
       ]
+    },
+    "extend-declaration": {
+      "comment": "`extend <Type> as <Name> {` (rule:classes/an-extend-block-adds-members-to-a-type), at file scope. `extend` is a contextual word, so the pattern opens only on the header's whole shape from the start of a line, and a method or a variable called `extend` is never offered it. The target is coloured as a name after `extends` is, `as` keeps the operator colour, and the block's own name is coloured as a declared class name. A generic target's `<K, V>` is consumed uncoloured, so the name after `as` is still found.",
+      "match": "^\\s*(extend)\\s+(\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)(?:\\s*<[^>{]*>)?\\s+(as)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.class.nvs" },
+        "2": { "name": "entity.other.inherited-class.nvs" },
+        "3": { "name": "keyword.operator.nvs" },
+        "4": { "name": "entity.name.type.class.nvs" }
+      }
     },
     "attribute-sites": {
       "comment": "The site list after `on`, from the header up to the `{` or the end of the line. Only `class`, `method`, `property` and `parameter` are coloured, with the scope of `on`. The parser reads five more words, but a program that uses one of them gets E1004, so they get no colour (rule:ide/rejected-syntax-gets-no-colour). The commas between the words are inside the region and keep the text colour.",

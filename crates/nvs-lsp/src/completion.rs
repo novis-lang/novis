@@ -1834,6 +1834,12 @@ enum Field {
 /// both as names, so they are a list of their own beside the reserved words.
 const DECLARATION_WORDS: &[&str] = &["attribute", "repeatable"];
 
+/// The contextual words that open a declaration only at file scope: the two
+/// above, and `extend`, which opens a block that adds members to a type
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`). A class body takes
+/// no block, so a member position offers [`DECLARATION_WORDS`] alone.
+const FILE_DECLARATION_WORDS: &[&str] = &["attribute", "repeatable", "extend"];
+
 /// `offered`, each written as a whole declaration where the client takes
 /// snippets: the name to type, a choice of the site words, and the cursor in
 /// the body. A client without snippets gets the word.
@@ -1852,10 +1858,10 @@ fn declaration_words(cursor: &Cursor<'_>, offered: &[&str]) -> Vec<CompletionIte
                 String::new(),
             );
             let offered = if cursor.client.snippets {
-                let insert = if *word == "attribute" {
-                    header.clone()
-                } else {
-                    format!("{word} {header}")
+                let insert = match *word {
+                    "attribute" => header.clone(),
+                    "extend" => "extend ${1:Type} as ${2:Name} {\n\t$0\n}".to_owned(),
+                    _ => format!("{word} {header}"),
                 };
                 CompletionItem {
                     insert_text: Some(insert),
@@ -3262,7 +3268,7 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             placed @ (Written::Statement | Written::Expression | Written::Other) => {
                 let mut items = statement_words(cursor, placed);
                 if placed == Written::Statement && Within::NoBody.holds(path) {
-                    items.extend(declaration_words(cursor, DECLARATION_WORDS));
+                    items.extend(declaration_words(cursor, FILE_DECLARATION_WORDS));
                 }
                 if crate::arguments::route_argument_at(cursor.analysed, path, cursor.offset) {
                     items.extend(routed_methods(cursor));
@@ -5194,7 +5200,9 @@ fn member_key(owner: &str, member: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{CASE_WORDS, DECLARATION_WORDS, MEMBER_WORDS, STATEMENT_WORDS};
+    use super::{
+        CASE_WORDS, DECLARATION_WORDS, FILE_DECLARATION_WORDS, MEMBER_WORDS, STATEMENT_WORDS,
+    };
     use nvs_syntax::Keyword;
 
     /// The three lists above are spellings copied out of a grammar that owns
@@ -5216,7 +5224,7 @@ mod tests {
         }
         // The declaration words are contextual, so a program may still name a
         // variable or a function `attribute`, and they stay out of the lists.
-        for word in DECLARATION_WORDS {
+        for word in DECLARATION_WORDS.iter().chain(FILE_DECLARATION_WORDS) {
             assert!(
                 Keyword::from_lowercase(word).is_none(),
                 "`{word}` is reserved, so it belongs in a list above"

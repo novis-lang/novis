@@ -1,0 +1,28 @@
+--TEST--
+the name after `extend` must be a class, an interface or an enum: a `Core` attribute and a `type` alias are neither, and each block is refused at its target (`rule:classes/an-extend-block-adds-members-to-a-type`)
+--FILE--
+<?nvs
+namespace Shop;
+
+type Id = int;
+
+extend Core\Deprecated as DeprecatedTools {
+    public function label(): string {
+        return "old";
+    }
+}
+
+extend Id as IdTools {
+    public function label(): string {
+        return "id";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0336]: `Core\Deprecated` is not a class, an interface or an enum, and an `extend` block extends one of these
+%A
+error[E0336]: `Shop\Id` is a type alias, and an `extend` block extends a class, an interface or an enum
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
