@@ -717,9 +717,9 @@ Every stage is done, and the goal claims `DONE`. Stage 11 closed it: `cargo buil
 two reds, both fixed. Five files were not rustfmt-clean, and `website/public/llms-full.txt` was
 stale (`489d715341`). That formatting made the 23 `Core\Uri` perf records and the
 `Core\Uuid::format` stamps stale, so they were measured on a rebuilt `target/release/nvs` and
-stamped again (`e2fe0fbcce`). The second close is green on every check of the committed tree. Its
-one red is rustfmt on `crates/nvs-lsp/src/definition.rs`, an uncommitted edit this goal did not
-make, left untouched. Each Standing decision already has its home: the rules the decisions
+stamped again (`e2fe0fbcce`). Both reds of the refused `DONE` came from another session's LSP
+work, and both are green on rerun: `bool-query-document` and `rules --render --check`. The latest
+close's one red is rustfmt on `crates/nvs-lsp/tests/autoload.rs`, that session's uncommitted edit. Each Standing decision already has its home: the rules the decisions
 table names, `rule:expressions/try-parse` for `format(): tainted string`, and
 `crates/nvs-cli/src/openapi.rs`'s comment for the API formats. The driver retires this file.
 
