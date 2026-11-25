@@ -1,0 +1,16 @@
+{
+  "title": "A request's page in the viewer has a tab for each kind of record it carries, draws every body as text or a value tree, and runs none of it",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/the-viewer-wears-the-websites-palette",
+    "testing/the-viewer-answers-per-route-and-per-statement",
+    "testing/two-requests-compare-and-a-replay-asks-first",
+    "testing/a-recorded-request-becomes-a-test",
+    "testing/a-recorded-request-keeps-its-input-with-credentials-replaced",
+    "testing/a-site-in-the-viewer-opens-in-the-editor",
+    "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer-flagship"
+}

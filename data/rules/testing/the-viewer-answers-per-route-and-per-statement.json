@@ -1,0 +1,14 @@
+{
+  "title": "The viewer's API answers per route and per statement with bounded reads, from per-kind times and a repeat count the index computes at ingest",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time",
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/api.rs",
+    "crates/nvs-cli/tests/debug_api.rs"
+  ],
+  "goal": "debug-viewer-flagship"
+}

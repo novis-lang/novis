@@ -3,6 +3,8 @@
 
 # Testing
 
+*4 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -3381,7 +3383,7 @@ index_max`, the oldest request first.
 
 | Table | One row per | What the viewer reads it for |
 |---|---|---|
-| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group | the request list and its filters |
+| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, and the routes view ([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)) |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
 | `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, and its call site's file, line and file hash | a request's timeline |
@@ -3521,11 +3523,28 @@ follow the WAI-ARIA listbox and tree patterns. A dark and a light theme follow t
 `prefers-color-scheme` and can be fixed in the viewer's settings, both at WCAG AA contrast. A long list
 keeps only the rows on screen in the DOM, so the browser's cost does not grow with the index.
 
-Four features complete it, each with its own rule: full-text search with saved filters
+**Every view sits in one frame.** A left rail lists the views, Requests, Routes, Queries, Errors,
+Logs and Stream, with Settings at its foot, and shows on Errors the count of groups seen since the tab
+opened. Below 900 pixels the rail shows its icons alone. A top bar holds the logo, the search box, the
+live state and the theme button. The live state is one pill: *Live* with the replay target's port
+when a server started the service, *Recording stopped* when the service runs alone, and the warning
+colour with a count when records were lost ([`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined)).
+
+**One key map.** `viewer/src/keys.ts` is the map every view registers its keys with, so no key is
+bound twice, and the `?` dialog prints it. `Ctrl+K` (`Cmd+K` on macOS) opens the command palette:
+the views, the saved filters, the actions of the page and the search. `/` focuses the search box, and
+`t` is *Make a test*. The theme has no key of its own: it is the top bar's button, a palette action
+and a setting.
+
+Seven features complete it, each with its own rule: full-text search with saved filters
 ([`testing/the-viewer-searches-every-record-and-saves-a-filter`](testing.md#testing-the-viewer-searches-every-record-and-saves-a-filter)), exceptions grouped by class and
 site ([`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site)), comparing two requests and replaying
-one ([`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first)), and every `file:line` opening in the
-editor ([`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor)).
+one ([`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first)), every `file:line` opening in the
+editor ([`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor)), a request's page of tabs
+([`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`](testing.md#testing-a-request-page-shows-what-was-recorded-and-runs-none-of-it)), the answers per route and
+per statement ([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)), and the frame the
+editor opens it in ([`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`](testing.md#testing-the-viewer-is-framed-only-by-the-editor-under-a-token-path)). How
+it looks is [`testing/the-viewer-wears-the-websites-palette`](testing.md#testing-the-viewer-wears-the-websites-palette).
 
 The value tree the browser receives is already finite — [`errors/record-transformations`](errors.md#errors-record-transformations) bounded
 it with elision and resolved every repeat to an identity before it was written — so a repeat renders
@@ -3541,7 +3560,16 @@ rebuilds them and fails on any byte difference, and the crate that serves `nvs d
 `include_bytes!`. A Rust build therefore never runs Bun, and the bytes in a binary are the reviewed
 ones. Solid's licence is reproduced in the notice the binary carries
 ([`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand)). A second runtime
-dependency is a change to this rule, because each one ships in every binary.
+dependency is a change to this rule, because each one ships in every binary. The viewer ships no
+font: it draws with the system's own
+([`testing/the-viewer-wears-the-websites-palette`](testing.md#testing-the-viewer-wears-the-websites-palette)).
+
+**One set of shared components.** `viewer/src/ui/` holds every piece two views use: `List`, the one
+virtual list with its selection, row keys, follow and pause, and `Chip`, `Method`, `Status`, `Tabs`,
+`Dialog`, `Toast`, `Empty`, `Tile`, `Spark`, `Meter`, `Icon` and `Site`. A view's file holds its
+columns and its data, never list mechanics. The stylesheet is split by layer under
+`viewer/src/styles/`, `tokens.css`, `base.css`, `ui.css` and one file per view, and imported from
+`main.tsx`, so the bundle is still one CSS file.
 
 The browser talks to one JSON API on the same listener. The Rust side owns its shapes: a test writes a
 fixture from a real index, the TypeScript types are checked against that fixture by `tsc`, and the
@@ -3624,13 +3652,261 @@ reads the lcov file `nvs test` writes (`editors/vscode/src/report.ts`).
   thing safe again.
 - **Building the bundle from a Cargo build script.** Every Rust build, on every CI leg and every
   contributor's machine, would need Bun and the viewer's dependencies installed.
-- **A second runtime dependency for a virtual list, a chart or a component kit.** Each one ships in
-  every binary and widens what the notice and the audit cover. The viewer draws them with Solid.
+- **A second runtime dependency for a virtual list, a chart, an icon set or a component kit.** Each
+  one ships in every binary and widens what the notice and the audit cover. The viewer draws them with
+  Solid.
 - **A WebSocket for the watermark.** The push is one integer in one direction, and server-sent events
   carry it over the same HTTP connection with no upgrade and no framing to keep correct.
 - **A port chosen at random on each start.** Every link and every open tab would break on a restart.
 
 <sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/the-viewer-searches-every-record-and-saves-a-filter`](testing.md#testing-the-viewer-searches-every-record-and-saves-a-filter), [`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site), [`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
+
+<a id="testing-the-viewer-wears-the-websites-palette"></a>
+
+## The debug viewer wears the website's palette in both themes, names colours by role, and draws with the system's fonts  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:testing/the-viewer-wears-the-websites-palette`
+
+The debug viewer is drawn in the website's palette, in both of the website's themes, with the
+system's own fonts, so a developer who opens it from the website or the editor sees one product.
+
+**The palette is the website's block, copied once.** `viewer/src/styles/tokens.css` starts with the
+seven colours of the website's palette block in `website/src/styles/custom.css` (`--nv-crimson`,
+`--nv-orange`, `--nv-gold`, `--nv-blue`, `--nv-ink`, `--nv-fog`, `--nv-ground`), with the same
+values, and derives every other colour from them with `color-mix()` as the website does, in a dark and
+a light theme and in the Display-P3 copy. `bun nv viewer --check` fails when the seven values in the
+two files differ, so a re-tint of the website reaches the viewer in the same change. The copy is
+deliberate: the viewer is bundled into the binary and the website is not, so neither imports the
+other.
+
+**The viewer names roles, never places.** A rule outside `tokens.css` reads a role: `--surface`,
+`--line`, `--text`, `--muted`, `--link`, `--wash`, `--ok`, `--warn`, `--bad`, and the event tones
+below. A view picks no colour of its own.
+
+**A colour has one meaning, as on the website.** Green is ok, blue is interaction and information,
+orange is a warning, red is an error, and gold is a highlight, such as a repeated query. A request's
+time split and its timeline give each event kind the website's diagram tone: `query` blue, `http`
+violet, `cache` and `session` green, `file` gold, `gc` orange, `spawn` crimson, and the time spent in
+the program's own code the faint gray. The legend under a split names each tone, because a colour
+alone carries nothing for a reader who cannot tell two apart.
+
+**The signature gradient and crimson are rare.** The crimson-to-orange gradient paints the header's
+hairline and the logo tile, and never text or a row in a list. Crimson fills one control per page, its
+primary action, which on a request is *Replay*. Every text colour keeps WCAG AA contrast on every
+surface it is drawn on, in both themes
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)).
+
+**The viewer draws with the system's fonts and ships none.** No font file is embedded, served or
+fetched, the stylesheet has no `@font-face`, and the service has no font route. `tokens.css` declares
+two stacks once, and no other rule names a face:
+
+- `--sans`: `'Segoe UI Variable Text', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+  sans-serif`, for all text. The first name gives Windows 11 its variable face where it is installed.
+- `--mono`: `ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono',
+  'Liberation Mono', monospace`, for code, paths, statements and ids.
+
+What makes a system face look made for the page is set once in `viewer/src/styles/base.css`: a scale
+of five sizes (11, 12, 13, 15 and 20 pixels), text at weights 400 and 600 with 700 for the brand
+alone, code at 400 and 700, `font-variant-numeric: tabular-nums` on every figure,
+`font-variant-ligatures: none` on code so `!=` stays two characters, a letter spacing of `-0.01em`
+from 15 pixels up, and `font-optical-sizing: auto`. No weight between these is used, because Consolas
+and Menlo have none. Buys: no bytes in the binary, no licence notice, no build step, and text drawn on
+the first frame. Costs: the viewer looks a little different on each system, its letters are not the
+website's, and on Linux it is as good as the fonts installed there. The palette, the gradient and the
+components carry the likeness.
+
+**Icons are inline SVG paths in one module,** `viewer/src/ui/icon.tsx`, drawn on a 16-pixel grid with
+one stroke width, coloured by `currentColor`.
+
+**Motion is transform, opacity and colour only,** 140 ms, and none under
+`prefers-reduced-motion`. A new row fades in. Nothing on screen moves when a record arrives while a
+view is paused.
+
+- **Memory:** none at run time beyond the stylesheet, which is part of the one CSS file the binary
+  already embeds.
+
+**Declined:**
+- **Starlight's `--sl-*` variable names.** They name the website's framework, which the viewer does
+  not run, and a rename there would silently change the viewer's meaning.
+- **An icon package.** It is a second runtime dependency, which every binary would ship.
+- **A font embedded in the binary or fetched from a network.** The binary grows for a look, the
+  notice grows, and a fetched font reaches outside the machine.
+- **A colour picked per view.** Two views would give one meaning two colours.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact).</sub>
+
+<a id="testing-a-request-page-shows-what-was-recorded-and-runs-none-of-it"></a>
+
+## A request's page in the viewer has a tab for each kind of record it carries, draws every body as text or a value tree, and runs none of it  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`
+
+A request's page in the viewer shows everything its record carries, one tab per kind of thing, and
+draws every body as text or as a value tree, so nothing a request sent or received ever runs in the
+viewer.
+
+**The header** names the method, the route and the path, the status, the duration and when it
+started, with *Replay* as the page's one primary action
+([`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first)), *Make a test*
+([`testing/a-recorded-request-becomes-a-test`](testing.md#testing-a-recorded-request-becomes-a-test)) and *Copy as curl*. Under it is the request's time
+split: one bar of its duration divided by event kind, in the tones of
+[`testing/the-viewer-wears-the-websites-palette`](testing.md#testing-the-viewer-wears-the-websites-palette), read from the `requests` row's per-kind sums
+([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)).
+
+**The tabs** are Timeline, Request, Response, Queries, Dumps, Logs and Coverage, and Exception when
+the request threw. A tab with nothing to show is drawn disabled with its count of zero, so the row of
+tabs has the same shape on every request. The tab is part of the link,
+`/requests/<trace id>/<span id>?tab=queries`, so a lens or a colleague can open a request at the
+answer.
+
+- **Timeline** draws every event of the request on one time axis: `query`, `http`, `cache`,
+  `session`, `file`, `gc`, `spawn` and the program's own `call` spans, each kind in its tone.
+- **Request** and **Response** show the headers as a table and the body as text. A body whose type
+  is JSON is parsed in the page and drawn with the value tree; a body that does not parse is drawn as
+  text. An HTML body is drawn as text. A body the record cut short says how many bytes it had.
+- **Queries** groups the statements by call site, never by text
+  ([`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), with each site's count, total and slowest
+  time, and the site as a link to the editor
+  ([`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor)). A statement that ran more than once at
+  one site in the request is marked in gold with its count. What counts as repeated is defined once,
+  by [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site), so the editor's lens and
+  the viewer's mark agree.
+- **Dumps** and **Logs** list the request's dumps and log records with their sites; **Coverage**
+  is the request's lines as [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)
+  draws them; **Exception** is the class, the message, the site and the group.
+
+**Copy as curl** builds the command from the recorded input, with `[redacted]` where the record has
+it, as a test made from the request does
+([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)). It copies text and runs
+nothing.
+
+**Nothing on the page runs.** Every value reaches the DOM as text, and the page's
+`Content-Security-Policy` admits no inline script, no frame and no other origin
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)).
+
+- **Memory:** in the browser, the one request's record and the parsed tree of the body on the open
+  tab, freed when another request opens. Nothing on the service.
+
+**Declined:**
+- **Drawing an HTML response in a frame.** A frame runs the response's scripts and loads its
+  resources, which turns a recorded attack into a live one inside the viewer.
+- **Drawing an image body.** An image decoder is attack surface, and the size and type in the headers
+  answer what a developer checks.
+- **One page per kind instead of tabs.** Every kind is part of one request, and a link with `?tab=`
+  opens any of them as directly.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/the-viewer-wears-the-websites-palette`](testing.md#testing-the-viewer-wears-the-websites-palette), [`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement), [`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first), [`testing/a-recorded-request-becomes-a-test`](testing.md#testing-a-recorded-request-becomes-a-test), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor), [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site).</sub>
+
+<a id="testing-the-viewer-answers-per-route-and-per-statement"></a>
+
+## The viewer's API answers per route and per statement with bounded reads, from per-kind times and a repeat count the index computes at ingest  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:testing/the-viewer-answers-per-route-and-per-statement`
+
+The viewer's API answers per route and per statement as well as per request, and every answer reads
+a bounded number of rows of the index, so a question about the whole index costs the same with a
+hundred requests in it as with a million.
+
+**The index holds what the list draws, computed once at ingest.** The `requests` row carries
+`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us` and `spawn_us`, the summed durations
+of the request's events by kind, and `repeats`, the largest number of times one statement at one
+call site ran in the request. The trigger that keeps the row's `queries` count keeps them as each
+event is inserted, so the request list draws a time split and a repeated-query badge per row with no
+read of `events`. What counts as one statement repeating is
+[`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site)'s definition, so the editor's
+lens and the viewer's badge agree. The time in the program's own code is the duration less the
+summed kinds, never below zero, and is computed where it is drawn. A new column raises the schema
+version, and the index is rebuilt from the spool, which is what a cache is for
+([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)).
+
+**Every answer is a bounded read:**
+
+| Route | Answers | Bound |
+|---|---|---|
+| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw`, each an indexed predicate | the page size |
+| `GET /api/summary` | twelve buckets over the last five minutes of the request count and the error count, and the p50, p95 and largest duration | the newest 10,000 rows of the window, and the answer says when it was cut |
+| `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | 200 routes by count; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
+| `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | 200 sites by total time, through the index `events_site` |
+| `GET /api/health` | the counts of `dropped`, `unparseable` and `quarantine` rows, and whether a replay target is known | three counts |
+
+**A percentile is computed in Rust,** from the sorted durations the bounded read returned, because
+SQLite has no percentile function. The answer names how many durations it read, so a reader can see
+when a percentile stands on few requests.
+
+**No route changes a record,** and each is a `GET` on the service's one read connection, with the
+host, origin and token checks every route has
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)). `crates/nvs-cli/tests/debug_api.rs`
+writes one fixture per route under `viewer/test/fixtures/`, and `viewer/test/api.test.ts` checks the
+viewer's types against each.
+
+- **Memory:** in the index, eight integers per request row and the entries of `requests_route`, under
+  `[debug] index_max`. In the service, at most 10,000 durations for a summary and 500 per route for
+  the routes answer, freed with the answer.
+
+**Declined:**
+- **An aggregate with no bound.** A count over the whole index grows with total traffic, and the
+  viewer's cost must not.
+- **A second store for aggregates.** A table of running totals has to be kept equal to the index
+  through every deletion, and a bounded read of the index already answers.
+- **Computing the time split from `events` at read time.** The list would read every event of every
+  row on screen, at every push of the watermark.
+
+<sub>See also [`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site).</sub>
+
+<a id="testing-the-viewer-is-framed-only-by-the-editor-under-a-token-path"></a>
+
+## The viewer is served under a token path that carries no cookie, and only a response under it may be framed, by the editor alone  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`
+
+The debug service also serves the viewer under `/embed/<token>/`, a path that carries the token in
+place of a cookie, and only a response under that path may be framed, and then only by the editor.
+
+**A cookie cannot work in a frame.** A page framed by an editor's webview is cross-site to its frame,
+so the browser neither stores nor sends the viewer's `SameSite=Strict` cookie there
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)). The token therefore travels
+in the path. The service serves the page, the two bundled files and the whole API under
+`/embed/<token>/` as it serves them at the root, compares the token in constant time, and sets and
+reads no cookie under that prefix. A wrong or missing token is `401`, as at the root.
+
+**Two `frame-ancestors` values.** A response under the prefix carries `frame-ancestors
+vscode-webview:`. Every other response keeps `frame-ancestors 'none'`. Every other header the root
+sends is sent under the prefix too, and an `Origin` there must be the listener's own or absent, as
+at the root.
+
+**The page finds its base path itself.** It reads the prefix from `location.pathname`, and the
+router, every fetch and the event stream put it in front of each path, so one bundle serves both.
+`Referrer-Policy: no-referrer` keeps the path out of every request the page makes, and the listener
+writes no path to a log.
+
+**Embedded, the page and its frame exchange three messages and nothing else.**
+
+| Message | From | Checked by |
+|---|---|---|
+| `{type: "open", file, line, column}` | the page, in place of following an editor link, and only when its base path is the embed prefix | the extension host opens the file only when it exists under a workspace folder, after the viewer's path mappings, and runs nothing |
+| `{type: "theme", value}` | the panel, when the editor's theme changes | the page takes it only from `window.parent` with a `vscode-webview:` origin |
+| `{type: "go", path}` | the panel, when a command opens a path in an open panel | the page takes it only from `window.parent` with a `vscode-webview:` origin, and only for a path its router reads |
+
+The panel takes a message only from the frame's origin.
+
+**`nvs debug link` prints the link and starts nothing.** It reads `[debug] listen` and the token
+file as the service does, prints the link with `?token=`, and says on standard error when no service
+holds `debug/service.lock` or when `[debug] store` is off. `--json` prints `url`, `embed`,
+`running` and `recording`. A missing token file is created exactly as the service creates it, so the
+link is the one the next service accepts.
+
+- **Spends:** the token is in the frame's URL, where the page's own script can read it. That script
+  can already read everything the token opens. One prefix test per viewer request.
+
+**Declined:**
+- **A `SameSite=None` cookie.** It sends the token's cookie with a request from every site on the
+  machine.
+- **VS Code's Simple Browser.** It cannot pass a click back to the editor, and its frame is cross-site
+  too.
+- **Passing the API through the extension host.** It is a second transport to keep correct, beside
+  the one the browser already uses.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor), [`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button).</sub>
 
 <a id="testing-the-viewer-searches-every-record-and-saves-a-filter"></a>
 
@@ -3752,6 +4028,10 @@ no link from one. A list of path mappings rewrites a prefix before the link is b
 that matches, for a program that ran in a container, a virtual machine or WSL and recorded paths the
 editor's machine does not have. The setting is the developer's, not the project's, so it lives in the
 viewer's settings file and never in `nvs.toml`.
+
+In the editor's panel the viewer follows no editor link: it sends the site to the editor as an
+`open` message ([`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`](testing.md#testing-the-viewer-is-framed-only-by-the-editor-under-a-token-path)), and the
+editor opens the file.
 
 A link is built only from a site the record carries as structured data — a frame, a query's call site,
 a dump's or a log call's location — and never from text found inside a message, so a logged string

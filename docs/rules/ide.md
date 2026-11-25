@@ -3,6 +3,8 @@
 
 # The editor
 
+*2 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="ide-one-grammar-one-tree"></a>
 
 ## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
@@ -2139,10 +2141,53 @@ that is absent, or that the service holds locked, gives no lens and no error.
 - **Variable values shown inline from recorded requests.** Recording values grows with every iteration
   and every request. A conditional breakpoint or a logpoint in `nvs dap` answers the same question on
   demand.
-- **Picking the request in the viewer.** It needs state shared between the viewer and the editor. The
-  newest request that reached the site is the one a developer just sent.
+- **Picking the request the lens reads in the viewer.** The open panel takes a path from the editor
+  ([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)), but nothing goes back the other way, and a
+  choice kept in the viewer would be state the editor reads on every lens request. The newest request
+  that reached the site is the one a developer just sent.
 
 <sub>See also [`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/debug-surface`](testing.md#testing-debug-surface), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has).</sub>
+
+<a id="ide-a-lens-shows-what-a-route-a-dump-and-a-throw-recorded"></a>
+
+## A lens above a route handler, a dump and a throw shows what the recorded requests did there and opens it in the viewer  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+
+Three more code lenses read the debug index as the query lens does: one above a route handler, one
+above a dump and one above a throw, each saying what the recorded requests did there and opening it
+in the viewer with a click.
+
+- **Above a `#[Core\Route]` handler:** how many requests the index holds for it, their p50 duration,
+  and the newest failing status with its age. It is keyed on the method and the route pattern, so an
+  edit to the file does not move it. A click opens the request list filtered to the route.
+- **Above a `Core\Debug::dump` call:** the newest value dumped at that file and line, as one line of
+  at most 80 characters from the already redacted tree
+  ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). A click opens that request's Dumps
+  tab.
+- **Above a `throw` whose site an exception group names:** how often it was thrown and when last. A
+  click opens the group ([`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site)).
+
+**A dump or a throw lens shows only while the file is not newer than the record,** because a line
+number means nothing after an edit above it. The route lens has no such bound, because its key is
+not a line.
+
+All three are under `nvs.codeLens.enable`, read `debug/index.sqlite` read-only without waiting, and
+show nothing when there is no index, as
+[`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site) says for the query lens. A click
+calls `nvs.openDebugViewer` with the path ([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)), and a
+client that did not name that command gets a lens with a title alone.
+
+- **Memory:** in the editor process, a few numbers and one line of at most 80 characters per lens,
+  freed with the answer.
+
+**Declined:**
+- **Remapping a recorded line through the file's edits.** The editor would keep the history of every
+  edit since the record, and a wrong remap puts a value on a line that never made it.
+- **A lens on every call that a request reached.** The query lens and these three answer the
+  questions a developer asks at a line, and more would bury the code under text.
+
+<sub>See also [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site), [`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button), [`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site), [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -3434,7 +3479,11 @@ open panel. The debugger is a `debuggers` contribution in `editors/vscode/packag
 nothing. The task tree is the `nvs.tasks` tree view in the `debug` container: VS Code's own
 `TreeView`, fed with `nvs dap`'s `nvsTaskTree` answer by a debug adapter tracker, the nesting
 computed in `editors/vscode/src/tasktree.ts`
-([`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter)).
+([`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter)). The debug viewer's panel is a webview whose
+page is one frame of the viewer `nvs debug` serves, and one script that passes three messages
+([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)). It is a frame because the editor has no surface
+that shows a local page and passes a click back to the editor, and because the viewer already exists:
+the panel renders nothing of its own.
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
@@ -3446,6 +3495,54 @@ computed in `editors/vscode/src/tasktree.ts`
   for exactly that.
 
 <sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
+
+<a id="ide-the-debug-viewer-opens-from-one-button"></a>
+
+## The extension opens the debug viewer from one button, in an editor panel that frames it or in the browser  *(designed — owned by goal debug-viewer-flagship)*
+
+`rule:ide/the-debug-viewer-opens-from-one-button`
+
+The VS Code extension opens the debug viewer with one button, in a panel of the editor or in the
+developer's browser, and the panel is a frame around the viewer the service already serves.
+
+**Two commands and one setting.** `nvs.openDebugViewer` (*Open Debug Viewer*) and
+`nvs.openDebugViewerInBrowser` (*Open Debug Viewer in Browser*), and `nvs.debugViewer.openIn`,
+`editor` by default or `browser`, which decides what the button does. The button is the first command
+in `editor/title` for an `nvs` or `nvst` document and for `nvs.toml`, with the `pulse` icon. A second
+click reveals the open panel rather than opening another.
+
+**The panel is a frame.** It is one webview, `nvs.debugViewer`, whose page is one `<iframe>` of the
+embed link and one nonce script that passes the three messages of
+[`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`](testing.md#testing-the-viewer-is-framed-only-by-the-editor-under-a-token-path). Its content security policy
+admits that one frame source and that one script, and nothing may connect. The panel draws nothing of
+its own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). A file:line clicked in the
+panel arrives as `open`, and the extension opens it in the editor when the file exists under a
+workspace folder. A command that opens a path in the viewer, such as a lens, sends `go` to an open
+panel, so no second tab opens.
+
+**The extension learns the link from the language server,** which already knows the data folder and
+`[debug] listen`. The request `nvs/debugViewer` answers `url`, `embed`, `running` and `recording`, as
+`nvs debug link --json` does. When no service runs, the command offers *Start nvs debug*, which runs
+`nvs debug` as a task of the `nvs` task type. When `[debug] store` is off, it says which line of
+`nvs.toml` turns recording on and opens the file. The browser command passes the link through
+`vscode.env.asExternalUri`, so a remote window opens the forwarded address.
+
+**The stop rule.** If the host test shows that VS Code does not draw an `http://127.0.0.1` frame in a
+webview, the panel is dropped after that one attempt, both commands open the browser, and this rule
+says so.
+
+- **Memory:** one webview per window while the panel is open, holding a frame of the viewer. The
+  viewer's own memory is the browser's, as in a tab.
+
+**Declined:**
+- **A viewer drawn by the extension.** It would be a second copy of the viewer to keep equal to the
+  first.
+- **A second button for the browser.** The setting decides what the one button does, and the browser
+  command is in the command palette.
+- **Starting the service without asking.** A service binds a port and reads the spool, and the
+  developer chooses when that happens.
+
+<sub>See also [`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`](testing.md#testing-the-viewer-is-framed-only-by-the-editor-under-a-token-path), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor).</sub>
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 

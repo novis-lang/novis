@@ -44,5 +44,7 @@ that is absent, or that the service holds locked, gives no lens and no error.
 - **Variable values shown inline from recorded requests.** Recording values grows with every iteration
   and every request. A conditional breakpoint or a logpoint in `nvs dap` answers the same question on
   demand.
-- **Picking the request in the viewer.** It needs state shared between the viewer and the editor. The
-  newest request that reached the site is the one a developer just sent.
+- **Picking the request the lens reads in the viewer.** The open panel takes a path from the editor
+  (`rule:ide/the-debug-viewer-opens-from-one-button`), but nothing goes back the other way, and a
+  choice kept in the viewer would be state the editor reads on every lens request. The newest request
+  that reached the site is the one a developer just sent.

@@ -28,7 +28,11 @@ open panel. The debugger is a `debuggers` contribution in `editors/vscode/packag
 nothing. The task tree is the `nvs.tasks` tree view in the `debug` container: VS Code's own
 `TreeView`, fed with `nvs dap`'s `nvsTaskTree` answer by a debug adapter tracker, the nesting
 computed in `editors/vscode/src/tasktree.ts`
-(`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).
+(`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). The debug viewer's panel is a webview whose
+page is one frame of the viewer `nvs debug` serves, and one script that passes three messages
+(`rule:ide/the-debug-viewer-opens-from-one-button`). It is a frame because the editor has no surface
+that shows a local page and passes a click back to the editor, and because the viewer already exists:
+the panel renders nothing of its own.
 
 **Declined:**
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the

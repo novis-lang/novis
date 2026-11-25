@@ -1,0 +1,12 @@
+{
+  "title": "A lens above a route handler, a dump and a throw shows what the recorded requests did there and opens it in the viewer",
+  "status": "designed",
+  "seeAlso": [
+    "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",
+    "ide/the-debug-viewer-opens-from-one-button",
+    "testing/an-exception-is-one-row-per-class-and-site",
+    "security/redaction-reaches-the-tools-own-renderings"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer-flagship"
+}

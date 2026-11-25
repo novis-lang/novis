@@ -34,11 +34,28 @@ follow the WAI-ARIA listbox and tree patterns. A dark and a light theme follow t
 `prefers-color-scheme` and can be fixed in the viewer's settings, both at WCAG AA contrast. A long list
 keeps only the rows on screen in the DOM, so the browser's cost does not grow with the index.
 
-Four features complete it, each with its own rule: full-text search with saved filters
+**Every view sits in one frame.** A left rail lists the views, Requests, Routes, Queries, Errors,
+Logs and Stream, with Settings at its foot, and shows on Errors the count of groups seen since the tab
+opened. Below 900 pixels the rail shows its icons alone. A top bar holds the logo, the search box, the
+live state and the theme button. The live state is one pill: *Live* with the replay target's port
+when a server started the service, *Recording stopped* when the service runs alone, and the warning
+colour with a count when records were lost (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`).
+
+**One key map.** `viewer/src/keys.ts` is the map every view registers its keys with, so no key is
+bound twice, and the `?` dialog prints it. `Ctrl+K` (`Cmd+K` on macOS) opens the command palette:
+the views, the saved filters, the actions of the page and the search. `/` focuses the search box, and
+`t` is *Make a test*. The theme has no key of its own: it is the top bar's button, a palette action
+and a setting.
+
+Seven features complete it, each with its own rule: full-text search with saved filters
 (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`), exceptions grouped by class and
 site (`rule:testing/an-exception-is-one-row-per-class-and-site`), comparing two requests and replaying
-one (`rule:testing/two-requests-compare-and-a-replay-asks-first`), and every `file:line` opening in the
-editor (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`).
+one (`rule:testing/two-requests-compare-and-a-replay-asks-first`), every `file:line` opening in the
+editor (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`), a request's page of tabs
+(`rule:testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`), the answers per route and
+per statement (`rule:testing/the-viewer-answers-per-route-and-per-statement`), and the frame the
+editor opens it in (`rule:testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`). How
+it looks is `rule:testing/the-viewer-wears-the-websites-palette`.
 
 The value tree the browser receives is already finite — `rule:errors/record-transformations` bounded
 it with elision and resolved every repeat to an identity before it was written — so a repeat renders
@@ -54,7 +71,16 @@ rebuilds them and fails on any byte difference, and the crate that serves `nvs d
 `include_bytes!`. A Rust build therefore never runs Bun, and the bytes in a binary are the reviewed
 ones. Solid's licence is reproduced in the notice the binary carries
 (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). A second runtime
-dependency is a change to this rule, because each one ships in every binary.
+dependency is a change to this rule, because each one ships in every binary. The viewer ships no
+font: it draws with the system's own
+(`rule:testing/the-viewer-wears-the-websites-palette`).
+
+**One set of shared components.** `viewer/src/ui/` holds every piece two views use: `List`, the one
+virtual list with its selection, row keys, follow and pause, and `Chip`, `Method`, `Status`, `Tabs`,
+`Dialog`, `Toast`, `Empty`, `Tile`, `Spark`, `Meter`, `Icon` and `Site`. A view's file holds its
+columns and its data, never list mechanics. The stylesheet is split by layer under
+`viewer/src/styles/`, `tokens.css`, `base.css`, `ui.css` and one file per view, and imported from
+`main.tsx`, so the bundle is still one CSS file.
 
 The browser talks to one JSON API on the same listener. The Rust side owns its shapes: a test writes a
 fixture from a real index, the TypeScript types are checked against that fixture by `tsc`, and the
@@ -137,8 +163,9 @@ reads the lcov file `nvs test` writes (`editors/vscode/src/report.ts`).
   thing safe again.
 - **Building the bundle from a Cargo build script.** Every Rust build, on every CI leg and every
   contributor's machine, would need Bun and the viewer's dependencies installed.
-- **A second runtime dependency for a virtual list, a chart or a component kit.** Each one ships in
-  every binary and widens what the notice and the audit cover. The viewer draws them with Solid.
+- **A second runtime dependency for a virtual list, a chart, an icon set or a component kit.** Each
+  one ships in every binary and widens what the notice and the audit cover. The viewer draws them with
+  Solid.
 - **A WebSocket for the watermark.** The push is one integer in one direction, and server-sent events
   carry it over the same HTTP connection with no upgrade and no framing to keep correct.
 - **A port chosen at random on each start.** Every link and every open tab would break on a restart.

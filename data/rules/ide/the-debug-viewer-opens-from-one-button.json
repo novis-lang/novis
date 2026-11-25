@@ -1,0 +1,11 @@
+{
+  "title": "The extension opens the debug viewer from one button, in an editor panel that frames it or in the browser",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "testing/a-site-in-the-viewer-opens-in-the-editor"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer-flagship"
+}

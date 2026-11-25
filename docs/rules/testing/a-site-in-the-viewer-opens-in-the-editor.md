@@ -10,6 +10,10 @@ that matches, for a program that ran in a container, a virtual machine or WSL an
 editor's machine does not have. The setting is the developer's, not the project's, so it lives in the
 viewer's settings file and never in `nvs.toml`.
 
+In the editor's panel the viewer follows no editor link: it sends the site to the editor as an
+`open` message (`rule:testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`), and the
+editor opens the file.
+
 A link is built only from a site the record carries as structured data — a frame, a query's call site,
 a dump's or a log call's location — and never from text found inside a message, so a logged string
 cannot make a link. A profile the timeline names opens in VS Code's *View Profile* view through the

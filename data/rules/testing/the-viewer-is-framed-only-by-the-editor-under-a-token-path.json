@@ -1,0 +1,14 @@
+{
+  "title": "The viewer is served under a token path that carries no cookie, and only a response under it may be framed, by the editor alone",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/a-site-in-the-viewer-opens-in-the-editor",
+    "ide/the-debug-viewer-opens-from-one-button"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/listen.rs",
+    "crates/nvs-cli/tests/debug_viewer.rs"
+  ],
+  "goal": "debug-viewer-flagship"
+}
