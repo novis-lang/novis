@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/conformance.rs, crates/nvs-types/src/signatures.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 4
     title: "Core\\Router\\Match holds each converted query value, so allows checks a record a query value's parse loaded"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-types/src/routes.rs, docs/rules/routing/a-bad-query-value-is-a-400.md, docs/rules/routing/matched-once-before-the-handler.md]
   - id: 5
     title: "the ISO readers move into nvs-runtime, and the matcher converts Date, TimeOfDay and Instant captures and query values and DateTime query values"
@@ -270,8 +270,8 @@ forces the opposite.
   with the debug `nvs`), because `check_captures` finds the parameter by name
   (`crates/nvs-types/src/routes.rs:2810`) and `query_params` (`routes.rs:3192`) takes every
   `#[Core\Query]` parameter, so one parameter is claimed twice. Stage 4 makes that a compile error at
-  the parameter, with a new code after the last `E07xx` in
-  `crates/nvs-diagnostics/src/code/types_e07.rs`, whose help says to remove `#[Core\Query]` or the
+  the parameter, with the new code `E1009` in `crates/nvs-diagnostics/src/code/types_e10.rs` (the
+  `E07xx` range is full at `E0799`), whose help says to remove `#[Core\Query]` or the
   capture. A method's parameter names are unique, so with this check every key of `parameters()`
   names exactly one capture or one query value, and no order between the two is needed.
 - **The optional key's representation.** `nvs_runtime::routes::QueryParam::default`
@@ -483,7 +483,7 @@ needs stages 1 to 4, and stage 10 needs everything.
 
 **Split:** none, one session.
 
-- [ ] The failing cases first, at the paths the check `query-in-match` names:
+- [x] The failing cases first, at the paths the check `query-in-match` names:
   `tests/conformance/core/a-query-value-parsed-to-a-stored-object-reaches-allows.nvst:1` (the
   stage 3 `Order` as `#[Core\Query] Order $order`, `allows` reading it with
   `$route->parameter('order')`, and `refused` setting `404` for `BadCapture` and `Denied`),
@@ -492,17 +492,17 @@ needs stages 1 to 4, and stage 10 needs everything.
   `Core\Request::route()`) and
   `tests/conformance/reject/a-parameter-filled-by-a-capture-cannot-also-be-a-query-value.nvst:1`. Each
   run once by name and red.
-- [ ] `crates/nvs-stdlib/src/router.rs:3043` to `:3061` (`dispatch`) and `:3086` (`query_values`):
+- [x] `crates/nvs-stdlib/src/router.rs:3043` to `:3061` (`dispatch`) and `:3086` (`query_values`):
   each bound query value is written into the match's parameters slot under its parameter's name
   before `dispatch_matched` (`router.rs:3182`) calls `allows`; a bad value is refused with the match
   as today. `router.rs:695` (`CAPTURE`) gains `bool`.
-- [ ] `crates/nvs-stdlib/src/router.rs:2687` and `:2840`: the doc lines and the cards of `parameters`
+- [x] `crates/nvs-stdlib/src/router.rs:2687` and `:2840`: the doc lines and the cards of `parameters`
   and `parameter` say they read query values inside `dispatch`, and `null` for one from
   `Core\Request::route()`.
-- [ ] `crates/nvs-types/src/routes.rs:2810` (`check_captures`) or `:3192` (`query_params`): a
+- [x] `crates/nvs-types/src/routes.rs:2810` (`check_captures`) or `:3192` (`query_params`): a
   `#[Core\Query]` parameter that a path capture names is a compile error at the parameter, with the
   new code and card in `crates/nvs-diagnostics/src/code/types_e07.rs`.
-- [ ] `docs/rules/routing/a-bad-query-value-is-a-400.md:1`: the query values are bound into the match
+- [x] `docs/rules/routing/a-bad-query-value-is-a-400.md:1`: the query values are bound into the match
   before `allows`, and `Core\Request::route()` reads `null` for them.
   `docs/rules/routing/matched-once-before-the-handler.md:1`: what the match holds.
   `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`: a parameter is filled by a
@@ -704,48 +704,46 @@ website.
 
 ### State
 
-Stages 1 to 3 are done, and their six checks are green (`optional-query`,
+Stages 1 to 4 are done, and their seven checks are green (`optional-query`,
 `optional-query-document`, `bool-query`, `bool-query-runtime`, `bool-query-document`,
-`final-parse`).
+`final-parse`, `query-in-match`). The gate before stage 5 is met: `docs/goals/time-values.md` is gone.
 
-Stage 3: `reject_static_return_of_another_class` (`crates/nvs-types/src/check.rs:1587`) returns
-early for a `final` class, so the ordinary return check settles the body. `final_class_names_itself`
-(`crates/nvs-types/src/conformance.rs`, below `reject_dropped_static_return`) binds the parent's
-`static` to the class with `bind_static` and asks `field_fits`; both the interface half
-(`check_class_conformance`) and the override half (`compare_override`) call it, so an answer naming
-another class is still `E0404`. The `E0741` and `E0404` help and cards name the `final` case, and
-`docs/reference/lang/50-classes.md` is re-rendered for the new `E0741` help. A `Parses` capture's
-match already holds the object `parse` returned inside `dispatch`, so `allows` reads the loaded
-`Order` with `$route->parameter("order")` and needed no change.
+Stage 4: `bind_queries` (`crates/nvs-stdlib/src/router.rs:3162`) writes each bound query value into
+the match's `params` slot before `dispatch_matched` calls `allows`. It skips a `null` (an absent
+`?T $x = null` key) and keeps an enum value the plain integer. `call_handler` still finds a query
+value through `captures.get(name)` first, which is now the same value. `CAPTURE`
+(`router.rs:696`) gained `bool`, so two cases quoting the union in an `E0401` message were updated.
+The new code is `E1009` in `crates/nvs-diagnostics/src/code/types_e10.rs`, because the `E07xx` range
+is full at `E0799`; `query_params` (`crates/nvs-types/src/routes.rs`) takes the capture rows and
+reports it, and the parameter gets no query key. The cards of `parameters`, `parameter` and the
+class name query values, `docs/reference/core/Router-Match.md` says so, and the three routing rules
+plus `rule:security/route-capture-is-laundered-by-its-type` are rendered.
 
-**From stage 1:** an enum capture reaches its route method as a case through `as_case`
-(`crates/nvs-stdlib/src/router.rs:3187`), and the match keeps the plain integer `CAPTURE` declares.
-Stage 4 puts query values into the match and must keep an enum query value there the plain integer,
-as an enum capture is.
+**For stage 8:** its new link-type code also goes in `types_e10.rs` (`E1010`), not beside `E0772`.
 
 Expected red once later stages land:
 `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 7 moves it to `Core\Uri`).
+(stage 7 moves it to `Core\Uri`), and the two cases that quote the capture union in an `E0401`
+message when stage 5 adds the time classes to `CAPTURE`:
+`tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst`
+and `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`.
 
 ### Next
 
-Stage 4, files `crates/nvs-stdlib/src/router.rs`, `crates/nvs-types/src/routes.rs`,
-`crates/nvs-diagnostics/src/code/types_e07.rs` and three routing rules; no gate. Its `Order` case
-copies `tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst:1` with
-`#[Core\Query] Order $order` in place of the capture.
+Stage 5, as its `**Split:**` line says: an `Explore` subagent lists the callers of the `fromIso`
+grammar first. Anchors have moved since the stage was written:
 
-- [ ] `tests/conformance/core/a-query-value-parsed-to-a-stored-object-reaches-allows.nvst:1` and the
-  other two failing cases the check `query-in-match` names, each run once by name and red.
-- [ ] `crates/nvs-stdlib/src/router.rs:3043` to `:3061` (`dispatch`) and `:3086` (`query_values`):
-  write each bound query value into the match's parameters under its name before `allows`; `CAPTURE`
-  (`router.rs:695`) gains `bool`.
-- [ ] `crates/nvs-stdlib/src/router.rs:2687` and `:2840`: the docs and cards of `parameters` and
-  `parameter`.
-- [ ] `crates/nvs-types/src/routes.rs:2810` (`check_captures`) or `:3192` (`query_params`): a
-  `#[Core\Query]` parameter a capture names is a new `E07xx` at the parameter.
-- [ ] `docs/rules/routing/a-bad-query-value-is-a-400.md:1`,
-  `docs/rules/routing/matched-once-before-the-handler.md:1` and
-  `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`.
+- [ ] `crates/nvs-runtime/src/routes.rs:1444`: the failing tests the checks `time-captures` and
+  `time-routes` name, beside `a_uuid_capture_converts_and_refuses_what_is_not_one`.
+- [ ] `crates/nvs-runtime/src/iso.rs:1`, moved from `crates/nvs-stdlib/src/time.rs:4492`
+  (`validate_iso`), `:4509` (`iso_instant`), `:4575` (`iso_date_prefix`), `:4602`
+  (`iso_time_prefix`) and `:4695` (`iso_datetime`).
+- [ ] `crates/nvs-runtime/src/routes.rs:129` (`CaptureConv`) and `:322` (`Param`) gain the four arms.
+- [ ] `crates/nvs-types/src/commands.rs:979` (`converts_from_string`),
+  `crates/nvs-stdlib/src/router.rs:1353` (`native_conv`) and `crates/nvs-types/src/crossing.rs:129`
+  (`capture_conv`).
+- [ ] `crates/nvs-stdlib/src/router.rs:2571` (`capture_value`) and `:696` (`CAPTURE`), then the
+  rules the stage names; the union in `docs/rules/routing/matching-is-not-dispatching.md:8` too.
 
 ### Backlog
 
