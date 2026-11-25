@@ -743,6 +743,16 @@ impl TypeInterner {
             Ty::SecretTaintedString => "secret tainted string".to_owned(),
             Ty::SecretTaintedBytes => "secret tainted bytes".to_owned(),
             Ty::Array(elem, None) => format!("array<{}>", self.describe(*elem)),
+            // A `Core\Arr` signature's own key variable is no type a program
+            // writes, so its subject prints as the `array<T>` the row writes.
+            Ty::Array(elem, Some(key))
+                if matches!(
+                    self.get(*key),
+                    Ty::TypeVar(name) if name == nvs_stdlib::registry::ARRAY_KEY_VAR
+                ) =>
+            {
+                format!("array<{}>", self.describe(*elem))
+            }
             Ty::Array(elem, Some(key)) => {
                 format!("array<{}, {}>", self.describe(*key), self.describe(*elem))
             }
