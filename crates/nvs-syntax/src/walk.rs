@@ -221,6 +221,7 @@ pub const KINDS: &[&str] = &[
     "Error",
     "Exit",
     "Expr",
+    "ExtendDecl",
     "File",
     "Float",
     "Fn",
@@ -596,6 +597,12 @@ fn stmt(s: &Stmt) -> Node {
             kids.extend(decl.cases.iter().map(enum_case));
             kids.extend(decl.members.iter().map(member));
             "EnumDecl"
+        }
+        StmtKind::ExtendDecl(decl) => {
+            name = Some(decl.name.span);
+            push_attributes(&mut kids, &decl.attributes);
+            kids.extend(decl.members.iter().map(member));
+            "ExtendDecl"
         }
         StmtKind::NamespaceDecl(decl) => {
             name = decl.name.as_ref().map(|written| written.span);

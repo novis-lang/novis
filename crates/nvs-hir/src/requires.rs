@@ -1297,6 +1297,16 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             }
             walk_class_members(&decl.members, src, out);
         }
+        // The target is a name the program needs before the block means
+        // anything, so it loads as a parent does.
+        StmtKind::ExtendDecl(decl) => {
+            walk_attributes(&decl.attributes, src, out);
+            record_names(std::slice::from_ref(&decl.target), src, out);
+            for ty in &decl.type_params {
+                walk_type(ty, src, out);
+            }
+            walk_class_members(&decl.members, src, out);
+        }
         StmtKind::TypeAliasDecl(decl) => walk_type(&decl.ty, src, out),
         StmtKind::AttributeDecl(decl) => {
             for field in &decl.fields {

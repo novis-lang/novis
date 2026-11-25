@@ -43,6 +43,7 @@ impl<'a> Lowering<'a> {
                 | StmtKind::ClassDecl(_)
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
+                | StmtKind::ExtendDecl(_)
                 | StmtKind::TypeAliasDecl(_)
                 | StmtKind::AttributeDecl(_)
                 // `rule:programs/no-runtime-autoload`'s `autoload` map is read by `nvs_hir` while the
@@ -301,6 +302,7 @@ impl<'a> Lowering<'a> {
             StmtKind::ClassDecl(_)
             | StmtKind::InterfaceDecl(_)
             | StmtKind::EnumDecl(_)
+            | StmtKind::ExtendDecl(_)
             | StmtKind::NamespaceDecl(_)
             | StmtKind::UseDecl(_)
             | StmtKind::AutoloadDecl(_)

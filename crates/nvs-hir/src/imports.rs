@@ -182,7 +182,12 @@ pub fn candidates<'a>(
     found.extend(
         symbols
             .iter()
-            .filter(|symbol| !matches!(symbol.kind, SymbolKind::TypeAlias | SymbolKind::Attribute))
+            .filter(|symbol| {
+                !matches!(
+                    symbol.kind,
+                    SymbolKind::TypeAlias | SymbolKind::Attribute | SymbolKind::Extend
+                )
+            })
             .filter(|symbol| symbol.qname.short_name() == short)
             .map(|symbol| symbol.qname.clone()),
     );

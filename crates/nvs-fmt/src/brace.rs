@@ -51,6 +51,7 @@ const DECLARATIONS: &[&str] = &[
     "ClassDecl",
     "InterfaceDecl",
     "EnumDecl",
+    "ExtendDecl",
     "Function",
     "Method",
 ];

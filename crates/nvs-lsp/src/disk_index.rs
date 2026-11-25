@@ -592,6 +592,7 @@ const fn kind_tag(kind: DeclKind) -> u8 {
         DeclKind::EnumCase => 7,
         DeclKind::Attribute => 8,
         DeclKind::Field => 9,
+        DeclKind::Extend => 10,
     }
 }
 
@@ -608,6 +609,7 @@ const fn kind_of(tag: u8) -> Option<DeclKind> {
         7 => DeclKind::EnumCase,
         8 => DeclKind::Attribute,
         9 => DeclKind::Field,
+        10 => DeclKind::Extend,
         _ => return None,
     })
 }

@@ -1705,6 +1705,8 @@ pub enum StmtKind {
     InterfaceDecl(InterfaceDecl),
     /// An enum declaration (`rule:enums/closed-integer-type`).
     EnumDecl(EnumDecl),
+    /// An `extend` block (`rule:classes/an-extend-block-adds-members-to-a-type`).
+    ExtendDecl(ExtendDecl),
     /// A `namespace` declaration, either form.
     NamespaceDecl(NamespaceDecl),
     /// A `use Path\To\Name;` import.
@@ -2026,6 +2028,35 @@ pub struct InterfaceDecl {
     pub extends: Vec<Name>,
     /// The interface body's members (method signatures, consts, and PHP
     /// 8.4's abstract property hooks), in source order.
+    pub members: Vec<ClassMember>,
+}
+
+/// `extend Type<P, …>? as Name { members… }`
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`), at file or
+/// namespace scope. `extend` is a contextual word, read only at the start of a
+/// statement before a type name ([`crate::parser`]'s `at_extend_decl`), so no
+/// identifier is taken from programs. The body is a class body, parsed by the
+/// production a class's is; which members a block may add is a later check.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExtendDecl {
+    /// The whole declaration, its first attribute or `extend` through the
+    /// closing brace.
+    pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
+    /// `#[...]` attribute groups, if any. Only `#[Core\Deprecated]` is
+    /// allowed, which is a later check.
+    pub attributes: Vec<AttributeGroup>,
+    /// The extended type, as written: in full or through `use`.
+    pub target: Name,
+    /// `<K, V>` after the target: the names a generic `Core` class's
+    /// parameters are bound to in the body. Each is parsed as a type, so a
+    /// concrete argument such as `int` parses and is refused later. Empty when
+    /// no list is written.
+    pub type_params: Vec<Type>,
+    /// The block's own name after `as`, declared in the file's namespace.
+    pub name: Name,
+    /// The body's members, in source order.
     pub members: Vec<ClassMember>,
 }
 

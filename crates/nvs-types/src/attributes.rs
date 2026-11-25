@@ -509,6 +509,7 @@ pub(crate) fn lookup<'e>(
             nvs_hir::SymbolKind::Interface => "an interface",
             nvs_hir::SymbolKind::Enum => "an enum",
             nvs_hir::SymbolKind::TypeAlias => "a `type` alias",
+            nvs_hir::SymbolKind::Extend => "an `extend` block",
             // An attribute declaration is in the table above, so this is one
             // whose declaration did not parse.
             nvs_hir::SymbolKind::Attribute => return Lookup::Reported,

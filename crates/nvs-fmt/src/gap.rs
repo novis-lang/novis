@@ -145,6 +145,10 @@ const COLONS: &[&str] = &[
 /// [`Pairs::words`]' own row.
 const ATTRIBUTE_DECL: &str = "AttributeDecl";
 
+/// The node kind of an `extend` block, whose header's words take the same row
+/// as [`ATTRIBUTE_DECL`]'s.
+const EXTEND_DECL: &str = "ExtendDecl";
+
 /// The node kinds whose own `:` ends a label: nothing before it, and the run
 /// after it is the author's.
 const LABELS: &[&str] = &["Case", "Switch"];
@@ -391,7 +395,9 @@ impl<'a> Pairs<'a> {
         // An attribute declaration's header is contextual words, a name and
         // site words, all of them identifiers to the lexer, and the body's
         // `{` after them: one space between each two.
-        if self.node_at(at) == Some(ATTRIBUTE_DECL)
+        // An `extend` block's header is the same shape: the contextual
+        // `extend`, the target, `as` and the block's name.
+        if matches!(self.node_at(at), Some(ATTRIBUTE_DECL | EXTEND_DECL))
             && matches!(
                 self.tokens[at].kind,
                 TokenKind::Ident | TokenKind::Keyword(_)

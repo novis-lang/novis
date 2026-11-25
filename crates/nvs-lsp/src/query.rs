@@ -220,6 +220,7 @@ fn site_key(declared: &Declaration) -> (&str, Option<(&str, MemberKind)>) {
         | DeclKind::Enum
         | DeclKind::TypeAlias
         | DeclKind::Attribute
+        | DeclKind::Extend
         | DeclKind::Field => None,
     };
     split.unwrap_or((symbol, None))

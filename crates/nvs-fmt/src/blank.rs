@@ -119,6 +119,7 @@ fn push_stmts(ends: &mut Vec<usize>, stmts: &[Stmt]) {
             StmtKind::ClassDecl(decl) => push_members(ends, &decl.members),
             StmtKind::InterfaceDecl(decl) => push_members(ends, &decl.members),
             StmtKind::EnumDecl(decl) => push_members(ends, &decl.members),
+            StmtKind::ExtendDecl(decl) => push_members(ends, &decl.members),
             _ => {}
         }
     }

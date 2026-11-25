@@ -381,6 +381,10 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             check_members(&decl.members, src, diags);
         }
         StmtKind::EnumDecl(decl) => check_enum_decl(decl, src, diags),
+        StmtKind::ExtendDecl(decl) => {
+            check_type_name(decl.name.span, src, "extend block", diags);
+            check_members(&decl.members, src, diags);
+        }
         StmtKind::Block(b) => check_stmts(&b.stmts, src, diags),
         StmtKind::If { arms, else_ } => {
             for arm in arms {

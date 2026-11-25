@@ -256,6 +256,7 @@ pub const AUTHORS_BREAKS: &[&str] = &[
     "Error",
     "Exit",
     "Expr",
+    "ExtendDecl",
     "File",
     "Float",
     "Global",

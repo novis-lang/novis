@@ -25,8 +25,10 @@ A stored property added to a class that takes no slot, to an interface or to an 
 whose help names a wrapper class of your own for data that belongs to such a value.
 
 **Reading and writing.** A read is a load of the slot, a null test and an indexed load. An unwritten
-property reads its default. A stored added property always declares one, so `readonly`, `?` and
-`lateinit` are refused on it (`rule:classes/an-extend-block-adds-members-to-a-type`).
+property reads its default, or `null` for a `?` type with none. An unwritten `lateinit` property
+throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
+property, and so is a stored one with none of the three
+(`rule:classes/an-extend-block-adds-members-to-a-type`).
 
 **Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
 session store skip it, and a revoke releases it with the other slots.

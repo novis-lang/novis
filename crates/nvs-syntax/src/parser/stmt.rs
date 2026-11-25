@@ -353,6 +353,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             _ if self.at_type_alias() => self.parse_type_alias_decl(start),
             _ if self.at_attribute_decl() => self.parse_attribute_decl(start),
+            _ if self.at_extend_decl() => self.parse_extend_decl(start, Vec::new()),
             // `(int)$x;` etc. at statement start is also a syntactically
             // valid (if pointless) redundantly-parenthesized local
             // declaration with no initializer — `(int)` parses fine as a

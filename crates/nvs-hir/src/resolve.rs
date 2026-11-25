@@ -174,6 +174,9 @@ impl Resolver {
                 StmtKind::AttributeDecl(decl) => {
                     self.declare(SymbolKind::Attribute, &current_ns, &decl.name, src, diags);
                 }
+                StmtKind::ExtendDecl(decl) => {
+                    self.declare(SymbolKind::Extend, &current_ns, &decl.name, src, diags);
+                }
                 _ => {}
             }
         }

@@ -308,4 +308,34 @@ codes! {
          Write the name of a class that extends `Throwable`, such as `RuntimeError`, or delete \
          the line.",
     );
+    /// An `extend` block whose target is a declared name that is not a
+    /// class, an interface or an enum: a `type` alias, an attribute or another
+    /// block (`rule:classes/an-extend-block-adds-members-to-a-type`). A name
+    /// nothing declares is [`E_UNDEFINED_CLASS`], which carries the `use`
+    /// line that would resolve it.
+    pub const E_EXTEND_TARGET_NOT_A_TYPE: Code = Code::new("E0336").card(
+        "An `extend` block adds methods and constants to a class, an interface or an enum. \
+         The name after `extend` must be one of these. A `type` alias, an attribute or another \
+         `extend` block cannot be extended.",
+    );
+    /// An `extend` block of a type its own package declares, or, in the
+    /// application, of a type the application declares
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). Every type a
+    /// project owns keeps one place for each member.
+    pub const E_EXTEND_OWN_TYPE: Code = Code::new("E0337").card(
+        "An `extend` block adds methods to a type from `Core` or from another package. This \
+         type is declared in your own code, so add the method to the type itself. An enum \
+         takes methods and constants in its own body.",
+    );
+    /// A member an `extend` block cannot add: a constructor, a `protected`,
+    /// `abstract` or `final` member, a `static` property, a new enum case,
+    /// `readonly` on an added property, or a stored property with no default
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). The help names
+    /// what to write instead.
+    pub const E_EXTEND_MEMBER_NOT_ADDABLE: Code = Code::new("E0338").card(
+        "An `extend` block can add `public` and `private` methods, static methods, constants \
+         and properties. It cannot add a constructor, a `protected`, `abstract` or `final` \
+         member, or a `static` property. Write a static method that creates the object in \
+         place of a constructor.",
+    );
 }

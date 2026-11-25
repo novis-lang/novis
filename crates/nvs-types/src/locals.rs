@@ -1932,6 +1932,7 @@ pub(crate) fn check_stmt(
             nested_declaration("interface", decl.name.span, true, env);
         }
         StmtKind::EnumDecl(decl) => nested_declaration("enum", decl.name.span, true, env),
+        StmtKind::ExtendDecl(decl) => nested_declaration("extend", decl.name.span, true, env),
         StmtKind::TypeAliasDecl(decl) => nested_declaration("type", decl.name.span, true, env),
         StmtKind::AttributeDecl(decl) => {
             nested_declaration("attribute", decl.name.span, true, env);

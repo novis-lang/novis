@@ -171,6 +171,20 @@ impl CoreRoster<'_> {
         }
     }
 
+    /// Whether `qname` is one of [`Self::Names`]' `imports` itself, and not
+    /// only a namespace one of them is under. Matched as [`Self::holds`]
+    /// matches, and always `true` for [`Self::Trusted`].
+    #[must_use]
+    pub fn imports_exactly(&self, qname: &QName) -> bool {
+        match self {
+            Self::Trusted => true,
+            Self::Names { imports, .. } => {
+                let written = qname.to_string();
+                imports.iter().any(|name| name.eq_ignore_ascii_case(&written))
+            }
+        }
+    }
+
     /// Whether a `use` may import `qname` from `Core`: it is one of
     /// [`Self::Names`]'s `imports`, or a namespace one of them is under, so
     /// `use Core\Db;` resolves because `Core\Db\Connection` exists. Matched
@@ -222,9 +236,26 @@ pub struct ClassLinks {
 #[derive(Clone, Debug, Default)]
 pub struct ClassGraph {
     links: FxHashMap<QName, ClassLinks>,
+    /// Each `extend` block whose target resolved, keyed by the block's name
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). A block is no
+    /// link of its target: the target's [`ClassLinks`] never change.
+    blocks: FxHashMap<QName, QName>,
 }
 
 impl ClassGraph {
+    /// The type an `extend` block adds members to, if `block` names one whose
+    /// target resolved.
+    #[must_use]
+    pub fn block_target(&self, block: &QName) -> Option<&QName> {
+        self.blocks.get(block)
+    }
+
+    /// Every `extend` block whose target resolved, with that target, in no
+    /// particular order.
+    pub fn blocks(&self) -> impl Iterator<Item = (&QName, &QName)> {
+        self.blocks.iter()
+    }
+
     /// The resolved links for one declared class/interface, if it was one of
     /// those kinds (an enum has no entry).
     #[must_use]
@@ -322,6 +353,10 @@ impl PendingLinks {
 #[derive(Debug, Default)]
 pub struct HierarchyResolver<'a> {
     pending: Vec<PendingLinks>,
+    /// Every `extend` block's target, as written, with the block's own
+    /// name, namespace and imports in [`PendingLinks`]' shape. Its `extends`
+    /// holds the one target and its `implements` is empty.
+    blocks: Vec<PendingLinks>,
     core: CoreRoster<'a>,
 }
 
@@ -333,6 +368,7 @@ impl<'a> HierarchyResolver<'a> {
     pub fn new(core: CoreRoster<'a>) -> Self {
         Self {
             pending: Vec::new(),
+            blocks: Vec::new(),
             core,
         }
     }
@@ -408,6 +444,18 @@ impl<'a> HierarchyResolver<'a> {
                         pending.extends.push(raw_ref(src, parent));
                     }
                     self.pending.push(pending);
+                }
+                StmtKind::ExtendDecl(decl) => {
+                    let mut pending = PendingLinks::new(
+                        QName::join(&current_ns, name_text(src, &decl.name)),
+                        SymbolKind::Extend,
+                        false,
+                        current_ns.clone(),
+                        imports.clone(),
+                        above.site(src, stmt.span.start, bracketed),
+                    );
+                    pending.extends.push(raw_ref(src, &decl.target));
+                    self.blocks.push(pending);
                 }
                 _ => {}
             }
@@ -491,6 +539,17 @@ impl<'a> HierarchyResolver<'a> {
             report_revocable_below_root(&class, span, &graph, diags);
         }
         detect_cycles(&graph, symbols, diags);
+
+        for block in &self.blocks {
+            let Some(raw) = block.extends.first() else {
+                continue;
+            };
+            if let Some(target) =
+                resolve_extend_target(raw, block, symbols, self.core, uses.at(raw.span.file), diags)
+            {
+                graph.blocks.insert(block.qname.clone(), target);
+            }
+        }
 
         graph
     }
@@ -929,6 +988,86 @@ fn resolve_supertype(
                 symbols,
                 core.names(),
                 pending.import_site,
+            ) {
+                diags.report(diagnostic);
+            }
+            None
+        }
+    }
+}
+
+/// The type an `extend` block's target names
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`), resolved as a link
+/// clause's name is.
+///
+/// It differs from [`resolve_supertype`] in two places. **A sealed `Core`
+/// class is a target**, because a block gives it no layout of its own, so
+/// [`CoreRoster::seals`] is never asked. A `Core` name is taken when the
+/// roster holds it as a link target, a closed interface or an importable
+/// name. Which kind of `Core` type it is, and so whether it is a class, an
+/// interface or an enum, is `nvs-types`' check, which holds the registry.
+/// **A declared name of any other kind** — a `type` alias, an attribute or
+/// another block — is [`code::E_EXTEND_TARGET_NOT_A_TYPE`]. A name nothing
+/// declares is the ordinary undeclared-name error, with its `use` fix.
+fn resolve_extend_target(
+    raw: &RawRef,
+    block: &PendingLinks,
+    symbols: &SymbolTable,
+    core: CoreRoster<'_>,
+    uses: &mut crate::uses::Uses,
+    diags: &mut Diagnostics,
+) -> Option<QName> {
+    let qname = resolve_ref(&raw.text, &block.namespace, &block.imports);
+    if uses.is_on() && !qname.is_core() {
+        if symbols.contains(&qname) {
+            uses.class(&qname);
+        } else if !qname.is_reserved_global_interface() && !qname.is_reserved_global_class() {
+            uses.missed_class(&qname);
+        }
+    }
+    if qname.is_core() {
+        if core.holds(&qname) || core.closes(&qname) || core.imports_exactly(&qname) {
+            return Some(qname);
+        }
+        diags.report(
+            Diagnostic::error(
+                code::E_UNDEFINED_CLASS,
+                format!("`{qname}` is not a type the `Core` namespace declares"),
+            )
+            .with_primary(raw.span, "no such `Core` type"),
+        );
+        return None;
+    }
+    if qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
+        return Some(qname);
+    }
+    match symbols.get(&qname).map(|sym| sym.kind) {
+        Some(SymbolKind::Class | SymbolKind::Interface | SymbolKind::Enum) => Some(qname),
+        Some(kind) => {
+            diags.report(
+                Diagnostic::error(
+                    code::E_EXTEND_TARGET_NOT_A_TYPE,
+                    format!(
+                        "`{qname}` is {}, and an `extend` block extends a class, an interface \
+                         or an enum",
+                        kind.describe()
+                    ),
+                )
+                .with_primary(raw.span, "not a class, an interface or an enum"),
+            );
+            None
+        }
+        // A class a loaded extension declares has no `Symbol`, and is a class.
+        None if symbols.contains(&qname) => Some(qname),
+        None => {
+            if let Some(diagnostic) = undeclared_name_at(
+                &qname,
+                &raw.text,
+                raw.span,
+                (&block.namespace, &block.imports),
+                symbols,
+                core.names(),
+                block.import_site,
             ) {
                 diags.report(diagnostic);
             }

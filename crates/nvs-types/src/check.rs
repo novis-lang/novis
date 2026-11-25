@@ -964,6 +964,9 @@ pub(crate) fn check_stmts(
             // proof it was nested. `nvs_hir` is what reads both: a `type`
             // alias into the type table, an `autoload` into `rule:programs/no-runtime-autoload`'s map.
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
+            // An `extend` block: its target and which members it may add
+            // (`rule:classes/an-extend-block-adds-members-to-a-type`).
+            StmtKind::ExtendDecl(decl) => crate::extend::check_block(decl, &current_ns, env),
             // An `attribute` declaration: its site list and its fields.
             StmtKind::AttributeDecl(decl) => {
                 let ctx = Ctx {

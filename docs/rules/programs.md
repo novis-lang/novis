@@ -655,8 +655,10 @@ interfaces the framework owns, rather than on each other's concrete classes, are
 `rule:programs/one-declaration-per-autoloaded-file`
 
 A file loaded through an autoload root contains exactly one top-level declaration — class, interface,
-enum, `type` alias or attribute declaration — whose qualified name is the one the map found the file by: the prefix, the
-directories under the root, and the file's base name. Anything else, a namespace that differs
+enum, `type` alias, attribute declaration or `extend` block — whose qualified name is the one the map
+found the file by: the prefix, the directories under the root, and the file's base name. A block's
+name is the one after its `as`, so `extend Core\Time\Date as BusinessDays` under `App\Time` is
+`BusinessDays.nvs` in `App\Time`'s directory ([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)). Anything else, a namespace that differs
 included, is `E_AUTOLOAD_FILE_SHAPE`.
 
 This is not tidiness. Without it, whether `App\Helper` exists in the program depends on whether

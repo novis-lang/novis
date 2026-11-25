@@ -1666,3 +1666,64 @@ fn an_attribute_declaration_takes_no_decoration() {
         ["E0133"]
     );
 }
+
+/// `rule:classes/an-extend-block-adds-members-to-a-type`: the target, its
+/// bound parameters, the name after `as` and the class body, with and without
+/// a leading attribute group.
+#[test]
+fn extend_block_parses_its_target_and_name() {
+    let src = "extend Core\\ObjectMap<K, V> as Index { \
+                   public function first(): ?V { return null; } \
+                   public const int LIMIT = 10; \
+               }";
+    let s = parse_stmt_ok(src);
+    let StmtKind::ExtendDecl(decl) = s.kind else {
+        panic!("expected an extend block: {s:?}");
+    };
+    let width = |span: Span| span.end - span.start;
+    assert_eq!(width(decl.target.span), u32::try_from("Core\\ObjectMap".len()).unwrap());
+    assert_eq!(decl.type_params.len(), 2);
+    assert_eq!(width(decl.name.span), u32::try_from("Index".len()).unwrap());
+    assert_eq!(decl.members.len(), 2);
+    assert!(matches!(decl.members[0].kind, ClassMemberKind::Method(_)));
+    assert!(matches!(decl.members[1].kind, ClassMemberKind::Const(_)));
+
+    let s = parse_stmt_ok("#[Core\\Deprecated] extend Shop\\Order as Totals { }");
+    let StmtKind::ExtendDecl(decl) = s.kind else {
+        panic!("expected an attributed extend block: {s:?}");
+    };
+    assert_eq!(decl.attributes.len(), 1);
+    assert!(decl.type_params.is_empty());
+    assert!(decl.members.is_empty());
+
+    let (_, diags) = parse_stmt_with_diags("extend Shop\\Order { }");
+    assert!(diags.has_errors(), "a block with no `as` name is an error");
+
+    let codes = codes_of("<?nvs\nclass A { extend Shop\\Order as B { } }\n");
+    assert_eq!(codes, ["E0233"], "a block in a class body is a nested declaration");
+}
+
+/// `extend` is contextual: only a statement that starts with it and a second
+/// name is a block, so a method, a property, a variable and a call keep it.
+#[test]
+fn extend_block_word_stays_an_identifier_elsewhere() {
+    for src in [
+        "$extend = 1;",
+        "$box->extend($other);",
+        "Shop::extend();",
+        "$a = $b->extend;",
+    ] {
+        let s = parse_stmt_ok(src);
+        assert!(
+            !matches!(s.kind, StmtKind::ExtendDecl(_)),
+            "`{src}` is no block: {s:?}"
+        );
+    }
+    let s = parse_stmt_ok(
+        "class Box { public int $extend = 0; public function extend(): void {} }",
+    );
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class: {s:?}");
+    };
+    assert_eq!(class.members.len(), 2);
+}

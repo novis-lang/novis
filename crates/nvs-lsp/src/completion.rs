@@ -3010,8 +3010,10 @@ fn namespace_kind(kind: DeclKind) -> Option<CompletionItemKind> {
         DeclKind::Enum => Some(CompletionItemKind::ENUM),
         DeclKind::TypeAlias => Some(CompletionItemKind::TYPE_PARAMETER),
         // An attribute is offered at `#[` alone, never after a separator in a
-        // type or an expression.
+        // type or an expression. An `extend` block is named by a `use` line
+        // alone, and never as a type or a value.
         DeclKind::Attribute
+        | DeclKind::Extend
         | DeclKind::Method
         | DeclKind::Property
         | DeclKind::Const

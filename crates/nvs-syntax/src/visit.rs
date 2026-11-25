@@ -354,6 +354,7 @@ pub fn each_child_of_stmt<'a>(s: &'a Stmt, f: &mut dyn FnMut(StmtChild<'a>)) {
         StmtKind::ClassDecl(_)
         | StmtKind::InterfaceDecl(_)
         | StmtKind::EnumDecl(_)
+        | StmtKind::ExtendDecl(_)
         | StmtKind::NamespaceDecl(_)
         | StmtKind::UseDecl(_)
         | StmtKind::AutoloadDecl(_)

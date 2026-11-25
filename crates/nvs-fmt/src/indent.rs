@@ -102,6 +102,7 @@ pub(crate) const BODIES: &[&str] = &[
     "ClassDecl",
     "InterfaceDecl",
     "EnumDecl",
+    "ExtendDecl",
     "NamespaceDecl",
     "Function",
     "Method",

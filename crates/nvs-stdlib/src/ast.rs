@@ -317,6 +317,7 @@ productions![
     "Error",
     "Exit",
     "Expr",
+    "ExtendDecl",
     "File",
     "Float",
     "Fn",

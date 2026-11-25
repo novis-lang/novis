@@ -973,6 +973,58 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// `extend` followed by an identifier
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). The word is
+    /// contextual and read by spelling here and nowhere else. No statement
+    /// that is not a block starts with a bare name followed by a second one:
+    /// a typed local declaration puts a `$variable` after its type, and an
+    /// expression cannot put two names side by side. So `extend` stays a name
+    /// a program may use for a method, a property or a variable.
+    pub(super) fn at_extend_decl(&mut self) -> bool {
+        self.at_contextual("extend") && self.peek_at(1).kind == TokenKind::Ident
+    }
+
+    /// An `extend` block at file or namespace scope, with the attribute groups
+    /// the caller already read in front of it.
+    pub(super) fn parse_extend_decl(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> Stmt {
+        let decl = self.parse_extend_decl_body(start, attributes);
+        Stmt {
+            span: decl.span,
+            kind: StmtKind::ExtendDecl(decl),
+        }
+    }
+
+    /// `extend Target<P, …>? as Name { members… }`, from the `extend` word.
+    /// The body is a class body: which members a block may add is
+    /// `nvs-types`' check, so a refused member still parses and is named
+    /// where it is written.
+    pub(super) fn parse_extend_decl_body(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> ExtendDecl {
+        let doc = self.take_doc_comment(start);
+        self.bump(); // 'extend' (contextual — see `Self::at_extend_decl`)
+        let target = self.parse_name();
+        let (type_params, _) = self.parse_type_args(target.span);
+        self.expect_keyword(Keyword::As, "`as` and the block's name");
+        let name = self.parse_decl_name("the block's name");
+        let members = self.parse_class_body();
+        ExtendDecl {
+            span: start.to(self.last_span),
+            doc,
+            attributes,
+            target,
+            type_params,
+            name,
+            members,
+        }
+    }
+
     /// The declaration from `repeatable` or `attribute` through its `}`,
     /// shared by the file-scope form and the class or interface member. `doc`
     /// is the run the caller already took: a member's hangs on its
@@ -1411,6 +1463,26 @@ impl<'src, 'd> Parser<'src, 'd> {
         // the refusal is one diagnostic, and nothing of it is kept. A `class<`
         // is a property's type (`rule:types/class-reference`), not a
         // declaration.
+        // An `extend` block is a file-scope declaration too
+        // (`rule:classes/an-extend-block-adds-members-to-a-type`), refused the
+        // same way.
+        if modifiers_span.is_none() && self.at_extend_decl() {
+            let decl = self.parse_extend_decl_body(start, attributes);
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
+                    "an `extend` block is not declared in a class body",
+                )
+                .with_primary(decl.span, "declared inside another type")
+                .with_help("move it to file scope"),
+            );
+            out.push(ClassMember {
+                span: decl.span,
+                doc: None,
+                kind: ClassMemberKind::Error,
+            });
+            return;
+        }
         if (self.at_keyword(Keyword::Class) && !self.at_class_reference())
             || self.at_keyword(Keyword::Interface)
         {
@@ -2173,6 +2245,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Function) if self.at_named_function_decl() => {
                 self.parse_toplevel_function_reject(start, attributes)
             }
+            _ if self.at_extend_decl() => self.parse_extend_decl(start, attributes),
             _ if self.at_attribute_decl() => {
                 self.refuse_decoration_on_a_type_alias(&attributes, None);
                 let decl = self.parse_attribute_decl_body(start, None);

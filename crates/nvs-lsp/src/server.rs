@@ -2083,6 +2083,7 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
         DeclKind::Enum => SymbolKind::ENUM,
         DeclKind::TypeAlias => SymbolKind::TYPE_PARAMETER,
         DeclKind::Attribute => SymbolKind::STRUCT,
+        DeclKind::Extend => SymbolKind::CLASS,
         DeclKind::Method => SymbolKind::METHOD,
         DeclKind::Property => SymbolKind::PROPERTY,
         DeclKind::Const => SymbolKind::CONSTANT,

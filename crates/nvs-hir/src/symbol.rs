@@ -33,6 +33,11 @@ pub enum SymbolKind {
     /// is a name of its own kind, not a type: only `#[`, a retrieval's type
     /// argument and an `implementingWith` argument name it.
     Attribute,
+    /// An `extend T as Name { … }` block
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). It is a name of
+    /// its own kind, not a type: only a `use` line names it, and no value has
+    /// it as its type.
+    Extend,
 }
 
 impl SymbolKind {
@@ -45,6 +50,7 @@ impl SymbolKind {
             Self::Enum => "an enum",
             Self::TypeAlias => "a type alias",
             Self::Attribute => "an attribute",
+            Self::Extend => "an `extend` block",
         }
     }
 }

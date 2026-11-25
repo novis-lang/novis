@@ -166,6 +166,8 @@ pub enum DeclKind {
     TypeAlias,
     /// An `attribute Name on … { … }` declaration.
     Attribute,
+    /// An `extend T as Name { … }` block.
+    Extend,
     /// A method of one of the above.
     Method,
     /// A property of one of the above.
@@ -188,6 +190,7 @@ impl DeclKind {
             SymbolKind::Enum => Self::Enum,
             SymbolKind::TypeAlias => Self::TypeAlias,
             SymbolKind::Attribute => Self::Attribute,
+            SymbolKind::Extend => Self::Extend,
         }
     }
 
@@ -201,6 +204,7 @@ impl DeclKind {
             Self::Enum => "an enum",
             Self::TypeAlias => "a type alias",
             Self::Attribute => "an attribute",
+            Self::Extend => "an `extend` block",
             Self::Method => "a method",
             Self::Property => "a property",
             Self::Const => "a constant",

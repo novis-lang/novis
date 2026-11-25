@@ -63,6 +63,12 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
         StmtKind::ClassDecl(decl) => members_types(&decl.members, start, end, found),
         StmtKind::InterfaceDecl(decl) => members_types(&decl.members, start, end, found),
         StmtKind::EnumDecl(decl) => members_types(&decl.members, start, end, found),
+        StmtKind::ExtendDecl(decl) => {
+            for ty in &decl.type_params {
+                root(ty, start, end, found);
+            }
+            members_types(&decl.members, start, end, found);
+        }
         StmtKind::NamespaceDecl(decl) => {
             if let Some(block) = &decl.body {
                 stmts_types(&block.stmts, start, end, found);

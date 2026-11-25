@@ -44,7 +44,9 @@ A `class`, `interface` or `enum` is declared at file scope, or not at all, with 
 `enum` may also be declared in a class or interface body ([`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum)). A
 declaration written inside a method body, a property hook, a closure body or a nested block at file
 scope is `E0233` where it is written, and its help names file scope and, for an enum, the class body.
-A class or an interface in a class body is one `E0233` too. An anonymous class (`new class { … }`) is
+A class or an interface in a class body is one `E0233` too. An `extend` block is declared at file
+scope like a class, and is `E0233` in a body and in a class body alike
+([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)). An anonymous class (`new class { … }`) is
 the same declaration in expression position, and is `E0244`.
 
 Every type name resolves against a static table built before any code runs: the `require` and
@@ -1349,15 +1351,16 @@ under `App\Time`'s directory ([`programs/one-declaration-per-autoloaded-file`](p
 `extend` block" and its members are "added" members. "Extension" already names a native `nvs ext`
 component, and no text, rule title or code name calls this feature one.
 
-**The target.** A target that names no class, interface or enum is **`E0336`**, whether it names
-nothing, a `type` alias or an attribute. A target declared in the block's own package is **`E0337`**,
+**The target.** A target that names a `type` alias, an attribute or another block is **`E0336`**. A
+target nothing declares is the ordinary undeclared-name error, with the `use` line that would resolve
+it. A sealed `Core` class is a target, because a block gives it no layout of its own. A target declared in the block's own package is **`E0337`**,
 and its help says to add the member to the type itself. For the application, that is any type the
 application declares. Every type a project owns then has one place per member, and an enum of the
 program's own takes methods and constants in its body ([`enums/an-enum-body-takes-methods-and-constants`](enums.md#enums-an-enum-body-takes-methods-and-constants)).
 `Packages::of` names both packages.
 
-**Where an added member is visible.** In a file that writes `use <Ns>\<Name>;` for the block, a group
-`use` and an alias included, and inside the block's own body. The block's own namespace is no
+**Where an added member is visible.** In a file that writes `use <Ns>\<Name>;` for the block, an alias
+included, and inside the block's own body. The block's own namespace is no
 exception: names load lazily through the autoload map, and nothing but a `use` names a block. A call
 that would resolve only through a block the file does not use is the ordinary unknown-member error
 (`E0405` for `->`, `E0309` for `::`), and its help names the block and the `use` line when the
@@ -1380,8 +1383,8 @@ The stored property and its slot are [`classes/an-added-property-lives-in-one-hi
 **What a block may not add.** Each is **`E0338`** at the member, and its help names what to write
 instead: a constructor (a static factory), a `protected`, `abstract` or `final` member (a `public` or
 `private` one), a `static` property (a static property of a class of your own), `readonly` on an added
-property, a stored property with no default or one declared `?` or `lateinit`, a new enum case, and a
-member the table above leaves out. An `implements` or `extends` clause on the block does not parse. In
+property, a stored property that has no default, no `?` type and no `lateinit`, a new enum case, and
+a member the table above leaves out, such as a `type` alias. An `implements` or `extends` clause on the block does not parse. In
 a body, `parent` is `E0338` and `static::` is `E0338` whose help says to write `self::`. A member that
 replaces or overrides anything is [`classes/an-added-member-never-changes-a-type`](classes.md#classes-an-added-member-never-changes-a-type).
 
@@ -1512,8 +1515,10 @@ A stored property added to a class that takes no slot, to an interface or to an 
 whose help names a wrapper class of your own for data that belongs to such a value.
 
 **Reading and writing.** A read is a load of the slot, a null test and an indexed load. An unwritten
-property reads its default. A stored added property always declares one, so `readonly`, `?` and
-`lateinit` are refused on it ([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)).
+property reads its default, or `null` for a `?` type with none. An unwritten `lateinit` property
+throws, as an unwritten `lateinit` property of a class does. `readonly` is refused on an added
+property, and so is a stored one with none of the three
+([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)).
 
 **Copies.** `clone` and the graph copy to a task start the slot empty. JSON, `Reflect`, `==` and the
 session store skip it, and a revoke releases it with the other slots.

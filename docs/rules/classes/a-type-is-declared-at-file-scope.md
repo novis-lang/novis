@@ -2,7 +2,9 @@ A `class`, `interface` or `enum` is declared at file scope, or not at all, with 
 `enum` may also be declared in a class or interface body (`rule:enums/class-scoped-enum`). A
 declaration written inside a method body, a property hook, a closure body or a nested block at file
 scope is `E0233` where it is written, and its help names file scope and, for an enum, the class body.
-A class or an interface in a class body is one `E0233` too. An anonymous class (`new class { … }`) is
+A class or an interface in a class body is one `E0233` too. An `extend` block is declared at file
+scope like a class, and is `E0233` in a body and in a class body alike
+(`rule:classes/an-extend-block-adds-members-to-a-type`). An anonymous class (`new class { … }`) is
 the same declaration in expression position, and is `E0244`.
 
 Every type name resolves against a static table built before any code runs: the `require` and

@@ -711,6 +711,7 @@ pub(crate) fn stmt_parts<'a>(stmt: &'a Stmt, out: &mut Vec<Part<'a>>) -> bool {
         | StmtKind::ClassDecl(_)
         | StmtKind::InterfaceDecl(_)
         | StmtKind::EnumDecl(_)
+        | StmtKind::ExtendDecl(_)
         | StmtKind::UseDecl(_)
         | StmtKind::AutoloadDecl(_)
         | StmtKind::TypeAliasDecl(_)

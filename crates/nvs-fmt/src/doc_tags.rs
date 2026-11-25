@@ -93,6 +93,10 @@ fn push_stmts(edits: &mut Vec<Edit>, stmts: &[Stmt], text: &str) {
                 push_members(edits, &decl.members, text);
             }
             StmtKind::EnumDecl(decl) => push_enum(edits, decl, text),
+            StmtKind::ExtendDecl(decl) => {
+                push(edits, decl.doc.as_ref(), &[], text);
+                push_members(edits, &decl.members, text);
+            }
             StmtKind::TypeAliasDecl(decl) => push(edits, decl.doc.as_ref(), &[], text),
             StmtKind::AttributeDecl(decl) => {
                 push(edits, decl.doc.as_ref(), &[], text);
