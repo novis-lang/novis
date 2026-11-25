@@ -6,11 +6,11 @@ context: [docs/rules/enums/no-class-machinery.md, docs/rules/types/arrays.md, cr
 stages:
   - id: 1
     title: a match over an enum covers every case
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/mod.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-ir/src/lower/expr.rs, docs/rules/expressions/a-match-has-at-least-one-arm.md]
   - id: 2
     title: "a class constant and a property default hold enum cases, as int of a case, other constants and Foo::class inside arrays"
-    status: open
+    status: done
     context: [crates/nvs-types/src/defaults.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-ir/src/lower/call.rs, crates/nvs-diagnostics/src/code/types_e07.rs]
   - id: 3
     title: "array<E, T> types an array keyed by the cases of an enum, and the checker holds every key to it"
@@ -279,25 +279,25 @@ last on the chain.
   `crates/nvs-ir/src/lower/tests.rs:945`.
 - [x] `crates/nvs-types/tests/enum_tables.rs:1` (new): the tests the check `covers` names, then
   `cargo test --test enum_tables` once.
-- [ ] Every `.nvs` and `.nvst` the new error reaches, fixed as the standing decision says. Found with
+- [x] Every `.nvs` and `.nvst` the new error reaches, fixed as the standing decision says. Found with
   `bun nv suite tests/conformance/` once and the examples' own run.
 - [x] `tests/conformance/reject/a-match-over-an-enum-that-misses-a-case-does-not-compile.nvst:1` and
   `tests/conformance/enum/a-match-over-every-case-needs-no-default.nvst:1` (new).
 
 ### 2. a class constant and a property default hold enum cases, as int of a case, other constants and Foo::class inside arrays
 
-- [ ] `crates/nvs-types/src/defaults.rs:101`, `:921` and `:953`: `ConstArg` and the folder take the
+- [x] `crates/nvs-types/src/defaults.rs:101`, `:921` and `:953`: `ConstArg` and the folder take the
   three shapes of the standing decision, alone and inside arrays.
-- [ ] `crates/nvs-ir/src/lower/call.rs:699`: `emit_const_arg` emits each, a case with its enum tag.
-- [ ] `crates/nvs-types/src/defaults.rs:444`: `eval_property_default` takes the same arrays, and
+- [x] `crates/nvs-ir/src/lower/call.rs:699`: `emit_const_arg` emits each, a case with its enum tag.
+- [x] `crates/nvs-types/src/defaults.rs:444`: `eval_property_default` takes the same arrays, and
   `E0472`'s help (`:474`) says so.
-- [ ] `crates/nvs-types/src/expr/members.rs:463` and `crates/nvs-diagnostics/src/code/types_e07.rs:1546`:
+- [x] `crates/nvs-types/src/expr/members.rs:463` and `crates/nvs-diagnostics/src/code/types_e07.rs:1546`:
   `E0792`'s help and card name only what is still refused, or the code is retired.
   `tests/conformance/core/a-class-constant-with-no-constant-form-is-refused-at-the-read.nvst:1` is
   rewritten to a shape that is still refused.
-- [ ] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `folds` names, then `cargo test
+- [x] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `folds` names, then `cargo test
   --test enum_tables` once.
-- [ ] `tests/conformance/enum/a-constant-holds-enum-cases-inside-an-array.nvst:1` (new): a class
+- [x] `tests/conformance/enum/a-constant-holds-enum-cases-inside-an-array.nvst:1` (new): a class
   constant and a static property, each a table of cases and of `as int` keys, printed.
 
 ### 3. array<E, T> types an array keyed by the cases of an enum, and the checker holds every key to it
@@ -401,30 +401,40 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stage 1 is built and committed, with every item ticked. The stage stays `open` for one reason: the
-check `covers` needs `a_class_constant_that_folds_to_a_case_covers_it`, which is **red until stage 2**.
-Today `const Priority URGENT = Priority::High;` is `E0792`, because the folder does not fold an enum
-case yet. The coverage side is ready: `cover::covered_case`
-(`crates/nvs-types/src/expr/cover.rs`) reads an `ExprInfo::ClassConst` whose `enum_backing` is set
-and whose value is `ConstArg::EnumInt`/`EnumUint` (or `Int`/`Uint`). Stage 2 must record that shape
-for an enum-typed constant. Then set stage 1 `done`.
+Stages 1 and 2 are done, and every item of each is ticked. The checks `covers`, `no-fallback` and
+`folds` are green: `cargo test --test enum_tables` runs 11 tests, all green.
 
-- `no-fallback` is green: `cargo test --lib a_match_over_every_case_lowers_no_fallback_throw`.
-- The other five `enum_tables` tests are green, run once.
-- The nightly CI failures the sweep named were already fixed by `1c3196b0e8`, before this session.
-- `docs/examples/lang/enums/match-and-switch-over-an-enum/02-a-match-without-a-default-throws.nvs`
-  now throws over a `mixed` value. Stage 6 should check that its name and `about.md` still fit, and
-  stamp what `site --check stale` names for that feature.
+What stage 2 built (`6ea7afe36d`):
+- `eval_const_value` (`crates/nvs-types/src/defaults.rs`) takes `ctx: Option<&Ctx>`. With a class it
+  folds a case, `$case as int`/`as uint` (`case_as_integer`), another class's literal constant and
+  `Foo::class`, alone and as array elements (`named_const_value`). A key written `Priority::Low as int`
+  folds through `fold_constant_value`. The test-attribute callers in `testing.rs` pass `None`.
+- `eval_property_default` takes the same fold, and `nvs_runtime::FieldDefault::Array` builds the array
+  for each new object (`crates/nvs-ir/src/lower/mod.rs` `value_default`).
+- `E0792` stays. It is left for another class's constant whose value is an array or an enum case,
+  because `crate::consts` folds literals alone. A cycle between two constants is that case. Its help
+  and card name only that. `E0472`'s help and card list arrays, cases and `Foo::class`.
+- The full conformance run (`bun nv suite tests/conformance/ --full`) found no `.nvst` that the new
+  match error reaches. It was red on 4 `tests/conformance/novis/image-*` cases. They pass alone and
+  as a folder on the same covws build, and this goal touches no image code, so they look like a flake
+  under load. Rerun them if the gate names them again.
 
 ### Next
 
-Stage 2 from its first item, `crates/nvs-types/src/defaults.rs:921` (`eval_const_value`) and its
-caller `crates/nvs-types/src/signatures.rs:1949`, which has the class context that resolving
-`Priority::High` needs. Then run `cargo test --test enum_tables` by name, and set stage 1 `done`
-once `a_class_constant_that_folds_to_a_case_covers_it` is green.
+Stage 3 from its first item: `array<E, T>`. Start at the parser (`crates/nvs-syntax/src/parser/ty.rs`)
+and `Ty` (`crates/nvs-types/src/ty.rs:73`), adding `Ty::EnumArray { key, elem }` as the standing
+decision says. The compiler then names every exhaustive `match` over `Ty` that has to decide.
 
-Expected red until then: `a_class_constant_that_folds_to_a_case_covers_it`. A Rust test whose inline
-source has a `match` over an enum with no `default` that misses a case would also be red. None was
-found among the tracked `.nvs` and `.nvst` files, but inline sources in Rust tests were not swept.
+Expected red: none.
 
 ### Backlog
+
+For stage 6:
+- `docs/reference/lang/20-types.md:4756` and
+  `docs/examples/lang/types/properties-and-constants/details.md:20` still say that an enum case and
+  another class's constant in a constant do not compile. Both must say what stage 2 made true.
+- `docs/examples/lang/enums/match-and-switch-over-an-enum/02-a-match-without-a-default-throws.nvs`
+  now throws over a `mixed` value. Check that its name and `about.md` still fit.
+- `site --check stale` names what the changed `E0792`/`E0472` help and the new case
+  `a-constant-holds-enum-cases-inside-an-array.nvst` (`// covers: lang:types/properties-and-constants`)
+  moved. That case may move to the new feature for enum cases in constants.
