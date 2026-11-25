@@ -45,6 +45,7 @@ echo Till::total(new Book()), "\n";
 echo Till::either(new Pen()), "\n";
 var $tax = (new Gift())->withTax(...);
 echo $tax(), "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Priced.nvs--
 <?nvs
 namespace Acme\Shop;

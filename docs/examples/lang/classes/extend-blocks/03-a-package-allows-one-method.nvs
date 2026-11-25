@@ -1,0 +1,17 @@
+<?nvs
+// Uses a package that adds methods to `Core\Time\Date` and allows only one of them outside the package.
+
+use Core\Time\Date;
+use Acme\Billing\InvoiceDates;
+use Acme\Billing\Reminder;
+
+autoload 'Acme\Billing' from './packages/acme-billing/src';
+
+var $issued = Date::at(2026, 3, 2);
+
+var $due = $issued->dueDate();
+echo 'Due on ', $due->year(), '-', $due->month(), '-', $due->day(), "\n";
+
+// `$issued->lateFeeFrom()` does not compile in this file, because the package allows it only
+// in its own code. Its `Reminder` class calls it for you.
+echo Reminder::text($issued), "\n";

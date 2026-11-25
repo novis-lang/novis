@@ -26,6 +26,7 @@ $message->trackingId = "t-1";
 $message->note = "seen";
 echo $message->trackingId, " ", $message->note, "\n";
 echo isset($message->note) ? "set" : "not set", "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/mail/src/Message.nvs--
 <?nvs
 namespace Acme\Mail;

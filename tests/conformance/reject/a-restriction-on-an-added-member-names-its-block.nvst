@@ -9,6 +9,7 @@ autoload 'Acme\Shop' from './vendor/acme/shop/src';
 echo App\Allowed\Report::read(), "\n";
 // `App\Other` may not call `isLarge`, so the call inside it does not compile.
 echo App\Other\Report::read(), "\n";
+// covers: lang:classes/extend-blocks
 --FILE app/Tools/OrderTools.nvs--
 <?nvs
 namespace App\Tools;

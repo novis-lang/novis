@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `extend` blocks try to read private members of a class, call a method that
+// the class allows only to itself, and replace a `Core` method. Each attempt must
+// stop the program from compiling, so no line of it runs.
+// covers: lang:classes/extend-blocks
+// hostile: expect-refusal
+
+namespace App;
+
+use Core\Time\Date;
+use Acme\Shop\Order;
+use App\OrderSecrets;
+use App\YearFix;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderSecrets {
+    // 1. Reads a private property and calls a private method of `Order`.
+    public function stolenTotal(): int {
+        return $this->total;
+    }
+
+    public function stolenNote(): string {
+        return $this->internalNote();
+    }
+
+    // 2. Calls a method that only `Order` may call.
+    public function stolenCode(): string {
+        return $this->discountCode();
+    }
+}
+
+extend Date as YearFix {
+    // 3. Declares `year` again, so a call of `$date->year()` might run this method.
+    public function year(): int {
+        return 1999;
+    }
+}
+
+var $order = new Order();
+echo $order->stolenTotal(), "\n";
+echo $order->stolenNote(), "\n";
+echo $order->stolenCode(), "\n";
+echo Date::at(2026, 1, 1)->year(), "\n";

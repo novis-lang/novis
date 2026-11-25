@@ -30,6 +30,7 @@ Order::Size $size = (new Order(250))->size();
 echo $size == Order::Size::Large ? "large" : "small", "\n";
 echo (new RushOrder(40))->size() == Order::Size::Small ? "small" : "large", "\n";
 echo Core\Attributes::get<Order::Audit>(RushOrder::label)?->team ?? "none", "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Order.nvs--
 <?nvs
 namespace Acme\Shop;

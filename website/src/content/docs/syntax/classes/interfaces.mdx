@@ -15,6 +15,10 @@ in the list. Then you can use the class wherever the interface type is needed.
 A `final` class cannot be extended. Store an object of that class in a property, and forward to it
 with `implements Greets by $voice`.
 
+To add a method to an interface of another package, write an
+[`extend` block](/syntax/classes/extend-blocks/). In a file that uses the block, every class that
+implements the interface has the method.
+
 ## Do and don't
 
 - Do use an interface type for a parameter when any class with those methods will do.

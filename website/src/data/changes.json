@@ -3,6 +3,20 @@
     {
       "kind": "new",
       "features": [
+        "lang:classes/extend-blocks"
+      ],
+      "text": "`extend Core\\Time\\Date as BusinessDays { … }` adds methods, constants and properties to a class, an interface or an enum from `Core` or from another package. A file that writes `use` for the block can call the added members. A call of an added method costs the same as a call of a static method."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "lang:enums/declaring-an-enum"
+      ],
+      "text": "An enum body can declare methods and constants. In a method, `$this` is the case. A static method and a constant are called on the enum, such as `Suit::count()`."
+    },
+    {
+      "kind": "new",
+      "features": [
         "tools:editor/nvs-lsp"
       ],
       "text": "In a class, completion lists the methods of the parent classes that you can override. When you choose one, the editor writes the whole method. Its body calls `parent::name(...)` with the same parameters."

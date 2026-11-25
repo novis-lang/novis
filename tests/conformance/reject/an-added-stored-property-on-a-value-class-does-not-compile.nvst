@@ -19,6 +19,7 @@ extend Core\Router\Gate as GateNotes {
 extend Core\Time\Weekday as DayNotes {
     public int $count = 0;
 }
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

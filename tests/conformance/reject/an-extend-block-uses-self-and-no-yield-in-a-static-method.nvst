@@ -30,6 +30,7 @@ extend Audience as Audiences {
 }
 
 echo "unreachable\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

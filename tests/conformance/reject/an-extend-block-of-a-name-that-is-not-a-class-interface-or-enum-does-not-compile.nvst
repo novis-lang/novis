@@ -17,6 +17,7 @@ extend Id as IdTools {
         return "id";
     }
 }
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

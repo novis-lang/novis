@@ -1,0 +1,19 @@
+<?nvs
+// An order of another package. It has a private total, a private method and a restricted method.
+
+namespace Acme\Shop;
+
+class Order
+{
+    private int $total = 250;
+
+    private function internalNote(): string
+    {
+        return 'paid by card';
+    }
+
+    public function discountCode(): string
+    {
+        return 'STAFF-50';
+    }
+}

@@ -30,6 +30,7 @@ foreach ($days as Weekday $day) {
 echo Weekday::first()->isWeekend() ? "yes" : "no", "\n";
 echo Weekday::Sunday->isWeekend() ? "yes" : "no", "\n";
 echo Weekday::KIND, "\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 work day
 weekend day

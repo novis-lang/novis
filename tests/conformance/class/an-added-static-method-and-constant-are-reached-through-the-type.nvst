@@ -31,6 +31,7 @@ echo Date::newYear(2026)->year(), "-", Date::newYear(2026)->month(), "\n";
 echo Date::newYearOfNext(2026)->year(), "\n";
 var $make = Date::newYear;
 echo $make(2030)->year(), "\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 12
 12

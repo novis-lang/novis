@@ -32,6 +32,7 @@ final class Names
 }
 
 echo Names::of(new Book()), "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Book.nvs--
 <?nvs
 namespace Acme\Shop;

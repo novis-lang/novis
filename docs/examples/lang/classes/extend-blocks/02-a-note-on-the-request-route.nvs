@@ -1,0 +1,51 @@
+<?nvs
+// Adds two properties to the route of a request, so one class can store a value there for another.
+
+namespace Shop;
+
+use Core\Router\Match;
+use Shop\RequestNotes;
+
+class Orders
+{
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return 'one order';
+    }
+}
+
+extend Match as RequestNotes {
+    // A stored property needs a default value or a `?` type.
+    public ?uint $orderId;
+    public int $checks = 0;
+}
+
+final class OrderCheck
+{
+    // This method reads the order number from the address and stores it on the route.
+    public static function run(Match $route): void
+    {
+        $route->orderId = $route->parameter('id') as uint;
+        $route->checks += 1;
+    }
+}
+
+final class Summary
+{
+    // This method reads what `OrderCheck::run` stored.
+    public static function text(Match $route): string
+    {
+        return 'order: ' . ($route->orderId ?? 'none') . ', checks: ' . $route->checks;
+    }
+}
+
+?Match $route = Core\Request::route();
+if ($route != null) {
+    // Before the first write, the properties have their defaults.
+    // This prints "order: none, checks: 0".
+    echo Summary::text($route), "\n";
+    OrderCheck::run($route);
+    echo Summary::text($route), "\n";
+}

@@ -9,6 +9,7 @@ use Core\Time\Date;
 echo Shop\Report::today(), "\n";
 echo Date::at(2026, 9, 19)->isBusinessDay() ? "yes" : "no", "\n";
 echo Date::newYear(2026)->year(), "\n";
+// covers: lang:classes/extend-blocks
 --FILE shop/Report.nvs--
 <?nvs
 namespace Shop;

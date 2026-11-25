@@ -1,0 +1,18 @@
+<?nvs
+// Adds two methods to `Core\Time\Date`. Every program may call `dueDate`.
+// Only this package may call `lateFeeFrom`, because `package.toml` restricts it.
+
+namespace Acme\Billing;
+
+use Core\Time\Date;
+use Core\Unit;
+
+extend Date as InvoiceDates {
+    public function dueDate(): Date {
+        return $this->plus(30, Unit::Day);
+    }
+
+    public function lateFeeFrom(): Date {
+        return $this->dueDate()->plus(14, Unit::Day);
+    }
+}

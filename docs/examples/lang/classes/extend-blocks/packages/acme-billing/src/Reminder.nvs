@@ -1,0 +1,16 @@
+<?nvs
+// Writes the text of a payment reminder. This class is in the package, so it may call `lateFeeFrom`.
+
+namespace Acme\Billing;
+
+use Core\Time\Date;
+use Acme\Billing\InvoiceDates;
+
+final class Reminder
+{
+    public static function text(Date $issued): string
+    {
+        var $fee = $issued->lateFeeFrom();
+        return 'A late fee is added from ' . $fee->year() . '-' . $fee->month() . '-' . $fee->day() . '.';
+    }
+}

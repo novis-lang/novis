@@ -50,6 +50,10 @@
     "class<T>",
     "class reference",
     "new $cls",
-    "late static binding"
+    "late static binding",
+    "extend",
+    "extend block",
+    "added method",
+    "added property"
   ]
 }

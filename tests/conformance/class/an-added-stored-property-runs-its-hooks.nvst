@@ -54,6 +54,7 @@ try {
 echo $order->count, "\n";
 var $other = new Order(5);
 echo $other->label ?? "no label", "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Order.nvs--
 <?nvs
 namespace Acme\Shop;

@@ -1,0 +1,22 @@
+---
+title: extend blocks
+covers: ['lang:classes/extend-blocks']
+description: How an extend block adds methods, constants and properties to a class, an interface or an enum from Core or from another package.
+---
+import FeatureSection from '@components/FeatureSection.astro'
+
+You cannot change a class from `Core` or from another package. An `extend` block adds methods,
+constants and properties to such a type. The added members exist only in a file that writes `use`
+for the block.
+
+<FeatureSection examples="lang/classes/extend-blocks" heading="extend blocks" id="extend-blocks" />
+
+A call of an added method costs the same as a call of a static method of your own class.
+
+## Do and don't
+
+- Do give each block a name that says what it adds, such as `BusinessDays`.
+- Do write `use` for the block in every file that calls its members.
+- Do add a member to your own class in the class itself. A block cannot extend a type of its own package.
+- Don't expect a block to change a type. It cannot replace a method, add a case to an enum or make a class implement an interface.
+- Don't call an added method through a `mixed` value. Only a call on a known type finds it.

@@ -30,6 +30,7 @@ var $check = Date::at(2023, 3, 1)->isLeapDay(...);
 echo $check() ? "leap" : "plain", "\n";
 var $friday = Weekday::Friday->isFriday(...);
 echo $friday() ? "friday" : "other", "\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 null
 leap

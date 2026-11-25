@@ -20,6 +20,7 @@ extend ObjectSet as Tags {
 }
 
 echo "unreachable\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

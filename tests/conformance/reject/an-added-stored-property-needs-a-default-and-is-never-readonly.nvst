@@ -21,6 +21,7 @@ extend Date as DateTools {
 
 var $day = Date::at(2026, 9, 1);
 $day->isFirst = false;
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

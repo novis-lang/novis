@@ -48,6 +48,7 @@ $gift->wrapping = "gold";
 echo $gift->visits, " ", $gift->wrapping, " ", $gift->total, "\n";
 $first->note = null;
 echo $first->note ?? "cleared", "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Order.nvs--
 <?nvs
 namespace Acme\Shop;

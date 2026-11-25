@@ -26,6 +26,7 @@ echo $copied->items, " ", $copied->views, " ", $copied->owner ?? "nobody", "\n";
 
 $cloned->views = 1;
 echo $cart->views, " ", $cart->owner ?? "nobody", "\n";
+// covers: lang:classes/extend-blocks
 --FILE vendor/acme/shop/src/Cart.nvs--
 <?nvs
 namespace Acme\Shop;

@@ -720,6 +720,7 @@ export default defineConfig({
                 { label: 'Stringable, Comparable and Parses', link: '/syntax/classes/standard-interfaces/' },
                 { label: 'Revocable objects', link: '/syntax/classes/revocable-objects/' },
                 { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },
+                { label: 'Adding members with extend', link: '/syntax/classes/extend-blocks/' },
                 { label: 'Working with objects', link: '/syntax/classes/objects/' },
                 { label: 'Anonymous objects and shapes', link: '/syntax/classes/anonymous-objects/' },
                 { label: 'Property names as values', link: '/syntax/classes/property-names/' },

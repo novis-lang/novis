@@ -12,6 +12,7 @@ extend Core\Time\Date as DateTools {
         return "Monday";
     }
 }
+// covers: lang:classes/extend-blocks
 --EXPECT--
 
 --EXPECTF-ERROR--

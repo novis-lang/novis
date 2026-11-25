@@ -43,6 +43,7 @@ echo $weights->getOr($red, 0.0) * 2.0, " ", $weights->getOr($blue, 0.25) + 1.0, 
 ObjectMap<Tag, Tag> $pairs = new ObjectMap<Tag, Tag>();
 $pairs->set($red, $blue);
 echo $pairs->getOr($red, $red)->name, " ", $pairs->getOr($blue, $red)->name, "\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 4 0 1
 sky! none

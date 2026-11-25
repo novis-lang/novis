@@ -1,0 +1,7 @@
+[package]
+name = 'Acme\Billing'
+
+# `lateFeeFrom` may be called only by the code of this package.
+[[restrict]]
+use = 'Acme\Billing\InvoiceDates::lateFeeFrom'
+allow = ['Acme\Billing']

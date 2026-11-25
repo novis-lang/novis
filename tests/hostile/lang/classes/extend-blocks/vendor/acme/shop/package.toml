@@ -1,0 +1,7 @@
+[package]
+name = 'Acme\Shop'
+
+# Only `Order` itself may call `Order::discountCode`.
+[[restrict]]
+use = 'Acme\Shop\Order::discountCode'
+allow = []

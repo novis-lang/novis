@@ -33,6 +33,7 @@ if ($matched != null) {
     echo $matched->describe(), "\n";
     echo $matched->is(Home::index) ? "Home::index" : "another route", "\n";
 }
+// covers: lang:classes/extend-blocks
 --EXPECT--
 0 from nowhere
 2 from the door

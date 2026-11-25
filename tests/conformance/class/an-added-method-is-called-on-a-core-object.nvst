@@ -31,6 +31,7 @@ var $saturday = Date::at(2026, 9, 19);
 echo $saturday->isBusinessDay() ? "yes" : "no", "\n";
 echo Date::at(2026, 9, 17)->isBusinessDay() ? "yes" : "no", "\n";
 echo $saturday->nextBusinessDay()->day(), "\n";
+// covers: lang:classes/extend-blocks
 --EXPECT--
 no
 yes
