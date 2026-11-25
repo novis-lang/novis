@@ -10,17 +10,25 @@ import {
   type CoverageMap,
   type ExceptionPage,
   type ExceptionRequests,
+  type Health,
   type RequestDetail,
   type RequestPage,
+  type Routes,
   type SearchResults,
   type Settings,
   type SourceFile,
+  type Statements,
   type StreamPage,
+  type Summary,
 } from "../src/api.ts";
 import { heat } from "../src/heat.ts";
 import coverageFixture from "./fixtures/coverage.json";
 import exceptionFixture from "./fixtures/exception.json";
 import exceptionsFixture from "./fixtures/exceptions.json";
+import healthFixture from "./fixtures/health.json";
+import routesFixture from "./fixtures/routes.json";
+import statementsFixture from "./fixtures/statements.json";
+import summaryFixture from "./fixtures/summary.json";
 import detailFixture from "./fixtures/request.json";
 import fixture from "./fixtures/requests.json";
 import searchFixture from "./fixtures/search.json";
@@ -65,6 +73,10 @@ const groups: ExceptionPage = exceptionsFixture;
 const group: ExceptionRequests = exceptionFixture;
 const counted: CoverageMap = coverageFixture;
 const text: SourceFile = sourceFixture;
+const summed: Summary = summaryFixture;
+const routed: Routes = routesFixture;
+const sites: Statements = statementsFixture;
+const health: Health = healthFixture;
 
 describe("the request list's API", () => {
   test("the fixture is one page, newest first", () => {
@@ -85,6 +97,28 @@ describe("the request list's API", () => {
   test("a filter becomes the query string, and an unset key is left out", () => {
     expect(requestQuery({ before: 40, limit: 20 })).toBe("before=40&limit=20");
     expect(requestQuery({})).toBe("");
+    expect(requestQuery({ method: "GET", status: "5xx", route: "/items/{id}", min_us: 3000, threw: true })).toBe(
+      "method=GET&status=5xx&route=%2Fitems%2F%7Bid%7D&min_us=3000&threw=true",
+    );
+  });
+
+  test("each row has its time by kind and its repeat count", () => {
+    const looped = page.requests.find((row) => row.repeats > 1);
+    expect(looped?.time_us.query).toBeGreaterThan(0);
+    expect(looped?.time_us.http).toBeGreaterThan(0);
+    expect(page.requests.some((row) => row.time_us.spawn > 0)).toBe(true);
+  });
+
+  test("the summary, routes, statements and health fixtures", () => {
+    expect(summed.buckets.length).toBe(12);
+    expect(summed.buckets.reduce((sum, bucket) => sum + bucket.count, 0)).toBe(summed.count);
+    expect(summed.p50_us).toBeLessThanOrEqual(summed.p95_us!);
+    expect(routed.routes.reduce((sum, route) => sum + route.count, 0)).toBe(page.requests.length);
+    expect(routed.routes.some((route) => route.route === null)).toBe(true);
+    const totals = sites.statements.map((site) => site.total_us);
+    expect(totals).toEqual([...totals].sort((a, b) => b - a));
+    expect(sites.statements.some((site) => site.repeated > 0)).toBe(true);
+    expect(health.replay).toBe(false);
   });
 
   test("the stream fixture is one page, newest first, and names each record's request", () => {

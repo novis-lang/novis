@@ -284,7 +284,7 @@ fn requests(
         statement
             .query_map(
                 params![group.id, before.unwrap_or(i64::MAX), limit + 1],
-                |found| Ok((api::row(found)?, found.get::<_, i64>(16)?)),
+                |found| Ok((api::row(found)?, found.get::<_, i64>(api::ROW_LEN)?)),
             )?
             .collect::<rusqlite::Result<Vec<_>>>()?
     };

@@ -36,10 +36,20 @@
         "method": "POST",
         "path": "/orders",
         "queries": 1,
+        "repeats": 1,
         "route": "/orders",
         "span": "e457b5a2e4d86bd1",
         "start_us": 1700000002000000,
         "status": 500,
+        "time_us": {
+          "cache": 0,
+          "file": 0,
+          "gc": 600,
+          "http": 0,
+          "query": 800,
+          "session": 0,
+          "spawn": 5000
+        },
         "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
       }
     }

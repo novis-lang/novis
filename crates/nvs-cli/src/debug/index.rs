@@ -19,6 +19,15 @@
 //! counts are kept by triggers too: a request line counts the rows already in, and each row that
 //! arrives after it adds one.
 //!
+//! The same two triggers keep what the request list draws for each row, so no page aggregates
+//! events: the summed durations of the request's events by kind (`db_us` for `query`, then
+//! `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us` and `spawn_us`), and `repeats`, the
+//! most times one statement text ran at one call site in it, the repeat
+//! `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` defines. A writer writes a
+//! request's line after its events, so the request trigger counts them once. A query that arrives
+//! after its request line counts its own statement at its site, on the `events_trace` index, and a
+//! query whose request is not in yet costs nothing. Spends: eight integers per request row.
+//!
 //! # The viewer's cursor
 //!
 //! A request's id is `AUTOINCREMENT`, so it only rises, and in the order the batches were
@@ -47,14 +56,15 @@
 //! The `events_site` index, which the editor's recorded lens looks a call site up on
 //! (`nvs_lsp::recorded`), is one entry per event inside that cap. The `copies_site` index, which
 //! looks up the copies recorded requests made at one copy site, is one entry per site a recorded
-//! request copied at, inside the same cap.
+//! request copied at, inside the same cap. The `requests_route` index, which the Routes view and
+//! the list's method and route filters read, is one entry per request.
 
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 9;
+pub(crate) const SCHEMA: i64 = 10;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -91,12 +101,21 @@ CREATE TABLE requests (
     queries INTEGER NOT NULL DEFAULT 0,
     dumps INTEGER NOT NULL DEFAULT 0,
     logs INTEGER NOT NULL DEFAULT 0,
-    exception_group INTEGER
+    exception_group INTEGER,
+    db_us INTEGER NOT NULL DEFAULT 0,
+    http_us INTEGER NOT NULL DEFAULT 0,
+    cache_us INTEGER NOT NULL DEFAULT 0,
+    session_us INTEGER NOT NULL DEFAULT 0,
+    file_us INTEGER NOT NULL DEFAULT 0,
+    gc_us INTEGER NOT NULL DEFAULT 0,
+    spawn_us INTEGER NOT NULL DEFAULT 0,
+    repeats INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX requests_key ON requests (writer, seq);
 CREATE INDEX requests_trace ON requests (trace);
 CREATE INDEX requests_start ON requests (start_us);
 CREATE INDEX requests_batch ON requests (batch);
+CREATE INDEX requests_route ON requests (method, route, start_us);
 
 CREATE TABLE inputs (
     request INTEGER PRIMARY KEY,
@@ -305,7 +324,24 @@ CREATE TRIGGER requests_search_in AFTER INSERT ON requests BEGIN
     UPDATE requests SET
         queries = (SELECT count(*) FROM events WHERE trace = NEW.trace AND kind = 'query'),
         dumps = (SELECT count(*) FROM dumps WHERE trace = NEW.trace),
-        logs = (SELECT count(*) FROM logs WHERE trace = NEW.trace)
+        logs = (SELECT count(*) FROM logs WHERE trace = NEW.trace),
+        (db_us, http_us, cache_us, session_us, file_us, gc_us, spawn_us) = (
+            SELECT
+                coalesce(sum(CASE kind WHEN 'query' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'http' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'cache' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'session' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'file' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'gc' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'spawn' THEN max(end_us - start_us, 0) END), 0)
+            FROM events WHERE trace = NEW.trace
+        ),
+        repeats = (
+            SELECT coalesce(max(n), 0) FROM (
+                SELECT count(*) AS n FROM events WHERE trace = NEW.trace AND kind = 'query'
+                GROUP BY site_file, site_line, sql
+            )
+        )
     WHERE id = NEW.id;
 END;
 CREATE TRIGGER requests_search_out AFTER DELETE ON requests BEGIN
@@ -315,8 +351,22 @@ END;
 CREATE TRIGGER events_search_in AFTER INSERT ON events WHEN NEW.sql IS NOT NULL BEGIN
     INSERT INTO search (rowid, text) VALUES (NEW.id * 8 + 2, NEW.sql);
 END;
-CREATE TRIGGER events_count AFTER INSERT ON events WHEN NEW.kind = 'query' BEGIN
-    UPDATE requests SET queries = queries + 1 WHERE trace = NEW.trace;
+CREATE TRIGGER events_count AFTER INSERT ON events WHEN NEW.kind <> 'call' BEGIN
+    UPDATE requests SET
+        queries = queries + (NEW.kind = 'query'),
+        db_us = db_us + CASE NEW.kind WHEN 'query' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        http_us = http_us + CASE NEW.kind WHEN 'http' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        cache_us = cache_us + CASE NEW.kind WHEN 'cache' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        session_us = session_us + CASE NEW.kind WHEN 'session' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        file_us = file_us + CASE NEW.kind WHEN 'file' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        gc_us = gc_us + CASE NEW.kind WHEN 'gc' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        spawn_us = spawn_us + CASE NEW.kind WHEN 'spawn' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        repeats = CASE WHEN NEW.kind = 'query' THEN max(repeats, (
+            SELECT count(*) FROM events
+            WHERE trace = NEW.trace AND kind = 'query' AND site_file IS NEW.site_file
+                AND site_line IS NEW.site_line AND sql IS NEW.sql
+        )) ELSE repeats END
+    WHERE trace = NEW.trace;
 END;
 CREATE TRIGGER events_search_out AFTER DELETE ON events WHEN OLD.sql IS NOT NULL BEGIN
     DELETE FROM search WHERE rowid = OLD.id * 8 + 2;

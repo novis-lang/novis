@@ -57,7 +57,7 @@ use super::api::Api;
 use super::secure::Secure;
 use super::settings::{self, Store};
 use super::{Signal, Target};
-use super::{exceptions, replay, search, source, stream, to_test};
+use super::{exceptions, replay, search, source, stream, summary, to_test};
 use crate::viewer;
 
 /// The most connections served at once. A browser opens at most six to one address, so this covers
@@ -336,6 +336,14 @@ impl Site {
             "/api/quarantine" if reads => api(stream::quarantine(&self.api)),
             "/api/search" if reads => api(search::search(&self.api, query)),
             "/api/exceptions" if reads => api(exceptions::exceptions(&self.api, query)),
+            "/api/summary" if reads => api(summary::summary(&self.api, query)),
+            "/api/routes" if reads => api(summary::routes(&self.api, query)),
+            "/api/statements" if reads => api(summary::statements(&self.api, query)),
+            "/api/health" if reads => api(summary::health(
+                &self.api,
+                query,
+                self.target.get().is_some(),
+            )),
             "/api/settings" if reads => api(self.settings.get()),
             "/api/settings" if *method == Method::PUT => api(self.settings.put(body)),
             "/api/index/discard" if *method == Method::POST => api(self.api.discard()),

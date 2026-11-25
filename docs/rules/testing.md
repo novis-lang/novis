@@ -3,7 +3,7 @@
 
 # Testing
 
-*4 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -3663,7 +3663,7 @@ reads the lcov file `nvs test` writes (`editors/vscode/src/report.ts`).
 
 <a id="testing-the-viewer-wears-the-websites-palette"></a>
 
-## The debug viewer wears the website's palette in both themes, names colours by role, and draws with the system's fonts  *(designed — owned by goal debug-viewer-flagship)*
+## The debug viewer wears the website's palette in both themes, names colours by role, and draws with the system's fonts
 
 `rule:testing/the-viewer-wears-the-websites-palette`
 
@@ -3681,7 +3681,8 @@ other.
 
 **The viewer names roles, never places.** A rule outside `tokens.css` reads a role: `--surface`,
 `--line`, `--text`, `--muted`, `--link`, `--wash`, `--ok`, `--warn`, `--bad`, and the event tones
-below. A view picks no colour of its own.
+below. `--accent` and `--highlight` are blue and gold as drawn, for a border, a marker or a fill, and
+never for text. A view picks no colour of its own.
 
 **A colour has one meaning, as on the website.** Green is ok, blue is interaction and information,
 orange is a warning, red is an error, and gold is a highlight, such as a repeated query. A request's
@@ -3799,7 +3800,7 @@ nothing.
 
 <a id="testing-the-viewer-answers-per-route-and-per-statement"></a>
 
-## The viewer's API answers per route and per statement with bounded reads, from per-kind times and a repeat count the index computes at ingest  *(designed — owned by goal debug-viewer-flagship)*
+## The viewer's API answers per route and per statement with bounded reads, from per-kind times and a repeat count the index computes at ingest
 
 `rule:testing/the-viewer-answers-per-route-and-per-statement`
 
@@ -3823,10 +3824,10 @@ version, and the index is rebuilt from the spool, which is what a cache is for
 
 | Route | Answers | Bound |
 |---|---|---|
-| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw`, each an indexed predicate | the page size |
+| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
 | `GET /api/summary` | twelve buckets over the last five minutes of the request count and the error count, and the p50, p95 and largest duration | the newest 10,000 rows of the window, and the answer says when it was cut |
-| `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | 200 routes by count; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
-| `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | 200 sites by total time, through the index `events_site` |
+| `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | the newest 10,000 requests and 200 routes by count, and the answer says when older requests were not counted; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
+| `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | the newest 100,000 event ids and 200 sites by total time, and the answer says when older events were not read |
 | `GET /api/health` | the counts of `dropped`, `unparseable` and `quarantine` rows, and whether a replay target is known | three counts |
 
 **A percentile is computed in Rust,** from the sorted durations the bounded read returned, because

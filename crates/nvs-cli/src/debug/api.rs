@@ -13,6 +13,14 @@
 //! after a watermark the viewer had. A request's id only rises (the index module's *The viewer's
 //! cursor*), so neither moves a row the viewer already shows.
 //!
+//! **A filter is a bound parameter, and a filtered page reads a bounded range.** `method`,
+//! `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw` each add one
+//! predicate. A page with any of them reads at most [`FILTER_SCAN`] ids below its cursor, so a
+//! filter that matches few requests never walks the whole index in one API request: the page
+//! can hold fewer rows than its limit, and `older` then names the floor it stopped at. A row
+//! carries its time by event kind and its repeat count, which the index keeps at ingest.
+//! The summary, the routes, the statements and the health are [`super::summary`].
+//!
 //! **One request is its trace id and span id.** `GET /api/request?trace=&span=` gives the row,
 //! its uncaught exception, and its trace events, dumps and log lines in time order. The records
 //! are keyed by trace id alone, so when an inbound `traceparent` gives several requests one trace
@@ -136,6 +144,24 @@ pub(super) struct Row {
     dumps: i64,
     logs: i64,
     exception: Option<Threw>,
+    /// The summed durations of its events by kind, in microseconds.
+    time_us: TimeByKind,
+    /// The most times one statement text ran at one call site in it.
+    repeats: i64,
+}
+
+/// A request's summed event durations by kind, in microseconds, which the index keeps at ingest
+/// (`super::index`'s *What the triggers keep*). Events of one kind can overlap, so a sum may pass
+/// the request's duration.
+#[derive(Serialize)]
+struct TimeByKind {
+    query: i64,
+    http: i64,
+    cache: i64,
+    session: i64,
+    file: i64,
+    gc: i64,
+    spawn: i64,
 }
 
 /// The exception a request did not catch: its class and the site of its `throw`.
@@ -324,7 +350,35 @@ struct Filter {
     trace: Option<String>,
     span: Option<String>,
     limit: Option<i64>,
+    method: Option<String>,
+    status: Option<StatusFilter>,
+    route: Option<String>,
+    min_us: Option<i64>,
+    threw: Option<bool>,
 }
+
+/// The `status` filter: one code, or a class such as `5xx`, which is the codes from 500 to 599.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatusFilter {
+    Code(i64),
+    Class(i64),
+}
+
+impl StatusFilter {
+    /// The lowest and the highest code it keeps.
+    const fn range(self) -> (i64, i64) {
+        match self {
+            Self::Code(code) => (code, code),
+            Self::Class(class) => (class * 100, class * 100 + 99),
+        }
+    }
+}
+
+/// How many request ids one filtered page reads at most. A page of a filter by method, status,
+/// route, duration or exception reads the requests newest first and stops here, and its `older`
+/// cursor goes on below the last id it read, so a filter that matches few rows never reads the
+/// whole index in one API request.
+const FILTER_SCAN: i64 = 20_000;
 
 impl Api {
     /// Opens the index at `path` for reading. The ingester has created it already, and `signal`
@@ -508,8 +562,17 @@ impl Key {
 }
 
 impl Filter {
-    /// Reads `before`, `since`, `trace`, `span` and `limit`. Any other key is an error, so a
-    /// viewer that sends one finds out.
+    /// Whether it filters by a column the page reads only through [`FILTER_SCAN`].
+    const fn scans(&self) -> bool {
+        self.method.is_some()
+            || self.status.is_some()
+            || self.route.is_some()
+            || self.min_us.is_some()
+            || self.threw.is_some()
+    }
+
+    /// Reads `before`, `since`, `trace`, `span`, `limit`, `method`, `status`, `route`, `min_us`
+    /// and `threw`. Any other key is an error, so a viewer that sends one finds out.
     fn parse(query: &str) -> Result<Self, String> {
         let mut filter = Self::default();
         for pair in query.split('&').filter(|pair| !pair.is_empty()) {
@@ -526,10 +589,40 @@ impl Filter {
                 }
                 "trace" => filter.trace = Some(hex(key, value, 32)?),
                 "span" => filter.span = Some(hex(key, value, 16)?),
+                "method" => {
+                    if !(1..=16).contains(&value.len())
+                        || !value.bytes().all(|b| b.is_ascii_uppercase())
+                    {
+                        return Err("`method` must be an HTTP method in capitals.".to_owned());
+                    }
+                    filter.method = Some(value.to_owned());
+                }
+                "status" => filter.status = Some(status(value)?),
+                "route" => filter.route = Some(super::search::decode(key, value)?),
+                "min_us" => filter.min_us = Some(number(key, value)?),
+                "threw" => {
+                    filter.threw = Some(match value {
+                        "true" => true,
+                        "false" => false,
+                        _ => return Err("`threw` must be `true` or `false`.".to_owned()),
+                    });
+                }
                 _ => return Err(format!("`{key}` is not a filter of this list.")),
             }
         }
         Ok(filter)
+    }
+}
+
+/// `value` as a `status` filter: a code from 100 to 599, or a class from `1xx` to `5xx`.
+fn status(value: &str) -> Result<StatusFilter, String> {
+    const WRONG: &str = "`status` must be a code from 100 to 599, or a class such as `5xx`.";
+    if let [class @ b'1'..=b'5', b'x', b'x'] = value.as_bytes() {
+        return Ok(StatusFilter::Class(i64::from(class - b'0')));
+    }
+    match value.parse::<i64>() {
+        Ok(code) if (100..=599).contains(&code) => Ok(StatusFilter::Code(code)),
+        _ => Err(WRONG.to_owned()),
     }
 }
 
@@ -576,6 +669,48 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
         wheres.push("r.span = ?");
         values.push(span);
     }
+    if let Some(method) = &filter.method {
+        wheres.push("r.method = ?");
+        values.push(method);
+    }
+    let codes = filter.status.map(StatusFilter::range);
+    if let Some((low, high)) = &codes {
+        wheres.push("r.status BETWEEN ? AND ?");
+        values.push(low);
+        values.push(high);
+    }
+    if let Some(route) = &filter.route {
+        wheres.push("r.route = ?");
+        values.push(route);
+    }
+    if let Some(min_us) = &filter.min_us {
+        wheres.push("r.duration_us >= ?");
+        values.push(min_us);
+    }
+    match filter.threw {
+        Some(true) => wheres.push("r.exception_group IS NOT NULL"),
+        Some(false) => wheres.push("r.exception_group IS NULL"),
+        None => {}
+    }
+    let tx = db.transaction()?;
+    // A filtered page reads at most `FILTER_SCAN` ids below its cursor, and the oldest id says
+    // whether any request lies below that floor.
+    let (floor, oldest) = if filter.scans() {
+        let (newest, oldest): (Option<i64>, Option<i64>) =
+            tx.query_row("SELECT max(id), min(id) FROM requests", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?;
+        let top = filter
+            .before
+            .unwrap_or_else(|| newest.unwrap_or(0).saturating_add(1));
+        (Some(top.saturating_sub(FILTER_SCAN)), oldest)
+    } else {
+        (None, None)
+    };
+    if let Some(floor) = &floor {
+        wheres.push("r.id >= ?");
+        values.push(floor);
+    }
     // One row past the page says whether an older page exists.
     let fetched = limit + 1;
     values.push(&fetched);
@@ -588,7 +723,6 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
             format!("WHERE {}", wheres.join(" AND "))
         }
     );
-    let tx = db.transaction()?;
     let watermark = watermark(&tx)?;
     let mut requests = {
         let mut statement = tx.prepare_cached(&sql)?;
@@ -598,10 +732,12 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
     };
     tx.commit()?;
     let full = usize::try_from(limit).unwrap_or(usize::MAX);
-    let older = (requests.len() > full).then(|| {
+    let older = if requests.len() > full {
         requests.truncate(full);
-        requests.last().map_or(0, |row| row.id)
-    });
+        Some(requests.last().map_or(0, |row| row.id))
+    } else {
+        floor.filter(|floor| oldest.is_some_and(|oldest| oldest < *floor))
+    };
     Ok(Page {
         watermark,
         requests,
@@ -611,7 +747,12 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
 
 /// The columns [`row`] reads, over `requests r` joined to its `exception_groups g`.
 pub(super) const ROW: &str = "r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
-                   r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line";
+                   r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line, \
+                   r.db_us, r.http_us, r.cache_us, r.session_us, r.file_us, r.gc_us, r.spawn_us, \
+                   r.repeats";
+
+/// How many columns [`ROW`] names, so a query that selects more after it knows their positions.
+pub(super) const ROW_LEN: usize = 24;
 
 /// One [`Row`] from the columns [`ROW`] names, in its order.
 pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
@@ -638,6 +779,16 @@ pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
             }),
             None => None,
         },
+        time_us: TimeByKind {
+            query: row.get(16)?,
+            http: row.get(17)?,
+            cache: row.get(18)?,
+            session: row.get(19)?,
+            file: row.get(20)?,
+            gc: row.get(21)?,
+            spawn: row.get(22)?,
+        },
+        repeats: row.get(23)?,
     })
 }
 
@@ -665,8 +816,8 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
             .query_map(params![key.trace, key.span], |found| {
                 Ok((
                     row(found)?,
-                    found.get::<_, String>(16)?,
-                    found.get::<_, i64>(17)?,
+                    found.get::<_, String>(ROW_LEN)?,
+                    found.get::<_, i64>(ROW_LEN + 1)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?

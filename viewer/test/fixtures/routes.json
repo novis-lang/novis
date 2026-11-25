@@ -1,0 +1,78 @@
+{
+  "cut": false,
+  "partial": false,
+  "routes": [
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 0,
+      "last_us": 1700000005000000,
+      "max_us": 610,
+      "mean_queries": 0.0,
+      "method": "DELETE",
+      "p50_us": 610,
+      "p95_us": 610,
+      "route": "/items/{id}"
+    },
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 0,
+      "last_us": 1700000003000000,
+      "max_us": 120,
+      "mean_queries": 0.0,
+      "method": "GET",
+      "p50_us": 120,
+      "p95_us": 120,
+      "route": null
+    },
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 0,
+      "last_us": 1700000000000000,
+      "max_us": 840,
+      "mean_queries": 0.0,
+      "method": "GET",
+      "p50_us": 840,
+      "p95_us": 840,
+      "route": "/"
+    },
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 0,
+      "last_us": 1700000001000000,
+      "max_us": 2310,
+      "mean_queries": 3.0,
+      "method": "GET",
+      "p50_us": 2310,
+      "p95_us": 2310,
+      "route": "/items/{id}"
+    },
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 1,
+      "last_us": 1700000002000000,
+      "max_us": 15400,
+      "mean_queries": 1.0,
+      "method": "POST",
+      "p50_us": 15400,
+      "p95_us": 15400,
+      "route": "/orders"
+    },
+    {
+      "count": 1,
+      "durations": 1,
+      "errors": 0,
+      "last_us": 1700000004000000,
+      "max_us": 3900,
+      "mean_queries": 0.0,
+      "method": "PUT",
+      "p50_us": 3900,
+      "p95_us": 3900,
+      "route": "/items/{id}"
+    }
+  ]
+}

@@ -11,10 +11,20 @@
       "method": "DELETE",
       "path": "/items/9",
       "queries": 0,
+      "repeats": 0,
       "route": "/items/{id}",
       "span": "c4d8e0f1a2b3c4d5",
       "start_us": 1700000005000000,
       "status": 403,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "7e3a0c2f4d9b4a1c8e5f8d3b2a4c6e9f"
     },
     {
@@ -27,10 +37,20 @@
       "method": "PUT",
       "path": "/items/7",
       "queries": 0,
+      "repeats": 0,
       "route": "/items/{id}",
       "span": "a3ce929d0e0e4736",
       "start_us": 1700000004000000,
       "status": 204,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "0af7651916cd43dd8448eb211c80319c"
     },
     {
@@ -43,10 +63,20 @@
       "method": "GET",
       "path": "/missing",
       "queries": 0,
+      "repeats": 0,
       "route": null,
       "span": "53995c3f42cd8ad8",
       "start_us": 1700000003000000,
       "status": 404,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "0af7651916cd43dd8448eb211c80319c"
     },
     {
@@ -63,10 +93,20 @@
       "method": "POST",
       "path": "/orders",
       "queries": 1,
+      "repeats": 1,
       "route": "/orders",
       "span": "e457b5a2e4d86bd1",
       "start_us": 1700000002000000,
       "status": 500,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 600,
+        "http": 0,
+        "query": 800,
+        "session": 0,
+        "spawn": 5000
+      },
       "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
     },
     {
@@ -78,11 +118,21 @@
       "logs": 0,
       "method": "GET",
       "path": "/items/7",
-      "queries": 0,
+      "queries": 3,
+      "repeats": 3,
       "route": "/items/{id}",
       "span": "b7ad6b7169203331",
       "start_us": 1700000001000000,
       "status": 200,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 1000,
+        "query": 600,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "5c1e8a0d2b7f4e9a8c3d6b1f0e2a4c7d"
     },
     {
@@ -95,10 +145,20 @@
       "method": "GET",
       "path": "/",
       "queries": 0,
+      "repeats": 0,
       "route": "/",
       "span": "00f067aa0ba902b7",
       "start_us": 1700000000000000,
       "status": 200,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "4bf92f3577b34da6a3ce929d0e0e4736"
     }
   ],

@@ -46,6 +46,9 @@ const KIND_NAMES: Record<Kind, string> = {
   spawn: "Spawn",
   gc: "Garbage collection",
   http: "Outbound call",
+  cache: "Cache",
+  session: "Session",
+  file: "File",
   dump: "Dump",
   log: "Log line",
 };

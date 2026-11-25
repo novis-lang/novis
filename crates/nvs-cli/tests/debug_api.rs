@@ -11,7 +11,9 @@
 //! `viewer/test/fixtures/requests.json`, the request that threw to `request.json`, the stream to
 //! `stream.json`, a search to `search.json`, the saved settings to `settings.json`, and the
 //! exception groups and one group's requests to `exceptions.json` and `exception.json`, and one
-//! request's coverage and a file it ran to `coverage.json` and `source.json`. `tsc` checks
+//! request's coverage and a file it ran to `coverage.json` and `source.json`. The summary, the
+//! routes, the statements and the health go to `summary.json`, `routes.json`, `statements.json`
+//! and `health.json`. `tsc` checks
 //! them against `viewer/src/api.ts` and the browser tests serve them. When a committed file
 //! differs, the case writes the new one and fails, so a change to the API's shape reaches the
 //! viewer's types in the same commit.
@@ -387,6 +389,22 @@ fn spool() -> String {
                 }),
             );
         }
+        // A loop runs one statement at one site twice and calls out once, and a third run of the
+        // statement arrives after the request's line below.
+        if *span == "b7ad6b7169203331" {
+            for (from, to) in [(100, 400), (500, 700)] {
+                line(trace, start_us + to, repeated(start_us, from, to));
+            }
+            line(
+                trace,
+                start_us + 1_800,
+                json!({
+                    "kind": "event", "event": "http", "label": "GET prices.example.com/items",
+                    "start_us": start_us + 800, "end_us": start_us + 1_800,
+                    "target": "prices.example.com/items"
+                }),
+            );
+        }
         // Two requests share a trace id, and each has one record of its own.
         if *span == "53995c3f42cd8ad8" {
             line(
@@ -459,8 +477,22 @@ fn spool() -> String {
             });
         }
         line(trace, start_us + duration_us, request);
+        if *span == "b7ad6b7169203331" {
+            line(trace, start_us + 2_400, repeated(start_us, 1_900, 2_000));
+        }
     }
     lines.join("\n") + "\n"
+}
+
+/// A `query` event of the statement the `GET /items/{id}` request runs in a loop, from `from` to
+/// `to` microseconds after `start_us`.
+fn repeated(start_us: u64, from: u64, to: u64) -> Value {
+    json!({
+        "kind": "event", "event": "query", "label": "sqlite main SELECT price FROM items WHERE id = ?",
+        "start_us": start_us + from, "end_us": start_us + to,
+        "query": { "driver": "sqlite", "sql": "SELECT price FROM items WHERE id = ?", "rows": 1,
+                   "site": { "file": "src/Shop/Items.nvs", "line": 20, "hash": "ab12" } }
+    })
 }
 
 /// The spool lines of requests that throw: three throw one class at one site under two routes,
@@ -592,7 +624,7 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
         ("status%3A2xx", 3),
         ("method%3Adelete", 1),
         ("route%3A%2Fitems%2F%7Bid%7D", 3),
-        ("kind%3Aquery", 1),
+        ("kind%3Aquery", 2),
         ("kind%3Aexception", 1),
         ("level%3Ainfo", 1),
         ("duration%3A%3E2ms", 3),
@@ -623,8 +655,8 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
     let records = stream["records"].as_array().expect("a list");
     assert_eq!(
         records.len(),
-        15,
-        "6 requests, 4 events, 3 dumps and 2 log lines"
+        19,
+        "6 requests, 8 events, 3 dumps and 2 log lines"
     );
     let times: Vec<i64> = records
         .iter()
@@ -649,7 +681,7 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
         .as_str()
         .expect("a page of ten has an older page");
     let rest = service.json(&format!("/api/stream?before={older}"));
-    assert_eq!(rest["records"].as_array().map(Vec::len), Some(5));
+    assert_eq!(rest["records"].as_array().map(Vec::len), Some(9));
     assert_eq!(service.json("/api/quarantine"), json!({ "files": [] }));
 
     let defaults = service.json("/api/settings");
@@ -1031,6 +1063,182 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
         .into_iter()
         .filter_map(|(name, value)| fixture(name, value))
         .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
+}
+
+/// The paths of a filtered page of `GET /api/requests`, newest first.
+fn paths_of(service: &Service, query: &str) -> Vec<String> {
+    let page = service.json(&format!("/api/requests?{query}"));
+    assert_eq!(page["older"], Value::Null, "{query}: one page holds them");
+    page["requests"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|row| row["path"].as_str().expect("a path").to_owned())
+        .collect()
+}
+
+#[test]
+fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
+    let service = Service::ingested();
+
+    assert_eq!(
+        paths_of(&service, "method=GET"),
+        ["/missing", "/items/7", "/"]
+    );
+    assert_eq!(paths_of(&service, "status=5xx"), ["/orders"]);
+    assert_eq!(paths_of(&service, "status=404"), ["/missing"]);
+    assert_eq!(
+        paths_of(&service, "status=2xx"),
+        ["/items/7", "/items/7", "/"]
+    );
+    assert_eq!(
+        paths_of(&service, "route=%2Fitems%2F%7Bid%7D"),
+        ["/items/9", "/items/7", "/items/7"]
+    );
+    assert_eq!(
+        paths_of(&service, "method=PUT&route=%2Fitems%2F%7Bid%7D"),
+        ["/items/7"]
+    );
+    assert_eq!(paths_of(&service, "min_us=3000"), ["/items/7", "/orders"]);
+    assert_eq!(paths_of(&service, "threw=true"), ["/orders"]);
+    assert_eq!(paths_of(&service, "threw=false").len(), 5);
+    for wrong in [
+        "status=6xx",
+        "status=99",
+        "method=get",
+        "threw=yes",
+        "min_us=-1",
+    ] {
+        let (status, body) = service.get(&format!("/api/requests?{wrong}"));
+        assert_eq!(status, 400, "{wrong}: {body}");
+    }
+
+    let rows = service.json("/api/requests");
+    let row = |path: &str, method: &str| {
+        rows["requests"]
+            .as_array()
+            .expect("a list")
+            .iter()
+            .find(|row| row["path"] == path && row["method"] == method)
+            .cloned()
+            .expect("the request")
+    };
+    let looped = row("/items/7", "GET");
+    assert_eq!(
+        looped["time_us"],
+        json!({ "query": 600, "http": 1000, "cache": 0, "session": 0, "file": 0, "gc": 0, "spawn": 0 }),
+        "a query that arrived after the request's line is counted too"
+    );
+    assert_eq!(
+        (&looped["queries"], &looped["repeats"]),
+        (&json!(3), &json!(3))
+    );
+    let threw = row("/orders", "POST");
+    assert_eq!(
+        threw["time_us"],
+        json!({ "query": 800, "http": 0, "cache": 0, "session": 0, "file": 0, "gc": 600, "spawn": 5000 }),
+        "a call is the program's own time and is not summed"
+    );
+    assert_eq!(threw["repeats"], 1);
+    assert_eq!(row("/", "GET")["repeats"], 0);
+
+    let until = 1_700_000_300_000_000_i64;
+    let summary = service.json(&format!("/api/summary?until={until}"));
+    assert_eq!(
+        (&summary["count"], &summary["errors"], &summary["cut"]),
+        (&json!(6), &json!(1), &json!(false))
+    );
+    assert_eq!(
+        (&summary["p50_us"], &summary["p95_us"], &summary["max_us"]),
+        (&json!(840), &json!(15_400), &json!(15_400))
+    );
+    let buckets = summary["buckets"].as_array().expect("a list");
+    assert_eq!(buckets.len(), 12);
+    assert_eq!(buckets[0], json!({ "count": 6, "errors": 1 }));
+    let later = service.json(&format!("/api/summary?until={}", until + 600_000_000));
+    assert_eq!(
+        (&later["count"], &later["p50_us"]),
+        (&json!(0), &Value::Null)
+    );
+
+    let routes = service.json("/api/routes");
+    let listed = routes["routes"].as_array().expect("a list");
+    assert_eq!(listed.len(), 6, "one row per method and route");
+    let orders = listed
+        .iter()
+        .find(|route| route["route"] == "/orders")
+        .expect("POST /orders");
+    assert_eq!(
+        (&orders["count"], &orders["errors"], &orders["p95_us"]),
+        (&json!(1), &json!(1), &json!(15_400))
+    );
+    assert!(
+        listed
+            .iter()
+            .any(|route| route["route"].is_null() && route["method"] == "GET"),
+        "the requests no route matched are one row"
+    );
+    assert_eq!(
+        orders["durations"], 1,
+        "its percentiles stand on one request"
+    );
+    assert_eq!(
+        (&routes["cut"], &routes["partial"]),
+        (&json!(false), &json!(false))
+    );
+
+    let statements = service.json("/api/statements");
+    assert_eq!(
+        (&statements["cut"], &statements["partial"]),
+        (&json!(false), &json!(false))
+    );
+    let sites: Vec<(i64, i64, i64, i64)> = statements["statements"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|site| {
+            let n = |key: &str| site[key].as_i64().expect("a number");
+            (n("line"), n("count"), n("total_us"), n("repeated"))
+        })
+        .collect();
+    assert_eq!(
+        sites,
+        [(12, 1, 800, 0), (20, 3, 600, 1)],
+        "the most total time first"
+    );
+    assert_eq!(
+        statements["statements"][1]["sql"],
+        "SELECT price FROM items WHERE id = ?"
+    );
+
+    let health = service.json("/api/health");
+    assert_eq!(
+        health,
+        json!({ "dropped": 0, "dropped_records": 0, "unparseable": 0, "quarantine": 0, "replay": false })
+    );
+    for path in [
+        "/api/routes?x=1",
+        "/api/statements?x=1",
+        "/api/health?x=1",
+        "/api/summary?x=1",
+    ] {
+        let (status, body) = service.get(path);
+        assert_eq!(status, 400, "{path}: {body}");
+    }
+
+    let written: Vec<String> = [
+        ("summary.json", &summary),
+        ("routes.json", &routes),
+        ("statements.json", &statements),
+        ("health.json", &health),
+    ]
+    .into_iter()
+    .filter_map(|(name, value)| fixture(name, value))
+    .collect();
     assert!(
         written.is_empty(),
         "{written:?} differed from the API's answers and are written again: commit them"

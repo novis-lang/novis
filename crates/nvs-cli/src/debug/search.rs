@@ -499,8 +499,8 @@ fn matched(
     let mut groups: Vec<Group> = Vec::new();
     let mut last: Option<(i64, i64)> = None;
     while let Some(found) = rows.next()? {
-        let group_at: i64 = found.get(20)?;
-        let group_key: i64 = found.get(21)?;
+        let group_at: i64 = found.get(api::ROW_LEN + 4)?;
+        let group_key: i64 = found.get(api::ROW_LEN + 5)?;
         if last != Some((group_at, group_key)) {
             if groups.len() == limit {
                 return Ok((groups, last.map(|(at, key)| format!("{at}.{key}"))));
@@ -524,10 +524,10 @@ fn matched(
             continue;
         }
         group.hits.push(Hit {
-            kind: found.get(16)?,
-            id: found.get(17)?,
-            at_us: found.get(18)?,
-            snippet: found.get(19)?,
+            kind: found.get(api::ROW_LEN)?,
+            id: found.get(api::ROW_LEN + 1)?,
+            at_us: found.get(api::ROW_LEN + 2)?,
+            snippet: found.get(api::ROW_LEN + 3)?,
         });
     }
     Ok((groups, None))

@@ -56,10 +56,20 @@
       "method": "POST",
       "path": "/orders",
       "queries": 0,
+      "repeats": 0,
       "route": "/orders",
       "span": "000000000000def4",
       "start_us": 1700000240000000,
       "status": 500,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "0000000000000000000000000000abc4"
     },
     {
@@ -76,10 +86,20 @@
       "method": "POST",
       "path": "/cart",
       "queries": 0,
+      "repeats": 0,
       "route": "/cart",
       "span": "000000000000def2",
       "start_us": 1700000120000000,
       "status": 500,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "0000000000000000000000000000abc2"
     },
     {
@@ -96,10 +116,20 @@
       "method": "POST",
       "path": "/orders",
       "queries": 0,
+      "repeats": 0,
       "route": "/orders",
       "span": "000000000000def0",
       "start_us": 1700000000000000,
       "status": 500,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 0,
+        "session": 0,
+        "spawn": 0
+      },
       "trace": "0000000000000000000000000000abc0"
     }
   ],

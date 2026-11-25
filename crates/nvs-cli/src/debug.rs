@@ -66,6 +66,7 @@ pub(crate) mod secure;
 pub(crate) mod settings;
 pub(crate) mod source;
 pub(crate) mod stream;
+pub(crate) mod summary;
 pub(crate) mod tail;
 pub(crate) mod to_test;
 

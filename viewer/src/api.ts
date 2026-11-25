@@ -1,5 +1,6 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
-// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs`, `exceptions.rs` and `settings.rs`):
+// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs`, `exceptions.rs`, `summary.rs` and
+// `settings.rs`):
 // `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 
@@ -27,6 +28,21 @@ export interface RequestRow {
   dumps: number;
   logs: number;
   exception: Threw | null;
+  /** The summed durations of its events by kind. Events of one kind can overlap, so a sum may pass `duration_us`. */
+  time_us: TimeByKind;
+  /** The most times one statement text ran at one call site in it. A value above 1 is a repeated query. */
+  repeats: number;
+}
+
+/** A request's summed event durations by kind, in microseconds. The time in its own code is the rest. */
+export interface TimeByKind {
+  query: number;
+  http: number;
+  cache: number;
+  session: number;
+  file: number;
+  gc: number;
+  spawn: number;
 }
 
 /** One page of `GET /api/requests`, newest first. */
@@ -50,6 +66,100 @@ export interface RequestFilter {
   span?: string;
   /** At most this many rows, from 1 to 500. The service gives 100 when it is not set. */
   limit?: number;
+  /** Only this HTTP method, in capitals. */
+  method?: string;
+  /** Only this status code, or a class such as `5xx`. */
+  status?: number | `${1 | 2 | 3 | 4 | 5}xx`;
+  /** Only this route pattern. */
+  route?: string;
+  /** Only requests that took at least this many microseconds. */
+  min_us?: number;
+  /** Only requests that threw, or only those that did not. */
+  /**
+   * Only requests that threw, or only those that did not. A page filtered by `method`, `status`,
+   * `route`, `min_us` or `threw` reads at most 20,000 request ids below its cursor, so it can hold
+   * fewer rows than `limit` and still have an `older` page.
+   */
+  threw?: boolean;
+}
+
+/** `GET /api/summary`: the requests and errors of the five minutes before `until_us`. */
+export interface Summary {
+  until_us: number;
+  window_us: number;
+  bucket_us: number;
+  /** Twelve buckets, oldest first. */
+  buckets: { count: number; errors: number }[];
+  count: number;
+  /** Requests with a status of 500 or more, or that threw. */
+  errors: number;
+  /** `null` when the window has no request. */
+  p50_us: number | null;
+  p95_us: number | null;
+  max_us: number | null;
+  /** The window had more than 10,000 requests, and only the newest are counted. */
+  cut: boolean;
+}
+
+/** One method and route of `GET /api/routes`. */
+export interface RouteFigures {
+  method: string;
+  /** `null` for the requests no route matched. */
+  route: string | null;
+  count: number;
+  errors: number;
+  mean_queries: number;
+  max_us: number;
+  last_us: number;
+  /** Over the route's newest 500 requests. */
+  p50_us: number;
+  p95_us: number;
+  /** How many durations the percentiles stand on. */
+  durations: number;
+}
+
+/** `GET /api/routes`: the routes of the newest 10,000 requests, at most 200, the most requests first. */
+export interface Routes {
+  routes: RouteFigures[];
+  /** Those requests had more than 200 routes. */
+  cut: boolean;
+  /** The index has older requests, which are not counted. */
+  partial: boolean;
+}
+
+/** One query call site of `GET /api/statements`. */
+export interface StatementSite {
+  file: string;
+  line: number;
+  hash: string;
+  /** The newest statement text that ran there. */
+  sql: string;
+  count: number;
+  total_us: number;
+  max_us: number;
+  /** How many requests ran a statement there. */
+  requests: number;
+  /** In how many of them one statement text ran there more than once. */
+  repeated: number;
+}
+
+/** `GET /api/statements`: the sites of the newest 100,000 events, at most 200, the most total time first. */
+export interface Statements {
+  statements: StatementSite[];
+  /** Those events had more than 200 sites. */
+  cut: boolean;
+  /** The index has older events, which are not read. */
+  partial: boolean;
+}
+
+/** `GET /api/health`: what the recording lost, and whether a request can be replayed. */
+export interface Health {
+  /** How many times a writer recorded that it dropped records. */
+  dropped: number;
+  dropped_records: number;
+  unparseable: number;
+  quarantine: number;
+  replay: boolean;
 }
 
 /** Any JSON value. A dump's tree and a log line's fields are in the JSON rendering of a value. */
@@ -69,10 +179,13 @@ export interface EventQuery {
   site: { file: string; line: number; hash: string } | null;
 }
 
+/** The eight kinds of trace event. */
+export type EventKind = "call" | "query" | "spawn" | "gc" | "http" | "cache" | "session" | "file";
+
 /** One trace event of a request. Its times are Unix microseconds. */
 export interface TraceEvent {
   id: number;
-  kind: "call" | "query" | "spawn" | "gc" | "http";
+  kind: EventKind;
   label: string;
   start_us: number;
   end_us: number;
@@ -554,6 +667,26 @@ export function replay(key: { trace: string; span: string }, headers: Record<str
 /** The text of a test that sends the request `key` names again and checks its recorded response. */
 export function toTest(key: { trace: string; span: string }, signal?: AbortSignal): Promise<{ text: string }> {
   return get<{ text: string }>(`/api/to-test?${requestQuery(key)}`, signal);
+}
+
+/** The requests and errors of the five minutes before `until` (now when it is not set). */
+export function summary(until?: number, signal?: AbortSignal): Promise<Summary> {
+  return get<Summary>(`/api/summary${until === undefined ? "" : `?until=${until}`}`, signal);
+}
+
+/** Each method and route, with its count, errors and durations. */
+export function routes(signal?: AbortSignal): Promise<Routes> {
+  return get<Routes>("/api/routes", signal);
+}
+
+/** Each query call site, with its count, time and repeats. */
+export function statements(signal?: AbortSignal): Promise<Statements> {
+  return get<Statements>("/api/statements", signal);
+}
+
+/** What the recording lost, and whether a request can be replayed. */
+export function health(signal?: AbortSignal): Promise<Health> {
+  return get<Health>("/api/health", signal);
 }
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */

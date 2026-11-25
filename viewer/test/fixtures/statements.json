@@ -1,0 +1,28 @@
+{
+  "cut": false,
+  "partial": false,
+  "statements": [
+    {
+      "count": 1,
+      "file": "src/Shop/Items.nvs",
+      "hash": "ab12",
+      "line": 12,
+      "max_us": 800,
+      "repeated": 0,
+      "requests": 1,
+      "sql": "SELECT * FROM items WHERE id = ?",
+      "total_us": 800
+    },
+    {
+      "count": 3,
+      "file": "src/Shop/Items.nvs",
+      "hash": "ab12",
+      "line": 20,
+      "max_us": 300,
+      "repeated": 1,
+      "requests": 1,
+      "sql": "SELECT price FROM items WHERE id = ?",
+      "total_us": 600
+    }
+  ]
+}

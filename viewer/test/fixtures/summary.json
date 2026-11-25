@@ -1,0 +1,61 @@
+{
+  "bucket_us": 25000000,
+  "buckets": [
+    {
+      "count": 6,
+      "errors": 1
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    },
+    {
+      "count": 0,
+      "errors": 0
+    }
+  ],
+  "count": 6,
+  "cut": false,
+  "errors": 1,
+  "max_us": 15400,
+  "p50_us": 840,
+  "p95_us": 15400,
+  "until_us": 1700000300000000,
+  "window_us": 300000000
+}
