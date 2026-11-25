@@ -20,12 +20,16 @@ class Slug implements Parses
         $this->text = $text;
     }
 
-    // The one member the contract requires. It accepts anything here, because
-    // what this case asks is which *type* the capture arrives at and never what
-    // the class does with the text.
+    // It accepts anything here, because what this case asks is which *type* the
+    // capture arrives at and never what the class does with the text.
     public static function parse(tainted string $s): static
     {
         return new static($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 

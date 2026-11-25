@@ -15,6 +15,12 @@ class Code implements Parses
         // `new static` builds the class the call named, not `Code`.
         return new static($s);
     }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
 }
 
 class CustomerCode extends Code

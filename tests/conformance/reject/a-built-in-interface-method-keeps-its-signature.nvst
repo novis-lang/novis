@@ -20,11 +20,13 @@ class Price implements Comparable {
 class Slug implements Parses {
     // Refused: the text is `tainted`, and this parameter would forget that.
     public static function parse(string $s): static { return new static(); }
+    public function format(): string { return "slug"; }
 }
 
 class Code implements Parses {
     // Refused: `parse` is called on the class, with no object.
     public function parse(tainted string $s): static { return new static(); }
+    public function format(): string { return "code"; }
 }
 
 class Words implements Iterator<int> {

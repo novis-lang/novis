@@ -43,6 +43,13 @@ class Slug implements Parses
         }
         return new static($s);
     }
+
+    // The text `parse` reads, written back. `Core\Router::url` calls this to
+    // build a link to a route with a `Slug` capture.
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
 }
 
 class Posts

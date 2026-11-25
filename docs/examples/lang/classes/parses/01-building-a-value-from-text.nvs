@@ -18,6 +18,12 @@ final class Sku implements Parses
         }
         return new static($s);
     }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->code;
+    }
 }
 
 echo Sku::parse('ABC-1234')->code, "\n";

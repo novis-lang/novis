@@ -12,8 +12,8 @@ class CouponCode implements Parses
         $this->text = $text;
     }
 
-    // The one member the contract asks for. It answers the class, or throws
-    // with a message saying what was wrong with the text.
+    // `parse` returns an object of the class. If the text is wrong, it throws
+    // an error with a message that says why.
     public static function parse(tainted string $s): static
     {
         if (Core\Str::length($s) != 8) {
@@ -23,6 +23,12 @@ class CouponCode implements Parses
             throw new ParseError('a coupon code is written in capitals');
         }
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 

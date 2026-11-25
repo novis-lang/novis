@@ -18,6 +18,11 @@ final class Sku implements Parses
         }
         return new static($s);
     }
+
+    public function format(): tainted string
+    {
+        return $this->code;
+    }
 }
 
 final class Endless implements Parses
@@ -29,6 +34,11 @@ final class Endless implements Parses
     public static function parse(tainted string $s): static
     {
         return static::parse($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 

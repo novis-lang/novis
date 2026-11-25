@@ -33,6 +33,11 @@ class CouponCode implements Parses
         }
         return new static($s);
     }
+
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
 }
 
 // Declares nothing of its own, so the `parse` it answers through is the base's,
@@ -56,6 +61,11 @@ class RoomNumber implements Parses
             throw new ParseError("a room number is not empty");
         }
         return new static($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 

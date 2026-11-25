@@ -1389,9 +1389,11 @@ does not call the method. You can also pass a method reference in a variable, su
 in as `$shop->order(...)`. A `callable` with no route throws a `RuntimeError` when the program runs.
 A params array in a variable that leaves out a capture throws a `RuntimeError` too.
 
-The compiler does not check the type of a value. `"x"` for a `uint` capture gives the link `/x`, and
-that link does not match the route. A value of a class that implements `Parses` is given as text,
-such as `"cup-01"`. An object throws a `RuntimeError`.
+The compiler checks the type of each value written in the params array. A value whose type the
+parameter cannot take is `E1010`, such as a `Date` for a `uint` capture. A `string` value always
+compiles. `"x"` for a `uint` capture gives the link `/x`, and that link does not match the route.
+A value of a class that implements `Parses` is written as the text its `format` method returns. Any
+other object throws a `RuntimeError`.
 
 A capture value is encoded for one segment, so `x/y?z#` becomes `x%2Fy%3Fz%23`. An empty string gives
 an empty segment. A space is `%20` in the path and `+` in the query string, and `&` in a query value is

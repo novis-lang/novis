@@ -3665,19 +3665,25 @@ inherits `parse` gets an object of the subclass back.
 **The examples below** show a product code built from text, what a subclass gets back, a list of
 values from a form checked one by one, a class used in a route, and a route that does not compile.
 
-A class that implements `Parses` and has no `parse` method is the error `E0449`. A `parse` method
-with a return type other than `static`, such as the class name, is the error `E0404`.
+A class that implements `Parses` must have two methods: `parse` and `format`. A class without one of
+them is the error `E0449`. In a class that is not `final`, a `parse` method with a return type other
+than `static` is the error `E0404`. A `final` class may write its own class name there.
 
 `parse` is an ordinary static method, so your code can call it too: `Slug::parse("hello")`. It may
 throw any error. `ParseError` is the usual one.
+
+`format` returns the text that `parse` reads. `Core\Router::url` and `Core\Uri::buildQuery` call it
+to write the value into a link. Its return type is `tainted string`. A class whose text is not
+tainted may write `string`.
 
 The text keeps its `tainted` qualifier. A property that stores it must have the type
 `tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
 tainted.
 
 A route capture or a `#[Core\Query]` parameter accepts these types: `string`, `int`, `uint`,
-`decimal`, an enum, a set of allowed values such as `'a'|'b'`, and a class that implements `Parses`.
-Any other class is the error `E0752`.
+`decimal`, `Core\Uuid`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values such as
+`'a'|'b'`, and a class that implements `Parses`. A `#[Core\Query]` parameter also accepts `bool` and
+`DateTime`. Any other class is the error `E0752`.
 
 A path capture fails in two ways. The router converts some types itself while it matches the path:
 `int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. A segment that does not convert is
@@ -3706,6 +3712,12 @@ final class Sku implements Parses
             throw new ParseError('a product code is written in upper case');
         }
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->code;
     }
 }
 
@@ -3743,6 +3755,12 @@ class Code implements Parses
         }
         // `new static` builds the class the call named, not `Code`.
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 
@@ -3795,6 +3813,12 @@ final class Recipient implements Parses
         }
         return new static($clean);
     }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->address;
+    }
 }
 
 array<string> $sent = [' ada@example.com ', 'nobody', 'grace@example.com'];
@@ -3839,6 +3863,12 @@ final class Slug implements Parses
             throw new ParseError('a slug is written in lower case');
         }
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 
@@ -3899,7 +3929,7 @@ error[E0752]: `Tag` is not a type `{tag}` can arrive at
 ...
 15 |     public function show(Tag $tag): string
    |                          ^^^^^^^^ no conversion from a path segment
-   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
+   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -18,6 +18,11 @@ class Slug implements Parses
     {
         return new static($s);
     }
+
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
 }
 
 class Releases

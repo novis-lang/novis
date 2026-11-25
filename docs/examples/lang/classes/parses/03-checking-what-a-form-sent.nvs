@@ -16,6 +16,12 @@ final class Recipient implements Parses
         }
         return new static($clean);
     }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->address;
+    }
 }
 
 array<string> $sent = [' ada@example.com ', 'nobody', 'grace@example.com'];

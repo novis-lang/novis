@@ -17,6 +17,10 @@ class Tag implements Parses {
         }
         return new static($s);
     }
+
+    public function format(): tainted string {
+        return $this->text;
+    }
 }
 
 enum Mode: uint { Fast = 1, Slow = 2 }

@@ -32,6 +32,10 @@ final class Code implements Parses {
     public static function parse(tainted string $s): Code {
         return new Code($s);
     }
+
+    public function format(): tainted string {
+        return $this->text;
+    }
 }
 
 echo (new Square(2))->scaled(3)->side, "\n";

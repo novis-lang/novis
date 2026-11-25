@@ -1,5 +1,5 @@
 --TEST--
-A class claiming `Parses` owes the one member the contract requires, so a class with no `parse` is refused where it is declared and never at a binding site that names it — `rule:expressions/try-parse` and `rule:classes/comparable`
+A class claiming `Parses` owes the two members the contract requires, so a class with no `parse` and no `format` is refused where it is declared and never at a binding site that names it — `rule:expressions/try-parse` and `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: lang:classes/parses
@@ -10,7 +10,7 @@ A class claiming `Parses` owes the one member the contract requires, so a class 
 // it -- one diagnostic naming the member, instead of one per site pointing back
 // at a class that never said what it owed.
 //
-// `tryParse` is not the member being asked for: it is a default body on the
+// `tryParse` is not a member being asked for: it is a default body on the
 // interface, so a class inherits it and cannot discharge `parse` by writing it.
 // One implementation of "is this text a `Slug`", never two.
 class Slug implements Parses
@@ -20,7 +20,9 @@ class Slug implements Parses
 --EXPECT--
 
 --EXPECTF-ERROR--
+error[E0449]: `Slug` does not declare `format`, which `Parses` requires
+%A
 error[E0449]: `Slug` does not declare `parse`, which `Parses` requires
 %A
-error: aborting due to 1 error
+error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
