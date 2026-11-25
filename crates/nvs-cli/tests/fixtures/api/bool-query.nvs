@@ -1,0 +1,17 @@
+<?nvs
+// A `#[Query]` parameter declared `bool` is written `1` or `0`, so the document
+// lists it as the integer 0 or 1, and a `true` parameter as the integer 1. A
+// client given `"type": "boolean"` would write `true`, which the route refuses
+// (`rule:security/route-capture-is-laundered-by-its-type`).
+
+class Feed
+{
+    #[Core\Route(path: '/feed', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(#[Core\Query] bool $full = false, #[Core\Query] true $sure = true): string
+    {
+        return 'the feed';
+    }
+}
+
+echo 'GET /feed -> Feed::index', "\n";

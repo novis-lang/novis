@@ -226,6 +226,9 @@ fn converted_default(
         ConstArg::Int(number) => number.to_string(),
         ConstArg::Uint(number) => number.to_string(),
         ConstArg::Str(text) => text.clone(),
+        // The text `Core\Router::url` writes for it, so `= false` gives what
+        // `?full=0` gives.
+        ConstArg::Bool(value) => if *value { "1" } else { "0" }.to_owned(),
         _ => return None,
     };
     conv.convert(&text)

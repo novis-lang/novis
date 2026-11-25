@@ -1332,7 +1332,8 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 }
 
 /// The conversion a capture declared at `ty` takes, for each type the matcher
-/// converts natively: `int`, `uint`, `decimal` and `Core\Uuid`, spelled as
+/// converts natively: `int`, `uint`, `decimal`, `Core\Uuid`, and for a
+/// `#[Query]` value `bool`, `true` and `false`, spelled as
 /// `nvs_types` describes them. `None` for every other type.
 ///
 /// The one home of that mapping. `nvs-cli` builds the route table's rows
@@ -1346,6 +1347,10 @@ pub fn native_conv(ty: &str) -> Option<nvs_runtime::routes::CaptureConv> {
         "uint" => CaptureConv::Uint,
         "decimal" => CaptureConv::Decimal,
         crate::uuid::NAME => CaptureConv::Uuid,
+        // A `#[Query]` value only: the checker refuses these at a path capture.
+        "bool" => CaptureConv::Bool(None),
+        "true" => CaptureConv::Bool(Some(true)),
+        "false" => CaptureConv::Bool(Some(false)),
         _ => return None,
     })
 }
@@ -1956,6 +1961,7 @@ fn capture_text(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Stri
         Param::Int(number) => number.to_string(),
         Param::Uint(number) => number.to_string(),
         Param::Decimal(value) => value.to_string(),
+        Param::Bool(value) => if *value { "1" } else { "0" }.to_owned(),
         Param::Uuid(octets) => {
             let mut buffer = crate::uuid::TEXT;
             crate::uuid::canonical(*octets, &mut buffer).to_owned()
@@ -2565,6 +2571,7 @@ fn capture_value(
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
         nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
+        nvs_runtime::routes::Param::Bool(value) => Value::bool(*value),
         nvs_runtime::routes::Param::Parses { class, text } => {
             let text = Value::text(&crate::uri::decode_capture(text, name)?);
             parsed(ctx, class, text)?

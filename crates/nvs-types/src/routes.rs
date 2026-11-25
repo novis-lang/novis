@@ -2977,19 +2977,27 @@ fn path_insertion(attr: &Attribute, path: &str, env: &Env<'_>) -> (Span, String)
     }
 }
 
-/// Whether a path segment or a query value converts to `ty`: the shared roster
+/// Whether a path segment converts to `ty`: the shared roster
 /// [`crate::commands::converts_from_string`] less its `bool` row.
 ///
-/// That row is a command's flag, given by being written rather than by
-/// carrying text, and a segment is always text. So a `bool` capture or
-/// `#[Query]` is `E0752`
+/// A path names a resource and a yes-or-no filters it, which is the query
+/// string's job, and a segment `1` would be claimed by a `bool` and a `uint`
+/// capture at one position. So a `bool` capture is `E0752`
 /// (`rule:security/route-capture-is-laundered-by-its-type`). `true` and
 /// `false` alone are refused with it, since each is a `bool` too.
 fn converts_from_segment(ty: crate::ty::TypeId, env: &Env<'_>) -> bool {
     !matches!(
         env.interner.get(ty),
         crate::ty::Ty::Bool | crate::ty::Ty::True | crate::ty::Ty::False
-    ) && crate::commands::converts_from_string(ty, env)
+    ) && converts_from_query(ty, env)
+}
+
+/// Whether a `#[Query]` value converts to `ty`: the shared roster
+/// [`crate::commands::converts_from_string`] whole. A `bool` query value is
+/// written `1` or `0` and nothing else
+/// (`rule:security/route-capture-is-laundered-by-its-type`).
+fn converts_from_query(ty: crate::ty::TypeId, env: &Env<'_>) -> bool {
+    crate::commands::converts_from_string(ty, env)
 }
 
 /// `rule:routing/a-capture-narrows-to-a-closed-set`
@@ -3216,7 +3224,7 @@ fn query_params(
             }
         });
         if let Some(ty) = declared
-            && !converts_from_segment(ty, env)
+            && !converts_from_query(ty, env)
         {
             let described = env.interner.describe(ty);
             env.diags.report(
@@ -3227,9 +3235,9 @@ fn query_params(
                 .with_primary(param.span, "no conversion from a query value")
                 .with_help(
                     "a query value is text, and it is converted to the parameter's type. A \
-                     `#[Query]` parameter has the same types as a capture: `string`, `int`, \
-                     `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a \
-                     class implementing `Parses`",
+                     `#[Query]` parameter binds `string`, `int`, `uint`, `decimal`, `bool` \
+                     (written `1` or `0`), an enum, a set of allowed values like `'a'|'b'`, or \
+                     a class implementing `Parses`",
                 ),
             );
         }

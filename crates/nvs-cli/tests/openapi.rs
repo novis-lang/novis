@@ -1089,6 +1089,32 @@ fn a_nullable_query_value_is_optional_and_typed_by_its_inner_type() {
     );
 }
 
+/// A `bool` query value is written `1` or `0`, so the document gives a client
+/// those two integers and never `"type": "boolean"`, whose `true` is a `400`.
+#[test]
+fn a_bool_query_value_is_the_integer_0_or_1() {
+    let (doc, err, ok) = build(&fixture("bool-query"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/feed"]["get"]["parameters"];
+
+    assert_eq!(
+        params[0],
+        serde_json::json!({
+            "name": "full",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "enum": [0, 1]},
+        }),
+        "a `bool` key is the integer 0 or 1:\n{doc}"
+    );
+    assert_eq!(
+        params[1]["schema"],
+        serde_json::json!({"type": "integer", "enum": [1]}),
+        "a `true` key is the integer 1:\n{doc}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // `rule:routing/a-security-scheme-is-declared-in-code` -- `#[Api\Scheme]`.
 // -------------------------------------------------------------------------

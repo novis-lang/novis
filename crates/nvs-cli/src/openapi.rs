@@ -783,8 +783,21 @@ fn parameter(param: &RouteParam) -> Value {
             ParamIn::Query => "query",
         },
         "required": param.required || param.source == ParamIn::Path,
-        "schema": schema(param.ty.as_deref(), param.admits().as_deref(), param.parses),
+        "schema": parameter_schema(param),
     })
+}
+
+/// A parameter's schema: [`schema`], but for a `bool` query value. That value is
+/// written `1` or `0` (`rule:security/route-capture-is-laundered-by-its-type`),
+/// so it is the integer 0 or 1, and `true` and `false` are each one of them.
+/// A client given `"type": "boolean"` writes `true`, which the route refuses.
+fn parameter_schema(param: &RouteParam) -> Value {
+    match param.ty.as_deref() {
+        Some("bool") => json!({"type": "integer", "enum": [0, 1]}),
+        Some("true") => json!({"type": "integer", "enum": [1]}),
+        Some("false") => json!({"type": "integer", "enum": [0]}),
+        ty => schema(ty, param.admits().as_deref(), param.parses),
+    }
 }
 
 /// A parameter "by declared type": the JSON Schema one Novis type renders as, and its

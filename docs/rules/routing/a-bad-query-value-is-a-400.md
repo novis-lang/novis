@@ -2,7 +2,9 @@ A `#[Query]` parameter's value converts to its declared type and arrives unquali
 capture does, and fails differently. A path capture that the matcher cannot convert means *this route is
 not the one*: matching continues, and a miss is a `404`. A query value takes no part in choosing a route,
 so there is nothing to continue to: the route matched and the input is bad, which is what `400` means. A
-required key that is absent is a `400` for the same reason, and the handler's own body never runs.
+required key that is absent is a `400` for the same reason, and the handler's own body never runs. A
+`bool` value is `1` or `0`, and any other text, an empty value or a bare key is a `400`
+(`rule:security/route-capture-is-laundered-by-its-type`).
 
 **A path capture at a class built from text is on the query value's side of that line**, and for the
 query value's reason. That class is not one of the conversions the matcher performs

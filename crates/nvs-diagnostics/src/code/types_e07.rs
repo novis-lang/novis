@@ -983,7 +983,8 @@ codes! {
     pub const E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0752").card(
         "A route capture or a `#[Query]` value arrives as text, so its parameter needs a type \
          that text can be converted to. Use a type like `string`, `int`, an enum or `Core\\Uuid`. \
-         A `{name...}` capture must be a `string`. A query string cannot contain `null`, so a \
+         A `{name...}` capture must be a `string`. A path capture cannot be a `bool`. A \
+         `#[Query]` value can be a `bool`, and the URL writes it as `1` or `0`. A query string cannot contain `null`, so a \
          `#[Query]` value of a `?` type like `?int` needs the default `null`: write \
          `?int $page = null`. Then the value is `null` when the key is missing.",
     );

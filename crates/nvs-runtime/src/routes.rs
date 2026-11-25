@@ -145,6 +145,13 @@ pub enum CaptureConv {
     /// `nvs_stdlib::uuid`'s, one crate above, and a capture is accepted or
     /// refused here. That module's doc is the home of the placement.
     Uuid,
+    /// `bool`, `true` or `false` — a `#[Query]` value only, since a path
+    /// capture of these is `E0752`. `1` is `true` and `0` is `false`, and any
+    /// other text is no value: `true`, `on`, an empty value and a bare key
+    /// included. `None` is `bool`, and `Some(v)` is the single value `v`,
+    /// which admits only its own digit. One value has one spelling, the one
+    /// `Core\Router::url` writes (`rule:security/route-capture-is-laundered-by-its-type`).
+    Bool(Option<bool>),
     /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set: the segment text of each admitted value, in the order
     /// the union declares them. A segment outside the set is no match, which is
     /// what makes the narrowing a property of the *table* rather than a check
@@ -198,8 +205,8 @@ pub enum CaptureConv {
         cases: Vec<(String, crate::commands::CaseValue)>,
     },
     /// A declared type no arm above turns text into. No program that compiles
-    /// builds one: every type a capture may declare has an arm, and a `bool`
-    /// capture is `E0752`. The segment matches and its text is handed over —
+    /// builds one: every type a capture or a query value may declare has an
+    /// arm. The segment matches and its text is handed over —
     /// never silently `Text`, so a type admitted without an arm stays visible
     /// here rather than becoming a behaviour somebody has to notice.
     Unconverted,
@@ -227,6 +234,15 @@ impl CaptureConv {
             Self::Uint => text.parse::<u64>().ok().map(Param::Uint),
             Self::Decimal => Decimal::parse(text).map(Param::Decimal),
             Self::Uuid => crate::uuid::read(text).map(Param::Uuid),
+            Self::Bool(only) => {
+                let value = match text {
+                    "1" => true,
+                    "0" => false,
+                    _ => return None,
+                };
+                only.is_none_or(|only| only == value)
+                    .then_some(Param::Bool(value))
+            }
             Self::OneOf(admitted) => admitted
                 .iter()
                 .any(|value| value == text)
@@ -320,6 +336,8 @@ pub enum Param {
     /// already takes, which is the same seam `rule:core-classes/db-column-types`'s `UUID` column
     /// crosses on.
     Uuid([u8; 16]),
+    /// A `bool` query value, converted from `1` or `0`.
+    Bool(bool),
     /// A capture typed as a class built from text, as the two facts the
     /// crossing needs to finish it: the class that claims the segment, and the
     /// segment itself, still exactly as the peer wrote it.
@@ -1394,6 +1412,30 @@ mod tests {
     /// not RFC 9562 § 4's canonical form is **no match** rather than text handed
     /// to a handler that declared an identifier.
     ///
+    /// A `bool` query value has one spelling per value: `1` and `0`.
+    #[test]
+    fn a_bool_query_value_reads_1_and_0_and_nothing_else() {
+        let conv = CaptureConv::Bool(None);
+        assert_eq!(conv.convert("1"), Some(Param::Bool(true)));
+        assert_eq!(conv.convert("0"), Some(Param::Bool(false)));
+        for text in ["true", "false", "on", "off", "yes", "", "01", "10", " 1", "1 ", "-0", "2"] {
+            assert_eq!(conv.convert(text), None, "`{text}` is not a `bool` query value");
+        }
+    }
+
+    /// `true` and `false` are each one value, so each admits its own digit only.
+    #[test]
+    fn a_bool_query_value_of_a_single_value_type_admits_its_own_digit() {
+        let yes = CaptureConv::Bool(Some(true));
+        assert_eq!(yes.convert("1"), Some(Param::Bool(true)));
+        assert_eq!(yes.convert("0"), None);
+        assert_eq!(yes.convert("true"), None);
+        let no = CaptureConv::Bool(Some(false));
+        assert_eq!(no.convert("0"), Some(Param::Bool(false)));
+        assert_eq!(no.convert("1"), None);
+        assert_eq!(no.convert("false"), None);
+    }
+
     /// Both sides named together, for the `decimal` case's reason. The refused
     /// half is what the placement buys: [`crate::uuid`] puts the parse on this
     /// side of the walk, so a segment that is not one is a miss here rather

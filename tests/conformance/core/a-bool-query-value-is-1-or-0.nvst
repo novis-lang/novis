@@ -1,0 +1,77 @@
+--TEST--
+A `#[Core\Query]` parameter declared `bool` reads `1` as `true` and `0` as `false`, and every other text is a `400`; a `true` parameter admits only `1` — `rule:security/route-capture-is-laundered-by-its-type`
+--FILE--
+<?nvs
+// covers: Core\Router::dispatch
+class Feed {
+    // `full` may be absent. Then its value is `false`.
+    #[Core\Route(path: "/feed", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function feed(#[Core\Query] bool $full = false): void {
+        echo "full ", $full ? "yes" : "no", "\n";
+    }
+
+    // `sure` must be `1`.
+    #[Core\Route(path: "/confirm", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function confirm(#[Core\Query] true $sure): void {
+        echo "sure\n";
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused ", $reason == Core\Router\Refusal::BadCapture ? "BadCapture" : "other", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $targets = [
+        Core\Router::url(Feed::feed, ["full" => true]),
+        Core\Router::url(Feed::feed, ["full" => false]),
+        "/feed",
+        "/feed?full=true",
+        "/feed?full=on",
+        "/feed?full=",
+        "/feed?full",
+        "/feed?full=2",
+        "/confirm?sure=1",
+        "/confirm?sure=0",
+    ];
+    foreach ($targets as string $target) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, $target);
+        echo $target, " -> ", $answer->status(), "\n", $answer->body();
+    }
+}
+--EXPECT--
+/feed?full=1 -> 200
+full yes
+/feed?full=0 -> 200
+full no
+/feed -> 200
+full no
+/feed?full=true -> 400
+refused BadCapture
+/feed?full=on -> 400
+refused BadCapture
+/feed?full= -> 400
+refused BadCapture
+/feed?full -> 400
+refused BadCapture
+/feed?full=2 -> 400
+refused BadCapture
+/confirm?sure=1 -> 200
+sure
+/confirm?sure=0 -> 400
+refused BadCapture

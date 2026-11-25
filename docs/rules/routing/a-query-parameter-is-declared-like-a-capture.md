@@ -4,9 +4,9 @@ key. It is one of the compiler-recognised attributes and is matched nominally
 (`rule:core-classes/derive-attribute`): a userland `type Query = {...};` binds nothing, and a `#[Query]`
 on a method that declares no route is refused rather than ignored.
 
-The parameter takes the same type list as a path capture and launders the same way
+The parameter takes the type list of a path capture and launders the same way
 (`rule:security/route-capture-is-laundered-by-its-type`): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, an enum, a closed set (`rule:routing/a-capture-narrows-to-a-closed-set`), or a class
+`Core\Uuid`, `bool` (written `1` or `0`, which a path capture may not declare), an enum, a closed set (`rule:routing/a-capture-narrows-to-a-closed-set`), or a class
 implementing `Parses`; anything else is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
 one is required. **`?T $x = null` is the default `null`:** the key may be absent, and then the value is
 `null`; a present key converts as `T`, and a value `T` refuses is the same `400`. It works for every type
