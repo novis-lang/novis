@@ -1,4 +1,7 @@
-/* The stream and the log. A row's height is `ROW_HEIGHT` in `views/requests.tsx`. */
+/* The stream, the log and the frame the search shares with them. The list itself, its follow bar,
+   its column heads and its rows are `List`'s, in `ui.css`; this file sets the record views' grids and
+   cells, the kind dot, the level chip, the filter form, the selected record and the quarantine panel.
+   Every colour is a role from `tokens.css`. */
 .stream,
 .feed,
 .search-view {
@@ -8,21 +11,31 @@
   flex-direction: column;
 }
 
+/* ------------------------------------------------------------- toolbar */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
-  padding: 0.35rem 1rem;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.75rem;
+  gap: var(--space-2) var(--space-3);
   flex: 1;
+  color: var(--text-2);
+  font-size: var(--fs-2);
+}
+
+.filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .filters input:not([type="checkbox"]) {
@@ -32,12 +45,18 @@
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   padding: 0 var(--space-2);
+  font-size: var(--fs-2);
+}
+
+.filters input[name="trace"] {
+  font-family: var(--mono);
 }
 
 .kinds {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 0.6rem;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
   margin: 0;
   padding: 0;
   border: 0;
@@ -45,84 +64,244 @@
 
 .kinds legend {
   float: left;
-  margin-right: 0.5rem;
-  color: var(--muted);
+  margin-right: var(--space-1);
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.feed > .note,
+.kind-toggle {
+  cursor: pointer;
+}
+
 .search-view > .note,
 .search-view > div.note {
-  margin: 0.5rem 1rem;
+  margin: var(--space-2) var(--space-4);
 }
 
+/* --------------------------------------------------------------- grids */
 .cols.stream-grid,
 .row.stream-grid {
-  grid-template-columns: 7.5rem 8rem minmax(10rem, 1fr) minmax(10rem, 22rem);
+  grid-template-columns: 7rem 9rem minmax(10rem, 1fr) minmax(10rem, 22rem);
 }
 
 .cols.log-grid,
 .row.log-grid {
-  grid-template-columns: 7.5rem 5rem minmax(10rem, 1fr) minmax(6rem, 16rem) minmax(10rem, 22rem);
+  grid-template-columns: 7rem 5.5rem minmax(10rem, 1fr) minmax(6rem, 16rem) minmax(10rem, 22rem);
+}
+
+/* --------------------------------------------------------------- cells */
+.feed .row {
+  font-size: var(--fs-3);
 }
 
 .at {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
-.badge {
-  font-size: 0.85em;
-  font-weight: 600;
+.feed .kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
 }
 
+.feed .text {
+  color: var(--text);
+}
+
+.feed .text > .level-chip {
+  margin-right: var(--space-2);
+}
+
+.log-fields {
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--muted);
+}
+
+.owner {
+  font-size: var(--fs-2);
+}
+
+.owner a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.owner a:hover .owner-path {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.owner .method {
+  min-width: 0;
+}
+
+.owner-path {
+  font-family: var(--mono);
+}
+
+/* A row that is not a record of the program: an unreadable line or a count of dropped records. */
 .row.flawed {
   box-shadow: inset 3px 0 var(--bad);
 }
 
-.owner a {
-  text-decoration: none;
+.badge {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--bad) 14%, transparent);
+  color: var(--bad);
+  font-size: var(--fs-1);
+  font-weight: 600;
 }
 
+/* ------------------------------------------------- kind dot and level chip */
+/* The dot of a record kind. The kinds the timeline draws use their event tone (`--k-*`). */
+.kind-dot {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.rk-request {
+  background: var(--link);
+}
+
+.rk-call {
+  background: var(--k-own);
+}
+
+.rk-query {
+  background: var(--k-query);
+}
+
+.rk-http {
+  background: var(--k-http);
+}
+
+.rk-spawn {
+  background: var(--k-spawn);
+}
+
+.rk-gc {
+  background: var(--k-gc);
+}
+
+.rk-dump {
+  background: var(--highlight);
+}
+
+.rk-log {
+  background: var(--muted);
+}
+
+.rk-dropped,
+.rk-unparseable {
+  background: var(--bad);
+}
+
+.level-chip {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.lv-bad {
+  background: color-mix(in oklab, var(--bad) 14%, transparent);
+  color: var(--bad);
+}
+
+.lv-warn {
+  background: color-mix(in oklab, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
+.lv-info {
+  background: var(--wash);
+  color: var(--link);
+}
+
+.lv-debug {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------- selected record */
 .record-detail {
+  flex: none;
   max-height: 30vh;
   overflow: auto;
-  padding: 0.5rem 1rem;
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--fs-3);
 }
 
 .record-detail .note {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
 }
 
+.detail-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.detail-time {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------- quarantine */
 .quarantine {
+  flex: none;
   max-height: 25vh;
   overflow: auto;
-  padding: 0.5rem 1rem;
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
+  font-size: var(--fs-3);
 }
 
 .quarantine h2 {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
+  margin: 0 0 var(--space-2);
+  color: var(--text-2);
+  font-size: var(--fs-2);
+  font-weight: 600;
 }
 
 .quarantine .note {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
 }
 
 .quarantined {
   border-collapse: collapse;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 .quarantined th,
 .quarantined td {
   text-align: left;
-  padding: 0.15rem 1rem 0.15rem 0;
+  padding: var(--space-1) var(--space-4) var(--space-1) 0;
   vertical-align: top;
 }
 
 .quarantined th {
-  color: var(--muted);
-  font-weight: normal;
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }

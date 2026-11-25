@@ -1,11 +1,13 @@
 // The Replay button of a request's page, and the dialog that asks before the request is sent again.
-// The dialog asks every time, because the handler runs again with all its effects.
+// Replay is the page's one primary action, so its button is the filled crimson one. The dialog asks
+// every time, because the handler runs again with all its effects.
 // A value typed for a redacted header is sent once and is never stored.
 // What it spends: the target address, for as long as the page is open.
 
 import { createResource, createSignal, For, onMount, Show } from "solid-js";
 import { REDACTED, replay, replayTarget, type RequestDetail } from "../api.ts";
 import { compareLink, navigate } from "../router.ts";
+import { Dialog } from "../ui/dialog.tsx";
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -36,7 +38,7 @@ export function ReplayAction(props: { detail: RequestDetail; ref?: (open: () => 
     <>
       <button
         type="button"
-        class="btn replay-action"
+        class="btn primary replay-action"
         disabled={!ready()}
         aria-keyshortcuts="r"
         aria-describedby={why() ? "replay-why" : undefined}
@@ -99,17 +101,14 @@ function ReplayDialog(props: { detail: RequestDetail; target: string; onClose: (
   };
 
   return (
-    <dialog
-      ref={dialog}
-      class="ask replay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="replay-title"
-      aria-describedby="replay-text"
+    <Dialog
+      ref={(el) => (dialog = el)}
+      class="replay ask"
+      describedby="replay-text"
+      title="Send this request again?"
       onClose={() => props.onClose()}
     >
       <form onSubmit={send}>
-        <h2 id="replay-title">Send this request again?</h2>
         <div id="replay-text">
           <p>
             This sends <code class="replay-request">{`${row.method} ${full}`}</code> to <code class="replay-target">{props.target}</code>.
@@ -144,11 +143,11 @@ function ReplayDialog(props: { detail: RequestDetail; target: string; onClose: (
           <button ref={cancel} type="button" class="btn" onClick={() => dialog.close()}>
             Cancel
           </button>
-          <button type="submit" class="btn danger" disabled={busy()}>
+          <button type="submit" class="btn primary" disabled={busy()}>
             Send
           </button>
         </div>
       </form>
-    </dialog>
+    </Dialog>
   );
 }

@@ -1,12 +1,14 @@
 // Two requests side by side, at `/compare/<trace>/<span>/<trace>/<span>`. The original is on the left.
-// Each side loads with its own `GET /api/request`, and every row that differs is marked.
+// Each side loads with its own `GET /api/request`. A card for each request sits above one table per
+// part, and every row that differs has an orange edge and a `Differs` label.
 // What it spends: the records of the two requests, for as long as the view is open.
 
 import { createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { REDACTED, request, type Json, type RecordedBody, type RequestDetail, type TraceEvent, type RequestRow } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { compareLink, navigate, requestLink, type SpanKey } from "../router.ts";
-import { duration, statusClass } from "./requests.tsx";
+import { Method, Status } from "../ui/badges.tsx";
+import { duration } from "./requests.tsx";
 import { ValueTree } from "./value-tree.tsx";
 
 /** A request marked in a list, to compare with the next request opened. */
@@ -54,7 +56,9 @@ export function MarkState() {
     <Show when={marked()}>
       {(m) => (
         <span class="mark-state" role="status">
-          Marked: {m().method} {m().path}. Open another request to compare the two.{" "}
+          <span>
+            Marked: <Method value={m().method} /> <span class="cmp-code">{m().path}</span>. Open another request to compare the two.
+          </span>{" "}
           <button type="button" class="btn small" onClick={() => setMarked(null)}>
             Clear
           </button>
@@ -352,30 +356,33 @@ export function CompareView(props: { left: SpanKey; right: SpanKey }) {
 function Comparison(props: { left: RequestDetail; right: RequestDetail }) {
   const all = createMemo(() => parts(props.left, props.right));
   const count = () => all().reduce((n, part) => n + part.rows.filter((r) => r.differs).length, 0);
-  const side = (d: RequestDetail) => (
-    <>
-      <a href={requestLink(d.request)}>
-        {d.request.method} {d.request.path}
-      </a>{" "}
-      <span class={statusClass(d.request.status)}>{d.request.status}</span>{" "}
-      <span class="note">started {new Date(d.request.start_us / 1000).toLocaleString()}</span>
-    </>
+  /** One request's card: its role, its method and path as a link to its page, its status, its
+   *  duration and when it started. */
+  const side = (d: RequestDetail, role: string, cls: string) => (
+    <div class={`cmp-side ${cls}`}>
+      <span class="cmp-role">{role}</span>
+      <a href={requestLink(d.request)} class="cmp-request">
+        <Method value={d.request.method} /> <span class="cmp-path">{d.request.path}</span>
+      </a>
+      <span class="cmp-facts">
+        <Status code={d.request.status} /> <span class="note">{duration(d.request.duration_us)}</span>{" "}
+        <span class="note">started {new Date(d.request.start_us / 1000).toLocaleString()}</span>
+      </span>
+    </div>
   );
   return (
     <>
-      <dl class="fields">
-        <dt>Original</dt>
-        <dd class="cmp-left">{side(props.left)}</dd>
-        <dt>Other</dt>
-        <dd class="cmp-right">{side(props.right)}</dd>
-      </dl>
+      <div class="cmp-sides">
+        {side(props.left, "Original", "cmp-left")}
+        {side(props.right, "Other", "cmp-right")}
+      </div>
       <Show when={props.left.input === null}>
         <p class="note cmp-unrecorded">The input of the original request was not recorded. A server records it in development only.</p>
       </Show>
       <Show when={props.right.input === null}>
         <p class="note cmp-unrecorded">The input of the other request was not recorded. A server records it in development only.</p>
       </Show>
-      <p class="cmp-count" role="status">
+      <p class="cmp-count" classList={{ same: count() === 0 }} role="status">
         {count() === 0 ? "The two requests are the same." : count() === 1 ? "1 row differs." : `${count()} rows differ.`}
       </p>
       <For each={all()}>
@@ -399,7 +406,7 @@ function Comparison(props: { left: RequestDetail; right: RequestDetail }) {
                           {r.label}
                           <Show when={r.differs}>
                             {" "}
-                            <span class="badge cmp-badge">Differs</span>
+                            <span class="cmp-badge">Differs</span>
                           </Show>
                         </th>
                         <td>

@@ -171,13 +171,11 @@ describe.skipIf(!EXE)("the exceptions view in Chromium", () => {
     expect(await cell("exc-routes")).toBe(FIRST.routes.join(", "));
     expect(await cell("exc-at")).toBe(`${FIRST.file}:${FIRST.line}`);
     expect(await tab.eval(HREF(`exception-${FIRST.id}`))).toBe("vscode://file/src/Shop/Orders.nvs:42:1");
-    // The chart has one bar per span, and a bar is drawn for each span with a throw.
-    const chart = `document.querySelector("#exception-${FIRST.id} svg")`;
+    // The chart has one bar per span, and each span with a throw is drawn in the error colour.
+    const chart = `document.querySelector("#exception-${FIRST.id} .spark")`;
     expect(await tab.eval(`${chart}.getAttribute("role") + "|" + ${chart}.getAttribute("aria-label")`)).toBe("img|Throws over time");
-    expect(await tab.eval(`${chart}.querySelectorAll("rect").length`)).toBe(24);
-    expect(await tab.eval(`[...${chart}.querySelectorAll("rect")].filter((r) => Number(r.getAttribute("height")) > 0).length`)).toBe(
-      FIRST.chart.filter((n) => n > 0).length,
-    );
+    expect(await tab.eval(`${chart}.querySelectorAll("i").length`)).toBe(24);
+    expect(await tab.eval(`${chart}.querySelectorAll("i.bad").length`)).toBe(FIRST.chart.filter((n) => n > 0).length);
     await tab.close();
   }, 30_000);
 

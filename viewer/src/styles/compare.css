@@ -1,42 +1,149 @@
-/* Two requests side by side. */
+/* Two requests side by side: a card for each, the count of rows that differ, and one table per part
+   in the list's density. A row that differs has an orange edge and an orange `Differs` label. */
+.cmp-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.cmp-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cmp-role {
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cmp-request {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.cmp-request:hover .cmp-path {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.cmp-path {
+  overflow: hidden;
+  font: var(--fs-2) var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmp-facts {
+  font-size: var(--fs-2);
+}
+
+.cmp-count {
+  display: inline-block;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--warn) 14%, transparent);
+  color: var(--warn);
+  font-size: var(--fs-2);
+  font-weight: 600;
+}
+
+.cmp-count.same {
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
+  color: var(--ok);
+}
+
+.cmp-part {
+  margin-top: var(--space-5);
+}
+
+.cmp-part h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text);
+  font-size: var(--fs-4);
+}
+
 .cmp {
   width: 100%;
-  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  font-size: var(--fs-3);
   table-layout: fixed;
+  overflow: hidden;
 }
 
 .cmp th,
 .cmp td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
   text-align: left;
   vertical-align: top;
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid var(--line);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
+.cmp tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
 .cmp thead th {
-  color: var(--muted);
-  font-weight: normal;
+  height: 28px;
+  padding-block: 0;
+  vertical-align: middle;
+  background: var(--surface-2);
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .cmp th[scope="row"] {
   width: 14rem;
-  font-weight: normal;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.cmp-differs > * {
+  background: color-mix(in oklab, var(--warn) 6%, transparent);
 }
 
 .cmp-differs > th {
   box-shadow: inset 3px 0 var(--warn);
 }
 
-.cmp-badge,
-.cmp-count {
+.cmp-badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--warn) 14%, transparent);
   color: var(--warn);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .cmp-code {
-  font-family: var(--mono);
-  font-size: 0.9em;
+  font: var(--fs-2) var(--mono);
+  font-variant-ligatures: none;
 }
 
 .cmp-redacted {

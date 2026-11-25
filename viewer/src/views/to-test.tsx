@@ -1,10 +1,12 @@
 // The Make a test button of a request's page, and the dialog that shows the test. The service prints
 // the test with the same function as `nvs debug to-test`, from `GET /api/to-test`. The dialog has a
-// copy button, and the text is also selectable.
+// copy button, which says it copied with a toast, and the text is also selectable.
 // What it spends: the text of one test, while the dialog is open.
 
 import { createResource, createSignal, onMount, Show } from "solid-js";
 import { type RequestDetail, toTest } from "../api.ts";
+import { Dialog } from "../ui/dialog.tsx";
+import { toast } from "../ui/toast.tsx";
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -55,7 +57,6 @@ function ToTestDialog(props: { detail: RequestDetail; onClose: () => void }) {
   let close!: HTMLButtonElement;
   const row = props.detail.request;
   const [test] = createResource(() => toTest({ trace: row.trace, span: row.span! }));
-  const [copied, setCopied] = createSignal<string | null>(null);
 
   onMount(() => {
     dialog.showModal();
@@ -67,13 +68,12 @@ function ToTestDialog(props: { detail: RequestDetail; onClose: () => void }) {
     if (!text) return;
     navigator.clipboard
       .writeText(text)
-      .then(() => setCopied("The test is copied."))
-      .catch(() => setCopied("The browser did not allow copying. Select the text and copy it."));
+      .then(() => toast("The test is copied."))
+      .catch(() => toast("The browser did not allow copying. Select the text and copy it.", true));
   };
 
   return (
-    <dialog ref={dialog} class="ask to-test" role="dialog" aria-modal="true" aria-labelledby="to-test-title" onClose={() => props.onClose()}>
-      <h2 id="to-test-title">A test made from this request</h2>
+    <Dialog ref={(el) => (dialog = el)} class="to-test ask" title="A test made from this request" onClose={() => props.onClose()}>
       <p>
         Save this test in your project and run it with <code>nvs test .</code>. It sends the same request and checks that the response is the
         same.
@@ -87,11 +87,6 @@ function ToTestDialog(props: { detail: RequestDetail; onClose: () => void }) {
         <p class="note">Loading.</p>
       </Show>
       <Show when={test()}>{(t) => <pre class="to-test-text">{t().text}</pre>}</Show>
-      <Show when={copied()}>
-        <p class="note" role="status">
-          {copied()}
-        </p>
-      </Show>
       <div class="ask-buttons">
         <button ref={close} type="button" class="btn" onClick={() => dialog.close()}>
           Close
@@ -100,6 +95,6 @@ function ToTestDialog(props: { detail: RequestDetail; onClose: () => void }) {
           Copy
         </button>
       </div>
-    </dialog>
+    </Dialog>
   );
 }

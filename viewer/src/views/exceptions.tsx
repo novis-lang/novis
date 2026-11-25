@@ -1,10 +1,12 @@
 // The exceptions view: `/exceptions` lists the groups of uncaught throws, one class at one site.
 // `/exceptions?class=&file=&line=` shows one group and its requests, newest first.
-// Both lists work like the request list, and each new watermark loads their first page again.
-// In one group's list, `m` marks a request to compare, as in the request list.
-// What it spends: the rows loaded so far, a few hundred bytes each, while the view is open.
+// Both lists are the shared `List` (`ui/list.tsx`). They do not follow or pause: each new watermark
+// loads their first page again, through `livePages` below.
+// In one group's list, `m` or the Mark button marks a request to compare, as in the request list.
+// What it spends: the rows loaded so far, a few hundred bytes each, while the view is open, and one
+// timer that redraws the ages of one group's requests every ten seconds.
 
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import {
   ApiError,
   exceptionKey,
@@ -20,18 +22,17 @@ import {
 } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
+import { Empty } from "../ui/empty.tsx";
+import { List, type RowKey } from "../ui/list.tsx";
 import { Site } from "../ui/site.tsx";
+import { Spark } from "../ui/tile.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
-import { RequestCells, RequestColumns, ROW_HEIGHT } from "./requests.tsx";
+import { createNow, REQUEST_ROW, RequestCells, RequestColumns } from "./requests.tsx";
 import { SaveButton } from "./saved.tsx";
 import { when } from "./stream.tsx";
 
-/** A group row's height in pixels: two lines. `.row.exc-grid` in `styles/exceptions.css` has the same. */
+/** A group row's height in pixels: two lines of text. */
 const GROUP_HEIGHT = 52;
-/** Rows kept in the DOM above and below the screen. */
-const OVERSCAN = 6;
-/** How close to the last loaded row the screen comes before the next older page loads. */
-const NEAR_END = 40;
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -43,171 +44,13 @@ export function ExceptionsView(props: { query: string }) {
   return key ? <GroupView key={key} /> : <GroupList />;
 }
 
-/**
- * A listbox in the WAI-ARIA pattern, with the keys of the request list: they move the selection, and
- * Enter opens the selected row. Every row has the same height, so only the rows on screen are in the
- * DOM, and older pages load as the end comes near. A click on a link inside a row, such as a site's
- * editor link, does not open the row.
- */
-function Rows<T>(props: {
-  rows: T[];
-  id: (row: T) => string;
-  height: number;
-  label: string;
-  grid: string;
-  /** True while older pages remain to load. */
-  more: boolean;
-  loadMore: () => void;
-  open: (row: T) => void;
-  cells: (row: T) => JSX.Element;
-  /** When set, `m` marks the selected row to compare, as in the request list. */
-  mark?: { toggle: (row: T) => void; is: (row: T) => boolean };
-  /** Called with the selected row each time the selection changes. */
-  onSelect?: (row: T | undefined) => void;
-}) {
-  const [selected, setSelected] = createSignal<string | null>(null);
-  const [scrollTop, setScrollTop] = createSignal(0);
-  const [height, setHeight] = createSignal(0);
-  let list!: HTMLDivElement;
-
-  const index = createMemo(() => new Map(props.rows.map((row, i) => [props.id(row), i])));
-  const current = () => {
-    const id = selected();
-    return id === null ? -1 : (index().get(id) ?? -1);
-  };
-  const first = createMemo(() => Math.max(0, Math.floor(scrollTop() / props.height) - OVERSCAN));
-  const end = createMemo(() => Math.min(props.rows.length, Math.ceil((scrollTop() + height()) / props.height) + OVERSCAN));
-  const visible = createMemo(() => props.rows.slice(first(), end()));
-  const active = () => {
-    const i = current();
-    return i >= first() && i < end() ? (selected() ?? undefined) : undefined;
-  };
-
-  // The first row is selected until another is, and again when the selected row is gone.
-  createEffect(() => {
-    if (current() < 0 && props.rows.length > 0) setSelected(props.id(props.rows[0]!));
-  });
-  createEffect(() => {
-    if (props.more && end() >= props.rows.length - NEAR_END) props.loadMore();
-  });
-  createEffect(() => props.onSelect?.(props.rows[current()]));
-
-  const move = (to: number) => {
-    const all = props.rows;
-    if (all.length === 0) return;
-    const i = Math.min(all.length - 1, Math.max(0, to));
-    setSelected(props.id(all[i]!));
-    const top = i * props.height;
-    if (top < list.scrollTop) list.scrollTop = top;
-    else if (top + props.height > list.scrollTop + list.clientHeight) list.scrollTop = top + props.height - list.clientHeight;
-    list.focus({ preventScroll: true });
-  };
-  const screen = () => Math.max(1, Math.floor(list.clientHeight / props.height) - 1);
-
-  const onKey = (e: KeyboardEvent) => {
-    if (ignored(e)) return;
-    switch (e.key) {
-      case "j":
-      case "ArrowDown":
-        move(current() + 1);
-        break;
-      case "k":
-      case "ArrowUp":
-        move(current() - 1);
-        break;
-      case "Home":
-        move(0);
-        break;
-      case "End":
-        move(props.rows.length - 1);
-        break;
-      case "PageDown":
-        move(current() + screen());
-        break;
-      case "PageUp":
-        move(current() - screen());
-        break;
-      case "Enter": {
-        const row = props.rows[current()];
-        if (!row) return;
-        props.open(row);
-        break;
-      }
-      case "m": {
-        const row = props.rows[current()];
-        if (!props.mark || !row) return;
-        props.mark.toggle(row);
-        break;
-      }
-      default:
-        return;
-    }
-    e.preventDefault();
-  };
-
-  onMount(() => {
-    setHeight(list.clientHeight);
-    const resize = new ResizeObserver(() => setHeight(list.clientHeight));
-    resize.observe(list);
-    document.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      resize.disconnect();
-      document.removeEventListener("keydown", onKey);
-    });
-  });
-
+/** The throws over time: one bar per equal span of time, oldest on the left. A span with a throw is
+ *  drawn in the error colour. */
+function Throws(props: { counts: number[] }) {
   return (
-    <div
-      ref={list}
-      class="list"
-      role="listbox"
-      tabindex="0"
-      aria-label={props.label}
-      aria-activedescendant={active()}
-      data-rows={props.rows.length}
-      onScroll={() => setScrollTop(list.scrollTop)}
-    >
-      <div class="list-space" role="none" style={{ height: `${props.rows.length * props.height}px` }}>
-        <For each={visible()}>
-          {(row, i) => {
-            const at = () => first() + i();
-            return (
-              <div
-                id={props.id(row)}
-                role="option"
-                class={`row ${props.grid}${props.mark?.is(row) ? " marked" : ""}`}
-                aria-description={props.mark?.is(row) ? "Marked to compare" : undefined}
-                aria-selected={selected() === props.id(row) ? "true" : "false"}
-                aria-posinset={at() + 1}
-                aria-setsize={props.more ? -1 : props.rows.length}
-                style={{ transform: `translateY(${at() * props.height}px)` }}
-                onClick={(e) => {
-                  if (e.target instanceof Element && e.target.closest("a")) return;
-                  setSelected(props.id(row));
-                  props.open(row);
-                }}
-              >
-                {props.cells(row)}
-              </div>
-            );
-          }}
-        </For>
-      </div>
-    </div>
-  );
-}
-
-/** A small bar chart of `counts`, one bar per equal span of time, oldest on the left. */
-function Chart(props: { counts: number[] }) {
-  const max = () => Math.max(1, ...props.counts);
-  const bar = (n: number) => (n === 0 ? 0 : Math.max(2, Math.round((n / max()) * 20)));
-  return (
-    <svg class="exc-chart" viewBox="0 0 96 20" width="96" height="20" role="img" aria-label="Throws over time">
-      <line x1="0" y1="19.5" x2="96" y2="19.5" class="exc-chart-base" />
-      <For each={props.counts}>
-        {(n, i) => <rect x={i() * 4} y={20 - bar(n)} width="3" height={bar(n)} />}
-      </For>
-    </svg>
+    <span class="exc-chart">
+      <Spark values={props.counts} bad={props.counts.map((n) => n > 0)} label="Throws over time" />
+    </span>
   );
 }
 
@@ -221,9 +64,7 @@ function GroupCells(props: { group: ExceptionGroup }) {
         <Site site={g()} tabindex={-1} />
       </span>
       <span class="num exc-count">{g().count}</span>
-      <span class="exc-chart-cell">
-        <Chart counts={g().chart} />
-      </span>
+      <Throws counts={g().chart} />
       <span class="at exc-last">Last {when(g().last_us)}</span>
       <span class="exc-message">{g().message ?? "No message"}</span>
       <span class="note exc-routes">{g().routes.join(", ")}</span>
@@ -310,6 +151,17 @@ function livePages<P, T, C extends string | number>(load: {
   return { rows, older, page, error, loadMore };
 }
 
+/** The selected row's key. When the selected row is gone from `rows`, nothing is selected, and `List`
+ *  then selects the first row. */
+function createSelection<T>(rows: () => T[], key: (row: T) => RowKey) {
+  const [selected, setSelected] = createSignal<RowKey | null>(null);
+  createEffect(() => {
+    const at = selected();
+    if (at !== null && !rows().some((row) => key(row) === at)) setSelected(null);
+  });
+  return [selected, setSelected] as const;
+}
+
 /** `/exceptions`: every group, the group thrown last first. */
 function GroupList() {
   const live = livePages<ExceptionPage, ExceptionGroup, string>({
@@ -320,35 +172,41 @@ function GroupList() {
     next: (page) => page.older,
     id: (group) => group.id,
   });
-  const loaded = () => live.page() !== null;
+  const [selected, setSelected] = createSelection(live.rows, (group) => group.id);
   return (
     <section class="exceptions" aria-label="Exceptions">
-      <Show when={live.error()}>
-        <p class="note bad" role="alert">
-          The exceptions could not load: {message(live.error())}
-        </p>
-      </Show>
-      <Show when={loaded() && live.rows().length === 0}>
-        <p class="note">No exceptions yet. They show here when a request throws an exception and does not catch it.</p>
-      </Show>
-      <div class="cols exc-grid" aria-hidden="true">
-        <span>Exception</span>
-        <span>Thrown at</span>
-        <span class="num">Count</span>
-        <span>Throws over time</span>
-        <span>Seen</span>
-      </div>
-      <Rows
+      <List
         rows={live.rows()}
-        id={(group) => `exception-${group.id}`}
-        height={GROUP_HEIGHT}
+        key={(group) => group.id}
+        idPrefix="exception"
         label="Exceptions, the most recent first"
+        selected={selected()}
+        onSelect={setSelected}
+        onOpen={(group) => navigate(`/exceptions?${exceptionQuery(group)}`)}
+        openOnClick
         grid="exc-grid"
+        rowHeight={GROUP_HEIGHT}
+        cols={
+          <>
+            <span>Exception</span>
+            <span>Thrown at</span>
+            <span class="num">Count</span>
+            <span>Throws over time</span>
+            <span>Seen</span>
+          </>
+        }
         more={live.older() !== null}
-        loadMore={live.loadMore}
-        open={(group) => navigate(`/exceptions?${exceptionQuery(group)}`)}
-        cells={(group) => <GroupCells group={group} />}
-      />
+        onEnd={live.loadMore}
+        loaded={live.page() !== null}
+        error={live.error() ? message(live.error()) : null}
+        empty={
+          <Empty icon="errors" title="No exceptions yet">
+            They show here when a request throws an exception and does not catch it.
+          </Empty>
+        }
+      >
+        {(group) => <GroupCells group={group} />}
+      </List>
     </section>
   );
 }
@@ -366,9 +224,10 @@ function GroupView(props: { key: ExceptionKey }) {
     id: (row: RequestRow) => row.id,
   });
   const group = () => live.page()?.group ?? null;
-  const [selectedRow, setSelectedRow] = createSignal<RequestRow | undefined>();
-  const mark = () => {
-    const row = selectedRow();
+  const [selected, setSelected] = createSelection(live.rows, (row) => row.id);
+  const selectedRow = () => live.rows().find((row) => row.id === selected());
+  const now = createNow();
+  const mark = (row: RequestRow | undefined) => {
     if (row) toggleMark(row);
   };
   /** A request opens at its exception, or beside the marked request when one is marked. */
@@ -392,7 +251,7 @@ function GroupView(props: { key: ExceptionKey }) {
   return (
     <section class="exceptions exc-one" aria-label="Exception">
       <div class="exc-summary">
-        <div class="toolbar-line">
+        <div class="exc-bar">
           <a href="/exceptions" class="back">
             Back to all exceptions
           </a>
@@ -429,7 +288,7 @@ function GroupView(props: { key: ExceptionKey }) {
                 <dd class="exc-routes">{g().routes.join(", ")}</dd>
                 <dt>Throws over time</dt>
                 <dd>
-                  <Chart counts={g().chart} />
+                  <Throws counts={g().chart} />
                 </dd>
               </dl>
               <Show when={g().sampled}>
@@ -438,34 +297,44 @@ function GroupView(props: { key: ExceptionKey }) {
             </>
           )}
         </Show>
-        <div class="toolbar-line">
-          <button
-            type="button"
-            class="btn mark"
-            onClick={mark}
-            disabled={!selectedRow()?.span}
-            aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
-            aria-keyshortcuts="m"
-          >
-            Mark to compare
-          </button>
-          <MarkState />
-        </div>
       </div>
-      <RequestColumns />
-      <Rows
+      <List
         rows={live.rows()}
-        id={(row) => `request-${row.id}`}
-        height={ROW_HEIGHT}
+        key={(row) => row.id}
+        idPrefix="request"
         label="Requests that threw this exception, newest first"
-        grid=""
+        selected={selected()}
+        onSelect={setSelected}
+        onOpen={open}
+        openOnClick
+        grid="request-grid"
+        rowHeight={REQUEST_ROW}
+        rowClass={(row) => ({ threw: row.exception !== null, marked: isMarked(row) })}
+        describe={(row) => (isMarked(row) ? "Marked to compare" : undefined)}
+        cols={<RequestColumns />}
         more={live.older() !== null}
-        loadMore={live.loadMore}
-        open={open}
-        cells={(row) => <RequestCells row={row} />}
-        mark={{ toggle: toggleMark, is: isMarked }}
-        onSelect={setSelectedRow}
-      />
+        onEnd={live.loadMore}
+        loaded={live.page() !== null}
+        keys={{ m: mark }}
+        actions={
+          <>
+            <span class="spacer" />
+            <button
+              type="button"
+              class="btn small mark"
+              onClick={() => mark(selectedRow())}
+              disabled={!selectedRow()?.span}
+              aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
+              aria-keyshortcuts="m"
+            >
+              Mark to compare
+            </button>
+            <MarkState />
+          </>
+        }
+      >
+        {(row) => <RequestCells row={row} now={now()} />}
+      </List>
     </section>
   );
 }

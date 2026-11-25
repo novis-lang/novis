@@ -20,9 +20,6 @@ import { createFeed, List, type RowKey } from "../ui/list.tsx";
 import { Site } from "../ui/site.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 
-// TEMP(stage 3): stream.tsx and exceptions.tsx still import it from here until they move onto `List`.
-export { ROW_HEIGHT } from "../ui/list.tsx";
-
 /** A request row's height in pixels. */
 export const REQUEST_ROW = 38;
 

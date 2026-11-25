@@ -1,6 +1,7 @@
-// This view shows which lines of a file one request ran. A line that ran more often has a darker
-// background. Each line number opens that line in your editor. Only the lines on screen are in the
-// page, so a long file stays fast. The view notes when the file changed after the request ran.
+// This view shows which lines of a file one request ran. A line that ran more often has a darker green
+// background, in four steps a legend above the source shows. Each line number opens that line in your
+// editor. Only the lines on screen are in the page, so a long file stays fast. The view notes when the
+// file changed after the request ran.
 // What it spends: one record's counts, and the text of the one file on screen.
 
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
@@ -58,9 +59,9 @@ export function Coverage(props: { coverage: CoverageRef }) {
         <Match when={file()}>
           {(f) => (
             <>
-              <p class="coverage-head">
-                <label>
-                  File{" "}
+              <div class="coverage-head">
+                <label class="coverage-pick">
+                  <span class="coverage-label">File</span>
                   <select class="coverage-file" value={f()} onChange={(e) => setPicked(e.currentTarget.value)}>
                     <For each={files()}>{(name) => <option value={name}>{name}</option>}</For>
                   </select>
@@ -68,7 +69,12 @@ export function Coverage(props: { coverage: CoverageRef }) {
                 <span class="note">
                   {ran()} {ran() === 1 ? "line" : "lines"} ran. The most-run line ran {most()} {most() === 1 ? "time" : "times"}.
                 </span>
-              </p>
+                <span class="coverage-legend" aria-hidden="true">
+                  Ran less
+                  <For each={[1, 2, 3, 4]}>{(step) => <span class={`swatch heat-${step}`} />}</For>
+                  Ran more
+                </span>
+              </div>
               <Switch>
                 <Match when={text.error}>
                   <p class="note bad" role="alert">

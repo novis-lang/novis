@@ -1,22 +1,28 @@
 // The search at `/search?q=<search>`: the matches of `GET /api/search`, grouped by request, newest
 // first. The search box is the one in the frame's header (`app.tsx`), so `/` reaches it from every view.
 //
-// A snippet's matched words are marked with U+0002 and U+0003 by the service. They become `<mark>`
-// elements around text nodes, so no text of a record is ever read as markup. A search that is a trace
-// id alone and names one request (`opens`) moves straight to that request's page. A search the service
-// cannot read is a `400`, and its message is shown as it was sent.
+// A group's header draws the request's method, path, status, duration and age, and its matches follow,
+// one line each: the kind, the time and the snippet. A snippet's matched words are marked with U+0002
+// and U+0003 by the service. They become `<mark>` elements around text nodes, so no text of a record is
+// ever read as markup. A search that is a trace id alone and names one request (`opens`) moves straight
+// to that request's page. A search the service cannot read is a `400`, and its message is shown as it
+// was sent, inside the shared `Empty` state. No search and no results are `Empty` states too.
 //
-// `m` or a result's Mark button marks its request to compare, as in the request list. While a request
-// is marked, the links of every other result open the two side by side.
+// `j` and `k` move the focus between the result links, and `m` or a result's Mark button marks its
+// request to compare, as in the request list (the keys are in `VIEW_KEYS`). While a request is marked,
+// the links of every other result open the two side by side.
 //
-// What it spends: the pages of results loaded so far. Each page is at most one page of groups.
+// What it spends: the pages of results loaded so far, each at most one page of groups, and one timer
+// that redraws the ages every ten seconds.
 
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { search, snippetParts, type SearchGroup, type SearchResults } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
+import { Method, Status } from "../ui/badges.tsx";
+import { Empty } from "../ui/empty.tsx";
 import { isMarked, markLink, MarkState, toggleMark } from "./compare.tsx";
-import { duration, statusClass } from "./requests.tsx";
+import { age, createNow, duration } from "./requests.tsx";
 import { SaveButton } from "./saved.tsx";
 import { clock, when } from "./stream.tsx";
 
@@ -34,7 +40,7 @@ function searched(q: string): string {
 
 /** One group: its request, linked, and its matches in time order. Its links open the compare view
  *  while another request is marked. */
-function Group(props: { group: SearchGroup; at: number }) {
+function Group(props: { group: SearchGroup; at: number; now: number }) {
   const req = () => props.group.request;
   const link = () => {
     const r = req();
@@ -42,20 +48,23 @@ function Group(props: { group: SearchGroup; at: number }) {
   };
   return (
     <li class="group" classList={{ marked: !!req() && isMarked(req()!) }} data-at={props.at}>
-      <Show
-        when={req()}
-        fallback={<p class="group-head note">Not part of a request</p>}
-      >
+      <Show when={req()} fallback={<p class="group-head loose">Not part of a request</p>}>
         {(r) => (
-          <p class="group-head">
-            <a href={link()} class="group-link">
-              {r().method} {r().route ?? r().path}
-            </a>{" "}
-            <span class={`status ${statusClass(r().status)}`}>{r().status}</span>{" "}
-            <span class="note">
-              {duration(r().duration_us)} at {when(r().start_us)}
+          <div class="group-head">
+            <Method value={r().method} />
+            <a href={link()} class="group-link" title={r().route ?? r().path}>
+              <span class="path-text">{r().path}</span>
+              <Show when={r().route && r().route !== r().path}>
+                <small class="route">{r().route}</small>
+              </Show>
+            </a>
+            <Status code={r().status} />
+            <span class="group-time" title={when(r().start_us)}>
+              <span class="num">{duration(r().duration_us)}</span>
+              <span class="num">{age(r().start_us, props.now)} ago</span>
             </span>
-            <Show when={r().exception}>{(exc) => <span class="exc"> {exc().class}</span>}</Show>{" "}
+            <Show when={r().exception}>{(exc) => <span class="exc">{exc().class}</span>}</Show>
+            <span class="spacer" />
             <Show when={r().span}>
               <button
                 type="button"
@@ -67,7 +76,7 @@ function Group(props: { group: SearchGroup; at: number }) {
                 Mark to compare
               </button>
             </Show>
-          </p>
+          </div>
         )}
       </Show>
       <Show when={props.group.hits.length > 0}>
@@ -75,8 +84,8 @@ function Group(props: { group: SearchGroup; at: number }) {
           <For each={props.group.hits}>
             {(hit) => (
               <li class="hit">
-                <span class="hit-kind">{hit.kind}</span>
-                <span class="note hit-at">{clock(hit.at_us)}</span>
+                <span class={`hit-kind kind-${hit.kind}`}>{hit.kind}</span>
+                <span class="hit-at num">{clock(hit.at_us)}</span>
                 <Show when={link()} fallback={<span class="snippet">{<Snippet text={hit.snippet} />}</span>}>
                   {(to) => (
                     <a href={to()} class="snippet">
@@ -90,7 +99,7 @@ function Group(props: { group: SearchGroup; at: number }) {
         </ul>
       </Show>
       <Show when={props.group.more > 0}>
-        <p class="note more">
+        <p class="more">
           {props.group.more === 1 ? "1 more match in this request." : `${props.group.more} more matches in this request.`}
         </p>
       </Show>
@@ -102,6 +111,7 @@ function Group(props: { group: SearchGroup; at: number }) {
 export function SearchView(props: { query: string }) {
   let results!: HTMLElement;
   const q = searched(props.query);
+  const now = createNow();
   const [first] = createResource(() => (q ? search(q) : Promise.resolve(null)));
   const [pages, setPages] = createSignal<SearchResults[]>([]);
   const [older, setOlder] = createSignal<string | null>(null);
@@ -134,7 +144,7 @@ export function SearchView(props: { query: string }) {
 
   /** Moves the focus to the next or the previous link among the results. */
   const step = (by: number) => {
-    const links = [...results.querySelectorAll<HTMLAnchorElement>("a[href]")];
+    const links = [...results.querySelectorAll<HTMLAnchorElement>(".groups a[href]")];
     if (links.length === 0) return;
     const at = links.indexOf(document.activeElement as HTMLAnchorElement);
     const to = at < 0 ? (by > 0 ? 0 : links.length - 1) : Math.min(links.length - 1, Math.max(0, at + by));
@@ -147,7 +157,7 @@ export function SearchView(props: { query: string }) {
     if (row) toggleMark(row);
   };
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Enter" || ignored(e)) return;
+    if (ignored(e)) return;
     if (e.key === "j" || e.key === "ArrowDown") step(1);
     else if (e.key === "k" || e.key === "ArrowUp") step(-1);
     else if (e.key === "m") markFocused();
@@ -159,41 +169,53 @@ export function SearchView(props: { query: string }) {
 
   return (
     <section class="search-view" aria-label="Search results" ref={results}>
-      <div class="toolbar">
+      <div class="toolbar search-bar">
         <span role="status" class="search-state">
           <Show when={!first.loading && page()}>
             {(shown) => (shown().groups.length === 0 ? "Nothing matches this search." : `Results for ${q}, newest first.`)}
           </Show>
         </span>
+        <span class="spacer" />
         <Show when={q}>
           <SaveButton view="search" query={() => props.query} />
         </Show>
         <MarkState />
       </div>
       <Show when={first.error}>
-        <p class="note bad search-error" role="alert">
-          {first.error instanceof Error ? first.error.message : String(first.error)}
-        </p>
+        <Empty icon="errors" title="The search did not run">
+          <p class="search-error" role="alert">
+            {first.error instanceof Error ? first.error.message : String(first.error)}
+          </p>
+        </Empty>
       </Show>
       <Show when={!q}>
-        <div class="note search-help">
-          <p>Type a search in the box at the top, then press Enter. Press / to go to the box.</p>
-          <p>Words find records that contain them. Put a phrase in quotes to find it as written.</p>
-          <p>
-            To narrow a search, add <code>status:500</code>, <code>status:5xx</code>, <code>method:POST</code>,{" "}
-            <code>route:/items/{"{id}"}</code>, <code>kind:query</code>, <code>level:error</code>, <code>duration:&gt;200ms</code> or{" "}
-            <code>trace:</code> and a trace id.
-          </p>
-        </div>
+        <Empty icon="search" title="Search requests, queries, logs and dumps">
+          <div class="search-help">
+            <p>Type a search in the box at the top, then press Enter. Press / to go to the box.</p>
+            <p>Words find records that contain them. Put a phrase in quotes to find it as written.</p>
+            <p>
+              To narrow a search, add <code>status:500</code>, <code>status:5xx</code>, <code>method:POST</code>,{" "}
+              <code>route:/items/{"{id}"}</code>, <code>kind:query</code>, <code>level:error</code>, <code>duration:&gt;200ms</code> or{" "}
+              <code>trace:</code> and a trace id.
+            </p>
+          </div>
+        </Empty>
       </Show>
       <Show when={first.loading}>
-        <p class="note">Searching.</p>
+        <p class="note search-loading">Searching.</p>
       </Show>
-      <ol class="groups">
-        <For each={groups()}>{(group, i) => <Group group={group} at={i()} />}</For>
-      </ol>
+      <Show when={!first.loading && page()?.groups.length === 0 && !page()?.opens}>
+        <Empty icon="search" title="No results">
+          No record contains these words. Try fewer words, or remove a filter such as <code>status:</code>.
+        </Empty>
+      </Show>
+      <Show when={groups().length > 0}>
+        <ol class="groups">
+          <For each={groups()}>{(group, i) => <Group group={group} at={i()} now={now()} />}</For>
+        </ol>
+      </Show>
       <Show when={moreError()}>
-        <p class="note bad" role="alert">
+        <p class="note bad search-more-error" role="alert">
           More results could not load: {moreError()}
         </p>
       </Show>

@@ -14,7 +14,7 @@ stages:
     context: [viewer/src/styles/tokens.css, viewer/src/keys.ts, viewer/src/theme.ts, viewer/build.ts, tools/nv/cmd/viewer.ts, website/src/styles/custom.css]
   - id: 3
     title: every list view is the shared list, and every view wears the new design
-    status: open
+    status: done
     context: [viewer/src/views/requests.tsx, viewer/src/views/stream.tsx, viewer/src/views/exceptions.tsx, viewer/src/views/search.tsx, viewer/src/views/compare.tsx]
   - id: 4
     title: the index holds each request's time by kind and its repeated statements, and the API filters and summarises
@@ -426,14 +426,21 @@ writing subagents run side by side, none of them builds: `stream.tsx` with `log.
   the drawing's: method chip, path with the route beside it, status, duration, queries, age.
   - [x] the view is `List` and `createFeed` with the drawing's columns and a 38 pixel row
   - [x] `requests.browser.test.ts` reads the new cells and is green
-- [ ] `viewer/src/views/stream.tsx:246` and `log.tsx`: on `List`, with a level chip and a kind dot
+- [x] `viewer/src/views/stream.tsx:246` and `log.tsx`: on `List`, with a level chip and a kind dot
   in the kind's tone. `Feed` and `FilterForm` move to their own files.
-- [ ] `viewer/src/views/exceptions.tsx:110`: on `List`, with `Spark` for throws over time.
-- [ ] `viewer/src/views/search.tsx:150`: grouped results in the new design, on the shared keys.
-- [ ] `viewer/src/views/compare.tsx:245`, `replay.tsx`, `to-test.tsx`, `coverage.tsx`: tables,
+  - [x] `views/feed.tsx` is `createFeed` and `List`, with `KindDot` and `LevelChip`
+  - [x] `views/filter-form.tsx` holds `FilterForm`, and `stream.css` is on the tokens
+- [x] `viewer/src/views/exceptions.tsx:110`: on `List`, with `Spark` for throws over time.
+  - [x] both lists are `List`, and the chart is `Spark` with throws drawn as `bad`
+- [x] `viewer/src/views/search.tsx:150`: grouped results in the new design, on the shared keys.
+  - [x] each group is a card with `Method`, path, `Status`, duration and age
+- [x] `viewer/src/views/compare.tsx:245`, `replay.tsx`, `to-test.tsx`, `coverage.tsx`: tables,
   dialogs and the source view in the new design, with `Dialog` and `Toast`.
-- [ ] Each of `exceptions`, `hostile`, `replay`, `request`, `requests` and `stream` under
+  - [x] `Dialog` takes `describedby` and carries `role` and `aria-modal`
+  - [x] the toast region is a manual popover, so it draws above an open dialog
+- [x] Each of `exceptions`, `hostile`, `replay`, `request`, `requests` and `stream` under
   `viewer/test/*.browser.test.ts` is run by name and is green.
+  - [x] all seven browser tests with `frame`: 51 pass, 0 fail
 
 ### 4. the index holds each request's time by kind and its repeated statements, and the API filters and summarises
 
@@ -589,31 +596,40 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 and 2 are done. Six rules are `designed` and owned by this goal. The stage that ships each
-one sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills
-`guardedBy`, keeping the key order `title`, `status`, `seeAlso`, `guardedBy`, `goal`. The
-`path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
+Stages 1, 2 and 3 are done. Five rules are `designed` and owned by this goal, and
+`testing/the-viewer-wears-the-websites-palette` is `shipped`. The stage that ships each one sets
+its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`,
+keeping the key order `title`, `status`, `seeAlso`, `guardedBy`, `goal`. The `path:line` anchors
+in later stages come from surveys, so a stage checks an anchor before it edits.
 
-Stage 2 built the tokens, the frame, the key map, the palette and `viewer/src/ui/`. Standing
-decisions § *The names stage 2 gave* lists them. The view stylesheets are the old rules split per
-view and renamed onto the roles (`--fg` is `--text`, `--accent` is `--link`, `--select` is
-`--wash`). They are not restyled yet: that is stage 3. Only `Icon`, `Dialog`, `Palette`, `Toasts`
-and `Site` are used so far, and the views still run their own key handlers.
+Stage 3 built the shared list and put every view in the new design. The names it gave:
 
-`bun nv viewer --check` also fails on palette drift from the website and on an `@font-face`. All
-eight browser tests and `viewer-built` were green at the stage's end. The bundle is 126,768 bytes
-of JavaScript, against 119,491 at the goal's first commit.
+- `viewer/src/ui/list.tsx`: `List` (virtual rows, selection by key, the shared keys, a view's own
+  keys through `keys`, the follow bar, `actions`, `empty`, `cols` and `grid`) and `createFeed`
+  (newest page, follow, pause, arrived count, older pages). A list that reloads its first page on
+  each watermark, as both exception lists do, passes `rows`, `more`, `onEnd`, `loaded` and `error`
+  to `List` and keeps its own loader.
+- `views/requests.tsx` exports `RequestCells`, `RequestColumns`, `REQUEST_ROW` (38), `age()` and
+  `createNow()`. The request grid is `.request-grid`. `views/feed.tsx` holds `Feed`, `KindDot`,
+  `LevelChip`, `RecordDetail` and the stream helpers, and `views/filter-form.tsx` holds `FilterForm`.
+- `Dialog` takes `describedby` and carries `role="dialog"` and `aria-modal`. The toast region is a
+  manual popover, shown again with each message, so it draws above an open modal dialog.
+- Only four event kinds have a `--k-*` tone in `tokens.css`. `stream.css` maps the others
+  (`request`, `call`, `dump`, `log`, `dropped`, `unparseable`) onto roles with `.rk-<kind>`.
+
+All seven browser tests (with `frame`) were green at the stage's end, 51 pass, and
+`bun nv viewer --check` is green. The bundle is 126,192 bytes of JavaScript and 37,176 of CSS.
+
+The nightly run of 2026-11-25 (`45609291264`) ran at `53e94a9`, before `1c3196b0e8`, which fixes
+all ten of its failures: the nine zone tests under Miri, the quotient attack and the macOS count.
 
 ### Next
 
-Stage 3 from its first item: `viewer/src/ui/list.tsx`, then `viewer/src/views/requests.tsx`
-(about line 230, its key handler) onto it, then the four writing subagents its split names. Give
-them `viewer/src/styles/ui.css`, the component list above and the drawing. Stage 3 sets
-`testing/the-viewer-wears-the-websites-palette` to `shipped` once every view wears it. Its record
-`guardedBy` should name `tools/nv/test/viewer.test.ts` and `viewer/test/frame.browser.test.ts`.
-Stage 4 (`crates/nvs-cli/src/debug/index.rs:78`) shares no file with stage 3 and can run beside it.
-`bun nv site --check shots` is expected to be red from now on, because the frame changed. Stage 11
-takes the screenshots again.
+Stage 4 from its first item: `crates/nvs-cli/src/debug/index.rs:78`, the eight columns and their
+trigger, then the API's filters and the new routes as its items list. It shares no file with
+`viewer/`. Then stage 5 builds the request list's filters, tiles, time split and peek pane on
+`List`'s `actions` and `.request-grid` in `viewer/src/views/requests.tsx`.
+`bun nv site --check shots` stays red until stage 11 takes the screenshots again.
 
 ### Backlog
 

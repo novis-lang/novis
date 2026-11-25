@@ -1,14 +1,15 @@
-// The log at `/log?<filter>`: the stream's feed with `kind=log`, filtered by level, route and trace,
-// with the filter in the link. Each line shows its level, its message, its fields and the request it
-// belongs to.
+// The log at `/log?<filter>`: the record feed (`feed.tsx`) with `kind=log`, filtered by level, route
+// and trace, with the filter in the link. Each line shows its time, its level as a coloured chip, its
+// message, its fields and the request it belongs to.
 //
-// What it spends: what the stream's feed spends (`stream.tsx`).
+// What it spends: what the record feed spends (`feed.tsx`).
 
 import { For } from "solid-js";
 import { streamFilter } from "../api.ts";
 import { query } from "../router.ts";
+import { clock, Feed, fieldsLine, LevelChip, OwnerCell } from "./feed.tsx";
+import { FilterForm } from "./filter-form.tsx";
 import { SaveButton } from "./saved.tsx";
-import { clock, Feed, fieldsLine, FilterForm, OwnerCell } from "./stream.tsx";
 
 /** The log's filter: the link's level, route and trace, and the one kind `log`. */
 function logFilter(q: string) {
@@ -22,13 +23,18 @@ export function LogView() {
         <FilterForm view="log" filter={logFilter(query())} />
         <SaveButton view="log" query={query} />
       </div>
+      {/* A new link is a new filter, and a new filter is a new feed. */}
       <For each={[query()]}>
         {(q) => (
           <Feed
             filter={logFilter(q)}
             label="Log lines, newest first"
             noun={["log line", "log lines"]}
-            empty="No log lines match this filter. New lines show here when your program writes them."
+            empty={{
+              icon: "logs",
+              title: "No log lines match this filter",
+              text: "New lines show here when your program writes them.",
+            }}
             grid="log-grid"
             cols={
               <>
@@ -42,13 +48,11 @@ export function LogView() {
             cells={(row) => (
               <>
                 <span class="at">{clock(row.at_us)}</span>
-                <span class="log-level" classList={{ bad: row.level === "error" || row.level === "critical", s4: row.level === "warning" }}>
-                  {row.level}
-                </span>
-                <span class="text" title={row.text}>
+                <span class="level-cell">{row.level ? <LevelChip level={row.level} /> : null}</span>
+                <span class="text log-message" title={row.text}>
                   {row.text}
                 </span>
-                <span class="note log-fields" title={fieldsLine(row.fields)}>
+                <span class="log-fields" title={fieldsLine(row.fields)}>
                   {fieldsLine(row.fields)}
                 </span>
                 <OwnerCell record={row} />

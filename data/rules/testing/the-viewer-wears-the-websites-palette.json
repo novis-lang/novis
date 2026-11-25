@@ -1,9 +1,11 @@
 {
   "title": "The debug viewer wears the website's palette in both themes, names colours by role, and draws with the system's fonts",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer-flagship"
+  "guardedBy": [
+    "tools/nv/test/viewer.test.ts",
+    "viewer/test/frame.browser.test.ts"
+  ]
 }

@@ -1,4 +1,6 @@
-/* The exceptions view. A group row's height is `GROUP_HEIGHT` in `views/exceptions.tsx`. */
+/* The exceptions view. The list itself is `List`, styled in `ui.css`; this file has the group row's
+   two-line grid, the throws chart and one group's summary. A group row's height is `GROUP_HEIGHT` in
+   `views/exceptions.tsx`, set on the row by `List`. */
 .exceptions {
   flex: 1;
   min-height: 0;
@@ -6,87 +8,139 @@
   flex-direction: column;
 }
 
-.exceptions > .note {
-  margin: 0.5rem 1rem;
-}
-
+/* --------------------------------------------------------- group rows */
 .cols.exc-grid,
 .row.exc-grid {
-  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 20rem) 4rem 6.5rem 14rem;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 20rem) 4rem 7rem 12rem;
+}
+
+.row.exc-grid {
   grid-template-areas:
     "class site count chart last"
     "message routes count chart first";
-}
-
-.cols.exc-grid {
-  grid-template-areas: none;
-}
-
-.row.exc-grid {
-  height: 52px;
   align-content: center;
+  row-gap: 2px;
+  font-size: var(--fs-3);
 }
 
 .exc-grid .exc-class {
   grid-area: class;
   font-weight: 600;
+  color: var(--bad);
 }
 
 .exc-grid .exc-at {
   grid-area: site;
+  font-family: var(--mono);
+  font-size: var(--fs-2);
 }
 
 .exc-grid .exc-count {
   grid-area: count;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
 }
 
-.exc-grid .exc-chart-cell {
+.exc-grid .exc-chart {
   grid-area: chart;
-  display: flex;
-  align-items: center;
 }
 
 .exc-grid .exc-last {
   grid-area: last;
+  color: var(--text-2);
 }
 
 .exc-grid .exc-message {
   grid-area: message;
+  color: var(--text-2);
 }
 
 .exc-grid .exc-routes {
   grid-area: routes;
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--faint);
 }
 
 .exc-grid .exc-first {
   grid-area: first;
+  color: var(--faint);
 }
 
+.exc-grid .exc-last,
+.exc-grid .exc-first {
+  font-size: var(--fs-2);
+}
+
+/* ------------------------------------------------------ throws chart */
+/* `Spark` in `ui/tile.tsx`. A span with a throw has the class `bad`; an empty span is a low grey bar. */
 .exc-chart {
-  fill: var(--bad);
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
-.exc-chart-base {
-  stroke: var(--line);
+.exc-chart .spark {
+  width: 6.5rem;
+  height: 20px;
+  margin: 0;
+  gap: 1px;
 }
 
+.exc-chart .spark i:not(.bad) {
+  background: var(--line);
+}
+
+/* ------------------------------------------------- one group's summary */
 .exc-summary {
-  padding: 0.5rem 1rem 0.75rem;
+  flex: none;
+  padding: var(--space-3) var(--space-4) var(--space-4);
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
-.exc-summary .title {
-  margin: 0.75rem 0 0.25rem;
-  font-size: 1.15rem;
-}
-
-.exc-summary .exc-message {
-  margin: 0 0 0.75rem;
-}
-
-.toolbar-line {
+.exc-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-4);
+}
+
+.exc-bar .back {
+  color: var(--link);
+  font-size: var(--fs-2);
+  text-decoration: none;
+}
+
+.exc-bar .back:hover {
+  text-decoration: underline;
+}
+
+.exc-summary > .note {
+  margin: var(--space-2) 0 0;
+}
+
+.exc-summary .title {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--fs-5);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.exc-summary .exc-message {
+  margin: 0 0 var(--space-3);
+  color: var(--text-2);
+  font-size: var(--fs-4);
+}
+
+.exc-summary .exc-count,
+.exc-summary .exc-routes {
+  font-family: var(--mono);
+}
+
+.exc-summary .exc-chart .spark {
+  width: 12rem;
+  height: 24px;
 }
