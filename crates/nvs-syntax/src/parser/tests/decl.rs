@@ -331,7 +331,7 @@ fn a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works() {
 }
 
 #[test]
-fn enum_implements_method_and_string_backing_are_rejected() {
+fn enum_implements_and_string_backing_are_rejected_and_a_method_is_kept() {
     let (_, diags) = parse_stmt_with_diags("enum Status implements Comparable { Active }");
     assert!(
         diags
@@ -346,13 +346,11 @@ fn enum_implements_method_and_string_backing_are_rejected() {
             .any(|d| d.code == Some(code::E_ENUM_STRING_BACKING_UNSUPPORTED))
     );
 
+    // `rule:enums/an-enum-body-takes-methods-and-constants`: a method is kept
+    // with no diagnostic, and only a property is refused.
     let (s, diags) =
         parse_stmt_with_diags("enum Status { Active, public function foo(): void {} }");
-    assert!(
-        diags
-            .iter()
-            .any(|d| d.code == Some(code::E_ENUM_MEMBER_UNSUPPORTED))
-    );
+    assert!(diags.is_empty(), "{diags:?}");
     let StmtKind::EnumDecl(e) = s.kind else {
         panic!("expected an enum decl: {s:?}");
     };

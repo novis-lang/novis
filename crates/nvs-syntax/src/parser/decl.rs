@@ -2076,12 +2076,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         ty
     }
 
-    /// An enum body mixes cases (bare names) with the `type` aliases the enum
-    /// owns and, if the input is malformed, member-shaped constructs that
-    /// `rule:enums/no-class-machinery` rejects outright — a method, a property,
-    /// a constant, a trait `use`. All three are parsed, since attributes may
-    /// precede any of them and only the token after them tells them apart;
-    /// mirrors [`Self::parse_block`]'s force-progress guard.
+    /// An enum body mixes cases (bare names) with the methods, constants and
+    /// `type` aliases the enum owns (`rule:enums/an-enum-body-takes-methods-and-constants`).
+    /// A property, a nested enum and an attribute declaration are parsed and
+    /// refused, since attributes may precede any of them and only the token
+    /// after them tells them apart; mirrors [`Self::parse_block`]'s
+    /// force-progress guard.
     pub(super) fn parse_enum_body(&mut self) -> (Vec<EnumCase>, Vec<ClassMember>) {
         self.expect(TokenKind::LBrace, "`{`");
         let mut cases = Vec::new();
@@ -2150,15 +2150,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             } else {
                 let first = members.len();
                 self.parse_class_member_with_attrs(before, attributes, &mut members);
-                // A modifier run in front of an enum's own `type` reaches here,
-                // because only the token after the run tells a member from a
-                // case. The alias is a member the enum is allowed to hold and
-                // `E0133` has already refused the run, so the refusal below
-                // would be a second diagnostic about the same declaration.
-                let alias_only = members.len() > first
-                    && members[first..]
-                        .iter()
-                        .all(|m| matches!(m.kind, ClassMemberKind::TypeAlias(_)));
+                // A method, a constant, and a modifier run in front of an
+                // enum's own `type` reach here, because only the token after
+                // the run tells a member from a case. Each is a member the
+                // enum may hold, and only a property is refused below.
                 let an_enum = members.len() > first
                     && matches!(members[first].kind, ClassMemberKind::Enum(_));
                 let an_attribute = members.len() > first
@@ -2183,15 +2178,25 @@ impl<'src, 'd> Parser<'src, 'd> {
                         .with_primary(span, "not a case")
                         .with_help("declare it in a class or interface body, or at file scope"),
                     );
-                } else if !alias_only {
+                } else if members[first..]
+                    .iter()
+                    .any(|m| matches!(m.kind, ClassMemberKind::Property(_)))
+                {
+                    // `rule:enums/an-enum-body-takes-methods-and-constants`: a
+                    // case is an integer, so it has nowhere to keep a value.
+                    // The property is refused and not kept.
+                    members.truncate(first);
                     let span = before.to(self.last_span);
                     self.diags.report(
                         Diagnostic::error(
                             code::E_ENUM_MEMBER_UNSUPPORTED,
-                            "an enum declares only cases and an optional backing type",
+                            "an enum has no properties",
                         )
-                        .with_primary(span, "not a case")
-                        .with_help("move this to a separate class"),
+                        .with_primary(span, "not a case, a method or a constant")
+                        .with_help(
+                            "an enum case cannot store a value. Keep the value in a class of \
+                             your own, or return it from a method of the enum",
+                        ),
                     );
                 }
             }

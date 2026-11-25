@@ -1,0 +1,9 @@
+error[E0220]: an enum has no properties
+  --> 06-a-property-in-an-enum.nvs:9:5
+  |
+9 |     public int $count = 2;
+  |     ^^^^^^^^^^^^^^^^^^^^^^ not a case, a method or a constant
+  = help: an enum case cannot store a value. Keep the value in a class of your own, or return it from a method of the enum
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

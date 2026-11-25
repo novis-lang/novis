@@ -490,9 +490,10 @@ fn check_enum_decl(decl: &EnumDecl, src: &SourceFile, diags: &mut Diagnostics) {
             check_expr(value, src, diags);
         }
     }
-    // `decl.members` (anything other than a case) is always rejected per
-    // `rule:enums/no-class-machinery` — left unchecked, same as the module docs' "already
-    // rejected" gap.
+    // `rule:enums/an-enum-body-takes-methods-and-constants`: the methods and
+    // constants an enum keeps are held to a class member's casing and written
+    // visibility. The parser drops a refused property before this runs.
+    check_members(&decl.members, src, diags);
 }
 
 fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnostics) {
@@ -1251,13 +1252,12 @@ mod tests {
     }
 
     #[test]
-    fn an_enum_body_reports_only_that_it_has_no_members() {
-        // `rule:core-api/written-visibility`'s scope stops at a body with a member slot; `rule:enums/no-class-machinery`
-        // already rejects everything in an enum that is not a case, and two
-        // diagnostics for one mistake is worse than one.
+    fn an_enum_method_needs_its_written_visibility() {
+        // `rule:enums/an-enum-body-takes-methods-and-constants`: an enum's
+        // method is held to `rule:core-api/written-visibility` as a class's is.
         let diags = parse_and_check(
-            "<?nvs\nenum Color { Red = 1, }\nenum Sized { function run(): void {} }\n",
+            "<?nvs\nenum Color { Red = 1, }\nenum Sized { Small, function run(): void {} }\n",
         );
-        assert_eq!(only_code(&diags), code::E_ENUM_MEMBER_UNSUPPORTED);
+        assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY);
     }
 }

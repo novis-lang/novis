@@ -1,18 +1,18 @@
 --TEST--
-PHP's enum members are refused where they are written: `->name`, `->value`, `cases`, `from`, `tryFrom`, a method in the body and an `implements` clause — `rule:enums/no-class-machinery`
+PHP's enum members are refused where they are written: `->name`, `->value`, `cases`, `from`, `tryFrom`, a property in the body and an `implements` clause — `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // covers: lang:enums/what-an-enum-does-not-have
 enum Level { Debug, Info }
 
 // `rule:enums/no-class-machinery`: an enum is a closed set of integers rather
-// than a class, so it implements nothing and declares no member of its own.
+// than a class, so it implements nothing and has no property.
 enum Ranked implements Countable { Low, High }
 
 enum Spoken {
     Yes,
     No,
-    public static function label(): string { return "yes"; }
+    public string $label = "yes";
 }
 
 // A case is a compile-time integer, so it carries no property: `->value` is
@@ -31,7 +31,7 @@ Level::tryFrom(1);
 --EXPECTF-ERROR--
 error[E0218]: an enum cannot implement an interface
 %A
-error[E0220]: an enum declares only cases and an optional backing type
+error[E0220]: an enum has no properties
 %A
 error[E0405]: `Level` has no property named `name`
 %A

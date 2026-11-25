@@ -1,0 +1,25 @@
+--TEST--
+an enum body takes cases, methods and constants, and never a property: a case is an integer and has nowhere to keep a value, so a property is refused at the property and the help names a class or a method (`rule:enums/an-enum-body-takes-methods-and-constants`)
+--FILE--
+<?nvs
+namespace Shop;
+
+enum Size {
+    Small,
+    Large,
+
+    const DEFAULT_LABEL = "small";
+
+    public string $label = "small";
+
+    public static ?Size $chosen = null;
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0220]: an enum has no properties
+%A
+error[E0220]: an enum has no properties
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

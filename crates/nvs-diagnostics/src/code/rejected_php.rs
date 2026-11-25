@@ -112,13 +112,12 @@ codes! {
         "An enum cannot be backed by `string`. The backing type can be `int` or `uint`, or you \
          can leave it out.",
     );
-    /// A method, property, class constant or trait use inside an `enum`
-    /// body: an enum declares only cases and an optional backing type — see
-    /// `rule:enums/no-class-machinery`.
+    /// A property or a nested enum inside an `enum` body: an enum declares
+    /// cases, methods and constants — see
+    /// `rule:enums/an-enum-body-takes-methods-and-constants`.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220").card(
-        "An enum cannot contain a method, a property, a class constant or a trait. An enum \
-         contains only its cases and an optional backing type. Move this code to a separate \
-         class.",
+        "An enum cannot contain a property or a nested enum. An enum contains its cases, \
+         methods and constants. A case cannot store a value, so keep that value in a class.",
     );
     /// `include`, `include_once`, or `require_once`: Novis keeps exactly one
     /// same-frame inclusion construct, `require` — see `rule:statements/require-is-the-only-inclusion-construct`.

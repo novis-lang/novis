@@ -1,5 +1,5 @@
 --TEST--
-An enum declaration refuses a `string` backing, a case value that is not an integer literal, PHP's `case` keyword, a member in the body, and an auto-incremented value with no room left in the backing type — `rule:enums/one-backing-type`, `rule:enums/declaration`
+An enum declaration refuses a `string` backing, a case value that is not an integer literal, PHP's `case` keyword, a property in the body, and an auto-incremented value with no room left in the backing type — `rule:enums/one-backing-type`, `rule:enums/declaration`, `rule:enums/an-enum-body-takes-methods-and-constants`
 --FILE--
 <?nvs
 // covers: lang:enums/declaring-an-enum
@@ -13,12 +13,12 @@ enum Suit: string { Hearts = "h", Spades = "s" }
 // `case` keyword is refused once per case that writes it.
 enum Colour { case Red; case Blue; }
 
-// `rule:enums/declaration`: an enum body holds cases and nothing else, and a
-// constant belongs to a class that takes the enum.
+// `rule:enums/an-enum-body-takes-methods-and-constants`: an enum body holds
+// cases, methods and constants. A case is an integer, so it has no property.
 enum Size {
     Small,
     Large,
-    const int COUNT = 2;
+    public int $count = 2;
 }
 
 // `rule:enums/declaration`: a case with no written value is the previous case's
@@ -33,7 +33,7 @@ error[E0436]: an enum case's value must be a whole number written directly in th
 %A
 error[E0239]: an enum case is not written with `case`
 %A
-error[E0220]: an enum declares only cases and an optional backing type
+error[E0220]: an enum has no properties
 %A
 error[E0437]: this case's auto-incremented value runs past its enum's backing type
 %A

@@ -1,0 +1,10 @@
+<?nvs
+// Shows that an enum cannot have a property. A case cannot store a value,
+// so this does not compile.
+// proof: compile-error
+
+enum Suit {
+    Hearts,
+    Spades,
+    public int $count = 2;
+}
