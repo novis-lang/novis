@@ -233,6 +233,7 @@ pub mod holes;
 pub mod host;
 pub mod identity;
 pub mod inproc;
+pub mod iso;
 pub mod later;
 pub mod logfile;
 pub mod metrics;

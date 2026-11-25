@@ -604,9 +604,9 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The methods, each one once. An empty array means that no route has this path, so the \
           status is `404`. Otherwise the status is `405`, and the array is the list for the \
-          `Allow` header. A path does not match when a capture is not a valid `int`, `uint`, \
-          `decimal` or `Core\\Uuid` for its handler parameter, or is not one of the values its \
-          parameter allows.",
+          `Allow` header. A path does not match when a capture is not a valid value of its \
+          handler parameter's type, such as `int`, `Core\\Uuid` or `Core\\Time\\Date`. It also \
+          does not match when the capture is not one of the values its parameter allows.",
     errors: &[],
 };
 
@@ -700,6 +700,10 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
     CoreTy::Decimal,
     CoreTy::Bool,
     CoreTy::Instance(crate::uuid::NAME),
+    CoreTy::Instance(crate::time::DATE_NAME),
+    CoreTy::Instance(crate::time::TIME_OF_DAY_NAME),
+    CoreTy::Instance(crate::time::INSTANT_NAME),
+    CoreTy::Instance(crate::time::DATETIME_NAME),
     CoreTy::Instance(PARSES_NAME),
 ]);
 
@@ -1342,8 +1346,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 }
 
 /// The conversion a capture declared at `ty` takes, for each type the matcher
-/// converts natively: `int`, `uint`, `decimal`, `Core\Uuid`, and for a
-/// `#[Query]` value `bool`, `true` and `false`, spelled as
+/// converts natively: `int`, `uint`, `decimal`, `Core\Uuid`, `Core\Time`'s
+/// `Date`, `TimeOfDay` and `Instant`, and for a `#[Query]` value `bool`,
+/// `true`, `false` and `Core\Time\DateTime`, spelled as
 /// `nvs_types` describes them. `None` for every other type.
 ///
 /// The one home of that mapping. `nvs-cli` builds the route table's rows
@@ -1357,6 +1362,11 @@ pub fn native_conv(ty: &str) -> Option<nvs_runtime::routes::CaptureConv> {
         "uint" => CaptureConv::Uint,
         "decimal" => CaptureConv::Decimal,
         crate::uuid::NAME => CaptureConv::Uuid,
+        crate::time::DATE_NAME => CaptureConv::Date,
+        crate::time::TIME_OF_DAY_NAME => CaptureConv::TimeOfDay,
+        crate::time::INSTANT_NAME => CaptureConv::Instant,
+        // A `#[Query]` value only: the checker refuses it at a path capture.
+        crate::time::DATETIME_NAME => CaptureConv::DateTime,
         // A `#[Query]` value only: the checker refuses these at a path capture.
         "bool" => CaptureConv::Bool(None),
         "true" => CaptureConv::Bool(Some(true)),
@@ -1948,9 +1958,10 @@ fn unverified() -> Fault {
 /// text `Core\Router::urlSigned` signed, one step short of the encoding
 /// [`substitute`] then applied to write it into the path.
 ///
-/// The four converted arms answer [`nvs_runtime::value_to_string`]'s own
+/// The converted arms answer [`nvs_runtime::value_to_string`]'s own
 /// rendering of the value the matcher built — `Display` for a `decimal`, the
-/// canonical hyphenated form for a `Core\Uuid` — because that is what
+/// canonical hyphenated form for a `Core\Uuid`, the `toIso` text for a time
+/// value — because that is what
 /// [`segment_text`] wrote for the same parameter on the minting side. Two
 /// spellings of one typed value are one signed thing, which is `rule:core-classes/router-signed-url`'s
 /// "the name and its parameters" taken at its word: `/shop/007` and `/shop/7`
@@ -1972,6 +1983,11 @@ fn capture_text(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Stri
         Param::Uint(number) => number.to_string(),
         Param::Decimal(value) => value.to_string(),
         Param::Bool(value) => if *value { "1" } else { "0" }.to_owned(),
+        // Each time value's `toIso` text, which a link writes for it.
+        Param::Date(date) => nvs_runtime::iso::date_text(*date),
+        Param::TimeOfDay(time) => nvs_runtime::iso::clock_text(*time),
+        Param::Instant(at) => crate::time::iso_text(*at),
+        Param::DateTime(at) => crate::time::zoned_iso_text(at),
         Param::Uuid(octets) => {
             let mut buffer = crate::uuid::TEXT;
             crate::uuid::canonical(*octets, &mut buffer).to_owned()
@@ -2582,6 +2598,10 @@ fn capture_value(
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
         nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
         nvs_runtime::routes::Param::Bool(value) => Value::bool(*value),
+        nvs_runtime::routes::Param::Date(date) => crate::time::date_built(*date),
+        nvs_runtime::routes::Param::TimeOfDay(time) => crate::time::clock_built(*time),
+        nvs_runtime::routes::Param::Instant(at) => crate::time::instant_built(*at),
+        nvs_runtime::routes::Param::DateTime(at) => crate::time::datetime_built(at),
         nvs_runtime::routes::Param::Parses { class, text } => {
             let text = Value::text(&crate::uri::decode_capture(text, name)?);
             parsed(ctx, class, text)?
@@ -2701,7 +2721,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>`
+    /// `Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses>`,
+    /// the four time classes being `Core\Time`'s,
     /// — every capture the path filled, keyed by the parameter it binds, and
     /// inside `Core\Router::dispatch` every bound `#[Query]` value too.
     ///
@@ -2857,7 +2878,7 @@ fn case_value(desc: &nvs_runtime::EnumDesc, case: &str) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Parses)`
+    /// `Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses)`
     /// — [`nvs_core_router_match_parameters`] read at one key, so a query
     /// value inside `dispatch` and `null` for one outside it.
     ///
@@ -3173,7 +3194,9 @@ fn bind_queries(
     // slot's only writers, and both write an array.
     let Some(array) = held.array_ptr() else {
         crate::instance::set_slot(receiver, MATCH_PARAMS, held);
-        return Err(Fault::fatal("internal error: a match holds no parameter array"));
+        return Err(Fault::fatal(
+            "internal error: a match holds no parameter array",
+        ));
     };
     #[expect(
         unsafe_code,

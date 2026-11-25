@@ -68,7 +68,9 @@
 //! route. A *matched* request holds one `Arc` bump on the row plus one `String`
 //! per capture, which is the segment text it converted, and a second `String`
 //! for a capture typed as a class built from text, which is that class's own
-//! name. O(in-flight requests), per `rule:programs/memory-priority`.
+//! name. A time capture holds its converted `jiff` value instead, and every
+//! [`Param`] is as large as its largest arm, the `jiff::Zoned` of a `DateTime`
+//! query value. O(in-flight requests), per `rule:programs/memory-priority`.
 //!
 //! **A capture leaves this crate as the segment arrived, still
 //! percent-encoded**, and is decoded once on the far side of the crossing.
@@ -79,6 +81,13 @@
 //! and `nvs_stdlib::router`'s `capture_value` is both the crossing and the home
 //! of that rule, including what a capture whose octets are not UTF-8 becomes. A
 //! `uint` capture is unaffected either way: no digit has an encoded spelling.
+//!
+//! **A time capture is never decoded at all.** `Date`, `TimeOfDay`, `Instant`
+//! and a `DateTime` query value are read by [`crate::iso`] as the segment
+//! arrived, so `08%3A30` is no time of day. One value has one spelling, which
+//! is the `uint` rule's reason again, and `Core\Router::url` writes each
+//! without encoding it, because every byte of the three path grammars is legal
+//! in a segment.
 //!
 //! # A trie picks the candidates, and the rank still picks the winner
 //!
@@ -152,6 +161,22 @@ pub enum CaptureConv {
     /// which admits only its own digit. One value has one spelling, the one
     /// `Core\Router::url` writes (`rule:security/route-capture-is-laundered-by-its-type`).
     Bool(Option<bool>),
+    /// `Core\Time\Date` — [`crate::iso::date`]'s `YYYY-MM-DD`, and no match
+    /// where the segment is not one. This arm and the three after it read the
+    /// segment as it arrived, never percent-decoded: every byte their grammars
+    /// admit is legal in a segment, so a decode could only give one value a
+    /// second spelling. [`crate::iso`]'s doc is the home of the placement.
+    Date,
+    /// `Core\Time\TimeOfDay` — [`crate::iso::time_of_day`]'s `HH:MM[:SS[.f]]`.
+    TimeOfDay,
+    /// `Core\Time\Instant` — [`crate::iso::instant`]'s date, time and `Z` or
+    /// offset.
+    Instant,
+    /// `Core\Time\DateTime` — [`crate::iso::zoned`]'s text, which must write its
+    /// `[Zone]`. A `#[Query]` value only: almost every zone name has a `/`, and
+    /// the server refuses a path with an encoded `/` in it, so a path capture of
+    /// this type is `E0752`.
+    DateTime,
     /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set: the segment text of each admitted value, in the order
     /// the union declares them. A segment outside the set is no match, which is
     /// what makes the narrowing a property of the *table* rather than a check
@@ -234,6 +259,10 @@ impl CaptureConv {
             Self::Uint => text.parse::<u64>().ok().map(Param::Uint),
             Self::Decimal => Decimal::parse(text).map(Param::Decimal),
             Self::Uuid => crate::uuid::read(text).map(Param::Uuid),
+            Self::Date => crate::iso::date(text).ok().map(Param::Date),
+            Self::TimeOfDay => crate::iso::time_of_day(text).ok().map(Param::TimeOfDay),
+            Self::Instant => crate::iso::instant(text).ok().map(Param::Instant),
+            Self::DateTime => crate::iso::zoned(text).ok().map(Param::DateTime),
             Self::Bool(only) => {
                 let value = match text {
                     "1" => true,
@@ -338,6 +367,16 @@ pub enum Param {
     Uuid([u8; 16]),
     /// A `bool` query value, converted from `1` or `0`.
     Bool(bool),
+    /// A `Core\Time\Date` capture, converted. The `jiff` value rather than the
+    /// class, for [`Self::Uuid`]'s reason: the class is `nvs_stdlib::time`'s.
+    Date(jiff::civil::Date),
+    /// A `Core\Time\TimeOfDay` capture, converted.
+    TimeOfDay(jiff::civil::Time),
+    /// A `Core\Time\Instant` capture, converted.
+    Instant(jiff::Timestamp),
+    /// A `Core\Time\DateTime` query value, converted, with the zone its text
+    /// named.
+    DateTime(jiff::Zoned),
     /// A capture typed as a class built from text, as the two facts the
     /// crossing needs to finish it: the class that claims the segment, and the
     /// segment itself, still exactly as the peer wrote it.
@@ -1407,19 +1446,20 @@ mod tests {
         }
     }
 
-    /// The same narrowing for the type whose class this crate does *not* own: a
-    /// `Core\Uuid` capture converts to the sixteen octets, and a segment that is
-    /// not RFC 9562 § 4's canonical form is **no match** rather than text handed
-    /// to a handler that declared an identifier.
-    ///
     /// A `bool` query value has one spelling per value: `1` and `0`.
     #[test]
     fn a_bool_query_value_reads_1_and_0_and_nothing_else() {
         let conv = CaptureConv::Bool(None);
         assert_eq!(conv.convert("1"), Some(Param::Bool(true)));
         assert_eq!(conv.convert("0"), Some(Param::Bool(false)));
-        for text in ["true", "false", "on", "off", "yes", "", "01", "10", " 1", "1 ", "-0", "2"] {
-            assert_eq!(conv.convert(text), None, "`{text}` is not a `bool` query value");
+        for text in [
+            "true", "false", "on", "off", "yes", "", "01", "10", " 1", "1 ", "-0", "2",
+        ] {
+            assert_eq!(
+                conv.convert(text),
+                None,
+                "`{text}` is not a `bool` query value"
+            );
         }
     }
 
@@ -1436,6 +1476,11 @@ mod tests {
         assert_eq!(no.convert("false"), None);
     }
 
+    /// The same narrowing for the type whose class this crate does *not* own: a
+    /// `Core\Uuid` capture converts to the sixteen octets, and a segment that is
+    /// not RFC 9562 § 4's canonical form is **no match** rather than text handed
+    /// to a handler that declared an identifier.
+    ///
     /// Both sides named together, for the `decimal` case's reason. The refused
     /// half is what the placement buys: [`crate::uuid`] puts the parse on this
     /// side of the walk, so a segment that is not one is a miss here rather
@@ -1483,6 +1528,131 @@ mod tests {
                 "`{segment}` is not a canonical UUID and must not match"
             );
         }
+    }
+
+    /// One row with one capture of `conv`, matched against `/at/{segment}`.
+    fn time_matched(conv: CaptureConv, segment: &str) -> Option<Param> {
+        let routes = Routes::new(vec![super::Route::new(
+            "Get",
+            "/at/{when}",
+            "App\\Calendar::show",
+            None,
+            vec![Capture {
+                name: "when".to_owned(),
+                conv,
+            }],
+        )]);
+        routes
+            .match_request("GET", &format!("/at/{segment}"))
+            .and_then(|matched| matched.param("when").cloned())
+    }
+
+    /// A `Date` capture converts `YYYY-MM-DD` and nothing else, so a segment
+    /// that is not a date is no match.
+    #[test]
+    fn time_capture_date_converts_and_refuses_what_is_not_one() {
+        assert_eq!(
+            time_matched(CaptureConv::Date, "2026-01-05"),
+            Some(Param::Date(jiff::civil::date(2026, 1, 5)))
+        );
+        for segment in [
+            "2026-1-05",
+            "2026-02-30",
+            "20260105",
+            "2026-01-05T00:00",
+            "today",
+            "",
+        ] {
+            assert_eq!(
+                time_matched(CaptureConv::Date, segment),
+                None,
+                "`{segment}` is not a date and must not match"
+            );
+        }
+    }
+
+    /// A `TimeOfDay` capture converts `HH:MM`, `HH:MM:SS` and a fraction.
+    #[test]
+    fn time_capture_time_of_day_converts_and_refuses_what_is_not_one() {
+        assert_eq!(
+            time_matched(CaptureConv::TimeOfDay, "08:30"),
+            Some(Param::TimeOfDay(jiff::civil::time(8, 30, 0, 0)))
+        );
+        assert_eq!(
+            time_matched(CaptureConv::TimeOfDay, "23:59:59.5"),
+            Some(Param::TimeOfDay(jiff::civil::time(23, 59, 59, 500_000_000)))
+        );
+        for segment in ["24:00", "8:30", "08:60", "08:30:60", "0830", "noon"] {
+            assert_eq!(
+                time_matched(CaptureConv::TimeOfDay, segment),
+                None,
+                "`{segment}` is not a time of day and must not match"
+            );
+        }
+    }
+
+    /// An `Instant` capture needs a date, a time and `Z` or an offset.
+    #[test]
+    fn time_capture_instant_converts_and_refuses_what_is_not_one() {
+        let at: jiff::Timestamp = "2026-01-05T07:30:00Z".parse().expect("an instant");
+        assert_eq!(
+            time_matched(CaptureConv::Instant, "2026-01-05T07:30:00Z"),
+            Some(Param::Instant(at))
+        );
+        assert_eq!(
+            time_matched(CaptureConv::Instant, "2026-01-05T08:30:00+01:00"),
+            Some(Param::Instant(at))
+        );
+        for segment in [
+            "2026-01-05T07:30:00",
+            "2026-01-05",
+            "2026-01-05t07:30:00Z",
+            "1767598200",
+        ] {
+            assert_eq!(
+                time_matched(CaptureConv::Instant, segment),
+                None,
+                "`{segment}` is not an instant and must not match"
+            );
+        }
+    }
+
+    /// A `DateTime` value needs its `[Zone]`, because nothing else names one.
+    /// The offset before it picks one moment, and the zone must have it.
+    #[test]
+    fn time_capture_datetime_reads_its_offset_and_zone() {
+        let conv = CaptureConv::DateTime;
+        let Some(Param::DateTime(at)) = conv.convert("2026-01-05T08:30:00+01:00[Europe/Vienna]")
+        else {
+            panic!("a zoned time converts");
+        };
+        assert_eq!(at.timestamp().to_string(), "2026-01-05T07:30:00Z");
+        assert_eq!(at.time_zone().iana_name(), Some("Europe/Vienna"));
+        // Without an offset the local time is placed in the zone.
+        assert!(conv.convert("2026-01-05T08:30:00[Europe/Vienna]").is_some());
+        for text in [
+            "2026-01-05T08:30:00",
+            "2026-01-05T08:30:00+01:00",
+            "2026-01-05T08:30:00Z",
+            "2026-01-05T08:30:00+02:00[Europe/Vienna]",
+            "2026-01-05T08:30:00[Mars/Olympus]",
+            &format!("2026-01-05T08:30:00[{}]", "A".repeat(4096)),
+        ] {
+            assert_eq!(conv.convert(text), None, "`{text}` is not a zoned time");
+        }
+    }
+
+    /// A time capture is read as the segment arrived, so a percent-encoded
+    /// byte is never decoded into a digit or a `:`.
+    #[test]
+    fn time_capture_reads_the_segment_as_it_arrived() {
+        assert_eq!(time_matched(CaptureConv::Date, "2026-01-0%35"), None);
+        assert_eq!(time_matched(CaptureConv::TimeOfDay, "08%3A30"), None);
+        assert_eq!(
+            time_matched(CaptureConv::Instant, "2026-01-05T07%3A30%3A00Z"),
+            None
+        );
+        assert!(time_matched(CaptureConv::TimeOfDay, "08:30").is_some());
     }
 
     /// `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers as the

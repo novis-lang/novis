@@ -999,7 +999,7 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // signature table `crate::expr::operators` asks `Comparable` of. So
         // `Core\Uuid` is admitted for what it declares, and so is any class
         // that declares the same thing.
-        Ty::Class(name, _) => reaches_parses(name, env),
+        Ty::Class(name, _) => is_time_conversion(name) || reaches_parses(name, env),
         // The roster admits a union of `string` or `int` single-value types and a
         // subset of **one** enum's cases, and nothing wider: a `string|int` would
         // make the conversion itself ambiguous, which is the question
@@ -1017,6 +1017,29 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         }
         _ => false,
     }
+}
+
+/// The `Core\Time` classes a segment, a query value and an argument convert to
+/// natively, read by `nvs_runtime::iso`'s grammars. They are admitted by name,
+/// because none of them implements `Parses`: `Date::parse` takes a pattern.
+const TIME_CONVERSIONS: [&str; 4] = [
+    nvs_stdlib::time::DATE_NAME,
+    nvs_stdlib::time::TIME_OF_DAY_NAME,
+    nvs_stdlib::time::INSTANT_NAME,
+    nvs_stdlib::time::DATETIME_NAME,
+];
+
+/// Whether `qname` is one of [`TIME_CONVERSIONS`].
+fn is_time_conversion(qname: &QName) -> bool {
+    let written = qname.to_string();
+    TIME_CONVERSIONS.contains(&written.as_str())
+}
+
+/// Whether `ty` is `Core\Time\DateTime`, which a query value and an argument
+/// may declare and a path capture may not.
+pub(crate) fn is_datetime(ty: TypeId, env: &Env<'_>) -> bool {
+    matches!(env.interner.get(ty), Ty::Class(name, _)
+        if name.to_string() == nvs_stdlib::time::DATETIME_NAME)
 }
 
 /// [`converts_from_string`]'s class arm, asked on its own: whether a segment or

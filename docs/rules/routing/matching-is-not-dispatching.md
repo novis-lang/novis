@@ -5,8 +5,8 @@ Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] â‡
 Core\Router::url(callable $route, array<string, mixed> $params = []): string;         // launder (URL path)
 Core\Router::urlAbsolute(callable $route, array<string, mixed> $params = []): string; // launder (URL)
 Core\Router\Match::is(callable $route): bool;                           // did this method's route match
-Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>;
-Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Parses);
+Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses>;
+Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses);
 Core\Router\Match::method(): Http\Method;
 Core\Router\Match::access(): ?string;                                   // the resolved name of `allow:`
 Core\Router\Match::accessAs<E>(): ?E;                                   // `allow:` as a case of enum E

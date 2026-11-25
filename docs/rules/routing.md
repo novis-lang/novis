@@ -324,7 +324,9 @@ on a method that declares no route is refused rather than ignored.
 
 The parameter takes the type list of a path capture and launders the same way
 ([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, `bool` (written `1` or `0`, which a path capture may not declare), an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), or a class
+`Core\Uuid`, `Core\Time`'s `Date`, `TimeOfDay`, `Instant` and `DateTime` (each written as its ISO
+text, and `DateTime` only here, never in a path), `bool` (written `1` or `0`, which a path capture
+may not declare), an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), or a class
 implementing `Parses`; anything else is a compile error at the parameter. **A parameter is filled by a
 capture or by the query string, never both:** a `#[Query]` parameter that a capture of the route's path
 also names is `E1009` at the parameter, and its help says to delete `#[Query]` or the capture. So every
@@ -457,8 +459,8 @@ Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] â‡
 Core\Router::url(callable $route, array<string, mixed> $params = []): string;         // launder (URL path)
 Core\Router::urlAbsolute(callable $route, array<string, mixed> $params = []): string; // launder (URL)
 Core\Router\Match::is(callable $route): bool;                           // did this method's route match
-Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>;
-Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Parses);
+Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses>;
+Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses);
 Core\Router\Match::method(): Http\Method;
 Core\Router\Match::access(): ?string;                                   // the resolved name of `allow:`
 Core\Router\Match::accessAs<E>(): ?E;                                   // `allow:` as a case of enum E

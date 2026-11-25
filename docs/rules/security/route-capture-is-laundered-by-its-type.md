@@ -17,8 +17,9 @@ given `"type": "boolean"` writes `true`. A form author writes `value="1"` on a c
 browser sends `on` by default. **What it spends:** one comparison of the value's text with `1` and `0`.
 
 **A capture typed at a class built from text is the one exception, and it fails the other way.** The
-matcher narrows on the conversions it reads natively — `int`, `uint`, `decimal`, `Core\Uuid` and a
-closed set — and a capture declared at any *other* class implementing `Parses` matches on **shape**.
+matcher narrows on the conversions it reads natively — `int`, `uint`, `decimal`, `Core\Uuid`,
+`Core\Time`'s `Date`, `TimeOfDay` and `Instant`, and a closed set — and a capture declared at any
+*other* class implementing `Parses` matches on **shape**.
 Matching runs at the door with no program installed, so calling that class's `parse` there would put an
 implementor's body over every request URL, including the ones that match no route, ahead of everything
 that rate-limits it — the priority-1 objection this rule already makes to a regex, and a `parse` body is
@@ -28,10 +29,26 @@ a `404` (`rule:routing/a-bad-query-value-is-a-400`). Two captures spelled the sa
 two ways, and what decides which is who runs at the door. The refusal is the class's own throw and
 travels unchanged, so a program that reads the match without a `catch` fails the request; a handler
 that wants the non-throwing answer calls the class's `tryParse` (`rule:expressions/try-parse`). The
-captures cross as `array<tainted string|int|uint|decimal|bool|Core\Uuid|Parses>`, the last member an
-interface because the set of classes it means is open. `bool` is there for the query values the match
-also holds inside `Core\Router::dispatch` (`rule:routing/a-bad-query-value-is-a-400`); no path
-capture is one.
+captures cross as
+`array<tainted string|int|uint|decimal|bool|Core\Uuid|Date|TimeOfDay|Instant|DateTime|Parses>`, the
+four time classes being `Core\Time`'s and the last member an interface because the set of classes it
+means is open. `bool` and `DateTime` are there for the query values the match also holds inside
+`Core\Router::dispatch` (`rule:routing/a-bad-query-value-is-a-400`); no path capture is one.
+
+**The time values are read by the matcher itself, from their ISO text.** A `Date` is `YYYY-MM-DD`, a
+`TimeOfDay` is `HH:MM`, `HH:MM:SS` or a fraction after that, and an `Instant` is a date, a time and
+`Z` or an offset: the one text each class's `fromIso` reads, through the same reader
+(`nvs_runtime::iso`). So a segment that is not one is not a match, a `404`, and a query value that is
+not one is the `400`; no program code runs at the door. **A `DateTime` is a query value only:** its
+text carries its zone, `2026-01-05T08:30:00+01:00[Europe/Vienna]`, and almost every zone name holds a
+`/`. The server answers `400` to any path with `%2F` in it (`rule:errors/http-message-defects`), so a
+`DateTime` path capture could never arrive, and it is `E0752`, whose help names `#[Query]` and
+`Instant`. A `DateTime` needs the `[Zone]` in its text, since a route has no `$zone` to fall back on.
+**A time capture is read as the segment arrived, never percent-decoded**, so `08%3A30` is no time:
+one value has one spelling, which is why `%34` is not `4` for a `uint`. **What it spends:** a fixed
+grammar over at most about 50 bytes for a request that reaches a time capture's row, and no allocation
+but the converted value; a `DateTime` also looks its zone up once, and a bracket longer than any zone
+name is refused before the lookup. The converted value is held per in-flight request.
 
 **A converted capture arrives unqualified.** A checked conversion launders
 (`rule:security/taint-propagation`), so an integer or enum capture is a plain value, while a `string`
@@ -64,6 +81,12 @@ loads the record in the route method, after `allows`.
 - **Reading `true`, `false`, `on`, `yes` or an empty value as a `bool` query value.** One value has
   one spelling, and `Core\Router::url` and `Core\Uri::buildQuery` write `1` and `0`. A second spelling
   makes two URLs for one page.
+- **A `DateTime` path capture with its `/` written `%2F`.** The door refuses `%2F` to keep one path
+  from being read two ways, and that is not traded for a spelling.
+- **A zone written another way in a path, such as `Europe~Vienna`.** It is a spelling no other tool
+  reads, and an `Instant` in the path or a `DateTime` in the query already names the same moment.
+- **Percent-decoding a time capture before it converts.** It gives one URL two spellings, which the
+  `uint` rule already refuses.
 - **A `bool` query value refused like a `bool` capture.** Every yes-or-no filter would be declared
   `string` and compared by hand, which is the conversion this rule exists to make once.
 - **Arming a class table at the door, so the matcher calls `parse`.** It keeps one failure mode for

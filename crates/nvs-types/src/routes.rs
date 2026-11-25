@@ -2886,11 +2886,16 @@ fn check_captures(
                     "a `{name...}` is every remaining segment as one value and nothing about it \
                      was checked, so it arrives as a `string` and at no other type"
                 }
+                _ if crate::commands::is_datetime(ty, env) => {
+                    "a `DateTime` text has its zone name, such as `Europe/Vienna`, and a path \
+                     cannot carry the `/` in it. Declare the parameter `#[Core\\Query]`, or \
+                     declare it `Core\\Time\\Instant`"
+                }
                 _ => {
                     "a segment is converted to the parameter's declared type, so a capture \
-                     binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed \
-                     values like `'a'|'b'`, or a class implementing `Parses`. It is never a \
-                     regex"
+                     binds `string`, `int`, `uint`, `decimal`, `Date`, `TimeOfDay`, \
+                     `Instant`, an enum, a set of allowed values like `'a'|'b'`, or a class \
+                     implementing `Parses`. It is never a regex"
                 }
             }),
         );
@@ -2986,11 +2991,16 @@ fn path_insertion(attr: &Attribute, path: &str, env: &Env<'_>) -> (Span, String)
 /// capture at one position. So a `bool` capture is `E0752`
 /// (`rule:security/route-capture-is-laundered-by-its-type`). `true` and
 /// `false` alone are refused with it, since each is a `bool` too.
+///
+/// A `Core\Time\DateTime` is refused too. Its text has a zone name, and
+/// almost every zone name has a `/`. The server refuses a path with an
+/// encoded `/` in it, so such a capture could never arrive.
 fn converts_from_segment(ty: crate::ty::TypeId, env: &Env<'_>) -> bool {
     !matches!(
         env.interner.get(ty),
         crate::ty::Ty::Bool | crate::ty::Ty::True | crate::ty::Ty::False
-    ) && converts_from_query(ty, env)
+    ) && !crate::commands::is_datetime(ty, env)
+        && converts_from_query(ty, env)
 }
 
 /// Whether a `#[Query]` value converts to `ty`: the shared roster

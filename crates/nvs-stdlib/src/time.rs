@@ -199,6 +199,13 @@ use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::host::Woken;
+pub(crate) use nvs_runtime::iso::render_offset;
+/// The id a zone written as text is stored under, read by the checker:
+/// [`nvs_runtime::iso::written_zone`], where the `DateTime` grammar reads it too.
+pub use nvs_runtime::iso::written_zone;
+use nvs_runtime::iso::{
+    self, PAST_THE_RANGE, clock_from_parts, database_name, parts, resolve_zone,
+};
 use nvs_runtime::{Ctx, Fault, ThrownClass, Value};
 use nvs_syntax::duration;
 
@@ -4418,7 +4425,7 @@ fn civil_time(hour: u8, minute: u8, second: u8, nanosecond: u32) -> Option<civil
 }
 
 /// A fresh `Instant` at `at`.
-fn instant_built(at: Timestamp) -> Value {
+pub(crate) fn instant_built(at: Timestamp) -> Value {
     crate::instance::build(
         &INSTANT,
         [
@@ -4436,21 +4443,21 @@ fn instant_built(at: Timestamp) -> Value {
 /// document: it belongs in the issue list beside every other field that did not
 /// fit, rather than ending the decode where it was met.
 ///
-/// It reads with [`iso_instant`], the grammar `fromIso` reads with, so every
+/// It reads with [`iso::instant`], the grammar `fromIso` reads with, so every
 /// text [`instant_iso`] writes is read back, the first instant's
 /// `-9999-01-02T01:59:59Z` among them.
 pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
-    iso_instant(text).ok().map(instant_built)
+    iso::instant(text).ok().map(instant_built)
 }
 
 /// `at`'s RFC 3339 text in UTC, with the year in `fromIso`'s one form: four
 /// digits, and a `-` before them for a year before year 1.
 ///
 /// jiff writes a year outside `0000`..=`9999` as a sign and six digits, so the
-/// first instant would be `-009999-01-02T01:59:59Z`, a text [`iso_instant`]
+/// first instant would be `-009999-01-02T01:59:59Z`, a text [`iso::instant`]
 /// refuses. The range ends at year `-9999`, so those six digits always start
 /// with `00`, and dropping them is the four-digit year.
-fn iso_text(at: Timestamp) -> String {
+pub(crate) fn iso_text(at: Timestamp) -> String {
     let text = at.to_string();
     match text.strip_prefix("-00") {
         Some(rest) => format!("-{rest}"),
@@ -4491,327 +4498,11 @@ pub enum IsoForm {
 /// The reason `text` is not a value of that class.
 pub fn validate_iso(form: IsoForm, text: &str) -> Result<(), String> {
     match form {
-        IsoForm::Instant => iso_instant(text).map(drop),
-        IsoForm::Date => iso_date(text).map(drop),
-        IsoForm::TimeOfDay => iso_time(text).map(drop),
+        IsoForm::Instant => iso::instant(text).map(drop),
+        IsoForm::Date => iso::date(text).map(drop),
+        IsoForm::TimeOfDay => iso::time_of_day(text).map(drop),
         IsoForm::DateTime => validate_datetime_iso(text, true),
     }
-}
-
-/// The instant `text` names: `Instant::fromIso`'s grammar.
-///
-/// A date, `T` or one space, a time as [`iso_time_prefix`] reads it, and then
-/// `Z` or a `±HH:MM` offset. The date and the time are read by the readers
-/// `DateTime::fromIso` uses, so a leap second `60`, a lower-case `t`, a comma
-/// before the fraction and a basic offset such as `+0100` are refused here as
-/// they are there. A text that is written as one and still fails names a time
-/// past either end of the range.
-fn iso_instant(text: &str) -> Result<Timestamp, String> {
-    const FORM: &str = "YYYY-MM-DDTHH:MM:SSZ";
-    let bytes = text.as_bytes();
-    let (date, end) = iso_date_prefix(bytes)?;
-    if !matches!(bytes.get(end), Some(b'T' | b' ')) {
-        return Err(format!(
-            "expected `T` or a space at byte {end}, between the date and the time"
-        ));
-    }
-    let start = end + 1;
-    let (time, end) = iso_time_prefix(&bytes[start..])?;
-    let end = start + end;
-    let rest = &text[end..];
-    let offset = if rest == "Z" {
-        Some(Offset::UTC)
-    } else if rest.len() == 6 && rest.as_bytes()[3] == b':' {
-        parse_offset(rest)
-    } else {
-        None
-    };
-    let Some(offset) = offset else {
-        return Err(format!(
-            "expected `Z` or an offset such as `+02:00` at byte {end}, in the form `{FORM}`"
-        ));
-    };
-    offset
-        .to_timestamp(date.to_datetime(time))
-        .map_err(|_| PAST_THE_RANGE.to_owned())
-}
-
-/// A run of exactly `width` ASCII digits at `at`, as a number, or the sentence
-/// naming `what` and the form it is written in.
-fn iso_digits(
-    bytes: &[u8],
-    at: usize,
-    width: usize,
-    what: &str,
-    form: &str,
-) -> Result<i64, String> {
-    let digits = bytes
-        .get(at..at + width)
-        .filter(|run| run.iter().all(u8::is_ascii_digit));
-    let Some(digits) = digits else {
-        return Err(format!(
-            "the {what} is {width} digits, in the form `{form}`"
-        ));
-    };
-    Ok(digits
-        .iter()
-        .fold(0, |sum, digit| sum * 10 + i64::from(digit - b'0')))
-}
-
-/// `byte` at `at`, or the sentence naming what was expected there.
-fn iso_expect(bytes: &[u8], at: usize, byte: u8, form: &str) -> Result<(), String> {
-    if bytes.get(at) == Some(&byte) {
-        Ok(())
-    } else {
-        Err(format!(
-            "expected `{}` at byte {at}, in the form `{form}`",
-            char::from(byte)
-        ))
-    }
-}
-
-/// The date at the start of `bytes` and where it ends: `YYYY-MM-DD`, with a
-/// `-` before the year for a year before year 1.
-fn iso_date_prefix(bytes: &[u8]) -> Result<(civil::Date, usize), String> {
-    const FORM: &str = "YYYY-MM-DD";
-    let signed = bytes.first() == Some(&b'-');
-    let start = usize::from(signed);
-    let year = iso_digits(bytes, start, 4, "year", FORM)?;
-    iso_expect(bytes, start + 4, b'-', FORM)?;
-    let month = iso_digits(bytes, start + 5, 2, "month", FORM)?;
-    iso_expect(bytes, start + 7, b'-', FORM)?;
-    let day = iso_digits(bytes, start + 8, 2, "day", FORM)?;
-    // Year zero is written `0000`, and one value has one text.
-    if signed && year == 0 {
-        return Err("the year `-0000` is written `0000`".to_owned());
-    }
-    let year = if signed { -year } else { year };
-    if !(1..=12).contains(&month) {
-        return Err(format!(
-            "the month is `{month:02}`, and a month is `01` to `12`"
-        ));
-    }
-    let date = parts(year, month, day)
-        .and_then(|(year, month, day)| civil::Date::new(year, month, day).ok())
-        .ok_or_else(|| format!("{year:04}-{month:02} has no day {day:02}"))?;
-    Ok((date, start + 10))
-}
-
-/// The time of day at the start of `bytes` and where it ends: `HH:MM`,
-/// `HH:MM:SS` or `HH:MM:SS.f` with one to nine fraction digits.
-fn iso_time_prefix(bytes: &[u8]) -> Result<(civil::Time, usize), String> {
-    const FORM: &str = "HH:MM:SS";
-    let hour = iso_digits(bytes, 0, 2, "hour", FORM)?;
-    iso_expect(bytes, 2, b':', FORM)?;
-    let minute = iso_digits(bytes, 3, 2, "minute", FORM)?;
-    let mut end = 5;
-    let mut second = 0;
-    let mut nanos = 0;
-    if bytes.get(end) == Some(&b':') {
-        second = iso_digits(bytes, end + 1, 2, "second", FORM)?;
-        end += 3;
-        if bytes.get(end) == Some(&b'.') {
-            let digits = bytes[end + 1..]
-                .iter()
-                .take_while(|byte| byte.is_ascii_digit())
-                .count();
-            if !(1..=9).contains(&digits) {
-                return Err("the fraction of a second is one to nine digits".to_owned());
-            }
-            let fraction = iso_digits(bytes, end + 1, digits, "fraction", FORM)?;
-            let scale = 10_i64.pow(u32::try_from(9 - digits).unwrap_or(0));
-            nanos = fraction * scale;
-            end += 1 + digits;
-        }
-    }
-    if hour > 23 {
-        return Err(format!(
-            "the hour is `{hour:02}`, and an hour is `00` to `23`"
-        ));
-    }
-    if minute > 59 {
-        return Err(format!(
-            "the minute is `{minute:02}`, and a minute is `00` to `59`"
-        ));
-    }
-    if second > 59 {
-        return Err(format!(
-            "the second is `{second:02}`, and a second is `00` to `59`"
-        ));
-    }
-    let time = clock_from_parts(hour, minute, second, nanos)
-        .ok_or_else(|| format!("`{hour:02}:{minute:02}:{second:02}` is not a time of day"))?;
-    Ok((time, end))
-}
-
-/// The sentence for text left after a whole value was read.
-fn iso_rest(bytes: &[u8], at: usize, form: &str) -> Result<(), String> {
-    if at == bytes.len() {
-        Ok(())
-    } else {
-        Err(format!(
-            "unexpected text at byte {at}, after the `{form}` value"
-        ))
-    }
-}
-
-/// The date `text` names: `Date::fromIso`'s grammar.
-fn iso_date(text: &str) -> Result<civil::Date, String> {
-    let bytes = text.as_bytes();
-    let (date, end) = iso_date_prefix(bytes)?;
-    iso_rest(bytes, end, "YYYY-MM-DD")?;
-    Ok(date)
-}
-
-/// The time of day `text` names: `TimeOfDay::fromIso`'s grammar.
-fn iso_time(text: &str) -> Result<civil::Time, String> {
-    let bytes = text.as_bytes();
-    let (time, end) = iso_time_prefix(bytes)?;
-    iso_rest(bytes, end, "HH:MM:SS")?;
-    Ok(time)
-}
-
-/// What a `DateTime::fromIso` text names: the local date and time, and the
-/// offset and the zone where the text writes them.
-pub(crate) struct IsoLocal {
-    /// The date and the time of day, midnight for a date alone.
-    civil: civil::DateTime,
-    /// The `±HH:MM[:SS]` before the zone, which picks one copy of a repeated
-    /// hour.
-    offset: Option<Offset>,
-    /// The zone in the brackets, as its id and as the zone it names.
-    zone: Option<(String, TimeZone)>,
-}
-
-/// The local date and time `text` names, and its offset and zone where it
-/// writes them: `DateTime::fromIso`'s grammar.
-///
-/// A date alone is midnight on it, and the caller resolves midnight in a zone.
-/// After the time the text may write a `±HH:MM` or `±HH:MM:SS` offset and then
-/// one `[Zone]`, as RFC 9557 writes a zoned time. An offset needs the zone after
-/// it, and a `Z` is refused: such a text names an instant, and the sentence
-/// names the member that reads one. A zone name is looked up as `Zone::of` looks
-/// one up, ignoring case, and an offset in the brackets is a fixed zone.
-fn iso_datetime(text: &str) -> Result<IsoLocal, String> {
-    const FORM: &str = "YYYY-MM-DDTHH:MM:SS+HH:MM[Zone]";
-    let bytes = text.as_bytes();
-    let (date, end) = iso_date_prefix(bytes)?;
-    let (civil, end) = if end == bytes.len() || bytes[end] == b'[' {
-        (date.to_datetime(civil::Time::midnight()), end)
-    } else {
-        if !matches!(bytes[end], b'T' | b' ') {
-            return Err(format!(
-                "expected `T` or a space at byte {end}, between the date and the time"
-            ));
-        }
-        let start = end + 1;
-        let (time, end) = iso_time_prefix(&bytes[start..])?;
-        (date.to_datetime(time), start + end)
-    };
-    if matches!(bytes.get(end), Some(b'Z' | b'z')) {
-        return Err("the text has an offset `Z` and no zone. Read it with \
-             `Core\\Time\\Instant::fromIso`, then call `->in($zone)`"
-            .to_owned());
-    }
-    let mut at = end;
-    let offset = if matches!(bytes.get(at), Some(b'+' | b'-')) {
-        let width = if bytes.get(at + 6) == Some(&b':') {
-            9
-        } else {
-            6
-        };
-        let written = text.get(at..at + width).filter(|written| {
-            written.as_bytes()[1..].iter().enumerate().all(|(i, byte)| {
-                if i % 3 == 2 {
-                    *byte == b':'
-                } else {
-                    byte.is_ascii_digit()
-                }
-            })
-        });
-        let Some(offset) = written.and_then(parse_offset) else {
-            return Err(format!(
-                "the offset at byte {at} is written `+HH:MM` or `+HH:MM:SS`, in the form `{FORM}`"
-            ));
-        };
-        at += width;
-        if bytes.get(at) != Some(&b'[') {
-            return Err(
-                "the text has an offset and no zone. Write the zone after the offset, \
-                        such as `[Europe/Vienna]`, or read the text with \
-                        `Core\\Time\\Instant::fromIso`, then call `->in($zone)`"
-                    .to_owned(),
-            );
-        }
-        Some(offset)
-    } else {
-        None
-    };
-    let zone = if bytes.get(at) == Some(&b'[') {
-        let Some(close) = text[at..].find(']').map(|close| at + close) else {
-            return Err(format!("the zone at byte {at} has no closing `]`"));
-        };
-        let name = &text[at + 1..close];
-        if name.starts_with('!') {
-            return Err(
-                "a critical flag `[!...]` is not read. Write the zone name alone".to_owned(),
-            );
-        }
-        if name.contains('=') {
-            return Err(format!(
-                "`[{}]` is a tag, and only a zone is read in brackets",
-                nvs_runtime::quoted(name)
-            ));
-        }
-        let id = written_zone(name)?;
-        let zone = resolve_zone(&id)
-            .ok_or_else(|| format!("`{}` is not a time zone name", nvs_runtime::quoted(name)))?;
-        at = close + 1;
-        Some((id, zone))
-    } else {
-        None
-    };
-    iso_rest(bytes, at, FORM)?;
-    Ok(IsoLocal {
-        civil,
-        offset,
-        zone,
-    })
-}
-
-/// Why [`place_local`] could not place a local time.
-enum Placed {
-    /// The offset is not one the zone has at that local time. The sentence
-    /// names both.
-    Offset(String),
-    /// The moment is past either end of the range.
-    Range,
-}
-
-/// `civil` placed in `zone`. Without an offset, a skipped local time moves
-/// forward past the gap and a repeated one is the earlier copy, as
-/// `DateTime::at` places it. With one, the offset names the moment, and the
-/// zone must have that offset at that moment: so an offset picks one copy of a
-/// repeated hour and refuses a skipped time.
-fn place_local(
-    civil: civil::DateTime,
-    offset: Option<Offset>,
-    zone: &TimeZone,
-) -> Result<Zoned, Placed> {
-    let Some(offset) = offset else {
-        return zone.to_zoned(civil).map_err(|_| Placed::Range);
-    };
-    let at = offset.to_timestamp(civil).map_err(|_| Placed::Range)?;
-    let had = zone.to_offset(at);
-    if had != offset {
-        return Err(Placed::Offset(format!(
-            "the zone has no offset `{}` at {}. Its offset at that moment is `{}`",
-            render_offset(offset.seconds()),
-            date_iso_text(civil.date()) + "T" + &clock_iso_text(civil.time()),
-            render_offset(had.seconds())
-        )));
-    }
-    Ok(Zoned::new(at, zone.clone()))
 }
 
 /// `Ok` where `text` is a `DateTime::fromIso` text the call reads, and the
@@ -4825,10 +4516,10 @@ fn place_local(
 ///
 /// The reason the call would throw on `text`.
 pub fn validate_datetime_iso(text: &str, zone_given: bool) -> Result<(), String> {
-    let read = iso_datetime(text)?;
+    let read = iso::local(text)?;
     match &read.zone {
-        Some((_, zone)) => match place_local(read.civil, read.offset, zone) {
-            Err(Placed::Offset(why)) => Err(why),
+        Some((_, zone)) => match iso::place(read.civil, read.offset, zone) {
+            Err(iso::Placed::Offset(why)) => Err(why),
             _ => Ok(()),
         },
         None if zone_given => Ok(()),
@@ -5000,11 +4691,6 @@ fn out_of_range(member: &str, why: &str) -> Fault {
     Fault::thrown(format!("{member}(): {why}"))
 }
 
-/// Why a member throws for a time past either end of the timestamp range. It
-/// is the same sentence in every member that can leave the range, and it
-/// replaces jiff's own, which names a parameter the program never wrote.
-const PAST_THE_RANGE: &str = "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
-
 /// Why `Core\Time\DateTime::difference` throws for a count past `int`, in
 /// place of jiff's sentence for the same reason [`PAST_THE_RANGE`] gives.
 const TOO_MANY_TO_COUNT: &str = "the count does not fit in an `int`";
@@ -5096,78 +4782,6 @@ pub(crate) fn zone_offset_now(args: &[Value], at: usize, member: &str) -> Result
     Ok(zone.to_offset(Timestamp::now()).seconds())
 }
 
-/// The [`TimeZone`] an id names, or `None` for one nothing does.
-///
-/// The whole of the two-spellings rule [`ZONE`] describes: no IANA identifier
-/// begins with a sign, so the first byte decides which of the two an id is,
-/// and nothing has to store a discriminant beside it.
-fn resolve_zone(id: &str) -> Option<TimeZone> {
-    if id.starts_with('+') || id.starts_with('-') {
-        return parse_offset(id).map(TimeZone::fixed);
-    }
-    TimeZone::get(id).ok()
-}
-
-/// The name the zone database writes for the zone `text` names, or `None`
-/// for a name it does not have.
-///
-/// The lookup ignores ASCII case, so `europe/berlin` names a zone, and the
-/// zone keeps the database's `Europe/Berlin`. One zone then has one id, and
-/// a value that prints its zone prints the same name however the source
-/// wrote it.
-fn database_name(text: &str) -> Option<String> {
-    let zone = TimeZone::get(text).ok()?;
-    Some(zone.iana_name().unwrap_or(text).to_owned())
-}
-
-/// A `±HH:MM[:SS]` offset spelling, or `None` for anything else.
-///
-/// One sign, then digits alone: one or two for the hour, and exactly two for
-/// the minute and the second. A field is never read with `str::parse`, which
-/// takes a sign of its own, so `+-5:00` is refused and not read as `-05:00`.
-fn parse_offset(text: &str) -> Option<Offset> {
-    let sign = match text.as_bytes().first()? {
-        b'+' => 1,
-        b'-' => -1,
-        _ => return None,
-    };
-    let field = |part: Option<&str>, widths: std::ops::RangeInclusive<usize>| -> Option<i32> {
-        let part = part?;
-        if !widths.contains(&part.len()) || !part.bytes().all(|byte| byte.is_ascii_digit()) {
-            return None;
-        }
-        Some(
-            part.bytes()
-                .fold(0, |sum, digit| sum * 10 + i32::from(digit - b'0')),
-        )
-    };
-    let mut fields = text[1..].split(':');
-    let hours = field(fields.next(), 1..=2)?;
-    let minutes = field(fields.next(), 2..=2)?;
-    let seconds = match fields.next() {
-        Some(part) => field(Some(part), 2..=2)?,
-        None => 0,
-    };
-    if fields.next().is_some() || minutes >= 60 || seconds >= 60 {
-        return None;
-    }
-    Offset::from_seconds(sign * (hours * 3_600 + minutes * 60 + seconds)).ok()
-}
-
-/// The `±HH:MM[:SS]` spelling of a whole-second offset — [`parse_offset`]'s
-/// inverse, the id a fixed [`ZONE`] is stored under, and what `VV` renders
-/// for one.
-pub(crate) fn render_offset(seconds: i32) -> String {
-    let sign = if seconds < 0 { '-' } else { '+' };
-    let total = seconds.unsigned_abs();
-    let (hours, minutes, seconds) = (total / 3_600, (total % 3_600) / 60, total % 60);
-    if seconds == 0 {
-        format!("{sign}{hours:02}:{minutes:02}")
-    } else {
-        format!("{sign}{hours:02}:{minutes:02}:{seconds:02}")
-    }
-}
-
 // ============================================================================
 // A zone written as text
 // ============================================================================
@@ -5193,43 +4807,6 @@ pub fn zone_names() -> &'static [String] {
         names.dedup();
         names
     })
-}
-
-/// The id a zone written as text at a `Zone` parameter is stored under:
-/// the name itself for an IANA name, and `±HH:MM[:SS]` for an offset.
-/// `rule:core-classes/a-time-class-builds-its-own-values` § *A zone written as
-/// text*.
-///
-/// A name is accepted where [`nvs_core_time_zone_of`] accepts it, through the
-/// same `TimeZone::get`, which ignores case, and is stored as the database
-/// writes it, as `Zone::of` stores it ([`database_name`]). So checking a literal while compiling refuses only
-/// what the run time refuses (`rule:expressions/preparation-preserves-behaviour`).
-/// An offset is read by the same reader
-/// [`resolve_zone`] uses and written back as [`render_offset`] writes it, so
-/// `+2:00` and `+02:00` are one id.
-///
-/// # Errors
-///
-/// The sentence a diagnostic prints for text that names no zone.
-pub fn written_zone(text: &str) -> Result<String, String> {
-    if text.starts_with('+') || text.starts_with('-') {
-        return parse_offset(text)
-            .map(|offset| render_offset(offset.seconds()))
-            .ok_or_else(|| {
-                format!(
-                    "`{}` is not a zone offset. An offset is written `+HH:MM` and is at \
-                     most 25:59:59 from UTC",
-                    nvs_runtime::quoted(text)
-                )
-            });
-    }
-    if let Some(name) = database_name(text) {
-        return Ok(name);
-    }
-    Err(format!(
-        "`{}` is not a time zone name",
-        nvs_runtime::quoted(text)
-    ))
 }
 
 /// The id `Zone::fixed` stores for an offset of `nanos` nanoseconds, or
@@ -5496,34 +5073,34 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_time_datetime_parse`] splits its two classes by: this member's one
     /// argument is text, which arrives from somewhere else, so a text that
     /// does not spell a timestamp is the input's failure and not the call
-    /// site's. [`iso_instant`] owns the sentence.
+    /// site's. [`iso::instant`] owns the sentence.
     fn nvs_core_time_instant_from_iso(_ctx, args: [1]) {
         let label = r"Core\Time\Instant::fromIso";
         let text = text_of(args, 0, label)?;
-        iso_instant(text)
+        iso::instant(text)
             .map(instant_built)
             .map_err(|why| iso_refused(label, &why))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Date::fromIso(string $text): Date` — [`iso_date`]'s `YYYY-MM-DD`.
+    /// `Date::fromIso(string $text): Date` — [`iso::date`]'s `YYYY-MM-DD`.
     fn nvs_core_time_date_from_iso(_ctx, args: [1]) {
         let label = r"Core\Time\Date::fromIso";
         let text = text_of(args, 0, label)?;
-        iso_date(text)
+        iso::date(text)
             .map(date_built)
             .map_err(|why| iso_refused(label, &why))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `TimeOfDay::fromIso(string $text): TimeOfDay` — [`iso_time`]'s
+    /// `TimeOfDay::fromIso(string $text): TimeOfDay` — [`iso::time_of_day`]'s
     /// `HH:MM[:SS[.f]]`.
     fn nvs_core_time_of_day_from_iso(_ctx, args: [1]) {
         let label = r"Core\Time\TimeOfDay::fromIso";
         let text = text_of(args, 0, label)?;
-        iso_time(text)
+        iso::time_of_day(text)
             .map(clock_built)
             .map_err(|why| iso_refused(label, &why))
     }
@@ -5531,7 +5108,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `DateTime::fromIso(string $text, ?Zone $zone = null): DateTime` —
-    /// [`iso_datetime`]'s local time, placed by [`place_local`] in the zone the
+    /// [`iso::local`]'s local time, placed by [`iso::place`] in the zone the
     /// text names or else in `$zone`. Without an offset it is placed as
     /// [`nvs_core_time_datetime_at`] places one: a skipped local time moves
     /// forward past the gap, and a date alone is the first instant of that day.
@@ -5543,7 +5120,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_datetime_from_iso(_ctx, args: [2]) {
         let label = r"Core\Time\DateTime::fromIso";
         let text = text_of(args, 0, label)?;
-        let read = iso_datetime(text).map_err(|why| iso_refused(label, &why))?;
+        let read = iso::local(text).map_err(|why| iso_refused(label, &why))?;
         let given = if args[1].tag() == Some(nvs_runtime::Tag::Null) {
             None
         } else {
@@ -5567,11 +5144,11 @@ nvs_runtime::nvs_helper! {
             (None, Some(given)) => given,
             (None, None) => return Err(iso_refused(label, NO_ZONE)),
         };
-        place_local(read.civil, read.offset, &zone)
+        iso::place(read.civil, read.offset, &zone)
             .map(|at| datetime_built(&at))
             .map_err(|why| match why {
-                Placed::Offset(why) => iso_refused(label, &why),
-                Placed::Range => iso_refused(label, PAST_THE_RANGE),
+                iso::Placed::Offset(why) => iso_refused(label, &why),
+                iso::Placed::Range => iso_refused(label, PAST_THE_RANGE),
             })
     }
 }
@@ -5690,44 +5267,13 @@ nvs_runtime::nvs_helper! {
 // `toIso` of `Date`, `TimeOfDay` and `DateTime`: the text each `fromIso` reads
 // ============================================================================
 
-/// `date` as `YYYY-MM-DD`, with the year in `fromIso`'s one form: four digits,
-/// and a `-` before them for a year before year 1.
-fn date_iso_text(date: civil::Date) -> String {
-    let year = i32::from(date.year());
-    let sign = if year < 0 { "-" } else { "" };
-    format!(
-        "{sign}{:04}-{:02}-{:02}",
-        year.unsigned_abs(),
-        date.month(),
-        date.day()
-    )
-}
-
-/// `time` as `HH:MM:SS`, always with seconds, and a fraction with as few digits
-/// as keep it exact when it is not zero.
-fn clock_iso_text(time: civil::Time) -> String {
-    let mut text = format!(
-        "{:02}:{:02}:{:02}",
-        time.hour(),
-        time.minute(),
-        time.second()
-    );
-    let nanos = time.subsec_nanosecond();
-    if nanos != 0 {
-        let fraction = format!("{nanos:09}");
-        text.push('.');
-        text.push_str(fraction.trim_end_matches('0'));
-    }
-    text
-}
-
 /// `at` as RFC 9557 text: the local date and time, the offset and the zone,
 /// `2026-01-05T08:30:00+01:00[Europe/Vienna]`. The offset names one moment in a
 /// repeated hour, and the zone is the one [`nvs_core_time_datetime_zone`]
 /// returns. An offset with seconds, which only a zone's local mean time before
 /// about 1900 has, is written `+HH:MM:SS` by [`render_offset`], so the text
 /// names the moment exactly.
-fn zoned_iso_text(at: &Zoned) -> String {
+pub(crate) fn zoned_iso_text(at: &Zoned) -> String {
     let local = at.datetime();
     let offset = render_offset(at.offset().seconds());
     let zone = match at.time_zone().iana_name() {
@@ -5736,25 +5282,25 @@ fn zoned_iso_text(at: &Zoned) -> String {
     };
     format!(
         "{}T{}{offset}[{zone}]",
-        date_iso_text(local.date()),
-        clock_iso_text(local.time())
+        iso::date_text(local.date()),
+        iso::clock_text(local.time())
     )
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->toIso(): string` — [`date_iso_text`], the text `Date::fromIso` reads.
+    /// `$d->toIso(): string` — [`iso::date_text`], the text `Date::fromIso` reads.
     fn nvs_core_time_date_to_iso(_ctx, args: [1]) {
         let date = date_of(args, 0, "toIso")?;
-        Ok(Value::text(&date_iso_text(date)))
+        Ok(Value::text(&iso::date_text(date)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$t->toIso(): string` — [`clock_iso_text`], the text `TimeOfDay::fromIso`
+    /// `$t->toIso(): string` — [`iso::clock_text`], the text `TimeOfDay::fromIso`
     /// reads.
     fn nvs_core_time_of_day_to_iso(_ctx, args: [1]) {
         let time = clock_of(args, 0, "toIso")?;
-        Ok(Value::text(&clock_iso_text(time)))
+        Ok(Value::text(&iso::clock_text(time)))
     }
 }
 
@@ -5864,7 +5410,7 @@ nvs_runtime::nvs_helper! {
 /// from the caller so that every path stores the same spelling: an IANA name
 /// where there is one, and [`render_offset`]'s `±HH:MM[:SS]` where there is
 /// not, which is exactly [`ZONE`]'s rule.
-fn datetime_built(at: &Zoned) -> Value {
+pub(crate) fn datetime_built(at: &Zoned) -> Value {
     let id = match at.time_zone().iana_name() {
         Some(name) => name.to_owned(),
         None => render_offset(at.offset().seconds()),
@@ -6656,7 +6202,7 @@ nvs_runtime::nvs_helper! {
 // ============================================================================
 
 /// A fresh `Date` at `at`.
-fn date_built(at: civil::Date) -> Value {
+pub(crate) fn date_built(at: civil::Date) -> Value {
     crate::instance::build(
         &DATE,
         [
@@ -6697,16 +6243,6 @@ fn date_of(args: &[Value], at: usize, member: &str) -> Result<civil::Date, Fault
                 "Core\\Time\\Date::{member} found `{year}-{month}-{day}`, which is not a date"
             ))
         })
-}
-
-/// The three civil fields narrowed to the widths [`civil::Date::new`] takes,
-/// or `None` for a number no calendar field can hold.
-fn parts(year: i64, month: i64, day: i64) -> Option<(i16, i8, i8)> {
-    Some((
-        i16::try_from(year).ok()?,
-        i8::try_from(month).ok()?,
-        i8::try_from(day).ok()?,
-    ))
 }
 
 /// The date `year-month-day`, or the throw `rule:core-api/shape-rules` R4 owes for a triple that
@@ -7188,7 +6724,7 @@ nvs_runtime::nvs_helper! {
 // ============================================================================
 
 /// A fresh `TimeOfDay` at `at`.
-fn clock_built(at: civil::Time) -> Value {
+pub(crate) fn clock_built(at: civil::Time) -> Value {
     crate::instance::build(
         &TIME_OF_DAY,
         [
@@ -7226,16 +6762,6 @@ fn clock_of(args: &[Value], at: usize, member: &str) -> Result<civil::Time, Faul
                  is not a time"
         ))
     })
-}
-
-/// The four fields as a [`civil::Time`], or `None` for a combination that is
-/// not one — including a number no clock field can hold.
-fn clock_from_parts(hour: i64, minute: i64, second: i64, nanos: i64) -> Option<civil::Time> {
-    let hour = i8::try_from(hour).ok()?;
-    let minute = i8::try_from(minute).ok()?;
-    let second = i8::try_from(second).ok()?;
-    let nanos = i32::try_from(nanos).ok()?;
-    civil::Time::new(hour, minute, second, nanos).ok()
 }
 
 /// `count` steps of the unit in argument slot 2, added to the receiver —
@@ -7449,6 +6975,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nvs_runtime::iso::parse_offset;
 
     /// Calls a `toIso` member on `value`, which this frame built, and returns
     /// the text. It releases both.
@@ -7486,7 +7013,7 @@ mod tests {
                 to_iso_called(nvs_core_time_date_to_iso, date_built(date)),
                 written
             );
-            assert_eq!(iso_date(written), Ok(date), "{written}");
+            assert_eq!(iso::date(written), Ok(date), "{written}");
         }
     }
 
@@ -7508,7 +7035,7 @@ mod tests {
                 to_iso_called(nvs_core_time_of_day_to_iso, clock_built(time)),
                 written
             );
-            assert_eq!(iso_time(written), Ok(time), "{written}");
+            assert_eq!(iso::time_of_day(written), Ok(time), "{written}");
         }
     }
 
@@ -8777,6 +8304,59 @@ mod tests {
         }
         let why = datetime_from_iso("2024-03-01T09:30Z", "UTC").expect_err("an offset");
         assert!(why.contains(r"Core\Time\Instant::fromIso"), "{why}");
+    }
+
+    /// A route capture of a time class converts exactly the texts its
+    /// `fromIso` reads, over one table of texts. A `DateTime` from a route
+    /// has no `$zone`, so it reads what `fromIso` reads without one.
+    #[test]
+    fn time_capture_agrees_with_from_iso_over_one_table() {
+        use nvs_runtime::routes::CaptureConv;
+        let texts = [
+            "2026-01-05",
+            "-0044-03-15",
+            "-0000-01-01",
+            "2024-02-29",
+            "2026-02-29",
+            "2026-1-5",
+            "08:30",
+            "08:30:15",
+            "08:30:15.123456789",
+            "08:30:15.1234567891",
+            "24:00",
+            "23:59:60",
+            "2026-01-05T08:30:00Z",
+            "2026-01-05 08:30:00+01:00",
+            "2026-01-05T08:30:00+0100",
+            "2026-01-05t08:30:00Z",
+            "2026-01-05T08:30:00",
+            "2026-01-05T08:30:00[Europe/Vienna]",
+            "2026-01-05T08:30:00+01:00[Europe/Vienna]",
+            "2026-01-05T08:30:00+02:00[Europe/Vienna]",
+            "2026-01-05[europe/vienna]",
+            "2026-01-05T08:30:00[+05:30]",
+            "2026-01-05T08:30:00[Mars/Olympus]",
+            "2026-01-05T08:30:00+01:00",
+            "",
+        ];
+        for text in texts {
+            for (conv, form) in [
+                (CaptureConv::Date, IsoForm::Date),
+                (CaptureConv::TimeOfDay, IsoForm::TimeOfDay),
+                (CaptureConv::Instant, IsoForm::Instant),
+            ] {
+                assert_eq!(
+                    conv.convert(text).is_some(),
+                    validate_iso(form, text).is_ok(),
+                    "{conv:?} and fromIso disagree on `{text}`"
+                );
+            }
+            assert_eq!(
+                CaptureConv::DateTime.convert(text).is_some(),
+                validate_datetime_iso(text, false).is_ok(),
+                "DateTime and fromIso disagree on `{text}`"
+            );
+        }
     }
 
     /// Each class reads its one form and nothing else, and every refusal says

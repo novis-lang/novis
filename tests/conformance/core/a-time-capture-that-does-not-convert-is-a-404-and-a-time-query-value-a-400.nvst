@@ -1,0 +1,101 @@
+--TEST--
+A path capture declared `Core\Time\Date`, `TimeOfDay` or `Instant` converts from its ISO text, and a segment that is not one is not a match, a `404`; a `#[Core\Query]` value of any of the four time classes, `DateTime` included, converts the same way, and a value that is not one is a `400` — `rule:security/route-capture-is-laundered-by-its-type`
+--FILE--
+<?nvs
+// covers: Core\Router::dispatch
+class Calendar {
+    #[Core\Route(path: "/days/{day}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function day(Core\Time\Date $day): void {
+        echo "day ", $day->toIso(), "\n";
+    }
+
+    #[Core\Route(path: "/opens/{at}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function opens(Core\Time\TimeOfDay $at): void {
+        echo "opens ", $at->toIso(), "\n";
+    }
+
+    #[Core\Route(path: "/since/{at}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function since(Core\Time\Instant $at): void {
+        echo "since ", $at->toIso(), "\n";
+    }
+
+    // `starts` must be a time with its zone. `day` may be absent.
+    #[Core\Route(path: "/meetings", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function meetings(
+        #[Core\Query] Core\Time\DateTime $starts,
+        #[Core\Query] ?Core\Time\Date $day = null,
+    ): void {
+        echo "starts ", $starts->toIso(), " day ", $day?->toIso() ?? "none", "\n";
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused ", match ($reason) {
+            Core\Router\Refusal::BadCapture => "BadCapture",
+            Core\Router\Refusal::NotFound => "NotFound",
+            default => "other",
+        }, "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $targets = [
+        "/days/2026-01-05",
+        "/days/2026-02-30",
+        "/days/today",
+        "/opens/08:30",
+        "/opens/8:30",
+        "/opens/08%3A30",
+        "/since/2026-01-05T07:30:00Z",
+        "/since/2026-01-05T07:30:00",
+        "/meetings?starts=2026-01-05T08:30:00%2B01:00[Europe/Vienna]&day=2026-01-05",
+        "/meetings?starts=2026-01-05T08:30:00[Europe/Vienna]",
+        "/meetings?starts=2026-01-05T08:30:00",
+        "/meetings?starts=2026-01-05T08:30:00[Europe/Vienna]&day=tomorrow",
+    ];
+    foreach ($targets as string $target) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, $target);
+        echo $target, " -> ", $answer->status(), "\n", $answer->body();
+    }
+}
+--EXPECT--
+/days/2026-01-05 -> 200
+day 2026-01-05
+/days/2026-02-30 -> 404
+refused NotFound
+/days/today -> 404
+refused NotFound
+/opens/08:30 -> 200
+opens 08:30:00
+/opens/8:30 -> 404
+refused NotFound
+/opens/08%3A30 -> 404
+refused NotFound
+/since/2026-01-05T07:30:00Z -> 200
+since 2026-01-05T07:30:00Z
+/since/2026-01-05T07:30:00 -> 404
+refused NotFound
+/meetings?starts=2026-01-05T08:30:00%2B01:00[Europe/Vienna]&day=2026-01-05 -> 200
+starts 2026-01-05T08:30:00+01:00[Europe/Vienna] day 2026-01-05
+/meetings?starts=2026-01-05T08:30:00[Europe/Vienna] -> 200
+starts 2026-01-05T08:30:00+01:00[Europe/Vienna] day none
+/meetings?starts=2026-01-05T08:30:00 -> 400
+refused BadCapture
+/meetings?starts=2026-01-05T08:30:00[Europe/Vienna]&day=tomorrow -> 400
+refused BadCapture

@@ -1,0 +1,27 @@
+--TEST--
+A route path capture declared `Core\Time\DateTime` is `E0752`, because its zone name holds a `/` a path cannot carry; its help names `#[Core\Query]` and `Instant`, and a `#[Core\Query]` value may be one — `rule:security/route-capture-is-laundered-by-its-type`
+--FILE--
+<?nvs
+class Calendar {
+    #[Core\Route(path: "/meetings/{starts}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Core\Time\DateTime $starts): string {
+        return $starts->toIso();
+    }
+
+    #[Core\Route(path: "/meetings", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(#[Core\Query] Core\Time\DateTime $starts): string {
+        return $starts->toIso();
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0752]: `Core\Time\DateTime` is not a type `{starts}` can arrive at
+  --> case.nvs:3:18
+%A
+  = help: a `DateTime` text has its zone name, such as `Europe/Vienna`, and a path cannot carry the `/` in it. Declare the parameter `#[Core\Query]`, or declare it `Core\Time\Instant`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
