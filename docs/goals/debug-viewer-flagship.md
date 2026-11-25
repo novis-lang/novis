@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "the debug viewer wears the website's design, answers per-route and per-statement questions, and opens in the editor in one click"
-summary: "Reached when the viewer has the website's palette, fonts and both themes on one set of shared components, a frame with a rail, a command palette and a live state, a request list with filters, summary tiles, a time split per row and a repeated-query badge, a request page with tabs for its timeline of all eight event kinds, its request, its response, its queries, dumps, logs and coverage, a Routes and a Queries view, a visible state for lost records, nvs debug link prints the link, the page is served under a token path that only the editor may frame, the VS Code extension opens the viewer in a panel or the browser from one button, a file:line in the panel opens in the editor, lenses show what a route, a dump and a throw site recorded, and the rules, the feature proofs, the screenshots and the website say so."
+summary: "Reached when the viewer has the website's palette and both themes in the system's own fonts on one set of shared components, a frame with a rail, a command palette and a live state, a request list with filters, summary tiles, a time split per row and a repeated-query badge, a request page with tabs for its timeline of all eight event kinds, its request, its response, its queries, dumps, logs and coverage, a Routes and a Queries view, a visible state for lost records, nvs debug link prints the link, the page is served under a token path that only the editor may frame, the VS Code extension opens the viewer in a panel or the browser from one button, a file:line in the panel opens in the editor, lenses show what a route, a dump and a throw site recorded, and the rules, the feature proofs, the screenshots and the website say so."
 context: [viewer/design/reference.html, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md, viewer/src/app.tsx, viewer/src/api.ts, crates/nvs-cli/src/debug/listen.rs]
 stages:
   - id: 1
@@ -9,7 +9,7 @@ stages:
     status: open
     context: [docs/agent/doc-style.md, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md, docs/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.md, docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md, website/src/styles/custom.css]
   - id: 2
-    title: the viewer has the website's palette and fonts, a frame with a rail and a command palette, and one set of shared components
+    title: the viewer has the website's palette in the system's fonts, a frame with a rail and a command palette, and one set of shared components
     status: open
     context: [viewer/src/style.css, viewer/src/keys.ts, viewer/src/theme.ts, viewer/build.ts, tools/nv/cmd/viewer.ts, website/src/styles/custom.css]
   - id: 3
@@ -55,7 +55,7 @@ stages:
 checks:
   - id: viewer-built
     stage: 2
-    name: "the viewer's types hold, its committed bundle and fonts are what a build gives, and its unit tests pass"
+    name: "the viewer's types hold, its committed bundle is what a build gives, and its unit tests pass"
     run: [bun, nv, viewer, --verify]
     timeout: 900
   - id: api
@@ -96,8 +96,8 @@ checks:
 
 The viewer is the window a developer watches a Novis program through, and
 `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` holds it to the standard of a
-tool kept open all day. Its function meets that standard. Its look does not: a system font, GitHub's
-blue on white, underlined text links for navigation, a `<select>` for the theme, and one table per
+tool kept open all day. Its function meets that standard. Its look does not: GitHub's
+blue on white, one weight and one size for nearly all text, underlined text links for navigation, a `<select>` for the theme, and one table per
 view (`website/snippets/tools/debug-viewer/requests.png`). It shares nothing with the website's
 palette, so the product's two faces do not look like one product.
 
@@ -130,7 +130,8 @@ the service (`crates/nvs-cli/src/debug.rs:118`).
 **The user's calls.** The viewer becomes a flagship feature with a well-designed UI and features. Its
 design is the website's: colours and theming. The extension gets a button that opens the viewer with
 one click, inside VS Code or in a real browser. The goal also looks for what the editor, the UI and
-Novis can do better here. Every other decision below is the session's that wrote this goal.
+Novis can do better here. The viewer embeds no font and draws with the system's own, chosen to look
+good. Every other decision below is the session's that wrote this goal.
 
 **`viewer/design/reference.html` is the drawing every stage builds toward.** It shows the request
 list, one request and the editor at the size and density meant. It is not markup to copy: it uses
@@ -156,16 +157,25 @@ surface it is drawn on, which `the-viewer-shows-the-stream…` already demands. 
 gains a test that the seven palette values in the two files are equal, so a re-tint of the website
 reaches the viewer.
 
-**The two website fonts ship in the binary.** Plus Jakarta Sans and JetBrains Mono, variable weight,
-the `latin` and `latin-ext` subsets as `.woff2`, taken at build time from the `@fontsource-variable`
-packages the website already depends on, added to `viewer/package.json` as `devDependencies`. They
-are committed under `viewer/dist/fonts/`, checked byte for byte by `bun nv viewer --check`, embedded
-with `include_bytes!` and served at `/fonts/<name>.woff2`. The policy already has `font-src 'self'`.
-Both are under the SIL Open Font License, and the generated notice reproduces it
-(`tools/nv/cmd/gen-attribution.ts`). Spends: read-only bytes in every binary, which a server never
-pages in. The stage measures them and writes the figure into the rule. Stop: if the four files pass
-400 KiB together, `latin-ext` is left out and the rule says so. A font is not a runtime dependency,
-and `solid-js` stays the only one.
+**The viewer draws with the system's fonts and ships none.** This is the user's call. No font file
+is embedded, served or fetched, the stylesheet has no `@font-face`, and the service gains no font
+route. `tokens.css` declares two stacks once, and no other rule names a face:
+
+- `--sans: 'Segoe UI Variable Text', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+  sans-serif` for all text. The first name gives Windows 11 its variable face where it is installed.
+- `--mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono',
+  'Liberation Mono', monospace` for code, paths, statements and ids.
+
+What makes a system face look made for the page is set in `base.css`: a scale of five sizes (11, 12,
+13, 15 and 20 px), text at weight 400 and 600 with 700 for the brand alone, code at 400 and 700,
+`font-variant-numeric: tabular-nums` on every figure, `font-variant-ligatures: none` on code so
+`!=` stays two characters, a letter spacing of `-0.01em` from 15 px up, and
+`font-optical-sizing: auto`. No weight between these is used, because Consolas and Menlo have none.
+Buys: nothing added to the binary, no licence notice, no build step for fonts, and text drawn on the
+first frame. Costs: the viewer looks a little different on each system, its letters are not the
+website's, and on Linux it is as good as the fonts installed there. The palette, the gradient and
+the components carry the likeness to the website. Declined: a font file in the binary, a font from
+a network, and a face the stack names that a system has to install.
 
 **The frame.** A left rail of icon and label (Requests, Routes, Queries, Errors, Logs, Stream, and
 Settings at its foot), a top bar with the logo, the search box, the live state and the theme button,
@@ -234,7 +244,7 @@ where the record has it, as a test made from the request does.
 
 **The page is embedded under a token path, and only the editor may frame it.** A framed page is
 cross-site to its frame, so the browser neither stores nor sends the `SameSite=Strict` cookie there.
-The service therefore also serves the page, the bundle, the fonts and the API under
+The service therefore also serves the page, the bundle and the API under
 `/embed/<token>/`, compared in constant time, with no cookie set or read. A response under that
 prefix carries `frame-ancestors vscode-webview:`; every other response keeps `frame-ancestors
 'none'`. The page reads its base path from `location.pathname`, and the router, the fetches and the
@@ -301,9 +311,9 @@ router. Stage 9 needs stage 8's link, and stage 10 needs stage 9's command. The 
 compiler or runtime crate, so it runs as a side goal beside the chain.
 
 **What stops the goal.** One attempt per item and two sessions per stage. A stage that cannot end in
-two sessions records what is left in the handoff and the next stage starts. The counts that decide:
-the fonts' bytes (above), and the bundle. If `viewer/dist/viewer.js` passes twice its size at the
-goal's first commit, the stage that crossed it says in the rule what the bytes buy.
+two sessions records what is left in the handoff and the next stage starts. The count that decides
+is the bundle. If `viewer/dist/viewer.js` passes twice its size at the goal's first commit, the
+stage that crossed it says in the rule what the bytes buy.
 
 ## Stages
 
@@ -311,12 +321,13 @@ goal's first commit, the stage that crossed it says in the rule what the bytes b
 
 - [ ] `docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md:28`: *The
   baseline every view has* gains the frame, the one key map and the command palette. The paragraph
-  on the front end gains `viewer/src/ui/`, the split stylesheet and the fonts under
-  `viewer/dist/fonts/`. The Memory line gains the fonts' bytes once stage 2 measured them.
+  on the front end gains `viewer/src/ui/` and the split stylesheet, and says that the viewer ships
+  no font.
 - [ ] `docs/rules/testing/the-viewer-wears-the-websites-palette.md:1`: the palette block copied
   once and checked equal, the role names, one meaning per colour, the tone of each event kind, where
-  the gradient and crimson may appear, the fonts and their licence, motion. Declined: Starlight's
-  variable names, an icon package, a third font, a colour picked per view.
+  the gradient and crimson may appear, the two system font stacks and the type scale, motion.
+  Declined: Starlight's variable names, an icon package, an embedded or fetched font, a colour
+  picked per view.
 - [ ] `docs/rules/testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it.md:1`: the tabs,
   the tab in the link, bodies as text, JSON as a tree, the repeated-statement mark, *Copy as curl*.
   Declined: an HTML body in a frame, an image body drawn.
@@ -338,7 +349,7 @@ goal's first commit, the stage that crossed it says in the rule what the bytes b
   panel and why it is a frame.
 - [ ] `bun nv rules --render`, then `bun nv rules --check` is green.
 
-### 2. the viewer has the website's palette and fonts, a frame with a rail and a command palette, and one set of shared components
+### 2. the viewer has the website's palette in the system's fonts, a frame with a rail and a command palette, and one set of shared components
 
 **Split:** none. The session writes the tokens, the frame and `viewer/src/ui/` itself, because every
 later stage builds on their names.
@@ -346,14 +357,11 @@ later stage builds on their names.
 - [ ] `viewer/src/styles/tokens.css:1`: the palette block, the roles in both themes, the P3 copy,
   the scales for space, radius and motion from `website/src/styles/custom.css:74`. `base.css` and
   `ui.css` beside it. `viewer/src/style.css` is deleted once every rule in it has moved or gone.
-- [ ] `viewer/package.json:8` and `viewer/build.ts:60`: the two `@fontsource-variable` packages as
-  `devDependencies`, and the build copies the four `.woff2` files into the bundle's output.
-  `tools/nv/cmd/viewer.ts` writes and checks `viewer/dist/fonts/`, and tests that the seven palette
-  values equal the website's.
-- [ ] `crates/nvs-cli/src/debug/listen.rs:324`: `/fonts/<name>.woff2` serves each embedded font with
-  `font/woff2`, and a Rust test in `crates/nvs-cli/tests/debug_viewer.rs` reads one.
-  `tools/nv/cmd/gen-attribution.ts` carries the Open Font License of both, and the notice is
-  generated again.
+- [ ] `viewer/src/styles/tokens.css:1` and `base.css:1`: the two font stacks and the type scale of
+  the standing decision, with tabular figures and no ligatures in code. No rule outside
+  `tokens.css` names a face.
+- [ ] `tools/nv/cmd/viewer.ts`: `--check` tests that the seven palette values equal the website's,
+  and that the built stylesheet has no `@font-face`.
 - [ ] `viewer/src/ui/`: `Icon`, `Chip`, `Method`, `Status`, `Tabs`, `Dialog`, `Toast`, `Empty`,
   `Tile`, `Spark`, `Meter`, `Site`, each with its styles in `ui.css`.
 - [ ] `viewer/src/keys.ts:1`: the key map views register with, and the `?` dialog prints it.
@@ -362,7 +370,6 @@ later stage builds on their names.
   state comes in stage 7, and it shows *Live* until then) and the theme button.
 - [ ] `viewer/src/ui/palette.tsx:1`: the command palette on `Ctrl+K`, a dialog with a listbox, fed
   by the views, the saved filters and the actions a view registers.
-- [ ] The fonts' bytes are measured and written into the rule of stage 1.
 - [ ] `NV_BROWSER=1 bun test viewer/test/frame.browser.test.ts` is green, with one new case: the
   rail's current item has `aria-current="page"`. The check `viewer-built` is green.
 
@@ -466,7 +473,7 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 - [ ] `crates/nvs-cli/src/debug.rs:140`: the `link` subcommand with `--json`, its help, and its
   reference card.
 - [ ] `crates/nvs-cli/src/debug/listen.rs:271`: the `/embed/<token>/` prefix: the constant-time
-  compare before any route, no cookie, the page, the bundle, the fonts and every `/api/` route
+  compare before any route, no cookie, the page, the bundle and every `/api/` route
   under it, and `frame-ancestors vscode-webview:` on its responses alone (`:84`).
 - [ ] `viewer/src/router.ts:9` and `viewer/src/api.ts`: the base path in front of every path, fetch
   and the event stream.
