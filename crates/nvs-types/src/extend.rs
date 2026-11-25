@@ -350,6 +350,20 @@ fn check_member(member: &ClassMember, kind: SymbolKind, env: &mut Env<'_>) {
             "write a `static` method that creates and returns the object",
             env,
         ),
+        // A generator keeps its receiver in a state object. An added static
+        // method takes `0` there, and an enum case is an integer.
+        ClassMemberKind::Method(m)
+            if (kind == SymbolKind::Enum || m.modifiers.contains(&Modifier::Static))
+                && m.body.as_ref().is_some_and(nvs_syntax::ast::is_generator_body) =>
+        {
+            refuse(
+                m.name,
+                "a method that uses `yield` here",
+                "return an array from the method. An added static method, and an added method \
+                 of an enum, cannot use `yield`",
+                env,
+            );
+        }
         ClassMemberKind::Property(p) => check_property(member.span, p, env),
         _ => {}
     }

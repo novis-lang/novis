@@ -1,0 +1,59 @@
+--TEST--
+an `extend` block names its type with `self::`: `static::` and `parent::` in its body are `E0338`, and so is `yield` in an added static method or in a block on an enum — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+use Core\Time\Date;
+use Core\Audience;
+
+extend Date as Days {
+    public static function first(): Date {
+        return static::at(2026, 1, 1);
+    }
+
+    public function before(): Date {
+        return parent::at(2026, 1, 1);
+    }
+
+    public static function months(): Iterator<int> {
+        yield 1;
+    }
+}
+
+extend Audience as Audiences {
+    public function names(): Iterator<string> {
+        yield "one";
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: an `extend` block cannot use `static::`
+  --> %s:7:16
+  |
+7 |         return static::at(2026, 1, 1);
+  |                ^^^^^^ not allowed in an `extend` block
+  = help: write `self::`. In an `extend` block, `self` is the extended type, and an added member is never inherited
+
+error[E0338]: an `extend` block cannot use `parent::`
+   --> %s:11:16
+   |
+11 |         return parent::at(2026, 1, 1);
+   |                ^^^^^^ not allowed in an `extend` block
+%A
+error[E0338]: an `extend` block cannot add a method that uses `yield` here
+   --> %s:14:28
+   |
+14 |     public static function months(): Iterator<int> {
+   |                            ^^^^^^ not allowed in an `extend` block
+   = help: return an array from the method. An added static method, and an added method of an enum, cannot use `yield`
+
+error[E0338]: an `extend` block cannot add a method that uses `yield` here
+   --> %s:20:21
+   |
+20 |     public function names(): Iterator<string> {
+   |                     ^^^^^ not allowed in an `extend` block
+%A
+error: aborting due to 4 errors
+%A

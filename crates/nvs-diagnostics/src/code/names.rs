@@ -329,7 +329,9 @@ codes! {
     );
     /// A member an `extend` block cannot add: a constructor, a `protected`,
     /// `abstract` or `final` member, a `static` property, a new enum case,
-    /// `readonly` on an added property, or a stored property with no default
+    /// `readonly` on an added property, a stored property with no default,
+    /// `static::` or `parent::` in the block's body, or `yield` in an added
+    /// static method or in a block on an enum
     /// (`rule:classes/an-extend-block-adds-members-to-a-type`). The help names
     /// what to write instead.
     pub const E_EXTEND_MEMBER_NOT_ADDABLE: Code = Code::new("E0338").card(

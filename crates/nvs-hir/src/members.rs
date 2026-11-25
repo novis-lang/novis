@@ -467,6 +467,7 @@ impl<'a> MemberResolver<'a> {
             refused_toplevel: refused_toplevel_names(stmts, src),
             fn_self: None,
             strict_docs,
+            in_block: false,
             links: &self.links,
             uses,
             targets,
@@ -519,6 +520,10 @@ struct Env<'a> {
     /// above it. False everywhere but `nvs check --strict-docs`, which is what
     /// makes the language silent about documentation by default.
     strict_docs: bool,
+    /// Whether the walk is inside an `extend` block's body, where `static::`
+    /// and `parent::` are refused: the block's `self` is the extended type,
+    /// and an added static method has no called class to bind.
+    in_block: bool,
     /// What the file found and failed to find (`crate::uses`).
     uses: &'a mut crate::uses::Uses,
     /// What each doc tag that names something resolved to
@@ -664,7 +669,9 @@ fn check_stmts(
                     &ctx,
                     env,
                 );
+                let outer = std::mem::replace(&mut env.in_block, true);
                 check_members(&decl.members, src, &ctx, env);
+                env.in_block = outer;
             }
             StmtKind::TypeAliasDecl(decl) => {
                 let ctx = Ctx {
@@ -2422,6 +2429,25 @@ fn check_member_ref(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    if env.in_block && matches!(class_expr.kind, ExprKind::StaticExpr | ExprKind::ParentExpr) {
+        let written = if matches!(class_expr.kind, ExprKind::StaticExpr) {
+            "static"
+        } else {
+            "parent"
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_EXTEND_MEMBER_NOT_ADDABLE,
+                format!("an `extend` block cannot use `{written}::`"),
+            )
+            .with_primary(class_expr.span, "not allowed in an `extend` block")
+            .with_help(
+                "write `self::`. In an `extend` block, `self` is the extended type, and an added \
+                 member is never inherited",
+            ),
+        );
+        return;
+    }
     let qname = match &class_expr.kind {
         ExprKind::SelfExpr | ExprKind::StaticExpr => ctx.current_class.cloned(),
         ExprKind::ParentExpr => {
