@@ -8,5 +8,9 @@ because the visitor chose it.
 An optional capture that the path does not have is not in the array. A route with no captures
 returns an empty array.
 
-The examples show every capture of a path, routes with no captures, and a log line that lists
-what a request asked for.
+Inside `Core\Router::dispatch`, the array also has each `#[Core\Query]` value, under its parameter's
+name. A query value with a default value is always in the array. A missing `?T $x = null` value is
+not. The match from `Core\Request::route()` has only the path captures.
+
+The examples show every capture of a path, routes with no captures, a log line that lists what a
+request asked for, and the captures and query values that a gate sees.

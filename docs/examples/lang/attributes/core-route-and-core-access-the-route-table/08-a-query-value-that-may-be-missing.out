@@ -1,0 +1,5 @@
+200 every page, every tag
+200 page 2, tag news
+400 The address is not valid.
+400 The address is not valid.
+/posts?tag=news

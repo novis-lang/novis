@@ -1,0 +1,106 @@
+<?nvs
+// Attack: a request writes a yes-or-no value and an optional number in ways other languages accept.
+// Every request below should get the status `400`, and the route method should never run.
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+
+class Pages
+{
+    #[Core\Route(path: '/feed', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function feed(#[Core\Query] bool $full = false): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: '/pages', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(#[Core\Query] ?uint $page = null): void
+    {
+        echo 'the method ran';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Attack
+{
+    // This returns 1 when the request got `400` and the method did not run.
+    public static function held(string $target): uint
+    {
+        var $answer = Core\Test::request(Method::Get, $target);
+        if ($answer->status() == 400 && $answer->body() == 'refused') {
+            return 1;
+        }
+        echo 'not refused: ', $target, ', status ', $answer->status(), "\n";
+        return 0;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // 1. Good values. The method runs, so the `400` results below come from the bad values.
+    var $good = Core\Test::request(Method::Get, '/feed?full=1');
+    echo $good->status(), ' ', $good->body(), "\n";
+    var $missing = Core\Test::request(Method::Get, '/pages');
+    echo $missing->status(), ' ', $missing->body(), "\n";
+
+    array<string> $targets = [
+        // 2. Words and other text for `true` and `false`.
+        '/feed?full=true',
+        '/feed?full=false',
+        '/feed?full=on',
+        '/feed?full=yes',
+        '/feed?full=TRUE',
+        // 3. An empty value, and a key with no `=` at all.
+        '/feed?full=',
+        '/feed?full',
+        // 4. Numbers that are close to `1` and `0`.
+        '/feed?full=01',
+        '/feed?full=00',
+        '/feed?full=2',
+        '/feed?full=-1',
+        '/feed?full=%31%31',
+        '/feed?full=1%00',
+        // 5. The same key twice, with two good values.
+        '/feed?full=1&full=0',
+        // 6. A key with brackets for the optional number, which some languages read as an array.
+        '/pages?page[]=1',
+        '/pages?page[0]=1',
+        // 7. An empty value and a key with no `=` for the optional number.
+        '/pages?page=',
+        '/pages?page',
+    ];
+
+    // 8. Every request again, many times, to check that each round gives the same result.
+    uint $held = 0;
+    uint $sent = 0;
+    uint $round = 0;
+    while ($round < 300) {
+        foreach ($targets as string $target) {
+            $held = $held + Attack::held($target);
+            $sent = $sent + 1;
+        }
+        $round = $round + 1;
+    }
+    echo $held, ' of ', $sent, " requests got 400\n";
+    echo "still standing\n";
+}

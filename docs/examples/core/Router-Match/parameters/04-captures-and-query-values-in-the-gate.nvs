@@ -1,0 +1,53 @@
+<?nvs
+// Shows that a gate sees the path captures and the query values together in `parameters()`.
+use Core\Http\Method;
+
+class Shops
+{
+    #[Core\Route(path: '/shops/{shop}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function products(uint $shop, #[Core\Query] uint $page = 1, #[Core\Query] ?string $tag = null): void
+    {
+        // `Core\Request::route()` returns a match that has only the path captures.
+        // This prints `1 value`.
+        ?Core\Router\Match $route = Core\Request::route();
+        if ($route != null) {
+            echo Core\Arr::count($route->parameters()), " value\n";
+        }
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    // Inside `Core\Router::dispatch`, `parameters()` has each capture and each query value.
+    // A missing `?string $tag = null` value is not in the array.
+    public function allows(Core\Router\Match $route): bool
+    {
+        echo 'gate:';
+        foreach ($route->parameters() as tainted string $name => mixed $value) {
+            echo ' ', $name, '=', $value as string;
+        }
+        echo "\n";
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'Not allowed.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `page` has a default value and `tag` is missing. The gate prints `gate: shop=7 page=1`.
+    echo Core\Test::request(Method::Get, '/shops/7')->body();
+
+    // The gate prints `gate: shop=7 page=3 tag=red`.
+    echo Core\Test::request(Method::Get, '/shops/7?page=3&tag=red')->body();
+}

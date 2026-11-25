@@ -1,5 +1,5 @@
 <?nvs
-// Shows a route that reads typed values from the query string, and what a request with a bad value gets.
+// Shows typed query values, the `400` for a bad value, and a route that reads a bad value as page 1.
 use Core\Http\Method;
 
 class Shop
@@ -11,6 +11,16 @@ class Shop
     public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
     {
         echo 'page ', $page, ' sorted by ', $sort;
+    }
+
+    // `$page` is a `string`, so every value is allowed.
+    // `as ?uint` gives `null` for text that is not a whole number, and `?? 1` then gives `1`.
+    #[Core\Route(path: '/search', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(#[Core\Query] string $page = ''): void
+    {
+        uint $number = ($page as ?uint) ?? 1;
+        echo 'search page ', $number;
     }
 }
 
@@ -51,4 +61,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // `sort` is missing, and it has no default value. This prints `400`.
     var $missing = Core\Test::request(Method::Get, '/products?page=2');
     echo $missing->status(), ' ', $missing->body(), "\n";
+
+    // `abc` is not a whole number, so `/search` shows page 1. This prints `200`.
+    var $fallback = Core\Test::request(Method::Get, '/search?page=abc');
+    echo $fallback->status(), ' ', $fallback->body(), "\n";
+
+    // This prints `200` and page 5.
+    var $fifth = Core\Test::request(Method::Get, '/search?page=5');
+    echo $fifth->status(), ' ', $fifth->body(), "\n";
 }

@@ -1,0 +1,79 @@
+<?nvs
+// Shows query values that a request may leave out, and how to tell when a value is missing.
+use Core\Http\Method;
+
+// `Tag::parse` throws an error for empty text and for text that is not in lower case.
+final class Tag implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
+
+    public static function parse(tainted string $s): static
+    {
+        if ($s == '' || $s != Core\Str::lower($s)) {
+            throw new ParseError('a tag is written in lower case');
+        }
+        return new static($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
+}
+
+class Blog
+{
+    // Each key may be missing, and then its value is `null`. A `page` that is there must be
+    // a whole number, and `Tag::parse` reads a `tag` that is there.
+    #[Core\Route(path: '/posts', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function posts(#[Core\Query] ?uint $page = null, #[Core\Query] ?Tag $tag = null): void
+    {
+        echo $page == null ? 'every page' : 'page ' . $page;
+        echo ', ', $tag == null ? 'every tag' : 'tag ' . $tag->text;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Both keys are missing, so both values are `null`. This prints `200`.
+    var $none = Core\Test::request(Method::Get, '/posts');
+    echo $none->status(), ' ', $none->body(), "\n";
+
+    // This prints `200`, page 2 and the tag `news`.
+    var $both = Core\Test::request(Method::Get, '/posts?page=2&tag=news');
+    echo $both->status(), ' ', $both->body(), "\n";
+
+    // `two` is not a whole number. This prints `400`.
+    var $word = Core\Test::request(Method::Get, '/posts?page=two');
+    echo $word->status(), ' ', $word->body(), "\n";
+
+    // `News` is not in lower case, so `Tag::parse` throws an error. This prints `400`.
+    var $upper = Core\Test::request(Method::Get, '/posts?tag=News');
+    echo $upper->status(), ' ', $upper->body(), "\n";
+
+    // `Core\Router::url` leaves out a key whose value is `null`. This prints `/posts?tag=news`.
+    ?uint $page = null;
+    echo Core\Router::url(Blog::posts, ['page' => $page, 'tag' => new Tag('news')]), "\n";
+}

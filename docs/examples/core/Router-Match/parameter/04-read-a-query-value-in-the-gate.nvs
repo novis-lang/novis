@@ -1,0 +1,50 @@
+<?nvs
+// Shows how a gate reads a query value through the match, before the route method runs.
+use Core\Http\Method;
+
+class Reports
+{
+    #[Core\Route(path: '/reports', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(#[Core\Query] uint $limit = 10): void
+    {
+        // `Core\Request::route()` returns a match that has no query values.
+        // So `parameter("limit")` is `null` here, and this prints `null`.
+        ?Core\Router\Match $route = Core\Request::route();
+        echo ' route: ', $route?->parameter('limit') == null ? 'null' : 'set';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    // Inside `Core\Router::dispatch`, the match has each query value under its parameter's name.
+    // This gate allows at most 100 rows.
+    public function allows(Core\Router\Match $route): bool
+    {
+        uint $limit = $route->parameter('limit') as uint;
+        echo 'limit ', $limit;
+        return $limit <= 100;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo ', not allowed';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `limit` is missing, so the gate reads the default value 10. This prints `200`.
+    var $default = Core\Test::request(Method::Get, '/reports');
+    echo $default->status(), ' ', $default->body(), "\n";
+
+    // The gate reads 500 and returns `false`. This prints `403`.
+    var $large = Core\Test::request(Method::Get, '/reports?limit=500');
+    echo $large->status(), ' ', $large->body(), "\n";
+}

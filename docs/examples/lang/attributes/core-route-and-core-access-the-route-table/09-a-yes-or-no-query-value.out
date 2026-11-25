@@ -1,0 +1,4 @@
+200 the full feed
+200 the short feed
+400 The address is not valid.
+/feed?full=1

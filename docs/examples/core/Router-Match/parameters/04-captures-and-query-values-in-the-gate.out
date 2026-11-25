@@ -1,0 +1,4 @@
+gate: shop=7 page=1
+1 value
+gate: shop=7 page=3 tag=red
+1 value

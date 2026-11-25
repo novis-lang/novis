@@ -7,25 +7,33 @@ classes, and when their captures only have different names, such as `/users/{id}
 `/users/{key}`. One method may have several `#[Core\Route]` lines, one for each HTTP method. They
 must all have the same path. Two different paths on one method are `E0891`.
 
-A capture parameter may be a `string`, `int`, `uint`, `decimal`, `bool` or an enum. It may also be a
-set of allowed values such as `"en"|"de"`, or a class that implements `Parses`.
+A capture parameter may be a `string`, `int`, `uint`, `decimal` or an enum. It may also be a set of
+allowed values such as `"en"|"de"`, or a class that implements `Parses`.
 
 A capture with no parameter of the same name is `E0751`. A `float` parameter is `E0752`, and so is a
 `{name...}` parameter that is not a `string`. A `{name?}` parameter with no default value is `E0753`.
-A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
-`#[Core\Query]` on a method with no route is `E0765`.
+A `#[Core\Query]` parameter takes the same types as a capture. It may also be `?T $x = null` for
+any of those types `T`. A `?T` with no default, or with a default that is not `null`, is `E0752`.
+A `bool` path capture does not compile, but a `bool` query value does. `#[Core\Query]` on a method
+with no route is `E0765`.
 
 `Core\Router::dispatch` reads the query string key with the same name as the parameter. A parameter
 with a default value makes its key optional, and a missing key gives the default. These requests
 are a `400`, and the route method does not run:
 
-- a value that does not convert to the parameter's type,
+- a value that does not convert to the parameter's type, also for a `?T $x = null` parameter,
+- a `bool` value that is not `1` or `0`, such as `true`, `on`, an empty value or a key with no `=`,
 - a missing key for a parameter with no default value,
 - a key that is sent twice,
 - a key with brackets, such as `page[]=1`.
 
 For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
 does not convert is a `404`, because then no route matches the request.
+
+A program can also give a default for a bad value, and then the request is not a `400`. Declare the
+parameter as a `string` with a default, such as `string $page = ''`. Any valid UTF-8 text converts to
+a `string`. Then convert it in the route method, such as `($page as ?uint) ?? 1`. Use this only when a wrong link should still show a
+page. A typed parameter is the better choice in most cases, because it checks the value for you.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
@@ -57,6 +65,8 @@ when `Core\Router::match` returns the result. If `parse` throws an error, that e
 
 `$match->parameter("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
 it with `as`. A `string` capture gives a `tainted string`. A name that is not a capture gives `null`.
+Inside `Core\Router::dispatch`, the match also has each `#[Core\Query]` value under its parameter's
+name, so `allows` can read it. The match from `Core\Request::route()` has no query values.
 `access()` returns the full name of the `allow:` value, such as `Role::Staff` or `Users::ADMIN`.
 `accessAs<Core\Audience>()` on a route with `allow: Role::Staff` returns `null`.
 

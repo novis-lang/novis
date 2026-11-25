@@ -1,0 +1,53 @@
+<?nvs
+// Shows a `bool` query value, which a request writes as `1` for true and `0` for false.
+use Core\Http\Method;
+
+class Feed
+{
+    // `$full` is `false` when the key is missing.
+    // A checkbox in a form needs `value="1"`. Without it, a browser sends `on`, and that is a `400`.
+    #[Core\Route(path: '/feed', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function feed(#[Core\Query] bool $full = false): void
+    {
+        echo $full ? 'the full feed' : 'the short feed';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `1` is `true`. This prints `200` and the full feed.
+    var $yes = Core\Test::request(Method::Get, '/feed?full=1');
+    echo $yes->status(), ' ', $yes->body(), "\n";
+
+    // `0` is `false`. This prints `200` and the short feed.
+    var $no = Core\Test::request(Method::Get, '/feed?full=0');
+    echo $no->status(), ' ', $no->body(), "\n";
+
+    // `on` is not `1` or `0`. This prints `400`.
+    var $on = Core\Test::request(Method::Get, '/feed?full=on');
+    echo $on->status(), ' ', $on->body(), "\n";
+
+    // `Core\Router::url` writes `true` as `1`. This prints `/feed?full=1`.
+    echo Core\Router::url(Feed::feed, ['full' => true]), "\n";
+}
