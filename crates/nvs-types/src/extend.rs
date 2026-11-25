@@ -26,9 +26,16 @@ use rustc_hash::FxHashMap;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::{Env, span_text};
 
-/// Checks one `extend` block declared at file scope under `namespace`.
-pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env<'_>) {
+/// Checks one `extend` block declared at file scope under `namespace`, in a
+/// file whose `use` map is `imports`.
+pub(crate) fn check_block(
+    decl: &ExtendDecl,
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+    env: &mut Env<'_>,
+) {
     let block = QName::join(namespace, span_text(env.src, decl.name.span));
+    check_block_attributes(decl, namespace, imports, env);
     // A target that did not resolve was reported where it was written.
     let Some(target) = env.graph.block_target(&block).cloned() else {
         return;
@@ -61,6 +68,7 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
         );
     }
     check_type_params(decl, &target, env);
+    check_type_param_names(decl, namespace, imports, env);
     let sealed = nothing_extends(&target, kind);
     for member in &decl.members {
         check_member(member, kind, env);
@@ -73,6 +81,130 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
         }
     }
     check_collisions(decl, &block, &target, env);
+    if target.is_core() {
+        check_core_enum_names(decl, &target, env);
+    }
+}
+
+/// `E0338` for each attribute on the block itself other than
+/// `#[Core\Deprecated]`, the one a block may carry. Its members' attributes
+/// are checked as a class's members' are.
+fn check_block_attributes(
+    decl: &ExtendDecl,
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+    env: &mut Env<'_>,
+) {
+    let deprecated = QName::parse(crate::derive::DEPRECATED);
+    for attr in decl.attributes.iter().flat_map(|group| &group.attributes) {
+        let is_deprecated = attr.member.is_none()
+            && attr.name.as_ref().is_some_and(|name| {
+                nvs_hir::resolve_ref(span_text(env.src, name.span), namespace, imports)
+                    == deprecated
+            });
+        if is_deprecated {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_EXTEND_MEMBER_NOT_ADDABLE,
+                "an `extend` block cannot carry this attribute".to_owned(),
+            )
+            .with_primary(attr.span, "not allowed on an `extend` block")
+            .with_help(
+                "delete the attribute. `#[Core\\Deprecated]` is the one attribute an `extend` \
+                 block may carry"
+                    .to_owned(),
+            ),
+        );
+    }
+}
+
+/// The duplicate-declaration error for a nested enum a block adds to a `Core`
+/// type under a name that type already gives an enum, such as `Order` on
+/// `Core\Arr`. A program's own enums are in the symbol table, where a second
+/// declaration of one key is refused as it is declared. A `Core` type's enums
+/// are only in the registry, so they are compared here.
+fn check_core_enum_names(decl: &ExtendDecl, target: &QName, env: &mut Env<'_>) {
+    let written = target.to_string();
+    for member in &decl.members {
+        let ClassMemberKind::Enum(nested) = &member.kind else {
+            continue;
+        };
+        let name = span_text(env.src, nested.name.span);
+        let owned = nvs_stdlib::registry::ENUMS.iter().any(|declared| {
+            declared
+                .owner()
+                .is_some_and(|owner| owner.eq_ignore_ascii_case(&written))
+                && declared.short_name() == name
+        });
+        if !owned {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DUPLICATE_DECLARATION,
+                format!("`{target}::{name}` is already declared by `Core`"),
+            )
+            .with_primary(nested.name.span, "duplicate declaration")
+            .with_help(format!(
+                "give the enum a different name. `{target}` already has an enum named `{name}`"
+            )),
+        );
+    }
+}
+
+/// `E0338` for a type-parameter name the block's file resolves to a type:
+/// inside the block the name would be a type variable, and the class it
+/// names outside would be out of reach.
+fn check_type_param_names(
+    decl: &ExtendDecl,
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+    env: &mut Env<'_>,
+) {
+    for ty in &decl.type_params {
+        let TypeKind::Atom(TypeAtom::Name(name, args)) = &ty.kind else {
+            continue;
+        };
+        let text = span_text(env.src, name.span);
+        if !args.is_empty() || text.contains('\\') {
+            continue;
+        }
+        let qname = nvs_hir::resolve_ref(text, namespace, imports);
+        if !names_a_type(&qname, env) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_EXTEND_MEMBER_NOT_ADDABLE,
+                format!("`{text}` names the type `{qname}`, so it cannot name a type parameter"),
+            )
+            .with_primary(name.span, "this name is already a type in this file")
+            .with_help(
+                "pick a name that is not a type, such as `K`. Inside the block, the name is the \
+                 type argument of each value"
+                    .to_owned(),
+            ),
+        );
+    }
+}
+
+/// Whether `qname` is a class, an interface, an enum or a `type` alias: of
+/// the program, of `Core` or of the compiler.
+fn names_a_type(qname: &QName, env: &Env<'_>) -> bool {
+    if qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
+        return true;
+    }
+    if qname.is_core() {
+        return target_kind(qname, env).is_some();
+    }
+    env.symbols.get(qname).is_some_and(|symbol| {
+        matches!(
+            symbol.kind,
+            SymbolKind::Class | SymbolKind::Interface | SymbolKind::Enum | SymbolKind::TypeAlias
+        )
+    }) || env.enums.get(qname).is_some()
 }
 
 /// Whether no class of a program can extend or implement `target`: a `Core`

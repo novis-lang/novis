@@ -1,0 +1,36 @@
+--TEST--
+an `extend` block may carry `#[Core\Deprecated]` and no other attribute: the second block's `#[Core\Test]` is `E0338`, and the help names `#[Core\Deprecated]` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Time\Date;
+
+#[Core\Deprecated(since: '2.0')]
+extend Date as OldDays {
+    public function isMonday(): bool {
+        return $this->day() == 1;
+    }
+}
+
+#[Core\Test]
+extend Date as BlogDays {
+    public function isSunday(): bool {
+        return $this->day() == 7;
+    }
+}
+
+echo "unreachable\n";
+// covers: lang:classes/extend-blocks
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: an `extend` block cannot carry this attribute
+   --> %s:13:3
+   |
+13 | #[Core\Test]
+   |   ^^^^^^^^^ not allowed on an `extend` block
+   = help: delete the attribute. `#[Core\Deprecated]` is the one attribute an `extend` block may carry
+
+error: aborting due to 1 error
+%A

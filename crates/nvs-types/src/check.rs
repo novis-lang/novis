@@ -972,7 +972,7 @@ pub(crate) fn check_stmts(
             // type, the block as the place visibility is judged from, and the
             // block's own members visible without a `use`.
             StmtKind::ExtendDecl(decl) => {
-                crate::extend::check_block(decl, &current_ns, env);
+                crate::extend::check_block(decl, &current_ns, &current_imports, env);
                 let block = QName::join(&current_ns, span_text(env.src, decl.name.span));
                 if let Some(target) = env.graph.block_target(&block).cloned() {
                     env.exprs

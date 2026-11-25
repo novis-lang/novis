@@ -1,0 +1,39 @@
+--TEST--
+a type-parameter name of an `extend` block may not be a name its file resolves to a type: `Tag` and `Item` are classes of the file, so each is `E0338`, and the help suggests a name such as `K` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\ObjectMap;
+
+class Tag {}
+
+class Item {}
+
+extend ObjectMap<Tag, Item> as Index {
+    public function size(): uint {
+        return $this->count();
+    }
+}
+
+echo "unreachable\n";
+// covers: lang:classes/extend-blocks
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: `Tag` names the type `App\Tag`, so it cannot name a type parameter
+   --> %s:10:18
+   |
+10 | extend ObjectMap<Tag, Item> as Index {
+   |                  ^^^ this name is already a type in this file
+   = help: pick a name that is not a type, such as `K`. Inside the block, the name is the type argument of each value
+
+error[E0338]: `Item` names the type `App\Item`, so it cannot name a type parameter
+   --> %s:10:23
+   |
+10 | extend ObjectMap<Tag, Item> as Index {
+   |                       ^^^^ this name is already a type in this file
+   = help: pick a name that is not a type, such as `K`. Inside the block, the name is the type argument of each value
+
+error: aborting due to 2 errors
+%A

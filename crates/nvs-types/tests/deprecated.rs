@@ -471,3 +471,64 @@ fn the_w1003_message_names_since_note_and_the_replacement() {
     assert!(at("since 2.0") < at("Sizes are counts now."), "{message}");
     assert!(at("Sizes are counts now.") < at("->count()`"), "{message}");
 }
+
+/// An enum an `extend` block adds warns where it is used, as an enum in a
+/// class body does: the enum itself and each deprecated case.
+#[test]
+fn a_deprecated_enum_an_extend_block_adds_warns_as_a_nested_enum_does() {
+    let diags = check_src(
+        "<?nvs\n\
+         namespace App;\n\
+         use Core\\Arr;\n\
+         use App\\ShopSorting;\n\
+         class Shop {\n  \
+           #[Core\\Deprecated]\n  \
+           enum Mode { Fast, Slow }\n  \
+           enum Kind { #[Core\\Deprecated] Old, New }\n\
+         }\n\
+         extend Arr as ShopSorting {\n  \
+           #[Core\\Deprecated]\n  \
+           enum Sort { Cheapest, Newest }\n  \
+           enum Pick { #[Core\\Deprecated] First, Last }\n\
+         }\n\
+         Shop::Mode $mode = Shop::Mode::Fast;\n\
+         Shop::Kind $kind = Shop::Kind::Old;\n\
+         Arr::Sort $sort = Arr::Sort::Cheapest;\n\
+         Arr::Pick $pick = Arr::Pick::First;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    let about = |name: &str| found.iter().filter(|m| m.contains(name)).count();
+    assert!(about("`App\\Shop::Mode`") > 0, "{found:#?}");
+    assert_eq!(about("`Core\\Arr::Sort`"), about("`App\\Shop::Mode`"), "{found:#?}");
+    assert_eq!(about("`Core\\Arr::Pick::First`"), 1, "{found:#?}");
+    assert_eq!(about("`App\\Shop::Kind::Old`"), 1, "{found:#?}");
+}
+
+/// A deprecated added method warns at each call, and so does a call of any
+/// member of a deprecated block. A member that is not deprecated does not.
+#[test]
+fn a_deprecated_added_member_or_block_warns_at_each_use() {
+    let diags = check_src(
+        "<?nvs\n\
+         namespace App;\n\
+         use Core\\Arr;\n\
+         use App\\ShopTools;\n\
+         use App\\BlogTools;\n\
+         extend Arr as ShopTools {\n  \
+           #[Core\\Deprecated]\n  \
+           public static function old(): int { return 1; }\n  \
+           public static function fresh(): int { return 2; }\n\
+         }\n\
+         #[Core\\Deprecated]\n\
+         extend Arr as BlogTools {\n  \
+           public static function posts(): int { return 3; }\n\
+         }\n\
+         echo Arr::old(), Arr::fresh(), Arr::posts();\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert!(found.iter().any(|m| m.contains("`App\\ShopTools::old()`")), "{found:#?}");
+    assert!(found.iter().any(|m| m.contains("`App\\BlogTools`")), "{found:#?}");
+}

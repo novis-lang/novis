@@ -1,0 +1,26 @@
+--TEST--
+an `extend` block may not add an enum under a name its `Core` type already gives an enum: `Core\Arr` has `Core\Arr::Order`, so the block's `enum Order` is the duplicate-declaration error — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\Arr;
+
+extend Arr as ShopSorting {
+    enum Order { Cheapest, Newest }
+}
+
+echo "unreachable\n";
+// covers: lang:classes/extend-blocks
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: `Core\Arr::Order` is already declared by `Core`
+  --> %s:7:10
+  |
+7 |     enum Order { Cheapest, Newest }
+  |          ^^^^^ duplicate declaration
+  = help: give the enum a different name. `Core\Arr` already has an enum named `Order`
+
+error: aborting due to 1 error
+%A

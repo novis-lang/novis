@@ -560,13 +560,6 @@ fn collect(
     current_imports: &FxHashMap<String, QName>,
     table: &mut Deprecations,
 ) {
-    let (name, attributes, members, cases) = match &stmt.kind {
-        StmtKind::ClassDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
-        StmtKind::InterfaceDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
-        StmtKind::EnumDecl(d) => (&d.name, &d.attributes, &d.members, &d.cases[..]),
-        _ => return,
-    };
-    let owner = QName::join(current_ns, span_text(src, name.span));
     let deprecated = |groups: &[AttributeGroup]| {
         groups
             .iter()
@@ -580,6 +573,23 @@ fn collect(
             })
             .map(|attr| Deprecation::of(attr, src, fix::Scope::new(current_ns, current_imports)))
     };
+    // A block's added members are keyed under the block, the owner every
+    // added call is recorded with. Its nested enum belongs to the type it
+    // extends, under the key `nvs_hir` declares it with
+    // (`rule:classes/an-extend-block-adds-members-to-a-type`).
+    let (name, attributes, members, cases, target) = match &stmt.kind {
+        StmtKind::ClassDecl(d) => (&d.name, &d.attributes, &d.members, &[][..], None),
+        StmtKind::InterfaceDecl(d) => (&d.name, &d.attributes, &d.members, &[][..], None),
+        StmtKind::EnumDecl(d) => (&d.name, &d.attributes, &d.members, &d.cases[..], None),
+        StmtKind::ExtendDecl(d) => {
+            let target =
+                nvs_hir::resolve_ref(span_text(src, d.target.span), current_ns, current_imports);
+            (&d.name, &d.attributes, &d.members, &[][..], Some(target))
+        }
+        _ => return,
+    };
+    let owner = QName::join(current_ns, span_text(src, name.span));
+    let enum_owner = target.as_ref().unwrap_or(&owner);
     let params = |params: &[Param]| params.iter().map(|p| fix::Param::of(p, src)).collect();
     let mut found = Vec::new();
     if let Some(mut d) = deprecated(attributes) {
@@ -621,16 +631,7 @@ fn collect(
             // An enum in a class body is a type of its own, under its
             // own key (`rule:enums/class-scoped-enum`).
             ClassMemberKind::Enum(decl) => {
-                let key = QName::member(&owner, span_text(src, decl.name.span));
-                if let Some(d) = deprecated(&decl.attributes) {
-                    table.sites.insert((key.clone(), Member::Type), d);
-                }
-                for case in &decl.cases {
-                    if let Some(d) = deprecated(&case.attributes) {
-                        let case = Member::Case(span_text(src, case.name.span).to_owned());
-                        table.sites.insert((key.clone(), case), d);
-                    }
-                }
+                collect_owned_enum(enum_owner, decl, src, &deprecated, table);
             }
             _ => {}
         }
@@ -645,6 +646,28 @@ fn collect(
             .into_iter()
             .map(|(member, d)| ((owner.clone(), member), d)),
     );
+}
+
+/// The deprecations of the enum `decl` that `owner`'s body, or a block that
+/// extends `owner`, declares: the enum itself and each case, under the enum's
+/// own key (`rule:enums/class-scoped-enum`).
+fn collect_owned_enum(
+    owner: &QName,
+    decl: &nvs_syntax::ast::EnumDecl,
+    src: &SourceFile,
+    deprecated: &impl Fn(&[AttributeGroup]) -> Option<Deprecation>,
+    table: &mut Deprecations,
+) {
+    let key = QName::member(owner, span_text(src, decl.name.span));
+    if let Some(d) = deprecated(&decl.attributes) {
+        table.sites.insert((key.clone(), Member::Type), d);
+    }
+    for case in &decl.cases {
+        if let Some(d) = deprecated(&case.attributes) {
+            let case = Member::Case(span_text(src, case.name.span).to_owned());
+            table.sites.insert((key.clone(), case), d);
+        }
+    }
 }
 
 /// Every `#[Core\Deprecated]` under one class, interface or enum body, held to
