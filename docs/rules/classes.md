@@ -1385,7 +1385,8 @@ instead: a constructor (a static factory), a `protected`, `abstract` or `final` 
 `private` one), a `static` property (a static property of a class of your own), `readonly` on an added
 property, a stored property that has no default, no `?` type and no `lateinit`, a new enum case, and
 a member the table above leaves out, such as a `type` alias. An `implements` or `extends` clause on the block does not parse. In
-a body, `parent` is `E0338` and `static::` is `E0338` whose help says to write `self::`. A member that
+a body, `parent` is `E0338`, and `static::` and `new static` are `E0338` whose help says to write
+`self`. An added static method, or any method of a block on an enum, that uses `yield` is `E0338`. A member that
 replaces or overrides anything is [`classes/an-added-member-never-changes-a-type`](classes.md#classes-an-added-member-never-changes-a-type).
 
 **Inside the body.** `$this` is a value of the extended type, and `self` names that type. A block's
@@ -1393,11 +1394,15 @@ body sees what code outside the type sees: the type's `public` members, the bloc
 the members of other blocks its file uses. `private` on an added member means visible inside that
 block only. Visibility is checked with the block as the accessing place, never the type.
 
-**Generic `Core` classes.** A generic `Core` class is extended with its parameters bound by name, as
-`extend Core\ObjectMap<K, V> as Index { … }`, and those names are its declared parameter names. A
-block of one instance, such as `Core\ObjectMap<int, string>`, does not compile. A program's own
-classes take no type parameters, so this is `Core` only. An added method may declare type parameters
-of its own.
+**Generic `Core` classes.** A generic `Core` class is extended with one new name for each of its
+type parameters, in order, as `extend Core\ObjectMap<K, V> as Index { … }`. Inside the block each
+name is a type variable, and `$this` is `Core\ObjectMap<K, V>`. A call substitutes the receiver's
+type arguments, so `getOr(K $key, V $fallback): V` on a `Core\ObjectMap<Tag, int>` takes and returns
+an `int`. The body is compiled once, with each name erased as `mixed` is, and the call converts at
+the boundary as it does for any wider declared type. A list on a class that is not generic, a list
+of the wrong length, no list on a generic class, and an entry that is not one bare name are
+**`E0338`**, so a block of one instance, such as `Core\ObjectMap<Tag, int>`, does not compile. A
+program's own classes take no type parameters, so this is `Core` only.
 
 **Declined:**
 - **Opening `Core` classes to `extends`.** [`core-api/core-classes-are-sealed`](core-api.md#core-api-core-classes-are-sealed) keeps its reasons.
@@ -1437,9 +1442,14 @@ The descendant check runs over the whole compiled program, because the program i
 body is checked. It is never a per-file check: a per-file check would let a call on a subclass reach
 the subclass's member in one file and the added one in another.
 
-**Names the runtime calls by name.** An added method may not take a name a `Core` interface requires
-or an operator dispatches by name, such as `compareTo`, `equals` or `toString`. That is **`E1012`**,
-whose help says a class of your own implements the interface instead. An added method never satisfies
+**Names the runtime calls by name.** An added method, instance or static, may not take the name of a
+member of a compiler-declared interface (`Comparable`, `Stringable`, `Parses`, `Iterable`,
+`Iterator`, their keyed pair, `PropertyObserver`, `PropertyGuard`, `LateInit` and `Revocable`). An
+operator, a conversion to `string`, `foreach` and a route call these by name: `compareTo`,
+`toString`, `parse`, `tryParse`, `format`, `iterate`, `advance`, `current`, `key` and the rest. That
+is **`E1012`**, checked before the collisions above, and its help says a class of your own implements
+the interface instead. The names are read from the interfaces' seeded members, so the list has one
+home (`nvs_types::iter_lib`). An added method never satisfies
 an interface obligation, so `$x is Comparable` returns what it returned before the block existed.
 
 **Only a statically typed call.** A `mixed` or `object` receiver, a dynamic member name, `Core\Reflect`,

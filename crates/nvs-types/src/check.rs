@@ -606,6 +606,7 @@ fn file_env<'a>(
         argument_element_types: rustc_hash::FxHashMap::default(),
         spawn_entry_args: FxHashSet::default(),
         extend_block: None,
+        extend_type_params: Vec::new(),
         body_writers: crate::response::BodyWriters::default(),
         in_call_argument: false,
         secret_in_arguments: false,
@@ -988,7 +989,10 @@ pub(crate) fn check_stmts(
                         in_test_code: false,
                     };
                     let outer = env.extend_block.replace(block);
+                    let params = crate::extend::type_param_names(decl, env.src);
+                    let outer_params = std::mem::replace(&mut env.extend_type_params, params);
                     check_members(&decl.members, &ctx, env);
+                    env.extend_type_params = outer_params;
                     env.extend_block = outer;
                 }
             }

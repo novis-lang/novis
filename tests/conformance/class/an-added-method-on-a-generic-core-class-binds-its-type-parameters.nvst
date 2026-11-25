@@ -1,0 +1,50 @@
+--TEST--
+an `extend` block on a generic `Core` class names its type parameters, and each call binds them to the receiver's type arguments: `getOr` on a `Core\ObjectMap<Tag, int>` takes and returns an `int`, and on a `Core\ObjectMap<Tag, string>` a `string` — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\ObjectMap;
+use App\Index;
+
+extend ObjectMap<K, V> as Index {
+    public function getOr(K $key, V $fallback): V {
+        return $this->get($key) ?? $fallback;
+    }
+
+    public function size(): uint {
+        return $this->count();
+    }
+}
+
+final class Tag
+{
+    public function constructor(public readonly string $name) {}
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+
+ObjectMap<Tag, int> $counts = new ObjectMap<Tag, int>();
+$counts->set($red, 3);
+int $found = $counts->getOr($red, 0);
+int $missing = $counts->getOr($blue, 0);
+echo $found + 1, " ", $missing, " ", $counts->size(), "\n";
+
+ObjectMap<Tag, string> $names = new ObjectMap<Tag, string>();
+$names->set($blue, "sky");
+string $name = $names->getOr($blue, "none");
+echo $name . "!", " ", $names->getOr($red, "none"), "\n";
+
+ObjectMap<Tag, float> $weights = new ObjectMap<Tag, float>();
+$weights->set($red, 1.5);
+echo $weights->getOr($red, 0.0) * 2.0, " ", $weights->getOr($blue, 0.25) + 1.0, "\n";
+
+ObjectMap<Tag, Tag> $pairs = new ObjectMap<Tag, Tag>();
+$pairs->set($red, $blue);
+echo $pairs->getOr($red, $red)->name, " ", $pairs->getOr($blue, $red)->name, "\n";
+--EXPECT--
+4 0 1
+sky! none
+3 1.25
+blue red

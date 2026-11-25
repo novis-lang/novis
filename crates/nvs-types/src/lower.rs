@@ -1153,6 +1153,11 @@ fn resolve_name_type(
     env: &mut Env<'_>,
 ) -> TypeId {
     let text = span_text(env.src, name.span);
+    // A name an `extend` block binds a generic `Core` class's parameter to is
+    // a type variable inside that block, and a call substitutes it.
+    if args.is_empty() && env.extend_type_params.iter().any(|param| param == text) {
+        return env.interner.type_var(text);
+    }
     // `rule:enums/class-scoped-enum`'s short spelling: inside its owner's body
     // a bare `Status` is the owner's own enum before it is the namespace's.
     let qname = nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols)
@@ -1363,6 +1368,7 @@ mod tests {
             argument_element_types: rustc_hash::FxHashMap::default(),
             spawn_entry_args: rustc_hash::FxHashSet::default(),
             extend_block: None,
+            extend_type_params: Vec::new(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             secret_in_arguments: false,

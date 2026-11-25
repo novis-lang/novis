@@ -58,11 +58,15 @@ body sees what code outside the type sees: the type's `public` members, the bloc
 the members of other blocks its file uses. `private` on an added member means visible inside that
 block only. Visibility is checked with the block as the accessing place, never the type.
 
-**Generic `Core` classes.** A generic `Core` class is extended with its parameters bound by name, as
-`extend Core\ObjectMap<K, V> as Index { … }`, and those names are its declared parameter names. A
-block of one instance, such as `Core\ObjectMap<int, string>`, does not compile. A program's own
-classes take no type parameters, so this is `Core` only. An added method may declare type parameters
-of its own.
+**Generic `Core` classes.** A generic `Core` class is extended with one new name for each of its
+type parameters, in order, as `extend Core\ObjectMap<K, V> as Index { … }`. Inside the block each
+name is a type variable, and `$this` is `Core\ObjectMap<K, V>`. A call substitutes the receiver's
+type arguments, so `getOr(K $key, V $fallback): V` on a `Core\ObjectMap<Tag, int>` takes and returns
+an `int`. The body is compiled once, with each name erased as `mixed` is, and the call converts at
+the boundary as it does for any wider declared type. A list on a class that is not generic, a list
+of the wrong length, no list on a generic class, and an entry that is not one bare name are
+**`E0338`**, so a block of one instance, such as `Core\ObjectMap<Tag, int>`, does not compile. A
+program's own classes take no type parameters, so this is `Core` only.
 
 **Declined:**
 - **Opening `Core` classes to `extends`.** `rule:core-api/core-classes-are-sealed` keeps its reasons.

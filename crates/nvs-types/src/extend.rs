@@ -60,6 +60,7 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
             )),
         );
     }
+    check_type_params(decl, &target, env);
     for member in &decl.members {
         check_member(member, kind, env);
     }
@@ -451,6 +452,59 @@ fn is_nullable(ty: &Type) -> bool {
         TypeKind::Atom(TypeAtom::Null) => true,
         _ => false,
     }
+}
+
+/// The names a block on a generic `Core` class binds its type parameters to,
+/// in order: each `<…>` entry written as one bare name. Anything else is left
+/// out, and [`check_type_params`] reports it.
+pub(crate) fn type_param_names(decl: &ExtendDecl, src: &nvs_diagnostics::SourceFile) -> Vec<String> {
+    decl.type_params
+        .iter()
+        .filter_map(|ty| match &ty.kind {
+            TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => {
+                let text = span_text(src, name.span);
+                (!text.contains('\\')).then(|| text.to_owned())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `E0338` for a `<…>` list that does not bind a generic `Core` class's
+/// parameters: a list on a class that is not generic, a list of the wrong
+/// length, no list on a generic class, and an entry that is not one bare
+/// name. A block of one instance, such as `Core\ObjectMap<int, string>`, is
+/// the last case.
+fn check_type_params(decl: &ExtendDecl, target: &QName, env: &mut Env<'_>) {
+    let params = nvs_stdlib::registry::class_type_params(&target.to_string()).unwrap_or(&[]);
+    let names = type_param_names(decl, env.src);
+    let written = decl.type_params.len();
+    // A scalar such as `int` is not a name, so `Core\ObjectMap<Tag, int>` is
+    // refused here. A bare name is always a new one, inside the block only.
+    if written == params.len() && names.len() == written {
+        return;
+    }
+    let list = params.join(", ");
+    let help = if params.is_empty() {
+        format!("`{target}` has no type parameters. Remove the `<…>` list")
+    } else {
+        format!(
+            "write `extend {target}<{list}> as Name {{ … }}`. Each name in the list is a new \
+             name for one type parameter, and a call fills it in from the value's type"
+        )
+    };
+    let at = match (decl.type_params.first(), decl.type_params.last()) {
+        (Some(first), Some(last)) => first.span.to(last.span),
+        _ => decl.target.span,
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_EXTEND_MEMBER_NOT_ADDABLE,
+            format!("this `extend` block does not name the type parameters of `{target}`"),
+        )
+        .with_primary(at, "the type parameters are not named here")
+        .with_help(help),
+    );
 }
 
 /// `imports` with the block `block` added under its short name: what a

@@ -1,0 +1,41 @@
+--TEST--
+an `extend` block on a generic `Core` class names each type parameter with a new name: a block of one instance, `Core\ObjectMap<Tag, int>`, and a block with no list are `E0338`, and the help shows the list to write — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Core\ObjectMap;
+use Core\ObjectSet;
+
+extend ObjectMap<Key, int> as Counts {
+    public function total(): uint {
+        return $this->count();
+    }
+}
+
+extend ObjectSet as Tags {
+    public function size(): uint {
+        return $this->count();
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0338]: this `extend` block does not name the type parameters of `Core\ObjectMap`
+  --> %s:7:18
+  |
+7 | extend ObjectMap<Key, int> as Counts {
+  |                  ^^^^^^^^ the type parameters are not named here
+  = help: write `extend Core\ObjectMap<K, V> as Name { … }`. Each name in the list is a new name for one type parameter, and a call fills it in from the value's type
+
+error[E0338]: this `extend` block does not name the type parameters of `Core\ObjectSet`
+   --> %s:13:8
+   |
+13 | extend ObjectSet as Tags {
+   |        ^^^^^^^^^ the type parameters are not named here
+   = help: write `extend Core\ObjectSet<T> as Name { … }`. Each name in the list is a new name for one type parameter, and a call fills it in from the value's type
+
+error: aborting due to 2 errors
+%A

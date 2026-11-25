@@ -2046,6 +2046,12 @@ pub(crate) fn check_generic_args(
     }
 
     let mut bindings = crate::generics::Bindings::default();
+    // Inside an `extend` block on a generic `Core` class, the block's own
+    // names stay themselves: they are the body's types, not a call's unknowns.
+    for param in env.extend_type_params.clone() {
+        let var = env.interner.type_var(param.as_str());
+        bindings.insert(param, var);
+    }
     // An array key a member answers or hands its callback is bound first, so
     // a callback is checked against it and no callback's own `string $k` binds
     // it. It is `tainted string` when an argument's keys can come from outside,
@@ -2640,6 +2646,17 @@ pub(crate) fn substitute_receiver_args(
     let Ty::Class(qname, args) = env.interner.get(receiver).clone() else {
         return sig.clone();
     };
+    // A member an `extend` block adds to a generic `Core` class: the block's
+    // own names for the class's parameters take the receiver's arguments.
+    if let Some(block) = env.signatures.get(owner)
+        && block.added_to.as_ref() == Some(&qname)
+        && !block.added_params.is_empty()
+        && block.added_params.len() == args.len()
+    {
+        let bindings: crate::generics::Bindings =
+            block.added_params.iter().cloned().zip(args).collect();
+        return sig.clone().substituted(&bindings, env.interner);
+    }
     if args.is_empty() || &qname != owner {
         return sig.clone();
     }

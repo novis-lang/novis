@@ -1497,6 +1497,17 @@ pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
                 let backing = env.enums.backing_of(qname);
                 env.interner.enum_(qname.clone(), backing)
             }
+            // In a block on a generic `Core` class, `$this` has the block's
+            // own type variables as its arguments.
+            _ if env.extend_block.is_some() && !env.extend_type_params.is_empty() => {
+                let args = env
+                    .extend_type_params
+                    .clone()
+                    .into_iter()
+                    .map(|param| env.interner.type_var(param))
+                    .collect();
+                env.interner.generic_class(qname.clone(), args)
+            }
             _ => env.interner.class(qname.clone()),
         },
         None => env.interner.mixed(),

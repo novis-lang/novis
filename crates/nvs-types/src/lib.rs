@@ -793,6 +793,11 @@ pub(crate) struct Env<'a> {
     /// and this is the place visibility is judged from, so the body sees the
     /// type's `public` members and its own `private` ones.
     pub extend_block: Option<QName>,
+    /// The names an `extend` block on a generic `Core` class binds its type
+    /// parameters to, in order, while that block's members are collected or
+    /// checked. Each lowers to a type variable, and a call of the member
+    /// substitutes the receiver's type arguments for them.
+    pub extend_type_params: Vec<String>,
 }
 
 pub(crate) use nvs_diagnostics::span_text;

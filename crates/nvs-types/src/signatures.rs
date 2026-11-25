@@ -724,6 +724,10 @@ pub struct ClassSignature {
     /// (`rule:classes/an-extend-block-adds-members-to-a-type`). A call of an
     /// added member carries it as [`crate::expr_table::ResolvedCall::added_to`].
     pub added_to: Option<QName>,
+    /// On an `extend` block's entry for a generic `Core` class, the names
+    /// the block binds the class's type parameters to, in order. A call
+    /// substitutes the receiver's type arguments for them.
+    pub added_params: Vec<String>,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -1244,6 +1248,7 @@ pub fn build_signatures(
             argument_element_types: rustc_hash::FxHashMap::default(),
             spawn_entry_args: FxHashSet::default(),
             extend_block: None,
+            extend_type_params: Vec::new(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             secret_in_arguments: false,
@@ -1533,8 +1538,13 @@ fn collect_stmts(
                     in_anon_fn: false,
                     in_test_code: false,
                 };
-                table.entry(block.clone()).added_to = Some(target.clone());
+                let params = crate::extend::type_param_names(decl, env.src);
+                let entry = table.entry(block.clone());
+                entry.added_to = Some(target.clone());
+                entry.added_params.clone_from(&params);
+                let outer = std::mem::replace(&mut env.extend_type_params, params);
                 collect_members(&decl.members, &block, &ctx, table, env);
+                env.extend_type_params = outer;
             }
             _ => {}
         }
