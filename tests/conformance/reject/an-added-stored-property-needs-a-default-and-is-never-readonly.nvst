@@ -1,0 +1,30 @@
+--TEST--
+an added property has no constructor to set it, so a stored one with no default, no `?` type and no `lateinit` is refused, `readonly` and `static` are refused, and a write to a property with only a `get` hook does not compile (`rule:classes/an-extend-block-adds-members-to-a-type`)
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\DateTools;
+
+extend Date as DateTools {
+    public int $count;
+
+    public readonly int $limit;
+
+    public static int $made = 0;
+
+    public bool $isFirst {
+        get => $this->day() == 1;
+    }
+}
+
+var $day = Date::at(2026, 9, 1);
+$day->isFirst = false;
+--EXPECT--
+
+--EXPECTF-ERROR--
+%Aerror[E0338]: an `extend` block cannot add a stored property with no default
+%Aerror[E0338]: an `extend` block cannot add a `readonly` property
+%Aerror[E0338]: an `extend` block cannot add a `static` property
+%A

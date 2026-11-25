@@ -163,4 +163,15 @@ codes! {
          every class. Test the value with `is` first, and call the method on one class. A block \
          that extends an interface all the classes implement adds the method to every class.",
     );
+
+    /// A stored property an `extend` block adds to a type whose objects have
+    /// no added slot: an interface, an enum, or a class that takes no slot
+    /// (`rule:classes/an-added-property-lives-in-one-hidden-slot`).
+    pub const E_ADDED_STORED_PROPERTY_NO_SLOT: Code = Code::new("E1014").card(
+        "An `extend` block adds a property that stores a value, and the type cannot store it. \
+         An interface and an enum cannot store an added value. Some classes cannot either, \
+         such as the date and time values. A property with only a `get` hook works on every \
+         type, because it computes its value on each read. To keep data with such a value, \
+         write a class of your own with one property for the value and one for the data.",
+    );
 }

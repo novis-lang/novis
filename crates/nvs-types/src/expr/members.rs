@@ -2679,6 +2679,11 @@ pub(crate) fn check_property_member(
                 // (`nvs_stdlib::registry` is the whole surface, and it is
                 // members-only), so `None` on either means exactly what it
                 // means on a user class: the name is not declared.
+                if let Some(ty) =
+                    added_property_access(object.span.to(*name_span), &qname, &name, ctx, env)
+                {
+                    return ty;
+                }
                 if !is_this_receiver(object, env.src) {
                     report_unknown_member(object.span, &qname, &name, "property", env);
                 }
@@ -2722,6 +2727,54 @@ pub(crate) fn check_property_member(
             env.interner.mixed()
         }
     }
+}
+
+/// The record of an access to a property that a block used in this file adds
+/// to `qname` (`rule:classes/an-extend-block-adds-members-to-a-type`), and the
+/// property's type. `None` when no used block adds `name`.
+///
+/// A computed property is a call of its block's `get` hook, recorded as
+/// [`ExprInfo::HookedProperty`] with no `set` hook, so a write is refused as
+/// for any `get`-only property. It is a call inside its own hook too, because
+/// it has no stored value to read there. A class's `PropertyGuard` and
+/// `PropertyObserver` never see an added property.
+fn added_property_access(
+    span: Span,
+    qname: &QName,
+    name: &str,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let (block, ty) =
+        crate::extend::added_property(qname, name, ctx.imports, env.signatures, env.graph)
+            .map(|(block, ty)| (block.clone(), ty))?;
+    check_member_visibility(
+        span,
+        &block,
+        &format!("${name}"),
+        crate::signatures::property_visibility(&block, name, env.signatures),
+        ctx,
+        env,
+    );
+    if !crate::extend::is_computed(&block, name, env.signatures) {
+        // A stored added property needs the object's added slot, which the
+        // runtime does not give yet: refused where it is declared.
+        return Some(env.interner.error());
+    }
+    let get = crate::signatures::hook_label(&block, name, nvs_syntax::ast::PropertyHookKind::Get);
+    env.exprs.record(
+        span,
+        ExprInfo::HookedProperty {
+            class: qname.clone(),
+            name: name.to_owned(),
+            ty,
+            get: Some(get),
+            set: None,
+            observer: None,
+            guard: None,
+        },
+    );
+    Some(ty)
 }
 
 /// The record an access to `owner`'s property `name` through a receiver of

@@ -64,6 +64,9 @@ pub(crate) fn check_block(decl: &ExtendDecl, namespace: &[String], env: &mut Env
     let sealed = nothing_extends(&target, kind);
     for member in &decl.members {
         check_member(member, kind, env);
+        if let ClassMemberKind::Property(p) = &member.kind {
+            refuse_stored(&target, kind, p, env);
+        }
         if sealed && let ClassMemberKind::Attribute(nested) = &member.kind {
             refuse_sealed_attribute(&target, nested.name.span, env);
         }
@@ -470,9 +473,7 @@ fn check_property(at: Span, p: &PropertyMember, env: &mut Env<'_>) {
         );
         return;
     }
-    let computed = p.hooks.as_ref().is_some_and(|hooks| {
-        !hooks.is_empty() && hooks.iter().all(|hook| hook.kind == PropertyHookKind::Get)
-    });
+    let computed = is_computed_decl(p);
     let has_start =
         p.default.is_some() || p.modifiers.contains(&Modifier::Lateinit) || is_nullable(&p.ty);
     if !computed && !has_start {
@@ -484,6 +485,48 @@ fn check_property(at: Span, p: &PropertyMember, env: &mut Env<'_>) {
             env,
         );
     }
+}
+
+/// Whether an added property is computed: hooks, every one of them `get`.
+fn is_computed_decl(p: &PropertyMember) -> bool {
+    p.hooks.as_ref().is_some_and(|hooks| {
+        !hooks.is_empty() && hooks.iter().all(|hook| hook.kind == PropertyHookKind::Get)
+    })
+}
+
+/// `E1014` for a stored property added to `target`, whose objects have no
+/// added slot (`rule:classes/an-added-property-lives-in-one-hidden-slot`). An
+/// interface and an enum never have one. No class takes the slot yet, so a
+/// stored property is refused on every type until the runtime gives it.
+fn refuse_stored(target: &QName, kind: SymbolKind, p: &PropertyMember, env: &mut Env<'_>) {
+    // A `static`, a `readonly` and a property with no start are refused as
+    // `E0338` already (`check_property`), one mistake reported once.
+    let has_start =
+        p.default.is_some() || p.modifiers.contains(&Modifier::Lateinit) || is_nullable(&p.ty);
+    if is_computed_decl(p)
+        || !has_start
+        || p.modifiers.contains(&Modifier::Static)
+        || p.modifiers.contains(&Modifier::Readonly)
+    {
+        return;
+    }
+    let what = match kind {
+        SymbolKind::Interface => "an interface",
+        SymbolKind::Enum => "an enum",
+        _ => "this class",
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ADDED_STORED_PROPERTY_NO_SLOT,
+            format!("`{target}` cannot store a property an `extend` block adds"),
+        )
+        .with_primary(p.name, format!("{what} has no place for an added value"))
+        .with_help(
+            "give the property only a `get` hook, so it computes its value on each read. To keep \
+             data with the value, write a class of your own with a property for each"
+                .to_owned(),
+        ),
+    );
 }
 
 /// Whether `ty` takes `null`: `?T`, or a union with `null` in it.
@@ -616,6 +659,27 @@ pub(crate) fn added_const<'a>(
     })
 }
 
+/// The property `name` a block used in this file adds to `qname`, with the
+/// block and its type. Like [`added_method`], it is the fallback when the
+/// type's own properties do not have the name.
+pub(crate) fn added_property<'a>(
+    qname: &'a QName,
+    name: &str,
+    imports: &'a FxHashMap<String, QName>,
+    table: &'a SignatureTable,
+    graph: &'a ClassGraph,
+) -> Option<(&'a QName, crate::ty::TypeId)> {
+    used_blocks(qname, imports, graph)
+        .find_map(|block| Some((block, *table.get(block)?.properties.get(name)?)))
+}
+
+/// Whether the property `name` that `block` adds is computed: it has a `get`
+/// hook and no other hook, so it has no stored value.
+pub(crate) fn is_computed(block: &QName, name: &str, table: &SignatureTable) -> bool {
+    let hooks = crate::signatures::hooks_of(block, name, table);
+    hooks.get && !hooks.set
+}
+
 /// The block in the program that adds the member `name` to `qname`, for the
 /// help of an unknown member: a block the file does not use.
 pub(crate) fn unused_block_adding(
@@ -630,7 +694,9 @@ pub(crate) fn unused_block_adding(
         .filter(|(block, target)| {
             reaches(qname, target, graph)
                 && table.get(block).is_some_and(|sig| {
-                    sig.methods.contains_key(name) || sig.constants.contains_key(name)
+                    sig.methods.contains_key(name)
+                        || sig.constants.contains_key(name)
+                        || sig.properties.contains_key(name)
                 })
         })
         .map(|(block, _)| block.to_string())

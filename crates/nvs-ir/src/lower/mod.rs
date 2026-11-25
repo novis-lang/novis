@@ -1293,6 +1293,7 @@ fn lower_program_as(
                                             || {
                                                 lower_property_hook(
                                                     label,
+                                                    receiver,
                                                     p,
                                                     hook,
                                                     src,
@@ -2306,8 +2307,14 @@ fn promoted_stores(
 /// The same way [`lower_method`] does, plus: if `name` is not a hook label
 /// and the hook needs the declaring class back out of it.
 #[must_use]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "`lower_method_of`'s shape: the label, the receiver's kind, the \
+              declaration and hook, and the four tables every lowering reads"
+)]
 pub fn lower_property_hook(
     name: &str,
+    receiver: Option<EnumRepr>,
     p: &nvs_syntax::ast::PropertyMember,
     hook: &nvs_syntax::ast::PropertyHook,
     src: &SourceFile,
@@ -2324,11 +2331,16 @@ pub fn lower_property_hook(
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
-    let mut param_tys = vec![Ty::Object];
+    // A computed property an `extend` block adds to an enum reads the case's
+    // integer as `$this`, as an enum method does (`lower_method_of`).
+    let recv_ty = receiver.map_or(Ty::Object, Ty::Enum);
+    let mut param_tys = vec![recv_ty];
 
-    let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
-    env.insert("this".to_owned(), (this_v, Ty::Object));
-    low.this = Some(this_v);
+    let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
+    env.insert("this".to_owned(), (this_v, recv_ty));
+    if receiver.is_none() {
+        low.this = Some(this_v);
+    }
 
     if is_set {
         let (pname, pty) = match &hook.param {

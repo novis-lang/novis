@@ -1,0 +1,60 @@
+--TEST--
+an `extend` block adds a property with only a `get` hook to a class of another package: each read runs the hook, so the value follows the object, on the class and on its subclass, and inside the block — `rule:classes/an-added-property-lives-in-one-hidden-slot`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use Acme\Shop\GiftOrder;
+use App\OrderTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    public int $doubled {
+        get => $this->total * 2;
+    }
+
+    public string $summary {
+        get {
+            return $this->label() . ": " . $this->doubled;
+        }
+    }
+}
+
+var $order = new Order(100);
+echo $order->doubled, "\n";
+$order->total = 200;
+echo $order->doubled, "\n";
+echo (new GiftOrder(50))->summary, "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+
+    public function label(): string
+    {
+        return "order";
+    }
+}
+--FILE vendor/acme/shop/src/GiftOrder.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class GiftOrder extends Order
+{
+    public function label(): string
+    {
+        return "gift";
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+200
+400
+gift: 100

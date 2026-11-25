@@ -1340,9 +1340,11 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// from resolving to a re-entrant call to the very accessor being checked.
 fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(hooks) = &p.hooks else { return };
-    let Some(class) = ctx.current_class else {
+    // A hook an `extend` block adds is labelled by its block.
+    let Some(class) = env.extend_block.clone().or_else(|| ctx.current_class.cloned()) else {
         return;
     };
+    let class = &class;
     let name = strip_sigil(span_text(env.src, p.name)).to_owned();
     let prop_ty = crate::lower::lower_type(&p.ty, ctx, env);
     let inner = Ctx {

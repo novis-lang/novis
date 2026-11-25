@@ -1,0 +1,32 @@
+--TEST--
+a stored property added to a `Core\Time` value class, to an interface or to an enum is `E1014` at the property, and a property with only a `get` hook on the same types compiles (`rule:classes/an-added-property-lives-in-one-hidden-slot`)
+--FILE--
+<?nvs
+namespace Shop;
+
+extend Core\Time\Date as DateNotes {
+    public ?string $note = null;
+
+    public bool $isFirst {
+        get => $this->day() == 1;
+    }
+}
+
+extend Core\Router\Gate as GateNotes {
+    public string $label = "";
+}
+
+extend Core\Time\Weekday as DayNotes {
+    public int $count = 0;
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1014]: `Core\Time\Date` cannot store a property an `extend` block adds
+%A
+error[E1014]: `Core\Router\Gate` cannot store a property an `extend` block adds
+%A
+error[E1014]: `Core\Time\Weekday` cannot store a property an `extend` block adds
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

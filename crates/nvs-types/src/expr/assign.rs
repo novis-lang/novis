@@ -1958,10 +1958,31 @@ fn reject_get_only_hook_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     if set.is_some() || get.is_none() {
         return;
     }
-    let (class, name) = (class.clone(), name.clone());
+    let (class, name, get) = (class.clone(), name.clone(), get.clone());
     let Some((owner, _)) =
         crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
     else {
+        // A computed property an `extend` block adds has no stored value, so
+        // nothing writes it, inside its block or out.
+        if let Some(block) = get
+            .as_deref()
+            .and_then(crate::signatures::hook_label_class)
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_GET_ONLY_HOOK_WRITE,
+                    format!(
+                        "`{block}::${name}` is an added property with only a `get` hook, so it \
+                         cannot be written"
+                    ),
+                )
+                .with_primary(root.span, "this property computes its value on each read")
+                .with_help(
+                    "write a method in the `extend` block that changes the object instead"
+                        .to_owned(),
+                ),
+            );
+        }
         return;
     };
     let inside = ctx.current_class.is_some_and(|current| {
