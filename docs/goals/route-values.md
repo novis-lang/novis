@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/crossing.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-cli/src/openapi.rs, docs/rules/routing/a-bad-query-value-is-a-400.md]
   - id: 3
     title: "a final class's parse may return an existing object of its class, and allows checks it"
-    status: open
+    status: done
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/conformance.rs, crates/nvs-types/src/signatures.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 4
     title: "Core\\Router\\Match holds each converted query value, so allows checks a record a query value's parse loaded"
@@ -455,25 +455,25 @@ needs stages 1 to 4, and stage 10 needs everything.
 
 **Split:** none, one session.
 
-- [ ] The failing cases first, at the paths the check `final-parse` names:
+- [x] The failing cases first, at the paths the check `final-parse` names:
   `tests/conformance/class/a-final-class-may-return-any-object-of-itself-where-it-declares-static.nvst:1`,
   `tests/conformance/class/a-final-class-may-declare-its-own-name-where-its-parent-declares-static.nvst:1`
   and `tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst:1` (an `Order`
   loaded by `parse` from a path capture, `allows` reading it with `$route->parameter('order')`, and
   `refused` setting `404` for `BadCapture` and `Denied`). Each run once by name and red.
   `tests/conformance/class/a-static-return-must-be-the-called-class.nvst:1` stays green.
-- [ ] `crates/nvs-types/src/check.rs:1587` (`reject_static_return_of_another_class`): in a `final`
+- [x] `crates/nvs-types/src/check.rs:1587` (`reject_static_return_of_another_class`): in a `final`
   class (`crates/nvs-types/src/signatures.rs:2477`), a returned expression is accepted when the
   declared type accepts its type with `static` read as the class; the list at `check.rs:1627` stays
   for every other class. The `E0741` card
   (`crates/nvs-diagnostics/src/code/types_e07.rs:793`) and the help at `check.rs:1617` name the
   `final` case.
-- [ ] `crates/nvs-types/src/conformance.rs:449` (the interface half, `reject_dropped_static_return`
+- [x] `crates/nvs-types/src/conformance.rs:449` (the interface half, `reject_dropped_static_return`
   at `:631`) and `:931` (the override half): in a `final` class, the class's own name or `self` in the
   position of the parent's `static` keeps the promise. The `E0404` card
   (`crates/nvs-diagnostics/src/code/types.rs:35`) and the help at `conformance.rs:663` say a `final`
   class may write its own name.
-- [ ] `docs/rules/statements/static-is-a-member-modifier.md:70`: in a `final` class `static` is the
+- [x] `docs/rules/statements/static-is-a-member-modifier.md:70`: in a `final` class `static` is the
   class, so a body may return any value of it and an override may name it.
   `docs/rules/security/route-capture-is-laundered-by-its-type.md:36` (*Memory*): a capture whose
   `parse` loads a record runs that lookup for every request matching the route, before `allows`,
@@ -704,20 +704,19 @@ website.
 
 ### State
 
-Stages 1 and 2 are done, and their five checks are green (`optional-query`,
-`optional-query-document`, `bool-query`, `bool-query-runtime`, `bool-query-document`).
+Stages 1 to 3 are done, and their six checks are green (`optional-query`,
+`optional-query-document`, `bool-query`, `bool-query-runtime`, `bool-query-document`,
+`final-parse`).
 
-Stage 2: `converts_from_segment` (`crates/nvs-types/src/routes.rs:2988`) is the path half and still
-refuses `bool`, `true` and `false`; `converts_from_query` beside it is the whole shared roster, read
-by `query_params`. `CaptureConv::Bool(Option<bool>)` and `Param::Bool(bool)` are in
-`crates/nvs-runtime/src/routes.rs`. `native_conv` (`crates/nvs-stdlib/src/router.rs:1335`) maps
-`bool`, `true` and `false`, so `capture_conv` in `crossing.rs` needed no arm of its own;
-`converted_default` there writes a `bool` default as `1` or `0`. The API document's
-`parameter_schema` (`crates/nvs-cli/src/openapi.rs`) gives a `bool` query value
-`{"type": "integer", "enum": [0, 1]}` and leaves `schema`'s `boolean` to JSON bodies. The `E0752`
-card says a path capture cannot be a `bool` and a query value can. A `bool` literal in a link folds
-to nothing, so the link value check in `links.rs` passes it; a string literal `"true"` for a `bool`
-key is `E0772`.
+Stage 3: `reject_static_return_of_another_class` (`crates/nvs-types/src/check.rs:1587`) returns
+early for a `final` class, so the ordinary return check settles the body. `final_class_names_itself`
+(`crates/nvs-types/src/conformance.rs`, below `reject_dropped_static_return`) binds the parent's
+`static` to the class with `bind_static` and asks `field_fits`; both the interface half
+(`check_class_conformance`) and the override half (`compare_override`) call it, so an answer naming
+another class is still `E0404`. The `E0741` and `E0404` help and cards name the `final` case, and
+`docs/reference/lang/50-classes.md` is re-rendered for the new `E0741` help. A `Parses` capture's
+match already holds the object `parse` returned inside `dispatch`, so `allows` reads the loaded
+`Order` with `$route->parameter("order")` and needed no change.
 
 **From stage 1:** an enum capture reaches its route method as a case through `as_case`
 (`crates/nvs-stdlib/src/router.rs:3187`), and the match keeps the plain integer `CAPTURE` declares.
@@ -730,21 +729,23 @@ Expected red once later stages land:
 
 ### Next
 
-Stage 3, files `crates/nvs-types/src/check.rs`, `crates/nvs-types/src/conformance.rs`,
-`crates/nvs-types/src/signatures.rs` and the cards in `crates/nvs-diagnostics/src/code/`; no gate.
-Stage 4 follows it and adds `bool` to the `CAPTURE` union (`router.rs:695`) when the match carries
-query values.
+Stage 4, files `crates/nvs-stdlib/src/router.rs`, `crates/nvs-types/src/routes.rs`,
+`crates/nvs-diagnostics/src/code/types_e07.rs` and three routing rules; no gate. Its `Order` case
+copies `tests/conformance/core/a-capture-parsed-to-a-stored-object-reaches-allows.nvst:1` with
+`#[Core\Query] Order $order` in place of the capture.
 
-- [ ] `tests/conformance/class/a-final-class-may-return-any-object-of-itself-where-it-declares-static.nvst:1`
-  and the other two failing cases the check `final-parse` names, each run once by name and red.
-- [ ] `crates/nvs-types/src/check.rs:1587` (`reject_static_return_of_another_class`): in a `final`
-  class (`class_is_final`, `crates/nvs-types/src/signatures.rs:2477`) accept any value the declared
-  type accepts with `static` read as the class; the `E0741` card and the help at `check.rs:1612`.
-- [ ] `crates/nvs-types/src/conformance.rs:631` (`reject_dropped_static_return`) and the override
-  half: a `final` class may write its own name or `self` where the parent writes `static`; the
-  `E0404` card.
-- [ ] `docs/rules/statements/static-is-a-member-modifier.md:70` and the *Memory* paragraph of
-  `docs/rules/security/route-capture-is-laundered-by-its-type.md:43`.
+- [ ] `tests/conformance/core/a-query-value-parsed-to-a-stored-object-reaches-allows.nvst:1` and the
+  other two failing cases the check `query-in-match` names, each run once by name and red.
+- [ ] `crates/nvs-stdlib/src/router.rs:3043` to `:3061` (`dispatch`) and `:3086` (`query_values`):
+  write each bound query value into the match's parameters under its name before `allows`; `CAPTURE`
+  (`router.rs:695`) gains `bool`.
+- [ ] `crates/nvs-stdlib/src/router.rs:2687` and `:2840`: the docs and cards of `parameters` and
+  `parameter`.
+- [ ] `crates/nvs-types/src/routes.rs:2810` (`check_captures`) or `:3192` (`query_params`): a
+  `#[Core\Query]` parameter a capture names is a new `E07xx` at the parameter.
+- [ ] `docs/rules/routing/a-bad-query-value-is-a-400.md:1`,
+  `docs/rules/routing/matched-once-before-the-handler.md:1` and
+  `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`.
 
 ### Backlog
 
