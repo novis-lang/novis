@@ -335,6 +335,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`looper check --name <check>` can wait for a heavy-job slot that another project holds, and
+  print nothing.** In `enum-tables` stage 4, the check `cases` started no child for ten minutes
+  while another project ran a release build. The check's own `run:` line, run directly as
+  `bun nv suite ...`, went green in a few minutes. When a check prints nothing for minutes, look
+  for its child process before you wait longer. See `tools/looper/src/verify/accept.ts`.
 - **`--ignored` and `--nocapture` go after `--` in `bun nv linux-test`, or cargo stops at
   "unexpected argument".** A goal wrote `linux-test --release -p <crate> --lib <name> --ignored --
   --nocapture`, and the first probe run failed before it built. Write `--lib <name> -- --ignored

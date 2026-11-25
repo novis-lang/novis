@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/expr/literals.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/iteration.rs, crates/nvs-diagnostics/src/code/types.rs]
   - id: 4
     title: "Core\\Arr keeps and returns enum keys, and as array<E, T> checks each key"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/json.rs]
   - id: 5
     title: "the editor offers the cases where an enum is expected, and a quick fix adds the arms a match is missing"
@@ -254,6 +254,19 @@ already, so `array<T>` is the way to write that.
   its key stays `string`.
 - `flip` of `array<E, string>` returns `array<E>`: the strings become the keys and the cases the
   values. `flip` of an `array<E>` returns `array<E, string>`.
+- **What stage 4 built for `flip` and `groupBy`.** The roster `nvs_stdlib::arr::CASE_KEYS`.
+  `core_lib::case_keys` writes the value that becomes a key (`groupBy`'s callback result, `flip`'s
+  subject element) as the variable `CASE_KEY_VAR`, and keys the result by it. `flip`'s result
+  element is `ARRAY_KEY_VAR`, the subject's key. Both are `type_bounds` of the signature, bounded by
+  the type the row writes, and `check_generic_args` keeps a binding only when it is exactly an
+  enum (`core_lib::binds_only_an_enum`). So `E|string` keys by strings, and a `float` bucket is
+  still refused. A deferred `fn` literal is placed against the bound. The run time needed nothing
+  for a case bucket: `Value::tag` reads a case as its integer, so `key_bytes` writes its decimal.
+  `flip` is on `GIVES_KEYS_BACK`, and `nvs_key_as_case` now keeps the keys of an array of keys.
+- **Declined: `groupCounts` keyed by `E`.** Its `by` callback is in an options bag, and a bag binds
+  no variable (`check_generic_args` checks it last, against the substituted type). Binding from it
+  would check the bag twice, or need a typed `by` signature, which is a second change to the row.
+  The run time counts a case under its decimal already, so `as array<E, uint>` converts the result.
 - `groupBy` (`crates/nvs-stdlib/src/arr.rs:178`) and `groupCounts` (`:719`) with a callback that
   returns `E` return an array keyed by `E`.
 - `as array<E, T>` and `as ?array<E, T>` check that every key is a case of `E`, O(n), beside the
@@ -382,31 +395,31 @@ last on the chain.
   - [x] `ARRAY_KEY_VAR` and the roster `nvs_stdlib::arr::KEEPS_KEYS`
   - [x] `nvs_types::core_lib::keep_keys` keys the subject and result, in the base and in `method_sig`
   - [x] `generics` mentions, binds and substitutes an array's key
-- [ ] `crates/nvs-stdlib/src/arr.rs:178`, `:223`, `:295`, `:315`, `:355`, `:365`, `:516`, `:719` and
+- [x] `crates/nvs-stdlib/src/arr.rs:178`, `:223`, `:295`, `:315`, `:355`, `:365`, `:516`, `:719` and
   every member whose result keeps keys: the signatures of the standing decision.
   - [x] the keep-keys members: `filter`, `map`, `unique`, `withoutNull`, `sortByKey`
   - [x] `keys`, `firstKey`, `lastKey`, `keyOf`, `findKey` give `E`, converted in the IR
   - [x] a callback's key parameter declared `E` gets the case (`arr.rs` `call_with_key` and the
     other key builders)
-  - [ ] `flip`, `groupBy`, `groupCounts`
+  - [x] `flip`, `groupBy`, `groupCounts` (`groupCounts` with `by` declined, see the decision)
 - [x] `crates/nvs-ir/src/lower/convert.rs:1651`: `as array<E, T>` and `as ?array<E, T>` check every
   key.
   - [x] runtime `nvs_to_enum_keyed` and `nvs_to_enum_keyed_or_null`, and their unit test
   - [x] `Helper::ToEnumKeyed`/`ToEnumKeyedOrNull`, codegen symbols, `lower_enum_key_check`
-- [ ] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `arr` names, then `cargo test
+- [x] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `arr` names, then `cargo test
   --test enum_tables` once.
   - [x] `a_member_that_keeps_keys_keeps_the_enum_key`
   - [x] `a_string_keyed_array_converts_with_as_and_checks_each_key`
   - [x] `keys_and_first_key_return_the_enum`
-  - [ ] `flip_turns_enum_keys_into_enum_values`,
+  - [x] `flip_turns_enum_keys_into_enum_values`,
     `group_by_a_case_returns_an_enum_keyed_array`
-- [ ] `tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst:1` (new):
+- [x] `tests/conformance/enum/an-array-keyed-by-an-enum-gives-its-keys-back-as-cases.nvst:1` (new):
   a table, a `foreach`, `groupBy` by a case, `keys`, a JSON round trip through `as`.
-- [ ] `tests/conformance/reject/an-enum-keyed-array-takes-only-its-own-cases.nvst:1` (new): an `int`,
+- [x] `tests/conformance/reject/an-enum-keyed-array-takes-only-its-own-cases.nvst:1` (new): an `int`,
   a `string`, another enum's case, an append and `array<string, int>`, each with its code.
   `tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst:1` keeps its case for a plain
   `array<T>`, and its expected help changes.
-- [ ] The check `cases` run once.
+- [x] The check `cases` run once.
 
 ### 5. the editor offers the cases where an enum is expected, and a quick fix adds the arms a match is missing
 
@@ -472,43 +485,36 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1, 2 and 3 are done, and the check `keyed` is green. The nightly CI failures the sweep names
-(the Miri `nvs-stdlib` shards, the proofs jobs, macOS tests) ran on `origin/main` at `53e94a9181`.
-Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are on local `main` and not pushed yet, so the next push
-clears them. Nothing new to fix for them.
+Stages 1 to 4 are done. The checks `keyed`, `arr` (one `cargo test --test enum_tables`, 24 green)
+and `cases` (the five cases and `an-enum-case-is-not-an-array-key.nvst`, run with `bun nv suite`
+directly) are green. The nightly CI failures the sweep names ran on `origin/main` at `53e94a9181`
+(run `45609291264`). Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are on local `main` and not pushed
+yet, so the next push clears them.
 
-Stage 4 is under way (`8b4a761980`, `dc94bc18c8`, `e777226a59`, `6f820fd9fa`). `filter`, `map`,
-`unique`, `withoutNull` and `sortByKey` over an `array<E, T>` return an array keyed by `E`.
-`keys`, `firstKey`, `lastKey`, `keyOf` and `findKey` return `array<E>` or `?E`, and every
-callback key of an `ENUM_KEYS` member is `E`, an untyped `fn($v, $k)` too. `as array<E, T>` and
-`as ?array<E, T>` check every key at run time. The standing decisions say how each is built. Tests
-run once by name and green: `a_member_that_keeps_keys_keeps_the_enum_key`,
-`a_string_keyed_array_converts_with_as_and_checks_each_key`, `keys_and_first_key_return_the_enum`,
-and the runtime's `an_enum_key_is_a_case_written_as_its_decimal` and
-`a_key_is_a_case_only_as_its_exact_decimal`. A scratch program over `array<Priority, string>` and
-`array<Size, string>` (a `uint` enum) ran right for every member above, for a typed and an untyped
-callback key, and for a string-keyed `firstKey`.
+Stage 4's last item landed in `a846ef5a44`. `groupBy` with a callback that returns a case of `E`
+returns `array<E, array<T>>`. `flip` of an `array<E, T>` returns `array<E>`, and `flip` of an
+`array<E>` returns `array<E, string>`. `groupCounts` with `by` stays `array<uint>`, declined in the
+standing decisions, and `as array<E, uint>` converts it. A scratch program ran each of them right
+over an enum with gaps and over a `uint` enum.
+
+`looper check --name cases` waited more than ten minutes for a heavy-job slot that another project
+held, and started nothing. The same command, run as `bun nv suite`, went green in a few minutes.
 
 ### Next
 
-Stage 4, its third item:
-1. `flip`, `groupBy`, `groupCounts` (`crates/nvs-stdlib/src/arr.rs`, rows near `:198` and `:520`,
-   helpers `nvs_core_arr_group_by` and `nvs_core_arr_group_counts`), with the standing decision's
-   types. `groupBy` and `groupCounts` call `key_bytes` on the callback's result, which today takes
-   an `int|string` key. A case result (`Tag::EnumInt`/`EnumUint`) needs `key_bytes` to write its
-   decimal, and the result type `array<E, …>` needs a roster like `ENUM_KEYS` read by `core_lib`.
-   `flip` of an `array<E, string>` gives `array<E>` values from string keys, so its values need
-   the `KeyAsCase` conversion after the call, or a runtime twin.
-2. The two remaining `arr` tests, `flip_turns_enum_keys_into_enum_values` and
-   `group_by_a_case_returns_an_enum_keyed_array`, then `cargo test --test enum_tables` once.
-3. The two conformance cases the stage names, then the check `cases`. The first can take
-   `.agent-tmp/`-style content: `keys`, `firstKey` and a typed and an untyped callback key over an
-   enum with gaps (`Low = 0, Mid = 5, High = 9`). An untyped literal `['a', 'b'] as array<E, T>` is
-   `array<E, tainted string>`, as `as array<string>` of a literal is, so start from a typed variable.
+Stage 5, the editor (`crates/nvs-lsp/src/completion.rs:410`, `crates/nvs-lsp/src/actions.rs:287`,
+`crates/nvs-lsp/src/rename.rs:28`):
+1. The completion reach for a position whose expected type is an enum `E`, at a `match` arm, a
+   subscript of `array<E, T>`, a key of a literal typed `array<E, T>` and an argument at an `E`
+   parameter. Then the enums after `array<` in a type.
+2. `E1016`'s suggestion with one arm per missing case (`crates/nvs-types/src/expr/cover.rs`), each
+   `Priority::High => throw new LogicError("…")`. `actions.rs` offers it with no new code.
+3. Rename and hover over the new forms, then the nine `.lspt` cases through one writing subagent,
+   as the stage's `**Split:**` line says, and the check `editor` once.
 
-Expected red: none. A callback that declares `string $k` over an `array<E, T>` no longer compiles,
-and nothing in the tree writes one. The new codes `E1017` and `E1018` have cards, and stage 6 owes their reference
-entries and the rule `rule:types/arrays` text that their doc comments cite.
+Expected red: none. `Core\Arr::groupBy` and `flip` keep their old types for every subject that is
+not keyed by an enum and holds no enum values. A method reference to either has the type the row
+writes.
 
 ### Backlog
 
