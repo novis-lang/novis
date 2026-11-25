@@ -1,0 +1,90 @@
+--TEST--
+A `#[Core\Query]` parameter declared `?T $x = null` is optional: an absent key gives `null`, a present key converts as `T`, and a value that does not convert is a `400` — `rule:routing/a-query-parameter-is-declared-like-a-capture`
+--FILE--
+<?nvs
+// covers: Core\Router::dispatch
+// `parse` throws an error for the text `bad`.
+class Tag implements Parses {
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text) {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static {
+        if ($s == "bad") {
+            throw new ParseError("not a tag");
+        }
+        return new static($s);
+    }
+}
+
+enum Mode: uint { Fast = 1, Slow = 2 }
+
+class Search {
+    // Each parameter may be absent. Then its value is `null`.
+    #[Core\Route(path: "/find", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function find(
+        #[Core\Query] ?uint $page = null,
+        #[Core\Query] ?Mode $mode = null,
+        #[Core\Query] "new"|"old"|null $sort = null,
+        #[Core\Query] ?Tag $tag = null,
+    ): void {
+        if ($page == null) { echo "page null\n"; } else { echo "page ", $page, "\n"; }
+        if ($mode == null) { echo "mode null\n"; } else { echo "mode ", $mode == Mode::Slow ? "slow" : "fast", "\n"; }
+        if ($sort == null) { echo "sort null\n"; } else { echo "sort ", $sort, "\n"; }
+        if ($tag == null) { echo "tag null\n"; } else { echo "tag ", $tag->text, "\n"; }
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused ", $reason == Core\Router\Refusal::BadCapture ? "BadCapture" : "other", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $targets = [
+        "/find",
+        "/find?page=3&mode=2&sort=old&tag=red",
+        "/find?page=three",
+        "/find?mode=5",
+        "/find?sort=mid",
+        "/find?tag=bad",
+    ];
+    foreach ($targets as string $target) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, $target);
+        echo $target, " -> ", $answer->status(), "\n", $answer->body();
+    }
+}
+--EXPECT--
+/find -> 200
+page null
+mode null
+sort null
+tag null
+/find?page=3&mode=2&sort=old&tag=red -> 200
+page 3
+mode slow
+sort old
+tag red
+/find?page=three -> 400
+refused BadCapture
+/find?mode=5 -> 400
+refused BadCapture
+/find?sort=mid -> 400
+refused BadCapture
+/find?tag=bad -> 400
+refused BadCapture

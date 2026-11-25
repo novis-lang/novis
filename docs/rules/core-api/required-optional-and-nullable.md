@@ -24,6 +24,11 @@ field to carry a constant and is filled by nothing, so the call that asks for an
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and
 `E0806` at a row's.
 
+**A `#[Query]` parameter answers rows 1, 3 and 4.** A query string cannot carry `null`, so a key is
+present with text or absent, and row 2 has nothing to accept: `?T $x` without `= null` is `E0752` there.
+Row 4's `?T $x = null` gives `null` for an absent key and converts a present one as `T`
+(`rule:routing/a-query-parameter-is-declared-like-a-capture`).
+
 **Declined:**
 - **An omit-when-null option.** An asymmetric encoder is a round-trip bug that shows only in the
   value that happens to be absent. One conditioned on the field having a default can be added later

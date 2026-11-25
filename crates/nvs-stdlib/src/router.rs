@@ -3138,9 +3138,10 @@ fn query_value(
     }
     let Some(found) = fields.get(key.as_bytes()) else {
         return match &query.default {
-            Some(default) => bound_value(ctx, default),
+            nvs_runtime::routes::QueryDefault::Given(default) => bound_value(ctx, default),
+            nvs_runtime::routes::QueryDefault::Null => Ok(Value::null()),
             // no case can reach this: caught by `dispatch`, as the first.
-            None => Err(Fault::thrown(format!(
+            nvs_runtime::routes::QueryDefault::Required => Err(Fault::thrown(format!(
                 "the query string has no key `{key}`, and the parameter `${key}` has no default"
             ))),
         };
@@ -3174,6 +3175,25 @@ fn bound_value(
         nvs_runtime::routes::Param::Text(text) => Ok(Value::text(text)),
         nvs_runtime::routes::Param::Parses { class, text } => parsed(ctx, class, Value::text(text)),
         converted => capture_value(ctx, "", converted),
+    }
+}
+
+/// A capture or query value as the route method's parameter receives it: an
+/// enum capture's converted backing value carries the enum's own tag there,
+/// because a parameter declared at an enum admits only a case
+/// (`rule:enums/representation`). The match keeps the plain `int` or `uint`
+/// [`CAPTURE`] says it holds, so the tag is changed here, at the one place a
+/// value is bound to a parameter. Every other value is returned unchanged.
+fn as_case(value: Value, conv: Option<&nvs_runtime::routes::CaptureConv>) -> Value {
+    if !matches!(conv, Some(nvs_runtime::routes::CaptureConv::Enum { .. })) {
+        return value;
+    }
+    if let Some(number) = value.as_int() {
+        Value::enum_int(number)
+    } else if let Some(number) = value.as_uint() {
+        Value::enum_uint(number)
+    } else {
+        value
     }
 }
 
@@ -3335,6 +3355,13 @@ fn call_handler(
             let at = row.queries().iter().position(|query| query.name == *name)?;
             queries.get(at).copied()
         };
+        let conv = row
+            .captures()
+            .iter()
+            .map(|capture| (&capture.name, &capture.conv))
+            .chain(row.queries().iter().map(|query| (&query.name, &query.conv)))
+            .find(|(param, _)| *param == name)
+            .map(|(_, conv)| conv);
         let Some(value) = captures.get(name.as_bytes()).or_else(from_query) else {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
@@ -3344,7 +3371,7 @@ fn call_handler(
                 ),
             ));
         };
-        args.push(value);
+        args.push(as_case(value, conv));
     }
     let answered = if row.static_handler() {
         match nvs_runtime::call_static_bound(ctx, label, &mut args) {
@@ -4636,7 +4663,9 @@ mod tests {
         use std::sync::Arc;
 
         use nvs_runtime::commands::CaseValue;
-        use nvs_runtime::routes::{Capture, CaptureConv, Param, QueryParam, Route, Routes};
+        use nvs_runtime::routes::{
+            Capture, CaptureConv, Param, QueryDefault, QueryParam, Route, Routes,
+        };
         use nvs_runtime::{
             ClassTable, Ctx, ErrorClass, Inbound, MethodRow, NvsFn, NvsObj, OK, OutputSink, THROWN,
             Tag, ThrownClass, Value,
@@ -4929,7 +4958,7 @@ mod tests {
                         QueryParam {
                             name: "page".to_owned(),
                             conv: CaptureConv::Uint,
-                            default: Some(Param::Uint(1)),
+                            default: QueryDefault::Given(Param::Uint(1)),
                         },
                         QueryParam {
                             name: "mode".to_owned(),
@@ -4940,7 +4969,7 @@ mod tests {
                                     ("slow".to_owned(), CaseValue::Int(20)),
                                 ],
                             },
-                            default: None,
+                            default: QueryDefault::Required,
                         },
                     ]),
                 Route::new("Get", "/tagged", "App\\Shop::tagged", None, Vec::new())
@@ -4948,7 +4977,7 @@ mod tests {
                     .with_queries(vec![QueryParam {
                         name: "tag".to_owned(),
                         conv: CaptureConv::Parses("App\\Tag".to_owned()),
-                        default: None,
+                        default: QueryDefault::Required,
                     }]),
             ])
         }

@@ -1,0 +1,26 @@
+<?nvs
+// A `#[Query]` parameter declared `?uint $page = null`: the key may be absent,
+// and then the value is `null`. The document lists it as optional and typed by
+// `uint`, because a query string cannot carry `null` and a present key converts
+// as `uint` (`rule:routing/a-query-parameter-is-declared-like-a-capture`). A
+// `Parses` class beside it is optional in the same way.
+
+class Slug implements Parses
+{
+    public static function parse(tainted string $s): static
+    {
+        return new static();
+    }
+}
+
+class Items
+{
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(#[Core\Query] ?uint $page = null, #[Core\Query] ?Slug $tag = null): string
+    {
+        return 'every item';
+    }
+}
+
+echo 'GET /items -> Items::index', "\n";

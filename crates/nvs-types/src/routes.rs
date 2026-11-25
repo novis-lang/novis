@@ -3195,7 +3195,26 @@ fn query_params(
             continue;
         }
         let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
-        let declared = sig.and_then(|sig| sig.params.get(index).copied());
+        let written = sig.and_then(|sig| sig.params.get(index).copied());
+        let default = sig
+            .and_then(|sig| sig.defaults.get(index))
+            .and_then(Option::as_ref)
+            .cloned();
+        // `?T $x = null` is `T` that may be absent: a query string cannot carry
+        // `null`, so the `?` and the default together say only that the key is
+        // optional, and the value converts as `T`. Any other default, or none,
+        // leaves the `?` meaning nothing (`rule:routing/a-query-parameter-is-declared-like-a-capture`).
+        let declared = written.map(|ty| {
+            if env.interner.is_nullable(ty) && !matches!(env.interner.get(ty), crate::ty::Ty::Null)
+            {
+                if !matches!(default, Some(crate::defaults::ConstArg::Null)) {
+                    report_nullable_query(ty, &name, param, default.is_some(), env);
+                }
+                env.interner.without_null(ty)
+            } else {
+                ty
+            }
+        });
         if let Some(ty) = declared
             && !converts_from_segment(ty, env)
         {
@@ -3226,13 +3245,41 @@ fn query_params(
             allowed: declared.and_then(|ty| closed_set(ty, env)),
             parses: declared.is_some_and(|ty| crate::commands::is_parses_class(ty, env)),
             cases: key_cases,
-            default: sig
-                .and_then(|sig| sig.defaults.get(index))
-                .and_then(Option::as_ref)
-                .cloned(),
+            default,
         });
     }
     keys
+}
+
+/// `E0752` for a `#[Query]` parameter declared at a nullable type whose default
+/// is not the written `null`: with no default the key is required and can never
+/// arrive as `null`, and with another default the `?` says nothing.
+fn report_nullable_query(
+    ty: crate::ty::TypeId,
+    name: &str,
+    param: &nvs_syntax::ast::Param,
+    has_default: bool,
+    env: &mut Env<'_>,
+) {
+    let described = env.interner.describe(ty);
+    let help = if has_default {
+        "a query string cannot carry `null`, so a `?` type means the key may be absent. Write \
+         `= null` as the default, or remove the `?`"
+    } else {
+        "a query string cannot carry `null`, so a `?` type means the key may be absent. Write \
+         `= null` as the default"
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION,
+            format!(
+                "`{described}` is not a type `#[Query] ${name}` can arrive at without the default \
+                 `null`"
+            ),
+        )
+        .with_primary(param.span, "a nullable query value needs `= null`")
+        .with_help(help),
+    );
 }
 
 /// The field `option` as written, or `None` where the payload has no such

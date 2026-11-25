@@ -3,7 +3,9 @@ percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells i
 `url("posts.index", {page: 3, sort: "desc"})` on `/posts/{page?}` folds to `/posts/3?sort=desc`. The
 link is still the launderer's (`rule:security/launderers-are-sink-named`) — a paginated link has a
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
-and re-taints the result.
+and re-taints the result. **A `null` value writes no key**, as `Core\Uri::buildQuery` drops one, so a
+link to a `#[Query] ?T $x = null` parameter is built from a variable that may be `null`, and the route
+reads the absent key as `null` again.
 
 The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters (`rule:routing/a-query-parameter-is-declared-like-a-capture`) is a

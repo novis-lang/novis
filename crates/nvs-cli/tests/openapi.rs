@@ -1055,6 +1055,40 @@ fn core_uuid_keeps_its_named_format_over_that_schema() {
     );
 }
 
+/// `rule:routing/a-query-parameter-is-declared-like-a-capture`: a `#[Query]`
+/// parameter declared `?T $x = null` is optional, and its schema is `T`'s,
+/// because a query string cannot carry `null` and a present key converts as `T`.
+/// A schema allowing `null` would tell a client it may send a `null` it has no
+/// way to write.
+#[test]
+fn a_nullable_query_value_is_optional_and_typed_by_its_inner_type() {
+    let (doc, err, ok) = build(&fixture("nullable-query"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/items"]["get"]["parameters"];
+
+    assert_eq!(
+        params[0],
+        serde_json::json!({
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "minimum": 0},
+        }),
+        "a `?uint $page = null` key is optional and a `uint`:\n{doc}"
+    );
+    assert_eq!(
+        params[1],
+        serde_json::json!({
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+        }),
+        "a `?Slug $tag = null` key is optional and a class built from text:\n{doc}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // `rule:routing/a-security-scheme-is-declared-in-code` -- `#[Api\Scheme]`.
 // -------------------------------------------------------------------------

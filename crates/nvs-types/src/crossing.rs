@@ -54,10 +54,10 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
                             let conv = capture_conv(param);
                             nvs_runtime::routes::QueryParam {
                                 name: param.name.clone(),
-                                default: param
-                                    .default
-                                    .as_ref()
-                                    .and_then(|constant| query_default(constant, &conv)),
+                                default: param.default.as_ref().map_or(
+                                    nvs_runtime::routes::QueryDefault::Required,
+                                    |constant| query_default(constant, &conv),
+                                ),
                                 conv,
                             }
                         })
@@ -174,13 +174,33 @@ fn capture_conv(param: &crate::RouteParam) -> nvs_runtime::routes::CaptureConv {
 /// converts a spelling to, so it is checked against the admitted cases rather
 /// than spelled again.
 ///
-/// `None` where no conversion has an answer, which leaves the key required.
-/// No program that compiles reaches it: a default is a literal of the declared
-/// type, and every type a `#[Query]` parameter may declare and a literal may
-/// write converts here.
+/// A written `null` is [`QueryDefault::Null`]: the checker admits it only on a
+/// `?T` parameter, whose key may then be absent with no value at all.
+///
+/// [`QueryDefault::Required`] where no conversion has an answer. No program
+/// that compiles reaches it: a default is a literal of the declared type, and
+/// every type a `#[Query]` parameter may declare and a literal may write
+/// converts here.
 ///
 /// [`CaptureConv::Enum`]: nvs_runtime::routes::CaptureConv::Enum
+/// [`QueryDefault::Null`]: nvs_runtime::routes::QueryDefault::Null
+/// [`QueryDefault::Required`]: nvs_runtime::routes::QueryDefault::Required
 fn query_default(
+    constant: &crate::ConstArg,
+    conv: &nvs_runtime::routes::CaptureConv,
+) -> nvs_runtime::routes::QueryDefault {
+    use nvs_runtime::routes::QueryDefault;
+    match constant {
+        crate::ConstArg::Null => QueryDefault::Null,
+        constant => {
+            converted_default(constant, conv).map_or(QueryDefault::Required, QueryDefault::Given)
+        }
+    }
+}
+
+/// A default that is not `null`, converted by `conv`, or `None` where no
+/// conversion has an answer.
+fn converted_default(
     constant: &crate::ConstArg,
     conv: &nvs_runtime::routes::CaptureConv,
 ) -> Option<nvs_runtime::routes::Param> {

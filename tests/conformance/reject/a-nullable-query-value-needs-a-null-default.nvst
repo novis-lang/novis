@@ -1,0 +1,32 @@
+--TEST--
+A `#[Core\Query]` parameter declared `?T` needs the default `null`: without a default, or with another default, it is `E0752`, and the help says to write `= null` — `rule:routing/a-query-parameter-is-declared-like-a-capture`
+--FILE--
+<?nvs
+class Blog {
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(#[Core\Query] ?uint $p): string {
+        return "";
+    }
+
+    #[Core\Route(path: "/feed", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function feed(#[Core\Query] ?uint $p = 1): string {
+        return "";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0752]: `uint|null` is not a type `#[Query] $p` can arrive at without the default `null`
+  --> case.nvs:5:26
+%A
+  = help: a query string cannot carry `null`, so a `?` type means the key may be absent. Write `= null` as the default
+
+error[E0752]: `uint|null` is not a type `#[Query] $p` can arrive at without the default `null`
+   --> case.nvs:11:26
+%A
+   = help: a query string cannot carry `null`, so a `?` type means the key may be absent. Write `= null` as the default, or remove the `?`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

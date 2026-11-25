@@ -271,7 +271,7 @@ pub struct Capture {
 /// no part in choosing a route. `nvs_stdlib::router`'s `dispatch` is the one
 /// reader, once the route has matched.
 ///
-/// **What it spends:** one `String` for the key and, for a key with a default,
+/// **What it spends:** one `String` for the key and, for a key with a default other than `null`,
 /// that default converted once at boot. Per declared parameter, shared by every
 /// request the table answers.
 #[derive(Clone, Debug)]
@@ -280,10 +280,24 @@ pub struct QueryParam {
     pub name: String,
     /// What the key's value becomes. The same table a capture converts by.
     pub conv: CaptureConv,
-    /// The declared default, already converted by [`Self::conv`], or `None`
-    /// for a required key. A default is the only thing that makes a key
+    /// What an absent key gives. A default is the only thing that makes a key
     /// optional.
-    pub default: Option<Param>,
+    pub default: QueryDefault,
+}
+
+/// What a `#[Query]` parameter's absent key gives it.
+///
+/// [`Self::Null`] is its own arm and not a [`Param`], because a capture is
+/// never `null`: only a query value declared `?T $x = null` may be absent with
+/// no value at all.
+#[derive(Clone, Debug, PartialEq)]
+pub enum QueryDefault {
+    /// No default: an absent key is a `400`.
+    Required,
+    /// The written `= null` of a `?T` parameter: an absent key gives `null`.
+    Null,
+    /// The declared default, already converted by [`QueryParam::conv`].
+    Given(Param),
 }
 
 /// A capture as the request filled it — the "typed parameters" of

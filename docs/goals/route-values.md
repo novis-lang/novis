@@ -6,7 +6,7 @@ context: [docs/rules/security/route-capture-is-laundered-by-its-type.md, docs/ru
 stages:
   - id: 1
     title: "a query value declared ?T $x = null is optional and null when its key is absent, and its link and its API entry say so"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/crossing.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-api/required-optional-and-nullable.md, docs/rules/routing/a-leftover-link-key-is-a-query-string.md]
   - id: 2
     title: "a bool query value reads 1 or 0, and a bool path capture still does not compile"
@@ -398,27 +398,27 @@ needs stages 1 to 4, and stage 10 needs everything.
 
 **Split:** none, one session.
 
-- [ ] The failing cases first, at the paths the check `optional-query` names:
+- [x] The failing cases first, at the paths the check `optional-query` names:
   `tests/conformance/core/an-optional-query-value-is-null-when-its-key-is-absent.nvst:1` (a `?uint`, an
   enum, a set of allowed values and a `Parses` class, each absent, present and bad),
   `tests/conformance/reject/a-nullable-query-value-needs-a-null-default.nvst:1` (`?uint $p` and
   `?uint $p = 1`, each `E0752` with its help) and
   `tests/conformance/core/a-link-leaves-out-a-query-key-whose-value-is-null.nvst:1`. Each run once by
   name and red.
-- [ ] `crates/nvs-types/src/routes.rs:3178` (`query_params`): a declared `?T` whose default is the
+- [x] `crates/nvs-types/src/routes.rs:3178` (`query_params`): a declared `?T` whose default is the
   written `null` converts as `T` and records `T` as its `ty` (`:3225`); `?T` without a default, or
   with another default, is `E0752` (`:3203`) with the help § *Standing decisions* gives. The `E0752`
   card (`crates/nvs-diagnostics/src/code/types_e07.rs:983`) names `= null`.
-- [ ] `crates/nvs-runtime/src/routes.rs:278`: `QueryParam::default` becomes `QueryDefault`;
+- [x] `crates/nvs-runtime/src/routes.rs:278`: `QueryParam::default` becomes `QueryDefault`;
   `crates/nvs-types/src/crossing.rs:183` (`query_default`) writes `QueryDefault::Null` for the `null`
   constant; `crates/nvs-stdlib/src/router.rs:3139` (`query_value`) binds `null` for an absent key with
   that default.
-- [ ] `crates/nvs-stdlib/src/uri.rs:2589` already drops a `null` value; the link case pins it for
+- [x] `crates/nvs-stdlib/src/uri.rs:2589` already drops a `null` value; the link case pins it for
   `Core\Router::url`, and `crates/nvs-stdlib/src/router.rs:1490` (`substitute`) needs no change unless
   the case is red.
-- [ ] `crates/nvs-cli/src/openapi.rs:778` (`parameter`): the test the check `optional-query-document`
+- [x] `crates/nvs-cli/src/openapi.rs:778` (`parameter`): the test the check `optional-query-document`
   names, in `crates/nvs-cli/tests/openapi.rs:683`'s neighbourhood, run once by name.
-- [ ] `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`: "a default is what makes
+- [x] `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`: "a default is what makes
   the key optional" says that `?T $x = null` is the default `null`, that `?T` needs `= null`, and the
   Declined row of § *Standing decisions*. `docs/rules/core-api/required-optional-and-nullable.md:1`:
   the query door answers rows 1, 3 and 4, and row 2 is `E0752` there because a query string cannot
@@ -704,34 +704,47 @@ website.
 
 ### State
 
-Written by the interactive session that wrote the goal on 2026-11-24, from the user's decisions of
-that day. Nothing is built. Every anchor above was read on that day. Expected red once built:
+Stage 1 is done and its two checks are green (`optional-query`, `optional-query-document`).
+`query_params` (`crates/nvs-types/src/routes.rs:3178`) strips the `null` of a `?T $x = null` and
+records `T`; `report_nullable_query` beside it is the `E0752` for `?T` with no default or another
+default. `nvs_runtime::routes::QueryDefault` (`Required`, `Null`, `Given`) replaced
+`QueryParam::default`'s `Option<Param>`. The API document needed no change, because the row's `ty` is
+`T` already (fixture `crates/nvs-cli/tests/fixtures/api/nullable-query.nvs`).
+
+**A pre-existing bug was fixed on the way:** an enum path capture or enum query value never reached
+its route method through `dispatch`. The match converts it to a plain `int` or `uint`, and the
+method's parameter check refused that ("must be of type enum, uint given"). No case dispatched one.
+`as_case` (`crates/nvs-stdlib/src/router.rs:3187`) now gives the value the enum's tag where
+`call_handler` binds it; the match keeps the plain integer `CAPTURE` declares. Pinned by
+`tests/conformance/core/an-enum-capture-reaches-its-route-method-as-a-case.nvst`. Stage 4 puts query
+values into the match: it must decide whether an enum query value there is the plain integer, as an
+enum capture is, and keep the two the same.
+
+Expected red once later stages land:
 `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 7 moves it to `Core\Uri`). Stage 8 was added later that day from the user's calls on the link.
+(stage 7 moves it to `Core\Uri`), and `tests/conformance/reject/a-bool-route-capture-does-not-compile.nvst`
+(stage 2: its `#[Query] bool $full` error goes away).
 
 ### Next
 
-Stage 1, files `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/crossing.rs`,
+Stage 2, files `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/crossing.rs`,
 `crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/router.rs` and
 `crates/nvs-cli/src/openapi.rs`; no gate. Stage 3 may run beside it, and stage 4 follows stages 2
 and 3.
 
-- [ ] `tests/conformance/core/an-optional-query-value-is-null-when-its-key-is-absent.nvst:1`,
-  `tests/conformance/reject/a-nullable-query-value-needs-a-null-default.nvst:1` and
-  `tests/conformance/core/a-link-leaves-out-a-query-key-whose-value-is-null.nvst:1`: the failing
-  cases first, run once by name (`rule:routing/a-query-parameter-is-declared-like-a-capture`).
-- [ ] `crates/nvs-types/src/routes.rs:3178`, `:3203` and `:3225`: `?T $x = null` converts as `T`;
-  `?T` without `= null` is `E0752` with its help; the card at
-  `crates/nvs-diagnostics/src/code/types_e07.rs:983`.
-- [ ] `crates/nvs-runtime/src/routes.rs:278`, `crates/nvs-types/src/crossing.rs:183` and
-  `crates/nvs-stdlib/src/router.rs:3139`: `QueryDefault`, and `null` for an absent key.
-- [ ] `crates/nvs-stdlib/src/uri.rs:2589`: the link case pins that `Core\Router::url` drops a `null`
-  (`rule:routing/a-leftover-link-key-is-a-query-string`).
-- [ ] `crates/nvs-cli/src/openapi.rs:778`: the test `a_nullable_query_value_is_optional_and_typed_by_its_inner_type`,
-  run once by name (`rule:routing/api-document-is-generated-from-the-route-table`).
-- [ ] `docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md:10`,
-  `docs/rules/core-api/required-optional-and-nullable.md:1` and
-  `docs/rules/routing/a-leftover-link-key-is-a-query-string.md:1`.
+- [ ] `tests/conformance/core/a-bool-query-value-is-1-or-0.nvst:1`: the failing case first, run once
+  by name; `tests/conformance/reject/a-bool-route-capture-does-not-compile.nvst:1` loses its
+  `#[Query] bool` route and gains a `false` capture.
+- [ ] `crates/nvs-types/src/routes.rs:2988` (`converts_from_segment`): a path half and a query half;
+  the query help at `query_params` (`:3178`) lists `bool`.
+- [ ] `crates/nvs-runtime/src/routes.rs:129` (`CaptureConv`), `:217` (`convert`) and `:306` (`Param`):
+  `CaptureConv::Bool(Option<bool>)` and `Param::Bool(bool)`; `crates/nvs-types/src/crossing.rs:129`
+  (`capture_conv`); `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`). The tests the check
+  `bool-query-runtime` names, run once by name with `cargo test --lib a_bool_query_value_`.
+- [ ] `crates/nvs-cli/src/openapi.rs:837` (`schema`): `{"type": "integer", "enum": [0, 1]}`, and the
+  test `a_bool_query_value_is_the_integer_0_or_1` in `crates/nvs-cli/tests/openapi.rs`.
+- [ ] `docs/rules/security/route-capture-is-laundered-by-its-type.md:6` and
+  `docs/rules/routing/a-bad-query-value-is-a-400.md:1`, with the two Declined rows.
 
 ### Backlog
 

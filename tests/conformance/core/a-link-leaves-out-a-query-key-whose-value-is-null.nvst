@@ -1,0 +1,29 @@
+--TEST--
+`Core\Router::url` writes no key for a `#[Core\Query]` value that is `null`, so a link to an optional query value can be built from a variable that may be `null` — `rule:routing/a-leftover-link-key-is-a-query-string`
+--FILE--
+<?nvs
+// covers: Core\Router::url
+class Search {
+    #[Core\Route(path: "/find", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function find(
+        #[Core\Query] ?uint $page = null,
+        #[Core\Query] "new"|"old"|null $sort = null,
+    ): string {
+        return "";
+    }
+}
+
+// A `null` value writes no key, and a link with no keys has no `?`.
+echo "none=", Core\Router::url(Search::find, ["page" => null, "sort" => null]), "\n";
+
+// A value read from a variable that is `null` writes no key either.
+?uint $page = null;
+echo "variable=", Core\Router::url(Search::find, ["page" => $page, "sort" => "new"]), "\n";
+
+$page = 4;
+echo "given=", Core\Router::url(Search::find, ["page" => $page, "sort" => "old"]), "\n";
+--EXPECT--
+none=/find
+variable=/find?sort=new
+given=/find?page=4&sort=old
