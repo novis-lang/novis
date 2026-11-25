@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Callbacks for the calling class",
-      "text": "A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.",
-      "goals": [
-        "static-in-callables"
-      ]
-    },
-    {
       "title": "Enums as keys",
       "text": "A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.",
       "goals": [
