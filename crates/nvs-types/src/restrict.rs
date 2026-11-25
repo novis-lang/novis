@@ -21,10 +21,14 @@
 //! and on the class's namespace (`'Ns'` or a `'Ns\*'` subtree above it). A use of a method is held
 //! too by an entry on each ancestor's method of the same name, so an override and an
 //! implementation are restricted with the method they replace. Every entry that holds a use must
-//! allow it: nothing lifts an entry.
+//! allow it: nothing lifts an entry. A call of a member an `extend` block adds resolves to the
+//! block, so it is held by an entry on `'Block::member'`, on the block and on the block's
+//! namespace, and never by one on the type the block extends.
 //!
 //! **Where a use is.** Its place is the namespace it is written in, the class around it and the
-//! method around it. An `allow` entry matches the namespace (exactly, or a subtree), the class, or
+//! method around it. In an `extend` block's body the class is the block, never the type it
+//! extends ([`crate::deprecated::window`]), so a block cannot use a member restricted on its type
+//! from inside. An `allow` entry matches the namespace (exactly, or a subtree), the class, or
 //! the `Class::method`. A use inside the restricted declaration itself, its own class or its own
 //! namespace, is always allowed, so restricted code can call itself. A package's entry matches only
 //! where the using file is inside that package by layout ([`crate::package`]), so a file that

@@ -48,8 +48,9 @@ pub enum Target {
     Name(String),
     /// `'Ns\*'`: the namespace `Ns` and every namespace below it.
     Subtree(String),
-    /// `'Ns\Name::member'`: a method, property or class constant of a class. A property may be
-    /// written with or without its `$`, and is held without it.
+    /// `'Ns\Name::member'`: a method, property or class constant of a class, or a member an
+    /// `extend` block adds, named by the block. A property may be written with or without its `$`,
+    /// and is held without it.
     Member {
         /// The class, without a leading `\`.
         class: String,

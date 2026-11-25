@@ -234,9 +234,12 @@ pub(crate) fn window<'e, R>(
         warn_uses(mark, env);
     }
     crate::test_code::refuse_calls(owner, member.as_ref(), mark, env);
+    // An `extend` body's place is its block, never the type it extends, so a block cannot use a
+    // member restricted on its type from inside.
+    let block = env.extend_block.clone();
     let place = crate::restrict::Place {
         namespace,
-        class: owner,
+        class: block.as_ref().or(owner),
         member: member.as_ref(),
     };
     crate::restrict::check_uses(place, mark, env);

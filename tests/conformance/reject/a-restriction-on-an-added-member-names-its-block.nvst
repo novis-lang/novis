@@ -1,0 +1,79 @@
+--TEST--
+a `[[restrict]]` entry names a member an `extend` block adds by the block, `'Block::member'`, and an entry on the extended type does not hold the members a block adds to it — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'App' from './app';
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+// `App\Allowed` may call `isLarge`, so this call compiles.
+echo App\Allowed\Report::read(), "\n";
+// `App\Other` may not call `isLarge`, so the call inside it does not compile.
+echo App\Other\Report::read(), "\n";
+--FILE app/Tools/OrderTools.nvs--
+<?nvs
+namespace App\Tools;
+
+use Acme\Shop\Order;
+
+extend Order as OrderTools {
+    public function isLarge(): bool {
+        return $this->total > 100;
+    }
+}
+--FILE app/Allowed/Report.nvs--
+<?nvs
+namespace App\Allowed;
+
+use Acme\Shop\Order;
+use App\Tools\OrderTools;
+
+final class Report
+{
+    public static function read(): string
+    {
+        return (new Order(250))->isLarge() ? "large" : "small";
+    }
+}
+--FILE app/Other/Report.nvs--
+<?nvs
+namespace App\Other;
+
+use Acme\Shop\Order;
+use App\Tools\OrderTools;
+
+final class Report
+{
+    public static function read(): string
+    {
+        // The entry on `Acme\Shop\Order` allows this namespace. It does not hold
+        // `isLarge`, because the block adds it. The entry on the block does.
+        return (new Order(250))->isLarge() ? "large" : "small";
+    }
+}
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--FILE package.toml--
+[[restrict]]
+use = 'App\Tools\OrderTools::isLarge'
+allow = ['App\Allowed']
+
+[[restrict]]
+use = 'Acme\Shop\Order'
+allow = ['App\Allowed', 'App\Other', 'App\Tools']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `App\Tools\OrderTools::isLarge` cannot be used here
+   --> %sReport.nvs:13:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

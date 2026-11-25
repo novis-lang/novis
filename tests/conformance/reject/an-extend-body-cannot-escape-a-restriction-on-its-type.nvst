@@ -1,0 +1,46 @@
+--TEST--
+an `extend` block's body is its own place, never the type it extends: a method restricted to its own class is refused inside a block that extends that class — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use App\OrderTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    // `Order::secret` may be used only inside `Order`. This block is not `Order`,
+    // so this call does not compile.
+    public function leak(): string {
+        return $this->secret();
+    }
+}
+
+echo (new Order())->leak(), "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function secret(): string
+    {
+        return "secret";
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+
+[[restrict]]
+use = 'Acme\Shop\Order::secret'
+allow = []
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `Acme\Shop\Order::secret` cannot be used here
+   --> case.nvs:13:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -18,6 +18,8 @@ is required and lists the places that may use it. An entry matches a use when it
 enclosing namespace (exact, or a `\*` subtree), its enclosing class, or its enclosing
 `Class::method`. An `allow` entry that names a class matches that class alone: a namespace written
 with the same name, such as `Shop\Cart\Item`'s under an allowed class `Shop\Cart`, is another place.
+A member an `extend` block adds (`rule:classes/an-extend-block-adds-members-to-a-type`) is named by
+its block, `'App\Time\BusinessDays::isBusinessDay'`, and a block is a class-like place of its own.
 `allow = []` allows no place. `note` is optional Markdown, shown in the error and on
 hover, and is text an end user reads. `replace` is optional, one Novis expression with the target's
 parameters and `$this` as its placeholders, exactly as `#[Core\Deprecated]`'s `replace` is
@@ -80,6 +82,12 @@ use of its classes and their members, so `$object->method()` on a restricted cla
 outside the allowed places. A use inside the restricted declaration itself, its own class or its own
 namespace, is always allowed, so restricted code can call itself. A use outside every allowed place
 is `E0664`.
+
+**An `extend` block is its own place.** A body inside a block is in the block and its namespace,
+never in the type it extends, so a block cannot use a member restricted to its type from inside. An
+entry on the extended type, or on one of its members, does not hold the members a block adds to it:
+those are held by the entries on the block, its added member and its namespace. A package restricts
+only its own blocks, as it restricts only its own code.
 
 **It only narrows.** A use must pass every restriction on the declaration, from the application's
 file and from every loaded package. Nothing lifts one: the application cannot remove, widen or
