@@ -154,9 +154,9 @@ toolbar that updates after the response, which needs a script in the program's p
 
 **Lanes.** Stages 2 and 3 share `isolate.rs` and `host.rs` and run in order. Stages 4 and 5 share
 `site.rs` and run in order. Stage 6 needs stages 2 and 3. Stage 7 is alone in its files. Every
-viewer item needs the goal `debug-viewer-flagship` reached: the gate is that `viewer/src/ui/list.tsx`
-exists. While it does not, a stage lands its runtime, index and API items, and its viewer items
-wait in the handoff.
+viewer item builds on `viewer/src/ui/list.tsx`, which the goal in front of this one on the chain,
+`debug-viewer-flagship`, lands. If that file does not exist, a stage lands its runtime, index and
+API items, and its viewer items wait in the handoff.
 
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in

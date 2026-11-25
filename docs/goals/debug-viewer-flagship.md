@@ -307,8 +307,9 @@ edits.
 
 **Lanes.** Stages 2, 3, 5, 6 and 7 share `viewer/` and run in order. Stage 4 touches only
 `crates/nvs-cli/src/debug/` and its tests, and can run beside stage 2 or 3. Stage 8 needs stage 2's
-router. Stage 9 needs stage 8's link, and stage 10 needs stage 9's command. The goal touches no
-compiler or runtime crate, so it runs as a side goal beside the chain.
+router. Stage 9 needs stage 8's link, and stage 10 needs stage 9's command. The goal is on
+the chain by the user's call, in front of `deeper-debug-records`, whose viewer items build on
+`viewer/src/ui/`.
 
 **What stops the goal.** One attempt per item and two sessions per stage. A stage that cannot end in
 two sessions records what is left in the handoff and the next stage starts. The count that decides
