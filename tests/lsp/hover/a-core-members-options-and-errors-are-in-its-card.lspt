@@ -15,11 +15,11 @@ Converts `$value` to JSON text. It can be a scalar, an array, an anonymous objec
 
 **Parameters**
 
-- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{ name: value }` shape, or an instance of a class with `#[Json\Derive]`.
+- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{ name: value }` shape, or an instance of a class with `#[Json\Derive]`. A `Core\Time\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` is written as a JSON string. A date or a time is its ISO text, a `Zone` is its name, such as `"Europe/Vienna"`, and a `Duration` is text such as `"1h30m"`.
 - `pretty` — Writes the output across several lines, with indentation. By default, the output is on one line.
 - `escapeUnicode` — Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is.
 
-**Returns** The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
+**Returns** The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. Tainted text is text that you must check before you use it. A `tainted` string, or a `mixed` or `object` value, anywhere inside `$value` makes the result tainted.
 
 **Throws**
 
