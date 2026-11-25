@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/stmt.rs, crates/nvs-syntax/src/token.rs, crates/nvs-syntax/src/walk.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-fmt/src/chain.rs, docs/rules/programs/one-declaration-per-autoloaded-file.md, docs/rules/classes/a-type-is-declared-at-file-scope.md, docs/agent/conventions.md]
   - id: 2
     title: "an enum body takes methods and constants"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/enums.md]
   - id: 3
     title: "added methods, static methods and constants resolve where their block is used, and run as direct calls"
@@ -320,7 +320,19 @@ static property of your own class), `readonly` on an added property, a stored pr
   to a direct call with the case's integer, so the enum representation stays an integer constant
   (`rule:enums/no-class-machinery` is rewritten, not reversed: no descriptor, no allocation).
   `$case->m()` on a value typed as one case (`Ty::EnumCase`, `crates/nvs-types/src/ty.rs:547`) resolves
-  as on the enum. `class_qname_of` (`members.rs:774`) accepts `Ty::Enum` only, so stage 2 adds the case.
+  as on the enum.
+- **An enum's static method takes a `0` in parameter 0** (mine, stage 2). The enum has no descriptor
+  to pass, and one convention keeps every call, `self::` call and method reference direct
+  (`lower_method_of`, `crates/nvs-ir/src/lower/mod.rs`). An instance method takes the case's integer
+  there, typed `Ty::Enum`. A method reference stores the integer in its callable, and its thunk reads
+  it back as `Ty::Enum` with no retain (`crates/nvs-ir/src/lower/anon_fn.rs` `lower_callable`).
+- **An enum method that uses `yield` is `E0220`** (mine, stage 2, by simplicity). A generator keeps
+  its receiver in a state object typed as an object, and a method returning an array does the same
+  job. Lifting it means typing the state's `this` field and `lsb` for an integer receiver.
+- **A constant may not take a case's name, `E0304`** (mine, stage 2), because `E::X` reads both.
+  `resolve_enum` (`crates/nvs-types/src/enums.rs`) reports it.
+- **`static::` in an enum is accepted** (mine, stage 2). Nothing extends an enum, so it names the
+  enum, and its calls lower as `self::` calls do.
 
 ### The help and the editor
 
@@ -436,14 +448,20 @@ classes are the ones that goal makes compare by value.
 - [x] `crates/nvs-syntax/src/parser/decl.rs:2013` and `:2118`: methods and constants parse in an enum
   body; a property and a nested enum stay `E0220` (`crates/nvs-diagnostics/src/code/rejected_php.rs:118`),
   its help rewritten to name a class for state.
-- [ ] `crates/nvs-types/src/expr/members.rs:774`: `class_qname_of` takes `Ty::EnumCase`;
+- [x] `crates/nvs-types/src/expr/members.rs:774`: `class_qname_of` takes `Ty::EnumCase`;
   `crates/nvs-types/src/expr/calls.rs:42` and `:557`: an enum's methods resolve with `$this` typed as
   the enum.
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1127`: enum methods lower as functions whose parameter 0 is the
+  - [x] An enum constant that is no case reads through the class-constant arm of `infer_class_const`.
+  - [x] A class-owned enum's members are in the signature table (`collect_owned_enum_members`).
+  - [x] Inside a class-owned enum, the owner's enums resolve by bare name (`owned_enum_in_scope`).
+- [x] `crates/nvs-ir/src/lower/mod.rs:1127`: enum methods lower as functions whose parameter 0 is the
   case's integer; a call is a direct `InstKind::Call`.
-- [ ] `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst:1` expects the
+  - [x] `lower_method_of` with an enum receiver; the walk lowers file-scope and class-owned enums.
+  - [x] Static and instance calls on an enum pass a `0` or the case, never a descriptor.
+  - [x] A method reference's thunk reads an enum receiver as an integer.
+- [x] `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst:1` expects the
   old refusal: rewrite its source to the new shape, never its expected output, and say so in the commit.
-- [ ] `docs/rules/enums.md:388`'s fragment `docs/rules/enums/no-class-machinery.md:1`: rewritten to
+- [x] `docs/rules/enums.md:388`'s fragment `docs/rules/enums/no-class-machinery.md:1`: rewritten to
   the body that takes methods and constants, its table at `enums.md:408` updated; the designed enum rule
   of stage 1 flips to `shipped`. The three cases the check `enum-body` names, run once by name.
 
@@ -559,45 +577,44 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 1 is done (`b8adb756bd`): the VS Code grammar colours `extend <Type> as <Name>`
-(`#extend-declaration`), completion offers `extend` at a file-scope statement only
-(`FILE_DECLARATION_WORDS` in `crates/nvs-lsp/src/completion.rs`), and the three `shape` cases
-pass. `tests/lsp/completion/a-file-offers-the-word-that-opens-an-extend-block.lspt` is new.
+Stage 1 is done (`b8adb756bd`). Stage 2 is done: the parser item in `39429e359e`, the rest in the
+`feat(lang): an enum method reads its case as $this` commit after it. `looper check --name enum-body`
+is green, and so is the new reject case
+`tests/conformance/reject/an-enum-constant-named-as-a-case-and-an-enum-generator-do-not-compile.nvst`.
 
-Stage 2's parser item landed (`39429e359e`). `parse_enum_body` keeps methods and constants; only a
-property (truncated, E0220 "an enum has no properties") and a nested enum are refused.
-`casing.rs`'s `check_enum_decl` now runs `check_members`, so an enum method needs its written
-visibility. `tests/conformance/reject/an-enum-body-still-takes-no-property.nvst` passes. The two
-older reject cases and example `declaring-an-enum/06-a-property-in-an-enum` (renamed from
-`06-a-constant-in-an-enum`) now refuse a property.
+How an enum member runs now, which stage 3 reuses for a block on an enum:
 
-A probe shows what is left: `Suit::first()` and `$s->isRed()` type-check and stop at codegen with
-E0901 (no descriptor for the enum), and `Suit::COUNT` is E0309 in `nvs-hir`'s member table. An
-Explore pass found: `signatures.rs:1509` already registers enum members through
-`collect_members`; `check.rs:949` already runs `check_members` on them; `lower/mod.rs:1214` calls
-`lower_method` from the class walk only; `members.rs:77` `infer_class_const` has the enum branch at
-`:129-186`. Treat these as pointers.
+- A constant that is no case reads through the class-constant arm of `infer_class_const`
+  (`crates/nvs-types/src/expr/members.rs:117`, the `is_enum` narrowing above the `match`).
+- `lower_method_of` (`crates/nvs-ir/src/lower/mod.rs`, beside `lower_method`) takes an
+  `Option<EnumRepr>` receiver: `Ty::Enum` for an instance method, `Ty::Int` `0` for a static one.
+  The program walk in `lower_program_as` lowers file-scope and class-owned enum bodies through it.
+- `lower_static_call` and `lower_method_call` (`crates/nvs-ir/src/lower/expr.rs`) test
+  `self.enums.get(&call.class)` and pass the `0` or the case, direct, never a descriptor.
+  `lower_callable` (`anon_fn.rs`) reads an enum receiver from `FCC_RECV` as `Ty::Enum`, no retain.
+- `collect_owned_enum_members` (`crates/nvs-types/src/signatures.rs`) and `owned_enum_in_scope`
+  (`crates/nvs-hir/src/resolve.rs`) make a class-owned enum's body work as a file-scope one's.
 
-`tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst` does not go red:
-it uses no enum member. Its item stays for stage 7, to show the new shape beside it.
+`cargo fmt` reformatted five stage 1 files; that is its own `chore(lang)` commit.
+
+The E0218 and E0220 cards and help changed (`rejected_php.rs`), so `site --check review` may name
+their help keys red until stage 7 restamps them.
 
 ### Next
 
-Stage 2, items 2 to 5.
+Stage 3, one session. Its items are the anchors.
 
-1. `crates/nvs-hir/src/members.rs:328`/`:348`: record an enum's constants and static methods so
-   `Suit::COUNT` and `Suit::first()` are not E0309.
-2. `crates/nvs-types/src/expr/members.rs:774` `class_qname_of` takes `Ty::EnumCase`;
-   `crates/nvs-types/src/expr/members.rs:129` reads a constant before the case lookup; `$this` in an
-   enum method is `Ty::Enum`. Check what `check_method` (`check.rs:1417`) gives `$this` now.
-3. `crates/nvs-ir/src/lower/mod.rs:1214`: lower an enum's methods with parameter 0 the case integer,
-   and make every call `Callee::Direct` with no descriptor (the source of today's E0901). Enum
-   constants lower as class constants do.
-4. The two `enum-body` run cases, `tests/conformance/enum/an-enum-method-reads-its-case-as-this.nvst`
-   and `an-enum-static-method-and-constant-are-called-on-the-enum.nvst` (the probe at the top of this
-   list is a start), then `looper check --name enum-body`.
-5. `docs/rules/enums/no-class-machinery.md` rewritten, `enums.md:408`'s table, the enum rule flips
-   to `shipped`, `bun nv rules --render`. Then stage 3.
+1. `crates/nvs-types/src/signatures.rs:2806` `resolve_method_ref`: fall back to the blocks the file
+   uses. A block's members are collected under the block's own key, and the lookup maps
+   `<Type>` to the blocks used in this file.
+2. `crates/nvs-types/src/expr/calls.rs` and `members.rs:77`: every call form and a constant records a
+   resolved call whose class is the block, so `nvs-ir` labels it `<Block>::<name>`.
+3. `crates/nvs-hir/src/members.rs:2582` `record_member`: added statics and constants, or E0309.
+4. `crates/nvs-ir/src/lower/mod.rs` walk: an `ExtendDecl` arm that lowers each method through
+   `lower_method_of` with the receiver of its target: object, class descriptor, or the enum's
+   integer. The call sites in `expr.rs` then need the block's target class to pick slot 0, since
+   `call.class` names the block, not the enum. Then the `direct-call` IR test, `added-calls` and
+   `added-visibility` cases, and `E0329`'s help.
 
 ### Backlog
 
@@ -605,6 +622,9 @@ Stage 2, items 2 to 5.
   `details.md:19`, `what-an-enum-does-not-have/details.md` and `an-enum-inside-a-class/details.md`
   still say an enum has no method or constant. `data/proofs/review-baseline.json:5917` still names
   the old example file `06-a-constant-in-an-enum.nvs`; the review restamps it.
+  `docs/reference/lang/55-enums.md:215` (generated) still shows example 06 as a refused constant.
+- `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst` now keeps every
+  member in the enum. Stage 7 may rename it to match; `guardedBy` lists name it.
 - A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with stage 4's
   deprecation item.
 - `HierarchyResolver::written` (the editor's graph for an unloaded file) does not carry blocks. Stage
