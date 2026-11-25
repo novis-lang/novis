@@ -44,6 +44,11 @@ HTML service does not answer beside the two tags. The extra character is what ke
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
 
+**Where an enum `E` is expected, its cases are offered before every other row**, with no trigger of their
+own: an arm condition of a `match` over `E` or `?E`, a subscript of an `array<E, T>`, a key of an array
+literal written at an `array<E, T>`, and an argument at a parameter of type `E`. At an arm and at a key, a
+case already written there is left out, and so is `null` at an arm over `?E` once an arm writes it.
+
 **Declined:**
 - **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
   a `:` finished `::`, and it reads the same for every client.

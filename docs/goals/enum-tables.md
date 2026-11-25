@@ -427,16 +427,16 @@ last on the chain.
 names the nine paths of the check `editor`, the neutral names `Priority`, `Low`, `Normal` and `High`,
 and `docs/agent/conventions.md` § *An `.lspt` case*.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:410`: a new reach for a position whose expected type is an
+- [x] `crates/nvs-lsp/src/completion.rs:410`: a new reach for a position whose expected type is an
   enum `E`, offering `E::Case` rows before every other row. The positions: an arm condition of a
   `match` over `E` or `?E` (only the cases no arm handles yet, and `null` for `?E`), a subscript of an
   `array<E, T>`, a key of an array literal whose target is `array<E, T>` (only the cases not written
   yet), and an argument at a parameter of type `E`. Trigger characters do not change: the list opens
   while a word is typed or when the user asks for it
   (`rule:ide/completion-is-asked-where-a-spelling-ends`).
-- [ ] The same module: after `array<` in type position, the enums in scope are offered beside the
+- [x] The same module: after `array<` in type position, the enums in scope are offered beside the
   types, as the existing type completion does.
-- [ ] Stage 1's new error carries one suggestion that inserts an arm per missing case before the
+- [x] Stage 1's new error carries one suggestion that inserts an arm per missing case before the
   closing brace, each `Priority::High => throw new LogicError("…")` with the case named in the
   message. `crates/nvs-lsp/src/actions.rs:287` offers it with no new code
   (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). The arm text is held to
@@ -447,7 +447,7 @@ and `docs/agent/conventions.md` § *An `.lspt` case*.
 - [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:362` already colours a name before `,` in a type
   argument. The highlight case pins it, and the grammar changes only if the case is red.
 - [ ] The nine `.lspt` cases the check `editor` names, then the check run once.
-- [ ] The completion rule gains one sentence on the expected-type rows, in
+- [x] The completion rule gains one sentence on the expected-type rows, in
   `docs/rules/ide/completion-is-asked-where-a-spelling-ends.md:1` or the fragment `bun nv brief
   --where completion` names as the home of what a list offers.
 
@@ -485,36 +485,41 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 to 4 are done. The checks `keyed`, `arr` (one `cargo test --test enum_tables`, 24 green)
-and `cases` (the five cases and `an-enum-case-is-not-an-array-key.nvst`, run with `bun nv suite`
-directly) are green. The nightly CI failures the sweep names ran on `origin/main` at `53e94a9181`
-(run `45609291264`). Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are on local `main` and not pushed
-yet, so the next push clears them.
+Stages 1 to 4 are done. Stage 5 is all but one item. The nightly CI failures the sweep names ran on
+`origin/main` at `53e94a9181` (run `45609291264`). Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are
+on local `main` and not pushed yet, so the next push clears them.
 
-Stage 4's last item landed in `a846ef5a44`. `groupBy` with a callback that returns a case of `E`
-returns `array<E, array<T>>`. `flip` of an `array<E, T>` returns `array<E>`, and `flip` of an
-`array<E>` returns `array<E, string>`. `groupCounts` with `by` stays `array<uint>`, declined in the
-standing decisions, and `as array<E, uint>` converts it. A scratch program ran each of them right
-over an enum with gaps and over a `uint` enum.
-
-`looper check --name cases` waited more than ten minutes for a heavy-job slot that another project
-held, and started nothing. The same command, run as `bun nv suite`, went green in a few minutes.
+What stage 5 landed:
+- `543615e749`: `E1016` carries an unsafe fix that inserts one arm per missing case after the last
+  arm, indented as it is, each `Priority::High => throw new LogicError('Priority::High is not
+  handled yet.'),`. The case prefix is the one an arm already writes (`cover::written_prefix`).
+- `4ebe427eca`: `crates/nvs-lsp/src/expected.rs` finds the enum expected at the cursor (a `match`
+  arm, a subscript, a keyed literal's key, an argument), read off the tokens at the node's depth.
+  `completion::expected_cases` offers the rows under the new first `Tier::Expected`. The checker
+  records a keyed literal's enum (`ExprTypeTable::keyed_literal`, set in `check_array_literal`).
+  `arguments::param_at` is the slot lookup `route_argument_at` now uses too.
+- The nine `.lspt` cases of the check `editor` are written. The whole `tests/lsp` run: 733 green,
+  one red, the rename case below. The completion rule has its sentence.
 
 ### Next
 
-Stage 5, the editor (`crates/nvs-lsp/src/completion.rs:410`, `crates/nvs-lsp/src/actions.rs:287`,
-`crates/nvs-lsp/src/rename.rs:28`):
-1. The completion reach for a position whose expected type is an enum `E`, at a `match` arm, a
-   subscript of `array<E, T>`, a key of a literal typed `array<E, T>` and an argument at an `E`
-   parameter. Then the enums after `array<` in a type.
-2. `E1016`'s suggestion with one arm per missing case (`crates/nvs-types/src/expr/cover.rs`), each
-   `Priority::High => throw new LogicError("…")`. `actions.rs` offers it with no new code.
-3. Rename and hover over the new forms, then the nine `.lspt` cases through one writing subagent,
-   as the stage's `**Split:**` line says, and the check `editor` once.
+1. **Rename misses a case read inside a class constant or a property default.** Renaming `High` in
+   `tests/lsp/rename/renaming-a-case-renames-it-inside-a-constant-table-and-a-keyed-literal.lspt`
+   gives 2:30, 9:45 and 10:23 and misses 6:78, the key in `const array<Priority, string> LABELS`.
+   `const Priority DEFAULT = Priority::High;` and a static property's default are missed too, so
+   the reference index does not walk constant and property initializers. Fix it at the index
+   (`crates/nvs-lsp/src/index.rs` or `references`), so references and highlight gain it too. Then
+   tick the rename item and run the check `editor` once.
+2. The grammar item: the case `tests/lsp/highlight/an-enum-keyed-array-type-colours-both-arguments.lspt`
+   is a `documentHighlight` case, not a colour. Check whether a grammar case exists for
+   `editors/vscode/syntaxes/nvs.tmLanguage.json:362` (`bun nv brief --where tmLanguage`) and pin
+   `array<Priority, string>` there, or tick the item if the grammar has no case suite.
+3. The `.lspt` renderer sorts rows by label (`crates/nvs-lsp/src/render.rs:466`), so no case shows
+   that the case rows come first. A unit test in `completion.rs` on `sort_text` starting with `0`
+   pins it. No case covers `null` at an arm over `?Priority` yet.
+4. Then stage 6 from the backlog.
 
-Expected red: none. `Core\Arr::groupBy` and `flip` keep their old types for every subject that is
-not keyed by an enum and holds no enum values. A method reference to either has the type the row
-writes.
+Expected red: the rename case above, and nothing else.
 
 ### Backlog
 
