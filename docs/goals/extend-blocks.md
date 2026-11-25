@@ -301,15 +301,16 @@ static property of your own class), `readonly` on an added property, a stored pr
   allowed on every type a block may extend. A `set`-only or a stored property is the stored case below.
   A class's `PropertyGuard` and `PropertyObserver` never see an added property.
 - **A stored added property lives in one hidden slot** (user, replacing side storage after the runtime
-  showed it). The slot holds a pointer to a small array of the program's added values for that object,
-  `null` until the first write of any added property, and released with the object's other slots in
+  showed it). The slot holds an ordinary array value of the program's added values for that object
+  (mine, stage 5: the sweep then frees it with no new code on any free path), `null` until the first
+  write of any added property, and released with the object's other slots in
   `dismantle` (`crates/nvs-runtime/src/object.rs:5144`). No other object pays anything, nothing runs on
   any free path, and no address is ever a key, so a reused address never sees old values. The precedent
   is the hidden slot 0 of a revocable class (`docs/rules/classes/revocable-objects.md`).
   - **On a class of the program**, the compiler adds the slot only when a loaded block adds a stored
     property to the class. The slot sits in the class's own part of the layout, so every subclass has it
-    at the same index. The class's unit cache key covers the blocks that add properties to it, the way
-    `rule:config/the-extension-set-is-in-every-unit-key` covers the extension set.
+    at the same index. The class's unit cache key covers the blocks that add properties to it: one
+    unit is the whole program, and `program_digest` hashes every file, blocks included.
   - **On a `Core` class**, the registry entry (`CoreClass`, `crates/nvs-stdlib/src/registry.rs:1952`)
     records whether the class reserves the slot, after its declared slots, so no `Core` member's slot
     index moves. Every `Core` class with instances reserves it, except: the value classes `Core\Time`
@@ -535,9 +536,16 @@ or is extended by another `Core` class (`file:line` and one line each), before t
   - [x] the value classes, `Core\Html\Markup` and the seven immortal `Core\Reflect` descriptions
     take no slot; every other class with instances reserves it
   - [x] the test, run once by name, green
-- [ ] `crates/nvs-runtime/src/object.rs:466` and `:2519`: the descriptor's added-slot index;
+- [x] `crates/nvs-runtime/src/object.rs:466` and `:2519`: the descriptor's added-slot index;
   `crates/nvs-types/src/layout.rs:1`: a program class takes the slot when a loaded block adds a stored
   property to it, in its own part of the layout; the unit cache key covers those blocks.
+  - [x] `ClassDesc::added_slot`, found by `ADDED_SLOT_NAME` in `push_class`; `is_hidden_slot`,
+    `field_slot` and `field_name` hide it
+  - [x] a `Core` class whose decision is `Reserved` has it after its declared slots
+    (`instance.rs` `reserves_added_slot`); `set_slot_types` gives it `SlotCheck::Any`
+  - [x] `flatten_fields` gives a block's target the slot after its own properties
+  - [x] the unit key: one unit is the whole program, keyed by `program_digest`
+    (`crates/nvs-cli/src/cache.rs:1610`) over every file, so a block's change rekeys it already
 - [ ] Reads and writes of an added stored property, its default, `null` and `lateinit`; a `get` hook
   lowered as a call; `crates/nvs-runtime/src/object.rs:5359` (`clone`) and
   `crates/nvs-runtime/src/graph.rs:727` start the slot empty; JSON and `Reflect` skip it.
@@ -545,8 +553,10 @@ or is extended by another `Core` class (`file:line` and one line each), before t
     object and an enum case, and lowers as a call of the block's hook
   - [x] a write to it is `E0787`; a stored added property is `E1014` on every type for now
   - [ ] a stored added property reads and writes the slot, with its default, `null` and `lateinit`
-  - [ ] `clone` and the graph copy start the slot empty; JSON and `Reflect` skip it
-- [ ] The two remaining tests the check `slot` names, beside `object.rs`'s tests, run once by name.
+  - [x] `clone` and the graph copy start the slot empty; JSON and `Reflect` skip it
+  - [ ] `refuse_stored` narrowed to an interface, an enum, a `Core` class with no slot and a
+    namespace class
+- [x] The two remaining tests the check `slot` names, beside `object.rs`'s tests, run once by name.
 - [ ] The five cases the check `properties` names and the two the check `property-refusals` names,
   each run once by name. The `Core` request case uses `--GET`.
   - [x] the two `property-refusals` cases and `an-added-get-hook-is-computed-on-each-read`, green
@@ -603,41 +613,45 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has its computed properties, its refusals and the `Core` slot
-roster; the runtime slot is next. The `property-refusals` check's two cases are green.
+Stage 5 has its computed properties, its refusals, the `Core` slot roster and the runtime slot.
+Reads and writes of a stored added property are next. The `slot` check's three tests and the
+`property-refusals` check's two cases are green.
 
-- **Computed properties**: `added_property_access` (`crates/nvs-types/src/expr/members.rs:2741`)
-  is the fallback when the receiver's class has no property of the name. It looks up a used
-  block (`extend::added_property`), checks visibility against the block, and records
-  `ExprInfo::HookedProperty` with the block's `get` label and no observer or guard. A hook in a
-  block is labelled `<Block>::$name::get` (`check_property_hooks` in `check.rs` reads
-  `env.extend_block`). `lower_property_hook` (`crates/nvs-ir/src/lower/mod.rs:2315`) now takes the
-  receiver's `EnumRepr`, so a block on an enum reads the case as `$this`.
-- **Writes**: `reject_get_only_hook_write` (`crates/nvs-types/src/expr/assign.rs:1947`) refuses a
-  write to a computed added property as `E0787`, inside its block too, since nothing stores it.
-- **Stored**: `refuse_stored` (`crates/nvs-types/src/extend.rs:501`) reports `E1014`
-  (`E_ADDED_STORED_PROPERTY_NO_SLOT`, `types_e10.rs`) on every type today. A read of one returns
-  the error type silently in `added_property_access`, because the declaration already failed.
-- **The `Core` roster**: `crates/nvs-stdlib/src/added_slot.rs`, `decision(name)`. It is a roster
-  by name, not a `CoreClass` field, because 198 literals would each need the field (mine, by
-  simplicity). The test `added_slot_every_core_class_with_instances_has_a_decision` is green.
+- **Computed**: `added_property_access` (`crates/nvs-types/src/expr/members.rs:2741`) records
+  `ExprInfo::HookedProperty` with the block's `get` label; a write is `E0787` (`assign.rs:1947`).
+- **Stored**: `refuse_stored` (`crates/nvs-types/src/extend.rs:508`) still reports `E1014` on every
+  type, because nothing lowers a read or write of the slot yet.
+- **The slot**: `nvs_runtime::ADDED_SLOT_NAME` (`object.rs:1076`). `ClassDesc::added_slot()` is
+  found by that name in `push_class`; `is_hidden_slot` covers it, so JSON, bytes, Reflect, the test
+  diff and the debug record skip it, and `clone` and the graph copy leave it `null`. A `Core` class
+  whose `added_slot::decision` is `Reserved` has it after its declared slots (`instance.rs`
+  `reserves_added_slot`). A program class has it after its own properties when a loaded block adds
+  a stored property to it (`layout.rs` `flatten_fields`, `extend::is_stored_added`).
+- **It holds an ordinary array**, one entry per added stored property, so the sweep frees it. An
+  error object starts every slot as `Value::unset()` (`ctx/error.rs:393`), so a reader treats any
+  value that is not an array as "no added values".
 
 ### Next
 
-1. The runtime slot, item 2 of stage 5. `crates/nvs-runtime/src/object.rs:466` and `:2519`: the
-   descriptor's added-slot index, with `table.define` in `crates/nvs-stdlib/src/instance.rs:1197`
-   giving a `Core` class one more slot when `added_slot::decision` says `Reserved`. Then
-   `crates/nvs-types/src/layout.rs`: a program class takes the slot when a loaded block adds a
-   stored property to it, named like `nvs_runtime::revoke::HIDDEN_SLOT_NAME`. Then narrow
-   `refuse_stored` to the types with no slot: an interface, an enum, a `Core` class whose decision
-   is `None`, and a namespace class.
-2. Reads and writes in `added_property_access` and `nvs-ir`: a load of the slot, a null test, an
-   indexed load; `clone` (`object.rs:5359`) and the graph copy (`graph.rs:727`) start it empty.
-3. The four other `properties` cases. `Core\Request` is a namespace class with no instances, so
+1. Each stored added property's index in the array, decided in `nvs-types` and carried to `nvs-ir`
+   on the `ExprInfo` record: a class's ancestors' added properties first, root first, then its
+   own. Within one class, its blocks sorted by qualified name, and each block's properties in
+   declaration order. So an index computed against a base class holds for every subclass, as a
+   slot index does.
+2. Two runtime helpers beside `nvs_object_clone` (`object.rs:5566`), each `nvs_helper!` with an
+   `nvs_ir::Helper` variant. `added_get(obj, index)` returns the entry, or `Value::unset()` when
+   the slot is not an array or is too short. `added_set(obj, index, value)` makes the array on the
+   first write, fills it with `Value::unset()` up to `index`, and stores the value.
+3. `added_property_access` records the stored case. `nvs-ir` lowers a read as `added_get`, then an
+   unset test: the default expression where one is written, `null` for a `?T` with none, and the
+   unwritten-property throw for `lateinit` (`rule:classes/an-unwritten-property-read-throws`). A
+   write lowers as `added_set`. Then narrow `refuse_stored` to an interface, an enum, a `Core`
+   class whose decision is not `Reserved`, and a namespace class.
+4. The four other `properties` cases. `Core\Request` is a namespace class with no instances, so
    the "Core request" case extends a `Core` class a request gives, such as `Core\Uri` or
-   `Core\Router\Match`, and runs with `--GET`. Then the `slot` check's two runtime tests.
+   `Core\Router\Match`, and runs with `--GET`.
 
-Tests that may go red: none new. The three new cases are green.
+Tests that may go red: none. The three `slot` tests and the `instance::tests` suite are green.
 
 ### Backlog
 
