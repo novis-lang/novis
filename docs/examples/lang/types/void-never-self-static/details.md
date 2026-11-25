@@ -16,6 +16,12 @@ does not end the path, so the caller still needs a `return` there. Otherwise it 
 works as a parameter type and inside another type, such as `array<self>` or `?static`. `static` is
 not allowed as a parameter type.
 
+`static` is allowed inside a callable parameter type, such as `callable(static): bool`. Then
+`Order::check(...)` takes a function for `Order`. Inside the method, `$rule($this)` and
+`$rule(new static())` are checked when the program compiles. Any other value there is the error
+`E1015`. Everywhere else in the body, `$rule` is a plain `callable`. Its arguments are checked when
+it runs.
+
 A method that returns `static` must return `$this` or `new static(...)`. `return new self();` is
 `E0741`, because a child class may be the class the call names.
 

@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-diagnostics/src/code/types.rs, tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst]
   - id: 3
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/examples/lang/types/void-never-self-static/about.md, docs/examples/lang/types/void-never-self-static/details.md, docs/examples/lang/classes/methods-self-static-and-parent/about.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -239,26 +239,26 @@ their comments.
 **Split:** the example, the attack and the bench go to one writing subagent once the rule is
 rewritten. The session writes the rules, the docs and the website entry.
 
-- [ ] `docs/rules/statements/static-is-a-member-modifier.md:15`: the paragraph says `static` binds
+- [x] `docs/rules/statements/static-is-a-member-modifier.md:15`: the paragraph says `static` binds
   among a callable parameter's own parameters, the body sees a plain `callable`, a direct call is
   proven by E0741's list, and the new code. The Declined list gains the five items above, and
   § *Memory* says a bound callable parameter costs nothing at run time.
-- [ ] `docs/rules/types/callable-variance.md:13`: one sentence after the two refusals pointing at
+- [x] `docs/rules/types/callable-variance.md:13`: one sentence after the two refusals pointing at
   `callable(static)` for a function that takes the class the call names.
 - [x] `crates/nvs-types/src/check.rs`: `yields_the_called_class`'s doc names its second user.
-- [ ] `docs/examples/lang/types/void-never-self-static/about.md:9` and `details.md:1`: one short
+- [x] `docs/examples/lang/types/void-never-self-static/about.md:9` and `details.md:1`: one short
   paragraph on `callable(static)`, written to AGENTS.md § *Text an end user reads*.
   `docs/examples/lang/classes/methods-self-static-and-parent/about.md:1` gets one sentence if it lists
   where `static` may be written.
-- [ ] `docs/examples/lang/types/void-never-self-static/06-a-check-for-the-class-the-call-names.nvs:1`
+- [x] `docs/examples/lang/types/void-never-self-static/06-a-check-for-the-class-the-call-names.nvs:1`
   and its `.out`.
-- [ ] The attack and the bench `bun nv proofs --owed --goal static-in-callables` names, at the paths
+- [x] The attack and the bench `bun nv proofs --owed --goal static-in-callables` names, at the paths
   it prints.
-- [ ] The generated reference pages (`docs/reference/lang/20-types.md`, `50-classes.md`) rebuilt by
+- [x] The generated reference pages (`docs/reference/lang/20-types.md`, `50-classes.md`) rebuilt by
   the command that writes them, never by hand.
-- [ ] `website/src/data/changes.json:1`: one `changed` entry for `static` in a callable parameter.
+- [x] `website/src/data/changes.json:1`: one `changed` entry for `static` in a callable parameter.
   Each page above reread and stamped with `bun nv site --stamp`.
-- [ ] `bun nv proofs --owed --goal static-in-callables` names nothing.
+- [x] `bun nv proofs --owed --goal static-in-callables` names nothing.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -270,24 +270,26 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 and 2 are done and committed. The E0401 for a function argument whose parameter is a class
-strictly below the class a user method's callable parameter takes now carries help:
-`help_function_for_a_subclass` in `crates/nvs-types/src/expr/args.rs` (after
-`substitute_receiver_args`), called after `check_args_typed` at the instance call and the static call
-in `crates/nvs-types/src/expr/calls.rs`. It amends the E0401 already reported for that argument, so a
-call that checks does no more work. A `Core` or extension row (`core_class` set or `param_quals`
-filled) gets no help. The checks `binds`, `help` (3 tests) and `cases` are green. The three
-conformance cases are under `tests/conformance/{lang,reject,callables}/`. A `foreach` over an
-`array<callable>` needs `as callable $rule`, or it is E0101.
+Stages 1 to 3 are done and committed. The rule paragraph is at
+`docs/rules/statements/static-is-a-member-modifier.md:24`, with the five Declined items and the
+§ *Memory* line; `callable-variance.md:13` points at it. Example 06 is in
+`docs/examples/lang/types/void-never-self-static/`, and two attacks are under
+`tests/hostile/lang/types/void-never-self-static/`: `02-…` throws at run time on a stored function,
+`03-…` is `expect-refusal` (two E1015 and the E0401 with help). A hostile case cannot assert both a
+refusal and a run-time throw, so they are two files. No second bench was written: the feature
+`lang:types/void-never-self-static` already has its one bench, and `--owed` named nothing.
+`docs/reference/lang/20-types.md` was re-rendered, `changes.json` has its entry, the pages are
+stamped, and `--record-perf --goal` re-measured the 20-types benches the re-render made stale.
+
+The nightly sweep's failures (Miri `Core\Time` zone tests, the quotient attack, the macOS json-api
+count) were already fixed on main by `1c3196b0e8`; the one left, the Miri timeout of
+`time_gaps_date_range_spans_the_whole_calendar`, now skips Miri (`8ca2f09e1b`).
 
 ### Next
 
-Stage 3 from its first item: rewrite the paragraph at
-`docs/rules/statements/static-is-a-member-modifier.md:15` (it still says a `static` among a written
-callable's parameters does not bind), add the five Declined items and the § *Memory* line, then the
-one sentence in `docs/rules/types/callable-variance.md:13`. Then the example, the attack and the bench
-by one writing subagent at the paths `bun nv proofs --owed --goal static-in-callables` prints. The
-reference pages are rebuilt by their command, then `website/src/data/changes.json` and the stamps.
-No test is expected to go red.
+Stage 4: the newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) over example 06,
+`about.md`, `details.md` and the `changes.json` entry, then the close: a build, the goal's tests by
+name (`binds`, `help`, `cases`), and `bun nv close --goal static-in-callables`. No test is expected
+to go red.
 
 ### Backlog

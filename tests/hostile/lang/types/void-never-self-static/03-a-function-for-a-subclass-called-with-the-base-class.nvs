@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a method calls a function for `Order` with a plain `Model` object.
+// The function reads `total`, which a `Model` does not have, so the program should not compile.
+// hostile: expect-refusal
+
+class Model
+{
+    // 1. Calls the function with a new `Model`, which may not be the called class.
+    public static function withNew(callable(static): int $rule): int
+    {
+        return $rule(new Model());
+    }
+
+    // 2. Calls the function with a variable of type `Model`.
+    public function withVariable(callable(static): int $rule): int
+    {
+        Model $other = new Model();
+        return $rule($other);
+    }
+}
+
+class Order extends Model
+{
+    public int $total = 5;
+}
+
+echo Order::withNew(fn (Order $o): int => $o->total), "\n";
+Order $order = new Order();
+echo $order->withVariable(fn (Order $o): int => $o->total), "\n";
+
+// 3. Calls the method on `Model` with a function that takes only `Order`.
+echo Model::withNew(fn (Order $o): int => $o->total), "\n";

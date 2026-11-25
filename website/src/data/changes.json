@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "lang:types/void-never-self-static"
+      ],
+      "text": "A method parameter of type `callable(static): bool` takes a function for the class the call names. `Order::check(fn (Order $o): bool => ...)` compiles. Inside the method, `$rule($this)` and `$rule(new static())` are checked when the program compiles. Any other value there is the error `E1015`."
+    },
+    {
       "kind": "new",
       "features": [
         "lang:classes/extend-blocks"

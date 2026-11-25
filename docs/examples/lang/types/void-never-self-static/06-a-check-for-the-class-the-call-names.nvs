@@ -1,0 +1,33 @@
+<?nvs
+// `Order::passes` takes a function for `Order`, because `static` is the class named in the call.
+
+class Model
+{
+    public function constructor(public string $id)
+    {}
+
+    // `callable(static): bool` is a function that takes an object of the called class.
+    public static function passes(string $id, callable(static): bool $rule): bool
+    {
+        // `new static($id)` is an object of the called class, so this call compiles.
+        return $rule(new static($id));
+    }
+
+    public function describe(callable(static): string $format): string
+    {
+        // At an instance call, `static` is the class of `$this`.
+        return $format($this);
+    }
+}
+
+final class Order extends Model
+{
+    public int $total = 120;
+}
+
+// The function takes an `Order`, so it can read `$o->total`.
+echo Order::passes('o-1', fn (Order $o): bool => $o->total > 100) ? "big order\n" : "small order\n";
+echo Order::passes('o-2', fn (Order $o): bool => $o->total > 500) ? "big order\n" : "small order\n";
+
+Order $order = new Order('o-3');
+echo $order->describe(fn (Order $o): string => $o->id . ' costs ' . $o->total), "\n";

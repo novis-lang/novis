@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a method stores a function that takes only `Order`, then calls it with other objects.
+// Each call with an object that is not an `Order` should throw a `LogicError`.
+
+class Model
+{
+    public array<callable> $rules = [];
+
+    public function keep(callable(static): bool $rule): void
+    {
+        // A stored function is a plain `callable`. Its arguments are checked when it is called.
+        $this->rules[] = $rule;
+    }
+
+    // `throws` returns `true` when the call throws a `LogicError`.
+    public static function throws(callable $rule, Model $target): bool
+    {
+        try {
+            $rule($target);
+        } catch (LogicError $e) {
+            return true;
+        }
+        return false;
+    }
+}
+
+class Order extends Model
+{
+    public int $total = 5;
+}
+
+class Invoice extends Model
+{}
+
+Order $order = new Order();
+$order->keep(fn (Order $o): bool => $o->total > 0);
+
+// 1. Calls each stored function with a `Model`. The error is caught, so step 2 still runs.
+foreach ($order->rules as callable $rule) {
+    try {
+        $rule(new Model());
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// 2. Calls each stored function one hundred thousand times with an `Invoice`.
+uint $caught = 0;
+uint $i = 0;
+while ($i < 100000) {
+    foreach ($order->rules as callable $rule) {
+        if (Model::throws($rule, new Invoice())) {
+            $caught = $caught + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo $caught, " calls caught\n";
+
+// 3. Calls each stored function with an `Order`. This call works.
+foreach ($order->rules as callable $rule) {
+    echo Model::throws($rule, new Order()) ? "threw\n" : "worked\n";
+}

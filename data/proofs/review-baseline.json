@@ -6446,8 +6446,6 @@
   "docs/examples/lang/types/void-never-self-static/03-one-base-class-that-builds-whichever-kind-was-asked-for.nvs": "6ec405686d6353f6",
   "docs/examples/lang/types/void-never-self-static/04-a-void-result-cannot-be-printed.nvs": "6cad5e21a3871c74",
   "docs/examples/lang/types/void-never-self-static/05-a-never-call-ends-the-path.nvs": "d444351b7bfef491",
-  "docs/examples/lang/types/void-never-self-static/about.md": "b0cc0df56c92f3c2",
-  "docs/examples/lang/types/void-never-self-static/details.md": "5081c534388801ce",
   "docs/examples/lang/types/what-does-not-exist/01-converting-without-a-cast.nvs": "698dab6934559f23",
   "docs/examples/lang/types/what-does-not-exist/02-asking-what-a-value-holds.nvs": "4153c054cae4da3a",
   "docs/examples/lang/types/what-does-not-exist/03-reading-a-price-list-the-novis-way.nvs": "961a2448b2e21ed7",
