@@ -512,6 +512,13 @@ its log (the zone tests and the Miri timeout under `miri units (nvs-stdlib)`, th
 every `proofs` job, the macOS count) is fixed by `1c3196b0e8` and `8ca2f09e1b` on local `main`,
 which are not pushed yet. The next nightly on a pushed `main` clears them.
 
+The first `DONE` was refused on `cases`. The suite ran every case the change reached, and three
+`image-*` cases failed with os error 1455: every `nvs` process sized its WebAssembly pool for
+`max_in_flight` and committed 1.25 GiB, so parallel test processes ran out of the page file.
+`0d358ed02e` keeps the 64-place pool for every process that runs one request at a time, and only
+`serve` and its reload size it from the configuration (`Requests` in
+`crates/nvs-cli/src/extensions.rs`). `looper check --name cases` is green after it.
+
 ### Next
 
 The goal's `DONE` runs its checks. A check that comes back red is rerun alone with
