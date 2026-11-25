@@ -1,0 +1,14 @@
+--TEST--
+a cursor on the enum written as the key of an array type resolves to that enum, so it highlights that use and every other use of the enum in this file and not the declaration, `rule:ide/five-features-are-one-reference-index`, `rule:types/arrays`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+array<Prio<|>rity, string> $labels = [Priority::Low => "low"];
+echo $labels[Priority::High];
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:4:7
+case.nvs:4:36
+case.nvs:5:14

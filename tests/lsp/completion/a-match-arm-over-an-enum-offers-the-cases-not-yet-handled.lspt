@@ -1,0 +1,22 @@
+--TEST--
+an arm condition of a `match` over an enum is offered the cases no arm writes yet, and the case an arm already writes is left out,`rule:ide/completion-is-asked-where-a-spelling-ends`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+final class Labels
+{
+    public static function short(Priority $p): string
+    {
+        return match ($p) {
+            Priority::Low => "low",
+            <|>
+        };
+    }
+}
+--REQUEST--
+completion prefix=Priority
+--EXPECT--
+Priority enum      Priority
+Priority::High enumMember
+Priority::Normal enumMember

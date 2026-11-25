@@ -1,0 +1,13 @@
+--TEST--
+a key of an array literal written where an array keyed by an enum is expected is offered the cases not yet written as keys, and the key already written is left out,`rule:ide/completion-is-asked-where-a-spelling-ends`, `rule:types/arrays`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+array<Priority, string> $labels = [Priority::Low => "low", <|>];
+--REQUEST--
+completion prefix=Priority
+--EXPECT--
+Priority enum      Priority
+Priority::High enumMember
+Priority::Normal enumMember

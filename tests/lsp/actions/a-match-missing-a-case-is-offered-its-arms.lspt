@@ -1,0 +1,19 @@
+--TEST--
+a `match` over an enum that misses cases is offered the fix its own diagnostic carries, one arm per missing case inserted after the last arm, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+final class Labels
+{
+    public static function short(Priority $p): string
+    {
+        return mat<|>ch ($p) {
+            Priority::Low => "low",
+        };
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+9:36-9:36 quickfix add the 2 missing arms -> "\n            Priority::Normal => throw new LogicError('Priority::Normal is not handled yet.'),\n            Priority::High => throw new LogicError('Priority::High is not handled yet.'),"

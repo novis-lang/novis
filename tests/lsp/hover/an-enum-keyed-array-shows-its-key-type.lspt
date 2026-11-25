@@ -1,0 +1,19 @@
+--TEST--
+a property typed as an array keyed by an enum shows both type arguments on hover, the enum key first, `rule:ide/the-request-set-is-closed`, `rule:types/arrays`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+class Labels
+{
+    public array<Priority, string> $names = [];
+}
+
+var $l = new Labels();
+echo $l->na<|>mes[Priority::Low];
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+array<Priority, string>
+```

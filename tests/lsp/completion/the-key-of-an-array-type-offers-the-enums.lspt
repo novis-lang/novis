@@ -1,0 +1,13 @@
+--TEST--
+the first argument of an array type is a type position, so the enum the program declares is offered among the types, `rule:ide/completion-is-asked-where-a-spelling-ends`, `rule:types/arrays`
+--FILE--
+<?nvs
+enum Priority { Low, Normal, High }
+
+final class Labels
+{
+    public static function count(array<<|>
+--REQUEST--
+completion prefix=Priority
+--EXPECT--
+Priority enum      Priority
