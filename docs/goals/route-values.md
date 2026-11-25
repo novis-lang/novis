@@ -240,6 +240,14 @@ capture, compiles and throws only when the call runs, because `literal_args`
   passes. The code is new, beside `E0772` (`crates/nvs-diagnostics/src/code/types_e07.rs:1287`), and
   its card names both types; `E0772` stays the code for a literal its conversion refuses.
 
+**A call a stage 8 session made (2026-11-25).** The seeded `Parses::format` returns `tainted
+string`, not `string`. Almost every `Parses` class in the tree keeps the text `parse` was given in a
+`tainted string` property, and nothing launders arbitrary text, so `format(): string` could not be
+written for them. Both writers percent-encode, so the link is still laundered and security does not
+move. An implementor whose text is clean declares `format(): string`, the narrower return, which the
+override check accepts. `Core\Uuid` and `Core\Queue\Id` return `string`. The user's call said
+`format(): string`; this is the qualifier on it, and a session reverts it only if the user says so.
+
 **Calls the authoring session made (2026-11-24), each with its fallback.** The user has not confirmed
 these; a session builds on them and files a `looper decision ask --built-on <n>` only if the code
 forces the opposite.
@@ -593,25 +601,25 @@ each, before the first edit.
 **Split:** none for the code. Once the interface change has landed, one writing subagent adds
 `format` to every `Parses` class in the tree, and the session builds when it ends.
 
-- [ ] The failing cases first, at the paths the checks `parses-links` and `link-types` name, each run
+- [x] The failing cases first, at the paths the checks `parses-links` and `link-types` name, each run
   once by name and red.
-- [ ] `crates/nvs-types/src/iter_lib.rs:134` (the seeded `Parses`): a third member, `format(): string`,
+- [x] `crates/nvs-types/src/iter_lib.rs:134` (the seeded `Parses`): a third member, `format(): string`,
   required, not `static`. `PARSES`'s doc (`crates/nvs-hir/src/interfaces.rs:69`) and the docs at
   `crates/nvs-types/tests/routes.rs:77` and `crates/nvs-types/tests/commands.rs:25` say three members.
-- [ ] `crates/nvs-stdlib/src/registry.rs:4717` (`implements_parses`) also needs a `format` with no
+- [x] `crates/nvs-stdlib/src/registry.rs:4717` (`implements_parses`) also needs a `format` with no
   parameters that returns `string`. `crates/nvs-stdlib/src/uuid.rs:214` and
   `crates/nvs-stdlib/src/queue.rs:2785` gain a `format` row beside `toString`, writing the same text.
   The test at `registry.rs:5828` pins that the roster is still those two classes.
-- [ ] `crates/nvs-stdlib/src/router.rs:1370` (`segment_text`) and `crates/nvs-stdlib/src/uri.rs:2483`
+- [x] `crates/nvs-stdlib/src/router.rs:1370` (`segment_text`) and `crates/nvs-stdlib/src/uri.rs:2483`
   (`scalar_text`): an object whose class implements `Parses` is written as its `format()` text, called
   the way `stringify` (`crates/nvs-runtime/src/helpers.rs:2327`) calls `toString`, so both writers need
   the context it takes. Any other object throws, and the message names `Parses` and `format`.
-- [ ] `crates/nvs-types/src/links.rs:482` (`literal_args`) records each value's static type, and a check
+- [x] `crates/nvs-types/src/links.rs:482` (`literal_args`) records each value's static type, and a check
   beside `converts` (`links.rs:1057`) refuses a value its parameter cannot take, by the list in
   § *Standing decisions*, with the new code and its card.
 - [ ] Every `Parses` class in the tree declares `format()`: the files
   `git grep -lE "implements[^{]*\bParses\b"` lists, about 26. Each `.out` that changes is read.
-- [ ] `docs/rules/routing/link-target-and-params-are-checked.md:25`: a value is held to its
+- [x] `docs/rules/routing/link-target-and-params-are-checked.md:25`: a value is held to its
   parameter's type where its type is known, a `Parses` value is written as its `format` text, the
   sentence on what is not checked names what is left, and the three Declined rows of this stage.
   `docs/rules/expressions/try-parse.md:1`: `Parses` has `format` beside `parse`.
@@ -704,37 +712,41 @@ website.
 
 ### State
 
-Stages 1 to 7 are done, and their thirteen checks are green. `CodecTy::ValueText` replaces
-`CodecTy::Instant`, and the field's class label picks the text. `nvs_types::derive::JSON_TEXT_CLASSES`
-and `nvs_stdlib::json::VALUE_TEXT_NAMES` are one list, and a test in `crates/nvs-types/tests/derive.rs`
-holds them equal. `nvs_stdlib::json::VALUE_TEXT` holds each class's writer, reader and wording. A
-row codec erases the value types to `ValueText` too, and `db/row.rs` reads it by label. A negative
-`Duration` refuses to encode. A shape field of a value type no longer records an `E0821` site
-(`crates/nvs-types/src/expr/args.rs`); a value type at the root of `decodeAs` stays `E0821`. A
-`ValueText` field in the API document gets `openapi::schema`'s format, and no `--test openapi` case
-pins it yet: stage 10 owes one.
+Stage 8's code, cases and rules are committed; only the sweep is left.
+`Parses` requires `format(): tainted string` (see the stage 8 call in § *Standing decisions*), seeded
+in `crates/nvs-types/src/iter_lib.rs`. `implements_parses` needs `format`, and `Core\Uuid` and
+`Core\Queue\Id` gain `format` rows (`nvs_core_uuid_format`, `nvs_core_queue_id_format`).
+`crate::uri::parses_text` (`crates/nvs-stdlib/src/uri.rs`) writes a `Parses` value for
+`segment_text` and `scalar_text`; every link and query writer now takes `&mut Ctx`. The link type check
+is `fits_type` in `crates/nvs-types/src/links.rs`, code `E1010` in `types_e10.rs`. It reads each
+`$params` element's type from `Env::argument_element_types`, which `check_array_literal` fills for a
+keyed element of a call argument. The four new cases pass (`target/debug/nvs.exe test <files>`).
+**The sweep stopped partway** at the context budget. Its writing subagent changed `benches/members/lang/classes/parses.nvs`, three
+fixtures under `crates/nvs-cli/tests/fixtures/`, `crates/nvs-types/src/conformance.rs`,
+`crates/nvs-types/tests/commands.rs` and `crates/nvs-types/tests/routes.rs`; those are committed
+as they stood, unread. About 19 conformance cases fail `E0449` until the sweep ends.
 
 **Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url`, `buildQuery`, `E0756`
-and `E0821` cards, quoted in `website/src/data/core.json` and `website/public/llms-full.txt`.
-
-**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, and a test asserting
-`CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field.
-
-**For stage 8:** its link-type code goes in `types_e10.rs` (`E1010`).
+and `E0821` cards, and now the new `format` cards of `Core\Uuid` and `Core\Queue\Id` and `E1010`,
+quoted in `website/src/data/core.json` and `website/public/llms-full.txt`.
+**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test asserting
+`CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a `nvs meta --json`
+golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case or test that builds a
+link from a `Core\Uuid` (it threw before and now writes the text).
 
 ### Next
 
-Stage 8, one session, as the stage's items say. Anchors have moved:
+Finish stage 8, then close it:
 
-- [ ] `crates/nvs-types/src/links.rs:1057`: first the failing cases of `parses-links` and `link-types`.
-- [ ] `crates/nvs-types/src/iter_lib.rs:134` (the seeded `Parses`) gains `format(): string`.
-- [ ] `crates/nvs-stdlib/src/registry.rs:4729` (`implements_parses`) needs `format`; the roster
-  tests are at `:5840` and `:5875`.
-- [ ] `crates/nvs-stdlib/src/router.rs:1400` (`segment_text`) and `crates/nvs-stdlib/src/uri.rs:2488`
-  (`scalar_text`) write a `Parses` value as its `format()` text.
-- [ ] `crates/nvs-types/src/links.rs:482` (`literal_args`) and a check beside `converts` (`:1057`).
-- [ ] `docs/rules/routing/link-target-and-params-are-checked.md:25` and two other rules, once every
-  `Parses` class in the tree declares `format()` (a writing subagent).
+- [ ] `crates/nvs-types/tests/routes.rs:85` and every `Parses` class declares `format()`: check what `git grep -lE "implements[^{]*\bParses\b"`
+  lists, outside `docs/rules/`, `docs/goals/`, `docs/agent/` and `registry.rs`. A class with a
+  `tainted string` text returns `tainted string`. Read the seven files the subagent changed first.
+- [ ] `tests/conformance/core/a-class-claiming-the-contract-owes-its-one-member.nvst:2` now gets two
+  `E0449` errors, `parse` and `format`; update its expectation and title.
+- [ ] `crates/nvs-types/src/conformance.rs:2199`: run the changed cases once by path with `target/debug/nvs.exe test <files>`, then
+  `cargo test --test routes`, `cargo test --test commands` and `cargo test --lib conformance`.
+- [ ] `docs/goals/route-values.md:37`: set stage 8 to done, then stage 9 (`docs/examples/lang/classes/parses/`
+  gets `format` already from the sweep).
 
 ### Backlog
 
