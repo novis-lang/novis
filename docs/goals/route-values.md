@@ -666,20 +666,20 @@ folder; one for `docs/examples/lang/attributes/core-json-derive-and-core-json-fi
 `docs/examples/lang/attributes/core-command-and-core-option-the-command-table/`. The session writes the
 website.
 
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/10-a-date-in-the-path-and-a-time-in-the-query.nvs:1`
+- [x] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/10-a-date-in-the-path-and-a-time-in-the-query.nvs:1`
   (a `Date` capture, an `Instant` capture, a `#[Core\Query] DateTime`, and the links
   `Core\Router::url` builds for them) and `about.md`'s paragraph on time values, including that a
   `DateTime` is a query value only.
-- [ ] `docs/examples/core/Router/url/05-a-link-to-a-route-that-reads-a-class.nvs:1`: a `Parses` class
+- [x] `docs/examples/core/Router/url/05-a-link-to-a-route-that-reads-a-class.nvs:1`: a `Parses` class
   `Isbn` with `parse` and `format`, a route that reads it, and the link `Core\Router::url` builds.
   `docs/examples/lang/classes/parses/about.md:1` says that `format` writes the text `parse` reads,
   and that a link uses it. The `Core\Router::url` reference card says so too.
-- [ ] `tests/hostile/lang/classes/parses/03-a-format-that-writes-a-slash.nvs:1`: a `format` that
+- [x] `tests/hostile/lang/classes/parses/03-a-format-that-writes-a-slash.nvs:1`: a `format` that
   returns `../admin?x=1` stays in its own segment, and the link does not reach another route.
-- [ ] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/04-time-values-written-another-way.nvs:1`:
+- [x] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/04-time-values-written-another-way.nvs:1`:
   `%3A` for `:`, a tenth fraction digit, `[!Europe/Vienna]`, a `+` typed into a query value, a zone
   name of many thousand bytes and a `DateTime` with no `[Zone]`, each a `404` or a `400`.
-- [ ] `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/11-dates-durations-zones-and-ids-as-text.nvs:1`,
+- [x] `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/11-dates-durations-zones-and-ids-as-text.nvs:1`,
   that folder's `about.md:1` (the `Instant`-only sentence is rewritten), and the examples
   `bun nv proofs --owed --goal route-values` names for `Core\Json::encode`, `Core\Json::decodeAs`,
   `Core\Arr::shapeAs`, `Core\Router::url`, `Core\Uri::buildQuery`, the API document and the command
@@ -691,7 +691,7 @@ website.
   types that cross as text. `website/src/content/docs/tools/api-document/index.mdx:110`: an optional
   query value and the formats. `website/src/content/docs/syntax/attributes/commands-and-discovery.mdx:1`:
   an argument may be a time value. Each reread and stamped with `bun nv site --stamp`.
-- [ ] `website/src/data/changes.json:1`: a `changed` entry for
+- [x] `website/src/data/changes.json:1`: a `changed` entry for
   `lang:attributes/core-route-and-core-access-the-route-table` (optional query value, `bool` query
   value, time values), `Core\Router::url`, `Core\Uri::buildQuery`,
   `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec`,
@@ -712,40 +712,42 @@ website.
 
 ### State
 
-Stages 1 to 9 are done. Stage 9 added route-table examples 08 and 09 and the fallback route in 07,
-the attacks `03-query-values-written-another-way.nvs` and parses `02-a-visitor-guesses-ids.nvs`,
-parses example 06, `Router-Match/parameter(s)/04-*` and `methods-self-static-and-parent/06-*`.
-`parses/about.md` already names `format`, which covers stage 10's sentence on it. `bun nv proofs
---run --only` over the four features was green, and `--comments` passes over all ten files.
-What `--owed` still lists is stage 10's: `perf` reruns, `reviewed` stamps, and every proof of
-`Core\Uuid::format` and `Core\Queue\Id::format`.
+Stage 10's examples, attacks, Rust and `.nvst` tests, website pages and `changes.json` landed in
+`8d79fe8afa` and `44d9ebfbbb`. `Core\Uuid::format` and `Core\Queue\Id::format` have every proof
+but `perf` and `reviewed`. `bun nv site --check changes` is green. The route-table bench now
+matches a path through a `Date` capture and declares `calls 1`, which a `--count` run confirmed.
+A subagent found that a route or command value typed `Core\Queue\Id` was a `500`: binding called
+`parse` through the program's class table, which has no `Core` class. `b6cfcd579f` fixes it with
+`registry::core_parse` (`crates/nvs-stdlib/src/registry.rs`), and
+`tests/conformance/core/a-route-that-takes-a-queue-id-receives-the-id-its-link-wrote.nvst` pins it.
+`target/release/nvs` is built from the tree as of the fix, and `core.json` was rendered from it.
 
-**Stale until stage 10's `bun nv render --website`:** the `methodsFor`, `url`, `buildQuery`, `E0756`
-and `E0821` cards, the `format` cards of `Core\Uuid` and `Core\Queue\Id`, and `E1010`, quoted in
-`website/src/data/core.json` and `website/public/llms-full.txt`. The examples stage 9 added or
-changed also make their pages' questions stale: run `bun nv site --check questions` and stamp.
-**Expected red at the gate:** a `.out` pinning the old `E0756` or `E0821` text, a test asserting
-`CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a `nvs meta --json`
-golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case or test that builds a
-link from a `Core\Uuid` (it threw before and now writes the text).
+**Expected red at the gate:** as before, a `.out` pinning the old `E0756` or `E0821` text, a test
+asserting `CodecTy::Class` for a row's `Date`, `TimeOfDay`, `DateTime` or `Core\Uuid` field, a
+`nvs meta --json` golden or hover `.lspt` quoting `Core\Uuid`'s instance members, and any case
+that builds a link from a `Core\Uuid`. New: a test pinning `E0746`'s card text, which now names the
+time values (`crates/nvs-diagnostics/src/code/types_e07.rs:902`).
 
 ### Next
 
-Stage 10, by its **Split:** line: three writing subagents, then the session writes the website.
-
-- [ ] `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/10-a-date-in-the-path-and-a-time-in-the-query.nvs:1`
-  and the route-table attack `04-time-values-written-another-way.nvs`, as stage 10's items say.
-- [ ] `docs/examples/core/Router/url/05-a-link-to-a-route-that-reads-a-class.nvs:1` and
-  `tests/hostile/lang/classes/parses/03-a-format-that-writes-a-slash.nvs`; `parses/about.md` already
-  says what `format` does.
-- [ ] `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/11-dates-durations-zones-and-ids-as-text.nvs:1`
-  and the JSON, `shapeAs`, API document and command-table examples `--owed` names.
-- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:36` and the other pages stage 10 names,
-  `website/src/data/changes.json`, `bun nv render --website`, the `reviewed` stamps and the `perf`
-  reruns, until `bun nv proofs --owed --goal route-values` names nothing.
+- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:1`: `bun nv site --check stale questions review`
+  names 55 stale stamps. Reread each page and `about.md` it names, fix what a newcomer would trip
+  on, and stamp with `bun nv site --stamp` and `bun nv site --review --stamp`
+  (`MSYS_NO_PATHCONV=1`). This is wide: give the `about.md` and help reviews to a writing subagent.
+- [ ] `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:1`: record perf
+  last, after every stamp edit. List the stale figures with `bun nv proofs --gate --limit 0`
+  grepped for `perf`, about 200, and record them with `xargs -n 100` and
+  `bun nv proofs --record-perf --nvs target/release/nvs.exe --only`. Rebuild the release binary
+  first with `bun nv relink --build` if any source changed.
+- [ ] `docs/goals/route-values.md:703`: `bun nv proofs --owed --goal route-values` names nothing,
+  then set stage 10 done.
 
 ### Backlog
 
 - `Core\Router::url` writes a `/` in a capture value as `%2F` (`crates/nvs-stdlib/src/router.rs:4176`'s
   test), a link the door answers `400` to (`crates/nvs-server/src/mount.rs:738`). Owner:
   `rule:routing/link-target-and-params-are-checked`; not this goal's work.
+- `Core\Test::request` does not apply the door's `%2F` and `%5C` check, so such a path reaches
+  its route in a test and is a `400` under `nvs serve`. Owner: `rule:errors/http-message-defects`.
+- `#[Core\Option] ?Core\Time\Instant $since` is `E0746`: an option cannot be nullable, so an
+  optional option has to take a default. Owner: `rule:tooling/commands-are-compiled`.
