@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/actions.rs, docs/rules/ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows.md, docs/rules/ide/completion-is-asked-where-a-spelling-ends.md]
   - id: 6
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/examples/lang/enums, website/src/data/changes.json]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -311,6 +311,15 @@ array. Each owes what `bun nv proofs --owed --goal enum-tables` names. At least,
 an attack that tries to use a case of another enum, an integer and a request value as a key, and a
 bench of a lookup by case against the same lookup through `as int`.
 
+**Where the three features live (decided in stage 6).** Only the keyed array is a new feature,
+`lang:enums/an-enum-as-an-array-key`, a section of the enums chapter after *An enum as a type*. The
+covering `match` changes `lang:enums/match-and-switch-over-an-enum`, whose example 04 misses a case.
+Enum cases in constants change `lang:types/properties-and-constants`, whose example 05 is a table.
+A reader looks up `match` or a constant where those already are, and a feature per change would
+split one topic over two pages. The constants rule is new,
+`rule:classes/a-constant-value-is-folded-when-the-program-compiles`, since no rule said what a
+constant's value may be.
+
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is recorded in the handoff with what failed, and the stage goes on.
 
@@ -456,28 +465,28 @@ and `docs/agent/conventions.md` § *An `.lspt` case*.
 **Split:** the examples, the attack and the bench go to one writing subagent once the rules are
 rewritten. The session writes the rules, the docs and the website entry.
 
-- [ ] `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md` (new), and one sentence in
+- [x] `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md` (new), and one sentence in
   `docs/rules/expressions/a-match-has-at-least-one-arm.md:1` pointing to it, with the Declined list
   of stage 1.
-- [ ] `docs/rules/enums/no-class-machinery.md:1`: a case is a key of `array<E, T>`, the job table's
+- [x] `docs/rules/enums/no-class-machinery.md:1`: a case is a key of `array<E, T>`, the job table's
   "a case's name" row names a constant table and the covering `match`, and the Declined list above.
-- [ ] `docs/rules/types/arrays.md:1`: "one parameter, not two" becomes the enum key, with the storage,
+- [x] `docs/rules/types/arrays.md:1`: "one parameter, not two" becomes the enum key, with the storage,
   the read-back, the subtyping and § *Memory*. The Declined list gains `array<int, T>` and the plain
   case key.
-- [ ] The rule that holds a class constant's and a property default's values: found with `bun nv brief
+- [x] The rule that holds a class constant's and a property default's values: found with `bun nv brief
   --where constant`, and the folded shapes added.
-- [ ] `docs/examples/lang/enums/`: one example each for the three features, with `about.md` updated,
+- [x] `docs/examples/lang/enums/`: one example each for the three features, with `about.md` updated,
   written to AGENTS.md § *Text an end user reads*.
-- [ ] The attack and the bench `bun nv proofs --owed --goal enum-tables` names, at the paths it
+- [x] The attack and the bench `bun nv proofs --owed --goal enum-tables` names, at the paths it
   prints.
-- [ ] The generated reference pages rebuilt by the command that writes them, never by hand.
-- [ ] `website/src/data/changes.json:1`: one entry per feature. Each page above reread and stamped with
+- [x] The generated reference pages rebuilt by the command that writes them, never by hand.
+- [x] `website/src/data/changes.json:1`: one entry per feature. Each page above reread and stamped with
   `bun nv site --stamp`.
 - [ ] `bun nv proofs --owed --goal enum-tables` names nothing.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 6 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -485,52 +494,41 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 to 5 are done, and the check `editor` is green. The nightly CI failures the sweep names
-ran on `origin/main` at `53e94a9181` (run `45609291264`). Their fixes, `1c3196b0e8` and
-`8ca2f09e1b`, are on local `main` and not pushed yet, so the next push clears them.
+Stages 1 to 6 are done, and the checks `editor` and `proofs` are green (`bun nv proofs --gate --goal
+enum-tables`: nothing owed over 753 features). The nightly CI failures of run `45609291264` ran on
+`origin/main` at `53e94a9181`. Every failure in its log, the nine zone tests, the Miri timeout, the
+quotient attack and the macOS count, is fixed by `1c3196b0e8` and `8ca2f09e1b` on local `main`,
+which are not pushed yet.
 
-What the last stage-5 session landed:
-- `7368ff1343`: `defaults::record_default_use` walks an array literal's keys and elements and an
-  `as` operand, and `check::check_members` calls it for a class constant's value too, inside a
-  `Member::Const` window. So rename, references and highlight reach a case in a constant table, a
-  constant's value and a static property's default. A side effect: a deprecated or restricted
-  constant read inside another constant is now a recorded use, and may warn there.
-- `ad57f202ed`: the grammar colours both names of `array<Priority, Label>`, matched as a pair, and
-  `editors/vscode/test/grammar/types.test.ts` pins it. The headless suites are green (386).
-- `c2bccc9f13`: at an arm over `?E`, the expected `null` row replaces the keyword's row, so `null`
-  is offered once. `completion::tests::an_expected_case_sorts_before_every_other_row` pins the tier
-  order, and `tests/lsp/completion/a-match-arm-over-a-nullable-enum-offers-null-once.lspt` the `null`.
-- Before that: `E1016`'s fix (`543615e749`) and the expected-case completion, `crates/nvs-lsp/src/expected.rs`
-  (`4ebe427eca`).
+What stage 6 landed:
+- `711f8a98d7`: the rules. `rule:expressions/a-match-over-an-enum-covers-every-case` (new),
+  `rule:classes/a-constant-value-is-folded-when-the-program-compiles` (new), `rule:types/arrays`'s
+  `array<E, T>` section and Declined items, and `rule:enums/no-class-machinery`'s key sentence, job
+  table and Declined list. A stale render of `docs/rules/ide.md` from stage 5 rode along.
+- `7a4635d89b`: the new feature `lang:enums/an-enum-as-an-array-key` (about, details, three
+  examples, two attacks, a bench), example 04 of the covering `match`, example 05 of
+  `lang:types/properties-and-constants`, the stale texts in four other features and `enums.mdx`,
+  four `changes.json` entries (the keyed array, the `match`, the constants and the editor), and the
+  `ExitReport` members recorded as `unseen`. Every text passed the newcomer review and is stamped.
+- `d5942d1084`: the cards of the five `KEEPS_KEYS` members say the enum key is kept.
+- The last commit records 90 perf figures on the release binary, built by `bun nv relink --build`.
 
 ### Next
 
-Stage 6, by its `**Split:**` line: the session writes the rules, the docs and the website entry,
-then one writing subagent takes the examples, the attack and the bench.
+Stage 7, a close, since this goal is not the chain's full gate unless the pack says so.
 
-1. Run `bun nv proofs --owed --goal enum-tables` first, and keep its list as the stage's to-do.
-2. The rules: `docs/rules/expressions/a-match-over-an-enum-covers-every-case.md` (new, with stage
-   1's Declined list), a sentence in `docs/rules/expressions/a-match-has-at-least-one-arm.md:1`,
-   `docs/rules/enums/no-class-machinery.md:1` (its "is not an array key" sentence is now false),
-   `docs/rules/types/arrays.md:1`, and the constants rule (`bun nv brief --where constant`).
-3. The backlog's two stale docs, then the reference pages rebuilt by their command.
-4. The examples, the attack and the bench to the subagent, at the paths `proofs --owed` prints.
-5. `website/src/data/changes.json`: one entry per feature, then `site --check stale` and the stamps.
+1. Its first item, the newcomer review, is done and ticked: stage 6 reviewed every text it touched.
+2. `cargo build`, `cargo clippy --all-targets -- -D warnings`, then the goal's tests by name: the
+   checks `covers`, `no-fallback`, `folds`, `keyed`, `arr`, `cases` and `editor`
+   (`looper check --name <text>`).
+3. `bun nv close --goal enum-tables`, every red fixed. Then move each decision only this file
+   holds into its rule (most are there now), and the file is deleted at `DONE`.
 
-Expected red: none known. A test that reads a deprecated or restricted constant inside another
-constant may gain a warning from `7368ff1343`; fix it at the gate if so.
+Expected red: none known. Any edit to `arr.rs`, a chapter or an `about.md` makes perf figures stale
+again: edit and render first, then `bun nv proofs --record-perf` last. The attack
+`tests/hostile/lang/enums/match-and-switch-over-an-enum/01-…nvs` timed out once on the debug binary
+in the subagent's run and passed in this session's.
 
 ### Backlog
 
-For stage 6:
-- `rule:types/arrays` says which `Core\Arr` members keep an enum key (`KEEPS_KEYS`), that `slice`,
-  `reverse` and `sort` do not, and what `as array<E, T>` checks. The reference cards of the five
-  keep-keys members say that the result keeps an enum key.
-- `docs/reference/lang/20-types.md:4756` and
-  `docs/examples/lang/types/properties-and-constants/details.md:20` still say that an enum case and
-  another class's constant in a constant do not compile. Both must say what stage 2 made true.
-- `docs/examples/lang/enums/match-and-switch-over-an-enum/02-a-match-without-a-default-throws.nvs`
-  now throws over a `mixed` value. Check that its name and `about.md` still fit.
-- `site --check stale` names what the changed `E0792`/`E0472` help and the new case
-  `a-constant-holds-enum-cases-inside-an-array.nvst` (`// covers: lang:types/properties-and-constants`)
-  moved. That case may move to the new feature for enum cases in constants.
+None for this goal.
