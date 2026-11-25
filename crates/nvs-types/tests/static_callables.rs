@@ -192,3 +192,61 @@ fn an_override_may_redeclare_a_callable_static_parameter() {
     let diags = check_src(src);
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// The `help:` notes of every `E0401` in `diags`, joined.
+fn mismatch_help(diags: &Diagnostics) -> String {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .flat_map(|d| d.notes.iter())
+        .filter(|n| n.starts_with("help: "))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn a_function_for_a_subclass_at_the_declaring_class_names_callable_static() {
+    for ty in ["callable(Model): bool", "callable(self): bool"] {
+        let members = format!(
+            "  public static function check({ty} $rule): bool {{\n    return true;\n  }}"
+        );
+        let diags = check_src(&fixture(
+            &members,
+            "    Order::check(fn (Order $o): bool => $o->total > 0);",
+        ));
+        let help = mismatch_help(&diags);
+        assert!(help.contains("This function takes only `Order`."), "{ty}: {diags:?}");
+        assert!(help.contains("`callable(static)`"), "{ty}: {diags:?}");
+    }
+}
+
+#[test]
+fn a_function_for_a_subclass_at_a_base_class_call_names_the_class_to_call_on() {
+    let diags = check_src(&fixture(
+        STATIC_CHECK,
+        "    Model::check(fn (Order $o): bool => $o->total > 0);",
+    ));
+    let help = mismatch_help(&diags);
+    assert!(help.contains("This function takes only `Order`."), "{diags:?}");
+    assert!(help.contains("`Order::check(...)`"), "{diags:?}");
+    // At an instance call the example is left out.
+    let diags = check_src(&fixture(
+        INSTANCE_TEST,
+        "    Model $model = new Order();\n    $model->test(fn (Order $o): bool => $o->total > 0);",
+    ));
+    let help = mismatch_help(&diags);
+    assert!(help.contains("Call the method on `Order`."), "{diags:?}");
+    assert!(!help.contains("::test("), "{diags:?}");
+}
+
+#[test]
+fn a_function_for_a_subclass_at_a_core_member_gets_no_new_help() {
+    let diags = check_src(&fixture(
+        "",
+        "    Core\\Fatal::onUncaughtThrow(fn (LogicError $e): mixed => null);",
+    ));
+    assert!(has(&diags, code::E_TYPE_MISMATCH), "{diags:?}");
+    let help = mismatch_help(&diags);
+    assert!(!help.contains("takes only"), "{diags:?}");
+}

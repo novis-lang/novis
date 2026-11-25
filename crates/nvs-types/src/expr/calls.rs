@@ -175,7 +175,25 @@ pub(crate) fn infer_method_call(
         args,
         env,
     );
+    let before = env.diags.len();
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    if let Some((owner, name, _)) = &resolved {
+        let call = super::args::NamedCall {
+            owner,
+            name,
+            called: class_qname_of(receiver_ty, env.interner).filter(|_| receiver_is_class),
+            static_call: false,
+        };
+        super::args::help_function_for_a_subclass(
+            before,
+            args,
+            &slots,
+            &arg_types,
+            sig.as_ref(),
+            &call,
+            env,
+        );
+    }
     if let Some((qname, name, _)) = &resolved {
         note_plain_binds(qname, name, expr.span, env);
     }
@@ -839,10 +857,26 @@ pub(crate) fn infer_static_call(
     env.body_writers.in_after_response |= resolved
         .as_ref()
         .is_some_and(|(owner, name, _)| crate::response::is_after_response(owner, name));
+    let before = env.diags.len();
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     env.body_writers.in_later = outer_later;
     env.body_writers.in_after_response = outer_after_response;
     if let Some((owner, name, _)) = &resolved {
+        let call = super::args::NamedCall {
+            owner,
+            name,
+            called: called.clone(),
+            static_call: true,
+        };
+        super::args::help_function_for_a_subclass(
+            before,
+            args,
+            &slots,
+            &arg_types,
+            sig.as_ref(),
+            &call,
+            env,
+        );
         note_plain_binds(owner, name, expr.span, env);
     }
     // See [`infer_method_call`]: the same question, before the same `slots`

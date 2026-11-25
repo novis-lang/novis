@@ -2678,6 +2678,119 @@ pub(crate) fn substitute_receiver_args(
     sig.clone().substituted(&bindings, env.interner)
 }
 
+/// The call a [`help_function_for_a_subclass`] reads: the class that declares
+/// the method, its name, the class the call named where it binds `static`,
+/// and whether the call is written `Class::name(...)`.
+pub(crate) struct NamedCall<'a> {
+    pub owner: &'a QName,
+    pub name: &'a str,
+    pub called: Option<QName>,
+    pub static_call: bool,
+}
+
+/// `rule:statements/static-is-a-member-modifier`'s help on the `E0401` that an
+/// argument reported since `before`, when the argument is a function whose
+/// parameter is a class strictly below the class the callable parameter
+/// takes. Only a user declaration gets it; a `Core` or extension row keeps the
+/// plain message.
+///
+/// Where the parameter wrote the declaring class or `self`, the help names
+/// `callable(static)`. Where it wrote `static` and the call named a class
+/// above the function's, the help names the class to call the method on. It
+/// runs only after an argument was refused, so a call that checks costs
+/// nothing more.
+pub(crate) fn help_function_for_a_subclass(
+    before: usize,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    arg_types: &[TypeId],
+    sig: Option<&MethodSig>,
+    call: &NamedCall<'_>,
+    env: &mut Env<'_>,
+) {
+    let (CallArgs::List(list), Some(sig)) = (args, sig) else {
+        return;
+    };
+    if env.diags.len() == before || sig.core_class.is_some() || !sig.param_quals.is_empty() {
+        return;
+    }
+    for ((arg, slot), &actual) in list.iter().zip(slots).zip(arg_types) {
+        let ArgSlot::Param(index) = *slot else {
+            continue;
+        };
+        let Some(&declared) = sig.params.get(index) else {
+            continue;
+        };
+        let binds = sig.params_bind_static.get(index).copied().unwrap_or(false);
+        let Some((taken, narrower)) = narrower_class_param(declared, actual, env) else {
+            continue;
+        };
+        let wanted = match binds {
+            false => call.owner,
+            true => match &call.called {
+                Some(called) => called,
+                None => continue,
+            },
+        };
+        if &taken != wanted {
+            continue;
+        }
+        let only = env.interner.describe(narrower);
+        let help = match (binds, call.static_call) {
+            (false, _) => format!(
+                "This function takes only `{only}`. Declare the parameter as `callable(static)`. \
+                 Then a call on `{only}` takes a function for `{only}`."
+            ),
+            (true, true) => format!(
+                "This function takes only `{only}`. Call the method on `{only}`, for example \
+                 `{only}::{}(...)`.",
+                call.name
+            ),
+            (true, false) => {
+                format!("This function takes only `{only}`. Call the method on `{only}`.")
+            }
+        };
+        let span = arg.value.span;
+        let found = env.diags.iter_mut().skip(before).find(|d| {
+            d.code == Some(code::E_TYPE_MISMATCH)
+                && d.primary_span().is_some_and(|p| {
+                    p.file == span.file && p.start >= span.start && p.end <= span.end
+                })
+        });
+        if let Some(diag) = found {
+            diag.notes.push(format!("help: {help}"));
+        }
+    }
+}
+
+/// The class a callable parameter's slot takes and the narrower class the
+/// passed function takes at the same position, at the first position where the
+/// function takes a class strictly below the slot's. `null` is set aside on
+/// both sides.
+fn narrower_class_param(
+    declared: TypeId,
+    actual: TypeId,
+    env: &mut Env<'_>,
+) -> Option<(QName, TypeId)> {
+    let declared = env.interner.without_null(declared);
+    let actual = env.interner.without_null(actual);
+    let (Ty::CallableSig { params: slot, .. }, Ty::CallableSig { params: given, .. }) = (
+        env.interner.get(declared).clone(),
+        env.interner.get(actual).clone(),
+    ) else {
+        return None;
+    };
+    slot.iter().zip(&given).find_map(|(&s, &g)| {
+        let (Ty::Class(taken, _), Ty::Class(narrow, _)) =
+            (env.interner.get(s).clone(), env.interner.get(g).clone())
+        else {
+            return None;
+        };
+        (taken != narrow && is_assignable(g, s, env.interner, env.graph, env.signatures))
+            .then_some((taken, g))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
