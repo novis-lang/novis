@@ -1,0 +1,115 @@
+/* The settings page: the theme, the editor links, the saved filters, the lost records and the index. */
+.settings {
+  max-width: 48rem;
+  overflow: auto;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+}
+
+.settings > .title {
+  margin: 0 0 var(--space-4);
+  color: var(--text);
+  font-size: var(--fs-5);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settings-part {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--fs-3);
+}
+
+.settings-part:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-part h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text);
+  font-size: var(--fs-4);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settings-part .note {
+  margin: 0 0 var(--space-2);
+}
+
+.settings-buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+.theme-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.saved-filters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-filters li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.saved-filters li:last-child {
+  border-bottom: 0;
+}
+
+.saved-filters .muted {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--fs-2);
+}
+
+.lost-counts {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.lost-counts li {
+  padding: var(--space-1) 0;
+}
+
+.lost-counts .num {
+  display: inline-block;
+  min-width: 3ch;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.quarantined {
+  border-collapse: collapse;
+  margin-bottom: var(--space-2);
+}
+
+.quarantined th,
+.quarantined td {
+  text-align: left;
+  padding: var(--space-1) var(--space-4) var(--space-1) 0;
+  vertical-align: top;
+}
+
+.quarantined th {
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}

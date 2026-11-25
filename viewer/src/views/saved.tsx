@@ -1,6 +1,6 @@
 // The saved filters: the settings file `GET /api/settings` reads, the list of filters beside the
-// views, the "Save" action of the stream, log, search and exceptions views, and the dialog that asks
-// before a filter or the index is deleted. The settings are one signal, read once when the viewer
+// views, the list on the settings page that deletes them, the "Save" action of the stream, log,
+// search and exceptions views, and the dialog that asks before a filter or the index is deleted. The settings are one signal, read once when the viewer
 // starts, so the editor links of every view (`ui/site.tsx`) follow a change.
 //
 // A filter is a name, a view and the part of the view's link after `?`, so opening one is opening that
@@ -174,10 +174,8 @@ export function SaveButton(props: { view: SavedView; query: () => string }) {
   );
 }
 
-/** The saved filters, listed beside the views. Each has its link and a button that deletes it. */
+/** The saved filters, listed beside the views. Each is a link. The settings page deletes them. */
 export function SavedList() {
-  const [doomed, setDoomed] = createSignal("");
-  let ask!: () => void;
   return (
     <>
       <Show when={loadError()}>
@@ -189,6 +187,44 @@ export function SavedList() {
             {(filter) => (
               <li>
                 <a href={savedLink(filter.name)}>{filter.name}</a>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </>
+  );
+}
+
+/** What the settings page calls each view a filter opens. */
+const VIEW_NAMES: Record<SavedView, string> = {
+  requests: "Requests",
+  stream: "Stream",
+  log: "Logs",
+  search: "Search",
+  exceptions: "Errors",
+};
+
+/** The saved filters on the settings page. Each has its view, its link and a button that deletes it. */
+export function SavedFilters() {
+  const [doomed, setDoomed] = createSignal("");
+  let ask!: () => void;
+  return (
+    <section class="settings-part" aria-labelledby="saved-title">
+      <h3 id="saved-title">Saved filters</h3>
+      <Show when={loadError()}>
+        <p class="note bad">The saved filters could not load: {loadError()}</p>
+      </Show>
+      <Show
+        when={(saved()?.filters.length ?? 0) > 0}
+        fallback={<p class="note">You have no saved filters. Press <kbd>s</kbd> in a list to save its filter.</p>}
+      >
+        <ul class="saved-filters">
+          <For each={saved()?.filters ?? []}>
+            {(filter) => (
+              <li>
+                <a href={savedLink(filter.name)}>{filter.name}</a>
+                <span class="muted">{VIEW_NAMES[filter.view]}</span>
                 <button
                   type="button"
                   class="btn small"
@@ -199,7 +235,7 @@ export function SavedList() {
                     ask();
                   }}
                 >
-                  ×
+                  Delete
                 </button>
               </li>
             )}
@@ -214,7 +250,7 @@ export function SavedList() {
       >
         <p>This deletes the filter {`"${doomed()}"`}. The records it shows are kept.</p>
       </Confirm>
-    </>
+    </section>
   );
 }
 

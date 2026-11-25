@@ -229,9 +229,11 @@ describe.skipIf(!EXE)("the exceptions view in Chromium", () => {
     const choose = (editor: string) =>
       tab.eval(`(() => { const s = document.querySelector(".editor-settings select"); s.value = "${editor}"; s.dispatchEvent(new Event("change")); })()`);
 
-    // PhpStorm, with one path mapping added in the dialog.
+    const errors = `document.querySelector('.rail a[href="/exceptions"]').click()`;
+
+    // PhpStorm, with one path mapping added on the settings page.
     await tab.eval(`document.querySelector(".editor-open").click()`);
-    await tab.until(`document.querySelector("dialog.editor-settings").open`);
+    await tab.until(`location.pathname == "/settings" && document.querySelector(".editor-settings select")?.value == "vscode"`);
     await choose("phpstorm");
     await tab.eval(`document.querySelector(".mapping-add").click()`);
     await tab.until(`!!document.querySelector(".mapping-from")`);
@@ -240,21 +242,22 @@ describe.skipIf(!EXE)("the exceptions view in Chromium", () => {
     await tab.eval(`document.querySelector(".mapping-to").focus()`);
     await tab.type("/work/");
     await tab.eval(`document.querySelector(".editor-settings [type=submit]").click()`);
-    await tab.until(`!document.querySelector("dialog.editor-settings").open`);
+    await waitFor(() => puts.length === 1);
     expect(puts.at(-1)).toEqual({ editor: "phpstorm", path_mappings: [{ from: "src/", to: "/work/" }], theme: "system", filters: [] });
+    await tab.eval(errors);
     await tab.until(`${HREF(`exception-${FIRST.id}`)} == "phpstorm://open?file=/work/Shop/Orders.nvs&line=42"`);
 
-    // A template the service refuses keeps the dialog open with the service's message.
+    // A template the service refuses shows the service's message, and the links stay as they were.
     await tab.eval(`document.querySelector(".editor-open").click()`);
-    await tab.until(`document.querySelector("dialog.editor-settings").open`);
+    await tab.until(`location.pathname == "/settings" && document.querySelector(".editor-settings select")?.value == "phpstorm"`);
     await choose("custom");
     await tab.until(`!!document.querySelector(".editor-template")`);
     await tab.eval(`document.querySelector(".editor-template").focus()`);
     await tab.type("javascript:alert(1)//{file}");
     await tab.eval(`document.querySelector(".editor-settings [type=submit]").click()`);
     await tab.until(`document.querySelector(".editor-settings [role=alert]")?.textContent == "the editor template must not start with javascript:"`);
-    expect(await tab.eval(`document.querySelector("dialog.editor-settings").open`)).toBe(true);
-    expect(await tab.eval(HREF(`exception-${FIRST.id}`))).toBe("phpstorm://open?file=/work/Shop/Orders.nvs&line=42");
+    await tab.eval(errors);
+    await tab.until(`${HREF(`exception-${FIRST.id}`)} == "phpstorm://open?file=/work/Shop/Orders.nvs&line=42"`);
     await tab.close();
   }, 30_000);
 });

@@ -1,6 +1,6 @@
 /* The stream, the log and the frame the search shares with them. The list itself, its follow bar,
    its column heads and its rows are `List`'s, in `ui.css`; this file sets the record views' grids and
-   cells, the kind dot, the level chip, the filter form, the selected record and the quarantine panel.
+   cells, the kind dot, the level chip, the filter form, and the selected record.
    Every colour is a role from `tokens.css`. */
 .stream,
 .feed,
@@ -275,45 +275,4 @@
 .detail-time {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-}
-
-/* ---------------------------------------------------------- quarantine */
-.quarantine {
-  flex: none;
-  max-height: 25vh;
-  overflow: auto;
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--line);
-  font-size: var(--fs-3);
-}
-
-.quarantine h2 {
-  margin: 0 0 var(--space-2);
-  color: var(--text-2);
-  font-size: var(--fs-2);
-  font-weight: 600;
-}
-
-.quarantine .note {
-  margin: 0 0 var(--space-2);
-}
-
-.quarantined {
-  border-collapse: collapse;
-  margin-bottom: var(--space-2);
-}
-
-.quarantined th,
-.quarantined td {
-  text-align: left;
-  padding: var(--space-1) var(--space-4) var(--space-1) 0;
-  vertical-align: top;
-}
-
-.quarantined th {
-  color: var(--faint);
-  font-size: var(--fs-1);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }

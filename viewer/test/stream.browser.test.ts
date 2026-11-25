@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Browser, EXE } from "../../tools/nv/test/chromium.ts";
-import type { QuarantinedFile, RequestPage, SearchResults, Settings, StreamPage, StreamRecord } from "../src/api.ts";
+import type { RequestPage, SearchResults, Settings, StreamPage, StreamRecord } from "../src/api.ts";
 import { DIST } from "../build.ts";
 import listFixture from "./fixtures/requests.json";
 import searchFixture from "./fixtures/search.json";
@@ -12,8 +12,8 @@ import streamFixture from "./fixtures/stream.json";
 // The server below stands in for `nvs debug`: it serves the page for every path, `/api/stream` from an
 // in-memory list that starts as the fixture (filtered by `kind`, `level`, `trace`, `since` and
 // `before` as `crates/nvs-cli/src/debug/stream.rs` does), `/api/search` from the search fixture,
-// `/api/settings` from the settings fixture, `/api/quarantine` and `/api/index/discard`, and pushes a
-// watermark on `/api/events` when a test adds records. Every fixture is written by the Rust test from a
+// `/api/settings` from the settings fixture, and pushes a watermark on `/api/events` when a test adds
+// records. The settings page has its own test (`settings.browser.test.ts`). Every fixture is written by the Rust test from a
 // real index, so the views read the shapes the service sends.
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/viewer.css"></head>
@@ -28,9 +28,7 @@ const FOUND = RESULTS.groups[0]!.request!;
 /** The service's state. */
 let records: StreamRecord[] = [];
 let watermark = 1;
-let files: QuarantinedFile[] = [];
 let settings: Settings = settingsFixture as Settings;
-let discards = 0;
 /** The query of every `/api/stream` request, in order. */
 let asked: string[] = [];
 /** The body of every `PUT /api/settings`, in order. */
@@ -42,9 +40,7 @@ let opened = 0;
 function reset(list: StreamRecord[] = FIXTURE) {
   records = list.map((record) => ({ ...record }));
   watermark = Math.max(1, ...records.map((record) => record.batch));
-  files = [];
   settings = structuredClone(settingsFixture as Settings);
-  discards = 0;
   asked = [];
   puts = [];
 }
@@ -140,7 +136,7 @@ beforeAll(async () => {
       if (url.pathname === "/api/stream") return streamPage(url);
       if (url.pathname === "/api/events") return events(req);
       if (url.pathname === "/api/search") return searchPage(url);
-      if (url.pathname === "/api/quarantine") return json({ files });
+
       if (url.pathname === "/api/settings" && req.method === "GET") return json(settings);
       if (url.pathname === "/api/settings" && req.method === "PUT") {
         if (req.headers.get("content-type") !== "application/json") return json({ error: "not JSON" }, 415);
@@ -148,11 +144,7 @@ beforeAll(async () => {
         puts.push(settings);
         return json(settings);
       }
-      if (url.pathname === "/api/index/discard" && req.method === "POST") {
-        if (req.headers.get("content-type") !== "application/json") return json({ error: "not JSON" }, 415);
-        discards++;
-        return json({ watermark });
-      }
+
       if (url.pathname === "/api/requests") {
         const trace = url.searchParams.get("trace");
         return json({ ...LIST, requests: LIST.requests.filter((row) => trace === null || row.trace === trace) });
@@ -316,31 +308,6 @@ describe.skipIf(!EXE)("the stream, the log, the search and saved filters in Chro
     await tab.close();
   }, 30_000);
 
-  test("the quarantine lists each file, and discarding the index asks first", async () => {
-    reset();
-    files = [{ path: "spool/9.ndjson", at_us: FIXTURE[0]!.at_us, retry_us: FIXTURE[0]!.at_us + 60_000_000, failures: 3, reason: "access is denied" }];
-    const tab = await open("/stream");
-    await tab.until(`document.querySelectorAll(".quarantined tbody tr").length == 1`);
-    expect(await tab.eval(`document.querySelector(".quarantined tbody tr").textContent`)).toContain("access is denied");
-
-    await tab.eval(`document.querySelector(".discard").click()`);
-    await tab.until(`!!document.querySelector("dialog.ask[open]")`);
-    expect(await tab.eval(`document.activeElement.textContent`)).toBe("Cancel");
-    // Enter on the focused Cancel closes the dialog and discards nothing.
-    await tab.press("Enter");
-    await tab.until(`!document.querySelector("dialog.ask[open]")`);
-    expect(discards).toBe(0);
-
-    const before = asked.length;
-    await tab.eval(`document.querySelector(".discard").click()`);
-    await tab.until(`!!document.querySelector("dialog.ask[open]")`);
-    await tab.eval(`document.querySelector("dialog.ask[open] .danger").click()`);
-    await waitFor(() => discards === 1);
-    // The view loads again.
-    await waitFor(() => asked.length > before);
-    await tab.until(`!document.querySelector("dialog.ask[open]")`);
-    await tab.close();
-  }, 30_000);
 
   test("a search groups its matches by request and marks each matched word", async () => {
     reset();
@@ -381,7 +348,7 @@ describe.skipIf(!EXE)("the stream, the log, the search and saved filters in Chro
     await tab.close();
   }, 30_000);
 
-  test("a saved filter is listed, its link opens its view, and a filter can be saved and deleted", async () => {
+  test("a saved filter is listed, its link opens its view, and a filter can be saved", async () => {
     reset();
     const tab = await open("/log?level=error");
     const first = settings.filters[0]!;
@@ -401,15 +368,6 @@ describe.skipIf(!EXE)("the stream, the log, the search and saved filters in Chro
     // The saved search's link opens the search with its query.
     await tab.eval(`document.querySelector(".saved a").click()`);
     await tab.until(`${HERE} == "/search?${first.query}"`);
-
-    // Deleting asks first, with Cancel focused.
-    await tab.eval(`document.querySelector(".saved button").click()`);
-    await tab.until(`!!document.querySelector("dialog.ask[open]")`);
-    expect(await tab.eval(`document.activeElement.textContent`)).toBe("Cancel");
-    await tab.eval(`document.querySelector("dialog.ask[open] .danger").click()`);
-    await waitFor(() => puts.length === 2);
-    expect(puts[1]!.filters.map((one) => one.name)).toEqual(["Errors"]);
-    await tab.until(`document.querySelectorAll(".saved a").length == 1`);
     await tab.close();
   }, 30_000);
 

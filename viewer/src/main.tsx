@@ -19,6 +19,9 @@ import "./styles/replay.css";
 import "./styles/exceptions.css";
 import "./styles/editor.css";
 import "./styles/coverage.css";
+import "./styles/routes.css";
+import "./styles/statements.css";
+import "./styles/settings.css";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("viewer: the page has no #app element");

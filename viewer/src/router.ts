@@ -71,7 +71,13 @@ export type Route =
   | { view: "log" }
   | { view: "search" }
   | { view: "exceptions" }
+  | { view: "routes" }
+  | { view: "queries" }
+  | { view: "settings" }
   | { view: "saved"; name: string };
+
+/** The views whose path is their name alone. */
+const NAMED = ["stream", "log", "search", "exceptions", "routes", "queries", "settings"] as const;
 
 /** Reads a path into the view it names. A path the viewer does not have is the request list. */
 export function route(to: string): Route {
@@ -80,8 +86,8 @@ export function route(to: string): Route {
   if (m) return m[2] ? { view: "request", trace: m[1]!, span: m[2] } : { view: "request", trace: m[1]! };
   const c = /^\/compare\/([0-9a-f]{32})\/([0-9a-f]{16})\/([0-9a-f]{32})\/([0-9a-f]{16})\/?$/.exec(at);
   if (c) return { view: "compare", left: { trace: c[1]!, span: c[2]! }, right: { trace: c[3]!, span: c[4]! } };
-  const view = /^\/(stream|log|search|exceptions)\/?$/.exec(at)?.[1];
-  if (view === "stream" || view === "log" || view === "search" || view === "exceptions") return { view };
+  const view = NAMED.find((name) => at === `/${name}` || at === `/${name}/`);
+  if (view) return { view };
   const saved = /^\/saved\/([^/]+)\/?$/.exec(at);
   if (saved) {
     try {

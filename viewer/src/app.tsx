@@ -1,6 +1,7 @@
 // The viewer's frame, as `viewer/design/reference.html` draws it: a top bar with the logo, the search
-// box, the live state, the theme button and the key list; a rail on the left with the views, the
-// saved filters and the settings; and the region the view the path names renders into (`router.ts`).
+// box, the live state (`views/health.tsx`), the theme button and the key list; a rail on the left
+// with the views, the count of new error groups, the saved filters and the settings; and the region
+// the view the path names renders into (`router.ts`).
 //
 // The frame binds the keys every view shares in the key map (`keys.ts`): `/` focuses the search box,
 // `?` lists the keys, and `Ctrl+K` (`Cmd+K` on macOS) opens the command palette (`ui/palette.tsx`).
@@ -9,7 +10,7 @@
 // The search box opens a pasted `traceresponse` value or trace id at once, and searches for anything
 // else at `/search?q=`.
 
-import { createEffect, createMemo, For, Match, onCleanup, onMount, Switch } from "solid-js";
+import { createEffect, createMemo, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { traceKey } from "./api.ts";
 import { bind, bindings, dispatch, label } from "./keys.ts";
 import { navigate, path, query, route, version } from "./router.ts";
@@ -19,25 +20,35 @@ import { Icon, type IconName } from "./ui/icon.tsx";
 import { type Command, Palette } from "./ui/palette.tsx";
 import { Toasts } from "./ui/toast.tsx";
 import { CompareView } from "./views/compare.tsx";
-import { EditorSettings } from "./views/editor.tsx";
 import { ExceptionsView } from "./views/exceptions.tsx";
+import { createErrorCount, LivePill } from "./views/health.tsx";
 import { LogView } from "./views/log.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
 import { loadSettings, saved, SavedList, savedLink, SavedOpen } from "./views/saved.tsx";
+import { RoutesView } from "./views/routes.tsx";
 import { SearchView } from "./views/search.tsx";
+import { SettingsView } from "./views/settings.tsx";
+import { StatementsView } from "./views/statements.tsx";
 import { StreamView } from "./views/stream.tsx";
 
 /** The views the rail lists, in its order. `views` are the route views it is current on. */
 const RAIL: ReadonlyArray<{ href: string; label: string; icon: IconName; views: string[] }> = [
   { href: "/", label: "Requests", icon: "requests", views: ["list", "request", "compare"] },
+  { href: "/routes", label: "Routes", icon: "routes", views: ["routes"] },
+  { href: "/queries", label: "Queries", icon: "queries", views: ["queries"] },
   { href: "/exceptions", label: "Errors", icon: "errors", views: ["exceptions"] },
   { href: "/log", label: "Logs", icon: "logs", views: ["log"] },
   { href: "/stream", label: "Stream", icon: "stream", views: ["stream"] },
 ];
 
-/** The views the command palette lists: the rail's, and the search, which the top bar's box opens. */
-const VIEWS = [...RAIL, { href: "/search", label: "Search", icon: "search" as const, views: ["search"] }];
+/** The views the command palette lists: the rail's, the search, which the top bar's box opens, and
+ *  the settings at the rail's foot. */
+const VIEWS = [
+  ...RAIL,
+  { href: "/search", label: "Search", icon: "search" as const, views: ["search"] },
+  { href: "/settings", label: "Settings", icon: "settings" as const, views: ["settings"] },
+];
 
 const THEME_NAMES: Record<Theme, string> = { system: "System", dark: "Dark", light: "Light" };
 const THEME_ICONS: Record<Theme, IconName> = { system: "system", dark: "moon", light: "sun" };
@@ -60,6 +71,7 @@ export function App() {
     return now.view === "saved" ? now : null;
   });
   const view = createMemo(() => at().view);
+  const errors = createErrorCount();
 
   // On the search's page the box shows the search.
   createEffect(() => {
@@ -154,10 +166,7 @@ export function App() {
             <kbd>{label("Mod+k")}</kbd>
           </button>
         </form>
-        <span class="live" role="status">
-          <span class="dot" aria-hidden="true" />
-          Live
-        </span>
+        <LivePill />
         <button
           type="button"
           class="icon-btn theme"
@@ -178,12 +187,20 @@ export function App() {
               <a href={one.href} class="rail-item" aria-current={one.views.includes(view()) ? "page" : undefined}>
                 <Icon name={one.icon} />
                 <span class="rail-label">{one.label}</span>
+                <Show when={one.href === "/exceptions" && errors() > 0}>
+                  <span class="rail-count" title="Error groups thrown since this tab opened">
+                    {errors()}
+                  </span>
+                </Show>
               </a>
             )}
           </For>
           <SavedList />
           <div class="rail-foot">
-            <EditorSettings />
+            <a href="/settings" class="rail-item editor-open" aria-current={view() === "settings" ? "page" : undefined}>
+              <Icon name="settings" />
+              <span class="rail-label">Settings</span>
+            </a>
           </div>
         </nav>
         <main id="view">
@@ -204,6 +221,15 @@ export function App() {
                 </Match>
                 <Match when={view() === "exceptions"}>
                   <For each={[query()]}>{(q) => <ExceptionsView query={q} />}</For>
+                </Match>
+                <Match when={view() === "routes"}>
+                  <For each={[query()]}>{(q) => <RoutesView query={q} />}</For>
+                </Match>
+                <Match when={view() === "queries"}>
+                  <StatementsView />
+                </Match>
+                <Match when={view() === "settings"}>
+                  <SettingsView />
                 </Match>
                 <Match when={savedView()}>{(s) => <SavedOpen name={s().name} />}</Match>
               </Switch>

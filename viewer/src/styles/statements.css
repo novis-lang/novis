@@ -1,0 +1,100 @@
+/* The queries view. The list itself is `List`, styled in `ui.css`; this file has the heading, the note
+   above the list and the site row's two-line grid. A site row's height is `SITE_HEIGHT` in
+   `views/statements.tsx`, set on the row by `List`. A repeated site has the gold wash of a repeated
+   query group on the request page. */
+.statements {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.statements-head {
+  flex: none;
+  padding: var(--space-3) var(--space-4) var(--space-2);
+}
+
+.statements-head .title {
+  margin: 0;
+  font-size: var(--fs-5);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.statements > .st-note {
+  flex: none;
+  margin: 0 var(--space-4) var(--space-2);
+  font-size: var(--fs-2);
+}
+
+/* ---------------------------------------------------------- site rows */
+.cols.statements-grid,
+.row.statements-grid {
+  grid-template-columns: minmax(16rem, 1fr) 5rem 6rem 6rem 6rem 6rem;
+}
+
+.cols.statements-grid .num {
+  text-align: right;
+}
+
+.row.statements-grid {
+  grid-template-areas:
+    "sql count total max requests repeated"
+    "site count total max requests repeated";
+  align-content: center;
+  row-gap: 2px;
+  font-size: var(--fs-3);
+}
+
+.statements-grid .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.statements-grid .st-sql {
+  grid-area: sql;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.statements-grid .st-at {
+  grid-area: site;
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--text-2);
+}
+
+.statements-grid .st-count {
+  grid-area: count;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.statements-grid .st-total {
+  grid-area: total;
+  color: var(--text);
+}
+
+.statements-grid .st-max {
+  grid-area: max;
+  color: var(--text-2);
+}
+
+.statements-grid .st-requests {
+  grid-area: requests;
+  color: var(--text-2);
+}
+
+.statements-grid .st-repeated {
+  grid-area: repeated;
+}
+
+.statements-grid .st-none {
+  color: var(--faint);
+}
+
+/* The wash sits under the hover and the selection, so a selected repeated row still reads as selected. */
+.row.statements-grid.repeated:not(:hover, [aria-selected="true"]) {
+  background: color-mix(in oklab, var(--highlight) 9%, transparent);
+}

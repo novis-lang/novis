@@ -1,0 +1,96 @@
+/* The routes view. The list itself is `List`, styled in `ui.css`; this file has the grid of a route's
+   row, the header row with its sort buttons, and the notes above the list. */
+.routes {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.routes > .title {
+  margin: var(--space-3) var(--space-4) var(--space-2);
+  color: var(--text);
+  font-size: var(--fs-5);
+  font-weight: 600;
+}
+
+.routes-note {
+  margin: 0 var(--space-4) var(--space-2);
+  font-size: var(--fs-2);
+}
+
+/* --------------------------------------------------------- the grid */
+.cols.routes-grid,
+.row.routes-grid {
+  grid-template-columns: 4rem minmax(10rem, 1fr) 5rem 5rem 5.5rem 5.5rem 5rem 5.5rem;
+}
+
+.routes-grid .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--text-2);
+}
+
+.routes-grid .num.bad {
+  color: var(--bad);
+}
+
+.routes-grid .routes-route {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+}
+
+.routes-grid .routes-none {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-style: italic;
+}
+
+.routes-grid .routes-age {
+  color: var(--faint);
+}
+
+/* --------------------------------------------------------- sort buttons */
+.routes-head .num {
+  text-align: right;
+}
+
+.routes-sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.routes-sort:hover {
+  color: var(--text);
+}
+
+.routes-sort:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.routes-head [aria-sort="ascending"] .routes-sort,
+.routes-head [aria-sort="descending"] .routes-sort {
+  color: var(--text);
+}
+
+.routes-head [aria-sort="ascending"] .routes-sort::after {
+  content: " \2191";
+}
+
+.routes-head [aria-sort="descending"] .routes-sort::after {
+  content: " \2193";
+}

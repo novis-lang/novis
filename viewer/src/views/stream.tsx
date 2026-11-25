@@ -6,85 +6,19 @@
 // A row shows the time, the kind with its coloured dot, the text and the request. A log line also
 // shows its level, and a line the service could not read or a count of dropped records shows a badge
 // and its fields.
+// The settings page lists what the recording lost, and has the action that discards the index.
 //
-// Below the stream, a panel lists the files the service stopped reading, and has the action that
-// discards the index.
-//
-// What it spends: what the record feed spends (`feed.tsx`), and the quarantine's list of files.
+// What it spends: what the record feed spends (`feed.tsx`).
 
-import { createResource, For, Show } from "solid-js";
-import { discardIndex, quarantine, streamFilter, type StreamRecord } from "../api.ts";
-import { query, reloadView } from "../router.ts";
+import { For, Show } from "solid-js";
+import { streamFilter, type StreamRecord } from "../api.ts";
+import { query } from "../router.ts";
 import { clock, Feed, fieldsLine, flaw, KindDot, LevelChip, OwnerCell, when } from "./feed.tsx";
 import { FilterForm } from "./filter-form.tsx";
-import { Confirm, SaveButton } from "./saved.tsx";
+import { SaveButton } from "./saved.tsx";
 
-// search.tsx and exceptions.tsx read the times the way the stream writes them.
+// search.tsx, exceptions.tsx and settings.tsx read the times the way the stream writes them.
 export { clock, when };
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-/** The files the service stopped reading, and the action that discards the index. */
-export function Quarantine() {
-  const [files] = createResource(() => quarantine());
-  let ask!: () => void;
-  const list = () => (files.error ? [] : (files()?.files ?? []));
-  return (
-    <section class="quarantine" aria-labelledby="quarantine-title">
-      <h2 id="quarantine-title">Files that could not be read</h2>
-      <Show when={files.error}>
-        <p class="note bad" role="alert">
-          The list of files could not load: {message(files.error)}
-        </p>
-      </Show>
-      <Show when={!files.loading && !files.error && list().length === 0}>
-        <p class="note">Every record file was read.</p>
-      </Show>
-      <Show when={list().length > 0}>
-        <table class="quarantined">
-          <thead>
-            <tr>
-              <th scope="col">File</th>
-              <th scope="col">Error</th>
-              <th scope="col" class="num">
-                Failures
-              </th>
-              <th scope="col">Next try</th>
-            </tr>
-          </thead>
-          <tbody>
-            <For each={list()}>
-              {(file) => (
-                <tr>
-                  <td class="site">{file.path}</td>
-                  <td class="bad">{file.reason}</td>
-                  <td class="num">{file.failures}</td>
-                  <td>{when(file.retry_us)}</td>
-                </tr>
-              )}
-            </For>
-          </tbody>
-        </table>
-      </Show>
-      <button type="button" class="btn small danger discard" onClick={() => ask()}>
-        Discard the index
-      </button>
-      <Confirm
-        ref={(open) => (ask = open)}
-        title="Discard the index?"
-        action="Discard"
-        onConfirm={async () => {
-          await discardIndex();
-          reloadView();
-        }}
-      >
-        <p>This deletes every record the viewer has read. Your saved filters are kept.</p>
-      </Confirm>
-    </section>
-  );
-}
 
 /** The stream's column titles: time, kind, text and request. */
 const cols = () => (
@@ -145,7 +79,6 @@ export function StreamView() {
           />
         )}
       </For>
-      <Quarantine />
     </section>
   );
 }

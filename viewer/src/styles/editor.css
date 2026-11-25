@@ -1,8 +1,4 @@
-/* The editor settings. */
-dialog.editor-settings {
-  max-width: 36rem;
-}
-
+/* The editor part of the settings page. */
 .editor-field {
   display: block;
   margin: 0.5rem 0;

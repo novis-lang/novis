@@ -46,10 +46,11 @@ export function Status(props: { code: number | null | undefined; text?: string }
   );
 }
 
-/** The gold count beside a statement that ran more than once at one site, such as `5×`. */
-export function Repeat(props: { count: number }) {
+/** The gold count beside a statement that ran more than once at one site, such as `5×`. `title`
+ *  replaces the text a pointer shows when the count means something else. */
+export function Repeat(props: { count: number; title?: string }) {
   return (
-    <span class="repeat" title={`Ran ${props.count} times at one site`}>
+    <span class="repeat" title={props.title ?? `Ran ${props.count} times at one site`}>
       {props.count}×
     </span>
   );
