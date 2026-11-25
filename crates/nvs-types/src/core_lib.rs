@@ -149,8 +149,15 @@ fn intern_core_types(interner: &mut TypeInterner) -> Vec<(String, Vec<String>)> 
                 lower(bound, interner);
             }
             let returns = lower(&method.return_ty, interner);
-            if let Some(first) = method.params.first() {
-                let mut slots = [lower(first, interner), returns];
+            if !method.params.is_empty() {
+                let mut params: Vec<TypeId> = method
+                    .params
+                    .iter()
+                    .map(|param| lower(param, interner))
+                    .collect();
+                let mut returned = returns;
+                case_keys(method, &mut params, &mut returned, interner);
+                let mut slots = [params[0], returned];
                 keep_keys(method, &mut slots, interner);
             }
             if crate::expr::type_contains_secret(returns, interner) {
@@ -505,6 +512,59 @@ fn keep_keys(
     }
 }
 
+/// Writes the value a member on `nvs_stdlib::arr::CASE_KEYS` turns into a key
+/// as `nvs_stdlib::registry::CASE_KEY_VAR`, and keys the result by it.
+/// `groupBy`'s value is its callback's result, and `flip`'s is the subject's
+/// element. `flip`'s result element is `nvs_stdlib::registry::ARRAY_KEY_VAR`
+/// too, the subject's key, which [`keep_keys`] writes on the subject. Each
+/// variable comes back with the type the row wrote, its bound: a call that
+/// does not bind it to an enum gets that type (`check_generic_args`).
+/// `nvs_stdlib::arr::CASE_KEYS` owns why that is sound.
+fn case_keys(
+    method: &nvs_stdlib::registry::CoreMethod,
+    params: &mut [TypeId],
+    return_ty: &mut TypeId,
+    interner: &mut TypeInterner,
+) -> Vec<(String, TypeId)> {
+    use nvs_stdlib::registry::{ARRAY_KEY_VAR, CASE_KEY_VAR};
+    if !nvs_stdlib::arr::CASE_KEYS.contains(&method.symbol) {
+        return Vec::new();
+    }
+    let case_key = interner.type_var(CASE_KEY_VAR);
+    let mut bounds = Vec::new();
+    let flip = method.symbol == "nvs_core_arr_flip";
+    if flip {
+        if let Some(elem) = params
+            .first()
+            .and_then(|first| interner.array_element(*first))
+        {
+            params[0] = interner.array(case_key);
+            bounds.push((CASE_KEY_VAR.to_owned(), elem));
+        }
+    } else if let Some(callback) = params.get(1).copied()
+        && let crate::ty::Ty::CallableSig { params: taken, ret } = interner.get(callback).clone()
+    {
+        params[1] = interner.callable_sig(taken, case_key);
+        bounds.push((CASE_KEY_VAR.to_owned(), ret));
+    }
+    if let Some(elem) = interner.array_element(*return_ty) {
+        let elem = if flip {
+            bounds.push((ARRAY_KEY_VAR.to_owned(), elem));
+            interner.type_var(ARRAY_KEY_VAR)
+        } else {
+            elem
+        };
+        *return_ty = interner.array_keyed(elem, Some(case_key));
+    }
+    bounds
+}
+
+/// Whether the bounded variable `name` keeps only an enum binding, and is its
+/// bound for any other: the two variables [`case_keys`] writes.
+pub(crate) fn binds_only_an_enum(name: &str) -> bool {
+    name == nvs_stdlib::registry::CASE_KEY_VAR || name == nvs_stdlib::registry::ARRAY_KEY_VAR
+}
+
 /// The enum `E` a call binds `nvs_stdlib::registry::KEY_VAR` to, when
 /// `declared` is a subject [`keep_keys`] keyed and `actual`, the argument's
 /// type, is an `array<E, T>`. `None` for any other parameter or argument, and
@@ -536,6 +596,7 @@ fn method_sig(
         .map(|param| lower(param, interner))
         .collect();
     let mut return_ty = return_of(method, interner);
+    let case_bounds = case_keys(method, &mut params, &mut return_ty, interner);
     if let Some(first) = params.first().copied() {
         let mut slots = [first, return_ty];
         keep_keys(method, &mut slots, interner);
@@ -580,6 +641,7 @@ fn method_sig(
             .bounded()
             .into_iter()
             .map(|(name, bound)| (name.to_owned(), lower(bound, interner)))
+            .chain(case_bounds)
             .collect(),
         return_ty,
         contagious_return: None,

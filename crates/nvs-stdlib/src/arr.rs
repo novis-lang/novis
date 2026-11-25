@@ -155,19 +155,37 @@ pub const ENUM_KEYS: &[&str] = &[
     "nvs_core_arr_keys",
     "nvs_core_arr_first_key",
     "nvs_core_arr_last_key",
+    "nvs_core_arr_flip",
 ];
 
-/// The members of [`ENUM_KEYS`] that return a key, `?E`, or a list of keys,
-/// `array<E>`. The run time gives each key as its `string`, so `nvs_ir`
-/// converts the result into cases after the call. **What it spends:** a
-/// parse per key, and for `keys` a second list of the same length.
+/// The members of [`ENUM_KEYS`] that return a key, `?E`, or an array of keys,
+/// `array<E>`. `flip` is one: the keys of an `array<E, T>` subject are the
+/// values of its result. The run time gives each key as its `string`, so
+/// `nvs_ir` converts the result into cases after the call, and an array of
+/// keys keeps its own keys. **What it spends:** a parse per key, and for an
+/// array of keys a second array of the same length.
 pub const GIVES_KEYS_BACK: &[&str] = &[
     "nvs_core_arr_find_key",
     "nvs_core_arr_key_of",
     "nvs_core_arr_keys",
     "nvs_core_arr_first_key",
     "nvs_core_arr_last_key",
+    "nvs_core_arr_flip",
 ];
+
+/// The members whose result is keyed by a value the call computes or reads,
+/// by symbol: `groupBy`'s bucket, which its callback returns, and `flip`'s
+/// values. `nvs_types` writes that value's type as
+/// [`crate::registry::CASE_KEY_VAR`], bounded by the type the row writes.
+/// When the value is exactly a case of an enum `E`, the result is keyed by
+/// `E`. The run time writes a case as its decimal, as an `int` key is
+/// ([`key_bytes`]), so a key read back as `E` is always a case.
+///
+/// `groupCounts` is not here. Its `by` callback is in an options bag, and a
+/// bag binds no variable, so its result stays `array<uint>`. A program
+/// converts it with `as array<E, uint>`. **What it spends:** nothing at run
+/// time.
+pub const CASE_KEYS: &[&str] = &["nvs_core_arr_group_by", "nvs_core_arr_flip"];
 
 /// `Core\Arr`'s registry rows.
 ///

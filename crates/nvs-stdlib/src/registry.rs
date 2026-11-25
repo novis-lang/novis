@@ -1058,6 +1058,13 @@ pub const KEY_VAR: &str = "#key";
 /// strings, whose result is then a plain `array<T>`.
 pub const ARRAY_KEY_VAR: &str = "#arraykey";
 
+/// The type variable a value that becomes a key of the result interns as, in
+/// a member on [`crate::arr::CASE_KEYS`]: `groupBy`'s bucket and `flip`'s
+/// values. A call binds it to the enum `E` when that value is exactly `E`, and
+/// the result is then keyed by `E`. Bound to anything else, it is the type the
+/// row writes, and the result is keyed by strings.
+pub const CASE_KEY_VAR: &str = "#casekey";
+
 /// One option inside a [`CoreTy::Options`] bag: its name, its type, and the
 /// value a call that leaves it out passes.
 ///

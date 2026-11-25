@@ -500,6 +500,58 @@ fn keys_and_first_key_return_the_enum() {
 }
 
 #[test]
+fn flip_turns_enum_keys_into_enum_values() {
+    let diags = check_src(&keyed(
+        "",
+        &format!(
+            "{LABELS}\n\
+             \x20 array<Priority> $byLabel = Core\\Arr::flip($labels);\n\
+             \x20 array<Priority, string> $back = Core\\Arr::flip($byLabel);\n\
+             \x20 array<Priority> $cases = [Priority::Low, Priority::High];\n\
+             \x20 array<Priority, string> $positions = Core\\Arr::flip($cases);\n\
+             \x20 array<string> $plain = Core\\Arr::flip($strings);"
+        ),
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // The values of a flipped `array<E, T>` are cases, and the keys of a
+    // flipped string array are strings.
+    for wrong in [
+        "array<string> $values = Core\\Arr::flip($labels);",
+        "array<Priority, string> $keyed = Core\\Arr::flip($strings);",
+        "array<Size, string> $other = Core\\Arr::flip(Core\\Arr::flip($labels));",
+    ] {
+        let diags = check_src(&keyed("", &format!("{LABELS}\n  {wrong}")));
+        assert!(diags.has_errors(), "{wrong}: {diags:?}");
+    }
+}
+
+#[test]
+fn group_by_a_case_returns_an_enum_keyed_array() {
+    let diags = check_src(&keyed(
+        "",
+        "  array<Priority> $tasks = [Priority::Low, Priority::High, Priority::Low];\n\
+         \x20 array<Priority, array<Priority>> $groups = Core\\Arr::groupBy($tasks, fn($p) => $p);\n\
+         \x20 array<Priority, array<string>> $named = \
+         Core\\Arr::groupBy($strings, fn(string $s): Priority => Priority::Low);\n\
+         \x20 array<array<string>> $plain = Core\\Arr::groupBy($strings, fn($s) => $s);\n\
+         \x20 var $ref = Core\\Arr::groupBy;",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    // A bucket that is not exactly a case keys the result by strings, and a
+    // bucket that is neither a key nor a case does not compile.
+    for wrong in [
+        "array<Priority, array<string>> $g = Core\\Arr::groupBy($strings, fn($s) => $s);",
+        "array<Priority, array<string>> $g = \
+         Core\\Arr::groupBy($strings, fn($s): Priority|string => $s);",
+        "var $g = Core\\Arr::groupBy($strings, fn($s) => 1.5);",
+        "var $g = Core\\Arr::groupBy($strings, fn($s) => $m);",
+    ] {
+        let diags = check_src(&keyed("", &format!("  {wrong}")));
+        assert!(diags.has_errors(), "{wrong}: {diags:?}");
+    }
+}
+
+#[test]
 fn a_member_that_keeps_keys_keeps_the_enum_key() {
     let diags = check_src(&keyed(
         "",

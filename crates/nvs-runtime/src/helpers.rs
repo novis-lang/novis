@@ -2867,10 +2867,11 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::KeyAsCase` — a key that `Core\Arr` gave back from an
     /// `array<E, T>`, as a case of `E` (`rule:types/arrays`). `args[0]` is
-    /// `null`, one key, or a list of keys, and `args[1]` is `1` for an enum
-    /// backed by `uint`. A `null` stays `null`. Every key of such an array is a
-    /// case, so no membership check runs. **What it spends:** a parse per key,
-    /// and for a list one new list of scalars, which the result owns.
+    /// `null`, one key, or an array of keys, and `args[1]` is `1` for an enum
+    /// backed by `uint`. A `null` stays `null`. An array of keys keeps its own
+    /// keys. Every key of such an array is a case, so no membership check runs.
+    /// **What it spends:** a parse per key, and for an array one new array of
+    /// scalars, which the result owns.
     fn nvs_key_as_case(_ctx, args: [2]) {
         let tag = if args[1].as_int() == Some(1) {
             Tag::EnumUint
@@ -2895,7 +2896,12 @@ crate::nvs_helper! {
                 .value_at(slot)
                 .and_then(|key| key.as_str_bytes().and_then(|key| crate::array::decimal_case(key, tag)))
                 .ok_or_else(not_a_case)?;
-            cases.append(case);
+            // Under the key it has: `keys` gives a list, and `flip` an array
+            // keyed by the subject's values.
+            match keys.slot_key(slot).ok_or_else(not_a_case)? {
+                crate::array::SlotKey::Index(index) => cases.set_index(index, case),
+                crate::array::SlotKey::Str(key) => cases.set(key, case),
+            }
         }
         Ok(Value::array(cases))
     }

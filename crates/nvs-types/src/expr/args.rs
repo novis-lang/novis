@@ -2115,7 +2115,15 @@ pub(crate) fn check_generic_args(
         // asks the same question of the substituted type. That is where a
         // mismatched callback is reported, once.
         if deferred_fn[index] {
-            let expected = crate::generics::substitute(declared, &bindings, env.interner);
+            // A variable that keeps only an enum is its bound in the
+            // expectation, so the literal is placed as the row wrote it.
+            let mut placed = bindings.clone();
+            for (name, bound) in &sig.type_bounds {
+                if crate::core_lib::binds_only_an_enum(name) {
+                    placed.entry(name.clone()).or_insert(*bound);
+                }
+            }
+            let expected = crate::generics::substitute(declared, &placed, env.interner);
             let value = &list[index].value;
             arg_types[index] = infer(value, Some(expected), live, scope, ctx, env);
         }
@@ -2131,10 +2139,16 @@ pub(crate) fn check_generic_args(
     }
     // A bounded variable that bound outside its bound, or bound nothing, is the
     // bound itself: the parameter then reads as the bound, so the pass below
-    // reports an argument that does not fit with the ordinary mismatch.
+    // reports an argument that does not fit with the ordinary mismatch. A
+    // variable that keeps only an enum (`nvs_stdlib::arr::CASE_KEYS`) is its
+    // bound for any other binding, an enum inside a union too.
     for (name, bound) in &sig.type_bounds {
         let fits = bindings.get(name).is_some_and(|bound_to| {
-            is_assignable(*bound_to, *bound, env.interner, env.graph, env.signatures)
+            if crate::core_lib::binds_only_an_enum(name) {
+                matches!(env.interner.get(*bound_to), Ty::Enum(..))
+            } else {
+                is_assignable(*bound_to, *bound, env.interner, env.graph, env.signatures)
+            }
         });
         if !fits {
             bindings.insert(name.clone(), *bound);
