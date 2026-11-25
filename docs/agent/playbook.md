@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A `bun nv splice` patch written through a shell heredoc can lose a backslash.** In
+  `route-values` stage 5, `"#[Core\\Query]"` in a Rust string reached the patch file as `Core\Query`,
+  though the heredoc was quoted, and the build then failed on an unknown escape. Write a patch
+  that holds a `\\` with the Write tool, or edit that line with Edit. See `tools/nv/cmd/splice.ts`.
 - **`site --review --stamp help:<id>` hashes the help text of the built binary, not the source.**
   In `time-values` stage 7, three subagents rewrote help texts in `time.rs` and the intl
   `manifest.json` and stamped them with a stale `target/debug/nvs.exe`. Each stamp recorded the old

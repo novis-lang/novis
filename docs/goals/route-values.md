@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-types/src/routes.rs, docs/rules/routing/a-bad-query-value-is-a-400.md, docs/rules/routing/matched-once-before-the-handler.md]
   - id: 5
     title: "the ISO readers move into nvs-runtime, and the matcher converts Date, TimeOfDay and Instant captures and query values and DateTime query values"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/uuid.rs, crates/nvs-stdlib/src/time.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-types/src/routes.rs, crates/nvs-types/src/commands.rs, crates/nvs-types/src/crossing.rs, crates/nvs-stdlib/src/router.rs, docs/rules/errors/http-message-defects.md]
   - id: 6
     title: "Core\\Router::url, Core\\Uri::buildQuery, the API document and a command's arguments take the time values"
@@ -515,26 +515,26 @@ the `fromIso` grammar functions in `crates/nvs-stdlib/src/time.rs:3802`'s sectio
 `iso_date_prefix`, `iso_time_prefix`, `iso_datetime`, `validate_iso`), as `file.rs:NN` and one line
 each, before the first edit.
 
-- [ ] The failing cases first: the tests the check `time-captures` names, beside
+- [x] The failing cases first: the tests the check `time-captures` names, beside
   `crates/nvs-runtime/src/routes.rs:1388` (`a_uuid_capture_converts_and_refuses_what_is_not_one`), and
   the cases the check `time-routes` names. Each run once by name and red.
-- [ ] `crates/nvs-runtime/src/iso.rs:1`: the four grammars, moved from
+- [x] `crates/nvs-runtime/src/iso.rs:1`: the four grammars, moved from
   `crates/nvs-stdlib/src/time.rs:3802` with their tests, returning `jiff` values; the module doc says
   why they live here, as `crates/nvs-runtime/src/uuid.rs:1` does. `time.rs` and `validate_iso`
   (`time.rs:3831`) call them, and nothing in `time.rs` reads ISO text another way.
-- [ ] `crates/nvs-runtime/src/routes.rs:129`, `:217` and `:292`: `CaptureConv` and `Param` gain
+- [x] `crates/nvs-runtime/src/routes.rs:129`, `:217` and `:292`: `CaptureConv` and `Param` gain
   `Date`, `TimeOfDay`, `Instant` and `DateTime`; `convert` reads the segment as it arrived. The module
   doc at `:73` says a time capture is never decoded and why.
-- [ ] `crates/nvs-types/src/commands.rs:1002`: the class arm of `converts_from_string` admits the four
+- [x] `crates/nvs-types/src/commands.rs:1002`: the class arm of `converts_from_string` admits the four
   classes by name, from `nvs_stdlib::time`'s constants; `crates/nvs-types/src/routes.rs:2988`'s path
   half refuses `DateTime`, and the help at `routes.rs:2889` names `#[Core\Query]` and `Instant`.
   `crates/nvs-stdlib/src/router.rs:1342` (`native_conv`) and `crates/nvs-types/src/crossing.rs:129`
   (`capture_conv`) map the four names.
-- [ ] `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`): each new `Param` builds its object
+- [x] `crates/nvs-stdlib/src/router.rs:2555` (`capture_value`): each new `Param` builds its object
   through `time.rs`'s own builders; `router.rs:695` (`CAPTURE`) gains `Date`, `TimeOfDay`,
   `Instant` and `DateTime` (the last as a query value, which a match holds since stage 4), and the
   doc lines at `router.rs:2687` and `:2840` follow.
-- [ ] `docs/rules/security/route-capture-is-laundered-by-its-type.md:12`: the native conversions are
+- [x] `docs/rules/security/route-capture-is-laundered-by-its-type.md:12`: the native conversions are
   `int`, `uint`, `decimal`, `Core\Uuid`, `Date`, `TimeOfDay` and `Instant`, and `DateTime` for a
   query value, with the door's `%2F` reason; the union the parameters cross as gains the four classes;
   the last four Declined rows of § *Standing decisions* that name this rule join it.
@@ -704,46 +704,44 @@ website.
 
 ### State
 
-Stages 1 to 4 are done, and their seven checks are green (`optional-query`,
-`optional-query-document`, `bool-query`, `bool-query-runtime`, `bool-query-document`,
-`final-parse`, `query-in-match`). The gate before stage 5 is met: `docs/goals/time-values.md` is gone.
+Stages 1 to 5 are done, and their nine checks are green (the seven of stages 1 to 4, `time-captures`
+and `time-routes`). The `fromIso` grammars and their zone helpers live in
+`crates/nvs-runtime/src/iso.rs`; `time.rs` imports them and re-exports `written_zone` and
+`render_offset`. A zone name over `iso::ZONE_NAME_MAX` is refused before the lookup. `iso::zoned` is
+the `DateTime` reader with no `$zone`, for a route and later a command line and JSON. `native_conv`
+maps the four names, `converts_from_string` admits them (`TIME_CONVERSIONS`), and
+`converts_from_segment` refuses `DateTime` with its own help. `capture_text`, the signed-URL
+payload, writes each time value's `toIso` text, which stage 6's `segment_text` must match.
 
-Stage 4: `bind_queries` (`crates/nvs-stdlib/src/router.rs:3162`) writes each bound query value into
-the match's `params` slot before `dispatch_matched` calls `allows`. It skips a `null` (an absent
-`?T $x = null` key) and keeps an enum value the plain integer. `call_handler` still finds a query
-value through `captures.get(name)` first, which is now the same value. `CAPTURE`
-(`router.rs:696`) gained `bool`, so two cases quoting the union in an `E0401` message were updated.
-The new code is `E1009` in `crates/nvs-diagnostics/src/code/types_e10.rs`, because the `E07xx` range
-is full at `E0799`; `query_params` (`crates/nvs-types/src/routes.rs`) takes the capture rows and
-reports it, and the parameter gets no query key. The cards of `parameters`, `parameter` and the
-class name query values, `docs/reference/core/Router-Match.md` says so, and the three routing rules
-plus `rule:security/route-capture-is-laundered-by-its-type` are rendered.
+**Not yet true, stage 6's first job:** a command parameter of a time class compiles, but
+`conversion_of` gives `ArgConv::Unconverted`, so the program gets the text.
 
-**For stage 8:** its new link-type code also goes in `types_e10.rs` (`E1010`), not beside `E0772`.
+**Stale until stage 10's `bun nv render --website`:** the `methodsFor` card's return text, quoted in
+`website/src/data/core.json` and `website/public/llms-full.txt`.
 
-Expected red once later stages land:
-`tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 7 moves it to `Core\Uri`), and the two cases that quote the capture union in an `E0401`
-message when stage 5 adds the time classes to `CAPTURE`:
-`tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst`
-and `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`.
+**For stage 8:** its link-type code goes in `types_e10.rs` (`E1010`). Expected red once stage 7 lands:
+`tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`.
 
 ### Next
 
-Stage 5, as its `**Split:**` line says: an `Explore` subagent lists the callers of the `fromIso`
-grammar first. Anchors have moved since the stage was written:
+Stage 6, one session. Anchors have moved since the stage was written:
 
-- [ ] `crates/nvs-runtime/src/routes.rs:1444`: the failing tests the checks `time-captures` and
-  `time-routes` name, beside `a_uuid_capture_converts_and_refuses_what_is_not_one`.
-- [ ] `crates/nvs-runtime/src/iso.rs:1`, moved from `crates/nvs-stdlib/src/time.rs:4492`
-  (`validate_iso`), `:4509` (`iso_instant`), `:4575` (`iso_date_prefix`), `:4602`
-  (`iso_time_prefix`) and `:4695` (`iso_datetime`).
-- [ ] `crates/nvs-runtime/src/routes.rs:129` (`CaptureConv`) and `:322` (`Param`) gain the four arms.
-- [ ] `crates/nvs-types/src/commands.rs:979` (`converts_from_string`),
-  `crates/nvs-stdlib/src/router.rs:1353` (`native_conv`) and `crates/nvs-types/src/crossing.rs:129`
-  (`capture_conv`).
-- [ ] `crates/nvs-stdlib/src/router.rs:2571` (`capture_value`) and `:696` (`CAPTURE`), then the
-  rules the stage names; the union in `docs/rules/routing/matching-is-not-dispatching.md:8` too.
+- [ ] `tests/conformance/core/a-link-writes-a-time-value-as-its-iso-text-and-its-route-matches-it.nvst:1`,
+  `tests/conformance/core/a-command-argument-takes-a-time-value.nvst:1` and the test
+  `a_time_parameter_has_the_format_json_schema_defines_for_it` in `crates/nvs-cli/tests/openapi.rs:1`:
+  the failing cases of `time-links` and `time-document`, each run once by name.
+- [ ] `crates/nvs-stdlib/src/router.rs:1395` (`segment_text`): a time value is its ISO text,
+  the same text `capture_text` (`router.rs:1977`) writes; the computed-key check converts it with
+  the capture's conversion.
+- [ ] `crates/nvs-stdlib/src/uri.rs:2483` (`scalar_text`): the ISO text, form-encoded.
+- [ ] `crates/nvs-cli/src/openapi.rs:850` (`schema`): the formats, beside the `Core\Uuid` arm at
+  `:867`.
+- [ ] `crates/nvs-types/src/commands.rs:269` (`conversion_of`) and
+  `crates/nvs-runtime/src/commands.rs:62` (`ArgConv`, `Uuid` at `:82`): the four arms through
+  `nvs_runtime::iso`.
+- [ ] `docs/rules/routing/link-target-and-params-are-checked.md:34`,
+  `docs/rules/routing/a-leftover-link-key-is-a-query-string.md:1` and
+  `docs/rules/tooling/commands-are-compiled.md:1`: the three rules the stage names.
 
 ### Backlog
 
