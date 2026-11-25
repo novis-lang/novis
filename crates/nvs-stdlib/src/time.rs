@@ -1141,7 +1141,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_duration_from_clock(_ctx, args: [1]) {
         let label = r"Core\Time\Duration::fromClock";
         let text = text_of(args, 0, label)?;
-        duration::parse_clock(text)
+        duration::parse_clock(text, nvs_runtime::quoted(text))
             .map(built)
             .map_err(|why| Fault::thrown_as(ThrownClass::Parse, format!("{label}(): {why}")))
     }

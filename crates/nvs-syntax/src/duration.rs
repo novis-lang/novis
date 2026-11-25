@@ -294,8 +294,11 @@ pub fn render_clock(nanos: i64, seconds: bool) -> String {
 /// # Errors
 ///
 /// A sentence with no leading capital and no trailing period, in
-/// [`DurationError::message`]'s shape.
-pub fn parse_clock(text: &str) -> Result<i64, String> {
+/// [`DurationError::message`]'s shape. The message quotes the text as
+/// `text_shown` writes it, so a caller with a long text passes a bounded
+/// excerpt: an 8 MiB text quoted whole costs several copies of itself inside
+/// one call.
+pub fn parse_clock(text: &str, text_shown: impl std::fmt::Display) -> Result<i64, String> {
     let (negative, body) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, text),
@@ -306,31 +309,31 @@ pub fn parse_clock(text: &str) -> Result<i64, String> {
     let second = parts.next();
     if parts.next().is_some() {
         return Err(format!(
-            "`{text}` has more than three parts, and clock text is `H:MM` or `H:MM:SS`"
+            "`{text_shown}` has more than three parts, and clock text is `H:MM` or `H:MM:SS`"
         ));
     }
     let Some(minutes) = minutes else {
         return Err(format!(
-            "`{text}` has no minutes, and clock text is `H:MM` or `H:MM:SS`"
+            "`{text_shown}` has no minutes, and clock text is `H:MM` or `H:MM:SS`"
         ));
     };
     if hours.is_empty() || !hours.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(format!(
-            "`{text}` does not start with the hours, such as `1:30`"
+            "`{text_shown}` does not start with the hours, such as `1:30`"
         ));
     }
     let two_digits = |part: &str, what: &str| -> Result<u64, String> {
         if part.len() != 2 || !part.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(format!(
-                "the {what} in `{text}` are not two digits, such as `05`"
+                "the {what} in `{text_shown}` are not two digits, such as `05`"
             ));
         }
         let value: u64 = part
             .parse()
-            .map_err(|_| format!("the {what} in `{text}` are not a number"))?;
+            .map_err(|_| format!("the {what} in `{text_shown}` are not a number"))?;
         if value > 59 {
             return Err(format!(
-                "the {what} in `{text}` are {value}, and the largest is 59"
+                "the {what} in `{text_shown}` are {value}, and the largest is 59"
             ));
         }
         Ok(value)

@@ -467,6 +467,11 @@ last full gate (this goal, `allocation-accounting`, `clear-member-names`, `see-f
 `reflect-once`). `bun nv close --goal time-values`, `bun nv verify --doc` and `bun nv ci --check`
 are green.
 
+The first `DONE` was refused because the floor check `no-probe-overshoot` was red:
+`Duration::fromClock` on an 8 MiB bad text held 32 MiB, because each `ParseError` message quoted
+the whole text. `duration::parse_clock` now takes the text as its message shows it, and
+`fromClock` passes `nvs_runtime::quoted(text)`, which shows at most 64 bytes. The check is green.
+
 The gate stops at its first red step, so it took seven runs to reach the end. The fix pass is
 `0e5ed8420a` (tool selftest), `e72e74445f` (tests and code), `40c722da91` (rendered files, stamps)
 and `ed1ff246a9` (naming tables).
