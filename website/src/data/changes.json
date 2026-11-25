@@ -1,6 +1,34 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "lang:enums/an-enum-as-an-array-key"
+      ],
+      "text": "`array<Status, string>` is an array whose keys are the cases of the enum `Status`. Any other key does not compile, and a `foreach` key and `Core\\Arr::keys` give the keys back as cases. `$data as array<Status, string>` checks each key of an array read from JSON."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "At a `match` arm, a key of an `array<Status, T>` and an argument of an enum type, completion lists the enum's cases first. At an arm and at a key, it lists only the cases you have not written yet. A quick fix adds the arms that a `match` is missing."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:enums/match-and-switch-over-an-enum"
+      ],
+      "text": "A `match` over an enum must handle every case. If it has no `default` arm and a case has no arm, the program does not compile (`E1016`). The error names each missing case, and the editor can add the missing arms."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:types/properties-and-constants"
+      ],
+      "text": "A class constant and a property default can contain enum cases, `Priority::High as int`, `Foo::class` and other class constants, also inside an array. So `const array<Priority, string> LABELS = [Priority::Low => 'low']` is a table that the compiler builds once."
+    },
+    {
       "kind": "changed",
       "features": [
         "lang:types/void-never-self-static"
@@ -1754,16 +1782,16 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Script\\ExitReport::error": {
-      "hash": "87d568f28e9f6dea",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::error` does is unchanged."
+      "hash": "ff8edbeb22e9633a",
+      "why": "Its tests now write a `match` arm for every case of `ExitReport::Reason`. What this method does is unchanged."
     },
     "Core\\Script\\ExitReport::reason": {
-      "hash": "521b22ab06f924ba",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::reason` does is unchanged."
+      "hash": "c51055b1832a860d",
+      "why": "Its tests now write a `match` arm for every case of `ExitReport::Reason`. What this method does is unchanged."
     },
     "Core\\Script\\ExitReport::status": {
-      "hash": "f51f44318d4337a3",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::status` does is unchanged."
+      "hash": "b068dedd94aa916f",
+      "why": "Its tests now write a `match` arm for every case of `ExitReport::Reason`. What this method does is unchanged."
     },
     "Core\\Sse::current": {
       "hash": "c5e0085cda529730",

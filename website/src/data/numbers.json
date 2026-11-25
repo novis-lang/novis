@@ -3,9 +3,9 @@
   "attacks": 1700,
   "languageTests": 4300,
   "rustTests": 9800,
-  "examples": 4800,
+  "examples": 4900,
   "benchmarks": 1800,
-  "editorTests": 720,
+  "editorTests": 730,
   "crates": 22,
   "cratesWithoutUnsafe": 15,
   "fuzzTargets": 21

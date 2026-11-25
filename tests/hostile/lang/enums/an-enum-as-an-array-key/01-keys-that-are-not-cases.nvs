@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program writes keys that are not cases of `Priority` into an array keyed by `Priority`.
+// None of these lines should compile. A key must be converted with `as Priority` first.
+// covers: lang:enums/an-enum-as-an-array-key
+// hostile: expect-refusal
+
+enum Priority { Low, High }
+enum Size { Small, Large }
+
+array<Priority, string> $labels = [Priority::Low => 'low', Priority::High => 'high'];
+
+// 1. A case of another enum. Its number is the same as the number of `Priority::High`.
+$labels[Size::Large] = 'large';
+
+// 2. A plain integer, written into the array and read from it.
+$labels[1] = 'one';
+echo $labels[7], "\n";
+
+// 3. A value from outside the program, with the type `mixed`.
+mixed $fromRequest = Core\Json::decode('1');
+$labels[$fromRequest] = 'from the request';
+
+// 4. A string that looks like the number of a case.
+string $text = '0';
+echo $labels[$text], "\n";
+
+// 5. An array literal with an integer key.
+array<Priority, string> $copy = [0 => 'low'];
+
+// 6. An append, which has no case to use as its key.
+$labels[] = 'next';

@@ -1,0 +1,12 @@
+<?nvs
+// Shows a `match` over an enum with no arm for `Mode::Exec` and no `default`.
+// This program does not compile. Add an arm for `Mode::Exec` or a `default` arm.
+// proof: compile-error
+
+enum Mode { Read, Write, Exec }
+
+Mode $mode = Mode::Write;
+echo match ($mode) {
+    Mode::Read => 'read',
+    Mode::Write => 'write',
+}, "\n";

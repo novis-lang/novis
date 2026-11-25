@@ -1,0 +1,10 @@
+error[E1016]: this `match` does not handle `Mode::Exec`
+  --> 04-a-match-that-misses-a-case.nvs:9:6
+  |
+9 | echo match ($mode) {
+  |      ^^^^^ a case of the enum has no arm here
+  = help: Add an arm for each missing case, or add a `default` arm.
+  = suggestion (review): add the missing arm
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

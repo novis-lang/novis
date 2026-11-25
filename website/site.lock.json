@@ -2547,16 +2547,16 @@
     "Core\\Script::onExit": "2ff273c03b876122"
   },
   "docs/examples/core/Script-ExitReport/error/about.md": {
-    "Core\\Script\\ExitReport::error": "d8e9af744438c794"
+    "Core\\Script\\ExitReport::error": "5d9aa1613aa901b3"
   },
   "docs/examples/core/Script-ExitReport/memoryPeak/about.md": {
     "Core\\Script\\ExitReport::memoryPeak": "337ff0c7e25e191d"
   },
   "docs/examples/core/Script-ExitReport/reason/about.md": {
-    "Core\\Script\\ExitReport::reason": "da2feb12ed3be8db"
+    "Core\\Script\\ExitReport::reason": "4ac971e0b9d69738"
   },
   "docs/examples/core/Script-ExitReport/status/about.md": {
-    "Core\\Script\\ExitReport::status": "a9ec6422a135b42e"
+    "Core\\Script\\ExitReport::status": "d2bde429a0a136b4"
   },
   "docs/examples/core/Secret/reveal/about.md": {
     "Core\\Secret::reveal": "3ad2ac7eb96d66db"
@@ -3708,13 +3708,16 @@
     "lang:concurrency/what-does-not-exist": "5b6b9739ff4b9ecb"
   },
   "docs/examples/lang/enums/a-case-is-its-integer/about.md": {
-    "lang:enums/a-case-is-its-integer": "a81943eeb7e49096"
+    "lang:enums/a-case-is-its-integer": "7045ac90414c36ab"
   },
   "docs/examples/lang/enums/a-union-of-cases-is-a-narrower-type/about.md": {
     "lang:enums/a-union-of-cases-is-a-narrower-type": "2644a29ef3161a72"
   },
   "docs/examples/lang/enums/an-enum-as-a-type/about.md": {
     "lang:enums/an-enum-as-a-type": "f3b603643a410642"
+  },
+  "docs/examples/lang/enums/an-enum-as-an-array-key/about.md": {
+    "lang:enums/an-enum-as-an-array-key": "7a738880959ad155"
   },
   "docs/examples/lang/enums/an-enum-inside-a-class/about.md": {
     "lang:enums/an-enum-inside-a-class": "5139e4ea9bafa16f"
@@ -3732,7 +3735,7 @@
     "lang:enums/from-an-integer-back-to-a-case": "772932669c1c14ec"
   },
   "docs/examples/lang/enums/match-and-switch-over-an-enum/about.md": {
-    "lang:enums/match-and-switch-over-an-enum": "d10023cdaf705047"
+    "lang:enums/match-and-switch-over-an-enum": "9b93df1fb7e0559f"
   },
   "docs/examples/lang/enums/what-an-enum-does-not-have/about.md": {
     "lang:enums/what-an-enum-does-not-have": "d98e64f7c8dd405c"
@@ -3966,7 +3969,7 @@
     "lang:types/parameters": "72be88dd0e14c672"
   },
   "docs/examples/lang/types/properties-and-constants/about.md": {
-    "lang:types/properties-and-constants": "66c3dc66e69ecb46"
+    "lang:types/properties-and-constants": "978c779bc4b5b015"
   },
   "docs/examples/lang/types/property-keys/about.md": {
     "lang:types/property-keys": "18b082eea62a9968"
@@ -7536,19 +7539,19 @@
     "Core\\Script::onExit": "3b1f15d698fe70c1"
   },
   "help:Core\\Script\\ExitReport::error": {
-    "Core\\Script\\ExitReport::error": "7b6a7d9e998bb0c0"
+    "Core\\Script\\ExitReport::error": "1c520fa5dca95256"
   },
   "help:Core\\Script\\ExitReport::memoryPeak": {
     "Core\\Script\\ExitReport::memoryPeak": "9b8de72c6dde3983"
   },
   "help:Core\\Script\\ExitReport::reason": {
-    "Core\\Script\\ExitReport::reason": "f683a22693ad00f5"
+    "Core\\Script\\ExitReport::reason": "3a78ce2470c7de85"
   },
   "help:Core\\Script\\ExitReport::Reason": {
     "Core\\Script\\ExitReport::Reason": "924ded3358e7677c"
   },
   "help:Core\\Script\\ExitReport::status": {
-    "Core\\Script\\ExitReport::status": "2a2fee78fa9b7676"
+    "Core\\Script\\ExitReport::status": "31e38fe1e22de330"
   },
   "help:Core\\Script\\Finished": {
     "Core\\Script\\Finished": "2db1ce2fc58130d9"
@@ -9726,7 +9729,7 @@
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "04a908eb48054d47",
     "lang:classes/properties": "524a2d4f1f052fd8",
-    "lang:types/properties-and-constants": "b2f7a0a244acdedb",
+    "lang:types/properties-and-constants": "88323bbd8db6181a",
     "LateInit": "8164b39b69556518"
   },
   "syntax/classes/property-hooks.mdx": {
@@ -9916,7 +9919,7 @@
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "e246ed6ffa3f0504",
-    "lang:types/array-t": "2bce18472e581290"
+    "lang:types/array-t": "5aaf6b272deb12b1"
   },
   "syntax/values/as.mdx": {
     "lang:types/the-conversion-operator-as": "1671ddf440fc08a0",
@@ -9969,15 +9972,16 @@
     "Core\\Time\\Weekday": "c84fb624df1e8d7f",
     "Core\\Unit": "b3199ba88e17fe85",
     "Core\\Xml\\Node::Kind": "c6438bce56d85dd1",
-    "lang:enums/a-case-is-its-integer": "9bf45dc29ff63bab",
+    "lang:enums/a-case-is-its-integer": "78e258844b71e18d",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "9c37687a05c2f300",
-    "lang:enums/an-enum-as-a-type": "571f8d901056468a",
+    "lang:enums/an-enum-as-a-type": "ed42b1b65aa03db8",
+    "lang:enums/an-enum-as-an-array-key": "7f3a8837ba26c5e4",
     "lang:enums/an-enum-inside-a-class": "1fc16276688bcd47",
     "lang:enums/comparing-cases": "a0a08f99c81ee55d",
     "lang:enums/core-enums": "ed3725c2bba7b19b",
     "lang:enums/declaring-an-enum": "8ed2e392822c8b07",
     "lang:enums/from-an-integer-back-to-a-case": "93fa43fd89189064",
-    "lang:enums/match-and-switch-over-an-enum": "b1b08136e24c2f3c",
+    "lang:enums/match-and-switch-over-an-enum": "e35f3d9e718cb46f",
     "lang:enums/what-an-enum-does-not-have": "b6d2cc8af41fa5e0",
     "Novis\\Image\\Barcode::Symbology": "1f49c8b546a9610b",
     "Novis\\Image\\Format": "1422563cabdafbd4",

@@ -1,0 +1,31 @@
+<?nvs
+// Reads a value from an array by an enum case, then by the case's number. Code does this to show a label for a status.
+// bench: iterations 512
+// bench: calls 0
+// bench: allocations 0
+// bench: complexity constant
+
+enum Mode { Read, Write, Exec }
+
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<Mode> $modes = [Mode::Read, Mode::Write, Mode::Exec];
+        array<Mode, int> $byCase = [Mode::Read => 1, Mode::Write => 2, Mode::Exec => 3];
+        array<int> $byNumber = [2, 1, 0];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The total from the last pass of the loop picks the case. Each pass
+            // adds 3 to the total, so the loop reads every case in turn.
+            Mode $mode = $modes[($total + $i) % 3];
+            $total = $total + $byCase[$mode];
+            $total = $total + $byNumber[$mode as int];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

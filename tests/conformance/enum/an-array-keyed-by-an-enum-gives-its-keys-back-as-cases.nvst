@@ -2,7 +2,7 @@
 An `array<E, T>` gives its keys back as cases of `E`: in a `foreach`, from `Core\Arr`, from a callback's key and after a JSON round trip through `as` (`rule:types/arrays`)
 --FILE--
 <?nvs
-// covers: lang:enums/an-enum-as-a-type
+// covers: lang:enums/an-enum-as-an-array-key
 // The values of this enum have gaps. Each key prints as its case's value: 0, 5 or 9.
 enum Priority { Low = 0, Mid = 5, High = 9 }
 

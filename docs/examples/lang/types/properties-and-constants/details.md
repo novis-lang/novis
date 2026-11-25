@@ -1,8 +1,9 @@
 A property needs a type. `public $x = 1;` is a syntax error (`E0101`).
 
 A default must be a constant of the property's type. That is a value written in the code, also with
-a minus sign such as `-3`. It can also be `[]`, an enum case, or a class constant such as
-`Limits::ATTEMPTS` or `self::ATTEMPTS`. A union type takes any value one of its members takes:
+a minus sign such as `-3`. It can also be an enum case, a class constant such as
+`Limits::ATTEMPTS` or `self::ATTEMPTS`, or an array of these, such as
+`[Priority::Low, Priority::High]`. A union type takes any value one of its members takes:
 `?string $label = null`, `?string $label = "plain"` and `"read"|"write" $mode = "read"` all compile.
 Any other default does not compile (`E0472`). That includes a call, `null` for a `string` property,
 and `"delete"` for a `"read"|"write"` property.
@@ -16,7 +17,11 @@ A constant needs a type. `public const W = 5;` does not compile (`E0246`). Readi
 its declared type exactly. With `public const uint WIDTH = 5;`, `int $i = Limits::WIDTH;` does not
 compile (`E0401`).
 
-The compiler copies a constant's value into every place that reads it. So the value must be a
-number, a string, a `bool`, or an array of them. A constant whose value is another class's
-constant, an enum case, `self::B + 1` or `"a" . "b"` compiles, but every read of it does not
-compile (`E0792`).
+The compiler copies a constant's value into every place that reads it. So the value must be known
+when the program compiles. These values work, alone or inside an array, as a value or as a key:
+a number, a string, a `bool`, an enum case, `Priority::High as int`, `Foo::class`, and another
+class's constant whose value is a number or a string. A property default can contain the same values.
+
+Some constants compile, but a read of one does not compile (`E0792`). That is the case for
+`self::B + 1` and `"a" . "b"`. It is also the case for another class's constant whose value is an
+array or an enum case. Write that array or case out in your own constant.

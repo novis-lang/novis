@@ -1,0 +1,31 @@
+<?nvs
+// Shows class constants and a property default that contain enum cases, alone and inside arrays.
+
+enum Priority { Low, Normal, Urgent }
+
+class Support
+{
+    // This constant is an array. Its keys are the cases of `Priority`.
+    public const array<Priority, string> LABELS = [
+        Priority::Low => 'low',
+        Priority::Normal => 'normal',
+        Priority::Urgent => 'urgent',
+    ];
+
+    // A list of cases, in the order the team works on them.
+    public const array<Priority> ORDER = [Priority::Urgent, Priority::Normal, Priority::Low];
+
+    // A property default may also contain cases. Each object gets its own copy.
+    public array<Priority> $muted = [Priority::Low];
+}
+
+// This prints `urgent`, then `normal`, then `low`.
+foreach (Support::ORDER as Priority $priority) {
+    echo Support::LABELS[$priority], "\n";
+}
+
+Support $desk = new Support();
+$desk->muted[] = Priority::Normal;
+
+// `$muted` now has two cases. This prints `2 muted, the first is low`.
+echo Core\Arr::count($desk->muted), ' muted, the first is ', Support::LABELS[$desk->muted[0]], "\n";

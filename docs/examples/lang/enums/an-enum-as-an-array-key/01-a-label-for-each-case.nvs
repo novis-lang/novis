@@ -1,0 +1,22 @@
+<?nvs
+// Shows a constant table that gives a text label for each case of an enum.
+
+enum Priority { Low, Normal, Urgent }
+
+class Ticket
+{
+    // The keys of this table are cases of `Priority`.
+    public const array<Priority, string> LABELS = [
+        Priority::Low => 'can wait',
+        Priority::Normal => 'this week',
+        Priority::Urgent => 'today',
+    ];
+}
+
+array<Priority> $queue = [Priority::Urgent, Priority::Low, Priority::Normal];
+
+// The case is the key. You do not need to write `as int`. This prints `today`, then
+// `can wait`, then `this week`.
+foreach ($queue as Priority $priority) {
+    echo Ticket::LABELS[$priority], "\n";
+}

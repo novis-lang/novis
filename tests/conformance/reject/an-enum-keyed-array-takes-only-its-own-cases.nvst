@@ -2,7 +2,7 @@
 An `array<E, T>` takes only cases of `E` as keys, has no append, and `array<K, T>` needs an enum `K` (`rule:types/arrays`)
 --FILE--
 <?nvs
-// covers: lang:enums/an-enum-as-a-type
+// covers: lang:enums/an-enum-as-an-array-key
 // Each refused line below is one mistake and gets its own error.
 // A number or a string becomes a key only after `as Priority` checks it.
 enum Priority { Low, Medium, High }

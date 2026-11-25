@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to read a JSON object into an array keyed by an enum, and then filter it.
+
+enum Channel { Email = 1, Sms = 2, Push = 3 }
+
+class Notify
+{
+    public static function name(Channel $channel): string
+    {
+        return match ($channel) {
+            Channel::Email => 'email',
+            Channel::Sms => 'sms',
+            Channel::Push => 'push',
+        };
+    }
+}
+
+// Each key in this JSON text is the number of a case of `Channel`.
+string $json = '{"1": true, "2": false, "3": true}';
+
+// `as` checks that every key is a case of `Channel`. If one is not, it throws an error.
+array<Channel, bool> $enabled = Core\Json::decode($json) as array<Channel, bool>;
+
+// `Core\Arr::filter` keeps the keys, so the result also has `Channel` keys.
+array<Channel, bool> $on = Core\Arr::filter($enabled, fn(bool $value) => $value);
+
+// `Core\Arr::keys` returns the cases. This prints `email`, then `push`.
+foreach (Core\Arr::keys($on) as Channel $channel) {
+    echo 'send by ', Notify::name($channel), "\n";
+}
+
+// With `as ?array<Channel, bool>`, a key that is not a case gives `null`. This prints `7 is not a channel`.
+?array<Channel, bool> $wrong = Core\Json::decode('{"7": true}') as ?array<Channel, bool>;
+echo $wrong == null ? '7 is not a channel' : 'accepted', "\n";

@@ -337,7 +337,8 @@ own value.
 number. Example 04 shows that `as string` on a case does not compile.
 
 `echo` on a case, a case in a `"..."` string and a case joined with `.` are the error `E0707`. A case
-as an array key is the error `E0434`. Write `$case as int` for the key.
+as the key of an `array<T>` is the error `E0434`. Declare the array as `array<Level, T>` to use the
+cases as keys.
 
 `as float`, `as decimal` and `as string` on a case are the error `E0708`. So is `as int` on a `uint`
 enum, and `as uint` on an `int` enum. Convert to the backing type first, then to the type you want:
@@ -354,7 +355,7 @@ when both enums have a case with the same number. Write a `match` that names eve
 
 `Core\Json::encode` and `Core\Debug::dump` write a case as its number.
 
-In a `mixed` variable, a case knows that it is an enum case, but not which enum. `$value is int` is
+In a `mixed` variable, a case is stored as an enum case, but its enum is not stored. `$value is int` is
 `false` for it. `$value is Level` is `true` when its number belongs to a case of `Level`, also when it
 came from another enum.
 
@@ -813,18 +814,28 @@ Chooses what to do for each case of an enum.
 
 `match` and `switch` both compare the subject with each case label, from the first one written to
 the last. `match` is an expression: it returns the value of the arm that fits, and nothing runs after
-that arm. When no arm fits and there is no `default`, `match` throws an error, so a `default` arm is
-how you cover the cases you did not name.
+that arm. A `match` over an enum must handle every case. Write an arm for each case, or a `default`
+arm for the cases you do not name. If a case is missing, the program does not compile.
 
 `switch` runs statements instead of returning a value. An arm ends at its `break`. An arm without a
 `break` runs on into the arm written below it, which is useful when one case needs everything a
 later case does and a little more.
 
-**The examples below** show a `match` with a `default` arm, then the error a `match` throws without
-one, then a `switch` whose first arm runs on into the second.
+**The examples below** show a `match` with a `default` arm, then the error a `match` over a `mixed`
+value throws when no arm fits, then a `switch` whose first arm runs on into the second, and last a
+`match` that misses a case.
 
-A `match` that has an arm for every case needs no `default`. The compiler does not check that every
-case has an arm. A case with no arm throws the `LogicError` when it reaches the `match`.
+A `match` over an enum must handle every case. When the subject has an enum type such as `Mode`,
+and the `match` has no `default` arm, each case needs an arm. A missing case does not compile
+(`E1016`), and the message names each missing case. For a subject of type `?Mode`, an arm must also
+handle `null`. In the editor, the quick fix for `E1016` adds one arm for each missing case.
+
+An arm covers a case when its label is that case, or a class constant whose value is that case. Any
+other label covers no case, so that `match` needs a `default` arm.
+
+A `match` over a `mixed` value is not checked, because the compiler does not know which enum the
+value belongs to. When no arm fits and there is no `default`, it throws a `LogicError` when the
+program runs.
 
 A label must be a case of the subject's enum. A case of another enum is the error `E0466`, and so is
 a number such as `1`. This is the same in a `match` arm and in a `switch` `case`. A `null` label is
@@ -834,12 +845,13 @@ An arm for `Mode::Read` does not narrow the subject. Inside that arm, `$m` still
 Passing it to a parameter of the type `Mode::Read` is the error `E0401`. The same is true inside a
 `switch` `case`. Write `match (true)` with the arm `$m == Mode::Read` to narrow `$m` in that arm.
 
-A `switch` with no matching `case` and no `default` runs none of its code. It does not throw.
+A `switch` does not need a `case` for every case of the enum. A `switch` with no matching `case` and
+no `default` runs none of its code. It does not throw.
 
 When the subject has a smaller type such as `Mode::Read|Mode::Write`, an arm for `Mode::Exec` still
 compiles. That arm never runs.
 
-In a `mixed` subject, a label is compared by its number. A `mixed` variable that contains the
+The labels are still cases when the subject is `mixed`. The `match` compares each label by its number. A `mixed` variable that contains the
 number `1` matches the arm `Mode::Write` when `Write` is the case with the number `1`.
 
 ## Example 01: choosing a text for each case
@@ -881,14 +893,16 @@ other
 ```nvs
 <?nvs
 // Shows what happens when no arm fits and there is no `default`. The `match`
-// throws an error, which you can catch. Add a `default` arm to avoid it.
+// throws an error, which you can catch. This can only happen with a `mixed`
+// value: a `match` over an enum type must handle every case.
 
 enum Mode { Read, Write, Exec }
 
-Mode $mode = Mode::Exec;
+// The type of `$value` is `mixed`, so the `match` needs no arm for `Mode::Exec`.
+mixed $value = Mode::Exec;
 
 try {
-    string $name = match ($mode) {
+    string $name = match ($value) {
         Mode::Read => 'read',
         Mode::Write => 'write',
     };
@@ -898,8 +912,9 @@ try {
     echo $error->message, "\n";
 }
 
-// The same `match` with a `default` arm returns a value for every case. This
+// A `match` with a `default` arm returns a value for every case. This
 // prints `other`.
+Mode $mode = Mode::Exec;
 echo match ($mode) { Mode::Read => 'read', default => 'other' }, "\n";
 ```
 
@@ -953,6 +968,36 @@ pack the box
 send the tracking number
 ```
 
+## Example 04: a match that misses a case
+
+```nvs error
+<?nvs
+// Shows a `match` over an enum with no arm for `Mode::Exec` and no `default`.
+// This program does not compile. Add an arm for `Mode::Exec` or a `default` arm.
+// proof: compile-error
+
+enum Mode { Read, Write, Exec }
+
+Mode $mode = Mode::Write;
+echo match ($mode) {
+    Mode::Read => 'read',
+    Mode::Write => 'write',
+}, "\n";
+```
+
+```output
+error[E1016]: this `match` does not handle `Mode::Exec`
+  --> main.nvs:9:6
+  |
+9 | echo match ($mode) {
+  |      ^^^^^ a case of the enum has no arm here
+  = help: Add an arm for each missing case, or add a `default` arm.
+  = suggestion (review): add the missing arm
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
 # An enum as a type
 
 Uses an enum's name as a type.
@@ -962,8 +1007,8 @@ property, a parameter, a return type, the element type of an `array<Suit>`, the 
 `foreach` loop, and the type a generator gives with `Iterator<Suit>`. Everything declared that way
 accepts the cases of that enum and no other value. A number or a string there does not compile.
 
-A case is not an array key. Write `$case as int` to get the number behind the case, and use that
-number as the key. The array then works as any array with whole-number keys does.
+An array of type `array<Suit, T>` uses the cases of `Suit` as its keys. The next section, *An enum
+as an array key*, shows how.
 
 **The examples below** show the type on a property, a parameter and a return value, then an array of
 cases and two loops over one, then a list of orders that reads a text label from a table.
@@ -1109,6 +1154,169 @@ foreach ($orders as Order $order) {
 ```output
 A-1042: on its way
 A-1043: waiting for payment
+```
+
+# An enum as an array key
+
+Uses the cases of an enum as the keys of an array.
+
+You write the type as `array<Status, int>`. The first type argument is the enum, and the second is
+the type of the values. Every key of the array is a case of `Status`. A key that is a number, a
+string or a case of another enum does not compile. To use a number as a key, convert it first with
+`as Status`.
+
+When you loop over the array with `foreach`, the key has the type `Status`. So you can pass it to a
+`match` or to a method that needs a `Status`. A class constant can be such an array. Use one for a
+label or a limit for each case.
+
+**Good to know:** you cannot add a value with `$array[] = $value`, because there is no next key.
+Write the case as the key: `$array[Status::Paid] = $value`.
+
+**The examples below** show a constant table that gives a label for each case, then a count of
+orders for each status, then a JSON object read into an array keyed by an enum and filtered.
+
+The first type argument of `array<K, T>` is optional. When you write it, it must be an enum. A key
+type such as `string` or `int` is the error `E1017`. The type `array<T>` with one argument keeps
+its usual keys.
+
+A key of an `array<Status, T>` must be a case of `Status`. The compiler checks the key when you
+write a value, when you read a value and in an array literal. A key of type `int`, `string` or `mixed` is the error
+`E0434`. A case of another enum is `E0434` too. The help for `E0434` shows how to convert the key
+with `as Status`.
+
+`$array[] = $value` is the error `E1018`. An array keyed by an enum has no next key to add a value
+under.
+
+In a `foreach` over an `array<Status, T>`, the key has the type `Status`. A callback that
+`Core\Arr::filter` or `Core\Arr::map` calls with a key also gets a `Status`.
+
+`Core\Arr::keys` returns an `array<Status>`. `Core\Arr::firstKey`, `Core\Arr::lastKey`,
+`Core\Arr::keyOf` and `Core\Arr::findKey` return a `Status`, or `null` when there is no such key.
+`Core\Arr::filter`, `Core\Arr::map` and the other functions that keep the keys return an array that
+is also keyed by `Status`. `Core\Arr::groupBy` with a callback that returns a `Status` returns an
+array keyed by `Status`.
+
+You can pass an `array<Status, T>` to a parameter of type `array<T>`. To pass an `array<T>` where
+an `array<Status, T>` is needed, convert it with `as array<Status, T>`.
+
+`$value as array<Status, T>` checks every key and every value. A key that is not the number of a
+case of `Status` throws a `RuntimeError`. With `as ?array<Status, T>`, the result is `null` instead.
+Use this conversion for an array from `Core\Json::decode`. Its keys are strings such as `"2"`, and
+each one must be the number of a case.
+
+`Core\Json::encode` writes each key as the number of its case, as a JSON string such as `"2"`.
+
+An array keyed by an enum is stored like any other array. It uses the same memory as an `array<T>` with the same values.
+
+## Example 01: a label for each case
+
+```nvs
+<?nvs
+// Shows a constant table that gives a text label for each case of an enum.
+
+enum Priority { Low, Normal, Urgent }
+
+class Ticket
+{
+    // The keys of this table are cases of `Priority`.
+    public const array<Priority, string> LABELS = [
+        Priority::Low => 'can wait',
+        Priority::Normal => 'this week',
+        Priority::Urgent => 'today',
+    ];
+}
+
+array<Priority> $queue = [Priority::Urgent, Priority::Low, Priority::Normal];
+
+// The case is the key. You do not need to write `as int`. This prints `today`, then
+// `can wait`, then `this week`.
+foreach ($queue as Priority $priority) {
+    echo Ticket::LABELS[$priority], "\n";
+}
+```
+
+```output
+today
+can wait
+this week
+```
+
+## Example 02: counting orders by status
+
+```nvs
+<?nvs
+// Shows how to count the orders in each status with an array keyed by an enum.
+
+enum Status { Placed, Paid, Shipped }
+
+array<Status> $orders = [Status::Paid, Status::Placed, Status::Paid, Status::Shipped, Status::Paid];
+
+// Every count starts at 0, so each status has a key.
+array<Status, int> $counts = [Status::Placed => 0, Status::Paid => 0, Status::Shipped => 0];
+foreach ($orders as Status $status) {
+    $counts[$status] = $counts[$status] + 1;
+}
+
+// The key of this loop is a case of `Status`, so a `match` can name each case.
+foreach ($counts as Status $status => int $count) {
+    string $name = match ($status) {
+        Status::Placed => 'placed',
+        Status::Paid => 'paid',
+        Status::Shipped => 'shipped',
+    };
+    echo $name, ': ', $count, "\n";
+}
+```
+
+```output
+placed: 1
+paid: 3
+shipped: 1
+```
+
+## Example 03: settings read from json
+
+```nvs
+<?nvs
+// Shows how to read a JSON object into an array keyed by an enum, and then filter it.
+
+enum Channel { Email = 1, Sms = 2, Push = 3 }
+
+class Notify
+{
+    public static function name(Channel $channel): string
+    {
+        return match ($channel) {
+            Channel::Email => 'email',
+            Channel::Sms => 'sms',
+            Channel::Push => 'push',
+        };
+    }
+}
+
+// Each key in this JSON text is the number of a case of `Channel`.
+string $json = '{"1": true, "2": false, "3": true}';
+
+// `as` checks that every key is a case of `Channel`. If one is not, it throws an error.
+array<Channel, bool> $enabled = Core\Json::decode($json) as array<Channel, bool>;
+
+// `Core\Arr::filter` keeps the keys, so the result also has `Channel` keys.
+array<Channel, bool> $on = Core\Arr::filter($enabled, fn(bool $value) => $value);
+
+// `Core\Arr::keys` returns the cases. This prints `email`, then `push`.
+foreach (Core\Arr::keys($on) as Channel $channel) {
+    echo 'send by ', Notify::name($channel), "\n";
+}
+
+// With `as ?array<Channel, bool>`, a key that is not a case gives `null`. This prints `7 is not a channel`.
+?array<Channel, bool> $wrong = Core\Json::decode('{"7": true}') as ?array<Channel, bool>;
+echo $wrong == null ? '7 is not a channel' : 'accepted', "\n";
+```
+
+```output
+send by email
+send by push
+7 is not a channel
 ```
 
 # A union of cases is a narrower type

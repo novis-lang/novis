@@ -1,14 +1,13 @@
 <?nvs
-// Attack: a program drives `match` and `switch` over an enum into every corner.
-// Millions of rounds throw because no arm fits, a long label chain is walked to
-// its end, and a `match` calls itself with no end. Every step should end with
-// an error the program can catch, and the runtime should stay standing.
+// Attack: a program runs `match` and `switch` over an enum with extreme input.
+// A million `match` calls find no arm, a `switch` runs through many labels, and a
+// `match` calls itself without end. Each step should throw an error the program
+// can catch, and the runtime should keep running.
 // covers: lang:enums/match-and-switch-over-an-enum
 // hostile: timeout-ms 20000
 
-// 1. A `match` with one arm that the subject never fits, one million times. The
-// throw is caught each round, so the program keeps going. The subject is
-// `mixed`, because a `match` over an enum type must handle every case.
+// 1. A `match` over a `mixed` value that fits no arm, one million times.
+// Each error is caught, so the program keeps going.
 class Missed
 {
     public static function count(int $rounds): int
@@ -58,8 +57,8 @@ class Through
 
 echo '2: steps ', Through::walk(2000000), "\n";
 
-// 3. The largest number a `uint` case can carry, matched against its own arm
-// and against the arm below it.
+// 3. A case of a `uint` enum has the largest `uint` number. A `match` compares it
+// with its own arm and with the arm below it.
 Runaway::Mode $end = Runaway::Mode::Huge;
 echo '3: ', match ($end) { Runaway::Mode::Read => 'read', Runaway::Mode::Huge => 'huge', default => 'other' }, "\n";
 echo '3: ', match ($end) { Runaway::Mode::Read => 'read', Runaway::Mode::Write => 'write', default => 'other' }, "\n";

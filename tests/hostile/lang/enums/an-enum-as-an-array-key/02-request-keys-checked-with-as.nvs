@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program converts keys from outside into cases with `as`, and many of them are not cases.
+// Each wrong key should give `null` or an error the program catches, and the runtime should keep running.
+// covers: lang:enums/an-enum-as-an-array-key
+// hostile: timeout-ms 20000
+
+enum Priority { Low = 0, High = 9 }
+
+// 1. Numbers that are not cases, near the ends of the `int` range, each checked with `as ?Priority`.
+array<int> $numbers = [-1, 1, 8, 10, 9223372036854775807, -9223372036854775807 - 1];
+int $refused = 0;
+foreach ($numbers as int $number) {
+    ?Priority $priority = $number as ?Priority;
+    if ($priority == null) {
+        $refused = $refused + 1;
+    }
+}
+echo '1: refused ', $refused, " of 6\n";
+
+// 2. A JSON object with the keys 0 to 9999. Only `0` and `9` are cases.
+class Big
+{
+    public static function json(int $size): string
+    {
+        array<string> $parts = [];
+        int $i = 0;
+        while ($i < $size) {
+            $parts[] = '"' . ($i as string) . '":1';
+            $i = $i + 1;
+        }
+        return '{' . Core\Str::join($parts, ',') . '}';
+    }
+}
+
+?array<Priority, int> $loose = Core\Json::decode(Big::json(10000)) as ?array<Priority, int>;
+echo '2: ', $loose == null ? 'null' : 'BAD, accepted', "\n";
+
+// 3. The key `5` is not a case. Without `?`, the check throws an error, and it is caught.
+try {
+    array<Priority, int> $strict = Core\Json::decode('{"0":1,"5":2}') as array<Priority, int>;
+    echo '3: BAD, accepted ', Core\Arr::count($strict), " keys\n";
+} catch (RuntimeError $e) {
+    echo '3: caught a RuntimeError', "\n";
+}
+
+// 4. Keys that are text, with spaces, signs and digits that are not numbers.
+array<string> $texts = [' 9', '9 ', '+9', '09', '9.0', '0x9', '', 'High'];
+int $nulls = 0;
+foreach ($texts as string $text) {
+    string $json = '{' . Core\Json::encode($text) . ':1}';
+    ?array<Priority, int> $result = Core\Json::decode($json) as ?array<Priority, int>;
+    if ($result == null) {
+        $nulls = $nulls + 1;
+    }
+}
+echo '4: ', $nulls, " of 8 are null\n";
+
+// 5. One million good conversions in a row, each written into the array and read back.
+class Many
+{
+    public static function run(int $rounds): int
+    {
+        array<Priority, int> $counts = [Priority::Low => 0, Priority::High => 0];
+        int $i = 0;
+        while ($i < $rounds) {
+            Priority $key = (($i % 2) * 9) as Priority;
+            $counts[$key] = $counts[$key] + 1;
+            $i = $i + 1;
+        }
+        return $counts[Priority::Low] + $counts[Priority::High];
+    }
+}
+
+echo '5: ', Many::run(1000000), "\n";
+echo "the runtime is still running\n";

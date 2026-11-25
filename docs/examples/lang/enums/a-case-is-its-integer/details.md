@@ -1,5 +1,6 @@
 `echo` on a case, a case in a `"..."` string and a case joined with `.` are the error `E0707`. A case
-as an array key is the error `E0434`. Write `$case as int` for the key.
+as the key of an `array<T>` is the error `E0434`. Declare the array as `array<Level, T>` to use the
+cases as keys.
 
 `as float`, `as decimal` and `as string` on a case are the error `E0708`. So is `as int` on a `uint`
 enum, and `as uint` on an `int` enum. Convert to the backing type first, then to the type you want:
@@ -16,6 +17,6 @@ when both enums have a case with the same number. Write a `match` that names eve
 
 `Core\Json::encode` and `Core\Debug::dump` write a case as its number.
 
-In a `mixed` variable, a case knows that it is an enum case, but not which enum. `$value is int` is
+In a `mixed` variable, a case is stored as an enum case, but its enum is not stored. `$value is int` is
 `false` for it. `$value is Level` is `true` when its number belongs to a case of `Level`, also when it
 came from another enum.

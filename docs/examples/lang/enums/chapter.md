@@ -11,6 +11,7 @@ keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->v
 # Comparing cases
 # `match` and `switch` over an enum
 # An enum as a type
+# An enum as an array key
 # A union of cases is a narrower type
 # An enum inside a class
 # What an enum does not have

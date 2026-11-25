@@ -517,12 +517,13 @@ cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 0
 
 A list, or a lookup table, whose values all have the same type.
 
-`var $ids = [1, 2];` creates an `array<int>`. The keys are not part of the type. Every value you add
-later must have that type. Write the type yourself, as in `array<float> $weights = [2, 1];`, when the
-array starts empty, when its values mix types, or when you will add values of a wider type later.
+`var $ids = [1, 2];` creates an `array<int>`. Every value you add later must have that type. Write
+the type yourself, as in `array<float> $weights = [2, 1];`, when the array starts empty, when its
+values mix types, or when you will add values of a wider type later.
 
-Keys are always strings: `$row[3]` and `$row["3"]` are the same entry. Entries keep the order you
-added them in. An array of arrays is how you build a table or a grouped report.
+Keys are strings: `$row[3]` and `$row["3"]` are the same entry. An `array<Suit, int>` has the cases
+of the enum `Suit` as its keys instead. Entries keep the order you added them in. An array of arrays
+is a table or a grouped report.
 
 An array is a value. When you pass it to a function, the function gets its own copy.
 
@@ -4720,25 +4721,26 @@ class and never changes.
 
 You write a property as `visibility [static] type $name`, with an optional default value:
 `public int $size = 8;`. Each object has its own copy of every property that is not `static`.
-A property must have a value before a program reads it. So the constructor must set every property
-that has no default, on every path. If it does not, the program does not compile.
+The constructor must set every property that has no default, on every path. If it does not, the
+program does not compile.
 
 You write a constant as `visibility const type NAME = value;`, for example
-`public const uint WIDTH = 5;`. Reading `Limits::WIDTH` gives a value of the type you wrote, here
-a `uint`.
+`public const uint WIDTH = 5;`. Reading `Limits::WIDTH` gives a `uint`, the type you wrote.
 
 **Good to know:** the compiler works out a default value once, before the program runs. So it must
-be a value written directly in the code, `[]`, an enum case or a class constant. Code that computes
-a value belongs in the constructor.
+be a value written directly in the code, an enum case, a class constant, or an array of these.
+Code that computes a value belongs in the constructor.
 
-The examples show defaults and a constructor, constants and a `static` property, and a small retry
-policy. Example 04 shows a default that is computed, which does not compile.
+**The examples below** show defaults and a constructor, constants and a `static` property, and a
+small retry policy. Example 04 shows a computed default, which does not compile. Example 05 shows
+constants that contain enum cases.
 
 A property needs a type. `public $x = 1;` is a syntax error (`E0101`).
 
 A default must be a constant of the property's type. That is a value written in the code, also with
-a minus sign such as `-3`. It can also be `[]`, an enum case, or a class constant such as
-`Limits::ATTEMPTS` or `self::ATTEMPTS`. A union type takes any value one of its members takes:
+a minus sign such as `-3`. It can also be an enum case, a class constant such as
+`Limits::ATTEMPTS` or `self::ATTEMPTS`, or an array of these, such as
+`[Priority::Low, Priority::High]`. A union type takes any value one of its members takes:
 `?string $label = null`, `?string $label = "plain"` and `"read"|"write" $mode = "read"` all compile.
 Any other default does not compile (`E0472`). That includes a call, `null` for a `string` property,
 and `"delete"` for a `"read"|"write"` property.
@@ -4752,10 +4754,14 @@ A constant needs a type. `public const W = 5;` does not compile (`E0246`). Readi
 its declared type exactly. With `public const uint WIDTH = 5;`, `int $i = Limits::WIDTH;` does not
 compile (`E0401`).
 
-The compiler copies a constant's value into every place that reads it. So the value must be a
-number, a string, a `bool`, or an array of them. A constant whose value is another class's
-constant, an enum case, `self::B + 1` or `"a" . "b"` compiles, but every read of it does not
-compile (`E0792`).
+The compiler copies a constant's value into every place that reads it. So the value must be known
+when the program compiles. These values work, alone or inside an array, as a value or as a key:
+a number, a string, a `bool`, an enum case, `Priority::High as int`, `Foo::class`, and another
+class's constant whose value is a number or a string. A property default can contain the same values.
+
+Some constants compile, but a read of one does not compile (`E0792`). That is the case for
+`self::B + 1` and `"a" . "b"`. It is also the case for another class's constant whose value is an
+array or an enum case. Write that array or case out in your own constant.
 
 ## Example 01: a slot every object has
 
@@ -4937,6 +4943,49 @@ error[E0472]: a property default must be a `int` constant
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+## Example 05: a table of enum cases
+
+```nvs
+<?nvs
+// Shows class constants and a property default that contain enum cases, alone and inside arrays.
+
+enum Priority { Low, Normal, Urgent }
+
+class Support
+{
+    // This constant is an array. Its keys are the cases of `Priority`.
+    public const array<Priority, string> LABELS = [
+        Priority::Low => 'low',
+        Priority::Normal => 'normal',
+        Priority::Urgent => 'urgent',
+    ];
+
+    // A list of cases, in the order the team works on them.
+    public const array<Priority> ORDER = [Priority::Urgent, Priority::Normal, Priority::Low];
+
+    // A property default may also contain cases. Each object gets its own copy.
+    public array<Priority> $muted = [Priority::Low];
+}
+
+// This prints `urgent`, then `normal`, then `low`.
+foreach (Support::ORDER as Priority $priority) {
+    echo Support::LABELS[$priority], "\n";
+}
+
+Support $desk = new Support();
+$desk->muted[] = Priority::Normal;
+
+// `$muted` now has two cases. This prints `2 muted, the first is low`.
+echo Core\Arr::count($desk->muted), ' muted, the first is ', Support::LABELS[$desk->muted[0]], "\n";
+```
+
+```output
+urgent
+normal
+low
+2 muted, the first is low
 ```
 
 # Qualifiers: `tainted` and `secret`

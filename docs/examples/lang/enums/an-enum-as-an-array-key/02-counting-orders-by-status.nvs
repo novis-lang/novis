@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to count the orders in each status with an array keyed by an enum.
+
+enum Status { Placed, Paid, Shipped }
+
+array<Status> $orders = [Status::Paid, Status::Placed, Status::Paid, Status::Shipped, Status::Paid];
+
+// Every count starts at 0, so each status has a key.
+array<Status, int> $counts = [Status::Placed => 0, Status::Paid => 0, Status::Shipped => 0];
+foreach ($orders as Status $status) {
+    $counts[$status] = $counts[$status] + 1;
+}
+
+// The key of this loop is a case of `Status`, so a `match` can name each case.
+foreach ($counts as Status $status => int $count) {
+    string $name = match ($status) {
+        Status::Placed => 'placed',
+        Status::Paid => 'paid',
+        Status::Shipped => 'shipped',
+    };
+    echo $name, ': ', $count, "\n";
+}
