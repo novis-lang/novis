@@ -2903,6 +2903,40 @@ pub(crate) fn report_union_member_not_shared(
     );
 }
 
+/// `E1013`: a method called through a union where an `extend` block adds it
+/// to some classes, but no one block adds it to every class
+/// (`rule:classes/an-added-member-never-changes-a-type`). `blocks` gives, in
+/// the union's order, the block each class gets the method from, `None` where
+/// the class declares it or lacks it.
+pub(crate) fn report_union_added_member_not_shared(
+    span: Span,
+    name: &str,
+    described: &str,
+    classes: &[QName],
+    blocks: &[Option<QName>],
+    env: &mut Env<'_>,
+) {
+    let mut whose = Vec::with_capacity(classes.len());
+    for (class, block) in classes.iter().zip(blocks) {
+        whose.push(match block {
+            Some(block) => format!("`{block}` adds it to `{class}`"),
+            None => format!("`{class}` does not get it from a block"),
+        });
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNION_ADDED_MEMBER_NOT_SHARED,
+            format!("no one `extend` block adds the method `{name}()` to every class of `{described}`"),
+        )
+        .with_primary(span, format!("called through `{described}` here"))
+        .with_note(whose.join(", "))
+        .with_help(
+            "test the value with `is` first, and call the method on one class. A block that \
+             extends an interface every class implements adds the method to all of them",
+        ),
+    );
+}
+
 /// `unset()`'s operand, which `rule:classes/unset-is-refused-on-a-property` narrows to exactly one shape:
 /// **an array element of a named holder**, `$holder[key]`, where the holder is
 /// a local, a property or a static property. This function is that rule's only

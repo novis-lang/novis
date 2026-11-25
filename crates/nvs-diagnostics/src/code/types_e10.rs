@@ -151,4 +151,16 @@ codes! {
          or for a conversion to `string`. It never calls an added method this way, so the \
          method would not work as expected. Give the added method a different name.",
     );
+
+    /// A method called through a union of classes where an `extend` block
+    /// adds it to some classes but not from one block to every class
+    /// (`rule:classes/an-added-member-never-changes-a-type`). Which member runs
+    /// would otherwise depend on the class the value has, and an added
+    /// method is never dispatched by class.
+    pub const E_UNION_ADDED_MEMBER_NOT_SHARED: Code = Code::new("E1013").card(
+        "A method is called on a value whose type is a union of classes, such as `A|B`. An \
+         `extend` block adds this method to some of the classes, but no one block adds it to \
+         every class. Test the value with `is` first, and call the method on one class. A block \
+         that extends an interface all the classes implement adds the method to every class.",
+    );
 }

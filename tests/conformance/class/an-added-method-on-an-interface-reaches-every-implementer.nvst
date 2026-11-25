@@ -1,0 +1,87 @@
+--TEST--
+an `extend` block on an interface of another package adds a method to every class that implements it: the package's classes, the application's own class, a value typed as the interface, and a union of two implementers, where one block adds the method to every class — `rule:classes/an-added-member-never-changes-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Priced;
+use Acme\Shop\Book;
+use Acme\Shop\Pen;
+use App\PriceTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Priced as PriceTools {
+    public function withTax(): int {
+        return $this->price() + 10;
+    }
+}
+
+final class Gift implements Priced
+{
+    public function price(): int
+    {
+        return 50;
+    }
+}
+
+final class Till
+{
+    public static function total(Priced $item): int
+    {
+        return $item->withTax();
+    }
+
+    public static function either(Book|Pen $item): int
+    {
+        return $item->withTax();
+    }
+}
+
+echo (new Book())->withTax(), "\n";
+echo (new Pen())->withTax(), "\n";
+echo (new Gift())->withTax(), "\n";
+echo Till::total(new Book()), "\n";
+echo Till::either(new Pen()), "\n";
+var $tax = (new Gift())->withTax(...);
+echo $tax(), "\n";
+--FILE vendor/acme/shop/src/Priced.nvs--
+<?nvs
+namespace Acme\Shop;
+
+interface Priced
+{
+    public function price(): int;
+}
+--FILE vendor/acme/shop/src/Book.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class Book implements Priced
+{
+    public function price(): int
+    {
+        return 200;
+    }
+}
+--FILE vendor/acme/shop/src/Pen.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class Pen implements Priced
+{
+    public function price(): int
+    {
+        return 30;
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+210
+40
+60
+210
+40
+60

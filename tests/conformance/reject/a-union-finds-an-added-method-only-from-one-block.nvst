@@ -1,0 +1,64 @@
+--TEST--
+a call through a union finds an added method only when one `extend` block adds it to every class: two blocks that each add `label` to one class of `Book|Pen` are `E1013`, and the help says to test the value with `is` — `rule:classes/an-added-member-never-changes-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Book;
+use Acme\Shop\Pen;
+use App\BookTools;
+use App\PenTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Book as BookTools {
+    public function label(): string {
+        return "book";
+    }
+}
+
+extend Pen as PenTools {
+    public function label(): string {
+        return "pen";
+    }
+}
+
+final class Names
+{
+    public static function of(Book|Pen $item): string
+    {
+        return $item->label();
+    }
+}
+
+echo Names::of(new Book()), "\n";
+--FILE vendor/acme/shop/src/Book.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class Book
+{
+}
+--FILE vendor/acme/shop/src/Pen.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class Pen
+{
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1013]: no one `extend` block adds the method `label()` to every class of `Acme\Shop\Book|Acme\Shop\Pen`
+   --> %s:27:16
+   |
+27 |         return $item->label();
+   |                ^^^^^^^^^^^^ called through `Acme\Shop\Book|Acme\Shop\Pen` here
+   = note: `App\BookTools` adds it to `Acme\Shop\Book`, `App\PenTools` adds it to `Acme\Shop\Pen`
+   = help: test the value with `is` first, and call the method on one class. A block that extends an interface every class implements adds the method to all of them
+
+error: aborting due to 1 error
+%A

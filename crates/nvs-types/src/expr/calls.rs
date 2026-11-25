@@ -392,8 +392,23 @@ fn infer_union_method_call(
     let mut owners = Vec::with_capacity(call.classes.len());
     let mut shared: Option<(&QName, MethodSig)> = None;
     let mut problem = None;
+    // The block each class gets the method from, `None` for a declared one.
+    let mut blocks: Vec<Option<QName>> = Vec::with_capacity(call.classes.len());
     for qname in &call.classes {
-        let Some((owner, sig)) = resolve_method(qname, name, env.signatures, env.graph) else {
+        let declared = resolve_method(qname, name, env.signatures, env.graph);
+        let added = match declared {
+            Some(_) => None,
+            None => crate::extend::added_method(
+                qname,
+                name,
+                ctx.imports,
+                env.signatures,
+                env.graph,
+            )
+            .map(|(block, sig)| (block.clone(), sig.clone())),
+        };
+        blocks.push(added.as_ref().map(|(block, _)| block.clone()));
+        let Some((owner, sig)) = declared.or(added) else {
             problem = Some(format!("`{qname}` has no method `{name}()`"));
             break;
         };
@@ -418,6 +433,27 @@ fn infer_union_method_call(
             None => shared = Some((qname, sig)),
         }
         owners.push((qname.clone(), owner));
+    }
+    // `rule:classes/an-added-member-never-changes-a-type`: an added method is
+    // found through a union only when one block adds it to every class.
+    let added_block = match blocks.first() {
+        Some(Some(first)) if blocks.iter().all(|b| b.as_ref() == Some(first)) => {
+            Some(first.clone())
+        }
+        _ => None,
+    };
+    if added_block.is_none() && blocks.iter().any(Option::is_some) {
+        let described = env.interner.describe(call.union);
+        report_union_added_member_not_shared(
+            call.span,
+            name,
+            &described,
+            &call.classes,
+            &blocks,
+            env,
+        );
+        check_args_typed(args, None, expr.span, live, scope, ctx, env);
+        return env.interner.error();
     }
     let shared = match (problem, shared) {
         (None, Some((_, sig))) => sig,
@@ -463,31 +499,55 @@ fn infer_union_method_call(
     if method_ref && reject_unforwardable_method_ref(&owners[0].1, name, &sig, expr.span, env) {
         return env.interner.callable();
     }
-    let mut arms = Vec::with_capacity(owners.len());
-    for (class, owner) in owners {
-        let outside = converts_outside_text(&owner, args, &slots, &arg_types, scope, env);
-        let mut resolved = resolved_call(
-            owner.clone(),
+    // One block adds the method to every class, so the call is one direct
+    // call of the block's function, whatever class the value has.
+    if let Some(block) = added_block {
+        let resolved = resolved_call(
+            block,
             name.to_owned(),
             &sig,
             slots.clone(),
             env.signatures,
         );
-        if let Some((target, list)) =
-            written_class_of(&owner, name, &written, outside, type_args, expr.span, env)
-        {
-            target.record_on(&mut resolved, list);
-        }
-        resolved.written_enum = written_enum_of(&owner, name, &written, type_args, expr.span, env);
-        resolved.route_attributes =
-            crate::match_attribute::fold(&owner, name, (&written, type_args), expr.span, ctx, env);
         let info = match method_ref {
             true => ExprInfo::CallableRef(resolved),
             false => ExprInfo::Call(resolved),
         };
-        arms.push((class, info));
+        env.exprs.record(expr.span, info);
+    } else {
+        let mut arms = Vec::with_capacity(owners.len());
+        for (class, owner) in owners {
+            let outside = converts_outside_text(&owner, args, &slots, &arg_types, scope, env);
+            let mut resolved = resolved_call(
+                owner.clone(),
+                name.to_owned(),
+                &sig,
+                slots.clone(),
+                env.signatures,
+            );
+            if let Some((target, list)) =
+                written_class_of(&owner, name, &written, outside, type_args, expr.span, env)
+            {
+                target.record_on(&mut resolved, list);
+            }
+            resolved.written_enum =
+                written_enum_of(&owner, name, &written, type_args, expr.span, env);
+            resolved.route_attributes = crate::match_attribute::fold(
+                &owner,
+                name,
+                (&written, type_args),
+                expr.span,
+                ctx,
+                env,
+            );
+            let info = match method_ref {
+                true => ExprInfo::CallableRef(resolved),
+                false => ExprInfo::Call(resolved),
+            };
+            arms.push((class, info));
+        }
+        env.exprs.record(expr.span, ExprInfo::UnionMember { arms });
     }
-    env.exprs.record(expr.span, ExprInfo::UnionMember { arms });
     if method_ref {
         let held = method_ref_type(&sig, env);
         env.exprs.record_callable_value(expr.span, held);
