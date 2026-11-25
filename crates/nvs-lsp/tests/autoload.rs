@@ -266,7 +266,12 @@ fn a_link_to_a_route_of_a_file_the_analysis_left_out_is_not_an_error() {
         tails(&analysed),
     );
     assert_eq!(codes(&analysed), ["E0754"]);
-    let own = &analysed.diags.iter().next().expect("one diagnostic").message;
+    let own = &analysed
+        .diags
+        .iter()
+        .next()
+        .expect("one diagnostic")
+        .message;
     assert!(own.contains("Blog\\Index::link"), "{own}");
 }
 
