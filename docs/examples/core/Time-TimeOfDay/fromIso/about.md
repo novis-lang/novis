@@ -9,5 +9,8 @@ A text that does not match throws a `ParseError`, and the message says which par
 written directly in the code is checked when the program compiles, so `TimeOfDay::fromIso('25:00')`
 does not compile. A text in a variable is read when the program runs.
 
+The same rules read a `TimeOfDay` in a route path, a `#[Core\Query]` value, a command argument and
+JSON that `Core\Json::decodeAs` reads.
+
 **The examples below** show the three forms of the text, texts that are not valid times, and opening
 hours read from a settings file.

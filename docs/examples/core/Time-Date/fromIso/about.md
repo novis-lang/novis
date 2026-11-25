@@ -10,6 +10,9 @@ A text that is not in this form throws a `ParseError`. A date that does not exis
 directly in the code is checked when the program compiles, so `Date::fromIso('2024-02-30')` does not
 compile. A text from a variable is checked when the program runs.
 
+The same rules read a `Date` in a route path, a `#[Core\Query]` value, a command argument and JSON
+that `Core\Json::decodeAs` reads.
+
 **Good to know:** the year must be between -9999 and 9999, the same range `Core\Time\Date::at` takes.
 A year before year 0 starts with `-`, such as `-0044`. Year 0 is written `0000`, and `-0000` throws
 a `ParseError`.

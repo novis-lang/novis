@@ -34759,7 +34759,7 @@ Returns the mean of the entries.
 Core\Arr::shapeAs<T>(array<mixed> $a): T
 ```
 
-Reads `$a` as the type `T` written at the call site. `T` is an inline shape such as `{ name: T }`, or a class with `#[Json\Derive]`. Each field that `T` names is converted with `as`, and other keys are left out. Write `array<T>` to read a list.
+Reads `$a` as the type `T` written at the call site. `T` is an inline shape such as `{ name: T }`, or a class with `#[Json\Derive]`. Each field that `T` names is converted with `as`, and other keys are left out. A field of type `Core\Time\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` reads its text, such as `2026-05-14` for a `Date`. Write `array<T>` to read a list.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -34767,7 +34767,7 @@ Reads `$a` as the type `T` written at the call site. `T` is an inline shape such
 
 **Returns** `T` — A new `T` where every field has its declared type. For an `array<T>`, one `T` per entry, in the array's own order.
 
-**Throws** `ParseError` — A field that `T` requires is missing, or `as` cannot convert its value to the declared type. Every failed field is one issue on the error, at its own dotted path. A form can then show the whole list of problems.; `LogicError` — `T` is a class without `#[Json\Derive]`, so there is no field list to read `$a` against.
+**Throws** `ParseError` — A field that `T` requires is missing, or its value cannot be converted to the declared type. Every failed field is one issue on the error, at its own dotted path. A form can then show the whole list of problems.; `LogicError` — `T` is a class without `#[Json\Derive]`, so there is no field list to read `$a` against.
 
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`
@@ -36711,7 +36711,7 @@ Converts `$value` to JSON text. It can be a scalar, an array, an anonymous objec
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `mixed` | The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{ name: value }` shape, or an instance of a class with `#[Json\Derive]`. |
+| `$value` | `mixed` | The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{ name: value }` shape, or an instance of a class with `#[Json\Derive]`. A `Core\Time\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` is written as a JSON string. A date or a time is its ISO text, a `Zone` is its name, such as `"Europe/Vienna"`, and a `Duration` is text such as `"1h30m"`. |
 | `{ pretty: … }` | `bool` (default `false`) | Writes the output across several lines, with indentation. By default, the output is on one line. |
 | `{ escapeUnicode: … }` | `bool` (default `false`) | Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is. |
 
@@ -36744,7 +36744,7 @@ Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed 
 Core\Json::decodeAs<T>(string $json, { maxDepth?: uint }): T
 ```
 
-Parses the JSON object `$json` into an instance of `T`. `T` is a class with the `#[Json\Derive]` attribute. Each property of the class reads the JSON field with the same name. The constructor runs only when every field has the right type. Write `array<T>` to read a JSON array as one instance per element.
+Parses the JSON object `$json` into an instance of `T`. `T` is a class with the `#[Json\Derive]` attribute. Each property of the class reads the JSON field with the same name. The constructor runs only when every field has the right type. Write `array<T>` to read a JSON array as one instance per element. A property of type `Core\Time\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` reads a JSON string, such as `"2026-05-14"` for a `Date`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -39816,7 +39816,7 @@ Builds a date from a year, a month and a day. A `Date` has no time of day and no
 Core\Time\Date::fromIso(string $text): Core\Time\Date
 ```
 
-Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` written directly in the code is checked when the program compiles.
+Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` written directly in the code is checked when the program compiles. A route, a command argument and `Core\Json::decodeAs` read a `Date` with the same rules.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -39955,7 +39955,7 @@ Orders two dates on the calendar, as `Comparable` requires.
 $date->toIso(): string
 ```
 
-Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text back.
+Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text back. `Core\Json::encode`, `Core\Router::url` and `Core\Uri::buildQuery` write a `Date` as this text.
 
 **Returns** `string` — A `string` with the year, the month and the day. The year has four digits, and a year before year 1 starts with `-`.
 
@@ -40241,7 +40241,7 @@ Makes a time of day from an hour and a minute. The seconds and the nanoseconds a
 Core\Time\TimeOfDay::fromIso(string $text): Core\Time\TimeOfDay
 ```
 
-Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A `$text` written directly in the code is checked when the program compiles.
+Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A `$text` written directly in the code is checked when the program compiles. A route, a command argument and `Core\Json::decodeAs` read a `TimeOfDay` with the same rules.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -40346,7 +40346,7 @@ Checks which of two times comes first in the day, as `Comparable` requires. The 
 $timeOfDay->toIso(): string
 ```
 
-Returns the time as ISO text, such as `08:30:00`. `TimeOfDay::fromIso` reads this text back.
+Returns the time as ISO text, such as `08:30:00`. `TimeOfDay::fromIso` reads this text back. `Core\Json::encode`, `Core\Router::url` and `Core\Uri::buildQuery` write a `TimeOfDay` as this text.
 
 **Returns** `string` — A `string` with the hour, the minute and the second. It has a fraction of a second only when the fraction is not zero.
 
@@ -41925,7 +41925,7 @@ Returns the text of the UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. Th
 $uuid->format(): string
 ```
 
-Returns the text that `parse` reads, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. It is the same text as `toString`. `Core\Router::url` writes a UUID in a link with this method.
+Returns the text that `parse` reads, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. It is the same text as `toString`. `Core\Router::url` and `Core\Uri::buildQuery` write a UUID in a link with this method.
 
 **Returns** `string` — A string of 36 characters, in lower case.
 
@@ -42329,11 +42329,11 @@ Writes the array `$parameters` as a query string, such as `page=2&sort=name`. `C
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. A value may also be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. |
+| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. A value may also be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`, or an object whose class implements `Parses`, such as a `Core\Uuid`. |
 
-**Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is `%2B`. A `null` value writes nothing, and neither does an empty array.
+**Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is `%2B`. A `Parses` object is written as the text its `format` method returns. A `null` value writes nothing, and neither does an empty array.
 
-**Throws** `RuntimeError` — A value is a function, or an object that is not a time value, so it has no text form.
+**Throws** `RuntimeError` — A value is a function, or an object that is not a time value and does not implement `Parses`, so it has no text form.
 
 <a id="core-core-uri-scheme"></a>
 #### `Core\Uri->scheme`
@@ -42641,9 +42641,9 @@ Builds the link to the route of the method `$route`. Each value in `$params` fil
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$route` | `callable` | The method that has the `#[Route]`, written as a method reference such as `Shop::show`. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a `#[Route]` is a compile error. |
-| `$params` | `array<mixed>` (default `[]`) | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. `url` and `urlAbsolute` use `[]` when you leave it out. |
+| `$params` | `array<mixed>` (default `[]`) | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A `Core\Time\Date` for a `uint` capture is an example. A `string` value is always allowed. `url` and `urlAbsolute` use `[]` when you leave it out. |
 
-**Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are. A `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` value is written as its `toIso` text. In the path that text is not encoded, so `08:30` stays `08:30`. An object of a class that implements `Parses` is written as the text its `format` method returns.
+**Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are. A query value that is `null` is left out of the link. A `bool` is written `1` or `0`. A `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` value is written as its `toIso` text. In the path that text is not encoded, so `08:30` stays `08:30`. An object of a class that implements `Parses` is written as the text its `format` method returns.
 
 **Throws** `RuntimeError` — When `$route` is a variable and not a method reference written in the call. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
 
@@ -42659,7 +42659,7 @@ Builds the same link as `url`, with the origin of your site in front. The origin
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$route` | `callable` | The method that has the `#[Route]`, written as a method reference such as `Shop::show`. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a `#[Route]` is a compile error. |
-| `$params` | `array<mixed>` (default `[]`) | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. `url` and `urlAbsolute` use `[]` when you leave it out. |
+| `$params` | `array<mixed>` (default `[]`) | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A `Core\Time\Date` for a `uint` capture is an example. A `string` value is always allowed. `url` and `urlAbsolute` use `[]` when you leave it out. |
 
 **Returns** `string` — The full URL, for example `https://example.test/users/42?page=2`. There is exactly one `/` between the origin and the path.
 
@@ -42677,7 +42677,7 @@ Builds the same link as `url`, with a signature in the `_sig` query parameter at
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$route` | `callable` | The method that has the `#[Route]`, written as a method reference such as `Shop::show`. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a `#[Route]` is a compile error. |
-| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. `url` and `urlAbsolute` use `[]` when you leave it out. |
+| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A `Core\Time\Date` for a `uint` capture is an example. A `string` value is always allowed. `url` and `urlAbsolute` use `[]` when you leave it out. |
 | `$settings` | `{ keys: array<secret bytes>, until: ?Core\Time\Instant }` | The keys and the time when the link stops working. Both are required. Keys: `keys` (array<secret bytes>) The keys, newest first. `$keys[0]` signs the link. The older keys are there so that `signedRoute` still accepts links made before you changed the key. A signature made by `Core\Signature` or `$uri->sign` is not accepted here, even with the same keys.; `until` (?Core\Time\Instant) When the link stops working. It is part of the signature, so nobody can change it. `null` means the link never stops working. You must write `null` yourself, because anybody who has such a link can use it forever. |
 
 **Returns** `string` — The link from `url` with `_sig=…` at the end, for example `/users/42?page=2&_sig=…`. The same route, values, keys and end time always give the same link. The signature adds about `4/3 × (path + params + 40)` characters.
@@ -42741,7 +42741,7 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 Core\Router::dispatch(Core\Router\Gate $gate): void
 ```
 
-Calls the method of the route that the request matched. Each value captured from the path goes to the method parameter with the same name. First, `$gate->allows()` checks the request. When no route method runs, `dispatch` sets the status and calls `$gate->refused()`. When the method throws an error, `dispatch` sets the status `500` and calls `$gate->failed()`.
+Calls the method of the route that the request matched. Each value captured from the path and each `#[Core\Query]` value goes to the method parameter with the same name. Each value is converted to its type first. Then `$gate->allows()` checks the request. When no route method runs, `dispatch` sets the status and calls `$gate->refused()`. When the method throws an error, `dispatch` sets the status `500` and calls `$gate->failed()`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -42749,7 +42749,7 @@ Calls the method of the route that the request matched. Each value captured from
 
 **Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::sendHtml`. When the gate implements `Core\Router\Responder`, `dispatch` passes the value that a route method returns to `$gate->respond()`. Otherwise `dispatch` does not send that value. An error that `refused()`, `failed()` or `respond()` throws is thrown by `dispatch`.
 
-**Throws** `LogicError` — When the program has no `#[Route]`. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a `#[Query]` parameter or an optional capture that the path does not have.
+**Throws** `LogicError` — When the program has no `#[Route]`. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no capture and no query value fills, such as an optional capture that the path does not have.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
@@ -56736,7 +56736,7 @@ Returns the id as a string. You can put the string in a URL, a header, a cookie 
 $id->format(): string
 ```
 
-Returns the string that `Core\Queue\Id::parse` reads. It is the same string as `toString`. `Core\Router::url` writes an id in a link with this method.
+Returns the string that `Core\Queue\Id::parse` reads. It is the same string as `toString`. `Core\Router::url` and `Core\Uri::buildQuery` write an id in a link with this method.
 
 **Returns** `string` — A string of letters, digits, `.`, `-` and `_`. Keep it secret like a password.
 

@@ -734,7 +734,10 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
             name: "value",
             desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
                    `string`, an array, a `{ name: value }` shape, or an instance of a class \
-                   with `#[Json\\Derive]`.",
+                   with `#[Json\\Derive]`. A `Core\\Time\\Date`, `TimeOfDay`, `DateTime`, \
+                   `Instant`, `Duration`, `Zone` or `Core\\Uuid` is written as a JSON string. A \
+                   date or a time is its ISO text, a `Zone` is its name, such as \
+                   `\"Europe/Vienna\"`, and a `Duration` is text such as `\"1h30m\"`.",
             shape: &[],
         },
         ParamDoc {
@@ -800,7 +803,9 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
     short: "Parses the JSON object `$json` into an instance of `T`. `T` is a class with the \
             `#[Json\\Derive]` attribute. Each property of the class reads the JSON field with \
             the same name. The constructor runs only when every field has the right type. Write \
-            `array<T>` to read a JSON array as one instance per element.",
+            `array<T>` to read a JSON array as one instance per element. A property of type \
+            `Core\\Time\\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or \
+            `Core\\Uuid` reads a JSON string, such as `\"2026-05-14\"` for a `Date`.",
     params: &[
         ParamDoc {
             name: "json",

@@ -441,7 +441,10 @@ const PARAMS_DOC: ParamDoc = ParamDoc {
     name: "params",
     desc: "The path's captures by name, plus any query parameters. A key written directly in \
            the code must be a capture or a declared `#[Query]` parameter. Any other key is a \
-           compile error. `url` and `urlAbsolute` use `[]` when you leave it out.",
+           compile error. A value written directly in the code must have a type that its \
+           parameter can take, or the program does not compile. A `Core\\Time\\Date` for a \
+           `uint` capture is an example. A `string` value is always allowed. `url` and \
+           `urlAbsolute` use `[]` when you leave it out.",
     shape: &[],
 };
 
@@ -456,7 +459,8 @@ const URL_DOC: MethodDoc = MethodDoc {
     params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
-          as they are. A `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime` value is \
+          as they are. A query value that is `null` is left out of the link. A `bool` is \
+          written `1` or `0`. A `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime` value is \
           written as its `toIso` text. In the path that text is not encoded, so `08:30` stays \
           `08:30`. An object of a class that implements `Parses` is written as the text its \
           `format` method returns.",
@@ -616,8 +620,9 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
 /// `Core\Router::dispatch`'s reference card — `rule:core-api/reference-card`.
 const DISPATCH_DOC: MethodDoc = MethodDoc {
     short: "Calls the method of the route that the request matched. Each value captured from \
-            the path goes to the method parameter with the same name. First, `$gate->allows()` \
-            checks the request. When no route method runs, `dispatch` sets the status and calls \
+            the path and each `#[Core\\Query]` value goes to the method parameter with the same \
+            name. Each value is converted to its type first. Then `$gate->allows()` checks the \
+            request. When no route method runs, `dispatch` sets the status and calls \
             `$gate->refused()`. When the method throws an error, `dispatch` sets the status \
             `500` and calls `$gate->failed()`.",
     params: &[ParamDoc {
@@ -634,8 +639,8 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "When the program has no `#[Route]`. When the program is not handling a request, \
                for example a command-line program, a job or a test. When the route method has a \
-               parameter that no value in the path fills, such as a `#[Query]` parameter or an \
-               optional capture that the path does not have.",
+               parameter that no capture and no query value fills, such as an optional capture \
+               that the path does not have.",
     }],
 };
 
@@ -1167,7 +1172,8 @@ const GATE_ALLOWS_DOC: MethodDoc = MethodDoc {
             access rule here, for example with `$route->accessAs<App\\Role>()`.",
     params: &[ParamDoc {
         name: "route",
-        desc: "The route that the request matched.",
+        desc: "The route that the request matched. Every capture and `#[Core\\Query]` value \
+               is already converted, so `$route->parameter()` returns it with its type.",
         shape: &[],
     }],
     ret: "`true` to call the method of the route. With `false`, the method does not run, the \

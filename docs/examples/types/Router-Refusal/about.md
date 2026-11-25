@@ -14,3 +14,6 @@ response first. Your gate writes the body, and it can change the status.
 | `BadCapture` | `400` | A path or query value does not convert to its type. Or a required query key is missing or repeated. |
 
 `route` is `null` when no route matched.
+
+A gate can set `404` for both `BadCapture` and `Denied`. Then a visitor cannot find out which ids
+exist.

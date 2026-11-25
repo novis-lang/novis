@@ -2011,7 +2011,10 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
 const SHAPE_AS_DOC: MethodDoc = MethodDoc {
     short: "Reads `$a` as the type `T` written at the call site. `T` is an inline shape such as \
             `{ name: T }`, or a class with `#[Json\\Derive]`. Each field that `T` names is \
-            converted with `as`, and other keys are left out. Write `array<T>` to read a list.",
+            converted with `as`, and other keys are left out. A field of type \
+            `Core\\Time\\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or \
+            `Core\\Uuid` reads its text, such as `2026-05-14` for a `Date`. Write `array<T>` to \
+            read a list.",
     params: &[ParamDoc {
         name: "a",
         desc: "The loose values to read: a form, a query string, a decoded document, or an \
@@ -2024,7 +2027,7 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "A field that `T` requires is missing, or `as` cannot convert its value to the \
+            desc: "A field that `T` requires is missing, or its value cannot be converted to the \
                    declared type. Every failed field is one issue on the error, at its own \
                    dotted path. A form can then show the whole list of problems.",
         },

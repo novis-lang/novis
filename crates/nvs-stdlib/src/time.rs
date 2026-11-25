@@ -3314,7 +3314,8 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Date::fromIso`'s reference card — `rule:core-api/reference-card`.
 const DATE_FROM_ISO_DOC: MethodDoc = MethodDoc {
     short: "Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` \
-            written directly in the code is checked when the program compiles.",
+            written directly in the code is checked when the program compiles. A route, a \
+            command argument and `Core\\Json::decodeAs` read a `Date` with the same rules.",
     params: &[ParamDoc {
         name: "text",
         desc: "The date as `YYYY-MM-DD`. A year before year 0 starts with `-`. Year 0 is \
@@ -3517,7 +3518,8 @@ const DATE_WITH_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Date::toIso`'s reference card — `rule:core-api/reference-card`.
 const DATE_TO_ISO_DOC: MethodDoc = MethodDoc {
     short: "Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text \
-            back.",
+            back. `Core\\Json::encode`, `Core\\Router::url` and `Core\\Uri::buildQuery` write a \
+            `Date` as this text.",
     params: &[],
     ret: "A `string` with the year, the month and the day. The year has four digits, and a year \
           before year 1 starts with `-`.",
@@ -4011,7 +4013,8 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\TimeOfDay::fromIso`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_FROM_ISO_DOC: MethodDoc = MethodDoc {
     short: "Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A \
-            `$text` written directly in the code is checked when the program compiles.",
+            `$text` written directly in the code is checked when the program compiles. A route, \
+            a command argument and `Core\\Json::decodeAs` read a `TimeOfDay` with the same rules.",
     params: &[ParamDoc {
         name: "text",
         desc: "`HH:MM`, `HH:MM:SS`, or `HH:MM:SS` with one to nine digits after a `.`.",
@@ -4144,7 +4147,8 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\TimeOfDay::toIso`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_TO_ISO_DOC: MethodDoc = MethodDoc {
     short: "Returns the time as ISO text, such as `08:30:00`. `TimeOfDay::fromIso` reads this text \
-            back.",
+            back. `Core\\Json::encode`, `Core\\Router::url` and `Core\\Uri::buildQuery` write a \
+            `TimeOfDay` as this text.",
     params: &[],
     ret: "A `string` with the hour, the minute and the second. It has a fraction of a second only \
           when the fraction is not zero.",

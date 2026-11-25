@@ -1,7 +1,7 @@
 ---
 title: Stringable, Comparable and Parses
 covers: ['Stringable', 'Comparable', 'Parses', 'lang:classes/stringable', 'lang:classes/comparable', 'lang:classes/parses']
-description: The built-in interfaces that let an object be printed, compared with < and >, or created from a string.
+description: The built-in interfaces that let an object be printed, compared with < and >, or created from a string and written back as one.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
@@ -23,5 +23,6 @@ examples.
 - Do implement `Stringable` when an object has one natural way to print it.
 - Do implement `Comparable` when you need to sort objects or compare them with `<`.
 - Do check the text in `parse` and throw `ParseError` when it is wrong.
+- Do return from `format` the same text that `parse` reads. A link to a route uses that text.
 - Don't expect `==` to compare the properties of two objects of your own class. Compare them yourself,
   or use `compareTo`.

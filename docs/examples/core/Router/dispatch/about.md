@@ -8,6 +8,9 @@ page or a missing CSRF token. `failed` writes the page when the route method thr
 `dispatch` sets the status before it calls `refused` or `failed`, so a gate that only writes a page
 sends the right code.
 
+Before `allows` runs, `dispatch` converts each capture and each `#[Core\Query]` value to the type of
+its parameter. So `allows` can read each value with `$route->parameter()`.
+
 **Good to know:** the gate cannot let a refused request through. If `allows` throws an error, the
 route method does not run. When a route method returns a value and your gate implements
 `Core\Router\Responder`, `dispatch` gives the value to the gate's `respond` method. A plain gate does

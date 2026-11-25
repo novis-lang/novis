@@ -7,3 +7,6 @@ are left out.
 `Core\Time\TimeOfDay::fromIso` reads this text back, and the result is the same time. Use `toIso` to
 save a time in a file or a database, or to send it to another program. For text a person reads,
 use `format`, such as `format('h:mm a')`.
+
+`Core\Json::encode`, `Core\Router::url` and `Core\Uri::buildQuery` write a `TimeOfDay` as this
+text. You do not need to call `toIso` for them.

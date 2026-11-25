@@ -2852,7 +2852,8 @@ const ID_TRY_PARSE_DOC: MethodDoc = MethodDoc {
 /// `$id->format`'s reference card — `rule:core-api/reference-card`.
 const ID_FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Returns the string that `Core\\Queue\\Id::parse` reads. It is the same string as \
-            `toString`. `Core\\Router::url` writes an id in a link with this method.",
+            `toString`. `Core\\Router::url` and `Core\\Uri::buildQuery` write an id in a link \
+            with this method.",
     params: &[],
     ret: "A string of letters, digits, `.`, `-` and `_`. Keep it secret like a password.",
     errors: &[],

@@ -349,7 +349,8 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Returns the text that `parse` reads, such as \
             `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. It is the same text as `toString`. \
-            `Core\\Router::url` writes a UUID in a link with this method.",
+            `Core\\Router::url` and `Core\\Uri::buildQuery` write a UUID in a link with this \
+            method.",
     params: &[],
     ret: "A string of 36 characters, in lower case.",
     errors: &[],

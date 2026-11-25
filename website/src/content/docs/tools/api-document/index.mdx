@@ -48,6 +48,9 @@ A `bool` query value is written `1` or `0`, so its schema is an integer. A `Time
 and a `DateTime` has a time zone name. The JSON Schema formats `time` and `date-time` do not allow
 that text, so these two have no `format`.
 
+A property of a `#[Core\Json\Derive]` class uses the same schemas. A `Core\Time\Duration` or a
+`Core\Time\Zone` property is `{"type": "string"}`.
+
 `title` is the name of the file without `.nvs`. `version` is the `version` in the nearest
 `package.toml`, found from the folder where you run the command. Without a `package.toml`, it is
 `0.0.0`.

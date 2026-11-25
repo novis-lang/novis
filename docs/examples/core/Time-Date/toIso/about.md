@@ -4,7 +4,10 @@ The month and the day always have two digits. The year always has four digits, s
 written `0005`. A year before year 1 starts with `-`, such as `-0044-03-15`.
 
 `Core\Time\Date::fromIso` reads this text back, and the result is the same date. That makes
-`toIso` the right choice when you save a date to a file, a database or JSON. ISO text also sorts
-in date order as a plain string.
+`toIso` the right choice when you save a date to a file or a database. ISO text also sorts in date
+order as a plain string.
+
+`Core\Json::encode`, `Core\Router::url` and `Core\Uri::buildQuery` write a `Date` as this text. You
+do not need to call `toIso` for them.
 
 **Good to know:** to write a date in another form, such as `20 May 2026`, use `format`.

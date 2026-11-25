@@ -1,14 +1,16 @@
-Says that a class can be built from a piece of text, so anywhere text arrives can ask for the class
-instead.
+The interface for a class that is built from a piece of text and written back as text.
 
-A class implementing it declares one member, `parse`. It takes the text, checks it, and answers an
-instance of the class — or throws when the text is not one. That is all it takes: a path segment, a
-query value, a command argument or a command option can each be declared at your class, and what
-your code receives is the class, already checked. Because the checking happens in one place, nothing
-downstream has to wonder whether it happened.
+A class that implements `Parses` declares two methods. The static method
+`parse(tainted string $s): static` checks the text and returns an object of the class. When the
+text is not valid, it throws a `ParseError`. The method `format()` returns the text that `parse`
+reads. Its return type is `tainted string`, or `string` when the text is always safe.
 
-The text `parse` receives is marked as having come from outside your program, and that is deliberate:
-this is where such text is meant to be looked at.
+A route capture, a `#[Core\Query]` value, a command argument or a command option can have the type
+of your class. Novis then calls `parse`, and your code gets an object that is already checked.
+`Core\Router::url` and `Core\Uri::buildQuery` call `format` to write the object into a link.
 
-**Good to know:** `Parses` needs no `use`. Every program already has the name, beside `Comparable`
-and `Stringable`.
+The text `parse` gets is `tainted`. That means it came from outside your program, so you must check
+it before you trust it.
+
+**Good to know:** `Parses` needs no `use`. Every program can use it, like `Comparable` and
+`Stringable`.

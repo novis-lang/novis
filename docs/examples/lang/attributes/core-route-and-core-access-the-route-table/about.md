@@ -9,7 +9,7 @@ value is a `400`, and the route method does not run.
 `Core\Router::url` builds a link to the route of a method, such as `Shop::show`. Your entry file calls `Core\Router::dispatch`, which calls the
 method of the route that matches.
 
-A `Date` or an `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
+A `Core\Time\Date`, `TimeOfDay` or `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
 because its zone name, such as `Europe/Vienna`, has a `/`.
 
 **The examples below** show links, captures, query values that may be missing, `bool` and time

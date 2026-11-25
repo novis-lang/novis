@@ -853,17 +853,19 @@ const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
         desc: "The names and values to write. A value is a scalar or another array. A nested \
                value is written under its whole path, such as `filter[size][0]=M`, with the \
                brackets escaped as `%5B` and `%5D`. A value may also be a `Core\\Time\\Date`, \
-               `TimeOfDay`, `Instant` or `DateTime`.",
+               `TimeOfDay`, `Instant` or `DateTime`, or an object whose class implements \
+               `Parses`, such as a `Core\\Uuid`.",
         shape: &[],
     }],
     ret: "The query string, without a leading `?`. Names and values are escaped as \
           `Core\\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` \
           and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is \
-          `%2B`. A `null` value writes nothing, and neither does an empty array.",
+          `%2B`. A `Parses` object is written as the text its `format` method returns. A `null` \
+          value writes nothing, and neither does an empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A value is a function, or an object that is not a time value, so it has no text \
-               form.",
+        desc: "A value is a function, or an object that is not a time value and does not \
+               implement `Parses`, so it has no text form.",
     }],
 };
 

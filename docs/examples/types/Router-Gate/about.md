@@ -11,6 +11,10 @@ You pass an instance of your class to `Core\Router::dispatch`. The class has thr
 When `allows` returns `false`, the status is `403` and `dispatch` calls `refused` with
 `Refusal::Denied`. An error thrown in `allows` has the same result.
 
+Every capture and `#[Core\Query]` value is converted before `allows` runs. `$route->parameter()`
+returns each one with its type. If a class's `parse` method loads a stored record, `allows` can
+check that record.
+
 Before `dispatch` calls `refused` or `failed`, it sets the status of the response. Your method writes
 the body. It can also set another status with `Core\Response::setStatus`.
 

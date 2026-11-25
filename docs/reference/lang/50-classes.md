@@ -3695,10 +3695,12 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A class that implements it writes two methods. The static method `parse(tainted string $s): static`
 returns an object of the class, or throws an error when the text is not valid. `tainted` says the
 text came from outside your program. The method `format()` returns the text that `parse` reads.
-`Core\Router::url` calls `format` to write the value into a link.
+Its return type is `tainted string`, or `string` when the text is always safe. `Core\Router::url`
+and `Core\Uri::buildQuery` call `format` to write the value into a link.
 
 Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or a command argument
-has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`.
+has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`. In a
+`final` class, `parse` may return an object that already exists, such as a record from a database.
 
 **The examples below** show a product code built from text, what a subclass gets back, values from a
 form, a class used in a route, a route that does not compile, and a `final` class that loads a

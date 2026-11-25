@@ -336,7 +336,7 @@
     "Core\\Arr::reverse": "b8f8916dc019fdbd"
   },
   "docs/examples/core/Arr/shapeAs/about.md": {
-    "Core\\Arr::shapeAs": "3fff5d1e3032af58"
+    "Core\\Arr::shapeAs": "5822bc726367cf10"
   },
   "docs/examples/core/Arr/slice/about.md": {
     "Core\\Arr::slice": "bb7a4a6229f4837c"
@@ -1323,13 +1323,13 @@
     "Core\\Json::decode": "b970c6ed14832243"
   },
   "docs/examples/core/Json/decodeAs/about.md": {
-    "Core\\Json::decodeAs": "942419d393165a8e"
+    "Core\\Json::decodeAs": "f80a201969447e92"
   },
   "docs/examples/core/Json/decodeEach/about.md": {
     "Core\\Json::decodeEach": "4b73468d678b3db7"
   },
   "docs/examples/core/Json/encode/about.md": {
-    "Core\\Json::encode": "5b71f7e0dbf02bd3"
+    "Core\\Json::encode": "6d4576c26cffea85"
   },
   "docs/examples/core/Json/encodeEach/about.md": {
     "Core\\Json::encodeEach": "77fedd5c346a3a3c"
@@ -2099,6 +2099,9 @@
   "docs/examples/core/Queue/status/about.md": {
     "Core\\Queue::status": "1fcd2e1f04aa0bac"
   },
+  "docs/examples/core/Queue-Id/format/about.md": {
+    "Core\\Queue\\Id::format": "998e7a37e5160879"
+  },
   "docs/examples/core/Queue-Id/parse/about.md": {
     "Core\\Queue\\Id::parse": "3d7ac1d22db54d2d"
   },
@@ -2493,25 +2496,25 @@
     "Core\\Response\\Stream::write": "522ee58bff46be0f"
   },
   "docs/examples/core/Router/dispatch/about.md": {
-    "Core\\Router::dispatch": "4527eb4f11bf3bf1"
+    "Core\\Router::dispatch": "f08efd79a9fe37f7"
   },
   "docs/examples/core/Router/match/about.md": {
     "Core\\Router::match": "7e58953ba7f1d631"
   },
   "docs/examples/core/Router/methodsFor/about.md": {
-    "Core\\Router::methodsFor": "11620d1bdb634d26"
+    "Core\\Router::methodsFor": "42f897618b1a9107"
   },
   "docs/examples/core/Router/signedRoute/about.md": {
     "Core\\Router::signedRoute": "0d6e9f6debf0b4c5"
   },
   "docs/examples/core/Router/url/about.md": {
-    "Core\\Router::url": "f3101eef4f763d2f"
+    "Core\\Router::url": "9ee81174d4e2341b"
   },
   "docs/examples/core/Router/urlAbsolute/about.md": {
-    "Core\\Router::urlAbsolute": "deffc6271482a55b"
+    "Core\\Router::urlAbsolute": "a87ea4065ffd30f8"
   },
   "docs/examples/core/Router/urlSigned/about.md": {
-    "Core\\Router::urlSigned": "33b906832fe0f0fe"
+    "Core\\Router::urlSigned": "d8c110267f459ae2"
   },
   "docs/examples/core/Router-Match/access/about.md": {
     "Core\\Router\\Match::access": "a97e603c61363929"
@@ -2523,16 +2526,16 @@
     "Core\\Router\\Match::attribute": "24a7d83958877251"
   },
   "docs/examples/core/Router-Match/is/about.md": {
-    "Core\\Router\\Match::is": "9d72ca38de99a117"
+    "Core\\Router\\Match::is": "9ca9d6098c65fc25"
   },
   "docs/examples/core/Router-Match/method/about.md": {
     "Core\\Router\\Match::method": "54381c59985403c5"
   },
   "docs/examples/core/Router-Match/parameter/about.md": {
-    "Core\\Router\\Match::parameter": "287cbb2463a418c8"
+    "Core\\Router\\Match::parameter": "d83c00fb7c043a55"
   },
   "docs/examples/core/Router-Match/parameters/about.md": {
-    "Core\\Router\\Match::parameters": "47f033a9ccefdbe6"
+    "Core\\Router\\Match::parameters": "62c9c4069af35664"
   },
   "docs/examples/core/Script/arguments/about.md": {
     "Core\\Script::arguments": "de32203abe884c1d"
@@ -3069,7 +3072,7 @@
     "Core\\Time\\Date::format": "e42059e19f1bf0ea"
   },
   "docs/examples/core/Time-Date/fromIso/about.md": {
-    "Core\\Time\\Date::fromIso": "019476f54f1dedf1"
+    "Core\\Time\\Date::fromIso": "d6954adc0d3e5ac9"
   },
   "docs/examples/core/Time-Date/isLeapYear/about.md": {
     "Core\\Time\\Date::isLeapYear": "b014cd78b61c3788"
@@ -3108,7 +3111,7 @@
     "Core\\Time\\Date::startOf": "a4bcfe05db43a7db"
   },
   "docs/examples/core/Time-Date/toIso/about.md": {
-    "Core\\Time\\Date::toIso": "e525f81fa45e1e17"
+    "Core\\Time\\Date::toIso": "2d74fecfea19ffd1"
   },
   "docs/examples/core/Time-Date/weekday/about.md": {
     "Core\\Time\\Date::weekday": "92d5df8185b222c4"
@@ -3324,7 +3327,7 @@
     "Core\\Time\\TimeOfDay::format": "e41c5f3bfd31a515"
   },
   "docs/examples/core/Time-TimeOfDay/fromIso/about.md": {
-    "Core\\Time\\TimeOfDay::fromIso": "b3d6700fb2564b73"
+    "Core\\Time\\TimeOfDay::fromIso": "d8c9c9afd73d8eee"
   },
   "docs/examples/core/Time-TimeOfDay/hour/about.md": {
     "Core\\Time\\TimeOfDay::hour": "003c08995b9bc20b"
@@ -3345,7 +3348,7 @@
     "Core\\Time\\TimeOfDay::second": "7e117f5064dceace"
   },
   "docs/examples/core/Time-TimeOfDay/toIso/about.md": {
-    "Core\\Time\\TimeOfDay::toIso": "b296e857cf1a2f1b"
+    "Core\\Time\\TimeOfDay::toIso": "dd7c2094e515c162"
   },
   "docs/examples/core/Time-TimeOfDay/with/about.md": {
     "Core\\Time\\TimeOfDay::with": "838dcbc8af331fef"
@@ -3378,7 +3381,7 @@
     "Core\\Totp::code": "956450550e910d76"
   },
   "docs/examples/core/Uri/buildQuery/about.md": {
-    "Core\\Uri::buildQuery": "be3365c942d2ddba"
+    "Core\\Uri::buildQuery": "a57b9e58d8c6bcfb"
   },
   "docs/examples/core/Uri/compareTo/about.md": {
     "Core\\Uri::compareTo": "51f5a4967574bf9f"
@@ -3445,6 +3448,9 @@
   },
   "docs/examples/core/Uri/withQueryParameter/about.md": {
     "Core\\Uri::withQueryParameter": "93c0b74988cbe8fd"
+  },
+  "docs/examples/core/Uuid/format/about.md": {
+    "Core\\Uuid::format": "f861de72304ffc89"
   },
   "docs/examples/core/Uuid/fromBytes/about.md": {
     "Core\\Uuid::fromBytes": "323d5223ecadaffa"
@@ -3585,13 +3591,13 @@
     "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "97b6cebf88d06bec"
   },
   "docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md": {
-    "lang:attributes/core-api-and-the-openapi-document": "26b39c1a94db62c2"
+    "lang:attributes/core-api-and-the-openapi-document": "03fb2d4e4b5b1635"
   },
   "docs/examples/lang/attributes/core-command-and-core-option-the-command-table/about.md": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "fe86346311a3d747"
+    "lang:attributes/core-command-and-core-option-the-command-table": "e92f8e42920fac17"
   },
   "docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "44e88877ec32cd9f"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "444e7303356da7e7"
   },
   "docs/examples/lang/attributes/core-program-implementing-i-every-class-that-is-an-i/about.md": {
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "aad574ac7b5b80ac"
@@ -3600,7 +3606,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "8b8d176a4d6317e9"
   },
   "docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md": {
-    "lang:attributes/core-route-and-core-access-the-route-table": "4c4864d33fca855e"
+    "lang:attributes/core-route-and-core-access-the-route-table": "bbc21d7fa630e321"
   },
   "docs/examples/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/about.md": {
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "b99a40e719ee7dd2"
@@ -3633,7 +3639,7 @@
     "lang:classes/lateinit": "a08e8951000b1b85"
   },
   "docs/examples/lang/classes/methods-self-static-and-parent/about.md": {
-    "lang:classes/methods-self-static-and-parent": "cd3823e80324f640"
+    "lang:classes/methods-self-static-and-parent": "bf1a9d643a5fdcef"
   },
   "docs/examples/lang/classes/nullable-objects-and/about.md": {
     "lang:classes/nullable-objects-and": "3d00be520cdd56ec"
@@ -3645,7 +3651,7 @@
     "lang:classes/objects-are-handles": "b2547845ca372754"
   },
   "docs/examples/lang/classes/parses/about.md": {
-    "lang:classes/parses": "08fc9de3e06ae457"
+    "lang:classes/parses": "57406283901d77ba"
   },
   "docs/examples/lang/classes/properties/about.md": {
     "lang:classes/properties": "77f98a389e344932"
@@ -4950,7 +4956,7 @@
     "ParseError": "06ea1a73d966ae48"
   },
   "docs/examples/types/Parses/about.md": {
-    "Parses": "66d53d3c425fc5aa"
+    "Parses": "e55f061db4028016"
   },
   "docs/examples/types/Passkey-Credential-Algorithm/about.md": {
     "Core\\Passkey\\Credential::Algorithm": "3b7ccd5d585c61f4"
@@ -4986,10 +4992,10 @@
     "Core\\RoundMode": "3ae75800d0af20b6"
   },
   "docs/examples/types/Router-Gate/about.md": {
-    "Core\\Router\\Gate": "f983f784969b62ec"
+    "Core\\Router\\Gate": "96088cc6457684d6"
   },
   "docs/examples/types/Router-Refusal/about.md": {
-    "Core\\Router\\Refusal": "972763dc9d3fd2ef"
+    "Core\\Router\\Refusal": "3206b4d1c8af1fef"
   },
   "docs/examples/types/Router-Responder/about.md": {
     "Core\\Router\\Responder": "4779296832cb38f1"
@@ -5190,7 +5196,7 @@
     "Core\\Arr::SetOn": "ead13f83019b8012"
   },
   "help:Core\\Arr::shapeAs": {
-    "Core\\Arr::shapeAs": "839235e8ce42f844"
+    "Core\\Arr::shapeAs": "c1114151c8caa826"
   },
   "help:Core\\Arr::slice": {
     "Core\\Arr::slice": "5729626248eb5b6e"
@@ -6255,13 +6261,13 @@
     "Core\\Json::decode": "4009022567bc2f70"
   },
   "help:Core\\Json::decodeAs": {
-    "Core\\Json::decodeAs": "9f310787d0694a44"
+    "Core\\Json::decodeAs": "a4ff743e17d3366a"
   },
   "help:Core\\Json::decodeEach": {
     "Core\\Json::decodeEach": "294f417438df5031"
   },
   "help:Core\\Json::encode": {
-    "Core\\Json::encode": "da614086c42841b2"
+    "Core\\Json::encode": "363a02aa1496ab70"
   },
   "help:Core\\Json::encodeEach": {
     "Core\\Json::encodeEach": "d2a85618a26ccc12"
@@ -7058,6 +7064,9 @@
   "help:Core\\Queue::status": {
     "Core\\Queue::status": "8fc02913e4a6dc8d"
   },
+  "help:Core\\Queue\\Id::format": {
+    "Core\\Queue\\Id::format": "125b2de28e1d350b"
+  },
   "help:Core\\Queue\\Id::parse": {
     "Core\\Queue\\Id::parse": "63ff23ad24ed80aa"
   },
@@ -7464,7 +7473,7 @@
     "Core\\RoundMode": "c41f780e07e6d2dc"
   },
   "help:Core\\Router::dispatch": {
-    "Core\\Router::dispatch": "df96cd1280c1ae6e"
+    "Core\\Router::dispatch": "1a0f9a92cb4baa1c"
   },
   "help:Core\\Router::match": {
     "Core\\Router::match": "0bc0a7f99d0a714a"
@@ -7476,16 +7485,16 @@
     "Core\\Router::signedRoute": "a4f9da9f9ab29d1d"
   },
   "help:Core\\Router::url": {
-    "Core\\Router::url": "9927467cdcb0506a"
+    "Core\\Router::url": "a40282fdf1ac9e53"
   },
   "help:Core\\Router::urlAbsolute": {
     "Core\\Router::urlAbsolute": "1e842af81707abd1"
   },
   "help:Core\\Router::urlSigned": {
-    "Core\\Router::urlSigned": "729e5c327183c819"
+    "Core\\Router::urlSigned": "59695929f9c2f795"
   },
   "help:Core\\Router\\Gate": {
-    "Core\\Router\\Gate": "2ee7fc2aabd107ec"
+    "Core\\Router\\Gate": "3970942af2ff07bf"
   },
   "help:Core\\Router\\Match::access": {
     "Core\\Router\\Match::access": "b7ded5b59a4c01e2"
@@ -7497,19 +7506,19 @@
     "Core\\Router\\Match::attribute": "5a7ab3ab0f8c0726"
   },
   "help:Core\\Router\\Match::is": {
-    "Core\\Router\\Match::is": "a442361b53665a6b"
+    "Core\\Router\\Match::is": "02604ce2422c6e47"
   },
   "help:Core\\Router\\Match::method": {
     "Core\\Router\\Match::method": "f16697222555c142"
   },
   "help:Core\\Router\\Match::parameter": {
-    "Core\\Router\\Match::parameter": "bdcbb1b45bf7e554"
+    "Core\\Router\\Match::parameter": "3783d20a6a198b52"
   },
   "help:Core\\Router\\Match::parameters": {
-    "Core\\Router\\Match::parameters": "a79a49af0b95790f"
+    "Core\\Router\\Match::parameters": "b08859c6b34f4ef2"
   },
   "help:Core\\Router\\Refusal": {
-    "Core\\Router\\Refusal": "4710cc2fa35f3d5c"
+    "Core\\Router\\Refusal": "6400c69d69f2f119"
   },
   "help:Core\\Router\\Responder": {
     "Core\\Router\\Responder": "c83f5e4ac8112cb1"
@@ -8061,7 +8070,7 @@
     "Core\\Time\\Date::format": "52ef60ec06e2314c"
   },
   "help:Core\\Time\\Date::fromIso": {
-    "Core\\Time\\Date::fromIso": "541f14c79131571f"
+    "Core\\Time\\Date::fromIso": "680b23fd3c13c632"
   },
   "help:Core\\Time\\Date::isLeapYear": {
     "Core\\Time\\Date::isLeapYear": "32ef485615bbfc98"
@@ -8100,7 +8109,7 @@
     "Core\\Time\\Date::startOf": "f7153875ba721719"
   },
   "help:Core\\Time\\Date::toIso": {
-    "Core\\Time\\Date::toIso": "e1c0b8c0ea90a986"
+    "Core\\Time\\Date::toIso": "d7c0dac5856fd8d7"
   },
   "help:Core\\Time\\Date::weekday": {
     "Core\\Time\\Date::weekday": "adf2e46405ab69d0"
@@ -8316,7 +8325,7 @@
     "Core\\Time\\TimeOfDay::format": "f1ebc1a82b853de2"
   },
   "help:Core\\Time\\TimeOfDay::fromIso": {
-    "Core\\Time\\TimeOfDay::fromIso": "ae58dd962bd67f11"
+    "Core\\Time\\TimeOfDay::fromIso": "336f37efef45a59f"
   },
   "help:Core\\Time\\TimeOfDay::hour": {
     "Core\\Time\\TimeOfDay::hour": "8f56863d8364b838"
@@ -8337,7 +8346,7 @@
     "Core\\Time\\TimeOfDay::second": "7f629d99e4e84bad"
   },
   "help:Core\\Time\\TimeOfDay::toIso": {
-    "Core\\Time\\TimeOfDay::toIso": "a69f0a276b644ee1"
+    "Core\\Time\\TimeOfDay::toIso": "d71a4ca212878366"
   },
   "help:Core\\Time\\TimeOfDay::with": {
     "Core\\Time\\TimeOfDay::with": "9d2c0afac3adeb21"
@@ -8376,7 +8385,7 @@
     "Core\\Unit": "3f5c1c47f4eb4a52"
   },
   "help:Core\\Uri::buildQuery": {
-    "Core\\Uri::buildQuery": "8b4d43a845430d12"
+    "Core\\Uri::buildQuery": "beb9c94932caaf29"
   },
   "help:Core\\Uri::compareTo": {
     "Core\\Uri::compareTo": "bfdfe53ba6628d31"
@@ -8443,6 +8452,9 @@
   },
   "help:Core\\Uri::withQueryParameter": {
     "Core\\Uri::withQueryParameter": "75ae2ee1e0b10140"
+  },
+  "help:Core\\Uuid::format": {
+    "Core\\Uuid::format": "c02cba9e5908a53c"
   },
   "help:Core\\Uuid::fromBytes": {
     "Core\\Uuid::fromBytes": "b58c2a2941f917ee"
@@ -9357,7 +9369,7 @@
     "ParseError": "bf3b7ed78cb94f38"
   },
   "help:Parses": {
-    "Parses": "cbc5e5686476bb38"
+    "Parses": "0e6da93ad0dc014b"
   },
   "help:PropertyGuard": {
     "PropertyGuard": "03a066850e39f20a"
@@ -9645,20 +9657,20 @@
     "tools:server/when-the-client-goes-away": "0f7101d1cea59208"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "9c0c741387eed921",
+    "lang:attributes/core-command-and-core-option-the-command-table": "e40bd732b02b0737",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "fdd6e4a068b16d61",
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e4c9ab67937b5dbe"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "d7bc760c8e32a3f8"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "69be55a38c453c26"
   },
   "syntax/attributes/routes.mdx": {
-    "Core\\Router::dispatch": "173052d6a608cd8d",
-    "Core\\Router\\Gate": "69e48f252efe6a8b",
-    "Core\\Router\\Refusal": "5b089ef8a268122b",
+    "Core\\Router::dispatch": "7886a59057adba72",
+    "Core\\Router\\Gate": "fb3788f6a2cd06ca",
+    "Core\\Router\\Refusal": "7d3cc66065ae09a6",
     "Core\\Router\\Responder": "655a5264b89d1db2",
-    "lang:attributes/core-api-and-the-openapi-document": "2072c503f4125d1b",
-    "lang:attributes/core-route-and-core-access-the-route-table": "73a2085b2eccdf94",
+    "lang:attributes/core-api-and-the-openapi-document": "baae106692aaba5d",
+    "lang:attributes/core-route-and-core-access-the-route-table": "f14ba2d56f56f154",
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "aefc12e9ea3146c5"
   },
   "syntax/attributes/writing-and-reading.mdx": {
@@ -9695,7 +9707,7 @@
   },
   "syntax/classes/methods-and-inheritance.mdx": {
     "lang:classes/inheritance": "3f22cc5b0d9c66bb",
-    "lang:classes/methods-self-static-and-parent": "4bf262d86df6b531"
+    "lang:classes/methods-self-static-and-parent": "771ee507e5873cec"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "33f2b2b1930580fe",
@@ -9730,9 +9742,9 @@
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
     "lang:classes/comparable": "930aac4adee213e9",
-    "lang:classes/parses": "57519de72d2364a1",
+    "lang:classes/parses": "c73bce3e224ec81e",
     "lang:classes/stringable": "33fdc04b0d92eee6",
-    "Parses": "82f5bbcdc026fb73",
+    "Parses": "fc66b9687e3e1334",
     "Stringable": "536c3bdb6784fac9"
   },
   "syntax/concurrency/channels.mdx": {

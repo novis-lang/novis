@@ -33,8 +33,11 @@ class that implements `Core\Router\Gate`.
 <Snippet src="syntax/routes/02-dispatch.nvs" />
 
 - `failed` also runs when the program uses too much memory or time. The status is `500`.
-- A capture or a `#[Core\Query]` value that cannot be converted gives `Refusal::BadCapture` and the
-  status `400`. A missing required query key and a repeated one give the same.
+- A `#[Core\Query]` value that cannot be converted gives `Refusal::BadCapture` and the status `400`.
+  A missing required query key and a repeated one give the same.
+- A path capture such as `uint $id` that cannot be converted does not match the route, so the status
+  is `404`. A capture of a `Parses` class is different. When its `parse` method throws an error, the
+  result is `Refusal::BadCapture` and the status `400`.
 - `#[Core\Query] ?int $page = null` is an optional query value. When the key is missing, `$page` is
   `null`. `Core\Router::url` leaves out a key whose value is `null`.
 - A `bool` query value is written `1` or `0`. Any other text gives the status `400`. A browser sends
@@ -46,6 +49,9 @@ class that implements `Core\Router\Gate`.
   `/` cannot be in a path segment.
 - `Core\Router::url` writes a time value as its ISO text. It writes an object of a `Parses` class as
   the text of its `format` method. A value whose type the parameter cannot take does not compile.
+- `dispatch` converts every capture and query value before it calls the gate's `allows` method. So
+  `$route->parameter('page')` returns the query value `page` with its type. A `final` class's `parse`
+  can load a stored record, and `allows` can check that record.
 - A route method is `static`, or its class has a constructor without parameters.
 - A route method can return a value, such as its page. When the gate implements
   `Core\Router\Responder`, `dispatch` gives that value to the gate's `respond` method. A plain gate

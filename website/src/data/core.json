@@ -2602,7 +2602,7 @@
           "options": [],
           "returnType": "T",
           "doc": {
-            "shortHtml": "Reads <code>$a</code> as the type <code>T</code> written at the call site. <code>T</code> is an inline shape such as <code>{ name: T }</code>, or a class with <code>#[Json\\Derive]</code>. Each field that <code>T</code> names is converted with <code>as</code>, and other keys are left out. Write <code>array&lt;T&gt;</code> to read a list.",
+            "shortHtml": "Reads <code>$a</code> as the type <code>T</code> written at the call site. <code>T</code> is an inline shape such as <code>{ name: T }</code>, or a class with <code>#[Json\\Derive]</code>. Each field that <code>T</code> names is converted with <code>as</code>, and other keys are left out. A field of type <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>DateTime</code>, <code>Instant</code>, <code>Duration</code>, <code>Zone</code> or <code>Core\\Uuid</code> reads its text, such as <code>2026-05-14</code> for a <code>Date</code>. Write <code>array&lt;T&gt;</code> to read a list.",
             "params": [
               {
                 "name": "a",
@@ -2613,7 +2613,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "A field that <code>T</code> requires is missing, or <code>as</code> cannot convert its value to the declared type. Every failed field is one issue on the error, at its own dotted path. A form can then show the whole list of problems."
+                "descHtml": "A field that <code>T</code> requires is missing, or its value cannot be converted to the declared type. Every failed field is one issue on the error, at its own dotted path. A form can then show the whole list of problems."
               },
               {
                 "error": "LogicError",
@@ -18636,7 +18636,7 @@
             "params": [
               {
                 "name": "value",
-                "descHtml": "The value to encode: <code>null</code>, <code>bool</code>, <code>int</code>, <code>uint</code>, <code>float</code>, <code>decimal</code>, <code>string</code>, an array, a <code>{ name: value }</code> shape, or an instance of a class with <code>#[Json\\Derive]</code>."
+                "descHtml": "The value to encode: <code>null</code>, <code>bool</code>, <code>int</code>, <code>uint</code>, <code>float</code>, <code>decimal</code>, <code>string</code>, an array, a <code>{ name: value }</code> shape, or an instance of a class with <code>#[Json\\Derive]</code>. A <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>DateTime</code>, <code>Instant</code>, <code>Duration</code>, <code>Zone</code> or <code>Core\\Uuid</code> is written as a JSON string. A date or a time is its ISO text, a <code>Zone</code> is its name, such as <code>&quot;Europe/Vienna&quot;</code>, and a <code>Duration</code> is text such as <code>&quot;1h30m&quot;</code>."
               },
               {
                 "name": "pretty",
@@ -18736,7 +18736,7 @@
           ],
           "returnType": "T",
           "doc": {
-            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>. <code>T</code> is a class with the <code>#[Json\\Derive]</code> attribute. Each property of the class reads the JSON field with the same name. The constructor runs only when every field has the right type. Write <code>array&lt;T&gt;</code> to read a JSON array as one instance per element.",
+            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>. <code>T</code> is a class with the <code>#[Json\\Derive]</code> attribute. Each property of the class reads the JSON field with the same name. The constructor runs only when every field has the right type. Write <code>array&lt;T&gt;</code> to read a JSON array as one instance per element. A property of type <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>DateTime</code>, <code>Instant</code>, <code>Duration</code>, <code>Zone</code> or <code>Core\\Uuid</code> reads a JSON string, such as <code>&quot;2026-05-14&quot;</code> for a <code>Date</code>.",
             "params": [
               {
                 "name": "json",
@@ -36596,7 +36596,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the string that <code>Core\\Queue\\Id::parse</code> reads. It is the same string as <code>toString</code>. <code>Core\\Router::url</code> writes an id in a link with this method.",
+            "shortHtml": "Returns the string that <code>Core\\Queue\\Id::parse</code> reads. It is the same string as <code>toString</code>. <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> write an id in a link with this method.",
             "returnHtml": "A string of letters, digits, <code>.</code>, <code>-</code> and <code>_</code>. Keep it secret like a password."
           },
           "slug": "format",
@@ -41680,10 +41680,10 @@
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A <code>Core\\Time\\Date</code> for a <code>uint</code> capture is an example. A <code>string</code> value is always allowed. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               }
             ],
-            "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are. A <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code> value is written as its <code>toIso</code> text. In the path that text is not encoded, so <code>08:30</code> stays <code>08:30</code>. An object of a class that implements <code>Parses</code> is written as the text its <code>format</code> method returns.",
+            "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are. A query value that is <code>null</code> is left out of the link. A <code>bool</code> is written <code>1</code> or <code>0</code>. A <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code> value is written as its <code>toIso</code> text. In the path that text is not encoded, so <code>08:30</code> stays <code>08:30</code>. An object of a class that implements <code>Parses</code> is written as the text its <code>format</code> method returns.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -41731,7 +41731,7 @@
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A <code>Core\\Time\\Date</code> for a <code>uint</code> capture is an example. A <code>string</code> value is always allowed. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               }
             ],
             "returnHtml": "The full URL, for example <code>https://example.test/users/42?page=2</code>. There is exactly one <code>/</code> between the origin and the path.",
@@ -41790,7 +41790,7 @@
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. A value written directly in the code must have a type that its parameter can take, or the program does not compile. A <code>Core\\Time\\Date</code> for a <code>uint</code> capture is an example. A <code>string</code> value is always allowed. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               },
               {
                 "name": "settings",
@@ -41972,7 +41972,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Calls the method of the route that the request matched. Each value captured from the path goes to the method parameter with the same name. First, <code>$gate-&gt;allows()</code> checks the request. When no route method runs, <code>dispatch</code> sets the status and calls <code>$gate-&gt;refused()</code>. When the method throws an error, <code>dispatch</code> sets the status <code>500</code> and calls <code>$gate-&gt;failed()</code>.",
+            "shortHtml": "Calls the method of the route that the request matched. Each value captured from the path and each <code>#[Core\\Query]</code> value goes to the method parameter with the same name. Each value is converted to its type first. Then <code>$gate-&gt;allows()</code> checks the request. When no route method runs, <code>dispatch</code> sets the status and calls <code>$gate-&gt;refused()</code>. When the method throws an error, <code>dispatch</code> sets the status <code>500</code> and calls <code>$gate-&gt;failed()</code>.",
             "params": [
               {
                 "name": "gate",
@@ -41983,7 +41983,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "When the program has no <code>#[Route]</code>. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a <code>#[Query]</code> parameter or an optional capture that the path does not have."
+                "descHtml": "When the program has no <code>#[Route]</code>. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no capture and no query value fills, such as an optional capture that the path does not have."
               }
             ]
           },
@@ -49784,7 +49784,7 @@
           "options": [],
           "returnType": "Core\\Time\\Date",
           "doc": {
-            "shortHtml": "Reads a date in the ISO 8601 form <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "shortHtml": "Reads a date in the ISO 8601 form <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. A <code>$text</code> written directly in the code is checked when the program compiles. A route, a command argument and <code>Core\\Json::decodeAs</code> read a <code>Date</code> with the same rules.",
             "params": [
               {
                 "name": "text",
@@ -50156,7 +50156,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the date as ISO text, such as <code>2026-01-05</code>. <code>Date::fromIso</code> reads this text back.",
+            "shortHtml": "Returns the date as ISO text, such as <code>2026-01-05</code>. <code>Date::fromIso</code> reads this text back. <code>Core\\Json::encode</code>, <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> write a <code>Date</code> as this text.",
             "returnHtml": "A <code>string</code> with the year, the month and the day. The year has four digits, and a year before year 1 starts with <code>-</code>."
           },
           "slug": "toiso",
@@ -52861,7 +52861,7 @@
           "options": [],
           "returnType": "Core\\Time\\TimeOfDay",
           "doc": {
-            "shortHtml": "Reads a time of day in the ISO 8601 form, such as <code>09:30</code> or <code>09:30:15.5</code>. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "shortHtml": "Reads a time of day in the ISO 8601 form, such as <code>09:30</code> or <code>09:30:15.5</code>. A <code>$text</code> written directly in the code is checked when the program compiles. A route, a command argument and <code>Core\\Json::decodeAs</code> read a <code>TimeOfDay</code> with the same rules.",
             "params": [
               {
                 "name": "text",
@@ -53132,7 +53132,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the time as ISO text, such as <code>08:30:00</code>. <code>TimeOfDay::fromIso</code> reads this text back.",
+            "shortHtml": "Returns the time as ISO text, such as <code>08:30:00</code>. <code>TimeOfDay::fromIso</code> reads this text back. <code>Core\\Json::encode</code>, <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> write a <code>TimeOfDay</code> as this text.",
             "returnHtml": "A <code>string</code> with the hour, the minute and the second. It has a fraction of a second only when the fraction is not zero."
           },
           "slug": "toiso",
@@ -53959,14 +53959,14 @@
             "params": [
               {
                 "name": "parameters",
-                "descHtml": "The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as <code>filter[size][0]=M</code>, with the brackets escaped as <code>%5B</code> and <code>%5D</code>. A value may also be a <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code>."
+                "descHtml": "The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as <code>filter[size][0]=M</code>, with the brackets escaped as <code>%5B</code> and <code>%5D</code>. A value may also be a <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code>, or an object whose class implements <code>Parses</code>, such as a <code>Core\\Uuid</code>."
               }
             ],
-            "returnHtml": "The query string, without a leading <code>?</code>. Names and values are escaped as <code>Core\\Uri::encodeFormValue</code> escapes them, so a space is <code>+</code>. <code>true</code> is written as <code>1</code> and <code>false</code> as <code>0</code>. A time value is written as its <code>toIso</code> text, so a <code>+</code> in it is <code>%2B</code>. A <code>null</code> value writes nothing, and neither does an empty array.",
+            "returnHtml": "The query string, without a leading <code>?</code>. Names and values are escaped as <code>Core\\Uri::encodeFormValue</code> escapes them, so a space is <code>+</code>. <code>true</code> is written as <code>1</code> and <code>false</code> as <code>0</code>. A time value is written as its <code>toIso</code> text, so a <code>+</code> in it is <code>%2B</code>. A <code>Parses</code> object is written as the text its <code>format</code> method returns. A <code>null</code> value writes nothing, and neither does an empty array.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "A value is a function, or an object that is not a time value, so it has no text form."
+                "descHtml": "A value is a function, or an object that is not a time value and does not implement <code>Parses</code>, so it has no text form."
               }
             ]
           },
@@ -54652,7 +54652,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the text that <code>parse</code> reads, such as <code>f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4</code>. It is the same text as <code>toString</code>. <code>Core\\Router::url</code> writes a UUID in a link with this method.",
+            "shortHtml": "Returns the text that <code>parse</code> reads, such as <code>f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4</code>. It is the same text as <code>toString</code>. <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> write a UUID in a link with this method.",
             "returnHtml": "A string of 36 characters, in lower case."
           },
           "slug": "format",

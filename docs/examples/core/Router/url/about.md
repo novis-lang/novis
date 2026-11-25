@@ -12,6 +12,11 @@ The method can also be a variable, for example an item of an `array<callable>` m
 instance method, write `$shop->order(...)`. A variable whose method has no `#[Route]` throws a
 `RuntimeError` when the call runs.
 
+A `bool` value is written `1` or `0`. A date or time value is written as its ISO text, such as
+`2026-03-09`. An object of a `Parses` class is written as the text of its `format` method. A query
+value that is `null` is left out of the link. A value whose type its parameter cannot take does not
+compile, such as a date for a `uint` capture.
+
 If a path changes, you change it in the `#[Route]` only. Every link to that method follows it.
 
 The examples show a link with one capture, query values, the links of a menu, a link to another
