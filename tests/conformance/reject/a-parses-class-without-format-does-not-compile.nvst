@@ -1,0 +1,26 @@
+--TEST--
+A class claiming `Parses` owes `format` beside `parse`, so a class that reads its text and cannot write it back is refused where it is declared — `rule:expressions/try-parse`, `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// `format` writes the text that `parse` reads. This class has no `format`.
+final class Slug implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static
+    {
+        return new Slug($s);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0449]: `Slug` does not declare `format`, which `Parses` requires
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -22,15 +22,17 @@ use nvs_types::commands::ArgConv;
 use nvs_types::enums::EnumValue;
 
 /// A user class implementing `Parses`, in the shape
-/// `nvs_hir::interfaces::PARSES` spells the contract: one required
-/// `parse(tainted string $s): static`, and the text kept in a field declared
-/// `tainted` because a class carries no qualifier of its own
+/// `nvs_hir::interfaces::PARSES` spells the contract: a required
+/// `parse(tainted string $s): static` and a required `format(): tainted string`
+/// that writes back the text `parse` reads, with the text kept in a field
+/// declared `tainted` because a class carries no qualifier of its own
 /// (`rule:security/tainted-qualifier`).
 const SLUG: &str = "class Slug implements Parses {\n  \
                     public tainted string $text = \"\";\n  \
                     public function constructor(tainted string $text) { $this->text = $text; }\n  \
                     public static function parse(tainted string $s): static \
-                    { return new static($s); }\n}\n";
+                    { return new static($s); }\n  \
+                    public function format(): tainted string { return $this->text; }\n}\n";
 
 /// The rule's own example, reduced to the two attributes and the one class member
 /// they attach to. The placing import is per *name* — `use Core\Command;`

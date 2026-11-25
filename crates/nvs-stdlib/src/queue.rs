@@ -2781,16 +2781,28 @@ pub(crate) const ID: CoreClass = CoreClass {
             doc: Some(&ID_TRY_PARSE_DOC),
         },
     ],
-    instance: &[CoreMethod {
-        name: "toString",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        text: TextOrigin::Clean("A queue id is printed as digits the runtime chose."),
-        symbol: "nvs_core_queue_id_to_string",
-        doc: Some(&ID_TO_STRING_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "toString",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A queue id is printed as digits the runtime chose."),
+            symbol: "nvs_core_queue_id_to_string",
+            doc: Some(&ID_TO_STRING_DOC),
+        },
+        CoreMethod {
+            name: "format",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A queue id is printed as digits the runtime chose."),
+            symbol: "nvs_core_queue_id_format",
+            doc: Some(&ID_FORMAT_DOC),
+        },
+    ],
     slots: &[ID_SLOT, ID_QUEUE_SLOT, ID_TOKEN_SLOT],
     constants: &[],
 };
@@ -2834,6 +2846,15 @@ const ID_TRY_PARSE_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The `Core\\Queue\\Id` that the string gives, or `null`. A changed or guessed string in \
           the correct form gives an id that finds no job.",
+    errors: &[],
+};
+
+/// `$id->format`'s reference card — `rule:core-api/reference-card`.
+const ID_FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the string that `Core\\Queue\\Id::parse` reads. It is the same string as \
+            `toString`. `Core\\Router::url` writes an id in a link with this method.",
+    params: &[],
+    ret: "A string of letters, digits, `.`, `-` and `_`. Keep it secret like a password.",
     errors: &[],
 };
 
@@ -3569,6 +3590,21 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String, String), Fault> {
     Ok((id, queue, token))
 }
 
+/// The text `$id->format()` writes for `value`, or `None` when `value` is not a
+/// `Core\Queue\Id`. [`crate::uri::parses_text`] reads it, so a link writes the
+/// id without a call through the program's method table.
+///
+/// # Errors
+///
+/// [`job_of`]'s fatal for an id whose slots hold the wrong tags.
+pub(crate) fn id_format_text(value: Value) -> Result<Option<String>, Fault> {
+    if !crate::instance::is_instance(value, &ID) {
+        return Ok(None);
+    }
+    let (id, queue, token) = job_of(value, "Core\\Queue\\Id::format")?;
+    Ok(Some(id_text(id, &queue, &token)))
+}
+
 /// How many base64url characters a token's [`TOKEN_BYTES`] take with no padding.
 const ID_TOKEN_CHARS: usize = (TOKEN_BYTES * 4).div_ceil(3);
 
@@ -3735,6 +3771,18 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** one string of at most [`ID_TEXT_MAX`] bytes per call, nothing cached.
     fn nvs_core_queue_id_to_string(_ctx, args: [1]) {
         let (id, queue, token) = job_of(args[0], "Core\\Queue\\Id::toString")?;
+        Ok(Value::text(&id_text(id, &queue, &token)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$id->format(): string` — the text `parse` reads, which is
+    /// [`nvs_core_queue_id_to_string`]'s text. It is the member `Parses`
+    /// requires, and what `Core\Router::url` and `Core\Uri::buildQuery` write.
+    ///
+    /// **What it spends:** one string of at most [`ID_TEXT_MAX`] bytes per call, nothing cached.
+    fn nvs_core_queue_id_format(_ctx, args: [1]) {
+        let (id, queue, token) = job_of(args[0], "Core\\Queue\\Id::format")?;
         Ok(Value::text(&id_text(id, &queue, &token)))
     }
 }
@@ -5855,6 +5903,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_queue_id_parse" => (nvs_core_queue_id_parse as *const ()).cast(),
         "nvs_core_queue_id_try_parse" => (nvs_core_queue_id_try_parse as *const ()).cast(),
         "nvs_core_queue_id_to_string" => (nvs_core_queue_id_to_string as *const ()).cast(),
+        "nvs_core_queue_id_format" => (nvs_core_queue_id_format as *const ()).cast(),
         "nvs_core_queue_status" => (nvs_core_queue_status as *const ()).cast(),
         "nvs_core_queue_cancel" => (nvs_core_queue_cancel as *const ()).cast(),
         "nvs_core_queue_delete" => (nvs_core_queue_delete as *const ()).cast(),

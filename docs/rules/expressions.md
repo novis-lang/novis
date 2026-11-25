@@ -905,10 +905,17 @@ A class whose `parse` takes **exactly one `string`** and can fail also carries
 **is** `parse` with the throw caught; it is never a second implementation, so there is exactly one
 answer to "is this text a `T`".
 
-The global interface `Parses` makes the pair a contract: its one required member is `parse(tainted
-string $s): static`, and `tryParse` is a default body on the interface rather than a second required
-member. A user class implementing `Parses` declares `parse` alone, and declares its own `tryParse` when
-it wants the non-throwing call.
+The global interface `Parses` makes the pair a contract. Its two required members are `parse(tainted
+string $s): static` and `format(): tainted string`, and `tryParse` is a default body on the interface
+rather than a third required member. `format` writes the text `parse` reads, and it is what
+`Core\Router::url` and `Core\Uri::buildQuery` write for the value
+([`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked)); the pair is `parse`/`format` by
+[`core-api/symmetric-names`](core-api.md#core-api-symmetric-names). `format` answers `tainted string` because most implementors keep the
+text `parse` was given, and both writers launder it by encoding; an implementor whose text is clean
+declares `format(): string`, the narrower return. A user class implementing `Parses` declares `parse`
+and `format`, and declares its own `tryParse` when it wants the non-throwing call. **What it spends:**
+one more method in every `Parses` class, and one class carries both directions, so a change to its text
+changes the reader and the writer together.
 
 Three conditions keep the shape from regrowing into a `from`/`tryFrom` habit. The `parse` takes one
 `string` and nothing else — a parse taking a format or an options bag is a different shape and gets

@@ -66,8 +66,11 @@ pub const COMPARABLE: &str = "Comparable";
 /// `string`, via its sole member `toString(): string`.
 pub const STRINGABLE: &str = "Stringable";
 
-/// `Parses` — what a class owes to be built from a piece of text, via its one
-/// required member `parse(tainted string $s): static`. Its `tryParse` twin is
+/// `Parses` — what a class owes to be built from a piece of text and written
+/// back as text, via its two required members `parse(tainted string $s):
+/// static` and `format(): tainted string`. `format` writes the text `parse`
+/// reads, and it is what `Core\Router::url` and `Core\Uri::buildQuery` write
+/// for the value. Its `tryParse` twin is
 /// a default body on the interface rather than a second required member, so
 /// `rule:expressions/try-parse`'s single implementation of "is this text a
 /// `T`" stays single.
@@ -75,7 +78,7 @@ pub const STRINGABLE: &str = "Stringable";
 /// That default is not reachable *through* an implementor: `Slug::tryParse($s)`
 /// is `E0309`, because a reserved interface is declared here rather than in
 /// source and its default body has no compiled function to dispatch to. A class
-/// implementing `Parses` therefore declares `parse` alone and satisfies the
+/// implementing `Parses` therefore declares `parse` and `format` and satisfies the
 /// interface, and reaches the non-throwing question by declaring its own
 /// `tryParse` or by catching the throw.
 ///

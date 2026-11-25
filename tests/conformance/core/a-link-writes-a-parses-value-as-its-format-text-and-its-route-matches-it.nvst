@@ -1,0 +1,80 @@
+--TEST--
+`Core\Router::url` writes a value whose class implements `Parses` as its `format()` text, percent-encoded into its segment or form-encoded in the query string, and the route matches the link it built; `Core\Uri::buildQuery` writes the same text, and an object of any other class still throws naming `Parses` and `format` — `rule:routing/link-target-and-params-are-checked`, `rule:routing/a-leftover-link-key-is-a-query-string`
+--FILE--
+<?nvs
+// covers: Core\Router::url, Core\Uri::buildQuery
+// A coupon code is written in upper case. `parse` reads it in any case.
+final class Code implements Parses {
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text) {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static {
+        return new Code(Core\Str::upper($s));
+    }
+
+    // The text came from outside the program, so `format` returns `tainted string`.
+    public function format(): tainted string {
+        return $this->text;
+    }
+}
+
+// `toString` gives different text. A link does not use it.
+final class Label implements Stringable {
+    public function toString(): string {
+        return "label";
+    }
+}
+
+class Shop {
+    #[Core\Route(path: "/coupons/{code}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Code $code, #[Core\Query] ?Code $extra = null): void {
+        echo "code ", $code->text, " extra ", $extra?->text ?? "none", "\n";
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $code = Code::parse("spring 10");
+    var $extra = Code::parse("a/b");
+
+    // The space is `%20` in the path. The `/` is `%2F` in the query string.
+    string $link = Core\Router::url(Shop::show, ["code" => $code, "extra" => $extra]);
+    echo $link, "\n";
+    var $answer = Core\Test::request(Core\Http\Method::Get, $link);
+    echo $answer->status(), " ", $answer->body();
+
+    echo Core\Uri::buildQuery(["code" => $code]), "\n";
+
+    // A `Stringable` object is not a `Parses` value, so this throws.
+    mixed $label = new Label();
+    try {
+        echo Core\Uri::buildQuery(["label" => $label]), "\n";
+    } catch (Throwable $error) {
+        echo $error->message, "\n";
+    }
+}
+--EXPECTF--
+/coupons/SPRING%2010?extra=A%2FB
+200 code SPRING 10 extra A/B
+code=SPRING+10
+%sParses%sformat%s

@@ -132,8 +132,8 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     );
 
     // `Parses`, written as `nvs_hir::interfaces::PARSES`'s doc spells it:
-    // `parse(tainted string $s): static` required, `tryParse(tainted string
-    // $s): ?static` carried as a default. The text at every binding site
+    // `parse(tainted string $s): static` and `format(): tainted string`
+    // required, `tryParse(tainted string $s): ?static` carried as a default. The text at every binding site
     // arrived from outside the process, so the contract says `tainted` rather
     // than letting each implementor discover it (`rule:security/tainted-sources`); the object it
     // answers carries no taint, because taint is a property of `string` and
@@ -161,12 +161,20 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     let mut try_parse = bodiless(&["s"], vec![tainted_string_ty], maybe_parses);
     try_parse.is_static = true;
     try_parse.has_body = true;
+    // `format(): tainted string`, required, on the instance: the text `parse`
+    // reads, written back. It is what `Core\Router::url` and
+    // `Core\Uri::buildQuery` write for the value. It answers `tainted string`
+    // because most implementors keep the text `parse` was given, and both
+    // writers launder it by encoding. An implementor whose text is clean
+    // declares `format(): string`, the narrower return.
+    let format = bodiless(&[], Vec::new(), tainted_string_ty);
     table.seed_class(
         QName::parse(PARSES),
         FxHashMap::default(),
         [
             ("parse".to_owned(), parse),
             ("tryParse".to_owned(), try_parse),
+            ("format".to_owned(), format),
         ]
         .into_iter()
         .collect(),

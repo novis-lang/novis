@@ -7,15 +7,16 @@ and re-taints the result. **A `null` value writes no key**, as `Core\Uri::buildQ
 link to a `#[Query] ?T $x = null` parameter is built from a variable that may be `null`, and the route
 reads the absent key as `null` again. **A `Core\Time` value is its `toIso` text**, a `DateTime`
 with its offset and zone, form-encoded like every value, so its `+` is `%2B` and the `#[Query]`
-parameter of its class reads the same value back. `Core\Uri::buildQuery` is that one writer, so it
-writes a time value the same way.
+parameter of its class reads the same value back. **A value whose class implements `Parses` is its
+`format()` text**, form-encoded, so the `#[Query]` parameter of its class reads it back with `parse`.
+`Core\Uri::buildQuery` is that one writer, so it writes a time value and a `Parses` value the same way.
 
 The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters (`rule:routing/a-query-parameter-is-declared-like-a-capture`) is a
 **compile error**, in the same shape as the missing-route and missing-capture errors, so a typo cannot
-silently ship as a query parameter. The declared type says what a query *value* arrives at; it does not
-constrain what a link may be handed, except that a literal outside a closed set is refused
-(`rule:routing/a-capture-narrows-to-a-closed-set`).
+silently ship as a query parameter. The declared type also constrains what a link may be handed: a
+value whose type the parameter cannot take, and a literal its conversion refuses, are compile errors
+(`rule:routing/link-target-and-params-are-checked`).
 
 **Declined:**
 - **Refusing every key that is not a capture.** A link with a query string would have no laundered

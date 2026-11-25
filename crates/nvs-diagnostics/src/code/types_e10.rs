@@ -109,4 +109,18 @@ codes! {
          with its name, such as `{id}` for `$id`. Delete `#[Core\\Query]` to read the value from \
          the path. Or delete the capture from the path to read it from the query string.",
     );
+
+    /// A value written in a `Core\Router::url` call's `$params` array literal
+    /// whose static type cannot be the type of the capture or `#[Core\Query]`
+    /// parameter its key names (`rule:routing/link-target-and-params-are-checked`):
+    /// a `Date` for a `uint`, an `int` for a `Date`, one `Parses` class for
+    /// another. A `string` or `mixed` value passes, and so does a scalar whose
+    /// text the parameter's conversion reads. `E0772` stays the code for a
+    /// literal the conversion refuses.
+    pub const E_ROUTE_LINK_VALUE_WRONG_TYPE: Code = Code::new("E1010").card(
+        "A value in the `$params` of `Core\\Router::url` has a type that the route parameter \
+         cannot take, such as a `Core\\Time\\Date` for a `uint` parameter. The route could not \
+         read the link, so the program does not compile. Give a value of the parameter's type. \
+         A `string` value is also allowed: the route checks its text when the link is followed.",
+    );
 }

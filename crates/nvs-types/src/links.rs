@@ -212,6 +212,11 @@ struct LinkArg {
     /// folded to a segment until the parameter it supplies says which
     /// (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`).
     case: Option<CaseArg>,
+    /// The value's checked type, which [`fits_type`] holds to the type of the
+    /// parameter the key names. `None` where the checker recorded none.
+    ty: Option<crate::TypeId>,
+    /// Where the value was written, which is where [`fits_type`] reports it.
+    span: Span,
 }
 
 /// An enum case written as a `$params` value: the case, and both texts the rule
@@ -501,6 +506,8 @@ fn literal_args(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<Vec<Lin
             value: segment_text(&item.value, env),
             float: is_float_literal(&item.value),
             case: case_arg(&item.value, ctx, env),
+            ty: env.argument_element_types.get(&item.value.span).copied(),
+            span: item.value.span,
         });
     }
     Some(args)
@@ -589,6 +596,7 @@ pub(crate) fn resolve(
     routes: &RouteTable,
     targets: &nvs_hir::LinkTargets,
     sites: &[LinkSite],
+    types: &mut Types<'_>,
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
@@ -621,6 +629,7 @@ pub(crate) fn resolve(
             {
                 let _ = covered(&pieces, args, site, row, diags)
                     && declared(&pieces, args, site, row, diags)
+                    && fits_type(args, site, row, types, diags)
                     && within_set(args, site, row, diags)
                     && converts(args, site, row, diags);
             }
@@ -654,6 +663,7 @@ pub(crate) fn resolve(
         if let Some(args) = &site.args
             && !(covered(&pieces, args, site, row, diags)
                 && declared(&pieces, args, site, row, diags)
+                && fits_type(args, site, row, types, diags)
                 && within_set(args, site, row, diags)
                 && converts(args, site, row, diags))
         {
@@ -1101,6 +1111,169 @@ fn converts(
         return false;
     }
     true
+}
+
+/// What [`fits_type`] reads the program's types with: the interner, and the
+/// class graph and signatures [`crate::expr::assign::is_assignable`] needs to
+/// tell a subclass from an unrelated class.
+pub(crate) struct Types<'a> {
+    pub(crate) interner: &'a mut crate::TypeInterner,
+    pub(crate) graph: &'a nvs_hir::ClassGraph,
+    pub(crate) signatures: &'a crate::SignatureTable,
+}
+
+/// `rule:routing/link-target-and-params-are-checked`'s type check: each value
+/// written in the `$params` array literal is held to the declared type of the
+/// capture or `#[Query]` parameter its key names, and one whose type cannot be
+/// that type is `E1010` at the value. A `Core\Time\Date` for a `uint`, an
+/// `int` for a `Date` and one `Parses` class for another are each refused.
+///
+/// A value passes when its type is the parameter's or a subtype of it, when it
+/// is a `string` of any qualifier or `mixed`, and when it is a scalar whose
+/// text the parameter's conversion reads ([`reads_text_of`]). The `null` part
+/// of a value's type is not judged here. A route of another module's links
+/// root has no signature in this program, so its values are not checked.
+///
+/// Runs before [`within_set`] and [`converts`], so a value they judge is one
+/// whose type already fits.
+fn fits_type(
+    args: &[LinkArg],
+    site: &LinkSite,
+    row: &crate::routes::Route,
+    types: &mut Types<'_>,
+    diags: &mut Diagnostics,
+) -> bool {
+    if site.foreign.is_some() {
+        return true;
+    }
+    let Some((class, method)) = row.handler.rsplit_once("::") else {
+        return true;
+    };
+    let owner = QName::parse(class);
+    let Some((_, sig)) =
+        crate::signatures::resolve_method_ref(&owner, method, types.signatures, types.graph)
+    else {
+        return true;
+    };
+    let sig = sig.clone();
+    for arg in args {
+        let Some(value) = arg.ty else {
+            continue;
+        };
+        if !row.params.iter().any(|param| param.name == arg.key) {
+            continue;
+        }
+        let Some(param) = sig.param_index(&arg.key).and_then(|at| sig.param_at(at)) else {
+            continue;
+        };
+        if takes(value, param, types) {
+            continue;
+        }
+        let given = types.interner.describe(value);
+        // A `?T $x = null` query value is described as `T`, the type a link
+        // writes for it.
+        let declared = types.interner.describe(without_null(param, types.interner));
+        diags.report(
+            Diagnostic::error(
+                code::E_ROUTE_LINK_VALUE_WRONG_TYPE,
+                format!(
+                    "`{}` declares `{}` as `{declared}`, and {} gives it a value of type `{given}`",
+                    row.handler,
+                    arg.key,
+                    site.this()
+                ),
+            )
+            .with_primary(arg.span, format!("this is `{given}`"))
+            .with_help(format!(
+                "give a value of type `{declared}`, or a `string` that the route reads as one"
+            )),
+        );
+        return false;
+    }
+    true
+}
+
+/// `ty` with its `null` member removed, where it is a union of `null` and one
+/// other type, and `ty` itself otherwise.
+fn without_null(ty: crate::TypeId, interner: &crate::TypeInterner) -> crate::TypeId {
+    use crate::ty::Ty;
+    let Ty::Union(members) = interner.get(ty) else {
+        return ty;
+    };
+    let mut rest = members
+        .iter()
+        .filter(|member| !matches!(interner.get(**member), Ty::Null));
+    match (rest.next(), rest.next()) {
+        (Some(only), None) => *only,
+        _ => ty,
+    }
+}
+
+/// Whether a value of type `value` may be written for a parameter declared
+/// `param`, by [`fits_type`]'s list.
+fn takes(value: crate::TypeId, param: crate::TypeId, types: &mut Types<'_>) -> bool {
+    use crate::ty::Ty;
+    match types.interner.get(value).clone() {
+        Ty::Mixed
+        | Ty::SecretMixed
+        | Ty::Error
+        | Ty::Never
+        | Ty::Null
+        | Ty::TypeVar(_)
+        | Ty::String
+        | Ty::TaintedString
+        | Ty::SecretString
+        | Ty::SecretTaintedString
+        | Ty::SingleValueString(_)
+        | Ty::StringHoles { .. } => return true,
+        Ty::Union(members) => return members.iter().all(|member| takes(*member, param, types)),
+        _ => {}
+    }
+    match types.interner.get(param).clone() {
+        Ty::Mixed | Ty::Error | Ty::TypeVar(_) => return true,
+        // A `?T $x = null` query value: the `null` member says the key may be
+        // absent, and the value is judged against the rest.
+        Ty::Union(members) => {
+            return members.iter().any(|member| {
+                !matches!(types.interner.get(*member), Ty::Null) && takes(value, *member, types)
+            });
+        }
+        _ => {}
+    }
+    crate::expr::assign::is_assignable(
+        value,
+        param,
+        types.interner,
+        types.graph,
+        types.signatures,
+    ) || reads_text_of(types.interner.get(value), types.interner.get(param))
+}
+
+/// Whether the conversion of a parameter declared `param` reads the text a
+/// scalar of type `value` is written as: `int` and `uint` for `int`, `uint`
+/// and `decimal`, `float` for `decimal`, any scalar or enum for `string`, and
+/// the backing type of an enum for that enum.
+fn reads_text_of(value: &crate::ty::Ty, param: &crate::ty::Ty) -> bool {
+    use crate::ty::Ty;
+    let whole = matches!(value, Ty::Int | Ty::Uint | Ty::SingleValueInt(_));
+    match param {
+        Ty::Int | Ty::Uint | Ty::SingleValueInt(_) | Ty::Enum(..) | Ty::EnumCase(..) => whole,
+        Ty::Decimal => whole || matches!(value, Ty::Float | Ty::Decimal),
+        Ty::String | Ty::TaintedString | Ty::SingleValueString(_) => matches!(
+            value,
+            Ty::Int
+                | Ty::Uint
+                | Ty::SingleValueInt(_)
+                | Ty::Float
+                | Ty::Decimal
+                | Ty::Bool
+                | Ty::True
+                | Ty::False
+                | Ty::Enum(..)
+                | Ty::EnumCase(..)
+        ),
+        _ => false,
+    }
 }
 
 /// The segment one entry would build, and the text a refusal quotes it as.

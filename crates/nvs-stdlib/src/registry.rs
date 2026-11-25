@@ -4749,7 +4749,12 @@ pub fn implements_parses(class: &str) -> bool {
                         CoreTy::Nullable(CoreTy::Instance(answered)) if *answered == class
                     )
             });
-            parses && tries
+            let formats = found.instance.iter().any(|member| {
+                member.name == "format"
+                    && member.params.is_empty()
+                    && matches!(member.return_ty, CoreTy::Str)
+            });
+            parses && tries && formats
         })
 }
 

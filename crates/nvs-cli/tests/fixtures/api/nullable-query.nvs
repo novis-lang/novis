@@ -11,6 +11,11 @@ class Slug implements Parses
     {
         return new static();
     }
+
+    public function format(): string
+    {
+        return '';
+    }
 }
 
 class Items

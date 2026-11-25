@@ -74,9 +74,10 @@ fn with_access(members: &str) -> String {
 }
 
 /// A user class implementing `Parses`, in the shape
-/// `nvs_hir::interfaces::PARSES` spells the contract: one required
-/// `parse(tainted string $s): static`, and the text kept in a field declared
-/// `tainted` because a class carries no qualifier of its own
+/// `nvs_hir::interfaces::PARSES` spells the contract: a required
+/// `parse(tainted string $s): static` and a required `format(): tainted string`
+/// that writes back the text `parse` reads, with the text kept in a field
+/// declared `tainted` because a class carries no qualifier of its own
 /// (`rule:security/tainted-qualifier`).
 ///
 /// Every fixture using this writes its own `#[Core\Access]` rather than going
@@ -85,7 +86,8 @@ const SLUG: &str = "class Slug implements Parses {\n  \
                     public tainted string $text = \"\";\n  \
                     public function constructor(tainted string $text) { $this->text = $text; }\n  \
                     public static function parse(tainted string $s): static \
-                    { return new static($s); }\n}\n";
+                    { return new static($s); }\n  \
+                    public function format(): tainted string { return $this->text; }\n}\n";
 
 #[test]
 fn a_route_is_matched_nominally_rather_than_as_a_shape() {

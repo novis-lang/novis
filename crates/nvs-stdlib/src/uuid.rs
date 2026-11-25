@@ -221,6 +221,16 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&TO_STRING_DOC),
         },
         CoreMethod {
+            name: "format",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A UUID is printed as hexadecimal digits and dashes."),
+            symbol: "nvs_core_uuid_format",
+            doc: Some(&FORMAT_DOC),
+        },
+        CoreMethod {
             name: "toBytes",
             names: &[],
             params: &[],
@@ -335,6 +345,16 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `$uuid->format`'s reference card — `rule:core-api/reference-card`.
+const FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the text that `parse` reads, such as \
+            `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. It is the same text as `toString`. \
+            `Core\\Router::url` writes a UUID in a link with this method.",
+    params: &[],
+    ret: "A string of 36 characters, in lower case.",
+    errors: &[],
+};
+
 /// `$uuid->toBytes`'s reference card — `rule:core-api/reference-card`.
 const TO_BYTES_DOC: MethodDoc = MethodDoc {
     short: "Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary database \
@@ -361,6 +381,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_uuid_try_parse" => (nvs_core_uuid_try_parse as *const ()).cast(),
         "nvs_core_uuid_from_bytes" => (nvs_core_uuid_from_bytes as *const ()).cast(),
         "nvs_core_uuid_to_string" => (nvs_core_uuid_to_string as *const ()).cast(),
+        "nvs_core_uuid_format" => (nvs_core_uuid_format as *const ()).cast(),
         "nvs_core_uuid_to_bytes" => (nvs_core_uuid_to_bytes as *const ()).cast(),
         _ => return None,
     }))
@@ -518,6 +539,22 @@ fn shown(text: &str) -> String {
 /// How much of a rejected operand [`shown`] quotes — comfortably past the 36 a
 /// canonical UUID takes, so the common near-miss is quoted whole.
 const SHOWN_CHARS: usize = 48;
+
+/// The text `$uuid->format()` writes for `value`, or `None` when `value` is
+/// not a `Core\Uuid`. [`crate::uri::parses_text`] reads it, so a link writes
+/// the UUID without a call through the program's method table.
+///
+/// # Errors
+///
+/// [`uuid_of`]'s fatal for a UUID whose slots hold the wrong tags.
+pub(crate) fn format_text(value: Value) -> Result<Option<String>, Fault> {
+    if !crate::instance::is_instance(value, &CLASS) {
+        return Ok(None);
+    }
+    let octets = uuid_of(&[value], 0, "format")?.into_bytes();
+    let mut buffer = TEXT;
+    Ok(Some(canonical(octets, &mut buffer).to_owned()))
+}
 
 /// The `Uuid` in argument slot `at` — slot 0 for a receiver, any other slot
 /// for a `Uuid` *parameter*.
@@ -709,6 +746,18 @@ nvs_runtime::nvs_helper! {
     /// where it names none.
     fn nvs_core_uuid_to_string(_ctx, args: [1]) {
         let value = uuid_of(args, 0, "toString")?;
+        let mut buffer = TEXT;
+        let text = canonical(value.into_bytes(), &mut buffer);
+        Ok(Value::text(text))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uuid->format(): string` — the text `parse` reads, which is
+    /// [`nvs_core_uuid_to_string`]'s text. It is the member `Parses` requires,
+    /// and what `Core\Router::url` and `Core\Uri::buildQuery` write.
+    fn nvs_core_uuid_format(_ctx, args: [1]) {
+        let value = uuid_of(args, 0, "format")?;
         let mut buffer = TEXT;
         let text = canonical(value.into_bytes(), &mut buffer);
         Ok(Value::text(text))

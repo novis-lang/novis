@@ -598,6 +598,7 @@ fn file_env<'a>(
         method_name_args: FxHashSet::default(),
         method_ref_args: FxHashSet::default(),
         link_target_args: FxHashSet::default(),
+        argument_element_types: rustc_hash::FxHashMap::default(),
         spawn_entry_args: FxHashSet::default(),
         body_writers: crate::response::BodyWriters::default(),
         in_call_argument: false,
@@ -653,7 +654,12 @@ fn after_walk(
     record_pipeline_slots(signatures, &module.graph, interner, exprs);
     // The links' fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
-    crate::links::resolve(&routes, &module.link_targets, links, exprs, diags);
+    let mut types = crate::links::Types {
+        interner,
+        graph: &module.graph,
+        signatures,
+    };
+    crate::links::resolve(&routes, &module.link_targets, links, &mut types, exprs, diags);
     // `rule:core-classes/derive-property-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.

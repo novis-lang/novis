@@ -1,0 +1,56 @@
+--TEST--
+A `Core\Router::url` value of type `string` or `mixed`, a scalar whose text the parameter reads, and a computed `$params` array all still compile — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// covers: Core\Router::url
+enum Size: int {
+    Small = 1,
+    Large = 2,
+}
+
+class Shop {
+    #[Core\Route(path: "/items/{id}/{day}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(
+        uint $id,
+        Core\Time\Date $day,
+        #[Core\Query] decimal $price = 0.0,
+        #[Core\Query] string $note = "",
+        #[Core\Query] ?Size $size = null,
+    ): string {
+        return "";
+    }
+}
+
+// A `string` is checked when the link is followed, so any text compiles here.
+string $text = "7";
+echo Core\Router::url(Shop::show, ["id" => $text, "day" => "2026-01-05"]), "\n";
+
+// A `mixed` value compiles too.
+mixed $anything = 8;
+echo Core\Router::url(Shop::show, ["id" => $anything, "day" => "2026-01-05"]), "\n";
+
+// An `int` is written as its digits. A `decimal` parameter reads a `float`,
+// and a `string` parameter reads any scalar.
+int $count = 9;
+float $price = 2.5;
+echo Core\Router::url(
+    Shop::show,
+    ["id" => $count, "day" => Core\Time\Date::fromIso("2026-01-05"), "price" => $price, "note" => $count],
+), "\n";
+
+// An enum parameter reads its backing type and its own cases.
+int $size = 2;
+echo Core\Router::url(Shop::show, ["id" => 1, "day" => "2026-01-05", "size" => $size]), "\n";
+echo Core\Router::url(Shop::show, ["id" => 1, "day" => "2026-01-05", "size" => Size::Small]), "\n";
+
+// A `$params` array built in a variable is not checked when the program compiles.
+array<mixed> $params = ["id" => 3, "day" => "2026-01-05"];
+echo Core\Router::url(Shop::show, $params), "\n";
+--EXPECT--
+/items/7/2026-01-05
+/items/8/2026-01-05
+/items/9/2026-01-05?price=2.5&note=9
+/items/1/2026-01-05?size=2
+/items/1/2026-01-05?size=1
+/items/3/2026-01-05

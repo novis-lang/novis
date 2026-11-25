@@ -774,6 +774,12 @@ pub(crate) struct Env<'a> {
     /// nothing, so the reference skips the visibility check. Marked and read
     /// as [`Self::method_name_args`] is.
     pub link_target_args: FxHashSet<Span>,
+    /// The checked type of each keyed element of an array literal written as
+    /// a call argument, by the element value's span. A `Core\Router` link
+    /// reads it for its `$params` literal, to hold each value to the type of
+    /// the parameter it fills (`rule:routing/link-target-and-params-are-checked`).
+    /// One entry per keyed argument element of the file, held for its check.
+    pub argument_element_types: rustc_hash::FxHashMap<Span, TypeId>,
     /// A `spawn script` entry's written `Class::method`
     /// (`rule:security/isolate-shares-nothing`). The entry lowers to its own
     /// `Core` symbol, not to a callable, and `E0802` owns the question of

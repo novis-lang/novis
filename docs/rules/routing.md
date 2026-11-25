@@ -887,23 +887,55 @@ it is `static`), and its visibility is not checked: a `private` handler is linke
 one. A user method that takes a route through a `#[Core\Router\Target]` parameter keeps both checks,
 because it receives a callable it can call (`routing/a-route-target-parameter-is-checked-like-a-link`).
 
-**A literal value is held to the conversion of the parameter it supplies**, a capture's or a
-`#[Query]` parameter's, and one the conversion refuses is `E0772` at the call: `"x"`, `-3` and `2.5`
-for a `uint`. The check runs the matcher's own conversion on the segment the value builds, for the
-types the matcher converts itself (`int`, `uint`, `decimal`, `Core\Uuid`); a closed set is
+**A value written in the `$params` array literal is held to the type of the parameter it supplies**,
+a capture's or a `#[Query]` parameter's. A value whose static type cannot be that type is `E1010` at
+the value: a `Date` for a `uint`, an `int` for a `Date`, one `Parses` class for another. A value passes
+when its type is the parameter's or a subtype of it, when it is a `string` of any qualifier or `mixed`,
+or when it is a scalar whose text the parameter's conversion reads: `int` and `uint` for `int`, `uint`
+and `decimal`, `float` for `decimal`, any scalar or enum for `string`, and its backing type for an
+enum. The `null` part of a value's type is not judged here: a `null` query value writes no key
+([`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string)). A route of another module's links root has no
+signature in this program, so its values are not type-checked. **What it spends:** compile time only,
+one type comparison per written key.
+
+**A literal value is then held to the conversion of the parameter it supplies**, and one the
+conversion refuses is `E0772` at the call: `"x"`, `-3` and `2.5` for a `uint`. The check runs the
+matcher's own conversion on the segment the value builds, for the types the matcher converts itself
+(`int`, `uint`, `decimal`, `Core\Uuid`); a closed set is
 [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)'s. A `float` literal is refused for each of those but
-`decimal` without being turned into text. A computed value, a `string` parameter and a class built from
-text are not checked, so a link is a path its route matches wherever the value is written at the call.
+`decimal` without being turned into text. What neither check reaches is the text of a computed
+`string` or `mixed` value, and every value of a computed `$params`: the route checks that text when the
+link is followed.
+
+**A value whose class implements `Parses` is written as its `format()` text**, the text the class's
+`parse` reads back ([`expressions/try-parse`](expressions.md#expressions-try-parse)): percent-encoded into its own segment, or
+form-encoded in the query string. `Core\Uuid` and `Core\Queue\Id` are written the same way. An object
+of any other class throws when the link is built, and the message names `Parses` and `format`; a
+`Stringable` object is not written through `toString`. **What it spends:** one method call per
+`Parses` value per link built, charged to the request that builds it.
 
 The result is a laundered URL path ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)): each substituted
 value is percent-encoded into its own segment under RFC 3986's component rules, so a `tainted`
-parameter produces a plain `string` that is safe *as a path* and for nothing else. `urlAbsolute` is
+parameter produces a plain `string` that is safe *as a path* and for nothing else. **A `Core\Time`
+value is written as its `toIso` text**, the text the matcher converts back. A `Date`, `TimeOfDay` or
+`Instant` is written into its segment unencoded, because the matcher reads a time capture as the
+segment arrived and never decodes it, so `08:30` encoded as `08%3A30` would not match. That text
+cannot leave its segment: it is written verbatim only when every byte is a letter, a digit, `-`, `:`,
+`.` or `+`, each an RFC 3986 `pchar` that is not `/`, `?`, `#` or `%`. A `DateTime`'s zone holds a
+`/`, so it is encoded like any value, and only a `string` capture can take it. A reference passed as
+a value has its time values checked with the capture's own conversion, as every other value is. `urlAbsolute` is
 the same link with a configured origin in front, and refuses exactly the same targets. The path a link
 is built on is the mount-relative one ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)).
 
 **Declined:**
 - **Checking the handler's visibility.** A link builds a path and invokes nothing, so a `private`
   handler is no less reachable for being linked to; the route's `#[Access]` is what guards it.
+- **Writing an object through `Stringable`.** `toString` is the text a person reads, and it may
+  differ from the text `parse` reads. A link written from it is a `404`.
+- **A second interface beside `Parses` that only writes the text.** A class could then be a capture
+  that no link can be built to, and the language gains a name for half a contract.
+- **Refusing a `string` value for a `uint` or a `Date` parameter.** A program often has the text
+  already, such as a value read from a form. The route checks that text when the link is followed.
 
 <sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture).</sub>
 
@@ -1014,14 +1046,18 @@ link is still the launderer's ([`security/launderers-are-sink-named`](security.m
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
 and re-taints the result. **A `null` value writes no key**, as `Core\Uri::buildQuery` drops one, so a
 link to a `#[Query] ?T $x = null` parameter is built from a variable that may be `null`, and the route
-reads the absent key as `null` again.
+reads the absent key as `null` again. **A `Core\Time` value is its `toIso` text**, a `DateTime`
+with its offset and zone, form-encoded like every value, so its `+` is `%2B` and the `#[Query]`
+parameter of its class reads the same value back. **A value whose class implements `Parses` is its
+`format()` text**, form-encoded, so the `#[Query]` parameter of its class reads it back with `parse`.
+`Core\Uri::buildQuery` is that one writer, so it writes a time value and a `Parses` value the same way.
 
 The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters ([`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture)) is a
 **compile error**, in the same shape as the missing-route and missing-capture errors, so a typo cannot
-silently ship as a query parameter. The declared type says what a query *value* arrives at; it does not
-constrain what a link may be handed, except that a literal outside a closed set is refused
-([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)).
+silently ship as a query parameter. The declared type also constrains what a link may be handed: a
+value whose type the parameter cannot take, and a literal its conversion refuses, are compile errors
+([`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked)).
 
 **Declined:**
 - **Refusing every key that is not a capture.** A link with a query string would have no laundered

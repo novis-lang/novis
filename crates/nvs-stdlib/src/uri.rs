@@ -1846,6 +1846,7 @@ fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Faul
 /// decode to octets that are not UTF-8; [`build`]'s; and [`unmoved`]'s, which
 /// neither caller is expected to reach.
 fn with_parameter(
+    ctx: &mut nvs_runtime::Ctx,
     slots: &[Value; 8],
     member: &str,
     name: &str,
@@ -1886,7 +1887,7 @@ fn with_parameter(
     let rebuilt = if empty {
         Ok(None)
     } else {
-        build(root, "Core\\Uri", member, &[]).map(Some)
+        build(ctx, root, "Core\\Uri", member, &[]).map(Some)
     };
     #[expect(
         unsafe_code,
@@ -2485,7 +2486,12 @@ struct Level {
 /// — any other object, or a callable. `null` never reaches here: [`build`] drops the
 /// pair instead, which is `http_build_query`'s behaviour and the only one that
 /// round-trips, since a query string cannot spell an absent value.
-fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault> {
+fn scalar_text(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    owner: &str,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
     if let Some(set) = value.as_bool() {
         return Ok(if set { b"1".to_vec() } else { b"0".to_vec() });
     }
@@ -2503,6 +2509,9 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     // query value the matcher reads back is the text written here.
     if let Some(iso) = crate::time::route_iso(value) {
         return Ok(iso.into_bytes());
+    }
+    if let Some(text) = parses_text(ctx, value, owner, member)? {
+        return Ok(text.into_bytes());
     }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
@@ -2530,6 +2539,79 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     Ok(bytes)
 }
 
+/// The `format()` text of `value` when its class implements `Parses`, `None`
+/// when `value` is not an object, and a throw for an object of any other
+/// class. `Core\Router::url` and [`build`] write a `Parses` value this way,
+/// so a link carries the text the route's `parse` reads back.
+///
+/// `Core\Uuid` and `Core\Queue\Id` are the two `Core` classes
+/// [`crate::registry::implements_parses`] finds, and each is written by its
+/// own module without a call. A class a program declares is asked through its
+/// descriptor's conformance list, then its `format` is called the way
+/// [`nvs_runtime::stringify`] calls `toString`. A `Stringable` object is not
+/// written through `toString`: that text is for a person, and it may differ
+/// from the text `parse` reads.
+///
+/// **What it spends:** one method call and one string per `Parses` value
+/// written, charged to the request that builds the link.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] for an object whose class does not implement `Parses`,
+/// naming `Parses` and `format`. [`Fault::Pending`] when `format` throws.
+pub(crate) fn parses_text(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    owner: &str,
+    member: &str,
+) -> Result<Option<String>, Fault> {
+    let Some(ptr) = value.obj_ptr() else {
+        return Ok(None);
+    };
+    if let Some(text) = crate::uuid::format_text(value)? {
+        return Ok(Some(text));
+    }
+    if let Some(text) = crate::queue::id_format_text(value)? {
+        return Ok(Some(text));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the \
+                  allocation and its descriptor are both live for this read"
+    )]
+    let class = unsafe { &*nvs_runtime::object::NvsObj::class_of(ptr) };
+    // `Parses` is spelled as a literal because its one home,
+    // `nvs_hir::interfaces::PARSES`, is not a dependency of this crate.
+    let refused = || {
+        Fault::thrown(format!(
+            "{owner}::{member}(): a value is an object of class `{}`, which does not implement \
+             `Parses`. A link writes an object with its `format` method, so the class must \
+             implement `Parses`",
+            class.name()
+        ))
+    };
+    if class.is_core() || !class.conforms_to_name("Parses") {
+        return Err(refused());
+    }
+    let what = format!("{owner}::{member}()");
+    let Some(written) = nvs_runtime::call_method(ctx, value, "format", &[], &what)? else {
+        return Err(refused());
+    };
+    // `Parses` declares `format(): tainted string`, and the checker holds every
+    // implementor to it, so the answer is a string.
+    let text = written.as_text().map(str::to_owned);
+    #[expect(
+        unsafe_code,
+        reason = "a compiled method hands back exactly one reference, and the \
+                  text has been copied out of it"
+    )]
+    unsafe {
+        written.release();
+    }
+    text.map(Some)
+        .ok_or_else(|| Fault::fatal(format!("{what}: `format` answered something that is not a string")))
+}
+
 /// `root` written as a query string: depth-first in entry order, every name
 /// and every value form-encoded.
 ///
@@ -2554,6 +2636,7 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
 /// [`scalar_text`]'s, for a value with no text form, and
 /// [`crate::regex::grow`]'s `FATAL` for a text past the request's memory limit.
 pub(crate) fn build(
+    ctx: &mut nvs_runtime::Ctx,
     root: *mut nvs_runtime::ArrayHeader,
     owner: &str,
     member: &str,
@@ -2603,7 +2686,7 @@ pub(crate) fn build(
             continue;
         }
         let pair_name = encode(&name, Form::FormValue);
-        let pair_value = encode(&scalar_text(value, owner, member)?, Form::FormValue);
+        let pair_value = encode(&scalar_text(ctx, value, owner, member)?, Form::FormValue);
         // Every pair repeats its whole path, so the text can be many times the
         // size of the array it came from: the budget is asked before it grows.
         crate::regex::grow(
@@ -2979,7 +3062,7 @@ nvs_runtime::nvs_helper! {
     /// whose escapes decode to octets that are not UTF-8; [`scalar_text`]'s,
     /// for a `value` with no text form; and [`unmoved`]'s, which nothing here
     /// is expected to reach.
-    fn nvs_core_uri_with_query_parameter(_ctx, args: [3]) {
+    fn nvs_core_uri_with_query_parameter(ctx, args: [3]) {
         const MEMBER: &str = "withQueryParameter";
 
         let receiver = crate::instance::receiver(args[0], &CLASS, MEMBER)?;
@@ -3011,7 +3094,7 @@ nvs_runtime::nvs_helper! {
                 Some(args[2])
             }
         };
-        with_parameter(&slots, MEMBER, name, written)
+        with_parameter(ctx, &slots, MEMBER, name, written)
     }
 }
 
@@ -3150,7 +3233,7 @@ nvs_runtime::nvs_helper! {
     /// wire format for all three doors, rather than a second, shorter one for
     /// the door whose payload happens to be derivable — and a token nothing
     /// outside [`crate::signature`] assembles.
-    fn nvs_core_uri_signed(_ctx, args: [3]) {
+    fn nvs_core_uri_signed(ctx, args: [3]) {
         const MEMBER: &str = "signed";
 
         let ring = crate::keyring::borrow(args, 1, SIGN)?;
@@ -3170,6 +3253,7 @@ nvs_runtime::nvs_helper! {
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
         with_parameter(
+            ctx,
             &slots,
             MEMBER,
             SIG_NAME,
@@ -3528,7 +3612,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`scalar_text`]'s throw, for a value that is neither a scalar nor a
     /// nested array.
-    fn nvs_core_uri_build_query(_ctx, args: [1]) {
+    fn nvs_core_uri_build_query(ctx, args: [1]) {
         // Unreachable from source: parameter 0 is `CoreTy::Array(CoreTy::Mixed)`
         // in `CLASS` above, so a non-container argument is `E0401: expected
         // 'array<mixed>', found 'mixed'` at the checker. This is
@@ -3542,7 +3626,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        produced(&build(parameters, "Core\\Uri", "buildQuery", &[])?)
+        produced(&build(ctx, parameters, "Core\\Uri", "buildQuery", &[])?)
     }
 }
 

@@ -1,0 +1,81 @@
+--TEST--
+A value written in a `Core\Router::url` call whose type its capture or `#[Query]` parameter cannot take does not compile, and the error is at the value — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+final class Code implements Parses {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static {
+        return new Code("x");
+    }
+
+    public function format(): string {
+        return $this->text;
+    }
+}
+
+final class Slug implements Parses {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static {
+        return new Slug("x");
+    }
+
+    public function format(): string {
+        return $this->text;
+    }
+}
+
+class Shop {
+    #[Core\Route(path: "/items/{id}/{day}/{code}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(
+        uint $id,
+        Core\Time\Date $day,
+        Code $code,
+        #[Core\Query] ?Core\Time\Date $since = null,
+    ): string {
+        return "";
+    }
+}
+
+var $day = Core\Time\Date::fromIso("2026-01-05");
+var $code = new Code("A");
+
+// A `Date` is not a `uint`.
+echo Core\Router::url(Shop::show, ["id" => $day, "day" => $day, "code" => $code]), "\n";
+
+// An `int` is not a `Date`.
+int $count = 3;
+echo Core\Router::url(Shop::show, ["id" => 1, "day" => $count, "code" => $code]), "\n";
+
+// One `Parses` class is not another.
+echo Core\Router::url(Shop::show, ["id" => 1, "day" => $day, "code" => new Slug("a")]), "\n";
+
+// A `#[Query]` parameter is checked the same way.
+echo Core\Router::url(Shop::show, ["id" => 1, "day" => $day, "code" => $code, "since" => $code]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1010]: `Shop::show` declares `id` as `uint`, and this link gives it a value of type `Core\Time\Date`
+   --> case.nvs:51:44
+%A
+error[E1010]: `Shop::show` declares `day` as `Core\Time\Date`, and this link gives it a value of type `int`
+   --> case.nvs:55:56
+%A
+error[E1010]: `Shop::show` declares `code` as `Code`, and this link gives it a value of type `Slug`
+   --> case.nvs:58:72
+%A
+error[E1010]: `Shop::show` declares `since` as `Core\Time\Date`, and this link gives it a value of type `Code`
+   --> case.nvs:61:90
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -13,6 +13,11 @@ class Sku implements Parses
     {
         return new static();
     }
+
+    public function format(): string
+    {
+        return '';
+    }
 }
 
 #[Core\Api\Scheme(name: 'openid', type: Core\Api\SchemeType::OpenIdConnect, url: 'https://example.com/.well-known/openid-configuration')]

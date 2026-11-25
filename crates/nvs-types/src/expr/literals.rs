@@ -1226,6 +1226,8 @@ pub(crate) fn check_array_literal(
     // Whether an element carries `secret`, so a literal written as an argument
     // keeps it below.
     let mut holds_secret = false;
+    // Read once, before an element's own call sets it for its arguments.
+    let outer_in_argument = env.in_call_argument;
     for item in items {
         if item.by_ref {
             report_by_reference_element(item, env);
@@ -1255,6 +1257,9 @@ pub(crate) fn check_array_literal(
         let outer_widened = std::mem::replace(&mut env.widened_element, widened);
         let elem_ty = check_expr(&item.value, elem_expected, live, scope, ctx, env);
         env.widened_element = outer_widened;
+        if item.key.is_some() && outer_in_argument {
+            env.argument_element_types.insert(item.value.span, elem_ty);
+        }
         env.dispatched_literal = false;
         holds_secret |= super::quals::contains_secret(elem_ty, env.interner);
         if dispatched && !nested && env.diags.len() == before {

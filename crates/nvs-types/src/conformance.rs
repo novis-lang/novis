@@ -2196,8 +2196,9 @@ mod tests {
         assert!(!answered.has_errors(), "{answered:?}");
     }
 
-    /// `Parses` is one required member, so a class claiming it and declaring
-    /// nothing owes `parse` by exactly `Comparable`'s route above.
+    /// `Parses` has two required members, `parse` and `format`, so a class
+    /// claiming it and declaring nothing owes `parse` by exactly `Comparable`'s
+    /// route above.
     #[test]
     fn a_class_implementing_parses_and_declaring_no_parse_names_the_member() {
         let owed = check_src("<?nvs\nclass Slug implements Parses {}\n");
@@ -2209,14 +2210,15 @@ mod tests {
     }
 
     /// `rule:expressions/try-parse`: `tryParse` is a default body on the
-    /// interface, not a second required member, so declaring `parse` alone is
-    /// a complete implementation.
+    /// interface, not a third required member, so declaring `parse` and
+    /// `format` alone is a complete implementation.
     #[test]
     fn a_class_implementing_parses_inherits_try_parse_without_declaring_it() {
         let diags = check_src(
             "<?nvs\n\
              class Slug implements Parses {\n\
              public static function parse(tainted string $s): static { return new static(); }\n\
+             public function format(): string { return \"\"; }\n\
              }\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
@@ -2231,6 +2233,7 @@ mod tests {
             "<?nvs\n\
              class Slug implements Parses {\n\
              public static function parse(tainted string $s): static { return new static(); }\n\
+             public function format(): string { return \"\"; }\n\
              public static function tryParse(tainted string $s): ?Slug { return null; }\n\
              }\n",
         );
@@ -2247,6 +2250,7 @@ mod tests {
                  class Slug implements Parses {{\n\
                  public static function parse(tainted string $s): {written} \
                  {{ return new Slug(); }}\n\
+                 public function format(): string {{ return \"\"; }}\n\
                  }}\n",
             ));
             assert!(

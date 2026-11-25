@@ -1397,9 +1397,17 @@ pub fn segment_converts(ty: &str, segment: &str) -> Option<bool> {
 /// the release its contract requires: a `Tag::Str` operand comes back as
 /// itself with one fresh reference, so the bytes are copied out and the
 /// reference dropped here.
-fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> {
+fn segment_text(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    member: &str,
+    key: &str,
+) -> Result<String, Fault> {
     if let Some(iso) = crate::time::route_iso(value) {
         return Ok(iso);
+    }
+    if let Some(text) = crate::uri::parses_text(ctx, value, "Core\\Router", member)? {
+        return Ok(text);
     }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
@@ -1520,7 +1528,12 @@ fn spelled(rows: &[(&str, &str, &str)], key: &str, text: String) -> String {
 /// whose own text is not the segment the match claims — and never whether it is
 /// admitted, so a value they do not name passes through and the refusal still
 /// happens once, at the only place the set is knowable.
-fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
+fn substitute(
+    ctx: &mut nvs_runtime::Ctx,
+    template: &str,
+    params: &Value,
+    member: &str,
+) -> Result<String, Fault> {
     let raw = params.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Router::{member} expected {:?} for `$params`, got tag {}",
@@ -1572,7 +1585,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
                  captures"
             )));
         };
-        let text = spelled(&spellings, key, segment_text(value, member, key)?);
+        let text = spelled(&spellings, key, segment_text(ctx, value, member, key)?);
         out.push('/');
         if verbatim_segment(value, &text) {
             out.push_str(&text);
@@ -1590,7 +1603,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
             out.push_str(&encode(text.as_bytes(), Form::Component));
         }
     }
-    let query = crate::uri::build(raw, "Core\\Router", member, &captures)?;
+    let query = crate::uri::build(ctx, raw, "Core\\Router", member, &captures)?;
     if !query.is_empty() {
         out.push('?');
         out.push_str(&query);
@@ -1664,7 +1677,7 @@ nvs_runtime::nvs_helper! {
     /// rather than this body.
     fn nvs_core_router_link(ctx, args: [2]) {
         let template = link_template(args, "url")?;
-        let path = substitute(template, &args[1], "url")?;
+        let path = substitute(ctx, template, &args[1], "url")?;
         produced(&mounted(ctx, &path))
     }
 }
@@ -1685,7 +1698,8 @@ nvs_runtime::nvs_helper! {
     /// line to expand.
     fn nvs_core_router_link_absolute(ctx, args: [2]) {
         let template = link_template(args, "urlAbsolute")?;
-        let path = mounted(ctx, &substitute(template, &args[1], "urlAbsolute")?);
+        let path = substitute(ctx, template, &args[1], "urlAbsolute")?;
+        let path = mounted(ctx, &path);
         with_origin(ctx, &path)
     }
 }
@@ -1699,10 +1713,13 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_router_link_module(ctx, args: [3]) {
         let template = link_template(args, "url")?;
         let handler = args[1].as_text().unwrap_or_default();
+        if ctx.module_link(handler).is_none() {
+            return Err(no_mount_serves(&args[1], "url"));
+        }
+        let path = substitute(ctx, template, &args[2], "url")?;
         let Some(found) = ctx.module_link(handler) else {
             return Err(no_mount_serves(&args[1], "url"));
         };
-        let path = substitute(template, &args[2], "url")?;
         let origin = found.elsewhere.as_deref().map_or("", |at| at.trim_end_matches('/'));
         produced(&format!("{origin}{}{path}", joined(&found.prefix)))
     }
@@ -1716,10 +1733,13 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_router_link_module_absolute(ctx, args: [3]) {
         let template = link_template(args, "urlAbsolute")?;
         let handler = args[1].as_text().unwrap_or_default();
+        if ctx.module_link(handler).is_none() {
+            return Err(no_mount_serves(&args[1], "urlAbsolute"));
+        }
+        let path = substitute(ctx, template, &args[2], "urlAbsolute")?;
         let Some(found) = ctx.module_link(handler) else {
             return Err(no_mount_serves(&args[1], "urlAbsolute"));
         };
-        let path = substitute(template, &args[2], "urlAbsolute")?;
         let path = format!("{}{path}", joined(&found.prefix));
         match found.origin.as_deref() {
             Some(origin) => produced(&format!("{}{path}", origin.trim_end_matches('/'))),
@@ -1787,7 +1807,7 @@ const URL_SIGNED: &str = r"Core\Router::urlSigned";
 /// the segment spelling [`substitute`] writes is a property of the link rather
 /// than of the route's identity.
 fn signed_payload(
-    ctx: &nvs_runtime::Ctx,
+    ctx: &mut nvs_runtime::Ctx,
     pattern: &str,
     params: &Value,
     member: &str,
@@ -1811,7 +1831,11 @@ fn signed_payload(
 /// one `url` would have refused too. The fatal of
 /// [`nvs_runtime::Ctx::native_stack_step`], for a `$params` nested deep enough
 /// to reach the stack's floor: nothing caps the depth, so each level asks first.
-fn written_form(ctx: &nvs_runtime::Ctx, params: &Value, member: &str) -> Result<NvsArray, Fault> {
+fn written_form(
+    ctx: &mut nvs_runtime::Ctx,
+    params: &Value,
+    member: &str,
+) -> Result<NvsArray, Fault> {
     ctx.native_stack_step()?;
     // Unreachable from source: the row declares `array<mixed>`, so `E0401`
     // refuses anything else before this body runs.
@@ -1833,7 +1857,7 @@ fn written_form(ctx: &nvs_runtime::Ctx, params: &Value, member: &str) -> Result<
             Value::array(written_form(ctx, &value, member)?)
         } else {
             let label = std::str::from_utf8(key.as_bytes()).unwrap_or("<not text>");
-            Value::text(&segment_text(value, member, label)?)
+            Value::text(&segment_text(ctx, value, member, label)?)
         };
         out.set(key, written);
     }
@@ -1911,7 +1935,7 @@ nvs_runtime::nvs_helper! {
 /// The signed link both `urlSigned` members build, over `args[params]` and the
 /// `{keys, until}` fields in the two arguments after it.
 fn signed_link(
-    ctx: &nvs_runtime::Ctx,
+    ctx: &mut nvs_runtime::Ctx,
     template: &str,
     pattern: &str,
     args: &[Value],
@@ -1943,7 +1967,8 @@ fn signed_link(
     // payload never sees it: what is signed is the route's name and its
     // `$params`, so a link minted under one mount verifies under another
     // ([`signed_payload`]).
-    let mut out = mounted(ctx, &substitute(template, &args[params], MEMBER)?);
+    let path = substitute(ctx, template, &args[params], MEMBER)?;
+    let mut out = mounted(ctx, &path);
     out.push(if out.contains('?') { '&' } else { '?' });
     out.push_str(SIG_NAME);
     out.push('=');
@@ -2275,6 +2300,7 @@ fn case_text(value: &nvs_runtime::commands::CaseValue) -> String {
 /// value its capture does not match. [`segment_text`]'s throw for a value with
 /// no text form.
 fn check_value_params(
+    ctx: &mut nvs_runtime::Ctx,
     row: &nvs_runtime::routes::Route,
     params: &Value,
     member: &str,
@@ -2298,7 +2324,7 @@ fn check_value_params(
         let key = String::from_utf8_lossy(key.as_bytes()).into_owned();
         let value = array.value_at(live).expect("a live slot has a value");
         if let Some(capture) = row.captures().iter().find(|c| c.name == key) {
-            let text = segment_text(value, member, &key)?;
+            let text = segment_text(ctx, value, member, &key)?;
             let matches = match &capture.conv {
                 CaptureConv::Enum { cases, .. } => cases
                     .iter()
@@ -2334,8 +2360,8 @@ nvs_runtime::nvs_helper! {
     /// link as [`nvs_core_router_link`], its resolved twin, does.
     fn nvs_core_router_url(ctx, args: [2]) {
         let row = value_route(ctx, args[0], "url")?;
-        check_value_params(&row, &args[1], "url")?;
-        let path = substitute(&value_template(&row), &args[1], "url")?;
+        check_value_params(ctx, &row, &args[1], "url")?;
+        let path = substitute(ctx, &value_template(&row), &args[1], "url")?;
         produced(&mounted(ctx, &path))
     }
 }
@@ -2349,8 +2375,8 @@ nvs_runtime::nvs_helper! {
     /// derived from `Host` or `X-Forwarded-Host` ([`with_origin`]).
     fn nvs_core_router_url_absolute(ctx, args: [2]) {
         let row = value_route(ctx, args[0], "urlAbsolute")?;
-        check_value_params(&row, &args[1], "urlAbsolute")?;
-        let path = substitute(&value_template(&row), &args[1], "urlAbsolute")?;
+        check_value_params(ctx, &row, &args[1], "urlAbsolute")?;
+        let path = substitute(ctx, &value_template(&row), &args[1], "urlAbsolute")?;
         with_origin(ctx, &mounted(ctx, &path))
     }
 }
@@ -2365,7 +2391,7 @@ nvs_runtime::nvs_helper! {
     /// question about the key material when the mistake is in the call.
     fn nvs_core_router_url_signed(ctx, args: [4]) {
         let row = value_route(ctx, args[0], "urlSigned")?;
-        check_value_params(&row, &args[1], "urlSigned")?;
+        check_value_params(ctx, &row, &args[1], "urlSigned")?;
         signed_link(ctx, &value_template(&row), row.path(), args, 1)
     }
 }
@@ -4466,7 +4492,7 @@ mod tests {
                 let (_, floor) = ctx.stack_bounds();
                 let here = nvs_runtime::stack_pointer();
                 ctx.arm_stack_limit(here, nvs_runtime::NATIVE_STEP_ROOM + (64 << 10));
-                let refused = super::written_form(&ctx, &params, "urlSigned")
+                let refused = super::written_form(&mut ctx, &params, "urlSigned")
                     .expect_err("a walk past the armed floor is refused");
                 let message = match refused {
                     nvs_runtime::Fault::Fatal(message) => message.into_owned(),
@@ -4474,7 +4500,7 @@ mod tests {
                 };
 
                 ctx.arm_stack_limit(floor, 0);
-                let whole = super::written_form(&ctx, &params, "urlSigned")
+                let whole = super::written_form(&mut ctx, &params, "urlSigned")
                     .expect("the same value walks to the bottom inside the context's own bounds");
                 drop(whole);
                 dropped(params);
