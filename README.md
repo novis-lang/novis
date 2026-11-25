@@ -130,10 +130,9 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Extending classes you do not own.** *Working on it now.* An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.
-2. **Callbacks for the calling class.** A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.
-3. **Enums as keys.** A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.
-4. **A debug viewer that shows more.** The debug viewer gets the website's design, a view of your routes and a view of your database queries. One button in VS Code opens it. Each recorded request also shows its memory, its handler and the stack of an uncaught exception. Scheduled jobs, queue jobs and commands are recorded like requests.
+1. **Callbacks for the calling class.** *Working on it now.* A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.
+2. **Enums as keys.** A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.
+3. **A debug viewer that shows more.** The debug viewer gets the website's design, a view of your routes and a view of your database queries. One button in VS Code opens it. Each recorded request also shows its memory, its handler and the stack of an uncaught exception. Scheduled jobs, queue jobs and commands are recorded like requests.
 <!-- roadmap:end -->
 
 ## Contributing

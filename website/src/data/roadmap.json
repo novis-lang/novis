@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Extending classes you do not own",
-      "text": "An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.",
-      "goals": [
-        "extend-blocks"
-      ]
-    },
-    {
       "title": "Callbacks for the calling class",
       "text": "A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.",
       "goals": [
