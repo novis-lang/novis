@@ -6,7 +6,7 @@ context: [docs/rules/statements/static-is-a-member-modifier.md, docs/rules/types
 stages:
   - id: 1
     title: a static among a callable parameter's parameters binds at the call, and the body proves each call through it
-    status: open
+    status: done
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/locals.rs, docs/rules/types/callable-values.md]
   - id: 2
     title: "the E0401 for a function that takes a subclass says what to write, and the conformance cases pin the feature"
@@ -129,8 +129,9 @@ returns the signature's type and pays no run-time check. A call that fails is a 
   the walk the body already uses to find written variables, or a walk over assignments and `inout`
   arguments to the parameter's name if there is none. No record is kept for that parameter.
 
-**The new error.** A new code beside E0741 in `crates/nvs-diagnostics/src/code/types_e07.rs:793`, the
-next free number the code table allows, `E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS`. Draft text, held
+**The new error.** `E1015` in `crates/nvs-diagnostics/src/code/types_e10.rs`, the next free number
+the code table allows (the `E07xx` range beside E0741 is full),
+`E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS`. Draft text, held
 to AGENTS.md § *Text an end user reads*:
 - message: "this argument may not be the class the call named"
 - primary: "the method was called on a class that may be a subclass of this value's class"
@@ -191,26 +192,25 @@ Nothing here touches the files of the goals ahead of it on the chain, except
 
 ### 1. a static among a callable parameter's parameters binds at the call, and the body proves each call through it
 
-- [ ] `crates/nvs-types/src/signatures.rs:2588`: `static_use` reports `in_callable` for a `static`
-  directly among the parameters of the top-level callable of a parameter type, through `Nullable`,
-  `Paren` and a union with `null` only. Every deeper `static` among a callable's parameters stays
-  `blocked`. The doc comment at `:2579` says both. `rule:statements/static-is-a-member-modifier`.
-- [ ] `crates/nvs-types/src/signatures.rs:1761`: `params_bind_static` is true for an `in_callable`
-  parameter, and `:2729`'s `bind_static` rewrites a `CallableSig`'s parameters as well as its return.
-  `bound_to` (`:468`) needs no change.
-- [ ] `crates/nvs-types/src/signatures.rs:2737` and `crates/nvs-types/src/check.rs:1455`: the body
-  types an `in_callable` parameter as plain `callable`, and the scope (`crates/nvs-types/src/locals.rs:245`)
-  keeps its declaring-class signature and `static` positions, unless the body writes the parameter.
-  `nvs_ir::lower::lower_method` checked to agree.
-- [ ] `crates/nvs-types/src/expr/calls.rs:2733`: a direct call through a recorded parameter in the
-  method's own body checks its arguments against the record, requires `yields_the_called_class`
-  (`check.rs:1627`, made `pub(crate)`) at each `static` position, and records `CallThroughSignature`.
-  The record is not read inside a nested anonymous function.
-- [ ] `crates/nvs-diagnostics/src/code/types_e07.rs:793`: the new code beside E0741, with its card,
-  written to AGENTS.md § *Text an end user reads*.
-- [ ] `crates/nvs-types/tests/static_callables.rs:1` (new): the tests the check `binds` names. The
-  proven-call test also asserts the `CallThroughSignature` record. Then `cargo test --test
-  static_callables` once.
+- [x] `crates/nvs-types/src/signatures.rs:2680`: `static_use` takes `param` and reports
+  `in_callable` for a `static` directly among the parameters of the top-level callable of a parameter
+  type, through `Nullable`, `Paren` and a union with `null` only (`top_callable`). Every deeper
+  `static` among a callable's parameters stays `blocked`. The doc comment says both.
+- [x] `crates/nvs-types/src/signatures.rs:1851`: `params_bind_static` is true for an `in_callable`
+  parameter, and `bind_static`'s `CallableSig` arm rewrites the parameters as well as the return.
+- [x] `crates/nvs-types/src/check.rs:1523`: the body types an `in_callable` parameter as plain
+  `callable` (`static_callback_as_callable`), and `LocalScope::static_callbacks`
+  (`crates/nvs-types/src/locals.rs`, `StaticCallback`) keeps its declaring-class signature and
+  `static` positions, unless `locals::body_writes` finds a write. `nvs_ir::lower::lower_method_of`
+  lowers both `callable` and a written signature to `Ty::Object`, so it agrees.
+- [x] `crates/nvs-types/src/expr/calls.rs`: `check_call_through_static_callback`, called from
+  `expr/mod.rs`'s `ExprKind::Call` arm, checks the arguments, requires `yields_the_called_class` at
+  each `static` position, and records `CallThroughSignature`. An anonymous function has a fresh
+  scope, so it never sees the record.
+- [x] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1015`
+  `E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS`, with its card.
+- [x] `crates/nvs-types/tests/static_callables.rs:1` (new): the 11 tests the check `binds` names,
+  green.
 
 ### 2. the E0401 for a function that takes a subclass says what to write, and the conformance cases pin the feature
 
@@ -245,7 +245,7 @@ rewritten. The session writes the rules, the docs and the website entry.
   § *Memory* says a bound callable parameter costs nothing at run time.
 - [ ] `docs/rules/types/callable-variance.md:13`: one sentence after the two refusals pointing at
   `callable(static)` for a function that takes the class the call names.
-- [ ] `crates/nvs-types/src/check.rs:1625`: `yields_the_called_class`'s doc names its second user.
+- [x] `crates/nvs-types/src/check.rs`: `yields_the_called_class`'s doc names its second user.
 - [ ] `docs/examples/lang/types/void-never-self-static/about.md:9` and `details.md:1`: one short
   paragraph on `callable(static)`, written to AGENTS.md § *Text an end user reads*.
   `docs/examples/lang/classes/methods-self-static-and-parent/about.md:1` gets one sentence if it lists
@@ -270,11 +270,20 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24, from a user
-report. Nothing is built. Every anchor above was read on that day.
+Stage 1 is done and committed. `callable(static)`, `?callable(static)` and `callable(static)|null`
+in a parameter bind at the call, the body reads the parameter as a plain `callable`, and a direct call
+through it in the method's own body is proven (`CallThroughSignature`) or refused with `E1015`. The
+check `binds` is green (`cargo test --test static_callables`, 11 tests). The new code is `E1015` in
+`types_e10.rs`, not beside E0741: the `E07xx` range is full, and the code table gives the next number
+in the last file. The ten nightly CI failures of run 45609291264 were already fixed by `1c3196b0e8`.
 
 ### Next
 
-Stage 1 from its first item. Every check is red until its stage's tests exist.
+Stage 2 from its first item: the E0401 help in `crates/nvs-types/src/expr/args.rs` (find the report
+with `bun nv peek --locate`), then the `help` tests appended to `crates/nvs-types/tests/static_callables.rs`
+(its `fixture` helper builds `Model`, `Order` and `Caller::run`), then the three conformance cases by
+one writing subagent. The rule text in `docs/rules/statements/static-is-a-member-modifier.md:15`
+still says a `static` among a written callable's parameters does not bind; stage 3 rewrites it, and
+`bun nv rules --check` does not read that sentence. No test is expected to go red.
 
 ### Backlog

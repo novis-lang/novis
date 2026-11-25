@@ -1851,12 +1851,13 @@ fn collect_member(
             let mut params_bind_static: Vec<bool> = m
                 .params
                 .iter()
-                .map(|p| static_use(p.ty.as_ref(), qname, env.src).binds)
+                .map(|p| static_use(p.ty.as_ref(), qname, env.src, true).binds)
                 .collect();
             if !params_bind_static.contains(&true) {
                 params_bind_static.clear();
             }
-            let return_binds_static = static_use(m.return_type.as_ref(), qname, env.src).binds;
+            let return_binds_static =
+                static_use(m.return_type.as_ref(), qname, env.src, false).binds;
             let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
             let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
             let is_static = m.modifiers.contains(&Modifier::Static);
@@ -2666,6 +2667,10 @@ pub(crate) struct StaticUse {
     /// `static` is written inside a `property<…>`, so inside the body the value
     /// may name a property only the called subclass declares.
     pub in_key: bool,
+    /// `static` is written directly among the parameters of the callable that
+    /// is the parameter's own type, as in `callable(static)`. Inside the body
+    /// the value is a plain `callable` ([`static_callback_as_callable`]).
+    pub in_callable: bool,
 }
 
 /// Reads where `ty` writes `static`, for the class `declaring` that declares it.
@@ -2674,15 +2679,28 @@ pub(crate) struct StaticUse {
 /// [`bind_static`] rewrites every occurrence of that class. So a type that
 /// also writes `self` or the declaring class's own name does not bind: the
 /// rewrite could not tell the two apart, and the declaring class is the sound
-/// answer for both. A `static` among a written callable's parameters does not
-/// bind either, because the body could call that callable with an instance of
-/// the declaring class.
-pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile) -> StaticUse {
+/// answer for both.
+///
+/// `param` is true for a parameter's type. There a `static` written directly
+/// among the parameters of the parameter's own callable binds, as in
+/// `callable(static)`, `?callable(static, int)` and `callable(static)|null`
+/// ([`StaticUse::in_callable`]). The body sees a plain `callable`, and only a
+/// call that passes the called class is proven. Every deeper `static` among a
+/// callable's parameters does not bind: in an `array<callable(static)>`, a
+/// shape field, a nested callable, and a return type. The body could call
+/// such a callable with an instance of the declaring class.
+pub(crate) fn static_use(
+    ty: Option<&Type>,
+    declaring: &QName,
+    src: &SourceFile,
+    param: bool,
+) -> StaticUse {
     #[derive(Default)]
     struct Walk {
         writes: bool,
         blocked: bool,
         in_key: bool,
+        in_callable: bool,
     }
     fn visit(
         ty: &Type,
@@ -2744,11 +2762,89 @@ pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile)
         return StaticUse::default();
     };
     let mut walk = Walk::default();
-    visit(ty, false, false, declaring.short_name(), src, &mut walk);
+    let short = declaring.short_name();
+    match top_callable(ty).filter(|_| param) {
+        Some((params, ret)) => {
+            for t in params {
+                if is_static_atom(t) {
+                    walk.writes = true;
+                    walk.in_callable = true;
+                } else {
+                    visit(t, true, false, short, src, &mut walk);
+                }
+            }
+            visit(ret, false, false, short, src, &mut walk);
+        }
+        None => visit(ty, false, false, short, src, &mut walk),
+    }
     let binds = walk.writes && !walk.blocked;
     StaticUse {
         binds,
         in_key: binds && walk.in_key,
+        in_callable: binds && walk.in_callable,
+    }
+}
+
+/// The parameters and return of the callable `ty` is, through `?`, `( )` and
+/// a union whose other members are all `null`.
+fn top_callable(ty: &Type) -> Option<(&[Type], &Type)> {
+    match &ty.kind {
+        TypeKind::Nullable(t) | TypeKind::Paren(t) => top_callable(t),
+        TypeKind::Union(items) => {
+            let mut found = None;
+            for t in items {
+                match &t.kind {
+                    TypeKind::Atom(TypeAtom::Null) => {}
+                    _ if found.is_none() => found = Some(top_callable(t)?),
+                    _ => return None,
+                }
+            }
+            found
+        }
+        TypeKind::Atom(TypeAtom::CallableSig { params, ret }) => Some((params, ret)),
+        _ => None,
+    }
+}
+
+/// Whether `ty` is `static` or `?static`, through `( )`.
+fn is_static_atom(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Nullable(t) | TypeKind::Paren(t) => is_static_atom(t),
+        TypeKind::Atom(TypeAtom::StaticTy) => true,
+        _ => false,
+    }
+}
+
+/// Which parameters of a parameter's own callable are `static`, left to right,
+/// for a type [`static_use`] reports [`StaticUse::in_callable`] for.
+pub(crate) fn static_callback_positions(ty: &Type) -> Vec<bool> {
+    top_callable(ty).map_or_else(Vec::new, |(params, _)| {
+        params.iter().map(is_static_atom).collect()
+    })
+}
+
+/// `id` as a method body sees a parameter [`static_use`] reports
+/// [`StaticUse::in_callable`] for: each written callable signature is a plain
+/// `callable`, and a `null` member stays.
+///
+/// The caller passed a function for the class the call named, and the body
+/// does not know which class that is. A call through the parameter in the
+/// body is still proven where each `static` argument is the called class
+/// (`crate::expr::calls::check_call_through_static_callback`).
+pub(crate) fn static_callback_as_callable(
+    id: TypeId,
+    interner: &mut crate::ty::TypeInterner,
+) -> TypeId {
+    match interner.get(id).clone() {
+        Ty::CallableSig { .. } => interner.callable(),
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|m| static_callback_as_callable(*m, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => id,
     }
 }
 
@@ -2819,7 +2915,13 @@ pub(crate) fn bind_static(
                 .collect();
             interner.shape(fields)
         }
+        // A parameter's `callable(static)` binds its parameters too, and
+        // [`static_use`] blocks every deeper `static` among them.
         Ty::CallableSig { params, ret } => {
+            let params: Vec<TypeId> = params
+                .iter()
+                .map(|p| bind_static(*p, declaring, to, interner))
+                .collect();
             let ret = bind_static(ret, declaring, to, interner);
             interner.callable_sig(params, ret)
         }

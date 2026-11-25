@@ -203,6 +203,32 @@ pub(crate) struct LocalScope {
     /// The initializer of every local whose type `var` took from it — read by
     /// [`Self::var_initializer`] when a later write does not fit that type.
     var_initializers: FxHashMap<String, Span>,
+    /// Each `callable(static)` parameter of this method that its body never
+    /// writes, by name, with the signature its declaration wrote. An anonymous
+    /// function's scope is a fresh one, so it never sees these.
+    pub(crate) static_callbacks: FxHashMap<String, StaticCallback>,
+}
+
+/// A `callable(static)` parameter, as the body that declares it records it
+/// (`crate::signatures::StaticUse::in_callable`).
+///
+/// The body types the parameter as a plain `callable`. A direct call through
+/// it in the same body is still proven when each argument at a `static`
+/// position is the called class
+/// (`crate::expr::calls::check_call_through_static_callback`). It costs one
+/// small record per such parameter for the length of one method body, at
+/// check time only.
+#[derive(Debug, Clone)]
+pub(crate) struct StaticCallback {
+    /// The parameter types the declaration wrote, with `static` as the
+    /// declaring class.
+    pub params: Vec<TypeId>,
+    /// The return type the declaration wrote.
+    pub ret: TypeId,
+    /// Which of `params` the declaration wrote as `static`.
+    pub static_at: Vec<bool>,
+    /// The declaration's type, for the error's secondary label.
+    pub declared_span: Span,
 }
 
 /// The outer bindings an anonymous function's body may read, and the ones it actually did.
@@ -999,6 +1025,12 @@ pub(crate) fn write_key(target: &Expr, env: &Env<'_>) -> Option<String> {
 ///
 /// Nested loops, blocks and branches are scanned through, by
 /// [`each_child_of_stmt`] and [`each_child_expr`].
+/// Every variable `stmts` can write, by [`loop_writes`]' scan: what a method
+/// body checks before it records a `callable(static)` parameter.
+pub(crate) fn body_writes(stmts: &[Stmt], env: &Env<'_>) -> FxHashSet<String> {
+    loop_writes(stmts.iter().map(StmtChild::Stmt), env)
+}
+
 fn loop_writes<'a>(
     parts: impl IntoIterator<Item = StmtChild<'a>>,
     env: &Env<'_>,

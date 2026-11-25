@@ -626,6 +626,14 @@ fn infer_kind(
                 return ret;
             }
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
+            // A `callable(static)` parameter of this method: a call through it
+            // is proven when each `static` argument is the called class
+            // (`calls::check_call_through_static_callback`).
+            if let Some(ret) = calls::check_call_through_static_callback(
+                expr, callee, callee_ty, args, live, scope, ctx, env,
+            ) {
+                return ret;
+            }
             // `rule:types/callable-signature`: where the callee's type names
             // its parameters, the arguments are proven here rather than a tag
             // at a time in `nvs_runtime::callable`. Ahead of `check_args`

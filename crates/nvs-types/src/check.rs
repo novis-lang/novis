@@ -1520,17 +1520,50 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         scope.declare_param("this".to_owned(), this_ty, m.name);
         live.insert("this".to_owned());
     }
+    // The variables the body writes, read only where a parameter takes a
+    // `callable(static)`: after a write the value is no longer the function
+    // the caller passed, so no call through it is proven.
+    let mut written: Option<FxHashSet<String>> = None;
     for param in &m.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+        let used = ctx
+            .current_class
+            .map(|class| crate::signatures::static_use(param.ty.as_ref(), class, env.src, true));
         // A `property<static>` may name a property only the called subclass
         // declares, and the body does not know which subclass that is, so the
         // body reads it as the property's name — see
-        // `crate::signatures::static_key_as_text`.
-        let ty = match ctx.current_class {
-            Some(class)
-                if crate::signatures::static_use(param.ty.as_ref(), class, env.src).in_key =>
-            {
+        // `crate::signatures::static_key_as_text`. A `callable(static)` takes
+        // a function for the called class, so the body reads it as a plain
+        // `callable` — see `crate::signatures::static_callback_as_callable`.
+        let ty = match (ctx.current_class, used) {
+            (Some(class), Some(used)) if used.in_key => {
                 crate::signatures::static_key_as_text(ty, class, env.interner)
+            }
+            (Some(_), Some(used)) if used.in_callable => {
+                let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+                let body_writes = written.get_or_insert_with(|| {
+                    m.body
+                        .as_ref()
+                        .map(|b| crate::locals::body_writes(&b.stmts, env))
+                        .unwrap_or_default()
+                });
+                if !param.variadic
+                    && !param.inout
+                    && !body_writes.contains(&name)
+                    && let Some(written_ty) = param.ty.as_ref()
+                    && let Some((params, ret)) = callable_sig_of(ty, env)
+                {
+                    scope.static_callbacks.insert(
+                        name,
+                        crate::locals::StaticCallback {
+                            params,
+                            ret,
+                            static_at: crate::signatures::static_callback_positions(written_ty),
+                            declared_span: written_ty.span,
+                        },
+                    );
+                }
+                crate::signatures::static_callback_as_callable(ty, env.interner)
             }
             _ => ty,
         };
@@ -1670,7 +1703,7 @@ fn reject_static_return_of_another_class(
     env: &mut Env<'_>,
 ) {
     let binds = ctx.current_class.is_some_and(|class| {
-        crate::signatures::static_use(m.return_type.as_ref(), class, env.src).binds
+        crate::signatures::static_use(m.return_type.as_ref(), class, env.src, false).binds
             && !crate::signatures::class_is_final(class, env.signatures)
     });
     if !binds {
@@ -1703,9 +1736,21 @@ fn reject_static_return_of_another_class(
     }
 }
 
+/// The parameters and return of the written signature `ty` is, through a
+/// union with `null`.
+fn callable_sig_of(ty: TypeId, env: &Env<'_>) -> Option<(Vec<TypeId>, TypeId)> {
+    match env.interner.get(ty) {
+        Ty::CallableSig { params, ret } => Some((params.clone(), *ret)),
+        Ty::Union(members) => members.iter().find_map(|m| callable_sig_of(*m, env)),
+        _ => None,
+    }
+}
+
 /// Whether `e`'s runtime class is provably the called class — the whitelist
-/// [`reject_static_return_of_another_class`] documents.
-fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+/// [`reject_static_return_of_another_class`] documents. A call through a
+/// `callable(static)` parameter holds each `static` argument to it too
+/// (`crate::expr::calls::check_call_through_static_callback`).
+pub(crate) fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     match &e.kind {
         ExprKind::Variable(span) => span_text(env.src, *span) == "$this",
         ExprKind::Null => true,

@@ -2839,6 +2839,110 @@ pub(crate) fn check_call_through_signature(
     Some(ret)
 }
 
+/// `$rule($this)` where `$rule` is a `callable(static)` parameter of the method
+/// being checked, and the body never writes it
+/// ([`crate::locals::StaticCallback`]).
+///
+/// The body types `$rule` as a plain `callable`, because the caller passed a
+/// function for the class the call named. Each argument is checked against the
+/// signature the declaration wrote, with `static` read as the declaring class.
+/// Each argument at a `static` position must also be the called class, by
+/// [`crate::check::yields_the_called_class`]'s list, or the call is
+/// `E1015`. A call that passes every check records
+/// [`ExprInfo::CallThroughSignature`] and returns the written return type. A
+/// call with a `...`, a `name:` or an `inout` argument is the plain `callable`
+/// call, and so is one where `$rule` may still be `null`.
+///
+/// An anonymous function's body has a scope of its own, so a call there never
+/// reaches this: `self::` there names the written class, not the called one.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn check_call_through_static_callback(
+    expr: &Expr,
+    callee: &Expr,
+    callee_ty: TypeId,
+    args: &CallArgs,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let ExprKind::Variable(name) = &callee.unparenthesized().kind else {
+        return None;
+    };
+    let record = scope
+        .static_callbacks
+        .get(strip_sigil(span_text(env.src, *name)))?
+        .clone();
+    if !matches!(env.interner.get(callee_ty), Ty::Callable) {
+        return None;
+    }
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    if list
+        .iter()
+        .any(|arg| arg.spread || arg.name.is_some() || arg.inout)
+    {
+        return None;
+    }
+    let params = &record.params;
+    if list.len() != params.len() {
+        report_callable_call_arity(
+            expr.span,
+            &Signature::Written(params),
+            params.len(),
+            list.len(),
+            env,
+        );
+    }
+    let mut proven = list.len() == params.len();
+    for (index, arg) in list.iter().enumerate() {
+        let expected = params.get(index).copied();
+        let before = env.diags.len();
+        check_expr(&arg.value, expected, live, scope, ctx, env);
+        let at_static = record.static_at.get(index).copied().unwrap_or(false);
+        if !at_static || crate::check::yields_the_called_class(&arg.value, ctx, env) {
+            continue;
+        }
+        proven = false;
+        // A value of the wrong type already has its error.
+        if env.diags.len() == before {
+            report_static_callback_argument(arg.value.span, callee, record.declared_span, env);
+        }
+    }
+    if proven {
+        env.exprs.record(
+            expr.span,
+            ExprInfo::CallThroughSignature {
+                params: record.params.clone(),
+                ret: record.ret,
+            },
+        );
+    }
+    Some(record.ret)
+}
+
+/// `E1015`: an argument at a `static` position of a `callable(static)`
+/// parameter that may not be the called class.
+fn report_static_callback_argument(span: Span, callee: &Expr, declared: Span, env: &mut Env<'_>) {
+    let name = span_text(env.src, callee.span).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS,
+            "this argument may not be the class the call named",
+        )
+        .with_primary(
+            span,
+            "the method was called on a class that may be a subclass of this value's class",
+        )
+        .with_secondary(declared, format!("`{name}` takes the class the call named"))
+        .with_help(
+            "Pass `$this`, `new static(...)` or the result of a call that returns `static`. \
+             To pass any other value, declare the parameter as `callable`.",
+        ),
+    );
+}
+
 /// `fact($n - 1)` inside `fn fact(int $n): int` — the recursive call
 /// `rule:types/anonymous-function-self-name` admits, checked against the parameter list of
 /// the very anonymous function being written.

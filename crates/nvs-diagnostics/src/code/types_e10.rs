@@ -174,4 +174,21 @@ codes! {
          type, because it computes its value on each read. To keep data with such a value, \
          write a class of your own with one property for the value and one for the data.",
     );
+
+    /// A call through a `callable(static)` parameter passes, at a `static`
+    /// position, a value that may not be the class the call named
+    /// (`rule:statements/static-is-a-member-modifier`).
+    ///
+    /// The caller passed a function that takes the called class, which a
+    /// subclass may be. The body does not know which class that is, so it may
+    /// pass only a value that is the called class: the list
+    /// [`super::types_e07`]'s `E0741` holds a `static` return to. A call that
+    /// passes it is proven where it is written and pays no run-time check.
+    pub const E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS: Code = Code::new("E1015").card(
+        "A method has a parameter of type `callable(static)`. The caller passes a function \
+         that takes the class the method was called on. That class may be a subclass. So a \
+         call to this function in the method body must pass `$this`, `new static(...)` or the \
+         result of a method that returns `static`. To pass any other value, declare the \
+         parameter as `callable`.",
+    );
 }
