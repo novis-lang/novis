@@ -1115,6 +1115,46 @@ fn a_bool_query_value_is_the_integer_0_or_1() {
     );
 }
 
+/// A `Date` is `format: date` and an `Instant` `format: date-time`. A
+/// `TimeOfDay` and a `DateTime` have no format, because a validator would
+/// refuse their text under JSON Schema's `time` and `date-time`
+/// (`rule:security/route-capture-is-laundered-by-its-type`).
+#[test]
+fn a_time_parameter_has_the_format_json_schema_defines_for_it() {
+    let (doc, err, ok) = build(&fixture("time-params"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/days/{day}/{opens}/{since}"]["get"]["parameters"];
+    let schema_of = |name: &str| {
+        params
+            .as_array()
+            .and_then(|all| all.iter().find(|param| param["name"] == name))
+            .map(|param| param["schema"].clone())
+            .unwrap_or_else(|| panic!("the document lists `{name}`:\n{doc}"))
+    };
+
+    assert_eq!(
+        schema_of("day"),
+        serde_json::json!({"type": "string", "format": "date"}),
+        "a `Date` is a JSON Schema date:\n{doc}"
+    );
+    assert_eq!(
+        schema_of("opens"),
+        serde_json::json!({"type": "string"}),
+        "a `TimeOfDay` has no format:\n{doc}"
+    );
+    assert_eq!(
+        schema_of("since"),
+        serde_json::json!({"type": "string", "format": "date-time"}),
+        "an `Instant` is a JSON Schema date-time:\n{doc}"
+    );
+    assert_eq!(
+        schema_of("starts"),
+        serde_json::json!({"type": "string"}),
+        "a `DateTime` has no format:\n{doc}"
+    );
+}
+
 // -------------------------------------------------------------------------
 // `rule:routing/a-security-scheme-is-declared-in-code` -- `#[Api\Scheme]`.
 // -------------------------------------------------------------------------

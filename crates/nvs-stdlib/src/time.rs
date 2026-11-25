@@ -4541,6 +4541,38 @@ pub(crate) fn instant_iso(value: Value) -> Option<String> {
     Some(iso_text(instant_of(&[value], 0, "toIso").ok()?))
 }
 
+/// `value`'s `toIso` text, where it is a `Date`, a `TimeOfDay`, an `Instant`
+/// or a `DateTime` — the four classes a route converts natively, so a link and
+/// a query string write the one text the matcher reads back.
+///
+/// `None` for any other value, and for a slot this module never writes, which
+/// is each reader's own unreachable-from-source guard seen through an
+/// [`Option`].
+pub(crate) fn route_iso(value: Value) -> Option<String> {
+    let args = [value];
+    if crate::instance::is_instance(value, &DATE) {
+        return date_of(&args, 0, "toIso").ok().map(iso::date_text);
+    }
+    if crate::instance::is_instance(value, &TIME_OF_DAY) {
+        return clock_of(&args, 0, "toIso").ok().map(iso::clock_text);
+    }
+    if crate::instance::is_instance(value, &INSTANT) {
+        return instant_iso(value);
+    }
+    if crate::instance::is_instance(value, &DATETIME) {
+        return zoned_of(&args, 0, "toIso").ok().map(|at| zoned_iso_text(&at));
+    }
+    None
+}
+
+/// Whether `value` is one of the four classes [`route_iso`] writes, asked
+/// without writing the text.
+pub(crate) fn is_route_time(value: Value) -> bool {
+    [&DATE, &TIME_OF_DAY, &INSTANT, &DATETIME]
+        .into_iter()
+        .any(|class| crate::instance::is_instance(value, class))
+}
+
 /// The fields of the record `class` crosses as, read from the instance `value`, for
 /// `crate::ext_record`.
 ///

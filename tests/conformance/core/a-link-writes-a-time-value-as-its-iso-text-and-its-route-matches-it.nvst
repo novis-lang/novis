@@ -1,0 +1,63 @@
+--TEST--
+`Core\Router::url` writes a `Core\Time\Date`, `TimeOfDay` or `Instant` path value as its ISO text, unencoded, and a time query value as its ISO text, form-encoded, and the route matches the link it built; `Core\Uri::buildQuery` writes the same text — `rule:routing/link-target-and-params-are-checked`, `rule:routing/a-leftover-link-key-is-a-query-string`
+--FILE--
+<?nvs
+// covers: Core\Router::url, Core\Uri::buildQuery
+class Calendar {
+    #[Core\Route(path: "/days/{day}/{opens}/{since}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(
+        Core\Time\Date $day,
+        Core\Time\TimeOfDay $opens,
+        Core\Time\Instant $since,
+        #[Core\Query] ?Core\Time\DateTime $starts = null,
+    ): void {
+        echo "day ", $day->toIso(), " opens ", $opens->toIso(), " since ", $since->toIso(),
+            " starts ", $starts?->toIso() ?? "none", "\n";
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $day = Core\Time\Date::fromIso("2026-01-05");
+    var $opens = Core\Time\TimeOfDay::fromIso("08:30");
+    var $since = Core\Time\Instant::fromIso("2026-01-05T08:30:00+01:00");
+    var $starts = Core\Time\DateTime::fromIso("2026-01-05T08:30:00+01:00[Europe/Vienna]");
+
+    // The path values are written as their ISO text. The `+` of the zone's
+    // offset is `%2B` in the query string.
+    string $link = Core\Router::url(
+        Calendar::show,
+        ["day" => $day, "opens" => $opens, "since" => $since, "starts" => $starts],
+    );
+    echo $link, "\n";
+    var $answer = Core\Test::request(Core\Http\Method::Get, $link);
+    echo $answer->status(), " ", $answer->body();
+
+    // A route passed as a variable is checked when the call runs, with the same result.
+    callable $route = Calendar::show;
+    echo Core\Router::url($route, ["day" => $day, "opens" => $opens, "since" => $since]), "\n";
+
+    echo Core\Uri::buildQuery(["day" => $day, "starts" => $starts]), "\n";
+}
+--EXPECT--
+/days/2026-01-05/08:30:00/2026-01-05T07:30:00Z?starts=2026-01-05T08%3A30%3A00%2B01%3A00%5BEurope%2FVienna%5D
+200 day 2026-01-05 opens 08:30:00 since 2026-01-05T07:30:00Z starts 2026-01-05T08:30:00+01:00[Europe/Vienna]
+/days/2026-01-05/08:30:00/2026-01-05T07:30:00Z
+day=2026-01-05&starts=2026-01-05T08%3A30%3A00%2B01%3A00%5BEurope%2FVienna%5D

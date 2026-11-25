@@ -456,7 +456,9 @@ const URL_DOC: MethodDoc = MethodDoc {
     params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
-          as they are.",
+          as they are. A `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime` value is \
+          written as its `toIso` text. In the path that text is not encoded, so `08:30` stays \
+          `08:30`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "When `$route` is a variable and not a method reference written in the call. When `$params` has no \
@@ -1389,10 +1391,16 @@ pub fn segment_converts(ty: &str, segment: &str) -> Option<bool> {
 
 /// One `$params` value as the text a path segment carries.
 ///
-/// [`nvs_runtime::value_to_string`]'s own rules, plus the release its contract
-/// requires: a `Tag::Str` operand comes back as itself with one fresh
-/// reference, so the bytes are copied out and the reference dropped here.
+/// A `Core\Time` value the matcher converts is its `toIso` text
+/// ([`crate::time::route_iso`]), the text [`capture_text`] writes for it.
+/// Everything else follows [`nvs_runtime::value_to_string`]'s own rules, plus
+/// the release its contract requires: a `Tag::Str` operand comes back as
+/// itself with one fresh reference, so the bytes are copied out and the
+/// reference dropped here.
 fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> {
+    if let Some(iso) = crate::time::route_iso(value) {
+        return Ok(iso);
+    }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
             "Core\\Router::{member}(): `{key}` holds a value with no text form, so there is \
@@ -1566,7 +1574,9 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         };
         let text = spelled(&spellings, key, segment_text(value, member, key)?);
         out.push('/');
-        if *tag == link::REST {
+        if verbatim_segment(value, &text) {
+            out.push_str(&text);
+        } else if *tag == link::REST {
             let encoded = text
                 .split('/')
                 .map(|segment| {
@@ -1586,6 +1596,24 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         out.push_str(&query);
     }
     Ok(out)
+}
+
+/// Whether `text`, the segment written for `value`, goes into the path as it
+/// is: a `Core\Time` value whose ISO text is made only of bytes a segment
+/// carries literally.
+///
+/// The matcher reads a time capture as the segment arrived and never decodes
+/// it, so `08:30` must stay `08:30`, where the component encoding writes
+/// `08%3A30`. Every byte this admits is an RFC 3986 `pchar` that is not `/`,
+/// `?`, `#` or `%`, so the text cannot leave its segment. A `DateTime`'s text
+/// has `/` and brackets in its zone, so it is encoded like any value; only a
+/// `string` capture can take it.
+fn verbatim_segment(value: Value, text: &str) -> bool {
+    crate::time::is_route_time(value)
+        && !text.is_empty()
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b':' | b'.' | b'+'))
 }
 
 /// Refuses a segment that a URL resolver removes together with the segment in

@@ -32,7 +32,14 @@ text are not checked, so a link is a path its route matches wherever the value i
 
 The result is a laundered URL path (`rule:security/launderers-are-sink-named`): each substituted
 value is percent-encoded into its own segment under RFC 3986's component rules, so a `tainted`
-parameter produces a plain `string` that is safe *as a path* and for nothing else. `urlAbsolute` is
+parameter produces a plain `string` that is safe *as a path* and for nothing else. **A `Core\Time`
+value is written as its `toIso` text**, the text the matcher converts back. A `Date`, `TimeOfDay` or
+`Instant` is written into its segment unencoded, because the matcher reads a time capture as the
+segment arrived and never decodes it, so `08:30` encoded as `08%3A30` would not match. That text
+cannot leave its segment: it is written verbatim only when every byte is a letter, a digit, `-`, `:`,
+`.` or `+`, each an RFC 3986 `pchar` that is not `/`, `?`, `#` or `%`. A `DateTime`'s zone holds a
+`/`, so it is encoded like any value, and only a `string` capture can take it. A reference passed as
+a value has its time values checked with the capture's own conversion, as every other value is. `urlAbsolute` is
 the same link with a configured origin in front, and refuses exactly the same targets. The path a link
 is built on is the mount-relative one (`rule:routing/link-carries-the-mount-prefix`).
 

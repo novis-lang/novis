@@ -80,6 +80,16 @@ pub enum ArgConv {
     /// command line supplies and a segment a route matches are admitted by one
     /// grammar rather than by two that agree today.
     Uuid,
+    /// `Core\Time\Date` — [`crate::iso::date`]'s text, and a usage error for
+    /// anything else. [`crate::iso`] is the grammar `Date::fromIso` and a route
+    /// capture read, so the three cannot come to disagree.
+    Date,
+    /// `Core\Time\TimeOfDay` — [`crate::iso::time_of_day`]'s text.
+    TimeOfDay,
+    /// `Core\Time\Instant` — [`crate::iso::instant`]'s text.
+    Instant,
+    /// `Core\Time\DateTime` — [`crate::iso::zoned`]'s text, with its `[Zone]`.
+    DateTime,
     /// A class implementing `Parses` — the argument's text through that class's
     /// own `parse`, and a usage error carrying what the parse said where it
     /// refused. The name is the label that call is made through.

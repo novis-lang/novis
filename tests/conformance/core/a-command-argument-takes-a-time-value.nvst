@@ -1,0 +1,35 @@
+--TEST--
+`Core\Command::run` converts a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` argument from its ISO text, the text each class's `fromIso` reads — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// Each argument arrives as a time value, so the handler can call `toIso` on it.
+class Planner {
+    #[Core\Command(name: "plan", about: "Plan one meeting")]
+    public static function plan(
+        Core\Time\Date $day,
+        Core\Time\TimeOfDay $opens,
+        Core\Time\Instant $since,
+        Core\Time\DateTime $starts,
+    ): uint {
+        echo "day: ", $day->toIso(), "\n";
+        echo "opens: ", $opens->toIso(), "\n";
+        echo "since: ", $since->toIso(), "\n";
+        echo "starts: ", $starts->toIso(), "\n";
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+plan
+2026-01-05
+08:30
+2026-01-05T08:30:00+01:00
+2026-01-05T08:30:00[Europe/Vienna]
+--EXPECT--
+day: 2026-01-05
+opens: 08:30:00
+since: 2026-01-05T07:30:00Z
+starts: 2026-01-05T08:30:00+01:00[Europe/Vienna]
+status: 0

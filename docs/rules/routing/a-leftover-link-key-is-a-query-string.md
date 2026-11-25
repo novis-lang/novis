@@ -5,7 +5,10 @@ link is still the launderer's (`rule:security/launderers-are-sink-named`) — a 
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
 and re-taints the result. **A `null` value writes no key**, as `Core\Uri::buildQuery` drops one, so a
 link to a `#[Query] ?T $x = null` parameter is built from a variable that may be `null`, and the route
-reads the absent key as `null` again.
+reads the absent key as `null` again. **A `Core\Time` value is its `toIso` text**, a `DateTime`
+with its offset and zone, form-encoded like every value, so its `+` is `%2B` and the `#[Query]`
+parameter of its class reads the same value back. `Core\Uri::buildQuery` is that one writer, so it
+writes a time value the same way.
 
 The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters (`rule:routing/a-query-parameter-is-declared-like-a-capture`) is a

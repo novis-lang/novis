@@ -1939,6 +1939,18 @@ fn runtime_commands(
                                     nvs_runtime::commands::ArgConv::Parses(class.clone())
                                 }
                             }
+                            nvs_types::commands::ArgConv::Date => {
+                                nvs_runtime::commands::ArgConv::Date
+                            }
+                            nvs_types::commands::ArgConv::TimeOfDay => {
+                                nvs_runtime::commands::ArgConv::TimeOfDay
+                            }
+                            nvs_types::commands::ArgConv::Instant => {
+                                nvs_runtime::commands::ArgConv::Instant
+                            }
+                            nvs_types::commands::ArgConv::DateTime => {
+                                nvs_runtime::commands::ArgConv::DateTime
+                            }
                             // The set itself crosses, because it is the answer
                             // and not a key: the compiler resolved the union
                             // once and a matcher has nothing left to look up.

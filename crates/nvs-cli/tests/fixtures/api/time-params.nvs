@@ -1,0 +1,21 @@
+<?nvs
+// Each `Core\Time` parameter is listed with the JSON Schema format its text
+// fits: `date` for a `Date` and `date-time` for an `Instant`. A `TimeOfDay`
+// and a `DateTime` get no format, because JSON Schema's `time` and `date-time`
+// need an offset and have no zone in brackets.
+
+class Calendar
+{
+    #[Core\Route(path: '/days/{day}/{opens}/{since}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(
+        Core\Time\Date $day,
+        Core\Time\TimeOfDay $opens,
+        Core\Time\Instant $since,
+        #[Core\Query] ?Core\Time\DateTime $starts = null,
+    ): string {
+        return 'the day';
+    }
+}
+
+echo 'GET /days/{day}/{opens}/{since} -> Calendar::show', "\n";

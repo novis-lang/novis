@@ -865,6 +865,14 @@ fn schema(ty: Option<&str>, allowed: Option<&[&str]>, parses: bool) -> Value {
         // `nvs_stdlib::uuid::NAME` as `describe` renders it — matched as text
         // like every arm above, because this crate depends on `nvs-types` alone.
         Some(r"Core\Uuid") => json!({"type": "string", "format": "uuid"}),
+        // The time classes the matcher converts, each its ISO text. A `Date`
+        // and an `Instant` are JSON Schema's `date` and `date-time` exactly. A
+        // `TimeOfDay` has no offset and a `DateTime` has its zone in brackets,
+        // so a validator would refuse either under `time` or `date-time`, and
+        // they get no format (`rule:attributes/api-adds-and-cannot-contradict`).
+        Some(r"Core\Time\Date") => json!({"type": "string", "format": "date"}),
+        Some(r"Core\Time\Instant") => json!({"type": "string", "format": "date-time"}),
+        Some(r"Core\Time\TimeOfDay" | r"Core\Time\DateTime") => json!({"type": "string"}),
         // Every other class a capture may stand at: the text its `parse` is
         // given, and nothing narrower, because the contract says the text
         // either parses or does not and never which texts do.

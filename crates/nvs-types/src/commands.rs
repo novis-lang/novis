@@ -182,6 +182,18 @@ pub enum ArgConv {
     /// library carries, and it is on this arm by the same predicate a user
     /// class reaches it by rather than by being named.
     Parses(String),
+    /// `Core\Time\Date` — `nvs_runtime::iso::date`'s `YYYY-MM-DD`, the text
+    /// `Date::fromIso` reads and a route capture converts.
+    Date,
+    /// `Core\Time\TimeOfDay` — `nvs_runtime::iso::time_of_day`'s text.
+    TimeOfDay,
+    /// `Core\Time\Instant` — `nvs_runtime::iso::instant`'s text, with `Z` or an
+    /// offset.
+    Instant,
+    /// `Core\Time\DateTime` — `nvs_runtime::iso::zoned`'s text, which must
+    /// write its `[Zone]`. No door refuses a `/` in an argument, so a command
+    /// takes it where a path capture may not.
+    DateTime,
     /// The conversion roster's set of allowed values
     /// (`rule:security/route-capture-is-laundered-by-its-type`): the word each
     /// member admits, in the order the union declares them, and a usage error
@@ -281,6 +293,9 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // admits a class with — two readings of one contract, so they cannot
         // come to disagree about which classes `rule:tooling/commands-are-compiled` means.
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
+        // The `Core\Time` classes [`converts_from_string`] admits by name, read
+        // by the runtime's ISO grammars as a route capture is.
+        Ty::Class(name, _) if is_time_conversion(name) => time_conversion(name),
         // The conversion roster's two unions, told apart by what they are made
         // of. A union of single-value types is the words its members admit, by
         // the same computation the route table's captures use; a union of *enum
@@ -1033,6 +1048,18 @@ const TIME_CONVERSIONS: [&str; 4] = [
 fn is_time_conversion(qname: &QName) -> bool {
     let written = qname.to_string();
     TIME_CONVERSIONS.contains(&written.as_str())
+}
+
+/// The [`ArgConv`] of one of [`TIME_CONVERSIONS`], and
+/// [`ArgConv::Unconverted`] for any other name.
+fn time_conversion(qname: &QName) -> ArgConv {
+    match qname.to_string().as_str() {
+        nvs_stdlib::time::DATE_NAME => ArgConv::Date,
+        nvs_stdlib::time::TIME_OF_DAY_NAME => ArgConv::TimeOfDay,
+        nvs_stdlib::time::INSTANT_NAME => ArgConv::Instant,
+        nvs_stdlib::time::DATETIME_NAME => ArgConv::DateTime,
+        _ => ArgConv::Unconverted,
+    }
 }
 
 /// Whether `ty` is `Core\Time\DateTime`, which a query value and an argument

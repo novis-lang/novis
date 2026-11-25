@@ -852,15 +852,18 @@ const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
         name: "parameters",
         desc: "The names and values to write. A value is a scalar or another array. A nested \
                value is written under its whole path, such as `filter[size][0]=M`, with the \
-               brackets escaped as `%5B` and `%5D`.",
+               brackets escaped as `%5B` and `%5D`. A value may also be a `Core\\Time\\Date`, \
+               `TimeOfDay`, `Instant` or `DateTime`.",
         shape: &[],
     }],
     ret: "The query string, without a leading `?`. Names and values are escaped as \
           `Core\\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` \
-          and `false` as `0`. A `null` value writes nothing, and neither does an empty array.",
+          and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is \
+          `%2B`. A `null` value writes nothing, and neither does an empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A value is an object or a function, so it has no text form.",
+        desc: "A value is a function, or an object that is not a time value, so it has no text \
+               form.",
     }],
 };
 
@@ -2472,12 +2475,14 @@ struct Level {
 /// and it is the right one here — the wire has no booleans, an empty value is
 /// how a form spells *absent*, and every reader of a query string treats `0`
 /// and `1` as the pair. The exception is scoped to this member, so the
-/// language's own conversion is untouched.
+/// language's own conversion is untouched. A `Core\Time` value a route
+/// converts is the second exception: it is its `toIso` text
+/// ([`crate::time::route_iso`]), the text the matcher reads back.
 ///
 /// # Errors
 ///
 /// A [`Fault::thrown`] where the value is one `string` has no conversion from
-/// — an object or a callable. `null` never reaches here: [`build`] drops the
+/// — any other object, or a callable. `null` never reaches here: [`build`] drops the
 /// pair instead, which is `http_build_query`'s behaviour and the only one that
 /// round-trips, since a query string cannot spell an absent value.
 fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault> {
@@ -2492,6 +2497,12 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     // `bytes` exactly as `rule:types/conversion` says it should.
     if let Some(bytes) = value.as_bytes() {
         return Ok(bytes.to_vec());
+    }
+    // A `Core\Time` value a route converts is its `toIso` text, a `DateTime`
+    // with its offset and zone. The encoder writes its `+` as `%2B`, so a
+    // query value the matcher reads back is the text written here.
+    if let Some(iso) = crate::time::route_iso(value) {
+        return Ok(iso.into_bytes());
     }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(

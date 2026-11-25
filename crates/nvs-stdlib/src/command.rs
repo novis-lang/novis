@@ -563,6 +563,12 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
     Ok(())
 }
 
+/// The usage error for a word a time conversion does not read, naming the
+/// form it must have.
+fn time_refusal(arg: &CommandArg, text: &str, form: &str) -> String {
+    format!("`{}` takes {form}, and `{text}` is not one", arg.param)
+}
+
 /// One word, as the value the parameter behind `arg` receives —
 /// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`'s "a
 /// matched value's type comes from the parameter", read off the conversion the
@@ -605,6 +611,27 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         ArgConv::Uuid => nvs_runtime::uuid::read(text)
             .map(crate::uuid::of_octets)
             .ok_or_else(|| format!("`{}` takes a UUID, and `{text}` is not one", arg.param)),
+        // The ISO grammars a route capture and each class's `fromIso` read.
+        // A refusal names the form the word must have.
+        ArgConv::Date => nvs_runtime::iso::date(text)
+            .map(crate::time::date_built)
+            .map_err(|_| time_refusal(arg, text, "a date such as `2026-01-05`")),
+        ArgConv::TimeOfDay => nvs_runtime::iso::time_of_day(text)
+            .map(crate::time::clock_built)
+            .map_err(|_| time_refusal(arg, text, "a time of day such as `08:30`")),
+        ArgConv::Instant => nvs_runtime::iso::instant(text)
+            .map(crate::time::instant_built)
+            .map_err(|_| time_refusal(arg, text, "an instant such as `2026-01-05T07:30:00Z`")),
+        ArgConv::DateTime => nvs_runtime::iso::zoned(text)
+            .map(|at| crate::time::datetime_built(&at))
+            .map_err(|_| {
+                time_refusal(
+                    arg,
+                    text,
+                    "a date and time with its zone, such as \
+                     `2026-01-05T08:30:00+01:00[Europe/Vienna]`",
+                )
+            }),
         // The word itself, and the one conversion this function does not
         // finish: a class's own `parse` needs the context that [`parse_each`]
         // has and a walk over words has not. Nothing typed `string` here
@@ -1626,6 +1653,44 @@ mod tests {
             matched(&row, &["19.90usd".to_owned()]).unwrap_err(),
             "`amount` takes an exact decimal number, and `19.90usd` is not one"
         );
+    }
+
+    /// A word a time conversion does not read is a usage error naming the form
+    /// the word must have. A `DateTime` word needs its `[Zone]`.
+    #[test]
+    fn a_time_command_argument_refuses_a_word_with_the_form_it_needs() {
+        let row_of = |conv: ArgConv| Command {
+            name: "plan".to_owned(),
+            about: None,
+            handler: "Planner::plan".to_owned(),
+            args: vec![CommandArg {
+                param: "at".to_owned(),
+                spellings: vec![],
+                about: None,
+                conv,
+                default: None,
+            }],
+        };
+        let cases = [
+            (ArgConv::Date, "2026-02-30", "a date such as `2026-01-05`"),
+            (ArgConv::TimeOfDay, "8:30", "a time of day such as `08:30`"),
+            (
+                ArgConv::Instant,
+                "2026-01-05T07:30:00",
+                "an instant such as `2026-01-05T07:30:00Z`",
+            ),
+            (
+                ArgConv::DateTime,
+                "2026-01-05T08:30:00+01:00",
+                "a date and time with its zone, such as `2026-01-05T08:30:00+01:00[Europe/Vienna]`",
+            ),
+        ];
+        for (conv, word, form) in cases {
+            assert_eq!(
+                matched(&row_of(conv), &[word.to_owned()]).unwrap_err(),
+                format!("`at` takes {form}, and `{word}` is not one")
+            );
+        }
     }
 
     /// `rule:routing/a-capture-narrows-to-a-closed-set`'s set of allowed values,
