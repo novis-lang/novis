@@ -528,17 +528,29 @@ classes are the ones that goal makes compare by value.
 with instance slots, and for each whether it is a `Core\Time` value class, can be an immortal constant,
 or is extended by another `Core` class (`file:line` and one line each), before the registry item.
 
-- [ ] `crates/nvs-stdlib/src/registry.rs:1952`: the slot decision on `CoreClass`; each class listed;
+- [x] `crates/nvs-stdlib/src/registry.rs:1952`: the slot decision on `CoreClass`; each class listed;
   the registry test `added_slot_every_core_class_with_instances_has_a_decision`.
+  - [x] the decision is a roster by name, `crates/nvs-stdlib/src/added_slot.rs`, not a `CoreClass`
+    field (198 literals); `decision(name)` reads it
+  - [x] the value classes, `Core\Html\Markup` and the seven immortal `Core\Reflect` descriptions
+    take no slot; every other class with instances reserves it
+  - [x] the test, run once by name, green
 - [ ] `crates/nvs-runtime/src/object.rs:466` and `:2519`: the descriptor's added-slot index;
   `crates/nvs-types/src/layout.rs:1`: a program class takes the slot when a loaded block adds a stored
   property to it, in its own part of the layout; the unit cache key covers those blocks.
 - [ ] Reads and writes of an added stored property, its default, `null` and `lateinit`; a `get` hook
   lowered as a call; `crates/nvs-runtime/src/object.rs:5359` (`clone`) and
   `crates/nvs-runtime/src/graph.rs:727` start the slot empty; JSON and `Reflect` skip it.
+  - [x] a computed (`get`-only) added property resolves through a used block, on a class, a `Core`
+    object and an enum case, and lowers as a call of the block's hook
+  - [x] a write to it is `E0787`; a stored added property is `E1014` on every type for now
+  - [ ] a stored added property reads and writes the slot, with its default, `null` and `lateinit`
+  - [ ] `clone` and the graph copy start the slot empty; JSON and `Reflect` skip it
 - [ ] The two remaining tests the check `slot` names, beside `object.rs`'s tests, run once by name.
 - [ ] The five cases the check `properties` names and the two the check `property-refusals` names,
   each run once by name. The `Core` request case uses `--GET`.
+  - [x] the two `property-refusals` cases and `an-added-get-hook-is-computed-on-each-read`, green
+  - [ ] the four other `properties` cases
 
 ### 6. the editor, nvs meta and nvs agent know every added member
 
@@ -591,37 +603,50 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 4 are done, and every stage-4 check (`collisions`, `dynamic-paths`, `reach`, `nested`,
-`restrict`) is green. How it works is in `crates/nvs-types/src/extend.rs`'s module docs, the rule
-fragments and the standing decisions.
+Stages 1 to 4 are done. Stage 5 has its computed properties, its refusals and the `Core` slot
+roster; the runtime slot is next. The `property-refusals` check's two cases are green.
 
-- **Restrictions**: an added call resolves to the block, so `Restricted::holding` already keyed it
-  `<Block>::<member>` and never by the extended type. The one change is the place:
-  `crate::deprecated::window` passes `env.extend_block` as the place's class, so an extend body is
-  in its block, not in its type. `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`
-  has the paragraph *An `extend` block is its own place*.
-- **Nested enums and attributes** are keyed `<Target>::<Name>`, looked up through
-  `owned_enum_using` and `crate::lower::owned_enum(…, imports, …)`. The language server still calls
-  the unfiltered `owned_enum`.
-- **Unions** (`infer_union_method_call`, `calls.rs:381`), **interfaces** (`extend::reaches`) and
-  **generic `Core` blocks** (`Env::extend_type_params`, `substitute_receiver_args` in
-  `expr/args.rs`) are as the standing decisions say.
+- **Computed properties**: `added_property_access` (`crates/nvs-types/src/expr/members.rs:2741`)
+  is the fallback when the receiver's class has no property of the name. It looks up a used
+  block (`extend::added_property`), checks visibility against the block, and records
+  `ExprInfo::HookedProperty` with the block's `get` label and no observer or guard. A hook in a
+  block is labelled `<Block>::$name::get` (`check_property_hooks` in `check.rs` reads
+  `env.extend_block`). `lower_property_hook` (`crates/nvs-ir/src/lower/mod.rs:2315`) now takes the
+  receiver's `EnumRepr`, so a block on an enum reads the case as `$this`.
+- **Writes**: `reject_get_only_hook_write` (`crates/nvs-types/src/expr/assign.rs:1947`) refuses a
+  write to a computed added property as `E0787`, inside its block too, since nothing stores it.
+- **Stored**: `refuse_stored` (`crates/nvs-types/src/extend.rs:501`) reports `E1014`
+  (`E_ADDED_STORED_PROPERTY_NO_SLOT`, `types_e10.rs`) on every type today. A read of one returns
+  the error type silently in `added_property_access`, because the declaration already failed.
+- **The `Core` roster**: `crates/nvs-stdlib/src/added_slot.rs`, `decision(name)`. It is a roster
+  by name, not a `CoreClass` field, because 198 literals would each need the field (mine, by
+  simplicity). The test `added_slot_every_core_class_with_instances_has_a_decision` is green.
 
 ### Next
 
-1. Stage 5 (properties). Its gate is met: `docs/goals/time-values.md` is gone. Follow its
-   `**Split:**` line first: an `Explore` subagent lists the `Core` classes with instance slots
-   (`crates/nvs-stdlib/src/classes.rs:14`), then the registry item
-   (`crates/nvs-stdlib/src/registry.rs:1952`, `CoreClass`), then the descriptor's added-slot index
-   (`crates/nvs-runtime/src/object.rs:466`, `:2519`) and `crates/nvs-types/src/layout.rs`. The block
-   shape check refuses a stored property today (`extend::check_property`,
-   `crates/nvs-types/src/extend.rs:454`); stage 5 lifts that for a class that takes the slot.
-2. Stage 6 after it: the LSP half and the `meta`/`agent` half are disjoint files.
+1. The runtime slot, item 2 of stage 5. `crates/nvs-runtime/src/object.rs:466` and `:2519`: the
+   descriptor's added-slot index, with `table.define` in `crates/nvs-stdlib/src/instance.rs:1197`
+   giving a `Core` class one more slot when `added_slot::decision` says `Reserved`. Then
+   `crates/nvs-types/src/layout.rs`: a program class takes the slot when a loaded block adds a
+   stored property to it, named like `nvs_runtime::revoke::HIDDEN_SLOT_NAME`. Then narrow
+   `refuse_stored` to the types with no slot: an interface, an enum, a `Core` class whose decision
+   is `None`, and a namespace class.
+2. Reads and writes in `added_property_access` and `nvs-ir`: a load of the slot, a null test, an
+   indexed load; `clone` (`object.rs:5359`) and the graph copy (`graph.rs:727`) start it empty.
+3. The four other `properties` cases. `Core\Request` is a namespace class with no instances, so
+   the "Core request" case extends a `Core` class a request gives, such as `Core\Uri` or
+   `Core\Router\Match`, and runs with `--GET`. Then the `slot` check's two runtime tests.
 
-Tests that may go red: none new. A use inside an `extend` body that an entry on the extended type
-used to allow as "its own class" is now `E0664`; no case in the tree had one.
+Tests that may go red: none new. The three new cases are green.
 
 ### Backlog
+
+- A computed added property read inside its own `get` hook calls the hook again, and the
+  recursion error stops it at run time. A class's hook reads its backing slot there instead.
+  Refusing the read at compile time would be clearer. Stage 7's newcomer review may want it.
+- `docs/rules/classes/an-added-property-lives-in-one-hidden-slot.md` names `Core\Html\Markup` as
+  the immortal example. Stage 7 adds the seven `Core\Reflect` descriptions, which
+  `added_slot.rs` also leaves without a slot.
 
 - Stage 7 owes the enum pages: `docs/examples/lang/enums/declaring-an-enum/about.md:10` and
   `details.md:19`, `what-an-enum-does-not-have/details.md` and `an-enum-inside-a-class/details.md`
