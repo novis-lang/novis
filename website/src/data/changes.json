@@ -5,7 +5,7 @@
       "features": [
         "lang:types/void-never-self-static"
       ],
-      "text": "A method parameter of type `callable(static): bool` takes a function for the class the call names. `Order::check(fn (Order $o): bool => ...)` compiles. Inside the method, `$rule($this)` and `$rule(new static())` are checked when the program compiles. Any other value there is the error `E1015`."
+      "text": "A method parameter of type `callable(static): bool` takes a function for the class the call names. For example, `Order::check(fn (Order $o): bool => ...)` compiles, because the call names `Order`. Inside the method, `$rule($this)` and `$rule(new static())` pass an object of that class. The compiler checks these calls, so they need no check at run time. Any other argument to `$rule` is the error `E1015`."
     },
     {
       "kind": "new",

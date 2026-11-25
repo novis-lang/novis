@@ -1,5 +1,6 @@
 <?nvs
-// `Order::passes` takes a function for `Order`, because `static` is the class named in the call.
+// In a parameter type, `static` is the called class: the class the call names.
+// So `Order::passes` takes a function for `Order`.
 
 class Model
 {
@@ -15,7 +16,7 @@ class Model
 
     public function describe(callable(static): string $format): string
     {
-        // At an instance call, `static` is the class of `$this`.
+        // At a call on an object, the called class is the class of `$this`.
         return $format($this);
     }
 }

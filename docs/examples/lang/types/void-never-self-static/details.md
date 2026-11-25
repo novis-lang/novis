@@ -18,9 +18,9 @@ not allowed as a parameter type.
 
 `static` is allowed inside a callable parameter type, such as `callable(static): bool`. Then
 `Order::check(...)` takes a function for `Order`. Inside the method, `$rule($this)` and
-`$rule(new static())` are checked when the program compiles. Any other value there is the error
-`E1015`. Everywhere else in the body, `$rule` is a plain `callable`. Its arguments are checked when
-it runs.
+`$rule(new static())` are checked when the program compiles. Any other argument to `$rule` is the
+error `E1015`. If the method stores `$rule` or passes it to another function, that copy is a
+`callable` with no parameter types. Its arguments are checked when it runs.
 
 A method that returns `static` must return `$this` or `new static(...)`. `return new self();` is
 `E0741`, because a child class may be the class the call names.

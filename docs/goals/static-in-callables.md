@@ -18,7 +18,7 @@ stages:
     context: [docs/examples/lang/types/void-never-self-static/about.md, docs/examples/lang/types/void-never-self-static/details.md, docs/examples/lang/classes/methods-self-static-and-parent/about.md]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: binds
@@ -262,9 +262,9 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 3 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 3 touched.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
@@ -281,15 +281,18 @@ refusal and a run-time throw, so they are two files. No second bench was written
 `docs/reference/lang/20-types.md` was re-rendered, `changes.json` has its entry, the pages are
 stamped, and `--record-perf --goal` re-measured the 20-types benches the re-render made stale.
 
-The nightly sweep's failures (Miri `Core\Time` zone tests, the quotient attack, the macOS json-api
-count) were already fixed on main by `1c3196b0e8`; the one left, the Miri timeout of
-`time_gaps_date_range_spans_the_whole_calendar`, now skips Miri (`8ca2f09e1b`).
+Stage 4 is done. The newcomer review read example 06, `about.md`, `details.md`, both attacks and
+the `changes.json` entry. Its findings were fixed: the entry and example 06 now say what "the class
+the call names" is before they use it, and `details.md` says a stored or passed-on `$rule` is a
+`callable` with no parameter types. The texts and `syntax/functions/declaring.mdx` are restamped,
+`site --check stale` is green, the build is green and `static_callables` passes 14 of 14.
+
+The nightly run 45609291264 ran on `53e94a9181`, before `1c3196b0e8` and `8ca2f09e1b`. Each of
+its ten failed jobs is one of the failures those two commits fixed: the ten Miri `Core\Time` tests
+now carry the Miri ignore, the quotient attack compiles, and macOS has its json-api count.
 
 ### Next
 
-Stage 4: the newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) over example 06,
-`about.md`, `details.md` and the `changes.json` entry, then the close: a build, the goal's tests by
-name (`binds`, `help`, `cases`), and `bun nv close --goal static-in-callables`. No test is expected
-to go red.
+The goal's DONE runs `binds`, `help`, `cases`, `proofs` and `close`. No test is expected to go red.
 
 ### Backlog

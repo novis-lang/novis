@@ -13,5 +13,5 @@ called on, and the caller gets that child class.
 The examples show a method called only for what it does, a chain of calls on one object, and a base
 class that creates an instance of whichever child class the call names. Example 04 shows that a
 `void` result cannot be printed. Example 05 shows that a call to a `never` method ends the caller's
-path. Example 06 shows a parameter of type `callable(static)`. It takes a function
-for the class the call names.
+path. Example 06 shows a parameter of type `callable(static)`. This parameter
+takes a function for the class the call names.

@@ -1014,9 +1014,9 @@
   "docs/examples/lang/types/the-conversion-operator-as/details.md": "ea32095ec7cb68e6",
   "docs/examples/lang/types/values-written-in-the-code/06-durations.nvs": "14718531275d323f",
   "docs/examples/lang/types/values-written-in-the-code/details.md": "4555091fc8e7a1c2",
-  "docs/examples/lang/types/void-never-self-static/06-a-check-for-the-class-the-call-names.nvs": "2a704994c0985a05",
-  "docs/examples/lang/types/void-never-self-static/about.md": "1a8f90ba7434f2e2",
-  "docs/examples/lang/types/void-never-self-static/details.md": "0598168036982ec7",
+  "docs/examples/lang/types/void-never-self-static/06-a-check-for-the-class-the-call-names.nvs": "eed0d8837d30b90f",
+  "docs/examples/lang/types/void-never-self-static/about.md": "7daf5361051584bf",
+  "docs/examples/lang/types/void-never-self-static/details.md": "db3d1b10f5811f0c",
   "docs/examples/novis/Image-Color/rgba/02-fill-the-background.nvs": "5eb9757595d59947",
   "docs/examples/novis/Image-Color/rgba/about.md": "ca207d2cb416ae87",
   "docs/examples/novis/Image-Comparison/constructor/01-a-comparison-from-its-values.nvs": "5c038f9838ac0dbc",
@@ -1968,5 +1968,5 @@
   "website/src/content/docs/tools/api-document/index.mdx": "3f87a1064fddeacd",
   "website/src/content/docs/tools/editor/index.mdx": "efea1a9432e86c80",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "63900cbf1061d895"
+  "website/src/data/changes.json": "770fdae4c30d9887"
 }
