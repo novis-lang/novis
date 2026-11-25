@@ -1,12 +1,22 @@
 {
   "title": "An added member never replaces, overrides or satisfies anything, and only a statically typed call reaches it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/an-extend-block-adds-members-to-a-type",
     "classes/member-conflict-is-an-error",
     "packaging/a-restriction-limits-where-a-declaration-is-used",
     "attributes/a-deprecation-names-its-replacement-as-code"
   ],
-  "guardedBy": [],
-  "goal": "extend-blocks"
+  "guardedBy": [
+    "tests/conformance/reject/an-added-member-colliding-with-a-member-of-its-type-does-not-compile.nvst",
+    "tests/conformance/reject/two-blocks-adding-one-name-to-a-type-do-not-compile.nvst",
+    "tests/conformance/reject/a-subclass-declaring-an-added-name-does-not-compile.nvst",
+    "tests/conformance/reject/a-union-finds-an-added-method-only-from-one-block.nvst",
+    "tests/conformance/reject/an-added-name-the-runtime-calls-by-name-does-not-compile.nvst",
+    "tests/conformance/reject/an-attribute-added-to-a-sealed-core-class-does-not-compile.nvst",
+    "tests/conformance/reject/an-extend-body-cannot-escape-a-restriction-on-its-type.nvst",
+    "tests/conformance/reject/a-restriction-on-an-added-member-names-its-block.nvst",
+    "tests/conformance/class/an-added-method-is-not-found-through-a-mixed-value-or-reflect.nvst",
+    "tests/conformance/class/an-added-method-on-an-interface-reaches-every-implementer.nvst"
+  ]
 }

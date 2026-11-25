@@ -1,12 +1,23 @@
 {
   "title": "An added stored property lives in one hidden slot of its object, empty until the first write",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/an-extend-block-adds-members-to-a-type",
     "classes/property-hooks",
     "classes/revocable-objects",
     "config/the-extension-set-is-in-every-unit-key"
   ],
-  "guardedBy": [],
-  "goal": "extend-blocks"
+  "guardedBy": [
+    "tests/conformance/class/an-added-property-is-read-and-written-on-a-core-request.nvst",
+    "tests/conformance/class/an-added-property-on-another-packages-class-reaches-its-subclasses.nvst",
+    "tests/conformance/class/an-added-get-hook-is-computed-on-each-read.nvst",
+    "tests/conformance/class/an-added-property-is-not-copied-by-clone-or-a-task.nvst",
+    "tests/conformance/class/an-added-lateinit-property-read-before-a-write-throws.nvst",
+    "tests/conformance/class/an-added-stored-property-runs-its-hooks.nvst",
+    "tests/conformance/reject/an-added-stored-property-on-a-value-class-does-not-compile.nvst",
+    "tests/conformance/reject/an-added-stored-property-needs-a-default-and-is-never-readonly.nvst",
+    "crates/nvs-types/src/layout.rs",
+    "crates/nvs-runtime/src/object.rs",
+    "crates/nvs-stdlib/src/added_slot.rs"
+  ]
 }

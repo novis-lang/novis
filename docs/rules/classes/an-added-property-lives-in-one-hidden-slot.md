@@ -17,7 +17,7 @@ values. The precedent is the hidden slot 0 of a revocable class (`rule:classes/r
 - **On a `Core` class**, the registry records whether the class reserves the slot, after its declared
   slots, so no `Core` member's slot index moves. Every `Core` class with instances reserves it,
   except the value classes `Core\Time` compares by value, a class whose instances can be immortal
-  constants, such as `Core\Html\Markup`, and a namespace class with no instances. A test enumerates the
+  constants, such as `Core\Html\Markup` and the seven `Core\Reflect` descriptions, and a namespace class with no instances. A test enumerates the
   registry and fails on a class with instances and no recorded decision. A `Core` class whose layout a
   `Core` subclass extends records "no slot" with its reason, and this fragment lists it.
 

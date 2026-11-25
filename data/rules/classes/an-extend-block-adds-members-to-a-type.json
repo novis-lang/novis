@@ -1,6 +1,6 @@
 {
   "title": "`extend T as Name { … }` adds members to a type another package declares, seen where the block is used",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/an-added-member-never-changes-a-type",
     "classes/an-added-property-lives-in-one-hidden-slot",
@@ -8,6 +8,33 @@
     "classes/a-type-is-declared-at-file-scope",
     "programs/one-declaration-per-autoloaded-file"
   ],
-  "guardedBy": [],
-  "goal": "extend-blocks"
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "tests/conformance/reject/an-extend-block-of-a-type-in-its-own-package-does-not-compile.nvst",
+    "tests/conformance/reject/an-extend-block-of-a-name-that-is-not-a-class-interface-or-enum-does-not-compile.nvst",
+    "tests/conformance/reject/an-extend-block-takes-no-constructor-and-no-protected-member.nvst",
+    "tests/conformance/reject/an-extend-block-uses-self-and-no-yield-in-a-static-method.nvst",
+    "tests/conformance/reject/an-extend-block-of-a-generic-core-class-names-its-type-parameters.nvst",
+    "tests/conformance/reject/an-added-method-without-its-use-names-the-use-to-add.nvst",
+    "tests/conformance/reject/an-added-method-cannot-read-a-private-member-of-its-type.nvst",
+    "tests/conformance/class/an-added-method-is-called-on-a-core-object.nvst",
+    "tests/conformance/class/an-added-static-method-and-constant-are-reached-through-the-type.nvst",
+    "tests/conformance/class/an-added-method-on-a-core-enum-reads-its-case.nvst",
+    "tests/conformance/class/an-added-method-on-another-packages-class.nvst",
+    "tests/conformance/class/an-added-method-takes-the-nullsafe-call-and-a-method-reference.nvst",
+    "tests/conformance/class/an-added-method-on-an-interface-reaches-every-implementer.nvst",
+    "tests/conformance/class/an-added-method-on-a-generic-core-class-binds-its-type-parameters.nvst",
+    "tests/conformance/class/an-added-enum-and-attribute-are-named-through-the-type.nvst",
+    "crates/nvs-ir/src/lower/tests.rs",
+    "tests/lsp/completion/an-added-method-is-offered-and-writes-its-use.lspt",
+    "tests/lsp/completion/a-file-offers-the-word-that-opens-an-extend-block.lspt",
+    "tests/lsp/hover/an-added-method-names-its-block.lspt",
+    "tests/lsp/definition/an-added-method-goes-to-its-block.lspt",
+    "tests/lsp/rename/renaming-an-added-method-renames-every-call.lspt",
+    "tests/lsp/actions/a-missing-use-of-a-block-is-a-fix.lspt",
+    "tests/lsp/symbols/an-extend-block-is-a-symbol-with-its-members.lspt",
+    "tests/lsp/diagnostics/an-import-of-a-block-is-read-by-a-call-of-its-member.lspt",
+    "crates/nvs-cli/tests/meta.rs",
+    "crates/nvs-cli/src/agent.rs"
+  ]
 }

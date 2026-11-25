@@ -3,8 +3,6 @@
 
 # Classes
 
-*3 of 54 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="classes-no-free-functions-or-constants"></a>
 
 ## No `function` and no `const` may be declared outside a class body
@@ -1330,7 +1328,7 @@ is not a new kind of cost, and it is an ordinary property a reader can inspect.
 
 <a id="classes-an-extend-block-adds-members-to-a-type"></a>
 
-## `extend T as Name { … }` adds members to a type another package declares, seen where the block is used  *(designed — owned by goal extend-blocks)*
+## `extend T as Name { … }` adds members to a type another package declares, seen where the block is used
 
 `rule:classes/an-extend-block-adds-members-to-a-type`
 
@@ -1438,7 +1436,7 @@ program's own classes take no type parameters, so this is `Core` only.
 
 <a id="classes-an-added-member-never-changes-a-type"></a>
 
-## An added member never replaces, overrides or satisfies anything, and only a statically typed call reaches it  *(designed — owned by goal extend-blocks)*
+## An added member never replaces, overrides or satisfies anything, and only a statically typed call reaches it
 
 `rule:classes/an-added-member-never-changes-a-type`
 
@@ -1511,7 +1509,7 @@ nothing on any type no loaded block extends.
 
 <a id="classes-an-added-property-lives-in-one-hidden-slot"></a>
 
-## An added stored property lives in one hidden slot of its object, empty until the first write  *(designed — owned by goal extend-blocks)*
+## An added stored property lives in one hidden slot of its object, empty until the first write
 
 `rule:classes/an-added-property-lives-in-one-hidden-slot`
 
@@ -1534,7 +1532,7 @@ values. The precedent is the hidden slot 0 of a revocable class ([`classes/revoc
 - **On a `Core` class**, the registry records whether the class reserves the slot, after its declared
   slots, so no `Core` member's slot index moves. Every `Core` class with instances reserves it,
   except the value classes `Core\Time` compares by value, a class whose instances can be immortal
-  constants, such as `Core\Html\Markup`, and a namespace class with no instances. A test enumerates the
+  constants, such as `Core\Html\Markup` and the seven `Core\Reflect` descriptions, and a namespace class with no instances. A test enumerates the
   registry and fails on a class with instances and no recorded decision. A `Core` class whose layout a
   `Core` subclass extends records "no slot" with its reason, and this fragment lists it.
 
