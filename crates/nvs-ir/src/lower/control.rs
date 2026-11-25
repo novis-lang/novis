@@ -988,18 +988,23 @@ impl<'a> Lowering<'a> {
             _ => (subject, None),
         };
         let keys_as_values = walk == Some(crate::forms::Walk::Keys);
+        // A key is a `string`, or a case of `E` over an `array<E, T>`
+        // (`rule:types/arrays`). The case is the stored decimal key read back
+        // as the backing integer, with no membership check: every write into
+        // an `array<E, T>` was held to `E`.
         let key_binding = key.map(|k| {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
-            if ty != Ty::Str {
+            if !matches!(ty, Ty::Str | Ty::Enum(_)) {
                 guarded_by!(
                     code::E_FOREACH_KEY_TY,
                     "nvs-ir reached a `foreach` key binding at {ty:?}. `rule:types/arrays` gives an \
-                     `array<T>` one stored key type, so `nvs_types::expr::iteration` refuses every \
-                     other declared key type where the binding is written rather than converting \
-                     it, and this body was not checked with the same table"
+                     `array<T>` one stored key type, and an `array<E, T>` the enum `E`, so \
+                     `nvs_types::expr::iteration` refuses every other declared key type where the \
+                     binding is written rather than converting it, and this body was not checked \
+                     with the same table"
                 );
             }
-            strip_sigil(span_text(self.src, k.name)).to_owned()
+            (strip_sigil(span_text(self.src, k.name)).to_owned(), ty)
         });
         let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
 
@@ -1109,7 +1114,7 @@ impl<'a> Lowering<'a> {
         );
 
         let mut iteration_owned = Vec::new();
-        if let Some(name) = &key_binding {
+        if let Some((name, _)) = &key_binding {
             iteration_owned.push(name.clone());
         }
         iteration_owned.push(value_name.clone());
@@ -1143,7 +1148,18 @@ impl<'a> Lowering<'a> {
             &body_env,
         );
         body_env.insert(cursor_name.clone(), (next_v, Ty::Int));
-        if let Some(name) = &key_binding {
+        if let Some((name, Ty::Enum(repr))) = &key_binding {
+            let (k_v, _) = self.emit(
+                body_cur,
+                Ty::Str,
+                InstKind::ArrayKeyAt {
+                    array: array_v,
+                    slot: slot_v,
+                },
+            );
+            let case_v = self.lower_enum_key_at(k_v, *repr, body_cur, &body_env);
+            body_env.insert(name.clone(), (case_v, Ty::Enum(*repr)));
+        } else if let Some((name, _)) = &key_binding {
             let (k_v, _) = self.emit(
                 body_cur,
                 Ty::Str,

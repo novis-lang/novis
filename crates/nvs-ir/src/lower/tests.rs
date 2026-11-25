@@ -991,6 +991,45 @@ fn a_match_over_every_case_lowers_no_fallback_throw() {
     );
 }
 
+/// `foreach ($a as Rank $k => …)` over an `array<Rank, string>` reads each
+/// stored key back as its backing integer and relabels it as the case. Every
+/// write into the array was held to `Rank`, so the loop compares no key
+/// against the cases: its one branch is the loop's own, and nothing throws.
+#[test]
+fn a_foreach_key_over_an_enum_keyed_array_lowers_no_membership_check() {
+    let (f, _, _) = lower_first_method(
+        "<?nvs\nenum Rank { Bronze, Silver, Gold }\nclass T {\n  function count(array<Rank, string> $a): int {\n    int $n = 0;\n    foreach ($a as Rank $k => string $v) {\n      Rank $r = $k;\n      $n = $n + 1;\n    }\n    return $n;\n  }\n}\n",
+    );
+    let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
+    let branches = f
+        .blocks
+        .iter()
+        .filter(|b| matches!(b.term, Terminator::Branch { .. }))
+        .count();
+    let throws = f
+        .blocks
+        .iter()
+        .filter(|b| matches!(b.term, Terminator::Throw { .. }))
+        .count();
+    assert_eq!((branches, throws), (1, 0), "only the loop branches");
+    assert!(
+        insts().any(|i| matches!(
+            i.kind,
+            InstKind::HelperCall {
+                helper: Helper::StrToInt,
+                ..
+            }
+        )),
+        "the key is parsed as the backing integer"
+    );
+    assert!(
+        insts()
+            .any(|i| matches!(i.kind, InstKind::Reinterpret { .. })
+                && matches!(i.ty, Some(Ty::Enum(_)))),
+        "the integer is relabelled as the case"
+    );
+}
+
 /// `new Foo(1)` with a resolved one-parameter constructor — the class's
 /// own resolved target and the constructor's argument both come from the
 /// typed-expression table (`ExprInfo::New`), not from re-deriving `Foo`'s

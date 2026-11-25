@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/defaults.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-ir/src/lower/call.rs, crates/nvs-diagnostics/src/code/types_e07.rs]
   - id: 3
     title: "array<E, T> types an array keyed by the cases of an enum, and the checker holds every key to it"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/expr/literals.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/iteration.rs, crates/nvs-diagnostics/src/code/types.rs]
   - id: 4
     title: "Core\\Arr keeps and returns enum keys, and as array<E, T> checks each key"
@@ -191,6 +191,12 @@ already, so `array<T>` is the way to write that.
 - **A key read back as `E`** is the stored key as an integer, made a case with no check, because
   every write was checked. A packed position costs nothing. A decimal key is parsed, with no
   allocation.
+- **What stage 3 built for the `foreach` key.** `lower_enum_key_at` (`crates/nvs-ir/src/lower/convert.rs`)
+  reads the key with `ArrayKeyAt`, parses it with the existing `StrToInt`/`StrToUint` helper, releases
+  the string and `Reinterpret`s the integer to `Ty::Enum`. The parse carries an error edge no run
+  takes, as the slot add in `lower_foreach` does, since codegen requires one on every helper call.
+  A new runtime entry that reads a slot's key as an integer, so a packed position skips the string,
+  is deferred: it needs an IR instruction, codegen and runtime, and only a measured cost would earn it.
 - **Writes.** A key must be a value whose static type is `E`. An `int`, a `string`, a case of another
   enum and a `mixed` key are `E0434`, with a message naming `E`, and the help says to convert with
   `as E`. `$a[] = $v` is a new error: an enum-keyed array has no next key.
@@ -324,18 +330,18 @@ last on the chain.
   - [x] `E1018` `E_ENUM_KEYED_ARRAY_APPEND` at `$a[] =`, a literal element with no key, and a spread.
 - [x] `crates/nvs-types/src/expr/assign.rs:262`: `array<E, T>` is assignable to `array<T>`, and the
   key is invariant between two keyed arrays.
-- [ ] `crates/nvs-types/src/expr/iteration.rs:439` and `:535`, and `crates/nvs-ir/src/lower/control.rs:994`:
+- [x] `crates/nvs-types/src/expr/iteration.rs:439` and `:535`, and `crates/nvs-ir/src/lower/control.rs:994`:
   the `foreach` key is `E`, and a key declared as `E` is taken.
   - [x] The checker: `ForeachSource::Array { value, key }`, `foreach_key_ty` and `check_foreach_key`.
-  - [ ] The IR: `lower_foreach`'s `guarded_by!(E_FOREACH_KEY_TY)` (`control.rs:994`) takes a key typed
+  - [x] The IR: `lower_foreach`'s `guarded_by!(E_FOREACH_KEY_TY)` (`control.rs:994`) takes a key typed
     `Ty::Enum`, and the key at `:1147` is made the case (next item).
-- [ ] The IR's own array type (`crates/nvs-ir/src/ty.rs:45`) and the lowering of a key read back as
+- [x] The IR's own array type (`crates/nvs-ir/src/ty.rs:45`) and the lowering of a key read back as
   `E`, with no check, as the standing decision says.
   - [x] A case as a subscript or literal key: `lower_array_key_as` (`crates/nvs-ir/src/lower/expr.rs`)
     relabels it to its backing integer with `reinterpret_enum_to_backing`.
-  - [ ] A key read back as `E`: the `ArrayKeyAt` string parsed to the backing integer, then
+  - [x] A key read back as `E`: the `ArrayKeyAt` string parsed to the backing integer, then
     `InstKind::Reinterpret` to `Ty::Enum`. No membership check.
-  - [ ] A test in `crates/nvs-ir/src/lower/tests.rs` that the foreach key lowers with no check.
+  - [x] A test in `crates/nvs-ir/src/lower/tests.rs` that the foreach key lowers with no check.
 - [x] `crates/nvs-types/tests/enum_tables.rs`: the tests the check `keyed` names, then `cargo test
   --test enum_tables` once.
 
@@ -421,37 +427,29 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's checker half is done: `cargo test --test enum_tables` runs 19
-tests, all green, and they include the 8 that the check `keyed` names. The nightly CI failures named in
-the sweep (Miri zone database, the Miri timeout, the quotient attack, the macOS json-api count) are
-already fixed by `1c3196b0e8` and `8ca2f09e1b`. Those commits are on local `main` but not pushed yet,
-so the next push clears them.
+Stages 1, 2 and 3 are done, and the check `keyed` is green. The nightly CI failures the sweep names
+(the Miri `nvs-stdlib` shards, the proofs jobs, macOS tests) ran on `origin/main` at `53e94a9181`.
+Their fixes, `1c3196b0e8` and `8ca2f09e1b`, are on local `main` and not pushed yet, so the next push
+clears them. Nothing new to fix for them.
 
-What this session built:
-- `array<K, T>` parses as `TypeAtom::Array(elem, key)`. `Ty::Array(elem, key)` carries the key as
-  a field, not a new variant (see the standing decision for why). `E1017` refuses a key type that is
-  not an enum, in `lower_array_key` (`crates/nvs-types/src/lower.rs`).
-- Keys: `check_array_key_type(key_ty, expected_key, span, env)` (`literals.rs`) holds a subscript, a
-  literal key and a destructuring key to `E` (`E0434`). `E1018` refuses `$a[] =`, a literal element
-  with no key, and a spread, each through `report_enum_keyed_append`.
-- `is_assignable`: `array<E, T>` reads as `array<T>`, and a keyed target takes only the same key.
-- `foreach` over `array<E, T>` gives `E` to the key binding (`iteration.rs`), in the checker only.
-- The IR stores a case key under its backing integer (`lower_array_key_as`, `expr.rs`). A program that
-  writes, reads and iterates values of an `array<Priority, string>` runs.
+What this session built: `foreach ($a as Priority $k => …)` and `foreach ($a as var $k => …)` over
+an `array<Priority, T>` give `$k` as the case. `lower_foreach` (`crates/nvs-ir/src/lower/control.rs:995`)
+takes a key typed `Ty::Enum`, and `lower_enum_key_at` (`crates/nvs-ir/src/lower/convert.rs`) parses
+the stored key and relabels it, with no membership check. The lib test
+`a_foreach_key_over_an_enum_keyed_array_lowers_no_membership_check` pins that. A program that
+iterates an `array<Priority, string>` and matches on its keys runs and prints the right cases.
 
 ### Next
 
-Stage 3's last two items, both in the IR:
-1. `crates/nvs-ir/src/lower/control.rs:991`: `lower_foreach`'s key binding. `binding_ty` gives
-   `Ty::Enum(repr)` for a key declared `Priority $k`, and the `guarded_by!(E_FOREACH_KEY_TY)` at
-   `:994` panics today, so `foreach ($labels as Priority $k => …)` crashes the compiler. Take
-   `Ty::Enum`, and at `:1147` turn the `ArrayKeyAt` string into the backing integer, then
-   `InstKind::Reinterpret` it to `Ty::Enum`. Find how `string as int` lowers in `convert.rs` and
-   reuse its parse, or add a helper that parses with no check. The `var $k` form reaches the same
-   place. `lower_foreach_cursor` is not involved.
-2. A lowering test in `crates/nvs-ir/src/lower/tests.rs` that a keyed `foreach` emits no membership
-   check, then the stage's status set to done.
-Then stage 4 from its first item.
+Stage 4, from its first item:
+1. `crates/nvs-stdlib/src/registry.rs:589`: a key variable for `CoreTy`, bound at the call to the
+   string key or to `E`. Read how `CoreTy::Var` binds the element first, and where the checker
+   instantiates a `Core` signature against the argument types.
+2. `crates/nvs-stdlib/src/arr.rs`: the signatures of the standing decision (keep-keys members,
+   `keys`/`firstKey`/`lastKey`/`keyOf`/`findKey`, `flip`, `groupBy`, `groupCounts`). A callback's
+   key parameter there gives `E`, so the IR reads it back with `lower_enum_key_at` too.
+3. `crates/nvs-ir/src/lower/convert.rs:1651`: `as array<E, T>` checks each key.
+Then the `arr` tests, the two conformance cases and the check `cases`.
 
 Expected red: none. The new codes `E1017` and `E1018` have cards, and stage 6 owes their reference
 entries and the rule `rule:types/arrays` text that their doc comments cite.

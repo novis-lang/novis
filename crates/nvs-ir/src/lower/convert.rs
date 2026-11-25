@@ -2044,6 +2044,39 @@ impl<'a> Lowering<'a> {
     ///
     /// Nothing is released or retained around it: an enum is a scalar, so the
     /// relabelled value borrows no ownership from the operand.
+    /// A stored key of an `array<E, T>` read back as a case of `E`
+    /// (`rule:types/arrays`): the decimal `key` is parsed as the backing
+    /// integer, then relabelled as the case. There is no membership check,
+    /// because every write into an `array<E, T>` was held to `E`. The parse
+    /// carries an error edge, as every helper call does, and no run takes it:
+    /// a case key is always written as its decimal integer. `key` is released
+    /// once parsed, so the binding owns nothing. **Cost:** one parse of a short
+    /// decimal string per key, with no allocation.
+    pub(crate) fn lower_enum_key_at(
+        &mut self,
+        key: ValueId,
+        repr: EnumRepr,
+        cur: BlockId,
+        env: &Env,
+    ) -> ValueId {
+        let (backing, helper) = match repr {
+            EnumRepr::Int => (Ty::Int, Helper::StrToInt),
+            EnumRepr::Uint => (Ty::Uint, Helper::StrToUint),
+        };
+        let (n, _) = self.emit_fallible(
+            cur,
+            backing,
+            InstKind::HelperCall {
+                helper,
+                args: vec![key],
+            },
+            env,
+        );
+        self.emit_release(cur, key);
+        self.emit(cur, Ty::Enum(repr), InstKind::Reinterpret { operand: n })
+            .0
+    }
+
     pub(crate) fn reinterpret_enum_to_backing(
         &mut self,
         value: ValueId,
