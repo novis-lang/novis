@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/locals.rs, docs/rules/types/callable-values.md]
   - id: 2
     title: "the E0401 for a function that takes a subclass says what to write, and the conformance cases pin the feature"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-diagnostics/src/code/types.rs, tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst]
   - id: 3
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
@@ -218,21 +218,21 @@ Nothing here touches the files of the goals ahead of it on the chain, except
 the three paths, the neutral names `Model` and `Order`, and AGENTS.md § *Text an end user reads* for
 their comments.
 
-- [ ] The argument check in `crates/nvs-types/src/expr/args.rs` that reports E0401 for a call's
+- [x] The argument check in `crates/nvs-types/src/expr/args.rs` that reports E0401 for a call's
   argument (found with `bun nv peek --locate`): the two help texts of the standing decision, only for a
   user declaration. `crates/nvs-types/src/expr/assign.rs:779`'s `report_mismatch` stays as it is.
-- [ ] `crates/nvs-types/tests/static_callables.rs`: the tests the check `help` names, then `cargo test
+- [x] `crates/nvs-types/tests/static_callables.rs`: the tests the check `help` names, then `cargo test
   --test static_callables a_function_for_a_subclass_` once.
-- [ ] `tests/conformance/lang/a-callable-static-parameter-takes-a-function-for-the-class-the-call-names.nvst:1`
+- [x] `tests/conformance/lang/a-callable-static-parameter-takes-a-function-for-the-class-the-call-names.nvst:1`
   (new): a static call, an instance call, a nullable parameter, and calls with `$this`, `new static()`
   and a `static`-returning call, each printing what the function returned.
-- [ ] `tests/conformance/reject/a-call-through-a-callable-static-parameter-needs-the-called-class.nvst:1`
+- [x] `tests/conformance/reject/a-call-through-a-callable-static-parameter-needs-the-called-class.nvst:1`
   (new): a call with a base-class object and with a local variable gets the new code, and
   `Model::check(fn(Order $o) => …)` gets E0401 with the help naming `Order`.
-- [ ] `tests/conformance/callables/a-callable-static-parameter-passed-on-checks-its-argument-when-called.nvst:1`
+- [x] `tests/conformance/callables/a-callable-static-parameter-passed-on-checks-its-argument-when-called.nvst:1`
   (new): the body stores the function in an `array<callable>` and later calls it with another
   subclass; the call throws `LogicError` naming the class.
-- [ ] The check `cases` run once.
+- [x] The check `cases` run once.
 
 ### 3. the rules, the reference, the examples, the feature proofs and the website say so
 
@@ -270,20 +270,24 @@ rewritten. The session writes the rules, the docs and the website entry.
 
 ### State
 
-Stage 1 is done and committed. `callable(static)`, `?callable(static)` and `callable(static)|null`
-in a parameter bind at the call, the body reads the parameter as a plain `callable`, and a direct call
-through it in the method's own body is proven (`CallThroughSignature`) or refused with `E1015`. The
-check `binds` is green (`cargo test --test static_callables`, 11 tests). The new code is `E1015` in
-`types_e10.rs`, not beside E0741: the `E07xx` range is full, and the code table gives the next number
-in the last file. The ten nightly CI failures of run 45609291264 were already fixed by `1c3196b0e8`.
+Stages 1 and 2 are done and committed. The E0401 for a function argument whose parameter is a class
+strictly below the class a user method's callable parameter takes now carries help:
+`help_function_for_a_subclass` in `crates/nvs-types/src/expr/args.rs` (after
+`substitute_receiver_args`), called after `check_args_typed` at the instance call and the static call
+in `crates/nvs-types/src/expr/calls.rs`. It amends the E0401 already reported for that argument, so a
+call that checks does no more work. A `Core` or extension row (`core_class` set or `param_quals`
+filled) gets no help. The checks `binds`, `help` (3 tests) and `cases` are green. The three
+conformance cases are under `tests/conformance/{lang,reject,callables}/`. A `foreach` over an
+`array<callable>` needs `as callable $rule`, or it is E0101.
 
 ### Next
 
-Stage 2 from its first item: the E0401 help in `crates/nvs-types/src/expr/args.rs` (find the report
-with `bun nv peek --locate`), then the `help` tests appended to `crates/nvs-types/tests/static_callables.rs`
-(its `fixture` helper builds `Model`, `Order` and `Caller::run`), then the three conformance cases by
-one writing subagent. The rule text in `docs/rules/statements/static-is-a-member-modifier.md:15`
-still says a `static` among a written callable's parameters does not bind; stage 3 rewrites it, and
-`bun nv rules --check` does not read that sentence. No test is expected to go red.
+Stage 3 from its first item: rewrite the paragraph at
+`docs/rules/statements/static-is-a-member-modifier.md:15` (it still says a `static` among a written
+callable's parameters does not bind), add the five Declined items and the § *Memory* line, then the
+one sentence in `docs/rules/types/callable-variance.md:13`. Then the example, the attack and the bench
+by one writing subagent at the paths `bun nv proofs --owed --goal static-in-callables` prints. The
+reference pages are rebuilt by their command, then `website/src/data/changes.json` and the stamps.
+No test is expected to go red.
 
 ### Backlog
