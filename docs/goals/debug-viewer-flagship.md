@@ -26,7 +26,7 @@ stages:
     context: [viewer/src/views/requests.tsx, viewer/src/router.ts, viewer/test/requests.browser.test.ts]
   - id: 6
     title: the request page has a header, a time split and tabs for its timeline, request, response, queries, dumps, logs and coverage
-    status: open
+    status: done
     context: [viewer/src/views/request.tsx, viewer/src/views/timeline.tsx, viewer/src/views/value-tree.tsx, viewer/src/views/compare.tsx, viewer/test/request.browser.test.ts]
   - id: 7
     title: the Routes view, the Queries view, the lost-records state and the settings page
@@ -274,6 +274,30 @@ Stage 4:
   events, function calls left out.
 - A filtered `since` page is cut only when what arrived after `since` passes the scan's floor
   (`crates/nvs-cli/src/debug/api.rs` `page`).
+
+**The names stage 6 gave, which later stages use.**
+
+- `views/request.tsx` exports `TABS`, `TabId` and `tabLink(row, tab, hash)`. The Timeline is the
+  page's own link, and every other tab is `?tab=<id>`. A link that ends in `#exception` opens the
+  Exception tab. Stage 10's dump lens opens `tabLink(row, "dumps", "#dump-<id>")`.
+- The header is `.req-head`: the title `h2.title` is the method and the path, and the line under
+  it, `.req-crumb`, has the route, the age, the exception and the ids. Four tiles: duration,
+  queries, dumps and log lines. The memory and response tiles wait for `deeper-debug-records`.
+- The Coverage tab is always in the row, with an `Empty` when nothing was recorded, so a tab's
+  place never moves. The Exception tab is there only when the request threw. The Timeline tab
+  also lists the profiles and the copy sites, which have no tab of their own.
+- `Timeline` takes `reveal(kind, id)`, which opens the dump's or the log line's tab at it. It is a
+  waterfall: one row per event, or one `group-<first id>` row for a statement that ran twice or
+  more at one site. `lanes()` is gone.
+- `views/request/`: `input.tsx`, `output.tsx`, `queries.tsx` (`queryGroups()`), `body.tsx`
+  (`HeaderTable`, `BodyView`) and `curl.ts` (`curl()`, `quote()`). A JSON body is drawn with the
+  value tree unless a key starts with `$`, which the tree reads as a dumped value's own key; then
+  it is text. `compare.tsx` exports `bodyNote()`, the one home of the sentences for a body that
+  was not read, was cut or was withheld.
+- *Copy as curl* takes the address from the recorded `Host` header, or `localhost`, and leaves out
+  a body that is binary, cut or withheld, and its toast says so.
+- `RECORD_KINDS` has all eight event kinds, and `stream.css` has `.rk-cache`, `.rk-session` and
+  `.rk-file`.
 
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
@@ -539,18 +563,18 @@ writing subagents run side by side, none of them builds: `stream.tsx` with `log.
 the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new files under
 `viewer/src/views/request/`).
 
-- [ ] `viewer/src/views/request.tsx:134`: the header of the drawing: method, path, status, the
+- [x] `viewer/src/views/request.tsx:134`: the header of the drawing: method, path, status, the
   route, the age, the actions with *Replay* as the primary one, and *Copy as curl*.
-- [ ] The tiles and the time split bar with its legend, from the row's eight columns.
-- [ ] `viewer/src/views/timeline.tsx:46`: a waterfall with one row per event or per group of a
+- [x] The tiles and the time split bar with its legend, from the row's eight columns.
+- [x] `viewer/src/views/timeline.tsx:46`: a waterfall with one row per event or per group of a
   repeated statement, all eight kinds in their tones, the axis, and the listbox kept for the keys.
-- [ ] `viewer/src/views/request/input.tsx:1` and `output.tsx:1`: headers and body from the recorded
+- [x] `viewer/src/views/request/input.tsx:1` and `output.tsx:1`: headers and body from the recorded
   `input` and `response`, a JSON body through the value tree, and the sentences the compare view
   already has for a body that was not read, was cut or was withheld.
-- [ ] `viewer/src/views/request/queries.tsx:1`: statements grouped by call site, with count, total
+- [x] `viewer/src/views/request/queries.tsx:1`: statements grouped by call site, with count, total
   time, rows and the site link.
-- [ ] The Dumps, Logs, Coverage and Exception tabs hold what the page's sections held.
-- [ ] `viewer/test/request.browser.test.ts` and `hostile.browser.test.ts`: cases for the tab in the
+- [x] The Dumps, Logs, Coverage and Exception tabs hold what the page's sections held.
+- [x] `viewer/test/request.browser.test.ts` and `hostile.browser.test.ts`: cases for the tab in the
   link, a hostile body staying text in both body tabs, and a repeated group, run by name.
 
 ### 7. the Routes view, the Queries view, the lost-records state and the settings page
@@ -653,31 +677,32 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 5 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+Stages 1 to 6 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
 `testing/the-viewer-wears-the-websites-palette` and
 `testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
 record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
 `path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3, 4 and 5 gave are under Standing decisions.
+The names stages 3 to 6 gave are under Standing decisions.
 
-Stage 5 is `b2c464bb50`. The request list has the filter chips, three summary tiles, the time
-split per row, the repeat badge, the peek pane and the recording-off `Empty`. The browser tests
-`requests` (13 cases), `request`, `exceptions`, `frame`, `hostile`, `stream` and `search` are
-green, as are `bun nv viewer --check`, `tsc`, clippy and the new unit test
-`a_filtered_since_page_is_cut_only_when_what_arrived_passes_the_floor` (`cargo test --bin nvs`).
-`request.browser.test.ts` now reads its event ids from the fixture, which stage 4 moved. The
-bundle is 139,360 bytes of JavaScript and 40,397 of CSS. The nightly failures the sweep named
-ran at `53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`.
+Stage 6 is the commit after `2208290491`. The request page has the drawing's header with
+*Copy as curl* and *Replay* as the primary action, four tiles, the time split with its legend, and
+tabs in the link: a waterfall Timeline, Request, Response, Queries, Dumps, Logs, Coverage and
+Exception. The browser tests `request` (8 cases), `hostile`, `exceptions`, `requests` (13),
+`stream`, `replay`, `frame` and `search` are green, as are `tsc`, `bun nv viewer --check` and the
+new unit test `viewer/test/curl.test.ts`. The exceptions and request-list tests now read the
+tabbed page. The bundle is 151,509 bytes of JavaScript and 43,237 of CSS. The nightly failures
+the sweep named ran at `53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`.
 
 ### Next
 
-Stage 6 from its first item, at `viewer/src/views/request.tsx:134` (check the anchor): the
-header, then `Tabs` (`viewer/src/ui/tabs.tsx`), then the split's two subagents. The tiles and the
-time split reuse `split()`, `Meter` and the `.peek-legend` pattern from
-`viewer/src/views/requests.tsx`. Add `cache`, `session` and `file` to `RECORD_KINDS` and give
-them a tone in `tokens.css` when the timeline draws the eight kinds. `Escape` on the request page
-opens `listLink()`, so keep it when the header moves. `bun nv site --check shots` stays red until
-stage 11 takes the screenshots again. No test is expected to go red.
+Stage 7 from its first item, at `viewer/src/router.ts:66` (check the anchor): `/routes`,
+`/queries` and `/settings`, then the split's two subagents for `views/routes.tsx` and
+`views/statements.tsx`. They read `routes()` and `statements()` in `viewer/src/api.ts` and draw
+with `List` (`viewer/src/ui/list.tsx`). A route opens the filtered list with
+`viewLink("requests", listQuery({ method, route }))`, and the statements view can reuse
+`Repeat` and the gold wash of `.query-group.repeated` (`viewer/src/styles/request-tabs.css`).
+Routes and Queries join the rail (`viewer/src/app.tsx`) with their views. `bun nv site --check
+shots` stays red until stage 11 takes the screenshots again. No test is expected to go red.
 
 ### Backlog
 
