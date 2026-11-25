@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-cli/src/debug/index.rs, crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/ingest.rs, crates/nvs-cli/tests/debug_api.rs, crates/nvs-lsp/src/recorded.rs]
   - id: 5
     title: the request list has filters, summary tiles, a time split per row and a peek pane
-    status: open
+    status: done
     context: [viewer/src/views/requests.tsx, viewer/src/router.ts, viewer/test/requests.browser.test.ts]
   - id: 6
     title: the request page has a header, a time split and tabs for its timeline, request, response, queries, dumps, logs and coverage
@@ -255,6 +255,25 @@ Stage 4:
   `statements()`, `health()`, their types, `TimeByKind` and `EventKind` (all eight).
 - `timeline.tsx`'s `KIND_NAMES` names `cache`, `session` and `file`, but they have no tone yet.
   `RECORD_KINDS`, the stream's filter list, still lacks them; the service takes all eight.
+
+**The names stage 5 gave, which later stages use.**
+
+- `viewer/src/ui/menu.tsx`: `ChipMenu`, a chip whose menu is a native `popover="auto"` of
+  `menuitemradio` buttons, "Any" first. Its place is set through the CSSOM when it opens.
+- `views/requests.tsx` exports `ListFilter`, `listFilter()`, `listQuery()` (keys in one order:
+  `method`, `status`, `route`, `min_us`, `threw`), `listLink()` (the list's last link, which the
+  request page's `Escape` opens), `split()` (a row's time as `Part`s, `own` last, scaled down
+  when the kinds overlap past the duration) and `RequestCells`' `scale`. Stage 7's Routes view
+  opens the filtered list with `viewLink("requests", listQuery({ method, route }))`.
+- `RequestList` takes the query, and `app.tsx` keys it on `query()`, so a new filter is a new feed.
+- `Feed` has `busy` and `batch`, and `List` has `onShown`. A list whose page is short and has
+  `older` loads the next range at once, until the screen is full or none is left.
+- The tiles are three: requests, duration and errors. The memory tile waits for
+  `deeper-debug-records`. They do not read again while the list is paused.
+- The peek pane fetches `/api/request` 120 ms after the selection settles and draws at most 24
+  events, function calls left out.
+- A filtered `since` page is cut only when what arrived after `since` passes the scan's floor
+  (`crates/nvs-cli/src/debug/api.rs` `page`).
 
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
@@ -502,16 +521,16 @@ writing subagents run side by side, none of them builds: `stream.tsx` with `log.
 
 **Split:** none, one session.
 
-- [ ] `viewer/src/views/requests.tsx`: the filter chips of the drawing, each a popover of choices,
+- [x] `viewer/src/views/requests.tsx`: the filter chips of the drawing, each a popover of choices,
   and the filter is the view's query, so a filtered list has a link and can be saved.
-- [ ] The four tiles from `/api/summary`, refreshed when the watermark moves and never more than
+- [x] The four tiles from `/api/summary`, refreshed when the watermark moves and never more than
   once a second. The memory tile is absent until a record carries a peak.
-- [ ] The duration cell: the figure and one bar split by kind, scaled to the slowest row on screen.
+- [x] The duration cell: the figure and one bar split by kind, scaled to the slowest row on screen.
   The queries cell shows the gold badge when `repeats` is two or more.
-- [ ] The peek pane at 1280 pixels and wider: the selected request's tiles and a small timeline.
+- [x] The peek pane at 1280 pixels and wider: the selected request's tiles and a small timeline.
   `Enter` opens the page. Below that width there is no pane.
-- [ ] `Empty` for a list with no record: how to turn recording on, with the `nvs.toml` lines.
-- [ ] `viewer/test/requests.browser.test.ts`: cases for a filter in the link, the badge and the
+- [x] `Empty` for a list with no record: how to turn recording on, with the `nvs.toml` lines.
+- [x] `viewer/test/requests.browser.test.ts`: cases for a filter in the link, the badge and the
   paused tiles, run by name.
 
 ### 6. the request page has a header, a time split and tabs for its timeline, request, response, queries, dumps, logs and coverage
@@ -634,30 +653,31 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 4 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+Stages 1 to 5 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
 `testing/the-viewer-wears-the-websites-palette` and
 `testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
 record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
 `path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3 and 4 gave are under Standing decisions.
+The names stages 3, 4 and 5 gave are under Standing decisions.
 
-The check `api` (`cargo test --test debug_api`, 6 cases) is green, and so are
-`bun nv viewer --check`, `tsc`, `viewer/test/api.test.ts` and clippy. No browser test ran. The
-fixtures `requests.json`, `request.json`, `stream.json` and `search.json` changed, so the
-requests, stream and search browser tests may need a count updated. The bundle is 126,236 bytes of
-JavaScript and 37,176 of CSS. The nightly failures the sweep named were already fixed on disk by
-`1c3196b0e8` and `8ca2f09e1b`.
+Stage 5 is `b2c464bb50`. The request list has the filter chips, three summary tiles, the time
+split per row, the repeat badge, the peek pane and the recording-off `Empty`. The browser tests
+`requests` (13 cases), `request`, `exceptions`, `frame`, `hostile`, `stream` and `search` are
+green, as are `bun nv viewer --check`, `tsc`, clippy and the new unit test
+`a_filtered_since_page_is_cut_only_when_what_arrived_passes_the_floor` (`cargo test --bin nvs`).
+`request.browser.test.ts` now reads its event ids from the fixture, which stage 4 moved. The
+bundle is 139,360 bytes of JavaScript and 40,397 of CSS. The nightly failures the sweep named
+ran at `53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`.
 
 ### Next
 
-Stage 5 from its first item, in `viewer/src/views/requests.tsx`: the filters, the summary tiles,
-the time split per row and the peek pane on `List`'s `actions` and `.request-grid`, reading
-`requests()` with the new `RequestFilter` keys, `summary()` and a row's `time_us` and `repeats`.
-A short filtered page with `older` set must load the next range, not show the list as ended.
-Run `NV_BROWSER=1 bun test viewer/test/requests.browser.test.ts`, `stream` and `search` once
-first, since their fixtures changed. Add `cache`, `session` and `file` to `RECORD_KINDS` and give
-them a tone when stage 6 draws the timeline's eight kinds. `bun nv site --check shots` stays red
-until stage 11 takes the screenshots again.
+Stage 6 from its first item, at `viewer/src/views/request.tsx:134` (check the anchor): the
+header, then `Tabs` (`viewer/src/ui/tabs.tsx`), then the split's two subagents. The tiles and the
+time split reuse `split()`, `Meter` and the `.peek-legend` pattern from
+`viewer/src/views/requests.tsx`. Add `cache`, `session` and `file` to `RECORD_KINDS` and give
+them a tone in `tokens.css` when the timeline draws the eight kinds. `Escape` on the request page
+opens `listLink()`, so keep it when the header moves. `bun nv site --check shots` stays red until
+stage 11 takes the screenshots again. No test is expected to go red.
 
 ### Backlog
 

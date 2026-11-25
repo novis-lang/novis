@@ -570,6 +570,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **`nvs_repo::scratch()` returns a guard that deletes its folder when it is dropped.** In
+  `debug-viewer-flagship` stage 5, a helper returned only the path of the index it wrote, and the
+  test then failed with `CannotOpen`. Return the `Scratch` with the path and keep it bound as
+  `_dir`, never `_`. See `crates/nvs-cli/src/debug/api.rs` `index_of`.
 - **`allocation_policy.rs`'s `member(symbol)` allocates, because it builds the list of every
   registered symbol on each call.** A roster test that called it inside the counting window counted
   10 allocations per call, and the member under test spent none. Resolve every member before the
