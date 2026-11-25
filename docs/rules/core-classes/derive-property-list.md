@@ -25,7 +25,18 @@ property breaks loudly: every reader of the old key gets a missing-field issue w
 
 A field's type must be codec-reachable — a scalar, `mixed`, one of the named `Core` value types, an
 enum, a set of allowed values, an inline shape, an `array<T>` or `?T` of one of those, or another
-class that itself has a codec. Anything else is a compile error at the field (`E0756`), whose help
+class that itself has a codec. The named `Core` value types are `Core\Uuid` and `Core\Time`'s
+`Date`, `TimeOfDay`, `Instant`, `DateTime`, `Duration` and `Zone`, and each crosses JSON as one
+string: the text its own class reads back. The four time classes write their `toIso` text, which
+`fromIso`, a route and a command argument read with one grammar; a `DateTime`'s carries its zone
+(`2026-01-05T08:30:00+01:00[Europe/Vienna]`) and is refused without it, since a document has no
+zone argument to fall back on. A `Duration` writes the text `Duration::parse` reads, and a negative
+one refuses to encode, because `parse` refuses its `-`. A `Zone` writes its id, the IANA name or
+`±HH:MM` for a fixed zone, and a `Core\Uuid` its canonical form. The same holds in a shape given to
+`Core\Json::decodeAs` or `Core\Arr::shapeAs`, and `Core\Arr::shapeAs` also takes a value that already
+is one. A text the class does not read is one issue under the field's path. `Core\Uri` is a `Core`
+value type with no JSON form. **What it spends:** one string per value encoded and one parse per value
+decoded, charged to the request. Anything else is a compile error at the field (`E0756`), whose help
 names `mixed` and a set of allowed values. A set of allowed values is `rule:types/single-value-types`'s
 union whose every non-`null` member is a single-value `string`, or every one a single-value `int`,
 one value included; `"a"|"b"|null` and `?"a"` are nullable as any `?T` is. It is its base type on

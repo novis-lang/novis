@@ -150,9 +150,9 @@
 //! # A value type crosses as text, not as its slots
 //!
 //! `rule:core-classes/derive-property-list` admits the named `Core` value types as
-//! fields and JSON has a type for none of them. Two of them carry a wire form
-//! here, and both of them are a **string** — written by [`Encodable`] and read
-//! by [`scalar`], so a document this crate writes is one it accepts back.
+//! fields and JSON has a type for none of them. Each of them crosses as a
+//! **string** — written by [`Encodable`] and read by [`scalar`], so a document
+//! this crate writes is one it accepts back.
 //!
 //! A `decimal` is `"19.99"`. JSON has one number type and every consumer reads
 //! it as an `f64`, including [`build`], so a `decimal` written as a number
@@ -161,14 +161,34 @@
 //! spent under `rule:programs/memory-priority` to buy exactness, which is
 //! the whole of what `rule:types/decimal` makes the type for.
 //!
-//! An `Instant` is RFC 3339: `"2024-03-01T12:00:00Z"`, the spelling
-//! `$i->toIso()` renders and `Core\Time\Instant::fromIso` reads, so the wire carries
-//! what a reader of the document already agrees a timestamp looks like. It is
-//! **not** the two-slot object its storage is — an epoch second and a subsecond
-//! nanosecond are this runtime's representation of the type and no part of what
-//! a document promises. `crate::db` answers the same question at the other door
-//! and answers it differently, because a column has its own components to build
-//! one out of.
+//! The seven classes of [`VALUE_TEXT`] cross as the text their own class reads
+//! back, one row each, and that table is the one place the encoder, the
+//! decoder and an issue's message look a class up:
+//!
+//! | Class | Text | Read by |
+//! |---|---|---|
+//! | `Core\Time\Date` | `"2026-01-05"` | `Date::fromIso` |
+//! | `Core\Time\TimeOfDay` | `"08:30:00"` | `TimeOfDay::fromIso` |
+//! | `Core\Time\Instant` | `"2024-03-01T12:00:00Z"` (RFC 3339) | `Instant::fromIso` |
+//! | `Core\Time\DateTime` | `"2026-01-05T08:30:00+01:00[Europe/Vienna]"` (RFC 9557) | `DateTime::fromIso` |
+//! | `Core\Time\Duration` | `"1h30m"` | `Duration::parse` |
+//! | `Core\Time\Zone` | `"Europe/Vienna"`, or `"+01:00"` for a fixed zone | `Zone::of` |
+//! | `Core\Uuid` | `"0190f3a2-7b1c-7def-8a12-3456789abcde"` | `Core\Uuid::parse` |
+//!
+//! The four time texts are the ones `nvs_runtime::iso` reads for `fromIso`, a
+//! route and a command argument alike, so one value has one text at every
+//! door. A `DateTime` needs its `[Zone]`, because a document has no zone
+//! argument to fall back on. A negative `Duration` refuses to encode, because
+//! `Duration::parse` refuses the `-` its `toString` writes. A value is **not**
+//! the object its slots would spell — an `Instant`'s epoch second and
+//! subsecond nanosecond are this runtime's storage and no part of what a
+//! document promises. `crate::db` answers the same question at the other door
+//! and answers it differently, because a column has its own components to
+//! build one out of. `Core\Uri` is a `Core` value type with no row here, and
+//! a field of it is `E0756`.
+//!
+//! **What it spends:** one string per value encoded and one parse per value
+//! decoded, charged to the request, as every other field is.
 //!
 //! `rule:core-api/required-optional-and-nullable`'s three shipped rows are
 //! answered here, and on the field itself: `nvs_runtime::CodecField::default`
@@ -1888,8 +1908,8 @@ impl Stack {
     ///
     /// Two instances are not declared classes and answer before either is
     /// read. An `rule:types/anonymous-object` shape encodes as a JSON object
-    /// keyed by its own field names, and a `Core\Time\Instant` as the RFC 3339
-    /// string this module's § *A value type crosses as text* fixes it at;
+    /// keyed by its own field names, and a [`VALUE_TEXT`] class as the string
+    /// this module's § *A value type crosses as text* fixes it at;
     /// neither is an exception to the rule above, because neither has a
     /// declaration to carry an attribute and both are wire forms the language
     /// names rather than a program does —
@@ -1935,19 +1955,17 @@ impl Stack {
             });
             return Ok(true);
         }
-        // `Core\Time\Instant`, whose wire form is RFC 3339 text rather than the
-        // object its two slots would spell — this module's § *A value type
-        // crosses as text* owns the decision and
-        // [`crate::time::instant_from_iso`] is the half that reads it back. A `Core` value type declares no member a codec could be
-        // generated from, so the refusal below would otherwise be the only
+        // A [`VALUE_TEXT`] class, whose wire form is its text rather than the
+        // object its slots would spell — this module's § *A value type crosses
+        // as text* owns the decision, and the row's `read` is the half that
+        // reads it back. A `Core` value type declares no member a codec could
+        // be generated from, so the refusal below would otherwise be the only
         // answer a wire type of its own already has.
-        if crate::instance::is_instance(value, &crate::time::INSTANT) {
-            let text = crate::time::instant_iso(value).ok_or_else(|| {
-                refuse(
-                    "a `Core\\Time\\Instant` holds a second and a nanosecond that are \
-                     no point on the timeline",
-                )
-            })?;
+        if let Some(row) = VALUE_TEXT
+            .iter()
+            .find(|row| crate::instance::is_instance(value, row.class))
+        {
+            let text = (row.write)(value).ok_or_else(|| refuse(row.unwritable))?;
             sink.string(&text);
             return Ok(false);
         }
@@ -3382,7 +3400,7 @@ impl<'a> Target<'a> {
                     | CodecTy::Decimal
                     | CodecTy::Str
                     | CodecTy::Bytes
-                    | CodecTy::Instant
+                    | CodecTy::ValueText
                     | CodecTy::Enum
             ),
         }
@@ -5720,8 +5738,15 @@ impl<'a> Positions<'a> {
                         unsafe_code,
                         reason = "the document owns this element for the length of the walk"
                     )]
-                    let converted =
-                        unsafe { scalar(self.element.ty, self.cases, item, contract.reading) };
+                    let converted = unsafe {
+                        scalar(
+                            self.element.ty,
+                            field.class.as_deref(),
+                            self.cases,
+                            item,
+                            contract.reading,
+                        )
+                    };
                     // As [`decode_field`]'s tail: [`scalar`] answered with a
                     // reference of its own, and the document is released before
                     // the constructor runs.
@@ -5735,7 +5760,7 @@ impl<'a> Positions<'a> {
                         },
                         None => Some(Issue::here(format!(
                             "expected {}, found {}",
-                            wanted(self.element.ty),
+                            wanted_for(self.element.ty, field.class.as_deref()),
                             contract.describe(item)
                         ))),
                     };
@@ -6021,7 +6046,7 @@ unsafe fn convert_field<'a>(
         | CodecTy::Float
         | CodecTy::Str
         | CodecTy::Decimal
-        | CodecTy::Instant => {
+        | CodecTy::ValueText => {
             let Some(found) = held else {
                 return wrong_form();
             };
@@ -6030,7 +6055,13 @@ unsafe fn convert_field<'a>(
                 reason = "the document owns this value for the length of this call"
             )]
             unsafe {
-                scalar(field.ty, None, found, contract.reading)
+                scalar(
+                    field.ty,
+                    field.class.as_deref(),
+                    None,
+                    found,
+                    contract.reading,
+                )
             }
         }
         // `rule:core-classes/derive-property-list`'s enum field: the roster travels with the field and the
@@ -6049,7 +6080,7 @@ unsafe fn convert_field<'a>(
                 reason = "the document owns this value for the length of this call"
             )]
             unsafe {
-                scalar(field.ty, Some(cases), found, contract.reading)
+                scalar(field.ty, None, Some(cases), found, contract.reading)
             }
         }
         // Met only through a *nested* class, whose own fields [`decode_as`]'s
@@ -6073,7 +6104,7 @@ unsafe fn convert_field<'a>(
         };
         return issue(format!(
             "expected {}, found {}",
-            wanted(field.ty),
+            wanted_for(field.ty, field.class.as_deref()),
             contract.describe(found)
         ));
     };
@@ -6222,6 +6253,9 @@ unsafe fn decode_nested<'a>(
 /// are not scalars this reads and answer `None`; each has a caller that handles
 /// it before reaching here.
 ///
+/// `class` is [`nvs_runtime::CodecField::class`], and is read only for a
+/// [`CodecTy::ValueText`], whose class picks its [`VALUE_TEXT`] row.
+///
 /// `cases` is [`nvs_runtime::CodecField::cases`], and is read only for a
 /// [`CodecTy::Enum`] — the one wire type whose accepted values are a property
 /// of the field rather than of the type. Both callers resolve it before
@@ -6244,6 +6278,7 @@ unsafe fn decode_nested<'a>(
 )]
 unsafe fn scalar(
     ty: CodecTy,
+    class: Option<&str>,
     cases: Option<&EnumCases>,
     found: Value,
     reading: Reading<'_>,
@@ -6336,20 +6371,20 @@ unsafe fn scalar(
                 .map(Value::decimal),
             _ => None,
         },
-        // `Core\Time\Instant`'s wire form is RFC 3339 text: the type is a point
-        // on the timeline and the string is
-        // what every other reader of the document already agrees that is. The
-        // instance it builds owns the one reference it was made with, so that
-        // arm returns rather than reaching the retain below; an `Instant` the
-        // caller already holds is a pass-through, which is the only way
+        // A [`VALUE_TEXT`] class's wire form is its text, read by its row's
+        // `read`, the reader its own class uses. The instance it builds owns
+        // the one reference it was made with, so that arm returns rather than
+        // reaching the retain below. An instance of the class the caller
+        // already holds is a pass-through, which is the only way
         // `Core\Arr::shapeAs` meets the type.
-        CodecTy::Instant => match found.tag() {
-            Some(Tag::Object) if crate::instance::is_instance(found, &crate::time::INSTANT) => {
-                Some(found)
+        CodecTy::ValueText => {
+            let row = value_text(class)?;
+            match found.tag() {
+                Some(Tag::Object) if crate::instance::is_instance(found, row.class) => Some(found),
+                Some(Tag::Str) => return found.as_text().and_then(row.read),
+                _ => None,
             }
-            Some(Tag::Str) => return found.as_text().and_then(crate::time::instant_from_iso),
-            _ => None,
-        },
+        }
         CodecTy::Class | CodecTy::Shape | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes => None,
     }?;
     // Every arm reaching here either passed the document's own value through
@@ -6571,6 +6606,107 @@ unsafe fn decode_element<'a>(
     )))
 }
 
+/// One `Core` value type that crosses a document as text — a row of this
+/// module's § *A value type crosses as text*.
+struct ValueText {
+    /// The class, which says whether a value is one and names its row.
+    class: &'static CoreClass,
+    /// The text the encoder writes, or `None` where the value has none.
+    write: fn(Value) -> Option<String>,
+    /// The value a document's text names, or `None` where it names none.
+    read: fn(&str) -> Option<Value>,
+    /// What an issue message says the field needs.
+    wanted: &'static str,
+    /// Why the encoder refuses a value [`Self::write`] has no text for.
+    unwritable: &'static str,
+}
+
+/// Every class that crosses as text, in [`VALUE_TEXT`]'s order. The checker's
+/// `nvs_types::derive::JSON_TEXT_CLASSES` is the same list, and that crate's
+/// test holds the two to it.
+pub const VALUE_TEXT_NAMES: [&str; 7] = [
+    crate::time::DATE_NAME,
+    crate::time::TIME_OF_DAY_NAME,
+    crate::time::INSTANT_NAME,
+    crate::time::DATETIME_NAME,
+    crate::time::DURATION_NAME,
+    crate::time::ZONE_NAME,
+    crate::uuid::NAME,
+];
+
+/// The writer and the reader of each class of [`VALUE_TEXT_NAMES`], in its
+/// order. A `static`, so each class reference has one address.
+static VALUE_TEXT: [ValueText; 7] = [
+    ValueText {
+        class: &crate::time::DATE,
+        write: crate::time::route_iso,
+        read: crate::time::date_from_iso,
+        wanted: "a date as a string such as 2026-01-05",
+        unwritable: "a `Core\\Time\\Date` holds a day no calendar has",
+    },
+    ValueText {
+        class: &crate::time::TIME_OF_DAY,
+        write: crate::time::route_iso,
+        read: crate::time::time_of_day_from_iso,
+        wanted: "a time of day as a string such as 08:30:00",
+        unwritable: "a `Core\\Time\\TimeOfDay` holds a time no clock has",
+    },
+    ValueText {
+        class: &crate::time::INSTANT,
+        write: crate::time::route_iso,
+        read: crate::time::instant_from_iso,
+        wanted: "an instant as an RFC 3339 string",
+        unwritable: "a `Core\\Time\\Instant` holds a second and a nanosecond that are \
+                     no point on the timeline",
+    },
+    ValueText {
+        class: &crate::time::DATETIME,
+        write: crate::time::route_iso,
+        read: crate::time::datetime_from_iso,
+        wanted: "a date and time as a string with its zone, such as \
+                 2026-01-05T08:30:00+01:00[Europe/Vienna]",
+        unwritable: "a `Core\\Time\\DateTime` holds a zone the zone database does not have",
+    },
+    ValueText {
+        class: &crate::time::DURATION,
+        write: crate::time::duration_text,
+        read: crate::time::duration_from_text,
+        wanted: "a duration as a string such as 1h30m",
+        unwritable: "a negative `Core\\Time\\Duration` has no text that \
+                     `Core\\Time\\Duration::parse` reads",
+    },
+    ValueText {
+        class: &crate::time::ZONE,
+        write: crate::time::zone_text,
+        read: crate::time::zone_from_text,
+        wanted: "a time zone as a string such as Europe/Vienna",
+        unwritable: "a `Core\\Time\\Zone` holds no zone id",
+    },
+    ValueText {
+        class: &crate::uuid::CLASS,
+        write: crate::uuid::text,
+        read: crate::uuid::of_text,
+        wanted: "a UUID as a string",
+        unwritable: "a `Core\\Uuid` holds slots that are not sixteen octets",
+    },
+];
+
+/// The [`VALUE_TEXT`] row of the class `label` names, or `None` where it names
+/// none of them.
+fn value_text(label: Option<&str>) -> Option<&'static ValueText> {
+    let label = label?;
+    VALUE_TEXT.iter().find(|row| row.class.name == label)
+}
+
+/// What a field of wire type `ty` and class label `class` is called in an
+/// issue message: [`wanted`], with a [`CodecTy::ValueText`] named by its row.
+fn wanted_for(ty: CodecTy, class: Option<&str>) -> &'static str {
+    match ty {
+        CodecTy::ValueText => value_text(class).map_or(wanted(ty), |row| row.wanted),
+        _ => wanted(ty),
+    }
+}
+
 /// What a [`CodecTy`] is called in an issue message — the Novis type name, since
 /// that is what the reader has in front of them in the class declaration.
 const fn wanted(ty: CodecTy) -> &'static str {
@@ -6584,10 +6720,12 @@ const fn wanted(ty: CodecTy) -> &'static str {
         // The two entries that name their wire form rather than only the
         // declared type, because for both of them the document's own spelling is
         // the thing the reader has to change: `rule:types/decimal` is exact and
-        // JSON's number is not, and an `Instant` crosses as text JSON has no
-        // type for at all. [`scalar`]'s own arms own why each is what it is.
+        // JSON's number is not, and a `Core` value type crosses as text JSON
+        // has no type for at all. [`scalar`]'s own arms own why each is what it
+        // is. [`wanted_for`] names a value type by its row, and this is the
+        // name for a field whose label names no row.
         CodecTy::Decimal => "a decimal as a JSON string",
-        CodecTy::Instant => "an instant as an RFC 3339 string",
+        CodecTy::ValueText => "a value written as a string",
         // Named for the roster's sake: an [`undecoded`] wire type faults before
         // a document is read, so no issue message reaches for one of these.
         CodecTy::Bytes => "bytes",
@@ -8905,13 +9043,24 @@ pub(crate) mod tests {
         key: &str,
         ty: CodecTy,
     ) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        codec_class_of(name, key, ty, None)
+    }
+
+    /// [`codec_class`], with the field's class label, which a
+    /// [`CodecTy::ValueText`] field needs to say which text it reads.
+    fn codec_class_of(
+        name: &str,
+        key: &str,
+        ty: CodecTy,
+        class: Option<&str>,
+    ) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
         let field = || CodecField {
             key: key.to_owned(),
             slot: 0,
             param: 0,
             ty,
             element: None,
-            class: None,
+            class: class.map(str::to_owned),
             cases: None,
             allowed: None,
             shape: None,
@@ -9382,7 +9531,12 @@ pub(crate) mod tests {
     fn decode_as_fills_an_instant_field_from_an_rfc_3339_string() {
         const AT: &str = "2024-03-01T12:00:00Z";
 
-        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let (class, shape) = codec_class_of(
+            "Event",
+            "at",
+            CodecTy::ValueText,
+            Some(crate::time::INSTANT_NAME),
+        );
         let document = format!("{{\"at\":\"{AT}\"}}");
         let mut ctx = nvs_runtime::Ctx::buffered();
         #[expect(
@@ -9444,7 +9598,12 @@ pub(crate) mod tests {
     /// than as the fault an undecodable wire type ends the walk with.
     #[test]
     fn an_instant_field_refuses_every_spelling_but_the_one_it_writes() {
-        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let (class, shape) = codec_class_of(
+            "Event",
+            "at",
+            CodecTy::ValueText,
+            Some(crate::time::INSTANT_NAME),
+        );
         let mut ctx = nvs_runtime::Ctx::buffered();
         let mut refused = |text: &str| {
             #[expect(
@@ -9474,6 +9633,188 @@ pub(crate) mod tests {
             assert!(why.contains("Parse"), "{why}");
             assert!(why.contains("did not match"), "{why}");
         }
+    }
+
+    /// `document` decoded against a one-field shape whose field `when` is a
+    /// [`CodecTy::ValueText`] of class `label`: the decoded object, or the
+    /// failure's debug text.
+    fn value_text_decoded(label: &str, document: &str) -> Result<Value, String> {
+        let (class, shape) = codec_class_of("Event", "when", CodecTy::ValueText, Some(label));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`codec_class_of` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let outcome = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        // The issues ride in the fault's slots, so each is written out beside
+        // the message and released.
+        outcome.map_err(|why| match why {
+            Fault::ThrownWithSlots(class, message, slots) => {
+                let mut text = format!("thrown {class:?} {message:?}");
+                for (_, value) in slots {
+                    let slot = written(&mut ctx, value, r"Core\Json::encode")
+                        .unwrap_or_else(|fault| format!("unwritable {fault:?}"));
+                    text.push_str(&format!(" | {slot}"));
+                    #[expect(unsafe_code, reason = "the fault owned its one reference")]
+                    unsafe {
+                        value.release();
+                    }
+                }
+                text
+            }
+            other => format!("{other:?}"),
+        })
+    }
+
+    /// The one field of an object [`value_text_decoded`] gave, read without
+    /// taking a reference of its own.
+    fn value_text_field(value: Value) -> Value {
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        object.field(0)
+    }
+
+    /// Releases the only reference a test holds.
+    fn value_text_released(value: Value) {
+        #[expect(unsafe_code, reason = "the caller holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// Each class of [`VALUE_TEXT`] decodes from its text into an instance of
+    /// itself, and the encoder writes back the document it was read from.
+    #[test]
+    fn value_text_round_trips_every_core_value_type() {
+        let rows = [
+            (crate::time::DATE_NAME, "2026-01-05"),
+            (crate::time::TIME_OF_DAY_NAME, "08:30:15.25"),
+            (crate::time::INSTANT_NAME, "2024-03-01T12:00:00Z"),
+            (
+                crate::time::DATETIME_NAME,
+                "2026-01-05T08:30:00+01:00[Europe/Vienna]",
+            ),
+            (crate::time::DURATION_NAME, "1h30m"),
+            (crate::time::ZONE_NAME, "Europe/Vienna"),
+            (crate::time::ZONE_NAME, "+02:00"),
+            (crate::uuid::NAME, "0190f3a2-7b1c-7def-8a12-3456789abcde"),
+        ];
+        // Every class on the list has a row here.
+        for name in VALUE_TEXT_NAMES {
+            assert!(rows.iter().any(|(label, _)| *label == name), "{name}");
+        }
+        for (label, text) in rows {
+            let document = format!("{{\"when\":\"{text}\"}}");
+            let value = value_text_decoded(label, &document)
+                .unwrap_or_else(|why| panic!("`{text}` is a `{label}`: {why}"));
+            let held = value_text_field(value);
+            let row = value_text(Some(label)).expect("the label has a row");
+            assert!(
+                crate::instance::is_instance(held, row.class),
+                "the field holds a `{label}`, not the text it was read from"
+            );
+            assert_eq!(
+                encoded(value).expect("a decoded shape re-encodes"),
+                document,
+                "{label}"
+            );
+            value_text_released(value);
+        }
+    }
+
+    /// A text the class does not read, and a JSON value that is not a string,
+    /// are each a `ParseError` naming the field's path and the form it needs.
+    #[test]
+    fn value_text_refuses_a_bad_text_with_its_path() {
+        let rows = [
+            (crate::time::DATE_NAME, "\"2026-13-05\"", "2026-01-05"),
+            (crate::time::TIME_OF_DAY_NAME, "\"25:00\"", "08:30:00"),
+            (crate::time::INSTANT_NAME, "\"2024-03-01\"", "RFC 3339"),
+            (
+                crate::time::DATETIME_NAME,
+                "\"2026-01-05T08:30:00+01:00\"",
+                "[Europe/Vienna]",
+            ),
+            (crate::time::DURATION_NAME, "\"90 minutes\"", "1h30m"),
+            (
+                crate::time::ZONE_NAME,
+                "\"Europe/Nowhere\"",
+                "Europe/Vienna",
+            ),
+            (crate::uuid::NAME, "\"0190F3A2\"", "UUID"),
+            (crate::time::DATE_NAME, "20260105", "2026-01-05"),
+        ];
+        for (label, bad, needs) in rows {
+            let document = format!("{{\"when\":{bad}}}");
+            let Err(why) = value_text_decoded(label, &document) else {
+                panic!("{bad} is not a `{label}`");
+            };
+            assert!(why.contains("Parse"), "{why}");
+            assert!(why.contains("when"), "the issue names its path: {why}");
+            assert!(why.contains(needs), "the issue names the form: {why}");
+        }
+    }
+
+    /// A `Duration` is written in the syntax `Duration::parse` reads, to the
+    /// nanosecond, and a negative one refuses to encode, because `parse`
+    /// refuses the `-` that `toString` writes.
+    #[test]
+    fn value_text_duration_writes_what_parse_reads() {
+        for nanos in [0, 1, 1_500_000_000, 5_400_000_000_000, 90_061_000_000_007] {
+            let value = crate::time::duration_of(nanos);
+            let text = encoded(value).expect("a duration encodes");
+            let inner = text
+                .strip_prefix('"')
+                .and_then(|rest| rest.strip_suffix('"'))
+                .unwrap_or_else(|| panic!("a duration is a string: {text}"));
+            assert_eq!(nvs_syntax::duration::parse(inner), Ok(nanos), "{text}");
+            value_text_released(value);
+        }
+        let negative = crate::time::duration_of(-1);
+        let why = encoded(negative).expect_err("a negative duration has no text");
+        assert!(why.contains("negative"), "{why}");
+        value_text_released(negative);
+    }
+
+    /// A `DateTime` keeps its zone name through a round trip, so a summer and
+    /// a winter text in one zone each come back with their own offset, and a
+    /// text with an offset and no `[Zone]` is refused.
+    #[test]
+    fn value_text_datetime_keeps_its_zone() {
+        for text in [
+            "2026-07-05T08:30:00+02:00[Europe/Vienna]",
+            "2026-01-05T08:30:00-05:00[America/New_York]",
+        ] {
+            let document = format!("{{\"when\":\"{text}\"}}");
+            let value = value_text_decoded(crate::time::DATETIME_NAME, &document)
+                .unwrap_or_else(|why| panic!("`{text}` is a `DateTime`: {why}"));
+            let held = value_text_field(value);
+            assert_eq!(crate::time::route_iso(held).as_deref(), Some(text));
+            value_text_released(value);
+        }
+        let refused = value_text_decoded(
+            crate::time::DATETIME_NAME,
+            r#"{"when":"2026-07-05T08:30:00+02:00"}"#,
+        );
+        assert!(refused.is_err(), "a `DateTime` needs its zone");
     }
 
     /// An instance of `class` with every slot null, as the value holding the

@@ -3,26 +3,27 @@
 --FILE--
 <?nvs
 // covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
-// `Core\Time\Instant` has a JSON form, so `$at` compiles.
-// `Core\Time\Date` and `Core\Uuid` have none, so each property is an error.
+// `Core\Time\Date` and `Core\Uuid` are written as text, so `$on` and `$id` compile.
+// `Core\Uri` has no JSON form, so each property of it is an error.
 #[Core\Json\Derive]
-final class Event
+final class Link
 {
     public function constructor(
-        public Core\Time\Instant $at,
         public Core\Time\Date $on,
+        public Core\Uri $target,
         public ?Core\Uuid $id = null,
+        public ?Core\Uri $back = null,
     ) {}
 }
 
-var $event = Core\Json::decodeAs<Event>('{"at":"2024-03-01T12:00:00Z","on":"2024-03-01"}');
-echo "unreachable ", Core\Json::encode($event), "\n";
+var $link = Core\Json::decodeAs<Link>('{"on":"2024-03-01","target":"https://example.com/"}');
+echo "unreachable ", Core\Json::encode($link), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0756]: `Event::$on` is declared `Core\Time\Date`, which has no JSON representation
+error[E0756]: `Link::$target` is declared `Core\Uri`, which has no JSON representation
 %A
-error[E0756]: `Event::$id` is declared `Core\Uuid`, which has no JSON representation
+error[E0756]: `Link::$back` is declared `Core\Uri`, which has no JSON representation
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -481,9 +481,10 @@ pub(super) fn converted(
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own
         // `db_reachable` maps none of them to a nested class, so this arm is
-        // `rule:core-classes/db-column-types`'s own value types and nothing else — the `Instant` that carries a
-        // wire type of its own, and the rest, which the erasure leaves as a
-        // class label. Both are answered the same way. The instance is built long
+        // `rule:core-classes/db-column-types`'s own value types and nothing else.
+        // The erasure gives each of them [`CodecTy::ValueText`] with its class
+        // label, and a hand-built [`CodecTy::Class`] with a label is answered
+        // the same way. The instance is built long
         // before hydration reads it — [`column_value`] is where a driver's
         // components become a `Core\Time` or a `Core\Uuid`, and
         // [`sqlite_column_value`] is where the one driver that sends no
@@ -497,7 +498,7 @@ pub(super) fn converted(
         // the one `crate::instance` gave the value the driver's components
         // built. `rule:core-api/tier-placement` keeps the `Core\` prefix for Tier 0, so no program
         // can declare a second class answering to one of these five names.
-        CodecTy::Class | CodecTy::Instant => {
+        CodecTy::Class | CodecTy::ValueText => {
             let Some(declared) = class else {
                 return Err(
                     "this property is a class whose name the derive pass did not record".to_owned(),

@@ -1049,9 +1049,10 @@ codes! {
     pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756").card(
         "The derive attribute cannot convert a property of this type. For example, `bytes` can be \
          a database column but has no JSON form. A union of two kinds, such as `string|int` or \
-         two classes, has no form either. Most `Core` classes, such as `Core\\Time\\Date`, have \
-         no JSON form. Declare such a property `string`, and convert the text after the decode. \
-         Use `mixed` for a value of any type, or a set of \
+         two classes, has no form either. `Core\\Uuid` and `Core\\Time`'s `Date`, `TimeOfDay`, \
+         `Instant`, `DateTime`, `Duration` and `Zone` are written as text. Other `Core` classes, \
+         such as `Core\\Uri`, have no JSON form. Declare such a property `string`, and convert \
+         the text after the decode. Use `mixed` for a value of any type, or a set of \
          allowed values such as `\"a\"|\"b\"`. Otherwise change the property's type, or write \
          the conversion methods yourself.",
     );

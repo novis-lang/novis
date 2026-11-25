@@ -1,0 +1,69 @@
+--TEST--
+A `#[Core\Json\Derive]` class writes and reads `Date`, `TimeOfDay`, `DateTime`, `Duration`, `Zone` and `Core\Uuid` properties as the text each class reads back, and a text the class does not read is one issue at its path — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+// Each of these `Core` classes is written as one JSON string.
+// Decoding reads the same text back into the class.
+#[Core\Json\Derive]
+final class Booking
+{
+    public function constructor(
+        public Core\Uuid $id,
+        public Core\Time\Date $day,
+        public Core\Time\TimeOfDay $opens,
+        public Core\Time\DateTime $starts,
+        public Core\Time\Duration $length,
+        public Core\Time\Zone $zone,
+        public array<Core\Time\Date> $holidays,
+        public ?Core\Time\Duration $pause = null,
+    ) {}
+}
+
+var $booking = new Booking(
+    Core\Uuid::parse("0190f3a2-7b1c-7def-8a12-3456789abcde"),
+    Core\Time\Date::fromIso("2026-01-05"),
+    Core\Time\TimeOfDay::fromIso("08:30"),
+    Core\Time\DateTime::fromIso("2026-01-05T08:30:00+01:00[Europe/Vienna]"),
+    Core\Time\Duration::parse("1h30m"),
+    Core\Time\Zone::of("Europe/Vienna"),
+    [Core\Time\Date::fromIso("2026-12-25"), Core\Time\Date::fromIso("2026-12-26")],
+);
+
+// The encoder writes each value as its text.
+var $json = Core\Json::encode($booking);
+echo $json, "\n";
+
+// The decoder reads that text back, so the document is the same.
+var $back = Core\Json::decodeAs<Booking>($json);
+echo Core\Json::encode($back) == $json ? "same\n" : "different\n";
+echo Core\Json::encode($back->starts->zone()), " ", $back->length->toSeconds(), " ", $back->holidays[1]->toIso(), "\n";
+
+// A `DateTime` needs its zone, and a zone name must exist.
+try {
+    Core\Json::decodeAs<Booking>(Core\Str::replace($json, "[Europe/Vienna]", ""));
+    echo "not reached\n";
+} catch (ParseError $missing) {
+    echo $missing->issues["0"]->path, ": ", $missing->issues["0"]->message, "\n";
+}
+try {
+    Core\Json::decodeAs<Booking>(Core\Str::replace($json, "\"zone\":\"Europe/Vienna\"", "\"zone\":\"Europe/Nowhere\""));
+    echo "not reached\n";
+} catch (ParseError $unknown) {
+    echo $unknown->issues["0"]->path, ": ", $unknown->issues["0"]->message, "\n";
+}
+
+// A negative duration has no text `Duration::parse` reads, so it does not encode.
+try {
+    Core\Json::encode(Core\Time\Duration::parse("1h")->negated());
+    echo "not reached\n";
+} catch (LogicError $negative) {
+    echo "refused\n";
+}
+--EXPECT--
+{"id":"0190f3a2-7b1c-7def-8a12-3456789abcde","day":"2026-01-05","opens":"08:30:00","starts":"2026-01-05T08:30:00+01:00[Europe/Vienna]","length":"1h30m","zone":"Europe/Vienna","holidays":["2026-12-25","2026-12-26"],"pause":null}
+same
+"Europe/Vienna" 5400 2026-12-26
+starts: expected a date and time as a string with its zone, such as 2026-01-05T08:30:00+01:00[Europe/Vienna], found a string
+zone: expected a time zone as a string such as Europe/Vienna, found a string
+refused

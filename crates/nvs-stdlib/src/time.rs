@@ -4560,9 +4560,64 @@ pub(crate) fn route_iso(value: Value) -> Option<String> {
         return instant_iso(value);
     }
     if crate::instance::is_instance(value, &DATETIME) {
-        return zoned_of(&args, 0, "toIso").ok().map(|at| zoned_iso_text(&at));
+        return zoned_of(&args, 0, "toIso")
+            .ok()
+            .map(|at| zoned_iso_text(&at));
     }
     None
+}
+
+/// The `Date` `text` names, read with `Date::fromIso`'s grammar, or `None`.
+pub(crate) fn date_from_iso(text: &str) -> Option<Value> {
+    iso::date(text).ok().map(date_built)
+}
+
+/// The `TimeOfDay` `text` names, read with `TimeOfDay::fromIso`'s grammar,
+/// or `None`.
+pub(crate) fn time_of_day_from_iso(text: &str) -> Option<Value> {
+    iso::time_of_day(text).ok().map(clock_built)
+}
+
+/// The `DateTime` `text` names, read with `DateTime::fromIso`'s grammar, or
+/// `None`. The text must carry its `[Zone]`, because a reader of a document
+/// has no zone argument to fall back on.
+pub(crate) fn datetime_from_iso(text: &str) -> Option<Value> {
+    iso::zoned(text).ok().map(|at| datetime_built(&at))
+}
+
+/// `value`'s text in the duration syntax, the one `Duration::parse` reads,
+/// where it is a `Duration` that syntax can write.
+///
+/// `None` for a negative duration, because `parse` refuses the `-` that
+/// `toString` writes for one, and for any value that is not a `Duration`.
+pub(crate) fn duration_text(value: Value) -> Option<String> {
+    if !crate::instance::is_instance(value, &DURATION) {
+        return None;
+    }
+    let nanos = nanos_of(&[value], 0, "toString").ok()?;
+    (nanos >= 0).then(|| duration::render_with(nanos, str::to_owned))
+}
+
+/// The `Duration` `text` names, read with `Duration::parse`'s grammar, or
+/// `None`.
+pub(crate) fn duration_from_text(text: &str) -> Option<Value> {
+    duration::parse(text).ok().map(built)
+}
+
+/// `value`'s id, where it is a `Zone`: its IANA name, or `±HH:MM` for a
+/// fixed zone. `None` for any other value.
+pub(crate) fn zone_text(value: Value) -> Option<String> {
+    let object = crate::instance::receiver(value, &ZONE, "id").ok()?;
+    crate::instance::slot(object, ZONE_ID_SLOT)
+        .as_text()
+        .map(str::to_owned)
+}
+
+/// The `Zone` `text` names, or `None`. A name is looked up in the zone
+/// database and stored as the database writes it, and `±HH:MM` is a fixed
+/// zone, which is what [`zone_text`] writes for one.
+pub(crate) fn zone_from_text(text: &str) -> Option<Value> {
+    iso::written_zone(text).ok().map(|id| zone_built(&id))
 }
 
 /// Whether `value` is one of the four classes [`route_iso`] writes, asked

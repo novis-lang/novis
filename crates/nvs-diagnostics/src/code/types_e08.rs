@@ -374,8 +374,11 @@ codes! {
     pub const E_DECODED_CLASS_HAS_NO_CODEC: Code = Code::new("E0821").card(
         "This class cannot be read from a document, because it has no JSON codec. Write \
          `#[Core\\Json\\Derive]` on the class, or write its `fromJson` method yourself. A `Core` \
-         class such as `Core\\Time\\Date` has no JSON form, and it cannot take the attribute. \
-         Read that value as a `string`, and convert the text after the decode.",
+         class cannot take the attribute. `Core\\Uuid` and `Core\\Time`'s `Date`, `TimeOfDay`, \
+         `Instant`, `DateTime`, `Duration` and `Zone` are read from text as a property or a \
+         shape field, such as `{at: Core\\Time\\Date}`. Other `Core` classes, such as \
+         `Core\\Uri`, have no JSON form. Read such a value as a `string`, and convert the text \
+         after the decode.",
     );
     /// A written `return;` in a body whose declaration is not `void`.
     ///

@@ -1,0 +1,31 @@
+--TEST--
+`Core\Json::decodeAs` with a shape and `Core\Arr::shapeAs` read `Date`, `TimeOfDay`, `Instant`, `DateTime`, `Duration`, `Zone` and `Core\Uuid` fields from their text, and `Core\Arr::shapeAs` takes a value that already is one — `rule:core-classes/derive-property-list`
+--FILE--
+<?nvs
+// A shape field of one of these classes reads the class's own text.
+var $read = Core\Json::decodeAs<{day: Core\Time\Date, at: Core\Time\Instant, id: Core\Uuid, every: Core\Time\Duration}>(
+    '{"day":"2026-01-05","at":"2026-01-05T07:30:00Z","id":"0190f3a2-7b1c-7def-8a12-3456789abcde","every":"15m"}'
+);
+echo $read->day->toIso(), " ", $read->at->toIso(), " ", $read->id->toString(), " ", $read->every->toString(), "\n";
+
+// `Core\Arr::shapeAs` reads the same text from an array, such as a parsed form.
+var $form = ["opens" => "08:30", "starts" => "2026-01-05T08:30:00+01:00[Europe/Vienna]", "zone" => "Europe/Vienna"];
+var $shaped = Core\Arr::shapeAs<{opens: Core\Time\TimeOfDay, starts: Core\Time\DateTime, zone: Core\Time\Zone}>($form);
+echo $shaped->opens->toIso(), " ", $shaped->starts->toIso(), " ", Core\Json::encode($shaped->zone), "\n";
+
+// A value that already is a `Date` is taken as it is.
+var $kept = Core\Arr::shapeAs<{day: Core\Time\Date}>(["day" => Core\Time\Date::fromIso("2026-02-01")]);
+echo $kept->day->toIso(), "\n";
+
+// A text the class does not read is an issue at its field.
+try {
+    Core\Arr::shapeAs<{day: Core\Time\Date}>(["day" => "05.01.2026"]);
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+}
+--EXPECT--
+2026-01-05 2026-01-05T07:30:00Z 0190f3a2-7b1c-7def-8a12-3456789abcde 15m
+08:30:00 2026-01-05T08:30:00+01:00[Europe/Vienna] "Europe/Vienna"
+2026-02-01
+day: expected a date as a string such as 2026-01-05, found a string

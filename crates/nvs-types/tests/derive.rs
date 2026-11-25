@@ -907,21 +907,18 @@ class Row {
     assert_eq!(field("blob").ty, CodecTy::Bytes);
     assert_eq!(field("payload").ty, CodecTy::Bytes);
 
-    // The label rides along with the wire type, because what the decode owes is
-    // to say which class the column was expected to build.
-    let at = field("at");
-    assert_eq!(at.ty, CodecTy::Instant);
-    assert_eq!(at.class.as_deref(), Some(r"Core\Time\Instant"));
-
-    // The rest of the map is a class label and is read by it.
+    // Each `Core` value type is the one wire type that crosses as text, and the
+    // label rides along with it, because what the decode owes is to say which
+    // class the column was expected to build.
     for (property, class) in [
+        ("at", r"Core\Time\Instant"),
         ("day", r"Core\Time\Date"),
         ("clock", r"Core\Time\TimeOfDay"),
         ("stamp", r"Core\Time\DateTime"),
         ("id", r"Core\Uuid"),
     ] {
         let value = field(property);
-        assert_eq!(value.ty, CodecTy::Class, "`${property}`");
+        assert_eq!(value.ty, CodecTy::ValueText, "`${property}`");
         assert_eq!(value.class.as_deref(), Some(class), "`${property}`");
     }
 
@@ -984,6 +981,17 @@ class Order {
     // A shape declares no constructor, so what a decode fills is every slot it
     // has — which is what makes the field's index its parameter and its slot.
     assert_eq!(nested.ctor_arity, nested.fields.len());
+}
+
+/// The checker's list of the `Core` value types that cross JSON as text and
+/// the encoder's table of their writers and readers are one list, in one
+/// order, so a class on one is never a class the other cannot handle.
+#[test]
+fn value_text_classes_agree_with_the_json_table() {
+    assert_eq!(
+        nvs_types::derive::JSON_TEXT_CLASSES,
+        nvs_stdlib::json::VALUE_TEXT_NAMES.as_slice()
+    );
 }
 
 /// Every name on `Core`'s compiler roster is one declaration value, in the

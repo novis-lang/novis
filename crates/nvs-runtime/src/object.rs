@@ -1204,12 +1204,15 @@ pub enum CodecTy {
     /// [`Self::Str`]: `rule:core-classes/db-column-types` maps the binary
     /// families to it, and `nvs_types::derive`'s JSON half never produces it.
     Bytes,
-    /// `Core\Time\Instant` — a `Core` value type carried as a value rather than
-    /// as a nested object, so it is not [`Self::Class`]: it declares no codec
-    /// for a decoder to run. A driver builds the instance out of the column's
-    /// own components before hydration reads it, and what a decode owes is the
-    /// question every other wire type owes — is this what the field declared.
-    Instant,
+    /// A `Core` value type that crosses a JSON document as one string —
+    /// `Core\Time`'s `Date`, `TimeOfDay`, `Instant`, `DateTime`, `Duration` and
+    /// `Zone`, and `Core\Uuid`. It is carried as a value rather than as a nested
+    /// object, so it is not [`Self::Class`]: it declares no codec for a decoder
+    /// to run. Which class, and so which text, rides on [`CodecField::class`].
+    /// A row reads it as it reads a [`Self::Class`]: a driver builds the
+    /// instance out of the column's own components before hydration reads it,
+    /// and the decode asks whether that is the class the field declared.
+    ValueText,
     /// `mixed` — whatever the document held, unchecked
     /// (`rule:types/declaration`).
     Mixed,
@@ -1604,9 +1607,9 @@ pub struct CodecField {
     /// is what [`CodecElement`] exists for.
     pub element: Option<CodecElement>,
     /// The class's label when a class identity is what the erasure above
-    /// dropped: the field's own class for a [`CodecTy::Class`], the *terminal
-    /// element's* for a [`CodecTy::List`] at any depth, and `None` for every
-    /// other wire type.
+    /// dropped: the field's own class for a [`CodecTy::Class`] or a
+    /// [`CodecTy::ValueText`], the *terminal element's* for a
+    /// [`CodecTy::List`] at any depth, and `None` for every other wire type.
     ///
     /// The *declaration* half of a nested field, which is all a front-end
     /// crate can say: a descriptor does not exist until `nvs-codegen` has

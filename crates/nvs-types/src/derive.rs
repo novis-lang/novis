@@ -1103,11 +1103,13 @@ impl Format {
         match self {
             Self::Json => {
                 "a JSON property's type is a scalar, `mixed`, an enum, a set of allowed values \
-                 such as `\"a\"|\"b\"`, a shape or `Core\\Time\\Instant`. It may also be a class \
-                 with its own `#[Core\\Json\\Derive]`, or an `array<T>` or `?T` of any of these. \
-                 Other `Core` classes, such as `Core\\Time\\Date`, have no JSON form. Declare the \
-                 property `string`, and convert the text after the decode. A union such as \
-                 `string|int` is not one: use `mixed` for a value of any type. Write \
+                 such as `\"a\"|\"b\"`, a shape, or a class with its own \
+                 `#[Core\\Json\\Derive]`. It may also be `Core\\Uuid` or one of `Core\\Time`'s \
+                 `Date`, `TimeOfDay`, `Instant`, `DateTime`, `Duration` and `Zone`, which are \
+                 written as text. An `array<T>` or `?T` of any of these is allowed too. Other \
+                 `Core` classes, such as `Core\\Uri`, have no JSON form. Declare the property \
+                 `string`, and convert the text after the decode. A union such as `string|int` \
+                 is not one: use `mixed` for a value of any type. Write \
                  `#[Core\\Json\\Field(skip: true)]` to leave the property out"
             }
             Self::Db => {
@@ -1340,11 +1342,10 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// `declared`, erased to what a native decoder branches on, with the class
 /// label and the enum roster beside it where the erasure loses one.
 ///
-/// `rule:core-classes/derive-property-list`'s codec-reachable set is wider than
-/// this in one place still: the four `Core` value types of
-/// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
-/// and are told from a codec-carrying class by their label alone, which is what
-/// `nvs_stdlib::db::row` reads. `rule:core-classes/derive-property-list`'s compile-time refusal of a genuinely
+/// Every class of [`JSON_TEXT_CLASSES`] erases to [`CodecTy::ValueText`] and
+/// keeps its label, which says which text `nvs_stdlib::json` writes and reads
+/// and which class `nvs_stdlib::db::row` checks a column against.
+/// `rule:core-classes/derive-property-list`'s compile-time refusal of a genuinely
 /// unreachable type is [`resolve_field_types`]'s.
 /// An inline shape keeps **both** halves of what it loses — the class a decode
 /// constructs and the contract holding its field types — because a class label
@@ -1425,19 +1426,17 @@ fn codec_ty(
         // and the reachable set is what keeps it out of a JSON document.
         Ty::Bytes | Ty::TaintedBytes => Erased::wire(CodecTy::Bytes),
         Ty::Mixed | Ty::Error => Erased::wire(CodecTy::Mixed),
-        // `rule:core-classes/derive-property-list`'s "another class that itself has a codec", and the one `Core`
-        // value type that is a wire type instead. The label is what
+        // `rule:core-classes/derive-property-list`'s "another class that itself has a codec", and the `Core`
+        // value types that cross as text instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
-        // through, so `nvs-codegen` can resolve it to a descriptor; an
-        // `Instant` keeps it too, because a decoder that only has to ask
-        // whether the column built what the field declared still needs the
-        // name to say so. The rest of [`DB_COLUMN_CLASSES`] is
-        // [`CodecTy::Class`], which `nvs_stdlib::db::row` reads by that same
-        // label.
+        // through, so `nvs-codegen` can resolve it to a descriptor. A
+        // [`JSON_TEXT_CLASSES`] class keeps it too, because the label picks
+        // the text `nvs_stdlib::json` writes and reads, and it is the class
+        // `nvs_stdlib::db::row` checks a column against.
         Ty::Class(name, _) => {
             let label = name.to_string();
-            let wire = if label == nvs_stdlib::time::INSTANT_NAME {
-                CodecTy::Instant
+            let wire = if JSON_TEXT_CLASSES.contains(&label.as_str()) {
+                CodecTy::ValueText
             } else {
                 CodecTy::Class
             };
@@ -1704,7 +1703,7 @@ fn report_at_subclass(before: usize, inherited: &Inherited, env: &mut Env<'_>) {
 /// must not depend on which file declared it first.
 ///
 /// **What it refuses is the unreachable set**, and the JSON half of the
-/// erasure now answers for all of it: `rule:core-classes/derive-property-list` lists a `decimal`, an `Instant`, an
+/// erasure now answers for all of it: `rule:core-classes/derive-property-list` lists a `decimal`, a `Core` value type, an
 /// enum, an inline shape, an `array<T>` and a nested codec-carrying class as
 /// reachable, and each of those — at any depth of `array<…>`, since
 /// [`list_erasure`]'s chain describes every level — erases to a wire type
@@ -2124,7 +2123,13 @@ fn check_json_participation(
     let member = &site.member;
     // A `Core` class is declared by the runtime, so the attribute the other
     // help names cannot be written on it.
-    let help = if class.to_string().starts_with(r"Core\") {
+    let label = class.to_string();
+    let help = if JSON_TEXT_CLASSES.contains(&label.as_str()) {
+        format!(
+            "`{class}` is read from text only as a property or a shape field. Decode a shape such \
+             as `{{value: {class}}}`, or read a `string` and convert it"
+        )
+    } else if label.starts_with(r"Core\") {
         format!(
             "`{class}` has no JSON form, and a `Core` class cannot take an attribute. Declare \
              this value `string`, and convert the text after the decode"
@@ -2624,6 +2629,24 @@ const DB_COLUMN_CLASSES: &[&str] = &[
     nvs_stdlib::uuid::NAME,
 ];
 
+/// The `Core` value types that cross a JSON document as one string, which
+/// [`codec_ty`] erases to [`CodecTy::ValueText`] and `nvs_stdlib::json`'s
+/// § *A value type crosses as text* writes and reads.
+///
+/// A closed list for [`DB_COLUMN_CLASSES`]' reason: a `Core` class off it,
+/// such as `Core\Uri`, has no JSON form on purpose. Each name is taken from
+/// the module that declares the class, and `nvs_stdlib::json::VALUE_TEXT_NAMES`
+/// is the same list in the same order, which this crate's test checks.
+pub const JSON_TEXT_CLASSES: &[&str] = &[
+    nvs_stdlib::time::DATE_NAME,
+    nvs_stdlib::time::TIME_OF_DAY_NAME,
+    nvs_stdlib::time::INSTANT_NAME,
+    nvs_stdlib::time::DATETIME_NAME,
+    nvs_stdlib::time::DURATION_NAME,
+    nvs_stdlib::time::ZONE_NAME,
+    nvs_stdlib::uuid::NAME,
+];
+
 /// `rule:core-classes/derive-property-list`'s reachable set, over the interned type — JSON's half of
 /// [`reachable`].
 fn json_reachable(
@@ -2693,23 +2716,17 @@ fn class_has_codec(
                 || sig.methods.contains_key(DECODE)
                 // A `Core` value type declares no member for this to find, so
                 // the ones with a wire form are named: `nvs_stdlib::json`'s
-                // § *A value type crosses as text* reads `Instant` alone. A
+                // § *A value type crosses as text* reads each of them. A
                 // `Core` class off this list erases to a class label no
                 // descriptor answers, so admitting it here would stop the
                 // decode with an internal error instead of the `E0756` above.
-                || is_core_json_value(&label)
+                || JSON_TEXT_CLASSES.contains(&label.as_str())
         }
         // A name with no signature is a name that did not resolve, and that
         // has already been reported where it was written; a second
         // diagnostic here would name the same property for the same reason.
         None => true,
     }
-}
-
-/// Whether `label` is a `Core` value type with a JSON wire form, which
-/// [`codec_ty`] erases to a wire type `nvs_stdlib::json` decodes.
-fn is_core_json_value(label: &str) -> bool {
-    label == nvs_stdlib::time::INSTANT_NAME
 }
 
 /// Records `decl`'s [`DerivedCodec`] for each of [`Format`]'s two values it

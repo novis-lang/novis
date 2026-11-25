@@ -2504,6 +2504,11 @@ pub(crate) fn written_class_of(
             let mut reached = Vec::new();
             crate::derive::classes_reached(element, env.interner, &mut reached);
             let member = format!("{owner}::{method}");
+            // A `Core` value type that crosses as text is read from that text,
+            // so it needs no codec and records no site.
+            reached.retain(|class| {
+                !crate::derive::JSON_TEXT_CLASSES.contains(&class.to_string().as_str())
+            });
             for class in reached {
                 if outside {
                     env.decode_sites.push(crate::derive::DecodeSite::new(

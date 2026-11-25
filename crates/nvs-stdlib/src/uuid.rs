@@ -437,6 +437,17 @@ pub(crate) fn of_text(text: &str) -> Option<Value> {
     read(text).map(built)
 }
 
+/// `value`'s canonical text, the one [`of_text`] reads, where it is a
+/// `Core\Uuid` — the text `crate::json` writes. `None` for any other value.
+pub(crate) fn text(value: Value) -> Option<String> {
+    if !crate::instance::is_instance(value, &CLASS) {
+        return None;
+    }
+    let mut into = TEXT;
+    let octets = uuid_of(&[value], 0, "toString").ok()?.into_bytes();
+    Some(canonical(octets, &mut into).to_owned())
+}
+
 /// The `Uuid` `text` spells, or `None` if it is not the canonical form.
 ///
 /// **The grammar itself is [`nvs_runtime::uuid::read`]**, one crate down, and

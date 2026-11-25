@@ -347,9 +347,13 @@ impl<'a> Schemas<'a> {
                 .shape
                 .as_deref()
                 .map_or_else(|| json!({}), |shape| self.object(shape)),
+            // A `Core` value type crosses as its text, so it is a string with the
+            // format a route parameter of its class has. A `Duration` and a
+            // `Zone` have no JSON Schema format, and are a bare string.
+            CodecTy::ValueText => schema(field.class.as_deref(), None, true),
             // `Core\Json` writes none of these with a fixed JSON type, so the
             // document says nothing it cannot back.
-            CodecTy::Bytes | CodecTy::Instant | CodecTy::Mixed | CodecTy::Opaque => json!({}),
+            CodecTy::Bytes | CodecTy::Mixed | CodecTy::Opaque => json!({}),
         }
     }
 }
