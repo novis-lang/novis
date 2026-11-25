@@ -3063,10 +3063,10 @@
     "Core\\Time\\Date::daysInMonth": "75ae024006519ef4"
   },
   "docs/examples/core/Time-Date/difference/about.md": {
-    "Core\\Time\\Date::difference": "35bf1b1cf9bf2909"
+    "Core\\Time\\Date::difference": "9c6e0850ba8ac395"
   },
   "docs/examples/core/Time-Date/endOf/about.md": {
-    "Core\\Time\\Date::endOf": "653d75f7afe69393"
+    "Core\\Time\\Date::endOf": "19da40c8e5105be3"
   },
   "docs/examples/core/Time-Date/format/about.md": {
     "Core\\Time\\Date::format": "e42059e19f1bf0ea"
@@ -3090,7 +3090,7 @@
     "Core\\Time\\Date::month": "a12c809c924bfc89"
   },
   "docs/examples/core/Time-Date/next/about.md": {
-    "Core\\Time\\Date::next": "e6946a6b9da7de7f"
+    "Core\\Time\\Date::next": "dbe2d33cb5829097"
   },
   "docs/examples/core/Time-Date/parse/about.md": {
     "Core\\Time\\Date::parse": "4de235d9598026ef"
@@ -3099,7 +3099,7 @@
     "Core\\Time\\Date::plus": "bcaf93341139e894"
   },
   "docs/examples/core/Time-Date/previous/about.md": {
-    "Core\\Time\\Date::previous": "519ce276feb2c4e6"
+    "Core\\Time\\Date::previous": "75a88dd5628380ca"
   },
   "docs/examples/core/Time-Date/quarter/about.md": {
     "Core\\Time\\Date::quarter": "404570e322c83ce4"
@@ -3108,7 +3108,7 @@
     "Core\\Time\\Date::range": "e7b7cca1babfc16e"
   },
   "docs/examples/core/Time-Date/startOf/about.md": {
-    "Core\\Time\\Date::startOf": "a4bcfe05db43a7db"
+    "Core\\Time\\Date::startOf": "fe0a0a8d901f8d27"
   },
   "docs/examples/core/Time-Date/toIso/about.md": {
     "Core\\Time\\Date::toIso": "8490592939987afb"
@@ -3126,7 +3126,7 @@
     "Core\\Time\\DateTime::at": "d2ab7d20f746d4ba"
   },
   "docs/examples/core/Time-DateTime/compareTo/about.md": {
-    "Core\\Time\\DateTime::compareTo": "febc545db9e31371"
+    "Core\\Time\\DateTime::compareTo": "7bea9c79123bc357"
   },
   "docs/examples/core/Time-DateTime/date/about.md": {
     "Core\\Time\\DateTime::date": "f10f2e08740c6122"
@@ -3204,7 +3204,7 @@
     "Core\\Time\\DateTime::toInstant": "ea09234391efa7a0"
   },
   "docs/examples/core/Time-DateTime/toIso/about.md": {
-    "Core\\Time\\DateTime::toIso": "0c1b9f6d3ed8fcdf"
+    "Core\\Time\\DateTime::toIso": "12631f6534f8caf4"
   },
   "docs/examples/core/Time-DateTime/weekday/about.md": {
     "Core\\Time\\DateTime::weekday": "da825c960e4bf1cd"
@@ -8064,10 +8064,10 @@
     "Core\\Time\\Date::daysInMonth": "da06119e8ff2656f"
   },
   "help:Core\\Time\\Date::difference": {
-    "Core\\Time\\Date::difference": "e0bbd43a71a19c6e"
+    "Core\\Time\\Date::difference": "99e4c96cf897bfeb"
   },
   "help:Core\\Time\\Date::endOf": {
-    "Core\\Time\\Date::endOf": "ce51833eb4aed16a"
+    "Core\\Time\\Date::endOf": "4d7535fbfc48fc40"
   },
   "help:Core\\Time\\Date::format": {
     "Core\\Time\\Date::format": "52ef60ec06e2314c"
@@ -8091,7 +8091,7 @@
     "Core\\Time\\Date::month": "b61adb960f6cb902"
   },
   "help:Core\\Time\\Date::next": {
-    "Core\\Time\\Date::next": "baae5555dd5d8d45"
+    "Core\\Time\\Date::next": "92b8f4237916fc82"
   },
   "help:Core\\Time\\Date::parse": {
     "Core\\Time\\Date::parse": "7a58a8ca903d20ab"
@@ -8100,7 +8100,7 @@
     "Core\\Time\\Date::plus": "97d58d710fe417a4"
   },
   "help:Core\\Time\\Date::previous": {
-    "Core\\Time\\Date::previous": "86afefc7a0a844ff"
+    "Core\\Time\\Date::previous": "2658c4d200ddb8f6"
   },
   "help:Core\\Time\\Date::quarter": {
     "Core\\Time\\Date::quarter": "749d024ac955a7dc"
@@ -8109,7 +8109,7 @@
     "Core\\Time\\Date::range": "be44aa81f549540f"
   },
   "help:Core\\Time\\Date::startOf": {
-    "Core\\Time\\Date::startOf": "f7153875ba721719"
+    "Core\\Time\\Date::startOf": "781f791c2b565795"
   },
   "help:Core\\Time\\Date::toIso": {
     "Core\\Time\\Date::toIso": "dfcac8b3c820ae97"
@@ -8127,7 +8127,7 @@
     "Core\\Time\\DateTime::at": "8a4c0cf37b0f8b91"
   },
   "help:Core\\Time\\DateTime::compareTo": {
-    "Core\\Time\\DateTime::compareTo": "6fe457a0ec66a17e"
+    "Core\\Time\\DateTime::compareTo": "2f6d9629c27f2cfa"
   },
   "help:Core\\Time\\DateTime::date": {
     "Core\\Time\\DateTime::date": "2dd101cc320d35f4"
@@ -8205,7 +8205,7 @@
     "Core\\Time\\DateTime::toInstant": "d5a155e839769de0"
   },
   "help:Core\\Time\\DateTime::toIso": {
-    "Core\\Time\\DateTime::toIso": "a6ebe75e49cc3a1e"
+    "Core\\Time\\DateTime::toIso": "36df053994b8aaa9"
   },
   "help:Core\\Time\\DateTime::weekday": {
     "Core\\Time\\DateTime::weekday": "4a33be91fcfe7c05"

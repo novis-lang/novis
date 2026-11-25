@@ -18971,16 +18971,28 @@
       "Can I add a new property to an object at run time?"
     ]
   },
+  "/syntax/classes/extend-blocks/": {
+    "feature": "syntax/classes/extend-blocks.mdx",
+    "hash": "756418f35aeed1a6",
+    "questions": [
+      "How do I add a method to a class from Core?",
+      "Add a method to a class from another package",
+      "Why can my file not find a method that an extend block adds?",
+      "Add a property to an object I did not create",
+      "Can an extend block override a method of the class?",
+      "Add a method to a Core enum"
+    ]
+  },
   "/syntax/classes/interfaces/": {
     "feature": "syntax/classes/interfaces.mdx",
-    "hash": "2a3f5462465cadb5",
+    "hash": "ecd84c3429d7b0ed",
     "questions": [
       "How do I write an interface and implement it?",
       "Give an interface a method with a default body",
       "Does Novis have traits?",
       "How do I share code between classes without inheritance?",
       "Forward all methods of an interface to another object",
-      "Implement several interfaces in one class"
+      "Add a method to an interface from another package"
     ]
   },
   "/syntax/classes/methods-and-inheritance/": {
@@ -19483,7 +19495,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "efcbbfb3e52b1cd6",
+    "hash": "ccb1c77ed2e03943",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",

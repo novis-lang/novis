@@ -39,8 +39,8 @@ Conventions the whole file uses:
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, power, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `catch` as an expression, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, catch, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
-- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`, `Revocable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
-- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
+- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`, `Revocable`; `extend` blocks that add members to a type of another package; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding, extend, extend block, added method, added property, extension method, monkey patching)*
+- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, the methods and constants an enum body declares, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, enum method, enum constant, Core\Arr::Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>`, `KeyedIterable<K, V>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel, KeyedIterable, KeyedIterator, iterateKeyed, key, key and value)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, arguments, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
@@ -13710,7 +13710,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-classes"></a>
 ## A.5 Classes, interfaces and objects
 
-Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding, extend, extend block, added method, added property, extension method, monkey patching
 
 ### Declaring a class
 
@@ -18102,6 +18102,244 @@ build report
 backup
 ```
 
+### `extend` blocks
+
+An `extend` block adds methods, constants and properties to a class, an interface or an enum that `Core` or another package declares.
+
+You write `extend Core\Time\Date as BusinessDays { … }`, and the methods inside work on every `Date`. Inside them, `$this` is the `Date`. A file sees the added methods only when it has the line `use Shop\BusinessDays;`. The file that declares the block needs this line too. So each file shows where its methods come from.
+
+An added method can only add a new name. It cannot replace a method the type already has. The type's `private` members stay private, and the block sees only what other code sees. A call of an added method costs the same as a call of a static method.
+
+**Good to know:** only code that knows the static type finds an added method. A `mixed` value, `Core\Reflect`, JSON and `clone` do not see it.
+
+**The examples below** add business days to `Date`, store a value on the route of a request, and show a package that allows one of its added methods only in its own code.
+
+An `extend` block is declared at the top level of a file. Inside a class it is the error `E0233`. The name after `as` is the name of the block, in the namespace of the file. An autoloaded file declares one block and nothing else. Its file name is the name of the block, such as `BusinessDays.nvs`. `extend` is a keyword only at the start of a top-level statement. A method, a variable or a property may still be named `extend`.
+
+The type after `extend` must be a class, an interface or an enum. A type alias, an attribute or another block is the error `E0336`. The type must come from `Core` or from another package. A type of your own package is the error `E0337`: add the member to the type itself.
+
+A file sees the added members only when it has a `use` line for the block. An alias in the `use` line works too. Without it, a call of an added method is the error `E0405`, and a call with `::` is `E0309`. The help of the error names the `use` line to add.
+
+A block may add these members:
+
+- `public` and `private` methods, static or not. On an enum, `$this` is the case.
+- Constants.
+- A property with a `get` hook and no stored value. Every read runs the hook.
+- A stored property. It needs a default value, a `?` type or `lateinit`. Only a class can store one.
+- A nested `enum`, and a nested `attribute`. A block on an enum cannot add these two.
+
+A block cannot add these members, and each one is the error `E0338`: a constructor, a `protected`, `abstract` or `final` member, a `static` property, a `readonly` property, a stored property with no default, and a new enum case. Inside a block, `parent`, `static::` and `new static` are `E0338` too. Write `self` instead of `static`. A static method of a block cannot use `yield`, and on an enum no method of a block can.
+
+Inside a block, `$this` has the type that the block extends, and `self` names that type. The body sees the `public` members of the type, the members of its own block, and the members of other blocks its file uses. A `private` member of the type is the error `E0471`. A `private` added member is visible only inside its own block.
+
+An added name must be new. Each of these is the error `E1011`, and the error names both places:
+
+- The type or a parent class already has a member with that name.
+- Two blocks add the same name to the same type.
+- A class or an interface of the program extends or implements the type and declares the name.
+- A later version of Novis adds the name to a `Core` type.
+
+Some methods are called by name by the runtime. Examples are `compareTo`, `toString`, `parse`, `tryParse`, `format`, `iterate`, `current` and `key`. A block cannot add a method with such a name, and that is the error `E1012`. Write a class of your own that implements the interface instead. An added method never makes a type implement an interface, so `$x is Comparable` gives the same result as before.
+
+A value whose type is a union finds an added method only when every type in the union gets it from the same block. Otherwise the call is the error `E1013`. Use `is` to check the type first.
+
+A stored property cannot be added to an interface, to an enum, or to a `Core` class that does not allow it. That is the error `E1014`. The `Core\Time` classes, such as `Core\Time\Date`, do not allow it. Wrap the value in a class of your own instead. Before its first write, a stored property reads its default. A `?` property with no default reads `null`. A `lateinit` property throws an error when it is read before a write. A write of one array element through an added property, such as `$order->tags[] = 'x'`, is the error `E0478`. Read the array into a variable, change it there, and assign it back.
+
+`clone` gives a copy whose added properties have their defaults again. A copy sent to a task starts the same way. JSON, `Core\Reflect`, `==` and the session store do not read added properties. `Core\Reflect` does not list an added method. A call of one through a `mixed` value or `object` throws an error, as for a method that does not exist.
+
+A block for a generic `Core` class gives a new name to each type parameter, such as `extend Core\ObjectMap<K, V> as Index { … }`. A list that does not match the type parameters is the error `E0338`. So a block for one exact type, such as `Core\ObjectMap<Tag, int>`, does not compile.
+
+A `[[restrict]]` entry in `package.toml` names an added method by its block, such as `'Acme\Billing\InvoiceDates::lateFeeFrom'`. A use where the entry does not allow it is the error `E0664`. An entry for the extended type does not cover the members a block adds. The code inside a block is checked as code in the namespace of the block. So a block cannot call a member that is restricted to its type.
+
+`#[Core\Deprecated]` on a block or on an added member gives a warning at each use.
+
+#### Example 01: business days on a date
+
+```nvs
+<?nvs
+// Adds two methods to `Core\Time\Date` and calls them like the class's own methods.
+
+namespace Shop;
+
+use Core\Time\Date;
+use Core\Time\Weekday;
+use Core\Unit;
+// The added methods work only in a file that has this `use` line.
+use Shop\BusinessDays;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return !$this->isWeekend();
+    }
+
+    public function plusBusinessDays(int $days): Date {
+        var $day = $this;
+        int $left = $days;
+        while ($left > 0) {
+            $day = $day->plus(1, Unit::Day);
+            if ($day->isBusinessDay()) {
+                $left = $left - 1;
+            }
+        }
+        return $day;
+    }
+
+    // A `private` method is visible only inside this block.
+    private function isWeekend(): bool {
+        return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
+    }
+}
+
+var $ordered = Date::at(2026, 9, 18);
+echo "Ordered on a business day: ", $ordered->isBusinessDay() ? "yes" : "no", "\n";
+
+var $delivery = $ordered->plusBusinessDays(3);
+echo "Delivery: ", $delivery->year(), "-", $delivery->month(), "-", $delivery->day(), "\n";
+```
+
+```output
+Ordered on a business day: yes
+Delivery: 2026-9-23
+```
+
+#### Example 02: a note on the request route
+
+```nvs skip
+<?nvs
+// Adds two stored properties to `Core\Router\Match`, the route of a request. One class writes them and another class reads them.
+
+namespace Shop;
+
+use Core\Router\Match;
+use Shop\RequestNotes;
+
+class Orders
+{
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return 'one order';
+    }
+}
+
+extend Match as RequestNotes {
+    // A stored property needs a default value or a `?` type.
+    public ?uint $orderId;
+    public int $checks = 0;
+}
+
+final class OrderCheck
+{
+    // This method reads the order number from the address and stores it on the route.
+    public static function run(Match $route): void
+    {
+        $route->orderId = $route->parameter('id') as uint;
+        $route->checks += 1;
+    }
+}
+
+final class Summary
+{
+    // This method reads what `OrderCheck::run` stored.
+    public static function text(Match $route): string
+    {
+        return 'order: ' . ($route->orderId ?? 'none') . ', checks: ' . $route->checks;
+    }
+}
+
+?Match $route = Core\Request::route();
+if ($route != null) {
+    // Before the first write, the properties have their defaults.
+    // This prints "order: none, checks: 0".
+    echo Summary::text($route), "\n";
+    OrderCheck::run($route);
+    echo Summary::text($route), "\n";
+}
+```
+
+```text
+order: none, checks: 0
+order: 7, checks: 1
+```
+
+#### Example 03: a package allows one method
+
+```toml file=packages/acme-billing/package.toml
+[package]
+name = 'Acme\Billing'
+
+### `lateFeeFrom` may be called only by the code of this package.
+[[restrict]]
+use = 'Acme\Billing\InvoiceDates::lateFeeFrom'
+allow = ['Acme\Billing']
+```
+
+```nvs file=packages/acme-billing/src/InvoiceDates.nvs
+<?nvs
+// Adds two methods to `Core\Time\Date`. Every program may call `dueDate`.
+// Only this package may call `lateFeeFrom`, because `package.toml` restricts it.
+
+namespace Acme\Billing;
+
+use Core\Time\Date;
+use Core\Unit;
+
+extend Date as InvoiceDates {
+    public function dueDate(): Date {
+        return $this->plus(30, Unit::Day);
+    }
+
+    public function lateFeeFrom(): Date {
+        return $this->dueDate()->plus(14, Unit::Day);
+    }
+}
+```
+
+```nvs file=packages/acme-billing/src/Reminder.nvs
+<?nvs
+// Writes the text of a payment reminder. This class is in the package, so it may call `lateFeeFrom`.
+
+namespace Acme\Billing;
+
+use Core\Time\Date;
+use Acme\Billing\InvoiceDates;
+
+final class Reminder
+{
+    public static function text(Date $issued): string
+    {
+        var $fee = $issued->lateFeeFrom();
+        return 'A late fee is added from ' . $fee->year() . '-' . $fee->month() . '-' . $fee->day() . '.';
+    }
+}
+```
+
+```nvs
+<?nvs
+// Uses a package that adds methods to `Core\Time\Date` and allows only one of them outside the package.
+
+use Core\Time\Date;
+use Acme\Billing\InvoiceDates;
+use Acme\Billing\Reminder;
+
+autoload 'Acme\Billing' from './packages/acme-billing/src';
+
+var $issued = Date::at(2026, 3, 2);
+
+var $due = $issued->dueDate();
+echo 'Due on ', $due->year(), '-', $due->month(), '-', $due->day(), "\n";
+
+// `$issued->lateFeeFrom()` does not compile in this file, because the package allows it only
+// in its own code. Its `Reminder` class calls it for you.
+echo Reminder::text($issued), "\n";
+```
+
+```output
+Due on 2026-4-1
+A late fee is added from 2026-4-15.
+```
+
 ### Objects are handles
 
 An object is never copied when your program passes it from one place to another. A variable, a
@@ -18915,7 +19153,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-enums"></a>
 ## A.6 Enums
 
-Keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
+Keywords: enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, enum method, enum constant, Core\Arr::Order
 
 ### Declaring an enum
 
@@ -18923,29 +19161,38 @@ Declares a new type whose values are a fixed set of named numbers.
 
 Write the cases between `{` and `}`, separated by commas. Every case has a whole number behind it.
 You can write that number with `=`, or leave it out. The first case with no number written is `0`,
-and every later case with no number written is one more than the case before it. A number may be
-negative or zero, and two cases may carry the same number.
+and every later case with no number written is one more than the case before it. Two cases may
+have the same number.
 
 `enum Level: int` and `enum Level: uint` name the type of number behind the cases. With nothing
-written it is `int`. No other type backs an enum. An enum body holds cases and nothing else: a
-method, a constant or an `implements` clause does not compile. Put the behaviour in a class that
-takes the enum.
+written it is `int`.
+
+The body may also declare methods and constants, but no properties. Inside a method, `$this` is the
+case the method is called on, as in `Level::Info->label()`.
 
 **The examples below** show an enum with no numbers written, then an enum whose numbers you choose,
-then a set of permissions where each case is one bit of a number. Example 04 shows numbers that count
-on from a number you write. Examples 05 to 07 show three enums that do not compile.
+then permissions where each case is one bit. In example 04, the cases after a written number get the next numbers. Examples 05
+to 07 show three enums that do not compile. Example 08 shows a constant and a method.
 
 A case value is a whole number written in the code. It may be negative, and it may be written in hex
 (`0x10`), in binary (`0b11`) or with underscores (`1_000`). Anything else is the error `E0436`. That
 covers a calculation such as `1 << 3`, another case, a class constant, a `float` and a string.
 
-A value that does not fit the backing type is the error `E0437`. `enum M: uint { A = -1 }` is one
-example. A case with no value after the largest possible number is `E0437` too, because no number is
-left to count on to.
+The backing type is the type of number behind the cases, `int` or `uint`. A value that does not fit
+it is the error `E0437`. `enum M: uint { A = -1 }` is one
+example. A case with no value written after a case with the largest possible number is `E0437` too. It
+has no next number.
 
 A comma after the last case is allowed. An enum with no cases compiles.
 
 Two cases with the same value are equal: `Suit::A == Suit::B` is `true` when both are `1`.
+
+A method or a constant of an enum may be `public` or `private`. A method may be `static`. Inside the
+enum, `self` is the enum, so `self::Hearts`, `self::MAX` and `self::label()` work. A method reference
+such as `Suit::Hearts->label(...)` gives a function you can call later.
+
+To add a method to an enum from another package or from `Core`, write an `extend` block. An `extend`
+block for an enum that your own program declares is the error `E0337`. Write the method in the enum.
 
 The enum name and every case name are PascalCase. A name that starts with a lowercase letter or has
 an underscore, such as `hearts` or `Big_One`, is the error `E0110`. The help gives the fixed name.
@@ -18953,10 +19200,13 @@ an underscore, such as `hearts` or `Big_One`, is the error `E0110`. The help giv
 These forms do not compile:
 
 - `case` before a case name is the error `E0239`.
-- A constant, a method, or a `;` between cases is the error `E0220`.
+- A property in an enum body is the error `E0220`. Its help shows how to keep the value in a class.
+- An enum inside an enum body is the error `E0220`. So is a method that uses `yield`.
+- A constant with the same name as a case is the error `E0304`.
+- A `;` between cases is a syntax error (`E0101`).
 - `implements` on an enum is the error `E0218`.
-- `enum Suit: string` is the error `E0219`. Any other backing type except `int` and `uint` is
-  `E0438`.
+- `enum Suit: string` is the error `E0219`. Every other backing type is
+  `E0438`. Only `int` and `uint` are allowed.
 - An enum with the same name as another enum or a class in the file is the error `E0304`.
 - An enum declared inside a method is the error `E0233`. Declare it at the top level of the file,
   or in a class body.
@@ -19123,28 +19373,28 @@ error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
-#### Example 06: a constant in an enum
+#### Example 06: a property in an enum
 
 ```nvs error
 <?nvs
-// Shows that an enum contains only cases. A constant does not compile, so put
-// it in a class.
+// Shows that an enum cannot have a property. A case cannot store a value,
+// so this does not compile.
 // proof: compile-error
 
 enum Suit {
     Hearts,
     Spades,
-    const int COUNT = 2;
+    public int $count = 2;
 }
 ```
 
 ```output
-error[E0220]: an enum declares only cases and an optional backing type
+error[E0220]: an enum has no properties
   --> main.nvs:9:5
   |
-9 |     const int COUNT = 2;
-  |     ^^^^^^^^^^^^^^^^^^^^ not a case
-  = help: move this to a separate class
+9 |     public int $count = 2;
+  |     ^^^^^^^^^^^^^^^^^^^^^^ not a case, a method or a constant
+  = help: an enum case cannot store a value. Keep the value in a class of your own, or return it from a method of the enum
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -19171,6 +19421,50 @@ error[E0219]: an enum cannot be backed by `string`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 08: an enum with a constant and a method
+
+```nvs
+<?nvs
+// Shows an enum with a constant and a method. Inside the method, `$this` is the
+// case that the method is called on.
+
+enum Priority
+{
+    Low,
+    Normal,
+    Urgent,
+
+    // The most hours a support ticket may wait for an answer.
+    public const int MAX_WAIT_HOURS = 72;
+
+    // Returns the hours a ticket with this priority may wait.
+    public function waitHours(): int
+    {
+        return match ($this) {
+            Priority::Low => self::MAX_WAIT_HOURS,
+            Priority::Normal => 24,
+            Priority::Urgent => 2,
+        };
+    }
+}
+
+// This prints 72.
+echo Priority::MAX_WAIT_HOURS, "\n";
+
+// This prints 2.
+echo Priority::Urgent->waitHours(), "\n";
+
+// The method also works on a variable. This prints 24.
+Priority $p = Priority::Normal;
+echo $p->waitHours(), "\n";
+```
+
+```output
+72
+2
+24
 ```
 
 ### A case is its integer
@@ -20465,27 +20759,30 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 Says what an enum does not have, and what to write instead.
 
 A case is a number with a name, not an object. It has no `->name` and no `->value`, and an enum has
-no `cases()`, `from()` or `tryFrom()`. An enum body has cases and nothing else, so a method, a
-constant and an `implements` clause do not compile either.
+no `cases()`, `from()` or `tryFrom()`. An enum has no properties and cannot implement an interface.
 
-You write these things outside the enum. `$case as int` gives the number of a case. `$n as Level`
-and `$n as ?Level` turn a number back into a case. For the name of a case, for a list of every case,
-or for any behaviour at all, write a class that takes the enum and put a `match` in it. The compiler
-does not check that the `match` names every case. A case with no arm throws a `LogicError` when it
-reaches the `match`.
+You write these things yourself. `$case as int` gives the number of a case. `$n as Level` and
+`$n as ?Level` turn a number back into a case. For the name of a case, give the enum a method with a
+`match` on `$this`. For a list of every case, give it a static method that returns `array<Level>`.
+The compiler does not check that the `match` names every case. A case with no arm throws a
+`LogicError` when it reaches the `match`.
 
 **The examples below** show the name of a case, then the list of every case with a lookup by name,
-then a class that carries the behaviour of an order. Examples 04 and 05 show that `->name` and
+then an enum that carries the behaviour of an order. Examples 04 and 05 show that `->name` and
 `cases()` do not compile.
 
 These forms do not compile:
 
 - `->name`, `->value` or any other property on a case is the error `E0405`. A write such as
   `$level->value = 1` is `E0405` too.
-- A method call on a case, such as `Level::Info->label()`, is the error `E0405`.
+- A call of a method that the enum does not declare, such as `Level::Info->label()`, is the error
+  `E0405`.
 - `Level::from($n)`, `Level::tryFrom($n)` and `Level::cases()` are the error `E0309`. So is a
-  constant or a static property read on the enum, such as `Level::COUNT` or `Level::$x`.
-- `extends` after an enum name is the error `E0220`.
+  constant that the enum does not declare, such as `Level::COUNT`, and a static property such as
+  `Level::$x`.
+- A property in an enum body is the error `E0220`.
+- `implements` on an enum is the error `E0218`.
+- `extends` after an enum name is a syntax error (`E0101`).
 - `abstract` or `final` before `enum` is a syntax error (`E0101`).
 - `clone` on a case is the error `E0781`.
 
@@ -20498,18 +20795,20 @@ A case is not an object. Putting a case in an `object` variable is the error `E0
 
 ```nvs
 <?nvs
-// Shows how to get the name of a case. A case has no `->name`, so the names
-// live in a `match` inside a class of your own.
+// Shows how to get the name of a case. A case has no `->name`, so the enum
+// gets a method with a `match` that returns the name.
 
-class Levels
+enum Level
 {
-    enum Level { Debug, Info, Warn }
+    Debug,
+    Info,
+    Warn,
 
-    // Returns the name of a level. The `match` has an arm for every case of
-    // `Level`. Add an arm here when you add a case to the enum.
-    public static function name(Level $l): string
+    // Returns the name of this level. The `match` has an arm for every case.
+    // Add an arm here when you add a case to the enum.
+    public function name(): string
     {
-        return match ($l) {
+        return match ($this) {
             Level::Debug => 'debug',
             Level::Info => 'info',
             Level::Warn => 'warn',
@@ -20518,11 +20817,11 @@ class Levels
 }
 
 // This prints `info` and `warn`.
-echo Levels::name(Levels::Level::Info), "\n";
-echo Levels::name(Levels::Level::Warn), "\n";
+echo Level::Info->name(), "\n";
+echo Level::Warn->name(), "\n";
 
-// The number behind a case needs no class. This prints 2.
-echo Levels::Level::Warn as int, "\n";
+// The number behind a case needs no method. This prints 2.
+echo Level::Warn as int, "\n";
 ```
 
 ```output
@@ -20535,21 +20834,23 @@ warn
 
 ```nvs
 <?nvs
-// Shows the list of every case. An enum has no `cases()`, so the list is an
-// ordinary static method that returns `array<Level>`.
+// Shows the list of every case. An enum has no `cases()`, so the list is a
+// static method of the enum that returns `array<Level>`.
 
-class Levels
+enum Level
 {
-    enum Level { Debug, Info, Warn }
+    Debug,
+    Info,
+    Warn,
 
     public static function all(): array<Level>
     {
         return [Level::Debug, Level::Info, Level::Warn];
     }
 
-    public static function name(Level $l): string
+    public function name(): string
     {
-        return match ($l) {
+        return match ($this) {
             Level::Debug => 'debug',
             Level::Info => 'info',
             Level::Warn => 'warn',
@@ -20559,8 +20860,8 @@ class Levels
     // Returns the level with this name, or `null` when there is none.
     public static function byName(string $wanted): ?Level
     {
-        foreach (Levels::all() as Level $l) {
-            if (Levels::name($l) == $wanted) {
+        foreach (self::all() as Level $l) {
+            if ($l->name() == $wanted) {
                 return $l;
             }
         }
@@ -20569,16 +20870,16 @@ class Levels
 }
 
 // This prints `debug`, `info` and `warn`, one per line.
-foreach (Levels::all() as Levels::Level $l) {
-    echo Levels::name($l), "\n";
+foreach (Level::all() as Level $l) {
+    echo $l->name(), "\n";
 }
 
 // This prints 3.
-echo Core\Arr::count(Levels::all()), "\n";
+echo Core\Arr::count(Level::all()), "\n";
 
 // A name nobody wrote gives `null`, so the program picks its own level.
 // This prints 1.
-echo (Levels::byName('loud') ?? Levels::Level::Info) as int, "\n";
+echo (Level::byName('loud') ?? Level::Info) as int, "\n";
 ```
 
 ```output
@@ -20589,21 +20890,24 @@ warn
 1
 ```
 
-#### Example 03: a class that carries the behaviour
+#### Example 03: an enum that carries the behaviour
 
 ```nvs
 <?nvs
-// Shows where the behaviour of an enum goes. The enum holds the states of an
-// order, and a class of your own holds everything the order can do.
+// Shows methods in an enum. The enum has the states of an
+// order, and its methods say what each state means.
 
-class Orders
+enum Status
 {
-    enum Status { Placed, Paid, Shipped, Cancelled }
+    Placed,
+    Paid,
+    Shipped,
+    Cancelled,
 
     // Returns the text shown to a customer for this status.
-    public static function label(Status $s): string
+    public function label(): string
     {
-        return match ($s) {
+        return match ($this) {
             Status::Placed => 'waiting for payment',
             Status::Paid => 'ready to ship',
             Status::Shipped => 'on its way',
@@ -20612,20 +20916,15 @@ class Orders
     }
 
     // Returns `true` when nothing more happens to an order in this status.
-    public static function isFinal(Status $s): bool
+    public function isFinal(): bool
     {
-        return match ($s) {
-            Status::Shipped => true,
-            Status::Cancelled => true,
-            Status::Placed => false,
-            Status::Paid => false,
-        };
+        return $this == Status::Shipped || $this == Status::Cancelled;
     }
 
     // Returns the status after this one, or `null` when there is none.
-    public static function next(Status $s): ?Status
+    public function next(): ?Status
     {
-        return match ($s) {
+        return match ($this) {
             Status::Placed => Status::Paid,
             Status::Paid => Status::Shipped,
             Status::Shipped => null,
@@ -20634,17 +20933,17 @@ class Orders
     }
 }
 
-Orders::Status $order = Orders::Status::Paid;
+Status $order = Status::Paid;
 
 // This prints `ready to ship` and `no`.
-echo Orders::label($order), "\n";
-echo Orders::isFinal($order) ? 'yes' : 'no', "\n";
+echo $order->label(), "\n";
+echo $order->isFinal() ? 'yes' : 'no', "\n";
 
-// The order walks to its last status. This prints `on its way` and `yes`.
-?Orders::Status $after = Orders::next($order);
+// The order moves to its next status. This prints `on its way` and `yes`.
+?Status $after = $order->next();
 if ($after != null) {
-    echo Orders::label($after), "\n";
-    echo Orders::isFinal($after) ? 'yes' : 'no', "\n";
+    echo $after->label(), "\n";
+    echo $after->isFinal() ? 'yes' : 'no', "\n";
 }
 ```
 
@@ -20659,8 +20958,8 @@ yes
 
 ```nvs error
 <?nvs
-// Shows that a case has no `->name`. This line does not compile. Write a
-// `match` in a class of your own instead, as example 01 does.
+// Shows that a case has no `->name`. This line does not compile. Give the
+// enum a method with a `match` instead, as example 01 does.
 // proof: compile-error
 
 enum Level { Debug, Info }
@@ -20684,7 +20983,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```nvs error
 <?nvs
 // Shows that an enum has no `cases()` method. This line does not compile.
-// Write a static method that returns `array<Level>`, as example 02 does.
+// Give the enum a static method that returns `array<Level>`, as example 02 does.
 // proof: compile-error
 
 enum Level { Debug, Info }
@@ -20708,14 +21007,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 The enums that come with Novis. They work exactly like the ones you write yourself.
 
 `Core\Arr::Order` chooses the direction of a sort. It is declared in the class `Core\Arr`, whose
-methods use it. `Core\RoundMode` chooses how a number is rounded. Part B of the reference lists the
+methods use it. `Core\RoundMode` chooses how a number is rounded. The `Core` reference lists the
 rest.
 
 A case is written `Core\Arr::Order::Desc`. You pass it to a method that needs it. You can keep it in a
-variable of type `Core\Arr::Order`, compare it with `==`, use it in a `match`, and convert it to its
-number with `as int`.
+variable of type `Core\Arr::Order` and compare it with `==`. You can use it in a `match` and convert
+it to its number with `as int`.
 
-Nothing about these enums is special. They have no methods and no `->value`, the same as your own.
+Like your own enums, they have no `->value`. To add a method to one, write an `extend` block: a block
+that adds members to a type from `Core`.
+
 `as Core\Arr::Order` or `as ?Core\Arr::Order` converts a number back into a case. A method that takes
 one of these enums accepts only its cases. A wrong value is an error when the program is compiled.
 
