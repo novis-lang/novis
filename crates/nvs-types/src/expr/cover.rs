@@ -138,14 +138,92 @@ pub(crate) fn check_match_covers(
         return;
     }
     let list = join_with_and(&missing);
-    env.diags.report(
-        Diagnostic::error(
-            code::E_MATCH_MISSES_A_CASE,
-            format!("this `match` does not handle {list}"),
-        )
-        .with_primary(keyword, "a case of the enum has no arm here")
-        .with_help("Add an arm for each missing case, or add a `default` arm."),
-    );
+    let mut diagnostic = Diagnostic::error(
+        code::E_MATCH_MISSES_A_CASE,
+        format!("this `match` does not handle {list}"),
+    )
+    .with_primary(keyword, "a case of the enum has no arm here")
+    .with_help("Add an arm for each missing case, or add a `default` arm.");
+    let prefix = written_prefix(conditions, &enum_, env).unwrap_or_else(|| format!("{short}::"));
+    let mut written: Vec<String> = cases
+        .iter()
+        .filter(|(_, name)| !named.contains(name))
+        .map(|(_, name)| format!("{prefix}{name}"))
+        .collect();
+    if nullable && !null_named {
+        written.push("null".to_owned());
+    }
+    if let Some((at, text)) = missing_arms(match_span, arms, &written, env) {
+        let title = if written.len() == 1 {
+            "add the missing arm".to_owned()
+        } else {
+            format!("add the {} missing arms", written.len())
+        };
+        // Not safe: each new arm throws, and the author replaces its body.
+        diagnostic = diagnostic.with_unsafe_fix(at, text, title);
+    }
+    env.diags.report(diagnostic);
+}
+
+/// How the file already writes a case of `enum_`, up to and with its `::`, read off the first arm
+/// condition that names one, so an inserted arm resolves the way the written ones do.
+fn written_prefix(conditions: &[(Span, TypeId)], enum_: &QName, env: &Env<'_>) -> Option<String> {
+    conditions.iter().find_map(|&(span, _)| {
+        let Some(ExprInfo::EnumCase { enum_: named, .. }) = env.exprs.lookup(span) else {
+            return None;
+        };
+        if named != enum_ || span.file != env.src.id() {
+            return None;
+        }
+        let text = env.src.span_text(span)?;
+        let cut = text.rfind("::")?;
+        Some(text[..cut + 2].to_owned())
+    })
+}
+
+/// The quick fix for a `match` that misses cases
+/// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`): an empty span after the last arm, and
+/// one arm per missing case that throws a `LogicError` naming it. Each new arm is on its own line,
+/// indented as the last arm is, or on the same line where the last arm shares its line. `None`
+/// where the source is not the file the `match` is in.
+fn missing_arms(
+    match_span: Span,
+    arms: &[MatchArm],
+    written: &[String],
+    env: &Env<'_>,
+) -> Option<(Span, String)> {
+    if match_span.file != env.src.id() {
+        return None;
+    }
+    let src = env.src.text();
+    let last = arms.last()?;
+    let close = (match_span.end as usize).checked_sub(1)?;
+    let arm_end = last.span.end as usize;
+    if src.as_bytes().get(close) != Some(&b'}') || arm_end > close {
+        return None;
+    }
+    let between = &src[arm_end..close];
+    let (at, comma) = match between.find(',') {
+        Some(i) if between[..i].trim().is_empty() => (arm_end + i + 1, ""),
+        _ => (arm_end, ","),
+    };
+    let start = last.span.start as usize;
+    let line = src[..start].rfind('\n').map_or(0, |i| i + 1);
+    let indent = &src[line..start];
+    let before = if indent.trim().is_empty() {
+        format!("\n{indent}")
+    } else {
+        " ".to_owned()
+    };
+    let mut text = comma.to_owned();
+    for case in written {
+        text.push_str(&before);
+        text.push_str(&format!(
+            "{case} => throw new LogicError('{case} is not handled yet.'),"
+        ));
+    }
+    let at = u32::try_from(at).ok()?;
+    Some((Span::new(match_span.file, at, at), text))
 }
 
 /// `a`, `a and b`, `a, b and c`.
