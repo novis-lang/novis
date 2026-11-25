@@ -2446,13 +2446,14 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "13ec0794d5d65c60",
+    "hash": "c17381a1cc996d3f",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
       "Validate and convert query parameters to the right types",
       "Turn a decoded JSON array into a typed record",
-      "Map request input to a class and get all field errors"
+      "Map request input to a class and get all field errors",
+      "Read a date and a time from a posted form"
     ]
   },
   "/reference/core/arr/slice/": {
@@ -6685,13 +6686,14 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "2445544ef3fdc3c0",
+    "hash": "3b0b6fb507e86332",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
       "Turn a JSON array into a list of objects",
       "Show every wrong field in a JSON request at once",
-      "Map a JSON body to a typed object"
+      "Map a JSON body to a typed object",
+      "Read a date, a duration or a UUID from a JSON string"
     ]
   },
   "/reference/core/json/decodeeach/": {
@@ -6708,10 +6710,10 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "7d1f6fde02ecca2f",
+    "hash": "5a90da28f4f98c18",
     "questions": [
       "How do I convert an array to a JSON string?",
-      "Write an object as JSON text",
+      "Write an object with dates and UUIDs as JSON text",
       "Print JSON with indentation so it is easy to read",
       "Send a JSON response from an API",
       "Escape non-ASCII characters in JSON output",
@@ -11680,13 +11682,24 @@
   },
   "/reference/core/queue-id/": {
     "feature": "Core\\Queue\\Id",
-    "hash": "b9cb5b68854488c9",
+    "hash": "c7f4edf9861a48dc",
     "questions": [
       "What is the id that adding a job returns?",
       "Which value do I pass to cancel or check a job?",
       "Send a job id to the browser and read it back later",
       "Can a user guess the id of another user's job?",
-      "Store a job id to look up its state later"
+      "Store a job id to look up its state later",
+      "Use a job id as the type of a route parameter"
+    ]
+  },
+  "/reference/core/queue-id/format/": {
+    "feature": "Core\\Queue\\Id::format",
+    "hash": "cf6f1a874f5b48e3",
+    "questions": [
+      "How does a job id get written into a link?",
+      "Put a job id in the query string of a link",
+      "Link to a route that takes a job id in its path",
+      "Which string does a job id give when it is in a URL?"
     ]
   },
   "/reference/core/queue-id/parse/": {
@@ -13323,13 +13336,14 @@
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "995d473efc5b38fa",
+    "hash": "3fd7d876c5b63fd0",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
       "Show a custom 404 page for missing routes",
       "What does a router gate do?",
-      "Show an error page when a route method fails"
+      "Show an error page when a route method fails",
+      "Check a typed query value before the route method runs"
     ]
   },
   "/reference/core/router/match/": {
@@ -13344,12 +13358,13 @@
   },
   "/reference/core/router/methodsfor/": {
     "feature": "Core\\Router::methodsFor",
-    "hash": "9d5e46e5b1015844",
+    "hash": "a40c25b4b5d89ec5",
     "questions": [
       "How do I choose between a 404 and a 405 response?",
       "List the HTTP methods a path accepts",
       "Build the Allow header for Method Not Allowed",
-      "Which methods does a URL support in my app?"
+      "Which methods does a URL support in my app?",
+      "Why is a path with a wrong id type not found?"
     ]
   },
   "/reference/core/router/signedroute/": {
@@ -13364,45 +13379,49 @@
   },
   "/reference/core/router/url/": {
     "feature": "Core\\Router::url",
-    "hash": "c41f9c616d57c9b1",
+    "hash": "5bacc61f1a24be4d",
     "questions": [
       "How do I build a link to the method of a route?",
-      "Generate a URL with path values and a query string",
+      "Generate a URL with path values and optional query values",
       "Safely put user text into a link",
       "Keep links working when a route path changes",
-      "Link to a page of another app on the same server"
+      "Link to a page of another app on the same server",
+      "Put a date, a checkbox value or a UUID into a link"
     ]
   },
   "/reference/core/router/urlabsolute/": {
     "feature": "Core\\Router::urlAbsolute",
-    "hash": "2d0ae9c9260feb7d",
+    "hash": "4998a94b3053336c",
     "questions": [
       "How do I build a full URL with the domain?",
       "Make an absolute link for an email",
       "Generate links for a sitemap",
       "Where does the site origin for full URLs come from?",
-      "Build a full URL to a page that another host serves"
+      "Build a full URL to a page that another host serves",
+      "Build a full link to a page that takes a date in its path"
     ]
   },
   "/reference/core/router/urlsigned/": {
     "feature": "Core\\Router::urlSigned",
-    "hash": "71033a9efc1c6c5a",
+    "hash": "8885b958e57fa12b",
     "questions": [
       "How do I make a link that nobody can change?",
       "Create a download link that expires after one hour",
       "Build a tamper-proof unsubscribe link for a newsletter",
       "Make an invitation link that works as a permission",
-      "Do signed links still work after I rename the method?"
+      "Do signed links still work after I rename the method?",
+      "Sign a link that contains a date or an id"
     ]
   },
   "/reference/core/router-match/": {
     "feature": "Core\\Router\\Match",
-    "hash": "3491f225a6bd3fab",
+    "hash": "f8d81a8ab88c3969",
     "questions": [
       "What information do I get about the matched route?",
       "What does a route match object contain?",
       "Inspect the route that the current request matched",
-      "Read the path values and the handler method of a request"
+      "Read the path values and the handler method of a request",
+      "Which values does the match of a route give me in a gate?"
     ]
   },
   "/reference/core/router-match/access/": {
@@ -13459,22 +13478,24 @@
   },
   "/reference/core/router-match/parameter/": {
     "feature": "Core\\Router\\Match::parameter",
-    "hash": "e88d3f2f202408a7",
+    "hash": "b2cf8085aabfc17c",
     "questions": [
       "How do I read one value from the URL path?",
       "Get the id from a path like /users/42",
       "Give a default when an optional path part is missing",
-      "Load the record that the path points to"
+      "Load the record that the path points to",
+      "Get one query value with its type inside a gate"
     ]
   },
   "/reference/core/router-match/parameters/": {
     "feature": "Core\\Router\\Match::parameters",
-    "hash": "c96aed60b67ba0c2",
+    "hash": "b5a7769824da977c",
     "questions": [
       "How do I get all values captured from the path?",
       "List every path parameter of a request as an array",
       "Log the path values a request sent",
-      "Are path values already URL-decoded?"
+      "Are path values already URL-decoded?",
+      "Get the path values and query values together as one array"
     ]
   },
   "/reference/core/script/": {
@@ -15641,13 +15662,14 @@
   },
   "/reference/core/time-date/fromiso/": {
     "feature": "Core\\Time\\Date::fromIso",
-    "hash": "46ffb5328219cfab",
+    "hash": "46f9a818797deb9a",
     "questions": [
       "How do I create a date from text like 2024-03-01?",
       "Read a date from a form field or a URL",
       "Check whether a date written as text exists",
       "What happens when the text is 2024-02-30?",
-      "Read a birthday stored as YYYY-MM-DD"
+      "Read a birthday stored as YYYY-MM-DD",
+      "Which date text does a route or a command argument accept?"
     ]
   },
   "/reference/core/time-date/isleapyear/": {
@@ -15775,12 +15797,13 @@
   },
   "/reference/core/time-date/toiso/": {
     "feature": "Core\\Time\\Date::toIso",
-    "hash": "882216f33245e06e",
+    "hash": "f52169a813b10fa0",
     "questions": [
       "Write a date as text to save in a database",
       "Turn a date into 2026-05-20 text",
       "How do I store a date in JSON so it sorts correctly?",
-      "Why does a year like 5 print as 0005?"
+      "Why does a year like 5 print as 0005?",
+      "How is a date written in a link or in JSON?"
     ]
   },
   "/reference/core/time-date/weekday/": {
@@ -16569,12 +16592,13 @@
   },
   "/reference/core/time-timeofday/fromiso/": {
     "feature": "Core\\Time\\TimeOfDay::fromIso",
-    "hash": "4d1034ecd1dc37d0",
+    "hash": "a75c9c4ac5b46bf1",
     "questions": [
       "How do I create a time of day from text like 09:30?",
       "Read opening hours from a settings file",
       "Read a time with seconds and a fraction of a second",
-      "What happens when the text is 24:00 or 25:00?"
+      "What happens when the text is 24:00 or 25:00?",
+      "Use a time like 09:30 in a URL or a JSON field"
     ]
   },
   "/reference/core/time-timeofday/hour/": {
@@ -16639,12 +16663,13 @@
   },
   "/reference/core/time-timeofday/toiso/": {
     "feature": "Core\\Time\\TimeOfDay::toIso",
-    "hash": "7ec64d31eb23b53b",
+    "hash": "382971180213f314",
     "questions": [
       "How do I save a time of day as text in a file or database?",
       "Convert a clock time to ISO 8601 text such as 08:30:00",
       "Send a time of day to another program as a string",
-      "Is a fraction of a second written in the text of a clock time?"
+      "Is a fraction of a second written in the text of a clock time?",
+      "How is a clock time written in a link or in JSON?"
     ]
   },
   "/reference/core/time-timeofday/with/": {
@@ -16795,13 +16820,14 @@
   },
   "/reference/core/uri/buildquery/": {
     "feature": "Core\\Uri::buildQuery",
-    "hash": "51f788bb29ca9928",
+    "hash": "46388dc7fff7509f",
     "questions": [
       "How do I turn an array into a query string?",
       "Build the part of a URL after the question mark",
       "Create a search link from a list of filters",
       "How do I put a list or nested values into a URL?",
-      "Make the link to the next page of results"
+      "Make the link to the next page of results",
+      "Put a date, a UUID or true and false into a query string"
     ]
   },
   "/reference/core/uri/compareto/": {
@@ -17049,13 +17075,24 @@
   },
   "/reference/core/uuid/": {
     "feature": "Core\\Uuid",
-    "hash": "47a48c34cd08112a",
+    "hash": "d0995352631aa37d",
     "questions": [
       "How do I work with UUIDs?",
       "Create unique IDs without a database counter",
       "Convert a UUID between text and bytes",
       "Which kind of UUID should I use?",
-      "Generate a GUID for a new record"
+      "Generate a GUID for a new record",
+      "Use a UUID in a route path or a query string"
+    ]
+  },
+  "/reference/core/uuid/format/": {
+    "feature": "Core\\Uuid::format",
+    "hash": "228a1ef4e1ec7efa",
+    "questions": [
+      "How is a UUID written into a link?",
+      "Link to a route that takes a UUID in its path",
+      "Put a UUID in the query string of a URL",
+      "Does a UUID in a URL need escaping?"
     ]
   },
   "/reference/core/uuid/frombytes/": {
@@ -18488,13 +18525,14 @@
   },
   "/reference/types/parses/": {
     "feature": "Parses",
-    "hash": "97c6d38bbfbadb18",
+    "hash": "8eb56d629b0ecab6",
     "questions": [
       "How do I turn a URL path segment into my own class?",
       "Build an object from a text value in one checked place",
       "Use my own class as the type of a command argument",
       "Validate a query value and get a typed object",
-      "Write a parse method for a value class"
+      "Write a parse method for a value class",
+      "Write my own object back into a link as text"
     ]
   },
   "/reference/types/passkey-credential-algorithm/": {
@@ -18616,23 +18654,24 @@
   },
   "/reference/types/router-gate/": {
     "feature": "Core\\Router\\Gate",
-    "hash": "0ad3bf7a47df0c53",
+    "hash": "678d18f4aad4225c",
     "questions": [
       "How do I check permissions before every route runs?",
       "Write a custom 404 page for the router",
       "Show my own error page when a route method throws",
       "Deny a request to a route with status 403",
-      "Control what the router does when no route matches"
+      "Control what the router does when no route matches",
+      "Check the record a path id points to before the route runs"
     ]
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "df3cde42516fff22",
+    "hash": "ae3c6886da17c014",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",
       "Return a 413 page when the request body is too large",
-      "What happens when a path or query value cannot be converted?",
+      "What happens when a query value is missing, repeated or the wrong type?",
       "Respond to a failed CSRF check with my own page",
       "Why does a POST from another site to a missing page give 403?"
     ]
@@ -18807,36 +18846,37 @@
   },
   "/syntax/attributes/commands-and-discovery/": {
     "feature": "syntax/attributes/commands-and-discovery.mdx",
-    "hash": "199bea8da4bbaf1d",
+    "hash": "023ce2d5c1bee392",
     "questions": [
       "How do I declare a command-line command with options?",
       "Add a --verbose flag to a command in Novis",
       "How do I build a plugin system without a list of classes?",
       "Why does nvs not run my declared commands?",
-      "What happens when no class implements my interface?"
+      "What happens when no class implements my interface?",
+      "Accept a date as a command-line argument"
     ]
   },
   "/syntax/attributes/json/": {
     "feature": "syntax/attributes/json.mdx",
-    "hash": "029b48a055ed1589",
+    "hash": "8c7504075d9a8217",
     "questions": [
       "How do I let a class be converted to and from JSON?",
       "How do I leave a property out of the JSON output?",
       "Why does decoding JSON into my class throw an error?",
       "How do I keep the JSON keys in the order I wrote the properties?",
-      "Does the JSON of a subclass include the properties of its parent class?",
+      "Store a date or a time zone in a class that becomes JSON",
       "Only accept a few fixed values for one property when decoding JSON"
     ]
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "9aa8dcefc9ba9956",
+    "hash": "f2a29d722c92c4f3",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
       "Why does my route not compile without an access rule?",
       "How do I turn off the CSRF check for one route?",
-      "Generate an OpenAPI document from my routes",
+      "Read an optional value, a checkbox or a date from the query string",
       "How can my own method take a route and its parameters, checked like a link?"
     ]
   },
@@ -19013,13 +19053,14 @@
   },
   "/syntax/classes/standard-interfaces/": {
     "feature": "syntax/classes/standard-interfaces.mdx",
-    "hash": "e0ba0ec226e9cab4",
+    "hash": "0f77bc36501ec416",
     "questions": [
       "How do I print an object with echo?",
       "Compare two objects with less than and greater than",
       "How do I sort my own objects?",
       "Create an object from a string in a URL or query parameter",
-      "Why does printing my object not compile?"
+      "Why does printing my object not compile?",
+      "Turn an object back into the string a URL needs"
     ]
   },
   "/syntax/concurrency/channels/": {
@@ -19534,11 +19575,11 @@
   },
   "/tools/api-document/": {
     "feature": "tools/api-document/index.mdx",
-    "hash": "3a20468213a34f9d",
+    "hash": "5b1062011e925bb2",
     "questions": [
       "Does Novis write a Swagger document for my web API?",
       "Add tags, error responses and an auth scheme to my OpenAPI document",
-      "Set the version of my API document from package.toml",
+      "Which OpenAPI schema does a date, a UUID or a boolean query get?",
       "Which API changes break old clients, and which are safe?",
       "Is a new query parameter with a default value a breaking change?",
       "Set my own operationId for one route in the API document"
