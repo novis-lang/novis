@@ -229,11 +229,19 @@ static property of your own class), `readonly` on an added property, a stored pr
   other blocks its file uses. `private` on an added member means visible inside that block only.
   Visibility is checked by `check_member_visibility` (`crates/nvs-types/src/expr/members.rs:3042`) with
   the block as the accessing place, never the type.
-- **A generic `Core` class is extended with its parameters bound by name** (mine):
-  `extend Core\ObjectMap<K, V> as Index { … }`. The names come from `class_type_params`
-  (`crates/nvs-stdlib/src/registry.rs:4735`). A block of one instance, `Core\ObjectMap<int, string>`,
-  does not compile. User classes have no type parameters, so this is `Core` only. An added method may
-  declare its own type parameters.
+- **A generic `Core` class is extended with one new name per type parameter, in order** (mine,
+  stage 4, replacing "the registry's names"): `extend Core\ObjectMap<K, V> as Index { … }`, where any
+  bare names may stand for `class_type_params`' entries. A block reads better with names of its own,
+  and the call substitutes positionally either way. Each name lowers to a type variable in the block
+  (`Env::extend_type_params`), the body is compiled once with each erased to `Tagged`, and a call
+  substitutes the receiver's arguments (`substitute_receiver_args`, `ClassSignature::added_params`).
+  A list that does not fit, a block of one instance included, is `E0338`. User classes have no type
+  parameters, so this is `Core` only. Novis has no source-declared generics, so an added method
+  declares no type parameters of its own.
+- **A union call through one block is one direct call** (mine, stage 4). When one block adds the
+  method to every class of a union, the checker records one `ExprInfo::Call` of the block's
+  function, not an `ExprInfo::UnionMember` per class. Any other mix of blocks, or of a block and a
+  declared member, is `E1013` with a note naming each class's block.
 - **Names the runtime or an operator calls by name are refused as added names** (mine): `compareTo`
   and every other name a `Core` interface or an operator dispatches by name. Stage 4 lists them from
   `crates/nvs-types/src/expr/operators.rs:976` and the `Core` interfaces' required members, and the
@@ -501,7 +509,7 @@ classes are the ones that goal makes compare by value.
 - [x] `crates/nvs-types/src/conformance.rs:445`: an added member discharges no obligation;
   `crates/nvs-types/src/expr/operators.rs:976`: ordering never reads one; the refused-name list in the
   block shape check. The cases the check `dynamic-paths` names.
-- [ ] `crates/nvs-types/src/expr/calls.rs:379` and `:506`: the union rule. Interfaces: an added member
+- [x] `crates/nvs-types/src/expr/calls.rs:379` and `:506`: the union rule. Interfaces: an added member
   on an interface reached on every implementer. `crates/nvs-types/src/expr/args.rs:2629`: a generic
   `Core` block binds `class_type_params`. The three cases the check `reach` names.
 - [ ] `crates/nvs-hir/src/resolve.rs:157`: a block's nested enum declared as `<Type>::<Enum>`;
@@ -583,42 +591,38 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 is open: items 1, 2 and 6 are done, and `collisions` and
-`dynamic-paths` are green. How it works is in `crates/nvs-types/src/extend.rs`'s module docs.
+Stages 1 to 3 are done. Stage 4 is open: items 1, 2, 3 and 6 are done, and `collisions`,
+`dynamic-paths` and `reach` are green. How it works is in `crates/nvs-types/src/extend.rs`'s module
+docs and in the standing decisions.
 
-- **`E1011`**: `check_collisions` in `extend.rs` looks in the target and its ancestors, in other
-  blocks of related targets, and in the program's classes below the target, and both places show.
-- **`E1012`**: `runtime_calls` in `extend.rs` refuses an added method named like a member of an
-  interface on `nvs_hir::interfaces::RESERVED`, read from the seeded signatures. It runs before the
-  collision lookup, so `Date::compareTo` gets only `E1012`. Conformance and ordering needed no code:
-  an added method lives under the block's name, and `compareTo` can no longer be added.
-- **`E0338` in a body**: `static::`, `parent::`, `new static` and `new parent`, in
-  `crates/nvs-hir/src/members.rs` through `Env::in_block`; `yield` in an added static method or a
-  block on an enum, in `extend.rs` `check_member`.
-- **Dynamic paths** needed no code: a `mixed` call, `Reflect`'s `methods()` and `ClassInfo::call`
-  miss an added method, pinned by `class/an-added-method-is-not-found-through-a-mixed-value-or-reflect.nvst`.
-- Stage 3: blocks come from the file's `use` map, members sit in the signature table under the
-  block's name with `added_to`, and calls lower as direct calls (commits `d5fed477e7`, `0b7af366fc`).
+- **Unions, `E1013`**: `infer_union_method_call` (`crates/nvs-types/src/expr/calls.rs:381`) falls
+  back to `extend::added_method` per class. One block for every class records one direct
+  `ExprInfo::Call`; any other mix is `report_union_added_member_not_shared`
+  (`crates/nvs-types/src/expr/members.rs`).
+- **Interfaces** needed no code: `extend::reaches` already walks implemented interfaces, so a block
+  on another package's interface reaches each implementer, an interface-typed value and a union of
+  implementers.
+- **Generic `Core` blocks**: `extend::type_param_names` and `check_type_params` (`E0338`),
+  `Env::extend_type_params` set in `signatures.rs` and `check.rs` around a block, read by
+  `lower.rs` `resolve_name_type`, `class_of_ctx` (`$this` is `ObjectMap<K, V>`) and
+  `check_args_typed`, which binds each block name to itself so it is not erased to `mixed`. A call
+  substitutes through `substitute_receiver_args` (`crates/nvs-types/src/expr/args.rs`). The IR
+  needed no change: `int`, `float`, `string` and object instances all pass the case.
 
 ### Next
 
-1. Stage 4's third item, the `reach` check. Unions: `infer_union_method_call`
-   (`crates/nvs-types/src/expr/calls.rs:~395`) does not consult blocks yet. A union finds an added
-   method only when every member gets it from one block, else `E1013` with help to narrow with
-   `is`. `extend.rs` `added_method` (`:~490`) is the lookup to reuse. Then an added method on an
-   interface reached on every implementer, and a generic `Core` block binding
-   `class_type_params` (`crates/nvs-types/src/expr/args.rs:2629`).
-2. Stage 4's fourth item, `nested`: a block's nested enum as `<Type>::<Enum>`
+1. Stage 4's fourth item, `nested`: a block's nested enum as `<Type>::<Enum>`
    (`crates/nvs-hir/src/resolve.rs:157`), and a block's nested attribute owned by the extended type
-   (`crates/nvs-types/src/attributes.rs:975`).
-3. Stage 4's fifth item, `restrict` (`crates/nvs-types/src/restrict.rs:709`): the block is the
-   place, and an entry names `<Block>::<member>`.
+   (`crates/nvs-types/src/attributes.rs:975`); one on a sealed `Core` class does not compile.
+2. Stage 4's fifth item, `restrict` (`crates/nvs-types/src/restrict.rs:709`,
+   `crates/nvs-config/src/restrict.rs:45`): the block is the place, and an entry names
+   `<Block>::<member>`. Edit `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`
+   `:13` and `:62`.
 
-Tests that may go red: any case pinning E0329's diagnostic with no `%A` after its primary label,
-because the diagnostic now has a help line. A program that declares two blocks adding one name to
-related types now fails with `E1011`. A block that adds a method named `compareTo`, `toString`,
-`parse`, `format`, `iterate`, `current`, `key` or `advance` now fails with `E1012`. No case in the
-tree does.
+Tests that may go red: a case where a union call meets a method one class declares and a used block
+adds to another class is now `E1013`, not `E0881`. No case in the tree does. A block on
+`Core\ObjectMap`, `ObjectSet`, `Heap`, `Task\Channel` or `Db\Rows` with no `<…>` list is now
+`E0338`.
 
 ### Backlog
 
@@ -633,5 +637,9 @@ tree does.
   deprecation item.
 - `HierarchyResolver::written` (the editor's graph for an unloaded file) does not carry blocks. Stage
   6 needs it for completion in a file the program has not loaded.
+- `check_type_params` accepts any bare name, so `extend ObjectMap<Tag, Item>` binds two new names
+  that shadow the classes `Tag` and `Item` inside the block. Refusing a name the block's file
+  resolves to a type needs the file's `use` map in `check_block`. Stage 7's newcomer review may
+  want it.
 - Completion inside an `extend` body offers nothing yet: `completion.rs:3235` sends only
   `ClassDecl`/`InterfaceDecl` nodes to `member()`. Stage 6 adds `ExtendDecl`.
