@@ -1,0 +1,130 @@
+/* The Request, Response and Queries tabs of a request's page. A header list and the query groups are
+   tables drawn like the compare view's. A repeated query group has a gold wash. A body is a value tree
+   or text in a `<pre>`. */
+.rt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.rt-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-3);
+}
+
+.rt-path {
+  color: var(--text);
+  font: var(--fs-3) var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.rt-head {
+  margin: var(--space-4) 0 0;
+  color: var(--text);
+  font-size: var(--fs-4);
+}
+
+.rt-table {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  font-size: var(--fs-3);
+  overflow: hidden;
+}
+
+.rt-table th,
+.rt-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.rt-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.rt-table thead th {
+  height: 28px;
+  padding-block: 0;
+  vertical-align: middle;
+  background: var(--surface-2);
+  color: var(--faint);
+  font-size: var(--fs-1);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rt-table th[scope="row"] {
+  width: 14rem;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.rt-code {
+  font: var(--fs-2) var(--mono);
+  font-variant-ligatures: none;
+  white-space: pre-wrap;
+}
+
+.rt-redacted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.rt-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rt-table th.rt-num,
+.rt-table td.rt-num {
+  text-align: right;
+}
+
+.rt-sql {
+  color: var(--text);
+  min-width: 16rem;
+}
+
+.query-group.repeated > * {
+  background: color-mix(in oklab, var(--highlight) 9%, transparent);
+}
+
+.rt-repeat-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--highlight) 9%, transparent);
+  color: var(--text);
+}
+
+.body-text {
+  margin: 0;
+  max-height: 32rem;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: var(--fs-2) var(--mono);
+  font-variant-ligatures: none;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.rt-body > .note {
+  margin: var(--space-2) 0 0;
+}

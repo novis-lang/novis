@@ -99,13 +99,25 @@ async function press(key: keyof typeof KEYS, sessionId: string) {
   await browser.send("Input.dispatchKeyEvent", { ...common, type: "keyUp" }, sessionId);
 }
 
-/** A new tab on the fixture's request, once its timeline has rendered. */
-async function open() {
+/** The page's link for the fixture's request, with `search` such as `?tab=dumps`. */
+const LINK = (search = "") => `${server!.url}requests/${TRACE}/${SPAN}${search}`;
+/** True once the Timeline tab's rows have rendered. */
+const TIMELINE = `document.querySelectorAll(".tl-list [role=option]").length > 0`;
+/** True once the Dumps tab has rendered its dumps. */
+const DUMPS = `document.querySelector("#dump-2") !== null`;
+
+/** A new tab on the fixture's request at `search`, once `ready` is true: by default the timeline. */
+async function open(search = "", ready = TIMELINE) {
   const tab = await browser.tab();
-  await browser.send("Page.navigate", { url: `${server!.url}requests/${TRACE}/${SPAN}` }, tab.sessionId);
-  await browser.until(`document.readyState == "complete" && document.querySelectorAll(".tl-list [role=option]").length > 0`, tab.sessionId);
+  const go = async (to: string, until: string) => {
+    await browser.send("Page.navigate", { url: LINK(to) }, tab.sessionId);
+    await browser.until(`document.readyState == "complete" && location.search == ${JSON.stringify(to)} && (${until})`, tab.sessionId);
+  };
+  await go(search, ready);
   return {
     ...tab,
+    /** Loads the page again at `search`, once `until` is true. */
+    go,
     until: (expression: string) => browser.until(expression, tab.sessionId),
     eval: (expression: string) => browser.eval(expression, tab.sessionId),
     press: (key: keyof typeof KEYS) => press(key, tab.sessionId),
@@ -141,35 +153,87 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
       "Dump",
     ]);
     // A query shows its SQL, its driver and rows, when it started and how long it took.
-    const cells = await tab.eval(`[...document.querySelectorAll("#${QUERY} > span")].map((s) => s.textContent)`);
+    const cells = await tab.eval(`[".tl-kind", ".tl-at", ".tl-label", ".tl-detail", ".tl-duration"].map((c) => document.querySelector("#${QUERY} " + c).textContent)`);
     expect(cells).toEqual(["Query", "100 µs", "SELECT * FROM items WHERE id = ?", "sqlite, 1 row", "800 µs"]);
     expect(await tab.eval(`document.querySelector("#point-log-1 .tl-label").textContent`)).toBe("stock is empty");
     expect(await tab.eval(`document.querySelector("#point-dump-2 .tl-label").textContent`)).toBe("src/Shop/Orders.nvs:41");
+    expect(await tab.eval(`document.querySelector(".timeline h3")`)).toBe(null);
+    expect(await tab.eval(`document.querySelector(".timeline").getAttribute("aria-label")`)).toBe("Timeline");
 
-    // The call holds the query and the other events, so they take a second lane, and no two bars in
-    // one lane overlap.
-    const lanes: { left: number; right: number }[][] = await tab.eval(
-      `[...document.querySelectorAll(".tl-lane[data-lane]")].map((lane) => [...lane.querySelectorAll(".tl-bar")].map((b) => { const r = b.getBoundingClientRect(); return { left: r.left, right: r.right }; }))`,
+    // Each event row draws one bar in its own lane, and each dump or log line one point. The bars
+    // start left to right in time order, and each one is inside its row's lane.
+    const rows: { bars: { left: number; right: number }[]; points: number; lane: { left: number; right: number } }[] = await tab.eval(
+      `[...document.querySelectorAll(".tl-list [role=option]")].map((o) => { const lane = o.querySelector(".tl-lane").getBoundingClientRect(); return { bars: [...o.querySelectorAll(".tl-lane .tl-bar")].map((b) => { const r = b.getBoundingClientRect(); return { left: r.left, right: r.right }; }), points: o.querySelectorAll(".tl-lane .tl-point").length, lane: { left: lane.left, right: lane.right } }; })`,
     );
-    expect(lanes.map((lane) => lane.length)).toEqual([1, 3]);
-    for (const lane of lanes) {
-      const bars = [...lane].sort((a, b) => a.left - b.left);
-      for (let i = 1; i < bars.length; i++) expect(bars[i]!.left).toBeGreaterThanOrEqual(bars[i - 1]!.right - 0.5);
+    expect(rows.map((row) => row.bars.length)).toEqual([1, 1, 0, 0, 1, 1, 0]);
+    expect(rows.map((row) => row.points)).toEqual([0, 0, 1, 1, 0, 0, 1]);
+    const starts = rows.flatMap((row) => row.bars.map((b) => b.left));
+    for (let i = 1; i < starts.length; i++) expect(starts[i]!).toBeGreaterThanOrEqual(starts[i - 1]! - 0.5);
+    for (const row of rows) {
+      for (const b of row.bars) {
+        expect(b.left).toBeGreaterThanOrEqual(row.lane.left - 0.5);
+        expect(b.right).toBeLessThanOrEqual(row.lane.right + 0.5);
+      }
     }
-    expect(await tab.eval(`document.querySelectorAll(".tl-points .tl-point").length`)).toBe(3);
+    expect(await tab.eval(`document.querySelectorAll(".tl-list .tl-point").length`)).toBe(3);
+    expect(await tab.eval(`[...document.querySelectorAll(".tl-axis .tl-tick")].length`)).toBe(5);
     expect(await tab.eval(`document.querySelectorAll(".cut-note").length`)).toBe(0);
 
-    // The exception and the log line are on the page as text.
-    expect(await tab.eval(`document.querySelector(".exception .exc-head").textContent`)).toBe("Shop\\OutOfStock: item 7 is out of stock");
-    expect(await tab.eval(`document.querySelector(".exception .exc-site").textContent`)).toBe("Thrown at src/Shop/Orders.nvs:42");
-    expect(await tab.eval(`document.querySelector("#log-1 .log-message").textContent`)).toBe("stock is empty");
-
-    // The copy sites are listed with the one that copied the most first, each with its help.
+    // The copy sites are under the timeline, the one that copied the most first, each with its help.
     expect(await tab.eval(`[...document.querySelectorAll(".copy-list .copy .site")].map((p) => p.textContent)`)).toEqual([
       "src/Shop/Orders.nvs:36 4 copies, 120 entries or bytes",
       "src/Shop/Orders.nvs:30 1 copy, 3 entries or bytes",
     ]);
     expect(await tab.eval(`document.querySelectorAll(".copy-list .copy-help").length`)).toBe(2);
+
+    // The exception and the log line are on their own tabs, as text.
+    await tab.go("?tab=exception", `document.querySelector(".exception .exc-head") !== null`);
+    expect(await tab.eval(`document.querySelector(".exception .exc-head").textContent`)).toBe("Shop\\OutOfStock: item 7 is out of stock");
+    expect(await tab.eval(`document.querySelector(".exception .exc-site").textContent`)).toBe("Thrown at src/Shop/Orders.nvs:42");
+    await tab.go("?tab=logs", `document.querySelector("#log-1 .log-message") !== null`);
+    expect(await tab.eval(`document.querySelector("#log-1 .log-message").textContent`)).toBe("stock is empty");
+    await tab.close();
+  }, 30_000);
+
+  test("the tab is part of the link, and a tab link changes it without a reload", async () => {
+    detail = FIXTURE;
+    const tab = await open("?tab=logs", `document.querySelector("#log-1") !== null`);
+    const current = `document.querySelector(".tabs [aria-current=page]")?.textContent`;
+    expect(await tab.eval(`${current}?.startsWith("Logs")`)).toBe(true);
+    expect(await tab.eval(`document.querySelector(".timeline")`)).toBe(null);
+    await tab.eval(`window.sameDocument = true`);
+    await tab.eval(`[...document.querySelectorAll(".tabs a")].find((a) => a.textContent.startsWith("Queries")).click()`);
+    await tab.until(`location.search == "?tab=queries"`);
+    await tab.until(`${current}?.startsWith("Queries")`);
+    expect(await tab.eval(`window.sameDocument === true`)).toBe(true);
+    expect(await tab.eval(`document.querySelector("#log-1")`)).toBe(null);
+    await browser.send("Page.reload", {}, tab.sessionId);
+    await tab.until(`document.readyState == "complete" && window.sameDocument === undefined && ${current}?.startsWith("Queries") === true`);
+    expect(await tab.eval(`location.search`)).toBe("?tab=queries");
+    await tab.close();
+  }, 30_000);
+
+  test("a statement repeated at one site is one row with its count and every bar", async () => {
+    const repeated: RequestDetail = structuredClone(FIXTURE);
+    const query = repeated.events.find((event) => event.kind === "query")!;
+    const top = Math.max(...repeated.events.map((event) => event.id));
+    for (let i = 1; i <= 3; i++) {
+      const start = query.start_us + i * 2000;
+      repeated.events.push({ ...structuredClone(query), id: top + i, start_us: start, end_us: start + 500 });
+    }
+    detail = repeated;
+    const tab = await open();
+    const group = `group-${query.id}`;
+    expect(await tab.eval(`document.querySelectorAll(".tl-list [id^=group-]").length`)).toBe(1);
+    expect(await tab.eval(`document.querySelector("#${group}").getAttribute("role")`)).toBe("option");
+    expect(await tab.eval(`document.querySelector("#${group}").dataset.kind`)).toBe("query");
+    expect(await tab.eval(`document.querySelector("#${QUERY}")`)).toBe(null);
+    expect(await tab.eval(`document.querySelector("#${group} .repeat").textContent`)).toBe("4×");
+    expect(await tab.eval(`document.querySelectorAll("#${group} .tl-bar").length`)).toBe(4);
+    // The row sits at the first query's time, and its duration is the four summed: 800 µs + 3 × 500 µs.
+    expect(await tab.eval(`[...document.querySelectorAll(".tl-list [role=option]")].map((o) => o.id).indexOf("${group}")`)).toBe(1);
+    expect(await tab.eval(`document.querySelector("#${group} .tl-duration").textContent`)).toBe("2.30 ms");
+    detail = FIXTURE;
     await tab.close();
   }, 30_000);
 
@@ -181,15 +245,16 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     await tab.press("ArrowDown");
     await tab.until(`${ACTIVE} == "${QUERY}"`);
     expect(await tab.eval(`document.querySelector("#${QUERY}").getAttribute("aria-selected")`)).toBe("true");
-    expect(await tab.eval(`document.querySelector(".tl-bar.tl-on")?.textContent`)).toBe("SELECT * FROM items WHERE id = ?");
+    expect(await tab.eval(`[...document.querySelectorAll(".tl-on")].map((b) => b.closest("[role=option]").id)`)).toEqual([QUERY]);
     await tab.press("End");
     await tab.until(`${ACTIVE} == "point-dump-2"`);
     await tab.press("ArrowUp");
     await tab.until(`${ACTIVE} == "${SPAWN}"`);
     await tab.press("ArrowDown");
     await tab.until(`${ACTIVE} == "point-dump-2"`);
+    // Enter on a dump opens the Dumps tab at that dump's tree.
     await tab.press("Enter");
-    await tab.until(`${FOCUSED} == "dump-2-n0"`);
+    await tab.until(`location.search == "?tab=dumps" && ${FOCUSED} == "dump-2-n0"`);
     await tab.press("Home");
     await tab.until(`${FOCUSED} == "dump-2-n0"`);
     await tab.close();
@@ -197,8 +262,8 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
 
   test("a value tree shows its repeat as a link, its secret and what was cut", async () => {
     detail = FIXTURE;
-    const tab = await open();
-    expect(await tab.eval(`document.querySelectorAll("[role=tree]").length`)).toBe(3);
+    const tab = await open("?tab=dumps", DUMPS);
+    expect(await tab.eval(`document.querySelectorAll(".dumps [role=tree]").length`)).toBe(2);
     expect(await tab.eval(`document.querySelector("#dump-2 [role=tree]").getAttribute("aria-label")`)).toBe("Value dumped at src/Shop/Orders.nvs:41");
     expect(await tab.eval(ROW("dump-2-n0"))).toBe("▾Shop\\Order #2");
     expect(await tab.eval(ROW("dump-2-n1"))).toBe("card: Secret. The value is hidden.");
@@ -230,7 +295,7 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
 
   test("the arrow keys move through a tree and open and close its nodes", async () => {
     detail = FIXTURE;
-    const tab = await open();
+    const tab = await open("?tab=dumps", DUMPS);
     const items = `document.querySelectorAll("#dump-2 [role=treeitem]").length`;
     expect(await tab.eval(items)).toBe(10);
     expect(await tab.eval(`[...document.querySelectorAll("#dump-2 [role=treeitem]")].filter((t) => t.tabIndex == 0).map((t) => t.id)`)).toEqual([
@@ -277,12 +342,13 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     changed.dumps[1]!.tree = null;
     changed.cut = { events: true, dumps: false, logs: true, profiles: false, copies: false };
     detail = changed;
-    const tab = await open();
+    const tab = await open("?tab=dumps", DUMPS);
     expect(await tab.eval(ROW("dump-1-n1"))).toBe(`name: "<img src=x onerror="window.ran=1"><b>Lamp</b>"`);
     expect(await tab.eval(`document.querySelectorAll(".request img, .request b").length`)).toBe(0);
     expect(await tab.eval(`window.ran === undefined`)).toBe(true);
     expect(await tab.eval(`document.querySelector("#dump-2 .cut-note").textContent`)).toBe("This value was too long to record.");
     expect(await tab.eval(`document.querySelectorAll("#dump-2 [role=tree]").length`)).toBe(0);
+    await tab.go("", TIMELINE);
     expect(await tab.eval(`[...document.querySelectorAll(".timeline .cut-note")].map((p) => p.textContent)`)).toEqual([
       "The list of events stopped at its limit, so some events are not shown.",
       "The list of log lines stopped at its limit, so some log lines are not shown.",
@@ -296,8 +362,7 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     covered.coverage = { id: coverageFixture.id, files: 1, elided: false };
     detail = covered;
     text = { ...sourceFixture, text: sourceFixture.text.replace("return 3;", `return 3; // <img src=x onerror="window.ran=1">`) };
-    const tab = await open();
-    await tab.until(`document.querySelectorAll(".source-line").length > 0`);
+    const tab = await open("?tab=coverage", `document.querySelectorAll(".source-line").length > 0`);
     const lines = sourceFixture.text.replace(/\n$/, "").split("\n");
     expect(await tab.eval(`document.querySelectorAll(".source-line").length`)).toBe(lines.length);
     const ran = Object.keys(coverageFixture.files[sourceFixture.file as keyof typeof coverageFixture.files]).map(Number);

@@ -87,6 +87,13 @@ function poison<T>(value: T, offset = 0): T {
 
 // JSON gives a header pair the type `string[]`, so the cast goes through `unknown`.
 const DETAIL = poison(detailFixture as unknown as RequestDetail);
+// The request body is hostile text, and the response body is JSON whose keys and values are hostile,
+// so the Request tab shows text and the Response tab a value tree.
+DETAIL.input = {
+  ...DETAIL.input!,
+  body: { text: MARKUP, base64: null, read: true, cut: false, withheld: false },
+  response_body: { text: JSON.stringify({ [MARKUP]: [MARKUP, { [VARIANTS[1]!]: MARKUP }] }), base64: null, read: true, cut: false, withheld: false },
+};
 const { trace: TRACE, span: SPAN } = DETAIL.request as RequestRow & { span: string };
 const LIST = poison(listFixture as RequestPage);
 /** The request set against the fixture's in the compare view: another row, with other payloads. */
@@ -272,13 +279,39 @@ describe.skipIf(!EXE)("the viewer over hostile values in Chromium", () => {
   }, 30_000);
 
   test("a request page shows hostile dump trees, log lines, events and an exception as text", async () => {
-    const tab = await open(`/requests/${TRACE}/${SPAN}`, `document.querySelectorAll(".tl-list [role=option]").length > 0 && !!document.querySelector(".exception")`);
-    await tab.until(`document.querySelectorAll("[role=tree]").length > 0 && !!document.querySelector(".log-message")`);
+    const page = `/requests/${TRACE}/${SPAN}`;
+    const treeShows = `[...document.querySelectorAll("[role=treeitem]")].some((t) => t.textContent.includes(${JSON.stringify(SHOWN)}))`;
+    const timeline = await open(page, `document.querySelectorAll(".tl-list [role=option]").length > 0`);
+    await expectClean(timeline);
+    await timeline.close();
     // The tree's keys are hostile too: a property and a log field named with markup.
-    expect(await tab.eval(`[...document.querySelectorAll("[role=treeitem]")].some((t) => t.textContent.includes(${JSON.stringify(SHOWN)}))`)).toBe(true);
-    await expectClean(tab);
-    await tab.close();
-  }, 30_000);
+    const dumps = await open(`${page}?tab=dumps`, `document.querySelectorAll(".dumps [role=tree]").length > 0`);
+    expect(await dumps.eval(treeShows)).toBe(true);
+    await expectClean(dumps);
+    await dumps.close();
+    const logs = await open(`${page}?tab=logs`, `!!document.querySelector(".log-message")`);
+    expect(await logs.eval(treeShows)).toBe(true);
+    await expectClean(logs);
+    await logs.close();
+    const exception = await open(`${page}?tab=exception`, `!!document.querySelector(".exception")`);
+    await expectClean(exception);
+    await exception.close();
+  }, 60_000);
+
+  test("a request page's Request and Response tabs show a hostile body as text", async () => {
+    const page = `/requests/${TRACE}/${SPAN}`;
+    const sent = await open(`${page}?tab=request`, `!!document.querySelector("pre.body-text")`);
+    expect(await sent.eval(`document.querySelector("pre.body-text").textContent == ${JSON.stringify(MARKUP)}`)).toBe(true);
+    await expectClean(sent);
+    await sent.close();
+    // The response body is JSON, so its hostile keys and values are in a value tree.
+    const returned = await open(`${page}?tab=response`, `document.querySelectorAll(".rt [role=tree]").length > 0`);
+    expect(await returned.eval(`[...document.querySelectorAll(".rt [role=treeitem]")].some((t) => t.textContent.includes(${JSON.stringify(SHOWN)}))`)).toBe(
+      true,
+    );
+    await expectClean(returned);
+    await returned.close();
+  }, 60_000);
 
   test("the replay dialog shows the recorded hostile method, path, headers and target as text", async () => {
     const tab = await open(`/requests/${TRACE}/${SPAN}`, `!!document.querySelector(".replay-action") && !document.querySelector(".replay-action").disabled`);

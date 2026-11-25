@@ -324,7 +324,7 @@ export interface Replayed {
 }
 
 /** Every kind of record the stream has. `dropped` and `unparseable` belong to no request. */
-export const RECORD_KINDS = ["request", "call", "query", "spawn", "gc", "http", "dump", "log", "dropped", "unparseable"] as const;
+export const RECORD_KINDS = ["request", "call", "query", "spawn", "gc", "http", "cache", "session", "file", "dump", "log", "dropped", "unparseable"] as const;
 
 export type RecordKind = (typeof RECORD_KINDS)[number];
 

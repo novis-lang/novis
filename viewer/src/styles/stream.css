@@ -197,6 +197,18 @@
   background: var(--k-gc);
 }
 
+.rk-cache {
+  background: var(--k-cache);
+}
+
+.rk-session {
+  background: var(--k-session);
+}
+
+.rk-file {
+  background: var(--k-file);
+}
+
 .rk-dump {
   background: var(--highlight);
 }

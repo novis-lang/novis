@@ -138,12 +138,22 @@ function headerRows(left: [string, string][] | null, right: [string, string][] |
  *  when its text parses, and its text otherwise. `raw` lets two notes about different bytes differ. */
 type Body = { note: string; raw: string } | { json: Json } | { text: string };
 
+/** The sentence for a recorded body whose bytes are not all on the page: it was withheld, not read,
+ *  or cut at the recording limit. `null` when the body was recorded in full. The request's Request
+ *  and Response tabs show the same sentences. */
+export function bodyNote(recorded: RecordedBody): string | null {
+  if (recorded.withheld) return "Not recorded, because it contains a secret.";
+  if (!recorded.read) return "The program did not read this body.";
+  if (recorded.cut) return "Too long to record in full.";
+  return null;
+}
+
 function body(recorded: RecordedBody | null | undefined): Body {
   if (recorded === undefined) return { note: "Not recorded. A server records this in development only.", raw: "" };
   if (recorded === null) return { note: NOT_RECORDED, raw: "" };
-  if (recorded.withheld) return { note: "Not recorded, because it contains a secret.", raw: "" };
-  if (!recorded.read) return { note: "The program did not read this body.", raw: "" };
-  if (recorded.cut) return { note: "Too long to record in full, so it is not compared.", raw: recorded.text ?? recorded.base64 ?? "" };
+  const unseen = bodyNote(recorded);
+  if (unseen !== null && !recorded.cut) return { note: unseen, raw: "" };
+  if (unseen !== null) return { note: `${unseen} It is not compared.`, raw: recorded.text ?? recorded.base64 ?? "" };
   if (recorded.base64 !== null) return { note: "Binary data, so it is not compared as text.", raw: recorded.base64 };
   const text = recorded.text ?? "";
   if (text === "") return { note: "Empty.", raw: "" };

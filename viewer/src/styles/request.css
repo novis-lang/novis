@@ -1,31 +1,91 @@
 /* One request. */
 .request {
-  padding: 1rem;
   overflow: auto;
 }
 
+.request > .note,
+.request > h2,
+.request > .matches {
+  margin-left: var(--space-4);
+  margin-right: var(--space-4);
+}
+
+/* The header: the title line with the actions, the route line, the tiles and the time split. */
+.req-head {
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.req-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
 .request .title {
-  margin: 1rem 0 0.75rem;
-  font-size: 1.15rem;
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.3rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
   margin: 0;
-}
-
-.fields dt {
-  color: var(--muted);
-}
-
-.fields dd {
-  margin: 0;
-}
-
-.fields .exc {
+  font: 600 var(--fs-4) var(--mono);
   color: var(--text);
+}
+
+.req-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.req-title .actions {
+  margin: 0 0 0 auto;
+}
+
+.req-crumb {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-2);
+  overflow-wrap: anywhere;
+}
+
+.req-crumb code {
+  color: var(--text-2);
+}
+
+.req-crumb .exc {
+  color: var(--text);
+}
+
+.request .req-tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: var(--space-4) 0 var(--space-3);
+}
+
+.req-head .meter {
+  height: 8px;
+}
+
+/* The tab row and the tab under it. */
+.request .tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+
+.req-panel {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.request .empty {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 900px) {
+  .request .req-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .matches {

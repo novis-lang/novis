@@ -329,7 +329,9 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     await tab.press("Enter");
     const five = FIXTURE.find((row) => row.id === 5)!;
     await tab.until(`location.pathname == "/requests/${five.trace}/${five.span}"`);
-    await tab.until(`document.querySelector(".request .title")?.textContent == "PUT /items/{id}"`);
+    // The title is the method and the path, and the route is on the line below it.
+    await tab.until(`document.querySelector(".request .title")?.textContent == "PUT ${five.path}"`);
+    expect(await tab.eval(`document.querySelector(".req-crumb code").textContent`)).toBe("/items/{id}");
     await tab.press("Escape");
     await tab.until(`location.pathname == "/" && document.querySelectorAll("[role=option]").length == ${FIXTURE.length}`);
     await tab.close();
@@ -368,7 +370,7 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     await search(`00-${THREW.trace.toUpperCase()}-${THREW.span}-01`);
     await tab.until(`location.pathname == "/requests/${THREW.trace}/${THREW.span}"`);
     await tab.until(`document.querySelector(".request .title")?.textContent == "POST /orders"`);
-    expect(await tab.eval(`document.querySelector(".fields .exc").textContent`)).toBe("Shop\\OutOfStock at src/Shop/Orders.nvs:42");
+    expect(await tab.eval(`document.querySelector(".req-crumb .exc").textContent`)).toBe("Shop\\OutOfStock at src/Shop/Orders.nvs:42");
 
     // A trace id two requests share shows both.
     await search(SHARED);

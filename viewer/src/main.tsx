@@ -9,6 +9,7 @@ import "./styles/base.css";
 import "./styles/ui.css";
 import "./styles/requests.css";
 import "./styles/request.css";
+import "./styles/request-tabs.css";
 import "./styles/timeline.css";
 import "./styles/value-tree.css";
 import "./styles/stream.css";

@@ -203,12 +203,14 @@ describe.skipIf(!EXE)("the exceptions view in Chromium", () => {
     await tab.press("Enter");
     await tab.until(`location.pathname == "/requests/${row.trace}/${row.span}" && location.hash == "#exception"`);
     await tab.until(`document.activeElement?.id == "exception"`);
-    // The log line's message names a file and a line, and it is text, not a link.
-    await tab.until(`!!document.querySelector(".log-message")`);
-    expect(await tab.eval(`document.querySelector(".log-message").textContent`)).toBe(LOGGED);
-    expect(await tab.eval(`document.querySelectorAll(".logs a").length`)).toBe(0);
+    expect(await tab.eval(`document.querySelector(".tabs [aria-current=page]").textContent`)).toBe("Exception");
     // The exception's own site is a link.
     expect(await tab.eval(`document.querySelector(".exception .exc-site a").getAttribute("href")`)).toBe("vscode://file/src/Shop/Orders.nvs:42:1");
+    // The log line's message names a file and a line, and it is text, not a link.
+    await tab.eval(`[...document.querySelectorAll(".tabs a")].find((a) => a.textContent.startsWith("Logs")).click()`);
+    await tab.until(`location.search == "?tab=logs" && !!document.querySelector(".log-message")`);
+    expect(await tab.eval(`document.querySelector(".log-message").textContent`)).toBe(LOGGED);
+    expect(await tab.eval(`document.querySelectorAll(".logs a").length`)).toBe(0);
     await tab.close();
   }, 30_000);
 

@@ -1,26 +1,37 @@
-// One request's timeline: its calls, queries, spawns, garbage-collection pauses and outbound calls as
-// bars from their start to their end, and its dumps and log lines as points, on one time axis from the
-// request's start to its end.
+// One request's timeline as a waterfall: one row per item on one time axis from the request's start to
+// its end. A call, a query, a spawn, a garbage-collection pause, an outbound call, a cache, session or
+// file event is a bar from its start to its end in its row's lane, in its kind's tone (`.k-<kind>`); a
+// dump or a log line is a point. Above the rows, an axis row has five ticks at each quarter of the span.
 //
-// The chart places bars in lanes, so a call nested in another call sits under it and no two bars
-// overlap: each bar, earliest first and the longer one first at one start, takes the first lane whose
-// last bar has ended. Dumps and log lines share one lane of points below the bars.
+// A repeated statement is one row: query events with the same SQL text and the same non-null call site
+// that ran two or more times share a row at the first one's time, with the gold wash, the `Repeat`
+// count, every member's bar in its lane and the members' summed duration. A query with no site is never
+// grouped, because two different callers could send the same text.
 //
-// Under the chart, every item is one row of a listbox in time order (the WAI-ARIA listbox pattern, the
-// way the request list is one). The keys move the selection, the chart highlights the selected item,
-// and Enter on a dump or a log line moves to it on the page. A dump's site is a link to the editor
-// (`ui/site.tsx`), out of the tab order because the row is reached with the arrow keys.
+// The rows are the listbox (the WAI-ARIA listbox pattern, the way the request list is one). The keys
+// move the selection, the selected row's bars are `tl-on`, and Enter or a double click on a dump or a
+// log line calls `reveal`, which opens that record's tab. A dump's site is a link to the editor
+// (`ui/site.tsx`), out of the tab order because the row is reached with the arrow keys. Each row keeps
+// text cells for its kind, its start, its label, its detail and its duration; the kind and the start are
+// for a screen reader, and the swatch and the bar's place show them on screen.
 //
-// What it spends: one object per item and one lane number per bar, for lists the service already
-// limited.
+// What it spends: one object per row and one per bar, and one map entry per query site while grouping,
+// for lists the service already limited.
 
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Dump, LogLine, RequestDetail, TraceEvent } from "../api.ts";
 import { ignored } from "../keys.ts";
+import { Repeat } from "../ui/badges.tsx";
 import { Site } from "../ui/site.tsx";
 import { duration } from "./requests.tsx";
 
 type Kind = TraceEvent["kind"] | "dump" | "log";
+
+/** One bar in a row's lane, in microseconds on the request's clock. */
+interface Bar {
+  start: number;
+  end: number;
+}
 
 /** One row of the timeline. */
 interface Item {
@@ -28,13 +39,17 @@ interface Item {
   id: string;
   kind: Kind;
   start: number;
-  /** `null` for a point. */
+  /** The last bar's end, or `null` for a point. */
   end: number | null;
+  /** The bars in the lane: one for an event, one per member for a repeated statement, none for a point. */
+  bars: Bar[];
+  /** The time the row's bars sum to. */
+  total: number;
   label: string;
   /** A short note after the label, such as a query's driver and rows. */
   detail: string;
-  /** The trace event's id, for a bar. */
-  event?: number;
+  /** How many events the row is: above 1 for a repeated statement. */
+  count: number;
   dump?: Dump;
   log?: LogLine;
 }
@@ -53,50 +68,79 @@ const KIND_NAMES: Record<Kind, string> = {
   log: "Log line",
 };
 
+const rowsText = (rows: number) => (rows === 1 ? "1 row" : `${rows} rows`);
+
+function bar(event: TraceEvent): Bar {
+  return { start: event.start_us, end: Math.max(event.start_us, event.end_us) };
+}
+
 function eventItem(event: TraceEvent): Item {
   const query = event.query;
-  let detail = "";
-  if (query) detail = query.rows === null ? query.driver : `${query.driver}, ${query.rows === 1 ? "1 row" : `${query.rows} rows`}`;
+  const b = bar(event);
   return {
     id: `event-${event.id}`,
     kind: event.kind,
-    start: event.start_us,
-    end: Math.max(event.start_us, event.end_us),
+    start: b.start,
+    end: b.end,
+    bars: [b],
+    total: b.end - b.start,
     label: query ? query.sql : event.label,
-    detail,
-    event: event.id,
+    detail: query ? (query.rows === null ? query.driver : `${query.driver}, ${rowsText(query.rows)}`) : "",
+    count: 1,
   };
 }
 
-/**
- * Gives each event the lane its bar goes in, by its id. Events are taken earliest first, and at one
- * start the longer first, so an outer call is above the calls it makes. Each takes the first lane whose
- * last bar ended at or before its start.
- */
-export function lanes(events: readonly Pick<TraceEvent, "id" | "start_us" | "end_us">[]): Map<number, number> {
-  const order = [...events].sort((a, b) => a.start_us - b.start_us || b.end_us - a.end_us || a.id - b.id);
-  const ends: number[] = [];
-  const lane = new Map<number, number>();
+/** The row of a statement that ran `members.length` times at one site, at the first one's time. */
+function groupItem(members: TraceEvent[]): Item {
+  const first = members[0]!;
+  const bars = members.map(bar);
+  return {
+    id: `group-${first.id}`,
+    kind: "query",
+    start: bars[0]!.start,
+    end: Math.max(...bars.map((b) => b.end)),
+    bars,
+    total: bars.reduce((sum, b) => sum + (b.end - b.start), 0),
+    label: first.query!.sql,
+    detail: first.query!.driver,
+    count: members.length,
+  };
+}
+
+/** The key that groups a query: its SQL and its call site, or `null` when it has no site. */
+function groupKey(event: TraceEvent): string | null {
+  const q = event.query;
+  if (event.kind !== "query" || !q || !q.site) return null;
+  return `${q.site.file}:${q.site.line}\n${q.sql}`;
+}
+
+/** The event rows: each event alone, and each statement that ran twice or more at one site as one row. */
+function eventItems(events: readonly TraceEvent[]): Item[] {
+  const order = [...events].sort((a, b) => a.start_us - b.start_us || a.id - b.id);
+  const groups = new Map<string, TraceEvent[]>();
   for (const event of order) {
-    let at = ends.findIndex((end) => end <= event.start_us);
-    if (at < 0) at = ends.push(0) - 1;
-    ends[at] = Math.max(event.start_us, event.end_us);
-    lane.set(event.id, at);
+    const key = groupKey(event);
+    if (key === null) continue;
+    const members = groups.get(key);
+    if (members) members.push(event);
+    else groups.set(key, [event]);
   }
-  return lane;
+  const out: Item[] = [];
+  for (const event of order) {
+    const key = groupKey(event);
+    const members = key === null ? undefined : groups.get(key);
+    if (!members || members.length < 2) out.push(eventItem(event));
+    else if (members[0] === event) out.push(groupItem(members));
+  }
+  return out;
 }
 
-/** Moves focus to the item a timeline row names on the page: a dump's tree or a log line. */
-function reveal(item: Item) {
-  const el = item.dump
-    ? document.querySelector<HTMLElement>(`#dump-${item.dump.id} [role=treeitem][tabindex="0"]`)
-    : item.log
-      ? document.getElementById(`log-${item.log.id}`)
-      : null;
-  el?.focus();
-}
-
-export function Timeline(props: { detail: RequestDetail }) {
+export function Timeline(props: { detail: RequestDetail; reveal: (kind: "dump" | "log", id: number) => void }) {
+  /** Opens the tab of the dump or the log line a row names, at that record. */
+  const reveal = (item: Item) => {
+    if (item.dump) props.reveal("dump", item.dump.id);
+    else if (item.log) props.reveal("log", item.log.id);
+  };
   const t0 = () => props.detail.request.start_us;
   /** The axis's length in microseconds: the request's duration, or longer when an event ends later. */
   const span = createMemo(() => {
@@ -107,14 +151,17 @@ export function Timeline(props: { detail: RequestDetail }) {
   const items = createMemo(() => {
     const d = props.detail;
     const all: Item[] = [
-      ...d.events.map(eventItem),
+      ...eventItems(d.events),
       ...d.dumps.map((dump): Item => ({
         id: `point-dump-${dump.id}`,
         kind: "dump",
         start: dump.at_us,
         end: null,
+        bars: [],
+        total: 0,
         label: `${dump.file}:${dump.line}`,
         detail: "",
+        count: 1,
         dump,
       })),
       ...d.logs.map((log): Item => ({
@@ -122,21 +169,24 @@ export function Timeline(props: { detail: RequestDetail }) {
         kind: "log",
         start: log.at_us,
         end: null,
+        bars: [],
+        total: 0,
         label: log.message,
         detail: log.level,
+        count: 1,
         log,
       })),
     ];
     return all.sort((a, b) => a.start - b.start || (b.end ?? b.start) - (a.end ?? a.start));
   });
-  const laneOf = createMemo(() => lanes(props.detail.events));
-  const laneCount = () => Math.max(0, ...laneOf().values()) + (props.detail.events.length > 0 ? 1 : 0);
   const [selected, setSelected] = createSignal(0);
   let list!: HTMLDivElement;
 
-  const left = (us: number) => `${(Math.min(Math.max(us - t0(), 0), span()) / span()) * 100}%`;
-  const width = (item: Item) => `${((Math.min((item.end ?? item.start) - t0(), span()) - Math.min(Math.max(item.start - t0(), 0), span())) / span()) * 100}%`;
-  const ticks = () => [0, 0.25, 0.5, 0.75, 1].map((f) => ({ at: `${f * 100}%`, text: duration(Math.round(f * span())) }));
+  /** Where `us` is on the axis, clamped to it, from 0 to 1. */
+  const at = (us: number) => Math.min(Math.max(us - t0(), 0), span()) / span();
+  const left = (us: number) => `${at(us) * 100}%`;
+  const width = (b: Bar) => `${(at(b.end) - at(b.start)) * 100}%`;
+  const ticks = () => [0, 0.25, 0.5, 0.75, 1].map((f) => duration(Math.round(f * span())));
 
   const move = (to: number) => {
     const n = items().length;
@@ -184,55 +234,16 @@ export function Timeline(props: { detail: RequestDetail }) {
     return notes;
   };
 
-  const isOn = (item: Item) => items()[selected()]?.id === item.id;
-
   return (
-    <section class="timeline" aria-labelledby="timeline-title">
-      <h3 id="timeline-title">Timeline</h3>
+    <section class="timeline" aria-label="Timeline">
       <For each={cutNotes()}>{(note) => <p class="note cut-note">{note}</p>}</For>
       <Show when={items().length > 0} fallback={<p class="note">This request recorded no events, dumps or log lines.</p>}>
-        <div class="tl-chart" aria-hidden="true">
-          <div class="tl-axis">
-            <For each={ticks()}>
-              {(tick) => (
-                <span class="tl-tick" style={{ left: tick.at }}>
-                  {tick.text}
-                </span>
-              )}
-            </For>
+        <div class="tl-axis" aria-hidden="true">
+          <span />
+          <div class="tl-ticks">
+            <For each={ticks()}>{(tick) => <span class="tl-tick">{tick}</span>}</For>
           </div>
-          <For each={Array.from({ length: laneCount() }, (_, i) => i)}>
-            {(lane) => (
-              <div class="tl-lane" data-lane={lane}>
-                <For each={items().filter((item) => item.event !== undefined && laneOf().get(item.event) === lane)}>
-                  {(item) => (
-                    <div
-                      class={`tl-bar tl-${item.kind}`}
-                      classList={{ "tl-on": isOn(item) }}
-                      style={{ left: left(item.start), width: width(item) }}
-                      title={`${KIND_NAMES[item.kind]}: ${item.label}, ${duration(item.end! - item.start)}`}
-                      onClick={() => move(items().indexOf(item))}
-                    >
-                      {item.label}
-                    </div>
-                  )}
-                </For>
-              </div>
-            )}
-          </For>
-          <div class="tl-lane tl-points">
-            <For each={items().filter((item) => item.end === null)}>
-              {(item) => (
-                <div
-                  class={`tl-point tl-${item.kind}`}
-                  classList={{ "tl-on": isOn(item) }}
-                  style={{ left: left(item.start) }}
-                  title={`${KIND_NAMES[item.kind]}: ${item.label}`}
-                  onClick={() => move(items().indexOf(item))}
-                />
-              )}
-            </For>
-          </div>
+          <span />
         </div>
         <div
           ref={list}
@@ -244,30 +255,59 @@ export function Timeline(props: { detail: RequestDetail }) {
           onKeyDown={onKey}
         >
           <For each={items()}>
-            {(item, i) => (
-              <div
-                id={item.id}
-                role="option"
-                class={`tl-row tl-${item.kind}`}
-                data-kind={item.kind}
-                aria-selected={selected() === i() ? "true" : "false"}
-                onClick={() => {
-                  setSelected(i());
-                  list.focus({ preventScroll: true });
-                }}
-                onDblClick={() => reveal(item)}
-              >
-                <span class="tl-kind">{KIND_NAMES[item.kind]}</span>
-                <span class="tl-at num">{duration(Math.max(0, item.start - t0()))}</span>
-                <span class="tl-label">
-                  <Show when={item.dump} fallback={item.label}>
-                    {(dump) => <Site site={dump()} tabindex={-1} />}
-                  </Show>
-                </span>
-                <span class="tl-detail">{item.detail}</span>
-                <span class="tl-duration num">{item.end === null ? "" : duration(item.end - item.start)}</span>
-              </div>
-            )}
+            {(item, i) => {
+              const on = () => selected() === i();
+              return (
+                <div
+                  id={item.id}
+                  role="option"
+                  class={`tl-row tl-${item.kind}`}
+                  classList={{ "tl-grp": item.count > 1 }}
+                  data-kind={item.kind}
+                  aria-selected={on() ? "true" : "false"}
+                  onClick={() => {
+                    setSelected(i());
+                    list.focus({ preventScroll: true });
+                  }}
+                  onDblClick={() => reveal(item)}
+                >
+                  <div class="tl-lab">
+                    <i class={`tl-swatch k-${item.kind}`} aria-hidden="true" />
+                    <span class="tl-kind sr-only">{KIND_NAMES[item.kind]}</span>
+                    <span class="tl-at sr-only">{duration(Math.max(0, item.start - t0()))}</span>
+                    <span class="tl-label">
+                      <Show when={item.dump} fallback={item.label}>
+                        {(dump) => <Site site={dump()} tabindex={-1} />}
+                      </Show>
+                    </span>
+                    <Show when={item.count > 1}>
+                      <Repeat count={item.count} />
+                    </Show>
+                    <span class="tl-detail">{item.detail}</span>
+                  </div>
+                  <div class="tl-lane" aria-hidden="true">
+                    <Show
+                      when={item.end !== null}
+                      fallback={
+                        <i class={`tl-point tl-${item.kind}`} classList={{ "tl-on": on() }} style={{ left: left(item.start) }} title={`${KIND_NAMES[item.kind]}: ${item.label}`} />
+                      }
+                    >
+                      <For each={item.bars}>
+                        {(b) => (
+                          <i
+                            class={`tl-bar k-${item.kind}`}
+                            classList={{ "tl-on": on() }}
+                            style={{ left: left(b.start), width: width(b) }}
+                            title={`${KIND_NAMES[item.kind]}: ${item.label}, ${duration(b.end - b.start)}`}
+                          />
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                  <span class="tl-duration num">{item.end === null ? "" : duration(item.total)}</span>
+                </div>
+              );
+            }}
           </For>
         </div>
       </Show>
