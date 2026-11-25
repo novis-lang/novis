@@ -128,6 +128,7 @@ use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, SourceId, Span};
 use nvs_hir::QName;
 use nvs_hir::doc_targets::Resolved as DocResolved;
+use nvs_syntax::IndexNode;
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Stmt, StmtKind, Type, TypeAtom,
     TypeKind,
@@ -916,9 +917,14 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// which it may because no enum extends another. The production writes its own
 /// name without a node of its own and holds exactly one child, the qualifier,
 /// so a cursor that is inside a node inside this one is on the qualifier and
-/// asks about the enum. `Cart::LIMIT` is not this case and still answers the
-/// constant wherever the cursor is: its entry names the class that *declares*
-/// the constant, which need not be the one the source wrote.
+/// asks about the enum.
+///
+/// **A class written in front of `::` is asked before the walk**, for the same
+/// reason: `Client::make()`, `Cart::LIMIT`, `Cart::$count` and `Cart::class`
+/// are each recorded on the whole production under the member, so a cursor on
+/// the class would open the member. [`class_qualifier_at`] answers the class
+/// the source wrote, which need not be the one that declares the member.
+///
 /// **A written type is asked before any node is**, for the module doc's
 /// reason: the index cannot see a type, so a cursor on one is inside whatever
 /// wrote it — a call, for its `<Type>` argument — and that node is the wrong
@@ -939,14 +945,10 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// `implements` clause off the hierarchy graph ([`clause_at`]) and a `use`
 /// line ([`import_at`]).
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
-    let nodes: Vec<Span> = analysed
-        .index
-        .at(offset)
-        .nodes()
-        .iter()
-        .map(|node| node.span)
-        .collect();
+    let path = analysed.index.at(offset);
+    let nodes: Vec<Span> = path.nodes().iter().map(|node| node.span).collect();
     attribute_at(analysed, offset)
+        .or_else(|| class_qualifier_at(analysed, path.nodes(), offset))
         .or_else(|| type_member_at(analysed, offset))
         .or_else(|| type_name_at(analysed, offset))
         .or_else(|| written_class_name_at(analysed, offset))
@@ -987,6 +989,40 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
             _ => Some((target_of(info)?, *node)),
         }
     })
+}
+
+/// The class a cursor on the name in front of `::` names, in a static call, a
+/// static property, a class constant or `::class`, and the span of that name.
+///
+/// The checker records the whole production under the member it resolved to,
+/// so the walk over the nodes would answer `tableColumnFor` for a cursor on
+/// `Client` in `Client::tableColumnFor()`. The name is resolved as written,
+/// with the namespace and imports of the entry document — the reading
+/// `crate::index` records the same span under — so `Cart::LIMIT` answers `Cart`
+/// even where the constant is declared on a parent. `self`, `static` and
+/// `parent` are no name, and a `Core` class has no declaration in the program:
+/// both answer `None` and the walk answers the member.
+fn class_qualifier_at<'a>(
+    analysed: &'a Analysed,
+    nodes: &[IndexNode],
+    offset: BytePos,
+) -> Option<(Target<'a>, Span)> {
+    let [written, production, ..] = nodes else {
+        return None;
+    };
+    if written.kind != "ConstFetch"
+        || written.span.start != production.span.start
+        || !covers(written.span, offset)
+        || !matches!(
+            production.kind,
+            "StaticCall" | "StaticPropertyAccess" | "ClassConstAccess" | "ClassNameConst"
+        )
+    {
+        return None;
+    }
+    let resolved = written_name_in(analysed, analysed.entry, written.span)?;
+    let class = &analysed.module.symbols.get(&resolved)?.qname;
+    Some((Target::Type(Cow::Borrowed(class)), written.span))
 }
 
 /// The attribute declaration a name at `offset` in the entry document
@@ -2204,5 +2240,24 @@ mod tests {
         assert_eq!(jump(MAKERS, "constructors<Sha"), "1:10");
         assert_eq!(jump(MAKERS, "callable(Con"), "2:6");
         assert_eq!(jump(MAKERS, "callable(Config): Sha"), "1:10");
+    }
+
+    /// A class and its parent, each read through `Child::` in all four
+    /// productions that write a class in front of `::`.
+    const QUALIFIED: &str = "<?nvs\nclass Base {\n  public const int LIMIT = 1;\n  public static \
+                             int $count = 0;\n  public static function make(): int { return 1; \
+                             }\n}\nclass Child extends Base {}\necho Child::make();\necho \
+                             Child::LIMIT;\necho Child::$count;\necho Child::class;\n";
+
+    /// The class half of `Class::member` opens the class the source wrote,
+    /// and the member half still opens the member where it is declared.
+    #[test]
+    fn definition_on_the_class_in_front_of_double_colon_is_the_class() {
+        assert_eq!(jump(QUALIFIED, "echo Chi"), "6:6");
+        assert_eq!(jump(QUALIFIED, "make();\necho Chi"), "6:6");
+        assert_eq!(jump(QUALIFIED, "LIMIT;\necho Chi"), "6:6");
+        assert_eq!(jump(QUALIFIED, "$count;\necho Chi"), "6:6");
+        assert_eq!(jump(QUALIFIED, "Child::ma"), "4:25");
+        assert_eq!(jump(QUALIFIED, "Child::LIM"), "2:19");
     }
 }
