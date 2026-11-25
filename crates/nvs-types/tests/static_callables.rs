@@ -208,15 +208,17 @@ fn mismatch_help(diags: &Diagnostics) -> String {
 #[test]
 fn a_function_for_a_subclass_at_the_declaring_class_names_callable_static() {
     for ty in ["callable(Model): bool", "callable(self): bool"] {
-        let members = format!(
-            "  public static function check({ty} $rule): bool {{\n    return true;\n  }}"
-        );
+        let members =
+            format!("  public static function check({ty} $rule): bool {{\n    return true;\n  }}");
         let diags = check_src(&fixture(
             &members,
             "    Order::check(fn (Order $o): bool => $o->total > 0);",
         ));
         let help = mismatch_help(&diags);
-        assert!(help.contains("This function takes only `Order`."), "{ty}: {diags:?}");
+        assert!(
+            help.contains("This function takes only `Order`."),
+            "{ty}: {diags:?}"
+        );
         assert!(help.contains("`callable(static)`"), "{ty}: {diags:?}");
     }
 }
@@ -228,7 +230,10 @@ fn a_function_for_a_subclass_at_a_base_class_call_names_the_class_to_call_on() {
         "    Model::check(fn (Order $o): bool => $o->total > 0);",
     ));
     let help = mismatch_help(&diags);
-    assert!(help.contains("This function takes only `Order`."), "{diags:?}");
+    assert!(
+        help.contains("This function takes only `Order`."),
+        "{diags:?}"
+    );
     assert!(help.contains("`Order::check(...)`"), "{diags:?}");
     // At an instance call the example is left out.
     let diags = check_src(&fixture(

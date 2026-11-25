@@ -291,6 +291,13 @@ The nightly run 45609291264 ran on `53e94a9181`, before `1c3196b0e8` and `8ca2f0
 its ten failed jobs is one of the failures those two commits fixed: the ten Miri `Core\Time` tests
 now carry the Miri ignore, the quotient attack compiles, and macOS has its json-api count.
 
+The refused DONE's `close` reds are fixed: rustfmt on `static_callables.rs`, the re-rendered
+`20-types.md`, `docs/rules/types.md`, `docs/rules/statements.md` and `llms-full.txt`, a rustdoc
+link in `types_e10.rs`, and the `changes.json` entry, cut to three sentences. The entry named a
+feature whose behaviour hash had not moved, because none of the three new conformance cases had a
+`// covers:` line. Each now covers `lang:types/void-never-self-static`. Four stale stamps were
+restamped, two of them `Core\Time\Date::range`'s from the Miri ignore.
+
 ### Next
 
 The goal's DONE runs `binds`, `help`, `cases`, `proofs` and `close`. No test is expected to go red.

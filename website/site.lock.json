@@ -3105,7 +3105,7 @@
     "Core\\Time\\Date::quarter": "404570e322c83ce4"
   },
   "docs/examples/core/Time-Date/range/about.md": {
-    "Core\\Time\\Date::range": "e55e82cdf4d126b8"
+    "Core\\Time\\Date::range": "b0a834bcd0abefef"
   },
   "docs/examples/core/Time-Date/startOf/about.md": {
     "Core\\Time\\Date::startOf": "fe0a0a8d901f8d27"
@@ -3996,7 +3996,7 @@
     "lang:types/values-written-in-the-code": "bfac11b8c231eaec"
   },
   "docs/examples/lang/types/void-never-self-static/about.md": {
-    "lang:types/void-never-self-static": "199f88d5052c7ecf"
+    "lang:types/void-never-self-static": "fe6e8f0e6fd3beb8"
   },
   "docs/examples/lang/types/what-does-not-exist/about.md": {
     "lang:types/what-does-not-exist": "e7d199638c0afd7d"
@@ -8106,7 +8106,7 @@
     "Core\\Time\\Date::quarter": "749d024ac955a7dc"
   },
   "help:Core\\Time\\Date::range": {
-    "Core\\Time\\Date::range": "3a796700567798c2"
+    "Core\\Time\\Date::range": "8cc71316f6cd2551"
   },
   "help:Core\\Time\\Date::startOf": {
     "Core\\Time\\Date::startOf": "781f791c2b565795"
@@ -9858,7 +9858,7 @@
     "lang:expressions/calls": "52c9e75ff8e8f32d"
   },
   "syntax/functions/declaring.mdx": {
-    "lang:types/void-never-self-static": "e69e69daf4361084"
+    "lang:types/void-never-self-static": "bb382f8d6f72ae52"
   },
   "syntax/functions/parameters.mdx": {
     "lang:types/parameters": "f31a899baabf5e73"

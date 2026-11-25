@@ -2,6 +2,7 @@
 A function from a `callable(static)` parameter that is stored and called later with another class throws a `LogicError` that names the class — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
+// covers: lang:types/void-never-self-static
 class Model {
     public array<callable> $rules = [];
 

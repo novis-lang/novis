@@ -441,7 +441,21 @@ promises one of these returns `$this`, `new static(...)`, `null`, a call on `sel
 fresh `Core` collection with no constructor arguments, which is empty as `[]` is (`E0741`). A base class that declares
 `sortBy(property<static> $field)` once then checks each subclass's own properties at each call, with
 no override per subclass. A type that also writes `self` or the declaring class's own name is not
-bound, and neither is a `static` among a written callable's parameters; both keep the declaring class.
+bound, and keeps the declaring class.
+
+A `static` written directly among the parameters of a callable that is a parameter's own type binds
+too: `callable(static)`, `callable(static, int)`, `?callable(static)` and `callable(static)|null`
+take a function for the class the call names, so `Order::check(fn (Order $o) => …)` checks. Every
+deeper position keeps the declaring class: an `array<callable(static)>`, a shape field, a callable
+among a callable's parameters, and a written callable in a return type. Inside the body the parameter
+is a plain `callable`, so passing it on, storing it or capturing it keeps a plain `callable`'s
+run-time check. A call `$rule(...)` written in the method's own body, outside any anonymous function,
+and on a parameter the body never assigns, is proven: each argument at a `static` position must be
+one E0741's list accepts (`$this`, `new static(...)`, `null` where the position is nullable, or a
+call on `self`, `static`, `parent` or `$this` whose return binds `static`). A proven call returns the
+signature's type and pays no run-time check. Any other argument there is `E1015`. A function whose
+parameter is a class strictly below the one a user method's callable slot takes is still `E0401`,
+and its help names `callable(static)`, or the class to call the method on.
 Inside the body the checker does not know which subclass called it, so a `property<static>` is the
 property's name as a `string`, which the body may print, compare or convert back with `as
 property<self>`, checked at run time. A key of `static` read on `$this` would be sound, but the body
@@ -518,6 +532,9 @@ written with it.
   `self::m()` or `parent::m()` call inside an anonymous function sets a class fixed at the call site
   and costs nothing, and only one that reaches an instance method captures `$this`. Binding `static`
   in a parameter or a return is the checker's, once per call it resolves, and costs nothing at run time.
+  A bound callable parameter costs nothing at run time and nothing per request; at check time it
+  keeps one small record per bound parameter for one method body. A proven call does less work than
+  a plain `callable` call, since it skips the per-call parameter check.
 
 **Declined:**
 - **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
@@ -542,6 +559,18 @@ written with it.
 - **A `static` type kept apart from the declaring class inside the body.** It would let a body read a
   `property<static>` on `$this`, and every consumer of a type would have to learn a second meaning of
   a class. The body's `string` and `E0741`'s list cover the programs that need it.
+- **Keeping the declaring class in `callable(static)`.** It sends the user to a plain `callable`,
+  which adds a run-time check to every call and returns `mixed`.
+- **Taking `callable(Order)` where `callable(Model)` is declared, with a run-time check.** A typed
+  callable would then no longer promise that every `Model` works. Plain `callable` already says that.
+- **Binding `static` in an array of callables, a shape field or a nested callable.** An element read
+  out of the array is no longer the parameter the scope keeps a record for, so no call through it can
+  be proven. Default until a program needs it.
+- **Binding `static` in a callable return type.** E0741 checks a bound return for the called class,
+  and a function is not an instance. The return keeps the declaring class.
+- **Proving a call through a `callable(static)` parameter inside an anonymous function.** `self::`
+  there names the written class, so the proof would need a second list. The call is checked at run
+  time.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 

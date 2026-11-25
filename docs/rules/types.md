@@ -2572,7 +2572,8 @@ fn (User $u, string $k): mixed  => …    // wider return    — refused
 ```
 
 The two refusals are the unsound directions: the slot may be handed any `User`, and its caller was
-promised a `string`.
+promised a `string`. A method parameter that should take a function for the class the call names is
+written `callable(static)` ([`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)).
 
 This does not contradict `array<T>`'s invariance ([`types/arrays`](types.md#types-arrays)), and the reason is the one that
 section argues from. An array widening costs an O(n) restamp that must not hide inside an assignment;

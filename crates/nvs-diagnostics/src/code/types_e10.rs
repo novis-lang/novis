@@ -182,8 +182,8 @@ codes! {
     /// The caller passed a function that takes the called class, which a
     /// subclass may be. The body does not know which class that is, so it may
     /// pass only a value that is the called class: the list
-    /// [`super::types_e07`]'s `E0741` holds a `static` return to. A call that
-    /// passes it is proven where it is written and pays no run-time check.
+    /// that `E0741` holds a `static` return to. A call that passes it is
+    /// proven where it is written and pays no run-time check.
     pub const E_STATIC_CALLBACK_ARGUMENT_NOT_CALLED_CLASS: Code = Code::new("E1015").card(
         "A method has a parameter of type `callable(static)`. The caller passes a function \
          that takes the class the method was called on. That class may be a subclass. So a \

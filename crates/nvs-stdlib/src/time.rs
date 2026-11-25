@@ -11843,7 +11843,10 @@ mod tests {
     /// month count past jiff's month field ended it early, with no error.
     // covers: Core\Time\Date::range
     #[test]
-    #[cfg_attr(miri, ignore = "builds 319,984 dates, which Miri runs for over five minutes")]
+    #[cfg_attr(
+        miri,
+        ignore = "builds 319,984 dates, which Miri runs for over five minutes"
+    )]
     fn time_gaps_date_range_spans_the_whole_calendar() {
         let months = time_gaps_ranged(civil::date(-9999, 1, 31), civil::date(9999, 12, 31), 8)
             .expect("a month list across the calendar is built");

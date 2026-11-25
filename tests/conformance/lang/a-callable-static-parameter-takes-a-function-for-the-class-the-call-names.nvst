@@ -2,6 +2,7 @@
 A `callable(static)` parameter takes a function for the class the call names, at a static call and at an instance call, and the method may call it with `$this`, `new static()` or a call that returns `static` — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
+// covers: lang:types/void-never-self-static
 // `static` in a `callable` parameter is the class that the call names.
 // `Order::check` takes a function for `Order`.
 class Model {

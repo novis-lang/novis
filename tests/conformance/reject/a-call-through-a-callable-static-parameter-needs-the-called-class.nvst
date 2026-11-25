@@ -2,6 +2,7 @@
 A call through a `callable(static)` parameter needs an object of the class the call names, and a base-class call does not take a function for a subclass — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
+// covers: lang:types/void-never-self-static
 class Model {
     public function other(callable(static): bool $rule): bool {
         // A `Model` may not be the class the call named. This does not compile.

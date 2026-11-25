@@ -1576,8 +1576,8 @@ called on, and the caller gets that child class.
 The examples show a method called only for what it does, a chain of calls on one object, and a base
 class that creates an instance of whichever child class the call names. Example 04 shows that a
 `void` result cannot be printed. Example 05 shows that a call to a `never` method ends the caller's
-path. Example 06 shows a parameter of type `callable(static)`. It takes a function
-for the class the call names.
+path. Example 06 shows a parameter of type `callable(static)`. This parameter
+takes a function for the class the call names.
 
 `void` and `never` are allowed only as a return type. A parameter or a variable of type `void` or
 `never` is the error `E0742`. `var $x = Helper::nothing();` is `E0742` too, because the
@@ -1599,9 +1599,9 @@ not allowed as a parameter type.
 
 `static` is allowed inside a callable parameter type, such as `callable(static): bool`. Then
 `Order::check(...)` takes a function for `Order`. Inside the method, `$rule($this)` and
-`$rule(new static())` are checked when the program compiles. Any other value there is the error
-`E1015`. Everywhere else in the body, `$rule` is a plain `callable`. Its arguments are checked when
-it runs.
+`$rule(new static())` are checked when the program compiles. Any other argument to `$rule` is the
+error `E1015`. If the method stores `$rule` or passes it to another function, that copy is a
+`callable` with no parameter types. Its arguments are checked when it runs.
 
 A method that returns `static` must return `$this` or `new static(...)`. `return new self();` is
 `E0741`, because a child class may be the class the call names.
@@ -1827,7 +1827,8 @@ error: no rows
 
 ```nvs
 <?nvs
-// `Order::passes` takes a function for `Order`, because `static` is the class named in the call.
+// In a parameter type, `static` is the called class: the class the call names.
+// So `Order::passes` takes a function for `Order`.
 
 class Model
 {
@@ -1843,7 +1844,7 @@ class Model
 
     public function describe(callable(static): string $format): string
     {
-        // At an instance call, `static` is the class of `$this`.
+        // At a call on an object, the called class is the class of `$this`.
         return $format($this);
     }
 }
