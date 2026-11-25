@@ -27,10 +27,26 @@ The document has one entry in `paths` for each route. Each entry has these parts
 
 - `operationId` is the class and the method, with a dot: `Orders.show`. In the namespace `App`, it
   is `App.Orders.show`.
-- `parameters` lists the parameters in the path. A `uint` is an `integer` with a `minimum` of `0`.
+- `parameters` lists the parameters in the path and the query. A `uint` is an `integer` with a
+  `minimum` of `0`.
 - `responses` has the `200` response. Its schema is the return type when that is a simple type, such
   as `string` or `int`.
 - `summary` is the first sentence of the `///` comment above the method.
+
+Some parameter types have their own schema:
+
+| Parameter | Schema |
+|---|---|
+| `#[Core\Query] ?int $page = null` | `"required": false`, typed by `int` |
+| a `bool` query value | `{"type": "integer", "enum": [0, 1]}` |
+| `Core\Time\Date` | `{"type": "string", "format": "date"}` |
+| `Core\Time\Instant` | `{"type": "string", "format": "date-time"}` |
+| `Core\Time\TimeOfDay`, `Core\Time\DateTime` | `{"type": "string"}` |
+| `Core\Uuid` | `{"type": "string", "format": "uuid"}` |
+
+A `bool` query value is written `1` or `0`, so its schema is an integer. A `TimeOfDay` has no offset,
+and a `DateTime` has a time zone name. The JSON Schema formats `time` and `date-time` do not allow
+that text, so these two have no `format`.
 
 `title` is the name of the file without `.nvs`. `version` is the `version` in the nearest
 `package.toml`, found from the folder where you run the command. Without a `package.toml`, it is

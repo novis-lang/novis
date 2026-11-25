@@ -35,6 +35,17 @@ class that implements `Core\Router\Gate`.
 - `failed` also runs when the program uses too much memory or time. The status is `500`.
 - A capture or a `#[Core\Query]` value that cannot be converted gives `Refusal::BadCapture` and the
   status `400`. A missing required query key and a repeated one give the same.
+- `#[Core\Query] ?int $page = null` is an optional query value. When the key is missing, `$page` is
+  `null`. `Core\Router::url` leaves out a key whose value is `null`.
+- A `bool` query value is written `1` or `0`. Any other text gives the status `400`. A browser sends
+  `on` for a checkbox, so write `value="1"` on it. A path capture cannot be a `bool`.
+- A capture or a query value can be a `Core\Time\Date`, `TimeOfDay` or `Instant`. A query value can
+  also be a `DateTime`. Each is written as its ISO text, such as `2026-03-09`. A path segment that is
+  not a valid date does not match the route, so the status is `404`.
+- A `DateTime` is a query value only. Its text has a time zone name, such as `Europe/Vienna`, and a
+  `/` cannot be in a path segment.
+- `Core\Router::url` writes a time value as its ISO text. It writes an object of a `Parses` class as
+  the text of its `format` method. A value whose type the parameter cannot take does not compile.
 - A route method is `static`, or its class has a constructor without parameters.
 - A route method can return a value, such as its page. When the gate implements
   `Core\Router\Responder`, `dispatch` gives that value to the gate's `respond` method. A plain gate

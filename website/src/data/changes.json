@@ -3,6 +3,83 @@
     {
       "kind": "changed",
       "features": [
+        "lang:attributes/core-route-and-core-access-the-route-table"
+      ],
+      "text": "A `#[Core\\Query]` parameter declared `?T $x = null` is optional, and its value is `null` when the key is missing. A `bool` query value is written `1` or `0`, and any other text gives the status `400`. A capture or a query value can be a `Core\\Time\\Date`, `TimeOfDay` or `Instant`, and a query value can also be a `DateTime`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Router::url",
+        "Core\\Uri::buildQuery"
+      ],
+      "text": "`Core\\Router::url` and `Core\\Uri::buildQuery` write a `Core\\Time` value as its ISO text, and an object of a `Parses` class as the text of its `format` method. `Core\\Router::url` leaves out a query key whose value is `null`. A value in the `$params` array whose type the parameter cannot take, such as a `Date` for a `uint`, does not compile."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:classes/parses",
+        "Parses"
+      ],
+      "text": "A class that implements `Parses` must now also declare `format()`. It returns the text that `parse` reads, and `Core\\Router::url` uses it to write a link."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Uuid::format",
+        "Core\\Queue\\Id::format"
+      ],
+      "text": "`Core\\Uuid::format` and `Core\\Queue\\Id::format` return the text that `parse` reads. It is the same text as `toString`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:classes/methods-self-static-and-parent"
+      ],
+      "text": "In a `final` class, `static` means that class. So a method that returns `static` may return any object of the class, such as a record that `parse` loads from a database."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Router::dispatch"
+      ],
+      "text": "A route parameter of type `Core\\Queue\\Id` now gets the id from the link. Before, every request to such a route gave the status `500`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Router\\Match::parameter",
+        "Core\\Router\\Match::parameters"
+      ],
+      "text": "Inside `Core\\Router::dispatch`, `Core\\Router\\Match::parameter` and `parameters` also return each converted `#[Core\\Query]` value. So `Gate::allows` can check a record that a query value loaded."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec",
+        "Core\\Json::encode",
+        "Core\\Json::decodeAs",
+        "Core\\Arr::shapeAs"
+      ],
+      "text": "A `Core\\Time\\Date`, `TimeOfDay`, `DateTime`, `Duration`, `Zone` or `Core\\Uuid` is now a JSON string, as `Instant` already was. A time zone is written as its name, such as `\"Europe/Vienna\"`. A text that is not valid throws a `ParseError` that names its key."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:attributes/core-api-and-the-openapi-document"
+      ],
+      "text": "The API document lists an optional query value as not required. A `bool` query value is the integer `0` or `1`. A `Date` has the format `date`, and an `Instant` has the format `date-time`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:attributes/core-command-and-core-option-the-command-table"
+      ],
+      "text": "A command's argument or option can be a `Core\\Time\\Date`, `TimeOfDay`, `Instant` or `DateTime`. The user writes it as its ISO text. A text that is not valid is a usage error."
+    },
+    {
+      "kind": "changed",
+      "features": [
         "lang:expressions/comparison-and-equality",
         "Core\\Time\\Duration::compareTo",
         "Core\\Time\\Zone::fixed"
@@ -1619,17 +1696,29 @@
       "hash": "aa585abdf4012ba8",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
+    "Core\\Router::urlSigned": {
+      "hash": "f78c86ba8be76cea",
+      "why": "Their tests gained cases for optional, bool, time and Parses route values, which the route table and Core\\Router::url entries cover. What these members do is unchanged."
+    },
+    "Core\\Router\\Gate": {
+      "hash": "952566086930087b",
+      "why": "Their tests gained cases for optional, bool, time and Parses route values, which the route table and Core\\Router::url entries cover. What these members do is unchanged."
+    },
     "Core\\Router\\Match::access": {
       "hash": "1c862c3cf2a2cbd1",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Router\\Match::is": {
-      "hash": "e98550bcb09809d4",
-      "why": "the tests only gained a covers marker for the renamed member"
+      "hash": "a714d341bf70bee9",
+      "why": "Their tests gained cases for optional, bool, time and Parses route values, which the route table and Core\\Router::url entries cover. What these members do is unchanged."
     },
     "Core\\Router\\Match::method": {
       "hash": "ad8bf5ded0bd838e",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router\\Refusal": {
+      "hash": "e9b46fbd8a3d6052",
+      "why": "Their tests gained cases for optional, bool, time and Parses route values, which the route table and Core\\Router::url entries cover. What these members do is unchanged."
     },
     "Core\\Router\\Responder": {
       "hash": "d009653c445d0398",
@@ -1856,8 +1945,8 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\TimeOfDay::fromIso": {
-      "hash": "6412985b724e8073",
-      "why": "Its tests now also check `toIso` and `==` on a `TimeOfDay`, which their own entries cover. What this feature does is unchanged."
+      "hash": "5ef3100776a7c17d",
+      "why": "Its reader moved so that routes, commands and JSON read the same text. What it reads is unchanged."
     },
     "Core\\Time\\TimeOfDay::hour": {
       "hash": "bcb6ad572ab084b0",

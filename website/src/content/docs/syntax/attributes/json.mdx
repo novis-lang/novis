@@ -9,6 +9,10 @@ import FeatureSection from '@components/FeatureSection.astro'
 `Core\Json::encode` writes an object as JSON text. `Core\Json::decodeAs<T>` builds an object of
 the class `T` from JSON text.
 
+A `Core\Time\Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` is a JSON
+string. A date is written `"2026-03-09"`, and a time zone is written as its name, such as
+`"Europe/Vienna"`. A text that is not valid throws a `ParseError`. Its message names the key.
+
 <FeatureSection examples="lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec" heading="Core\Json\Derive and Core\Json\Field" id="core-json-derive" />
 
 ## Do and don't

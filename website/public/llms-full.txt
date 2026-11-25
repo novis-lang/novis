@@ -14325,11 +14325,13 @@ class the code is written in. `static` is the class the call was made on, which 
 `parent` is the class this one extends, so `parent::format()` calls the parent's version.
 
 **Good to know:** a method that says it returns `static` must return the object it was called on, or
-a new object of the same class.
+a new object of the same class. In a `final` class, `static` is that class, so the method may return
+any object of it, such as a stored one.
 
 **The examples below** show the two kinds of method, `self` beside `static` in a subclass, and a
-subclass that calls its parent's version. The last two show a chain of calls with an anonymous
-function that keeps `$this`, and a return type `static` that does not compile.
+subclass that calls its parent's version. Then come a chain of calls with an anonymous function that
+keeps `$this`, and a return type `static` that does not compile. The last one shows a `final` class
+whose method returns a stored object.
 
 An anonymous function written inside a method keeps that method's `$this`. It may read the class's
 `private` properties and call its `private` methods.
@@ -14555,10 +14557,51 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
 ...
 10 |         return new self();
    |                ^^^^^^^^^^ not the called class
-   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
+   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: static in a final class
+
+```nvs
+<?nvs
+// Shows that in a `final` class, `static` means that class, so a method may return a stored object.
+
+final class Color
+{
+    // The first call to `named('red')` stores the color here.
+    private static ?Color $red = null;
+
+    public function constructor(public string $name)
+    {}
+
+    // `Color` is `final`, so it has no subclass, and `static` is always `Color`.
+    // That is why this method may return the stored color.
+    public static function named(string $name): static
+    {
+        if ($name != 'red') {
+            return new static($name);
+        }
+        ?Color $stored = Color::$red;
+        if ($stored != null) {
+            return $stored;
+        }
+        Color $made = new Color('red');
+        Color::$red = $made;
+        return $made;
+    }
+}
+
+// Both calls return the same stored object, so this prints `true`.
+echo Color::named('red') == Color::named('red') ? 'true' : 'false', "\n";
+echo Color::named('blue')->name, "\n";
+```
+
+```output
+true
+blue
 ```
 
 ### Constants and `::class`
@@ -17369,35 +17412,61 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 `Parses` is the interface for a class that is built out of a piece of text.
 
-A class that implements it writes one method,
-`public static function parse(tainted string $s): static`. The method returns an object of the class,
-or throws an error when the text is not valid. `tainted` says the text came from outside your
-program, such as a web request or a command line.
+A class that implements it writes two methods. The static method `parse(tainted string $s): static`
+returns an object of the class, or throws an error when the text is not valid. `tainted` says the
+text came from outside your program. The method `format()` returns the text that `parse` reads.
+`Core\Router::url` calls `format` to write the value into a link.
+
+Novis calls `parse` for you when a route capture, a `#[Core\Query]` parameter or a command argument
+has the type of your class. In a route, `parse` runs before `Core\Router\Gate::allows`.
+
+**The examples below** show a product code built from text, what a subclass gets back, values from a
+form, a class used in a route, a route that does not compile, and a `final` class that loads a
+stored order.
+
+The two methods are `public static function parse(tainted string $s): static` and
+`public function format(): tainted string`. `tainted` text comes from outside your program, such as
+a web request or a command line.
 
 Novis needs this interface everywhere text from outside becomes a value: a piece of a route path, a
-`#[Core\Query]` parameter, a command argument and a command option. You declare the parameter at your
-own class, and Novis calls `parse` for you. A parameter typed at a class that does not implement
-`Parses` does not compile, and the error says so.
+`#[Core\Query]` parameter, a command argument and a command option. A parameter typed at a class that
+does not implement `Parses` does not compile, and the error says so.
 
-**Good to know:** the return type `static` means the class the call named, so a subclass that
-inherits `parse` gets an object of the subclass back.
+In a route, `parse` runs before `Core\Router\Gate::allows`. So `allows` can check the object with
+`$route->parameter('name')`, and this works the same for a path capture and a query value. If
+`parse` throws, the gate's `refused` method gets `Core\Router\Refusal::BadCapture`, and the default
+status is `400`.
 
-**The examples below** show a product code built from text, what a subclass gets back, a list of
-values from a form checked one by one, a class used in a route, and a route that does not compile.
+The return type `static` means the class the call named, so a subclass that inherits `parse` gets an
+object of the subclass back. In a `final` class, `static` is that class. There, `parse` may return an
+object that already exists, such as a record it loads by its id.
 
-A class that implements `Parses` and has no `parse` method is the error `E0449`. A `parse` method
-with a return type other than `static`, such as the class name, is the error `E0404`.
+`parse` runs for every request that matches the route, before `allows`. It runs whether the visitor
+is signed in or not. Sometimes even the time of a lookup must not show whether a record exists. Then
+declare the parameter as `string` and load the record after `allows`.
+
+`Core\Router::url` puts the text that `format` returns into its own path segment and percent-encodes
+it. A `/`, `?` or `#` in that text cannot reach another route or start the query string.
+
+A class that implements `Parses` must have two methods: `parse` and `format`. A class without one of
+them is the error `E0449`. In a class that is not `final`, a `parse` method with a return type other
+than `static` is the error `E0404`. A `final` class may write its own class name there.
 
 `parse` is an ordinary static method, so your code can call it too: `Slug::parse("hello")`. It may
 throw any error. `ParseError` is the usual one.
+
+`format` returns the text that `parse` reads. `Core\Router::url` and `Core\Uri::buildQuery` call it
+to write the value into a link. Its return type is `tainted string`. A class whose text is not
+tainted may write `string`.
 
 The text keeps its `tainted` qualifier. A property that stores it must have the type
 `tainted string`. A `string` property is the error `E0401`. The object that `parse` returns is not
 tainted.
 
 A route capture or a `#[Core\Query]` parameter accepts these types: `string`, `int`, `uint`,
-`decimal`, an enum, a set of allowed values such as `'a'|'b'`, and a class that implements `Parses`.
-Any other class is the error `E0752`.
+`decimal`, `Core\Uuid`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values such as
+`'a'|'b'`, and a class that implements `Parses`. A `#[Core\Query]` parameter also accepts `bool` and
+`DateTime`. Any other class is the error `E0752`.
 
 A path capture fails in two ways. The router converts some types itself while it matches the path:
 `int`, `uint`, `decimal`, `Core\Uuid` and a set of allowed values. A segment that does not convert is
@@ -17426,6 +17495,12 @@ final class Sku implements Parses
             throw new ParseError('a product code is written in upper case');
         }
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->code;
     }
 }
 
@@ -17463,6 +17538,12 @@ class Code implements Parses
         }
         // `new static` builds the class the call named, not `Code`.
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 
@@ -17515,6 +17596,12 @@ final class Recipient implements Parses
         }
         return new static($clean);
     }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->address;
+    }
 }
 
 array<string> $sent = [' ada@example.com ', 'nobody', 'grace@example.com'];
@@ -17559,6 +17646,12 @@ final class Slug implements Parses
             throw new ParseError('a slug is written in lower case');
         }
         return new static($s);
+    }
+
+    // `format` returns the text that `parse` reads.
+    public function format(): tainted string
+    {
+        return $this->text;
     }
 }
 
@@ -17619,10 +17712,127 @@ error[E0752]: `Tag` is not a type `{tag}` can arrive at
 ...
 15 |     public function show(Tag $tag): string
    |                          ^^^^^^^^ no conversion from a path segment
-   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
+   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, `Date`, `TimeOfDay`, `Instant`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: a final class loads a stored record
+
+```nvs
+<?nvs
+// Shows a `final` class whose `parse` loads a stored order by its id.
+// The gate checks the order before the route method runs.
+use Core\Http\Method;
+
+final class Order implements Parses
+{
+    public function constructor(public uint $id, public string $owner)
+    {}
+
+    // The orders this program has stored. An unknown id gives `null`.
+    public static function find(uint $id): ?Order
+    {
+        return match ($id) {
+            1 => new Order(1, 'ann'),
+            2 => new Order(2, 'bob'),
+            default => null,
+        };
+    }
+
+    // `Order` is `final`, so `parse` may return an order that already exists.
+    // An id with no stored order throws `ParseError`.
+    public static function parse(tainted string $s): static
+    {
+        ?uint $id = $s as ?uint;
+        ?Order $order = $id == null ? null : Order::find($id);
+        if ($order != null) {
+            return $order;
+        }
+        throw new ParseError('no such order');
+    }
+
+    // `format` returns the id, which is the text `parse` reads.
+    public function format(): string
+    {
+        return "{$this->id}";
+    }
+}
+
+class Orders
+{
+    // The order comes from the path, as in `/orders/1`.
+    #[Core\Route(path: '/orders/{order}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+
+    // The order comes from the query string, as in `/order?order=1`.
+    #[Core\Route(path: '/order', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function find(#[Core\Query] Order $order): void
+    {
+        echo 'order ', $order->id, ' of ', $order->owner;
+    }
+}
+
+// In this example the person signed in is always `ann`.
+class Gate implements Core\Router\Gate
+{
+    // `parse` has already run, so `parameter` returns the stored order.
+    // This works the same for both routes.
+    public function allows(Core\Router\Match $route): bool
+    {
+        var $value = $route->parameter('order');
+        if ($value == null) {
+            return false;
+        }
+        Order $order = $value as Order;
+        return $order->owner == 'ann';
+    }
+
+    // A missing order gives `BadCapture`, and another person's order gives `Denied`.
+    // Both get status `404`, so a visitor cannot find out which ids exist.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {
+            Core\Response::setStatus(404);
+        }
+        echo 'not found';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
+    // This prints `200` once and then `404` twice, for each address.
+    var $paths = [
+        '/orders/1', '/orders/9', '/orders/2',
+        '/order?order=1', '/order?order=9', '/order?order=2',
+    ];
+    foreach ($paths as string $path) {
+        var $response = Core\Test::request(Method::Get, $path);
+        echo $path, ': ', $response->status(), ' ', $response->body(), "\n";
+    }
+}
+```
+
+```output
+/orders/1: 200 order 1 of ann
+/orders/9: 404 not found
+/orders/2: 404 not found
+/order?order=1: 200 order 1 of ann
+/order?order=9: 404 not found
+/order?order=2: 404 not found
 ```
 
 ### Revocable objects
@@ -27432,13 +27642,14 @@ constructor parameter of the same name and type, because a decode calls your con
 `#[Core\Json\Field]` renames one property's key or leaves it out.
 
 A property can have a set of allowed values, such as `"draft"|"live"`. A `mixed` property takes any
-JSON value.
+JSON value. A `Date`, `TimeOfDay`, `DateTime`, `Instant`, `Duration`, `Zone` or `Core\Uuid` property
+is written as a JSON string, such as `"2026-01-05"` or `"1h30m"`.
 
 A decode checks the whole document before it builds anything. If a field is missing or has the
 wrong type, the decode throws a `ParseError`. The error lists every bad field at once.
 
 The examples show an encode, a renamed key, a request body and each check of a decode. They also
-show an enum, a fixed key order, a subclass, a set of allowed values and a `mixed` property.
+show an enum, a fixed key order, a subclass, a set of allowed values, a `mixed` property and dates written as strings.
 
 The document has one key for each instance property of the class. A `private` or `protected`
 property has a key too. A property promoted in the `constructor` has its key in the place where it
@@ -27968,28 +28179,111 @@ echo Json::encode($login->data), "\n";
 {"user":"ana","roles":["admin"]}
 ```
 
+#### Example 11: dates durations zones and ids as text
+
+```nvs
+<?nvs
+// Shows how dates, times, durations, time zones and ids are written to JSON as strings.
+
+use Core\Json;
+use Core\Time\Date;
+use Core\Time\DateTime;
+use Core\Time\Duration;
+use Core\Time\TimeOfDay;
+use Core\Time\Zone;
+use Core\Uuid;
+
+#[Core\Json\Derive]
+class Meeting
+{
+    public function constructor(
+        public Uuid $id,
+        public Date $day,
+        public TimeOfDay $opens,
+        public DateTime $starts,
+        public Duration $length,
+        public Zone $zone,
+    ) {}
+}
+
+var $meeting = new Meeting(
+    Uuid::parse("0190f3a2-7b1c-7def-8a12-3456789abcde"),
+    Date::fromIso("2026-03-02"),
+    TimeOfDay::fromIso("09:00"),
+    DateTime::fromIso("2026-03-02T09:00:00+01:00[Europe/Vienna]"),
+    Duration::parse("1h30m"),
+    Zone::of("Europe/Vienna"),
+);
+
+// Each property is one JSON string.
+// The duration is written as `1h30m` and the zone as its name.
+string $json = Json::encode($meeting);
+echo $json, "\n";
+
+// A decode reads the same strings back into the classes.
+// This prints `2026-03-02 5400`.
+var $back = Json::decodeAs<Meeting>($json);
+echo $back->day->toIso(), " ", $back->length->toSeconds(), "\n";
+
+// A string that is not a valid date throws a `ParseError`.
+// The error names the field.
+try {
+    Json::decodeAs<Meeting>(Core\Str::replace($json, "\"2026-03-02\"", "\"02.03.2026\""));
+} catch (ParseError $bad) {
+    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+}
+```
+
+```output
+{"id":"0190f3a2-7b1c-7def-8a12-3456789abcde","day":"2026-03-02","opens":"09:00:00","starts":"2026-03-02T09:00:00+01:00[Europe/Vienna]","length":"1h30m","zone":"Europe/Vienna"}
+2026-03-02 5400
+day: expected a date as a string such as 2026-01-05, found a string
+```
+
 ### `#[Core\Route]` and `#[Core\Access]`: the route table
 
 `#[Core\Route]` on a method gives it a path and an HTTP method. `#[Core\Access]` says who may
 use it. A route needs both.
 
-A path has fixed segments and captures. `{id}` matches one segment. `{id?}` matches one segment or
-none, and must come last. `{path...}` matches all remaining segments. Each capture goes to
-the parameter with the same name, converted to its type.
+A path has fixed segments and captures. `{id}` matches one segment, `{id?}` one or none, and
+`{path...}` all remaining segments. Each capture goes to the parameter with the same name, converted
+to its type. A parameter with `#[Core\Query]` gets its value from the query string. A bad query
+value is a `400`, and the route method does not run.
 
-Novis collects every route into one table at compile time. `Core\Router::url` builds a link to
-the route of a method. You write the method without brackets, such as `Shop::show`. An unknown
-method, a method with no route, or a missing capture is a compile error.
+`Core\Router::url` builds a link to the route of a method, such as `Shop::show`. Your entry file calls `Core\Router::dispatch`, which calls the
+method of the route that matches.
 
-The server matches each request to a route before your program runs. Your entry file calls
-`Core\Router::dispatch`, which calls that route's method. A program can also read the match with
-`Core\Request::route()`.
+A `Date` or an `Instant` can be a capture or a query value. A `DateTime` can only be a query value,
+because its zone name, such as `Europe/Vienna`, has a `/`.
 
-A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A bad
-value is a `400`.
+**The examples below** show links, captures, query values that may be missing, `bool` and time
+values, and a missing `#[Core\Access]`.
 
-**The examples below** show links, the three captures, routes in another file, calling a route
-method yourself, a missing `#[Core\Access]`, and a bad query value.
+Novis collects every route into one table at compile time. You write the method for
+`Core\Router::url` without brackets, such as `Shop::show`. An unknown method, a method with no route
+or a missing capture is a compile error. The server matches each request to a route before your program runs. A program can read the
+match with `Core\Request::route()`.
+
+A parameter written `?uint $page = null` is optional. When the key is missing, the value is `null`.
+When the key is there, its value converts as a `uint`, and a bad value is a `400`. This works for
+every type that a query parameter can have, such as a class that implements `Parses`.
+
+A `bool` query value is `1` for `true` and `0` for `false`. Any other text, such as `true` or `on`,
+is a `400`. A checkbox in a form sends `on`, so give it `value="1"`.
+
+A capture or a query value may be a `Core\Time\Date`, `TimeOfDay` or `Instant`. A `#[Core\Query]`
+value may also be a `Core\Time\DateTime`. Each is read from the text its `toIso` method writes, such
+as `2026-01-05`, `08:30:00` or `2026-01-05T07:30:00Z`. A `DateTime` needs its zone in brackets, such
+as `2026-01-05T14:00:00+01:00[Europe/Vienna]`. The offset may be left out. A `DateTime` path capture
+is `E0752`, because the server does not accept a path with `%2F` in it. Use an `Instant` in the path
+instead.
+
+A time capture is read as it arrived, so `08%3A30` is not `08:30`. A capture that does not convert is
+a `404`, and a query value that does not convert is a `400`. In a query string, a `+` that you type
+is read as a space, so that value is a `400`. Write it as `%2B`.
+
+`Core\Router::url` writes a time value as its ISO text. In the path the text is not encoded. In the
+query string, `:`, `+`, `/` and the brackets are percent-encoded, and the route reads that link.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
@@ -28000,25 +28294,33 @@ classes, and when their captures only have different names, such as `/users/{id}
 `/users/{key}`. One method may have several `#[Core\Route]` lines, one for each HTTP method. They
 must all have the same path. Two different paths on one method are `E0891`.
 
-A capture parameter may be a `string`, `int`, `uint`, `decimal`, `bool` or an enum. It may also be a
-set of allowed values such as `"en"|"de"`, or a class that implements `Parses`.
+A capture parameter may be a `string`, `int`, `uint`, `decimal` or an enum. It may also be a set of
+allowed values such as `"en"|"de"`, or a class that implements `Parses`.
 
 A capture with no parameter of the same name is `E0751`. A `float` parameter is `E0752`, and so is a
 `{name...}` parameter that is not a `string`. A `{name?}` parameter with no default value is `E0753`.
-A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
-`#[Core\Query]` on a method with no route is `E0765`.
+A `#[Core\Query]` parameter takes the same types as a capture. It may also be `?T $x = null` for
+any of those types `T`. A `?T` with no default, or with a default that is not `null`, is `E0752`.
+A `bool` path capture does not compile, but a `bool` query value does. `#[Core\Query]` on a method
+with no route is `E0765`.
 
 `Core\Router::dispatch` reads the query string key with the same name as the parameter. A parameter
 with a default value makes its key optional, and a missing key gives the default. These requests
 are a `400`, and the route method does not run:
 
-- a value that does not convert to the parameter's type,
+- a value that does not convert to the parameter's type, also for a `?T $x = null` parameter,
+- a `bool` value that is not `1` or `0`, such as `true`, `on`, an empty value or a key with no `=`,
 - a missing key for a parameter with no default value,
 - a key that is sent twice,
 - a key with brackets, such as `page[]=1`.
 
 For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
 does not convert is a `404`, because then no route matches the request.
+
+A program can also give a default for a bad value, and then the request is not a `400`. Declare the
+parameter as a `string` with a default, such as `string $page = ''`. Any valid UTF-8 text converts to
+a `string`. Then convert it in the route method, such as `($page as ?uint) ?? 1`. Use this only when a wrong link should still show a
+page. A typed parameter is the better choice in most cases, because it checks the value for you.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
@@ -28050,6 +28352,8 @@ when `Core\Router::match` returns the result. If `parse` throws an error, that e
 
 `$match->parameter("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
 it with `as`. A `string` capture gives a `tainted string`. A name that is not a capture gives `null`.
+Inside `Core\Router::dispatch`, the match also has each `#[Core\Query]` value under its parameter's
+name, so `allows` can read it. The match from `Core\Request::route()` has no query values.
 `access()` returns the full name of the `allow:` value, such as `Role::Staff` or `Users::ADMIN`.
 `accessAs<Core\Audience>()` on a route with `allow: Role::Staff` returns `null`.
 
@@ -28065,9 +28369,11 @@ does not call the method. You can also pass a method reference in a variable, su
 in as `$shop->order(...)`. A `callable` with no route throws a `RuntimeError` when the program runs.
 A params array in a variable that leaves out a capture throws a `RuntimeError` too.
 
-The compiler does not check the type of a value. `"x"` for a `uint` capture gives the link `/x`, and
-that link does not match the route. A value of a class that implements `Parses` is given as text,
-such as `"cup-01"`. An object throws a `RuntimeError`.
+The compiler checks the type of each value written in the params array. A value whose type the
+parameter cannot take is `E1010`, such as a `Date` for a `uint` capture. A `string` value always
+compiles. `"x"` for a `uint` capture gives the link `/x`, and that link does not match the route.
+A value of a class that implements `Parses` is written as the text its `format` method returns. Any
+other object throws a `RuntimeError`.
 
 A capture value is encoded for one segment, so `x/y?z#` becomes `x%2Fy%3Fz%23`. An empty string gives
 an empty segment. A space is `%20` in the path and `+` in the query string, and `&` in a query value is
@@ -28440,7 +28746,7 @@ origin = "https://example.test"
 
 ```nvs
 <?nvs
-// Shows a route that reads typed values from the query string, and what a request with a bad value gets.
+// Shows typed query values, the `400` for a bad value, and a route that reads a bad value as page 1.
 use Core\Http\Method;
 
 class Shop
@@ -28452,6 +28758,16 @@ class Shop
     public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
     {
         echo 'page ', $page, ' sorted by ', $sort;
+    }
+
+    // `$page` is a `string`, so every value is allowed.
+    // `as ?uint` gives `null` for text that is not a whole number, and `?? 1` then gives `1`.
+    #[Core\Route(path: '/search', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(#[Core\Query] string $page = ''): void
+    {
+        uint $number = ($page as ?uint) ?? 1;
+        echo 'search page ', $number;
     }
 }
 
@@ -28492,6 +28808,14 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // `sort` is missing, and it has no default value. This prints `400`.
     var $missing = Core\Test::request(Method::Get, '/products?page=2');
     echo $missing->status(), ' ', $missing->body(), "\n";
+
+    // `abc` is not a whole number, so `/search` shows page 1. This prints `200`.
+    var $fallback = Core\Test::request(Method::Get, '/search?page=abc');
+    echo $fallback->status(), ' ', $fallback->body(), "\n";
+
+    // This prints `200` and page 5.
+    var $fifth = Core\Test::request(Method::Get, '/search?page=5');
+    echo $fifth->status(), ' ', $fifth->body(), "\n";
 }
 ```
 
@@ -28499,6 +28823,264 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 200 page 1 sorted by name
 200 page 3 sorted by price
 400 The address is not valid.
+400 The address is not valid.
+200 search page 1
+200 search page 5
+```
+
+#### Example 08: a query value that may be missing
+
+```toml file=nvs.toml
+### `Core\Router::urlAbsolute` puts this origin in front of a path.
+[[app]]
+root = "."
+origin = "https://example.test"
+```
+
+```nvs
+<?nvs
+// Shows query values that a request may leave out, and how to tell when a value is missing.
+use Core\Http\Method;
+
+// `Tag::parse` throws an error for empty text and for text that is not in lower case.
+final class Tag implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
+
+    public static function parse(tainted string $s): static
+    {
+        if ($s == '' || $s != Core\Str::lower($s)) {
+            throw new ParseError('a tag is written in lower case');
+        }
+        return new static($s);
+    }
+
+    public function format(): tainted string
+    {
+        return $this->text;
+    }
+}
+
+class Blog
+{
+    // Each key may be missing, and then its value is `null`. A `page` that is there must be
+    // a whole number, and `Tag::parse` reads a `tag` that is there.
+    #[Core\Route(path: '/posts', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function posts(#[Core\Query] ?uint $page = null, #[Core\Query] ?Tag $tag = null): void
+    {
+        echo $page == null ? 'every page' : 'page ' . $page;
+        echo ', ', $tag == null ? 'every tag' : 'tag ' . $tag->text;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Both keys are missing, so both values are `null`. This prints `200`.
+    var $none = Core\Test::request(Method::Get, '/posts');
+    echo $none->status(), ' ', $none->body(), "\n";
+
+    // This prints `200`, page 2 and the tag `news`.
+    var $both = Core\Test::request(Method::Get, '/posts?page=2&tag=news');
+    echo $both->status(), ' ', $both->body(), "\n";
+
+    // `two` is not a whole number. This prints `400`.
+    var $word = Core\Test::request(Method::Get, '/posts?page=two');
+    echo $word->status(), ' ', $word->body(), "\n";
+
+    // `News` is not in lower case, so `Tag::parse` throws an error. This prints `400`.
+    var $upper = Core\Test::request(Method::Get, '/posts?tag=News');
+    echo $upper->status(), ' ', $upper->body(), "\n";
+
+    // `Core\Router::url` leaves out a key whose value is `null`. This prints `/posts?tag=news`.
+    ?uint $page = null;
+    echo Core\Router::url(Blog::posts, ['page' => $page, 'tag' => new Tag('news')]), "\n";
+}
+```
+
+```output
+200 every page, every tag
+200 page 2, tag news
+400 The address is not valid.
+400 The address is not valid.
+/posts?tag=news
+```
+
+#### Example 09: a yes or no query value
+
+```toml file=nvs.toml
+### `Core\Router::urlAbsolute` puts this origin in front of a path.
+[[app]]
+root = "."
+origin = "https://example.test"
+```
+
+```nvs
+<?nvs
+// Shows a `bool` query value, which a request writes as `1` for true and `0` for false.
+use Core\Http\Method;
+
+class Feed
+{
+    // `$full` is `false` when the key is missing.
+    // A checkbox in a form needs `value="1"`. Without it, a browser sends `on`, and that is a `400`.
+    #[Core\Route(path: '/feed', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function feed(#[Core\Query] bool $full = false): void
+    {
+        echo $full ? 'the full feed' : 'the short feed';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `1` is `true`. This prints `200` and the full feed.
+    var $yes = Core\Test::request(Method::Get, '/feed?full=1');
+    echo $yes->status(), ' ', $yes->body(), "\n";
+
+    // `0` is `false`. This prints `200` and the short feed.
+    var $no = Core\Test::request(Method::Get, '/feed?full=0');
+    echo $no->status(), ' ', $no->body(), "\n";
+
+    // `on` is not `1` or `0`. This prints `400`.
+    var $on = Core\Test::request(Method::Get, '/feed?full=on');
+    echo $on->status(), ' ', $on->body(), "\n";
+
+    // `Core\Router::url` writes `true` as `1`. This prints `/feed?full=1`.
+    echo Core\Router::url(Feed::feed, ['full' => true]), "\n";
+}
+```
+
+```output
+200 the full feed
+200 the short feed
+400 The address is not valid.
+/feed?full=1
+```
+
+#### Example 10: a date in the path and a time in the query
+
+```toml file=nvs.toml
+### `Core\Router::urlAbsolute` puts this origin in front of a path.
+[[app]]
+root = "."
+origin = "https://example.test"
+```
+
+```nvs
+<?nvs
+// Shows a date and a moment in the path, a date and time with its zone in the query, and their links.
+use Core\Http\Method;
+use Core\Time\Date;
+use Core\Time\DateTime;
+use Core\Time\Instant;
+
+class Calendar
+{
+    // `{day}` is a `Date` such as `2026-01-05`. `{since}` is an `Instant` such as
+    // `2026-01-05T07:30:00Z`. A `DateTime` has its zone, so it can only be a query value.
+    #[Core\Route(path: '/days/{day}/since/{since}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function day(Date $day, Instant $since, #[Core\Query] ?DateTime $meeting = null): void
+    {
+        echo 'day ', $day->toIso(), ', since ', $since->toIso();
+        echo ', meeting ', $meeting?->toIso() ?? 'none';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $day = Date::fromIso('2026-01-05');
+    var $since = Instant::fromIso('2026-01-05T08:30:00+01:00');
+    var $meeting = DateTime::fromIso('2026-01-05T14:00:00+01:00[Europe/Vienna]');
+
+    // The path has the ISO text of each value. An `Instant` is written in UTC.
+    // This prints `/days/2026-01-05/since/2026-01-05T07:30:00Z`.
+    echo Core\Router::url(Calendar::day, ['day' => $day, 'since' => $since]), "\n";
+
+    // In the query string, `:`, `+`, `/` and the brackets are percent-encoded.
+    string $link = Core\Router::url(Calendar::day, ['day' => $day, 'since' => $since, 'meeting' => $meeting]);
+    echo $link, "\n";
+
+    // The route reads the link it built. This prints `200` and the three values.
+    var $answer = Core\Test::request(Method::Get, $link);
+    echo $answer->status(), ' ', $answer->body(), "\n";
+
+    // February has no day 30, so no route matches. This prints `404`.
+    var $bad = Core\Test::request(Method::Get, '/days/2026-02-30/since/2026-01-05T07:30:00Z');
+    echo $bad->status(), ' ', $bad->body(), "\n";
+
+    // A `DateTime` needs its zone in brackets. This prints `400`.
+    var $noZone = Core\Test::request(Method::Get, '/days/2026-01-05/since/2026-01-05T07:30:00Z?meeting=2026-01-05T14:00:00');
+    echo $noZone->status(), ' ', $noZone->body(), "\n";
+}
+```
+
+```output
+/days/2026-01-05/since/2026-01-05T07:30:00Z
+/days/2026-01-05/since/2026-01-05T07:30:00Z?meeting=2026-01-05T14%3A00%3A00%2B01%3A00%5BEurope%2FVienna%5D
+200 day 2026-01-05, since 2026-01-05T07:30:00Z, meeting 2026-01-05T14:00:00+01:00[Europe/Vienna]
+404 The address is not valid.
 400 The address is not valid.
 ```
 
@@ -28696,20 +29278,22 @@ foreach ($pages as string $label => callable $route) {
 `#[Core\Api]` describes a route in the API document that `nvs build --openapi` writes. It goes on a
 method that has a `#[Core\Route]`.
 
-Most of the document comes from the code. The path, the parameters, their types and the return type
-are read from the route and the method, and the `///` comment above the method gives the summary
-and the description. `#[Core\Api]` adds the rest: `tags:` groups the operation, `security:` names
-the scheme a client must use, `errors:` lists the error responses, and `example:` shows one answer.
+Most of the document comes from the code: the path, the parameters, their types and the return type.
+The `///` comment above the method gives the summary and the description. `#[Core\Api]` adds the
+rest: `tags:` groups the operation, `security:` names the scheme a client must use, `errors:` lists
+the error responses, and `example:` shows one answer.
 
-Novis checks each of those against the code when it compiles. A class in `errors:` must exist, and
-every key in `example:` must be a property of the return type.
+A parameter's type gives its schema. A `Core\Time\Date` is a string with the format `date`, and a
+`Core\Time\Instant` has the format `date-time`. A `#[Core\Query] ?T $x = null` is not
+required. A `bool` query value is the integer `0` or `1`.
 
-Each name in `security:` must be declared by a `#[Core\Api\Scheme]` on a class of your program. Its
-`name:` is the name that `security:` uses, and its `type:` is a case of `Core\Api\SchemeType`, such as
-`Http` or `ApiKey`. A name that no scheme declares does not compile.
+Novis checks `#[Core\Api]` against the code when it compiles. A class in `errors:` must exist, and
+every key in `example:` must be a property of the return type. Each name in `security:` must be
+declared by a `#[Core\Api\Scheme]` on a class of your program.
 
-**The examples below** add one tag, then errors and a security scheme, then a small API with
-everything a client generator needs. The last one shows an `example:` that does not compile.
+**The examples below** add one tag, then errors and a security scheme, then a small API for a client
+generator. The fourth shows an `example:` that does not compile. The fifth shows dates and query
+values.
 
 `nvs build --openapi main.nvs` writes the document to standard output and runs nothing. The document's
 `info.title` is the file name without `.nvs`. `info.version` is the `version` in the nearest
@@ -28735,7 +29319,10 @@ Each capture is a parameter with `"in": "path"`, and it is always required. Each
 parameter is a parameter with `"in": "query"`. It is required when it has no default value. Each type
 has its own schema. An `int` is `integer`, and a `uint` is `integer` with a `minimum` of `0`. A
 `decimal` is a `string` with the format `decimal`. An enum lists the names of its cases, and a set of
-allowed values such as `'x'|'y'` lists those values.
+allowed values such as `'x'|'y'` lists those values. A `bool` query value is `integer` with the
+`enum` `[0, 1]`. A `Core\Time\Date` is a `string` with the format `date`, and a `Core\Time\Instant`
+is a `string` with the format `date-time`. A `TimeOfDay` or a `DateTime` is a `string` with no
+format, and a `Core\Uuid` is a `string` with the format `uuid`.
 
 The `200` response has the schema of the return type when it is `string`, `int`, `uint`, `float`,
 `bool` or `decimal`. Every other return type has the empty schema `{}`. This includes a class, an
@@ -28949,6 +29536,54 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
+#### Example 05: optional query values and dates in the document
+
+```nvs
+<?nvs
+// Shows how the API document describes a date, an optional query value and a
+// `bool` query value. `nvs build --openapi` reads each one from the parameter's
+// type.
+
+class Reports
+{
+    /// List the orders of one day.
+    #[Core\Route(path: '/reports/{day}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ['Reports'])]
+    public function orders(
+        // In the document, `day` is a string with the format `date`.
+        Core\Time\Date $day,
+        // `?Core\Time\Instant` with `= null` is optional, so the document says it is not
+        // required. Its schema is a string with the format `date-time`.
+        #[Core\Query] ?Core\Time\Instant $since = null,
+        // A `bool` query value is written `1` or `0`. The document gives it as an
+        // integer with the values `0` and `1`.
+        #[Core\Query] bool $shipped = false,
+    ): string
+    {
+        string $from = $since?->toIso() ?? 'the start of the day';
+        return 'orders of ' . $day->toIso() . ' since ' . $from . ($shipped ? ', shipped only' : '');
+    }
+}
+
+// A link to the route writes each value as text. This prints
+// `/reports/2026-03-14?since=2026-03-14T09%3A00%3A00Z&shipped=1`.
+echo Core\Router::url(Reports::orders, [
+    'day' => Core\Time\Date::fromIso('2026-03-14'),
+    'since' => Core\Time\Instant::fromIso('2026-03-14T09:00:00Z'),
+    'shipped' => true,
+]), "\n";
+
+// A route is an ordinary method. You can call it directly.
+Reports $reports = new Reports();
+echo $reports->orders(Core\Time\Date::fromIso('2026-03-14')), "\n";
+```
+
+```output
+/reports/2026-03-14?since=2026-03-14T09%3A00%3A00Z&shipped=1
+orders of 2026-03-14 since the start of the day
+```
+
 ### `#[Core\Command]` and `#[Core\Option]`: the command table
 
 `#[Core\Command]` marks a static method as a command for the command line, and `#[Core\Option]` marks
@@ -28958,14 +29593,15 @@ and checks it.
 A command needs a `name:`, which is the word that selects it, and the name is unique across the
 program. A parameter is a positional argument unless it carries `#[Core\Option]`, and a `bool` option
 is a flag. Every option or positional parameter needs a type that text converts to: `string`, `int`,
-`uint`, `decimal`, `bool`, an enum, or a class that implements `Parses`. The method is `static` and
-returns `void` or the exit status as a `uint`.
+`uint`, `decimal`, `bool`, an enum, a time value, or a class that implements `Parses`. A time value is
+a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`, written as ISO text such as `2026-03-14`.
+The method is `static` and returns `void` or the exit status as a `uint`.
 
 `Core\Command::run()` reads the program's command line and calls the command that the first word
-names. `Core\Command::help` returns the help page for one command, or the list of every command. You
-can also read the table yourself. `Core\Attributes::get<Core\Command>` returns the `name` and `about`
-of one command, and `Core\Attributes::get<Core\Option>` returns the fields of one option. The last
-example shows an option that does not compile.
+names. `Core\Command::help` returns the help page for one command, or the list of every command.
+`Core\Attributes::get<Core\Command>` returns the `name` and `about` of one command, and
+`Core\Attributes::get<Core\Option>` returns the fields of one option. The fourth example shows an
+option that does not compile.
 
 `#[Core\Command]` has two fields, `name` and `about`. A command with no `name` is `E0767`, and a
 `name` that is not a string is `E0401`. `about` is optional. `#[Core\Option]` has three fields,
@@ -29167,6 +29803,53 @@ error[E0746]: `float` is not a type an option of `deploy` can be given at
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 05: a date as an argument
+
+```nvs
+<?nvs
+// Shows a command whose argument is a date and whose option is a moment in time.
+// Each is written as ISO text on the command line.
+
+class Report
+{
+    // `report 2026-03-14 --since 2026-03-14T09:00:00Z` on the command line runs this
+    // command. A word that is not a date is a usage error.
+    #[Core\Command(name: 'report', about: 'Count the orders of one day')]
+    public static function report(
+        Core\Time\Date $day,
+        #[Core\Option(about: 'Count only the orders after this moment')] Core\Time\Instant $since,
+    ): uint
+    {
+        echo 'orders of ', $day->toIso(), ' since ', $since->toIso(), "\n";
+        return 0;
+    }
+}
+
+// The help page shows the type of each value.
+echo Core\Command::help('report');
+
+// The command is a static method. You can call it yourself with the same values.
+uint $status = Report::report(
+    Core\Time\Date::fromIso('2026-03-14'),
+    Core\Time\Instant::fromIso('2026-03-14T09:00:00Z'),
+);
+echo 'exit status ', $status, "\n";
+```
+
+```output
+usage: report <day> [--since]
+
+Count the orders of one day
+
+arguments:
+  <day>  Core\Time\Date
+
+options:
+  --since  Core\Time\Instant  Count only the orders after this moment
+orders of 2026-03-14 since 2026-03-14T09:00:00Z
+exit status 0
 ```
 
 ### `Core\Program::implementing<I>()`: every class that is an `I`
@@ -41096,14 +41779,16 @@ Returns every entry of `$a` in a random order. It works like `Core\Random::shuff
 <a id="core-core-uuid"></a>
 ### `Core\Uuid`
 
-Keywords: uuid, GUID, unique id, random id, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, fromBytes, toString, toBytes
+Keywords: uuid, GUID, unique id, random id, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, fromBytes, toString, format, toBytes
 
 A `Uuid` is an opaque 128-bit value, not a string: `v4` draws a random one, `v7` a time-ordered one
 whose leading bits are a millisecond timestamp — the right database key and the wrong public
 identifier, since it tells the reader when the row was made. `parse` reads only the canonical
 hyphenated `8-4-4-4-12` form, in either letter case, and refuses the unhyphenated, braced and
-`urn:uuid:` spellings; asking whether text is a UUID is `tryParse($s) != null`. `toString` — and
-`echo` — is the only way text comes back out, always lower-case. Two `Uuid` objects compare by
+`urn:uuid:` spellings; asking whether text is a UUID is `tryParse($s) != null`. `toString` and
+`echo` give the text back, always in lower case. `format` returns the same text. It is the method of
+the `Parses` interface that `Core\Router::url` and `Core\Uri::buildQuery` call to write a UUID into a
+link. Two `Uuid` objects compare by
 identity under `==`, so two values are compared through their text.
 
 ```nvs
@@ -41148,6 +41833,7 @@ braces refused
 | [`Core\Uuid::tryParse`](#core-core-uuid-tryparse) | `tryParse(string $s): ?Core\Uuid` |
 | [`Core\Uuid::fromBytes`](#core-core-uuid-frombytes) | `fromBytes(bytes $b): Core\Uuid` |
 | [`Core\Uuid->toString`](#core-core-uuid-tostring) | `toString(): string` |
+| [`Core\Uuid->format`](#core-core-uuid-format) | `format(): string` |
 | [`Core\Uuid->toBytes`](#core-core-uuid-tobytes) | `toBytes(): bytes` |
 
 <a id="core-core-uuid-v4"></a>
@@ -41231,6 +41917,17 @@ $uuid->toString(): string
 Returns the text of the UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. The digits are in groups of 8, 4, 4, 4 and 12, joined by hyphens. `echo $uuid` writes the same text.
 
 **Returns** `string` — A string of 36 characters. The letters are always lower case, even when `parse` read them in upper case.
+
+<a id="core-core-uuid-format"></a>
+#### `Core\Uuid->format`
+
+```nvs skip
+$uuid->format(): string
+```
+
+Returns the text that `parse` reads, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. It is the same text as `toString`. `Core\Router::url` writes a UUID in a link with this method.
+
+**Returns** `string` — A string of 36 characters, in lower case.
 
 <a id="core-core-uuid-tobytes"></a>
 #### `Core\Uuid->toBytes`
@@ -41632,11 +42329,11 @@ Writes the array `$parameters` as a query string, such as `page=2&sort=name`. `C
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. |
+| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. A value may also be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. |
 
-**Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A `null` value writes nothing, and neither does an empty array.
+**Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A time value is written as its `toIso` text, so a `+` in it is `%2B`. A `null` value writes nothing, and neither does an empty array.
 
-**Throws** `RuntimeError` — A value is an object or a function, so it has no text form.
+**Throws** `RuntimeError` — A value is a function, or an object that is not a time value, so it has no text form.
 
 <a id="core-core-uri-scheme"></a>
 #### `Core\Uri->scheme`
@@ -41946,7 +42643,7 @@ Builds the link to the route of the method `$route`. Each value in `$params` fil
 | `$route` | `callable` | The method that has the `#[Route]`, written as a method reference such as `Shop::show`. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a `#[Route]` is a compile error. |
 | `$params` | `array<mixed>` (default `[]`) | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. `url` and `urlAbsolute` use `[]` when you leave it out. |
 
-**Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are.
+**Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are. A `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime` value is written as its `toIso` text. In the path that text is not encoded, so `08:30` stays `08:30`. An object of a class that implements `Parses` is written as the text its `format` method returns.
 
 **Throws** `RuntimeError` — When `$route` is a variable and not a method reference written in the call. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
 
@@ -42035,7 +42732,7 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 |---|---|---|
 | `$path` | `string` (neutral) | The path, with no query string. The path of a request already has its mount prefix removed. |
 
-**Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A path does not match when a capture is not a valid `int`, `uint`, `decimal` or `Core\Uuid` for its handler parameter, or is not one of the values its parameter allows.
+**Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A path does not match when a capture is not a valid value of its handler parameter's type, such as `int`, `Core\Uuid` or `Core\Time\Date`. It also does not match when the capture is not one of the values its parameter allows.
 
 <a id="core-core-router-dispatch"></a>
 #### `Core\Router::dispatch`
@@ -42074,7 +42771,10 @@ method from a variable, such as an `array<callable>` or `$shop->show(...)`, is c
 program runs, and `is` throws an error when that method has no route. `parameters()`
 returns every value the path filled, keyed by the name of its parameter. `parameter()` returns one of
 them by name. It returns `null` for a name the route does not declare, and for an optional `{name?}`
-the request did not include. A capture is `tainted string` where the route declared `string`, still percent-encoded,
+the request did not include. Inside `Core\Router::dispatch`, the match also has each
+`#[Core\Query]` value, under its parameter's name. So `Gate::allows` can check every value the route
+method gets. The match from `Core\Request::route()` has no query values, so `parameter()` returns
+`null` for a query name there. A capture is `tainted string` where the route declared `string`, still percent-encoded,
 and the `int`, `uint`, `decimal` or `Core\Uuid` the match already converted where it declared one of
 those, so a handler never parses a segment the router has parsed already — and a segment that would
 not convert did not match the route in the first place.
@@ -42104,8 +42804,8 @@ no request here
 | Member | Signature |
 |---|---|
 | [`Core\Router\Match->is`](#core-core-router-match-is) | `is(callable $route): bool` |
-| [`Core\Router\Match->parameters`](#core-core-router-match-parameters) | `parameters(): array<tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses>` |
-| [`Core\Router\Match->parameter`](#core-core-router-match-parameter) | `parameter(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses` |
+| [`Core\Router\Match->parameters`](#core-core-router-match-parameters) | `parameters(): array<tainted string\|int\|uint\|decimal\|bool\|Core\Uuid\|Core\Time\Date\|Core\Time\TimeOfDay\|Core\Time\Instant\|Core\Time\DateTime\|Parses>` |
+| [`Core\Router\Match->parameter`](#core-core-router-match-parameter) | `parameter(string $name): ?tainted string\|int\|uint\|decimal\|bool\|Core\Uuid\|Core\Time\Date\|Core\Time\TimeOfDay\|Core\Time\Instant\|Core\Time\DateTime\|Parses` |
 | [`Core\Router\Match->method`](#core-core-router-match-method) | `method(): Core\Http\Method` |
 | [`Core\Router\Match->access`](#core-core-router-match-access) | `access(): ?string` |
 | [`Core\Router\Match->accessAs`](#core-core-router-match-accessas) | `accessAs<T>(): ?T` |
@@ -42132,27 +42832,27 @@ Checks whether the matched route belongs to a method. You write the method the w
 #### `Core\Router\Match->parameters`
 
 ```nvs skip
-$match->parameters(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>
+$match->parameters(): array<tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses>
 ```
 
-Returns every value captured from the path, in the order of the path. Each key is the capture's name.
+Returns every value captured from the path, in the order of the path. Each key is the capture's name. Inside `Core\Router::dispatch`, the array also has each `#[Core\Query]` value, under its parameter's name. So `Gate::allows` can check every value the route method gets.
 
-**Returns** `array<tainted string|int|uint|decimal|Core\Uuid|Parses>` — An array of the captures. Each value is already percent-decoded, so `%20` is a space. Each value has the type of its handler parameter: `{id}` read by `uint $id` is a number. A `string` capture is `tainted`, because the request sent it. An optional capture that the path does not have is not in the array. A route with no captures returns an empty array.
+**Returns** `array<tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses>` — An array of the captures. Each value is already percent-decoded, so `%20` is a space. Each value has the type of its handler parameter: `{id}` read by `uint $id` is a number. A `string` capture is `tainted`, because the request sent it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default `null` is not in the array either. The match from `Core\Request::route()` or `Core\Router::match()` has no query values. A route with no captures returns an empty array.
 
 <a id="core-core-router-match-parameter"></a>
 #### `Core\Router\Match->parameter`
 
 ```nvs skip
-$match->parameter(string $name): ?tainted string|int|uint|decimal|Core\Uuid|Parses
+$match->parameter(string $name): ?tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses
 ```
 
-Returns one value captured from the path, found by its name. It is the same value that `parameters()` has under that key.
+Returns one value captured from the path, found by its name. It is the same value that `parameters()` has under that key. Inside `Core\Router::dispatch`, it also returns a `#[Core\Query]` value by its parameter's name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The capture's name as the route's path writes it, without the braces. |
+| `$name` | `string` (neutral) | The capture's name as the route's path writes it, without the braces, or the name of a `#[Core\Query]` parameter without the `$`. |
 
-**Returns** `?tainted string|int|uint|decimal|Core\Uuid|Parses` — The capture, with the type of its handler parameter. The result is `null` when the route has no capture with this name, and when an optional `{name?}` is not in the path.
+**Returns** `?tainted string|int|uint|decimal|bool|Core\Uuid|Core\Time\Date|Core\Time\TimeOfDay|Core\Time\Instant|Core\Time\DateTime|Parses` — The value, with the type of its handler parameter. The result is `null` when the route has no capture or query value with this name, and when an optional `{name?}` is not in the path. A query value read from the match of `Core\Request::route()` is `null`, because only `Core\Router::dispatch` reads the query string.
 
 <a id="core-core-router-match-method"></a>
 #### `Core\Router\Match->method`
@@ -55882,7 +56582,7 @@ Deletes the finished jobs of a queue and returns how many rows it deleted. Witho
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
 
-Keywords: job id, queue job, background job, job state, job status, cancel a job, delete a job, track a job, duplicate job, parse, tryParse, toString
+Keywords: job id, queue job, background job, job state, job status, cancel a job, delete a job, track a job, duplicate job, parse, tryParse, toString, format
 
 `Core\Queue\Id` identifies one background job and the queue that the job is in. `Core\Queue::push`
 returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\Queue::delete`.
@@ -55891,7 +56591,8 @@ returns it. You pass it to `Core\Queue::status`, `Core\Queue::cancel` and `Core\
 string. It has only letters, digits, `.`, `-` and `_`, so you can put it in a URL, a cookie or JSON
 as it is. In a later request, `Core\Queue\Id::parse($text)` reads the string back into an `Id`. It
 throws a `RuntimeError` when the text is not a job id. `Core\Queue\Id::tryParse($text)` returns
-`null` instead.
+`null` instead. `$id->format()` returns the same string as `toString`. `Core\Router::url` and
+`Core\Uri::buildQuery` call it to write an id into a link.
 
 The string contains a random part. If somebody changes or guesses the string, it finds no job:
 `status` throws a `RuntimeError`, as for a deleted job, and `cancel` returns `false`. The string does
@@ -55983,6 +56684,7 @@ user 7: no such job
 | [`Core\Queue\Id::parse`](#core-core-queue-id-parse) | `parse(string $s): Core\Queue\Id` |
 | [`Core\Queue\Id::tryParse`](#core-core-queue-id-tryparse) | `tryParse(string $s): ?Core\Queue\Id` |
 | [`Core\Queue\Id->toString`](#core-core-queue-id-tostring) | `toString(): string` |
+| [`Core\Queue\Id->format`](#core-core-queue-id-format) | `format(): string` |
 
 <a id="core-core-queue-id-parse"></a>
 #### `Core\Queue\Id::parse`
@@ -56026,6 +56728,17 @@ $id->toString(): string
 Returns the id as a string. You can put the string in a URL, a header, a cookie or JSON without escaping it. `echo $id` writes the same string.
 
 **Returns** `string` — A string of letters, digits, `.`, `-` and `_`. `Core\Queue\Id::parse` reads it back as an id for the same job. Keep the string secret like a password. Anybody who has it can check or cancel the job.
+
+<a id="core-core-queue-id-format"></a>
+#### `Core\Queue\Id->format`
+
+```nvs skip
+$id->format(): string
+```
+
+Returns the string that `Core\Queue\Id::parse` reads. It is the same string as `toString`. `Core\Router::url` writes an id in a link with this method.
+
+**Returns** `string` — A string of letters, digits, `.`, `-` and `_`. Keep it secret like a password.
 
 <a id="core-core-queue-stats"></a>
 ### `Core\Queue\Stats`

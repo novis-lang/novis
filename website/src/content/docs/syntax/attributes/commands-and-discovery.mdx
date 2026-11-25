@@ -14,6 +14,10 @@ do not need to list the classes yourself. The compiler finds them while it compi
 
 <FeatureSection examples="lang/attributes/core-command-and-core-option-the-command-table" heading="Commands" id="commands" />
 
+An argument or an option can be a `Core\Time\Date`, `TimeOfDay`, `Instant` or `DateTime`. The user
+writes it as its ISO text, such as `2026-03-09`. A `DateTime` needs its time zone, as in
+`2026-03-09T08:30:00+01:00[Europe/Vienna]`. A text that is not valid is a usage error.
+
 `Core\Command::run()` returns the exit status of the command. Its
 [reference page](/reference/core/command/run/) has more examples.
 

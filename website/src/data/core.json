@@ -36584,13 +36584,31 @@
           "slug": "tostring",
           "url": "/reference/core/queue-id/tostring/",
           "examples": "core/Queue-Id/toString"
+        },
+        {
+          "id": "Queue.Id.format",
+          "name": "format",
+          "static": false,
+          "receiver": "id",
+          "generics": null,
+          "signature": "format(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the string that <code>Core\\Queue\\Id::parse</code> reads. It is the same string as <code>toString</code>. <code>Core\\Router::url</code> writes an id in a link with this method.",
+            "returnHtml": "A string of letters, digits, <code>.</code>, <code>-</code> and <code>_</code>. Keep it secret like a password."
+          },
+          "slug": "format",
+          "url": "/reference/core/queue-id/format/",
+          "examples": "core/Queue-Id/format"
         }
       ],
       "slug": "queue-id",
       "url": "/reference/core/queue-id/",
       "summaryBlocks": [
         {
-          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. <code>toString</code> gives a string that you can send to a client. <code>Core\\Queue\\Id::parse</code> reads that string back in a later request.</p>\n<p><code>Core\\Queue\\Id</code> identifies one background job and the queue that the job is in. <code>Core\\Queue::push</code> returns it. You pass it to <code>Core\\Queue::status</code>, <code>Core\\Queue::cancel</code> and <code>Core\\Queue::delete</code>.</p>\n<p><code>$id-&gt;toString()</code> gives the id as a string. <code>echo</code>, string interpolation and <code>as string</code> give the same string. It has only letters, digits, <code>.</code>, <code>-</code> and <code>_</code>, so you can put it in a URL, a cookie or JSON as it is. In a later request, <code>Core\\Queue\\Id::parse($text)</code> reads the string back into an <code>Id</code>. It throws a <code>RuntimeError</code> when the text is not a job id. <code>Core\\Queue\\Id::tryParse($text)</code> returns <code>null</code> instead.</p>\n<p>The string contains a random part. If somebody changes or guesses the string, it finds no job: <code>status</code> throws a <code>RuntimeError</code>, as for a deleted job, and <code>cancel</code> returns <code>false</code>. The string does not say who started the job. Your app checks that. Save the string together with the user who started the job. In a later request, look up the string and the signed-in user together. Call <code>status</code> or <code>cancel</code> only when you find a row. The example below ends with this check.</p>\n<p>When you call <code>push</code> with a <code>key</code>, and a pending job already has that key, <code>push</code> adds no job. It returns an <code>Id</code> for the pending job, so <code>status</code>, <code>cancel</code> and <code>delete</code> work on that job.</p>\n<p><code>status</code> reads the state of the job from the database on every call. <code>cancel</code> returns <code>false</code> when the job is no longer waiting. After <code>delete</code> removes the job, <code>status</code> throws a <code>RuntimeError</code> for its <code>Id</code>.</p>\n<p>The example below creates the two queue tables itself, because its database is in memory. On a server, <code>nvs queue migrate</code> creates them.</p>"
+          "html": "<p>The id of one background job, as <code>Core\\Queue::push</code> returns it. It identifies the job and the queue the job is in. You pass it to <code>status</code>, <code>cancel</code> and <code>delete</code>. <code>toString</code> gives a string that you can send to a client. <code>Core\\Queue\\Id::parse</code> reads that string back in a later request.</p>\n<p><code>Core\\Queue\\Id</code> identifies one background job and the queue that the job is in. <code>Core\\Queue::push</code> returns it. You pass it to <code>Core\\Queue::status</code>, <code>Core\\Queue::cancel</code> and <code>Core\\Queue::delete</code>.</p>\n<p><code>$id-&gt;toString()</code> gives the id as a string. <code>echo</code>, string interpolation and <code>as string</code> give the same string. It has only letters, digits, <code>.</code>, <code>-</code> and <code>_</code>, so you can put it in a URL, a cookie or JSON as it is. In a later request, <code>Core\\Queue\\Id::parse($text)</code> reads the string back into an <code>Id</code>. It throws a <code>RuntimeError</code> when the text is not a job id. <code>Core\\Queue\\Id::tryParse($text)</code> returns <code>null</code> instead. <code>$id-&gt;format()</code> returns the same string as <code>toString</code>. <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> call it to write an id into a link.</p>\n<p>The string contains a random part. If somebody changes or guesses the string, it finds no job: <code>status</code> throws a <code>RuntimeError</code>, as for a deleted job, and <code>cancel</code> returns <code>false</code>. The string does not say who started the job. Your app checks that. Save the string together with the user who started the job. In a later request, look up the string and the signed-in user together. Call <code>status</code> or <code>cancel</code> only when you find a row. The example below ends with this check.</p>\n<p>When you call <code>push</code> with a <code>key</code>, and a pending job already has that key, <code>push</code> adds no job. It returns an <code>Id</code> for the pending job, so <code>status</code>, <code>cancel</code> and <code>delete</code> work on that job.</p>\n<p><code>status</code> reads the state of the job from the database on every call. <code>cancel</code> returns <code>false</code> when the job is no longer waiting. After <code>delete</code> removes the job, <code>status</code> throws a <code>RuntimeError</code> for its <code>Id</code>.</p>\n<p>The example below creates the two queue tables itself, because its database is in memory. On a server, <code>nvs queue migrate</code> creates them.</p>"
         },
         {
           "code": "[db.jobs]\ndriver = \"sqlite\"\npath = \":memory:\"\n\n[capabilities.db]\nconnect = [\"jobs\"]\n\n[queue]\nconnection = \"jobs\"\nworkers = 0",
@@ -41665,7 +41683,7 @@
                 "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               }
             ],
-            "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are.",
+            "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are. A <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code> value is written as its <code>toIso</code> text. In the path that text is not encoded, so <code>08:30</code> stays <code>08:30</code>. An object of a class that implements <code>Parses</code> is written as the text its <code>format</code> method returns.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -41928,7 +41946,7 @@
                 "descHtml": "The path, with no query string. The path of a request already has its mount prefix removed."
               }
             ],
-            "returnHtml": "The methods, each one once. An empty array means that no route has this path, so the status is <code>404</code>. Otherwise the status is <code>405</code>, and the array is the list for the <code>Allow</code> header. A path does not match when a capture is not a valid <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> for its handler parameter, or is not one of the values its parameter allows."
+            "returnHtml": "The methods, each one once. An empty array means that no route has this path, so the status is <code>404</code>. Otherwise the status is <code>405</code>, and the array is the list for the <code>Allow</code> header. A path does not match when a capture is not a valid value of its handler parameter's type, such as <code>int</code>, <code>Core\\Uuid</code> or <code>Core\\Time\\Date</code>. It also does not match when the capture is not one of the values its parameter allows."
           },
           "slug": "methodsfor",
           "url": "/reference/core/router/methodsfor/",
@@ -41998,7 +42016,7 @@
     {
       "id": "Router.Match",
       "name": "Core\\Router\\Match",
-      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `is()` checks which method the route belongs to. `parameters()` and `parameter()` return the values captured from the path, and `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name. `attribute<T>()` returns an attribute of the route's method.",
+      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `is()` checks which method the route belongs to. `parameters()` and `parameter()` return the values captured from the path, and the query values inside `Core\\Router::dispatch`. `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name. `attribute<T>()` returns an attribute of the route's method.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -42049,13 +42067,13 @@
           "static": false,
           "receiver": "match",
           "generics": null,
-          "signature": "parameters(): array<tainted string|int|uint|decimal|Core\\Uuid|Parses>",
+          "signature": "parameters(): array<tainted string|int|uint|decimal|bool|Core\\Uuid|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Time\\Instant|Core\\Time\\DateTime|Parses>",
           "params": [],
           "options": [],
-          "returnType": "array<tainted string|int|uint|decimal|Core\\Uuid|Parses>",
+          "returnType": "array<tainted string|int|uint|decimal|bool|Core\\Uuid|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Time\\Instant|Core\\Time\\DateTime|Parses>",
           "doc": {
-            "shortHtml": "Returns every value captured from the path, in the order of the path. Each key is the capture's name.",
-            "returnHtml": "An array of the captures. Each value is already percent-decoded, so <code>%20</code> is a space. Each value has the type of its handler parameter: <code>{id}</code> read by <code>uint $id</code> is a number. A <code>string</code> capture is <code>tainted</code>, because the request sent it. An optional capture that the path does not have is not in the array. A route with no captures returns an empty array."
+            "shortHtml": "Returns every value captured from the path, in the order of the path. Each key is the capture's name. Inside <code>Core\\Router::dispatch</code>, the array also has each <code>#[Core\\Query]</code> value, under its parameter's name. So <code>Gate::allows</code> can check every value the route method gets.",
+            "returnHtml": "An array of the captures. Each value is already percent-decoded, so <code>%20</code> is a space. Each value has the type of its handler parameter: <code>{id}</code> read by <code>uint $id</code> is a number. A <code>string</code> capture is <code>tainted</code>, because the request sent it. An optional capture that the path does not have is not in the array. A query key that is absent and has the default <code>null</code> is not in the array either. The match from <code>Core\\Request::route()</code> or <code>Core\\Router::match()</code> has no query values. A route with no captures returns an empty array."
           },
           "slug": "parameters",
           "url": "/reference/core/router-match/parameters/",
@@ -42067,7 +42085,7 @@
           "static": false,
           "receiver": "match",
           "generics": null,
-          "signature": "parameter(string $name): ?tainted string|int|uint|decimal|Core\\Uuid|Parses",
+          "signature": "parameter(string $name): ?tainted string|int|uint|decimal|bool|Core\\Uuid|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Time\\Instant|Core\\Time\\DateTime|Parses",
           "params": [
             {
               "kind": "param",
@@ -42079,16 +42097,16 @@
             }
           ],
           "options": [],
-          "returnType": "?tainted string|int|uint|decimal|Core\\Uuid|Parses",
+          "returnType": "?tainted string|int|uint|decimal|bool|Core\\Uuid|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Time\\Instant|Core\\Time\\DateTime|Parses",
           "doc": {
-            "shortHtml": "Returns one value captured from the path, found by its name. It is the same value that <code>parameters()</code> has under that key.",
+            "shortHtml": "Returns one value captured from the path, found by its name. It is the same value that <code>parameters()</code> has under that key. Inside <code>Core\\Router::dispatch</code>, it also returns a <code>#[Core\\Query]</code> value by its parameter's name.",
             "params": [
               {
                 "name": "name",
-                "descHtml": "The capture's name as the route's path writes it, without the braces."
+                "descHtml": "The capture's name as the route's path writes it, without the braces, or the name of a <code>#[Core\\Query]</code> parameter without the <code>$</code>."
               }
             ],
-            "returnHtml": "The capture, with the type of its handler parameter. The result is <code>null</code> when the route has no capture with this name, and when an optional <code>{name?}</code> is not in the path."
+            "returnHtml": "The value, with the type of its handler parameter. The result is <code>null</code> when the route has no capture or query value with this name, and when an optional <code>{name?}</code> is not in the path. A query value read from the match of <code>Core\\Request::route()</code> is <code>null</code>, because only <code>Core\\Router::dispatch</code> reads the query string."
           },
           "slug": "parameter",
           "url": "/reference/core/router-match/parameter/",
@@ -42171,7 +42189,7 @@
       "url": "/reference/core/router-match/",
       "summaryBlocks": [
         {
-          "html": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>is()</code> checks which method the route belongs to. <code>parameters()</code> and <code>parameter()</code> return the values captured from the path, and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, after it checks which method matched with <code>is()</code>; the attributes chapter shows that check, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>is(Shop::show)</code> returns <code>true</code> when the route belongs to that method. You write the method the way <code>Core\\Router::url</code> takes it: <code>Class::method</code> with no <code>(...)</code>, for a static or an instance method. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$shop-&gt;show(...)</code>, is checked while the program runs, and <code>is</code> throws an error when that method has no route. <code>parameters()</code> returns every value the path filled, keyed by the name of its parameter. <code>parameter()</code> returns one of them by name. It returns <code>null</code> for a name the route does not declare, and for an optional <code>{name?}</code> the request did not include. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells apart the routes of one method that serves several verbs.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>"
+          "html": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>is()</code> checks which method the route belongs to. <code>parameters()</code> and <code>parameter()</code> return the values captured from the path, and the query values inside <code>Core\\Router::dispatch</code>. <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, after it checks which method matched with <code>is()</code>; the attributes chapter shows that check, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>is(Shop::show)</code> returns <code>true</code> when the route belongs to that method. You write the method the way <code>Core\\Router::url</code> takes it: <code>Class::method</code> with no <code>(...)</code>, for a static or an instance method. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$shop-&gt;show(...)</code>, is checked while the program runs, and <code>is</code> throws an error when that method has no route. <code>parameters()</code> returns every value the path filled, keyed by the name of its parameter. <code>parameter()</code> returns one of them by name. It returns <code>null</code> for a name the route does not declare, and for an optional <code>{name?}</code> the request did not include. Inside <code>Core\\Router::dispatch</code>, the match also has each <code>#[Core\\Query]</code> value, under its parameter's name. So <code>Gate::allows</code> can check every value the route method gets. The match from <code>Core\\Request::route()</code> has no query values, so <code>parameter()</code> returns <code>null</code> for a query name there. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells apart the routes of one method that serves several verbs.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>"
         },
         {
           "code": "<?nvs\ntry {\n    Core\\Request::route();\n} catch (LogicError $why) {\n    echo \"no request here\\n\";\n}",
@@ -50548,6 +50566,10 @@
           "url": "/reference/core/db-row/date/"
         },
         {
+          "name": "Core\\Router\\Match::parameter",
+          "url": "/reference/core/router-match/parameter/"
+        },
+        {
           "name": "Core\\Time\\DateTime::date",
           "url": "/reference/core/time-datetime/date/"
         }
@@ -51605,6 +51627,10 @@
         }
       ],
       "returnedBy": [
+        {
+          "name": "Core\\Router\\Match::parameter",
+          "url": "/reference/core/router-match/parameter/"
+        },
         {
           "name": "Core\\Time\\Instant::in",
           "url": "/reference/core/time-instant/in/"
@@ -52725,6 +52751,10 @@
           "url": "/reference/core/ldap-entry/instant/"
         },
         {
+          "name": "Core\\Router\\Match::parameter",
+          "url": "/reference/core/router-match/parameter/"
+        },
+        {
           "name": "Core\\Time::now",
           "url": "/reference/core/time/now/"
         },
@@ -53201,6 +53231,10 @@
         {
           "name": "Core\\Db\\Row::time",
           "url": "/reference/core/db-row/time/"
+        },
+        {
+          "name": "Core\\Router\\Match::parameter",
+          "url": "/reference/core/router-match/parameter/"
         },
         {
           "name": "Core\\Time\\DateTime::timeOfDay",
@@ -53925,14 +53959,14 @@
             "params": [
               {
                 "name": "parameters",
-                "descHtml": "The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as <code>filter[size][0]=M</code>, with the brackets escaped as <code>%5B</code> and <code>%5D</code>."
+                "descHtml": "The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as <code>filter[size][0]=M</code>, with the brackets escaped as <code>%5B</code> and <code>%5D</code>. A value may also be a <code>Core\\Time\\Date</code>, <code>TimeOfDay</code>, <code>Instant</code> or <code>DateTime</code>."
               }
             ],
-            "returnHtml": "The query string, without a leading <code>?</code>. Names and values are escaped as <code>Core\\Uri::encodeFormValue</code> escapes them, so a space is <code>+</code>. <code>true</code> is written as <code>1</code> and <code>false</code> as <code>0</code>. A <code>null</code> value writes nothing, and neither does an empty array.",
+            "returnHtml": "The query string, without a leading <code>?</code>. Names and values are escaped as <code>Core\\Uri::encodeFormValue</code> escapes them, so a space is <code>+</code>. <code>true</code> is written as <code>1</code> and <code>false</code> as <code>0</code>. A time value is written as its <code>toIso</code> text, so a <code>+</code> in it is <code>%2B</code>. A <code>null</code> value writes nothing, and neither does an empty array.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "A value is an object or a function, so it has no text form."
+                "descHtml": "A value is a function, or an object that is not a time value, so it has no text form."
               }
             ]
           },
@@ -54608,6 +54642,24 @@
           "examples": "core/Uuid/toString"
         },
         {
+          "id": "Uuid.format",
+          "name": "format",
+          "static": false,
+          "receiver": "uuid",
+          "generics": null,
+          "signature": "format(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the text that <code>parse</code> reads, such as <code>f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4</code>. It is the same text as <code>toString</code>. <code>Core\\Router::url</code> writes a UUID in a link with this method.",
+            "returnHtml": "A string of 36 characters, in lower case."
+          },
+          "slug": "format",
+          "url": "/reference/core/uuid/format/",
+          "examples": "core/Uuid/format"
+        },
+        {
           "id": "Uuid.toBytes",
           "name": "toBytes",
           "static": false,
@@ -54630,7 +54682,7 @@
       "url": "/reference/core/uuid/",
       "summaryBlocks": [
         {
-          "html": "<p>A UUID, which is a 128-bit identifier. <code>v4</code> and <code>v7</code> create a new one. <code>parse</code> reads one from its text, such as <code>f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4</code>, and <code>fromBytes</code> reads one from its sixteen bytes. <code>toString</code> and <code>toBytes</code> give the text and the bytes back.</p>\n<p>A <code>Uuid</code> is an opaque 128-bit value, not a string: <code>v4</code> draws a random one, <code>v7</code> a time-ordered one whose leading bits are a millisecond timestamp — the right database key and the wrong public identifier, since it tells the reader when the row was made. <code>parse</code> reads only the canonical hyphenated <code>8-4-4-4-12</code> form, in either letter case, and refuses the unhyphenated, braced and <code>urn:uuid:</code> spellings; asking whether text is a UUID is <code>tryParse($s) != null</code>. <code>toString</code> — and <code>echo</code> — is the only way text comes back out, always lower-case. Two <code>Uuid</code> objects compare by identity under <code>==</code>, so two values are compared through their text.</p>"
+          "html": "<p>A UUID, which is a 128-bit identifier. <code>v4</code> and <code>v7</code> create a new one. <code>parse</code> reads one from its text, such as <code>f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4</code>, and <code>fromBytes</code> reads one from its sixteen bytes. <code>toString</code> and <code>toBytes</code> give the text and the bytes back.</p>\n<p>A <code>Uuid</code> is an opaque 128-bit value, not a string: <code>v4</code> draws a random one, <code>v7</code> a time-ordered one whose leading bits are a millisecond timestamp — the right database key and the wrong public identifier, since it tells the reader when the row was made. <code>parse</code> reads only the canonical hyphenated <code>8-4-4-4-12</code> form, in either letter case, and refuses the unhyphenated, braced and <code>urn:uuid:</code> spellings; asking whether text is a UUID is <code>tryParse($s) != null</code>. <code>toString</code> and <code>echo</code> give the text back, always in lower case. <code>format</code> returns the same text. It is the method of the <code>Parses</code> interface that <code>Core\\Router::url</code> and <code>Core\\Uri::buildQuery</code> call to write a UUID into a link. Two <code>Uuid</code> objects compare by identity under <code>==</code>, so two values are compared through their text.</p>"
         },
         {
           "code": "<?nvs\nvar $id = Core\\Uuid::v4();\necho Core\\Str::length($id->toString()), \"\\n\";\necho Core\\Str::slice($id->toString(), 14, 1), \"\\n\";\necho Core\\Str::slice(Core\\Uuid::v7()->toString(), 14, 1), \"\\n\";\n\nvar $known = Core\\Uuid::parse('123E4567-E89B-12D3-A456-426614174000');\necho $known, \"\\n\";\necho Core\\Uuid::tryParse('not-a-uuid') == null ? 'invalid' : 'valid', \"\\n\";\necho Core\\Uuid::tryParse('123e4567-e89b-12d3-a456-426614174000') != null ? 'valid' : 'invalid', \"\\n\";\n\nvar $again = Core\\Uuid::parse('123e4567-e89b-12d3-a456-426614174000');\necho $known == $again ? 'same object' : 'different objects', \"\\n\";\necho $known->toString() == $again->toString() ? 'same value' : 'different values', \"\\n\";\n\ntry {\n    Core\\Uuid::parse('{123e4567-e89b-12d3-a456-426614174000}');\n} catch (RuntimeError $bad) {\n    echo \"braces refused\\n\";\n}",
