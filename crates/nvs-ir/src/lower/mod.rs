@@ -1166,26 +1166,50 @@ fn lower_program_as(
                 // are compiled the same way, with the case's integer as the
                 // receiver: see `lower_method_of`. An enum a class or an
                 // interface declares is reached through its owner's members.
+                //
+                // An `extend` block's methods are compiled under the block's
+                // label (`rule:classes/an-extend-block-adds-members-to-a-type`),
+                // with the receiver of the type they are added to. A static one
+                // takes a `0` in slot 0 on every type, as an enum's does.
                 StmtKind::ClassDecl(nvs_syntax::ast::ClassDecl { members, .. })
                 | StmtKind::InterfaceDecl(nvs_syntax::ast::InterfaceDecl { members, .. })
-                | StmtKind::EnumDecl(nvs_syntax::ast::EnumDecl { members, .. }) => {
+                | StmtKind::EnumDecl(nvs_syntax::ast::EnumDecl { members, .. })
+                | StmtKind::ExtendDecl(nvs_syntax::ast::ExtendDecl { members, .. }) => {
                     let own = match &stmt.kind {
                         StmtKind::EnumDecl(decl) => Some(enum_receiver(decl, src)),
+                        StmtKind::ExtendDecl(decl) => exprs
+                            .extend_target(decl.name.span)
+                            .and_then(|target| enums.get(target))
+                            .map(|info| match info.backing {
+                                nvs_types::EnumBacking::Int => EnumRepr::Int,
+                                nvs_types::EnumBacking::Uint => EnumRepr::Uint,
+                            }),
                         _ => None,
                     };
+                    let added = matches!(stmt.kind, StmtKind::ExtendDecl(_));
                     let owned = members.iter().filter_map(|member| match &member.kind {
                         ClassMemberKind::Enum(decl) => {
-                            Some((&decl.members[..], Some(enum_receiver(decl, src))))
+                            Some((&decl.members[..], Some(enum_receiver(decl, src)), false))
                         }
                         _ => None,
                     });
-                    for (members, receiver) in std::iter::once((&members[..], own)).chain(owned) {
+                    for (members, receiver, added) in
+                        std::iter::once((&members[..], own, added)).chain(owned)
+                    {
                         for member in members {
                             match &member.kind {
                                 ClassMemberKind::Method(m) => {
                                     if m.body.is_none() {
                                         continue; // `abstract` — nothing to lower
                                     }
+                                    let receiver = match receiver {
+                                        None if added
+                                            && m.modifiers.contains(&Modifier::Static) =>
+                                        {
+                                            Some(EnumRepr::Int)
+                                        }
+                                        receiver => receiver,
+                                    };
                                     let Some(label) = exprs.method_label(m.name) else {
                                         continue;
                                     };

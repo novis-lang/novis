@@ -720,6 +720,10 @@ pub struct ClassSignature {
     /// in [`nvs_config::Cap::ALL`]'s order. A call to any of its methods needs each of them on the
     /// calling namespace's `[grants]` line (`rule:security/extension-grants-are-an-intersection`).
     pub requests: Vec<nvs_config::Cap>,
+    /// On an `extend` block's entry, the type it adds members to
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). A call of an
+    /// added member carries it as [`crate::expr_table::ResolvedCall::added_to`].
+    pub added_to: Option<QName>,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -1239,6 +1243,7 @@ pub fn build_signatures(
             link_target_args: FxHashSet::default(),
             argument_element_types: rustc_hash::FxHashMap::default(),
             spawn_entry_args: FxHashSet::default(),
+            extend_block: None,
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             secret_in_arguments: false,
@@ -1509,6 +1514,27 @@ fn collect_stmts(
                     in_test_code: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
+            }
+            // An `extend` block's members, under the block's own key. `self`
+            // in a signature names the extended type.
+            StmtKind::ExtendDecl(decl) => {
+                let block = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                let Some(target) = env.graph.block_target(&block).cloned() else {
+                    continue;
+                };
+                let imports = crate::extend::imports_with_block(&current_imports, &block);
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &imports,
+                    current_class: Some(&target),
+                    current_hook: None,
+                    generator_elem: None,
+                    in_constructor: false,
+                    in_anon_fn: false,
+                    in_test_code: false,
+                };
+                table.entry(block.clone()).added_to = Some(target.clone());
+                collect_members(&decl.members, &block, &ctx, table, env);
             }
             _ => {}
         }
@@ -2557,7 +2583,9 @@ pub(crate) fn is_visible_here(
     ctx: &crate::Ctx<'_>,
     env: &Env<'_>,
 ) -> bool {
-    is_visible_from(level, owner, ctx.current_class, env.graph)
+    // Inside an `extend` block the place is the block, never its type.
+    let accessing = env.extend_block.as_ref().or(ctx.current_class);
+    is_visible_from(level, owner, accessing, env.graph)
         || (ctx.in_test_code
             && env
                 .symbols

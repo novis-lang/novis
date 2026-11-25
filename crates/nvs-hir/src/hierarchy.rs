@@ -935,7 +935,10 @@ fn resolve_supertype(
                     code::E_CORE_CLASS_NOT_EXTENDABLE,
                     format!("`{qname}` is a `Core` class, and your code cannot {verb} it"),
                 )
-                .with_primary(raw.span, "a `Core` class"),
+                .with_primary(raw.span, "a `Core` class")
+                .with_help(format!(
+                    "write `extend {qname} as Name {{ … }}` to add members to it"
+                )),
             );
             return None;
         }

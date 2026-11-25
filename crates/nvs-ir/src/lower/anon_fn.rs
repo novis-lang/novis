@@ -736,10 +736,12 @@ pub(crate) fn lower_callable(
     // in slot 0 when it is static (`super::lower_method_of`).
     let enum_receiver = match target {
         ThunkTarget::Forward { call, .. } => {
-            enums.get(&call.class).map(|info| match info.backing {
-                nvs_types::EnumBacking::Int => crate::ty::EnumRepr::Int,
-                nvs_types::EnumBacking::Uint => crate::ty::EnumRepr::Uint,
-            })
+            enums
+                .get(call.receiver_class())
+                .map(|info| match info.backing {
+                    nvs_types::EnumBacking::Int => crate::ty::EnumRepr::Int,
+                    nvs_types::EnumBacking::Uint => crate::ty::EnumRepr::Uint,
+                })
         }
         ThunkTarget::Build { .. } => None,
     };
@@ -785,7 +787,7 @@ pub(crate) fn lower_callable(
         // object each time it is called, not when it is made. `revoke` and
         // `isRevoked` check nothing, as a direct call of either does.
         if let ThunkTarget::Forward { call, .. } = target {
-            let class = call.class.to_string();
+            let class = call.receiver_class().to_string();
             let intrinsic =
                 class == "Revocable" && matches!(call.method.as_str(), "revoke" | "isRevoked");
             if !intrinsic {
@@ -1052,7 +1054,9 @@ pub(crate) fn lower_callable(
                     args,
                 }
             }
-            None if enum_receiver.is_some() => {
+            // An enum's static method, and every static method an `extend`
+            // block adds, take a `0` in slot 0.
+            None if enum_receiver.is_some() || call.added_to.is_some() => {
                 let (zero, _) = low.emit(cur, Ty::Int, InstKind::ConstInt(0));
                 InstKind::Call {
                     target,

@@ -114,7 +114,8 @@ pub(crate) fn infer_class_const(
         );
         return env.interner.error();
     }
-    let qname = resolve_class_expr(class, ctx, env);
+    let qname = resolve_class_expr(class, ctx, env)
+        .map(|qname| added_const_owner(qname, span_text(env.src, name), ctx, env));
     // A `Core`-owned enum and a loaded extension's enum have no
     // `SymbolKind::Enum` entry — no source file declared them — but they are in
     // the same enum table, seeded from `nvs_stdlib::registry::ENUMS` and the
@@ -3080,7 +3081,7 @@ pub(crate) fn check_member_visibility(
             format!("only `{owner}` and the classes that extend it reach it"),
         ),
     };
-    let written = ctx.current_class.map_or_else(
+    let written = env.extend_block.as_ref().or(ctx.current_class).map_or_else(
         || "this access is outside any class".to_owned(),
         |class| format!("this access is inside `{class}`"),
     );
@@ -3095,6 +3096,23 @@ pub(crate) fn check_member_visibility(
              does expose"
         )),
     );
+}
+
+/// The class a constant `qname::name` is read from: `qname` when it has the
+/// constant, or the `extend` block this file uses that adds it. The block's
+/// constant is then read as a constant of the block, so it is inlined the
+/// same way.
+fn added_const_owner(qname: QName, name: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) -> QName {
+    let own = env.enums.case(&qname, name).is_some()
+        || crate::signatures::resolve_const_owned(&qname, name, env.signatures, env.graph)
+            .is_some()
+        || (qname.is_core() && crate::core_lib::constant(&qname, name, env.interner).is_some());
+    if own {
+        return qname;
+    }
+    crate::extend::added_const(&qname, name, ctx.imports, env.signatures, env.graph)
+        .cloned()
+        .unwrap_or(qname)
 }
 
 pub(crate) fn report_unknown_member(
@@ -3126,13 +3144,20 @@ pub(crate) fn report_unknown_member(
         }
         return;
     }
-    env.diags.report(
-        Diagnostic::error(
-            code::E_UNKNOWN_MEMBER,
-            format!("`{qname}` has no {kind} named `{name}`"),
-        )
-        .with_primary(span, "referenced here"),
-    );
+    let mut diagnostic = Diagnostic::error(
+        code::E_UNKNOWN_MEMBER,
+        format!("`{qname}` has no {kind} named `{name}`"),
+    )
+    .with_primary(span, "referenced here");
+    // An `extend` block adds the name, and this file does not use it.
+    if let Some(block) = crate::extend::unused_block_adding(qname, name, env.signatures, env.graph)
+    {
+        diagnostic = diagnostic.with_help(format!(
+            "the `extend` block `{block}` adds `{name}`. Write `use {block};` at the top of this \
+             file to call it"
+        ));
+    }
+    env.diags.report(diagnostic);
 }
 
 /// `rule:core-api/shape-rules` R20, at the one place two spellings can reach one `Core` member:

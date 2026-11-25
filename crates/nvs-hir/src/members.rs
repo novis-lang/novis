@@ -335,6 +335,11 @@ impl<'a> MemberResolver<'a> {
                     }
                     self.collect_class_members(&decl.members, src, qname);
                 }
+                // An `extend` block's members, under the block's own name.
+                StmtKind::ExtendDecl(decl) => {
+                    let qname = QName::join(&current_ns, name_text(src, &decl.name));
+                    self.collect_class_members(&decl.members, src, qname);
+                }
                 _ => {}
             }
         }
@@ -636,6 +641,29 @@ fn check_stmts(
                         walk_expr(v, src, &ctx, env);
                     }
                 }
+                check_members(&decl.members, src, &ctx, env);
+            }
+            // An `extend` block's body sees the extended type as `self` and
+            // `$this`, and its own members without a `use`.
+            StmtKind::ExtendDecl(decl) => {
+                let block = QName::join(&current_ns, name_text(src, &decl.name));
+                let Some(target) = env.graph.block_target(&block).cloned() else {
+                    continue;
+                };
+                let mut imports = current_imports.clone();
+                imports.insert(block.short_name().to_owned(), block.clone());
+                let ctx = Ctx {
+                    current_class: Some(&target),
+                    namespace: &current_ns,
+                    imports: &imports,
+                };
+                check_doc(
+                    decl.doc.as_ref(),
+                    DocOwner::Other("an `extend` block"),
+                    src,
+                    &ctx,
+                    env,
+                );
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::TypeAliasDecl(decl) => {
@@ -2454,14 +2482,73 @@ fn check_member_ref(
     if record_member(&qname, name, kind, env) {
         return;
     }
+    if let Some(block) = added_member(&qname, name, kind, ctx.imports, env) {
+        if env.uses.is_on() {
+            env.uses.class(&block);
+        }
+        return;
+    }
     let nearest = nearest_member(&qname, name, kind, env.table, env.graph);
-    env.diags.report(undefined_member(
-        &qname,
-        name,
-        kind.describe(),
-        class_expr.span,
-        nearest,
-    ));
+    let mut diagnostic = undefined_member(&qname, name, kind.describe(), class_expr.span, nearest);
+    if let Some(block) = block_adding(&qname, name, kind, env) {
+        diagnostic = diagnostic.with_help(format!(
+            "the `extend` block `{block}` adds `{name}`. Write `use {block};` at the top of this \
+             file to use it"
+        ));
+    }
+    env.diags.report(diagnostic);
+}
+
+/// Whether `qname` is `target` or has it among its ancestors.
+fn reaches(qname: &QName, target: &QName, graph: &ClassGraph) -> bool {
+    qname == target
+        || crate::find_in_ancestors(qname, graph, |class| (class == target).then_some(())).is_some()
+}
+
+/// Whether the block `block` declares the member `name` of `kind`.
+fn block_declares(block: &QName, name: &str, kind: MemberKind, table: &MemberTable) -> bool {
+    table.get(block).is_some_and(|members| match kind {
+        MemberKind::Method => members.methods.contains(name),
+        MemberKind::Const => members.consts.contains(name),
+        MemberKind::StaticProp => members.static_props.contains(name),
+        MemberKind::Prop => members.props.contains(name),
+    })
+}
+
+/// The `extend` block named in `imports` that adds the member `name` to
+/// `qname` or to one of its ancestors
+/// (`rule:classes/an-extend-block-adds-members-to-a-type`). A file reaches an
+/// added member only through a block its `use` list names, and a block's own
+/// body sees its own members.
+fn added_member(
+    qname: &QName,
+    name: &str,
+    kind: MemberKind,
+    imports: &FxHashMap<String, QName>,
+    env: &Env<'_>,
+) -> Option<QName> {
+    imports
+        .values()
+        .find(|block| {
+            env.graph
+                .block_target(block)
+                .is_some_and(|target| reaches(qname, target, env.graph))
+                && block_declares(block, name, kind, env.table)
+        })
+        .cloned()
+}
+
+/// The first block of the program, by name, that adds `name` to `qname`: the
+/// `use` line an unknown member's help offers.
+fn block_adding(qname: &QName, name: &str, kind: MemberKind, env: &Env<'_>) -> Option<QName> {
+    env.graph
+        .blocks()
+        .filter(|(block, target)| {
+            reaches(qname, target, env.graph) && block_declares(block, name, kind, env.table)
+        })
+        .map(|(block, _)| block.to_string())
+        .min()
+        .map(|block| QName::parse(&block))
 }
 
 /// The class a bare or qualified name on the left of a `::` names: inside an
@@ -2564,7 +2651,9 @@ fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     let Some(current) = ctx.current_class else {
         return;
     };
-    if record_member(current, name, MemberKind::Prop, env) {
+    if record_member(current, name, MemberKind::Prop, env)
+        || added_member(current, name, MemberKind::Prop, ctx.imports, env).is_some()
+    {
         return;
     }
     env.diags.report(

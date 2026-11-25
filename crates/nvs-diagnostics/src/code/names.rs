@@ -256,10 +256,10 @@ codes! {
     /// receiver's slots by index, so a program's subclass would hand it slots
     /// it never wrote.
     pub const E_CORE_CLASS_NOT_EXTENDABLE: Code = Code::new("E0329").card(
-        "Your class cannot extend a `Core` class, and cannot implement one. To add methods, \
-         write your own class and give it a property that contains the `Core` value. Your own \
-         error classes extend `RuntimeError`, `LogicError` or another error class that is not \
-         under `Core`.",
+        "Your class cannot extend a `Core` class, and cannot implement one. To add methods to a \
+         `Core` class, write an `extend` block: `extend Core\\Time\\Date as Name { … }`. Your \
+         own error classes extend `RuntimeError`, `LogicError` or another error class that is \
+         not under `Core`.",
     );
     /// A doc comment's `@param $name` naming no parameter of the declaration
     /// below it (`rule:tooling/doc-comment-tags-are-closed-and-checked`). Where

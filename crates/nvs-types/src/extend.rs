@@ -13,12 +13,14 @@
 //! per block whose target is under `Core`. All of it is compile time.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_hir::{QName, SymbolKind};
+use nvs_hir::{ClassGraph, QName, SymbolKind};
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, ExtendDecl, Modifier, PropertyHookKind, PropertyMember, Type,
     TypeAtom, TypeKind,
 };
+use rustc_hash::FxHashMap;
 
+use crate::signatures::{MethodSig, SignatureTable};
 use crate::{Env, span_text};
 
 /// Checks one `extend` block declared at file scope under `namespace`.
@@ -215,6 +217,91 @@ fn is_nullable(ty: &Type) -> bool {
         TypeKind::Atom(TypeAtom::Null) => true,
         _ => false,
     }
+}
+
+/// `imports` with the block `block` added under its short name: what a
+/// block's own body sees, since its members are visible inside it without a
+/// `use`. Cost: one copy of the file's `use` map per block, at compile time.
+pub(crate) fn imports_with_block(
+    imports: &FxHashMap<String, QName>,
+    block: &QName,
+) -> FxHashMap<String, QName> {
+    let mut imports = imports.clone();
+    imports.insert(block.short_name().to_owned(), block.clone());
+    imports
+}
+
+/// The blocks `imports` names that add members to `qname`: a block whose
+/// target is `qname` or one of its ancestors. A file reaches an added member
+/// only through a block its `use` list names.
+pub(crate) fn used_blocks<'a>(
+    qname: &'a QName,
+    imports: &'a FxHashMap<String, QName>,
+    graph: &'a ClassGraph,
+) -> impl Iterator<Item = &'a QName> + 'a {
+    imports.values().filter(move |block| {
+        graph
+            .block_target(block)
+            .is_some_and(|target| reaches(qname, target, graph))
+    })
+}
+
+/// Whether `qname` is `target` or has it among its ancestors.
+fn reaches(qname: &QName, target: &QName, graph: &ClassGraph) -> bool {
+    qname == target
+        || nvs_hir::find_in_ancestors(qname, graph, |class| (class == target).then_some(()))
+            .is_some()
+}
+
+/// The method `name` a block used in this file adds to `qname`, with the block
+/// that adds it. The type's own members are looked up first; this is the
+/// fallback when none of them has the name.
+pub(crate) fn added_method<'a>(
+    qname: &'a QName,
+    name: &str,
+    imports: &'a FxHashMap<String, QName>,
+    table: &'a SignatureTable,
+    graph: &'a ClassGraph,
+) -> Option<(&'a QName, &'a MethodSig)> {
+    used_blocks(qname, imports, graph)
+        .find_map(|block| Some((block, table.get(block)?.methods.get(name)?)))
+}
+
+/// The block used in this file that adds the constant `name` to `qname`.
+pub(crate) fn added_const<'a>(
+    qname: &'a QName,
+    name: &str,
+    imports: &'a FxHashMap<String, QName>,
+    table: &'a SignatureTable,
+    graph: &'a ClassGraph,
+) -> Option<&'a QName> {
+    used_blocks(qname, imports, graph).find(|block| {
+        table
+            .get(block)
+            .is_some_and(|sig| sig.constants.contains_key(name))
+    })
+}
+
+/// The block in the program that adds the member `name` to `qname`, for the
+/// help of an unknown member: a block the file does not use.
+pub(crate) fn unused_block_adding(
+    qname: &QName,
+    name: &str,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<QName> {
+    // The first by name, so the help does not depend on the map's order.
+    graph
+        .blocks()
+        .filter(|(block, target)| {
+            reaches(qname, target, graph)
+                && table.get(block).is_some_and(|sig| {
+                    sig.methods.contains_key(name) || sig.constants.contains_key(name)
+                })
+        })
+        .map(|(block, _)| block.to_string())
+        .min()
+        .map(|block| QName::parse(&block))
 }
 
 fn refuse(at: Span, what: &str, help: &str, env: &mut Env<'_>) {

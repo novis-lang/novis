@@ -280,6 +280,12 @@ static property of your own class), `readonly` on an added property, a stored pr
   only resolved entries. Static members and constants are also recorded in the `nvs-hir` member table
   (`record_member`, `crates/nvs-hir/src/members.rs:~2160`), or `E0309` fires before the checker runs.
 
+- **An added static method takes `0` in slot 0 on every target** (mine, stage 3, replacing the
+  class descriptor above). A `Core` class has no descriptor a unit can name, and one convention
+  keeps every call direct. Nothing in a block reads the called class, because `static::` is refused
+  there (stage 4), and `self::` in a block names the target itself (`called_class_set_at`). For the
+  same reason, stage 4 refuses `yield` in an added static method and in a block on an enum.
+
 ### Added properties
 
 - **A computed property is a property with a `get` hook and no stored value** (user). It compiles to a
@@ -469,18 +475,18 @@ classes are the ones that goal makes compare by value.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-types/src/signatures.rs:2806`: `resolve_method_ref` falls back to the blocks the
+- [x] `crates/nvs-types/src/signatures.rs:2806`: `resolve_method_ref` falls back to the blocks the
   current file uses, after the type's own ancestors; the file's used blocks come from its `use` list
   (`crates/nvs-hir/src/imports.rs:1`).
-- [ ] `crates/nvs-types/src/expr/calls.rs:42`, `:88`, `:273`, `:557`, `crates/nvs-types/src/expr/members.rs:77`:
+- [x] `crates/nvs-types/src/expr/calls.rs:42`, `:88`, `:273`, `:557`, `crates/nvs-types/src/expr/members.rs:77`:
   instance, nullsafe, method-reference and static calls and constants reach an added member and record
   a resolved call. `crates/nvs-hir/src/members.rs:2160`: added statics and constants recorded.
-- [ ] `crates/nvs-types/src/expr/members.rs:3042`: visibility with the block as the place.
+- [x] `crates/nvs-types/src/expr/members.rs:3042`: visibility with the block as the place.
   `members.rs:3083`: the `E0405`/`E0309` help that names the block and its `use`.
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1722` and `crates/nvs-ir/src/lower/expr.rs:4910`, `:5327`: a block's
+- [x] `crates/nvs-ir/src/lower/mod.rs:1722` and `crates/nvs-ir/src/lower/expr.rs:4910`, `:5327`: a block's
   members lower as functions labelled `<Block>::<name>`; calls are direct. The IR test the check
   `direct-call` names, run once by name.
-- [ ] `crates/nvs-diagnostics/src/code/names.rs:254`: `E0329`'s help points at `extend`.
+- [x] `crates/nvs-diagnostics/src/code/names.rs:254`: `E0329`'s help points at `extend`.
 - [ ] The five cases the check `added-calls` names and the two the check `added-visibility` names,
   each run once by name. `another-package` cases write a `--FILE package.toml--` and a file under it.
 
@@ -577,44 +583,53 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 1 is done (`b8adb756bd`). Stage 2 is done: the parser item in `39429e359e`, the rest in the
-`feat(lang): an enum method reads its case as $this` commit after it. `looper check --name enum-body`
-is green, and so is the new reject case
-`tests/conformance/reject/an-enum-constant-named-as-a-case-and-an-enum-generator-do-not-compile.nvst`.
+Stages 1 and 2 are done. Stage 3's code is in, in the `feat(lang): an added method …` commit,
+with build and clippy green. `added_method_lowers_to_a_direct_call` passes. The five `added-calls`
+cases pass, and so does
+`reject/an-added-method-cannot-read-a-private-member-of-its-type.nvst`, each run once with
+`target/debug/nvs.exe test <case>`. One case is red:
+`reject/an-added-method-without-its-use-names-the-use-to-add.nvst`. The compiler prints exactly
+the two errors and helps the case expects, but the EXPECTF match fails. The cause is not found
+yet. It may be that a `%A` followed directly by a `  = help:` line needs a different pattern, or
+it may be the `\B` inside `Shop\BusinessDays`.
 
-How an enum member runs now, which stage 3 reuses for a block on an enum:
+How it works:
 
-- A constant that is no case reads through the class-constant arm of `infer_class_const`
-  (`crates/nvs-types/src/expr/members.rs:117`, the `is_enum` narrowing above the `match`).
-- `lower_method_of` (`crates/nvs-ir/src/lower/mod.rs`, beside `lower_method`) takes an
-  `Option<EnumRepr>` receiver: `Ty::Enum` for an instance method, `Ty::Int` `0` for a static one.
-  The program walk in `lower_program_as` lowers file-scope and class-owned enum bodies through it.
-- `lower_static_call` and `lower_method_call` (`crates/nvs-ir/src/lower/expr.rs`) test
-  `self.enums.get(&call.class)` and pass the `0` or the case, direct, never a descriptor.
-  `lower_callable` (`anon_fn.rs`) reads an enum receiver from `FCC_RECV` as `Ty::Enum`, no retain.
-- `collect_owned_enum_members` (`crates/nvs-types/src/signatures.rs`) and `owned_enum_in_scope`
-  (`crates/nvs-hir/src/resolve.rs`) make a class-owned enum's body work as a file-scope one's.
-
-`cargo fmt` reformatted five stage 1 files; that is its own `chore(lang)` commit.
-
-The E0218 and E0220 cards and help changed (`rejected_php.rs`), so `site --check review` may name
-their help keys red until stage 7 restamps them.
+- **Lookup.** `crates/nvs-types/src/extend.rs` has `used_blocks`, `added_method`, `added_const`,
+  `unused_block_adding` and `imports_with_block`. A file's used blocks are the values of its
+  `ctx.imports` that `ClassGraph::block_target` knows. The block's own body gets the block added to
+  its imports. `crates/nvs-hir/src/members.rs` has `added_member` and `block_adding`, with the same
+  rule for `::` (E0309) and `$this->prop`.
+- **Signatures.** `collect_stmts` (`signatures.rs`) has an `ExtendDecl` arm. It stores members
+  under the block's key with `ctx.current_class` = target, and sets `ClassSignature::added_to`.
+  `resolved_call` copies that field into `ResolvedCall::added_to`, and `ResolvedCall::receiver_class()`
+  gives the target.
+- **Checking bodies.** `check.rs` has an `ExtendDecl` arm. `Ctx::current_class` is the target,
+  so `$this` and `self` name it, and `class_of_ctx` now also returns a `Core` enum. The new
+  `Env::extend_block` is the place `is_visible_here` and the E0471 label judge from, and the
+  label `check_method` records (`<Block>::<name>`). `called_class_set_at` makes `self::` inside a
+  block name the target.
+- **IR.** `ExprTypeTable::extend_target` (keyed by the block's name span) gives the walk in
+  `lower_program_as` the target. An added method lowers through `lower_method_of`, with the
+  enum's representation as the receiver, or `Some(EnumRepr::Int)` for a static method on a class
+  target. Calls are direct.
+- `E0329`'s card and its diagnostic (`hierarchy.rs`) point at `extend`. Its help key needs a
+  restamp in stage 7.
 
 ### Next
 
-Stage 3, one session. Its items are the anchors.
+1. Fix the red case above. Run it alone with
+   `target/debug/nvs.exe test tests/conformance/reject/an-added-method-without-its-use-names-the-use-to-add.nvst`,
+   and compare it with `tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst:34`.
+   That case matches a help line that has backslashes. Then tick stage 3's last item, run
+   `looper check --name added-visibility` and `added-calls` once, and set stage 3 done.
+2. Stage 4, starting with collisions (`crates/nvs-types/src/extend.rs` `check_block`), `static::`
+   refused in a block, and `yield` refused in an added static method and in a block on an enum.
+   The lowering asserts against both: a static added method takes `0`, not a descriptor.
+   Then unions: `infer_union_method_call` (`calls.rs:~395`) does not consult blocks yet.
 
-1. `crates/nvs-types/src/signatures.rs:2806` `resolve_method_ref`: fall back to the blocks the file
-   uses. A block's members are collected under the block's own key, and the lookup maps
-   `<Type>` to the blocks used in this file.
-2. `crates/nvs-types/src/expr/calls.rs` and `members.rs:77`: every call form and a constant records a
-   resolved call whose class is the block, so `nvs-ir` labels it `<Block>::<name>`.
-3. `crates/nvs-hir/src/members.rs:2582` `record_member`: added statics and constants, or E0309.
-4. `crates/nvs-ir/src/lower/mod.rs` walk: an `ExtendDecl` arm that lowers each method through
-   `lower_method_of` with the receiver of its target: object, class descriptor, or the enum's
-   integer. The call sites in `expr.rs` then need the block's target class to pick slot 0, since
-   `call.class` names the block, not the enum. Then the `direct-call` IR test, `added-calls` and
-   `added-visibility` cases, and `E0329`'s help.
+Tests that may go red: any case pinning E0329's diagnostic with no `%A` after its primary label,
+because the diagnostic now has a help line.
 
 ### Backlog
 

@@ -787,6 +787,12 @@ pub(crate) struct Env<'a> {
     /// whether the method is `static`, so the reference skips `E0778`. Marked
     /// and read as [`Self::method_name_args`] is.
     pub spawn_entry_args: FxHashSet<Span>,
+    /// The `extend` block whose body is being checked, if any
+    /// (`rule:classes/an-extend-block-adds-members-to-a-type`). Inside one,
+    /// `Ctx::current_class` is the extended type, so `$this` and `self` name it,
+    /// and this is the place visibility is judged from, so the body sees the
+    /// type's `public` members and its own `private` ones.
+    pub extend_block: Option<QName>,
 }
 
 pub(crate) use nvs_diagnostics::span_text;

@@ -1,0 +1,51 @@
+--TEST--
+an `extend` block's body sees only what code outside its type sees: a `private` property and a `private` method of the extended class do not compile there, as anywhere outside the class — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use App\OrderTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    public function secretTotal(): int {
+        return $this->secret;
+    }
+
+    public function secretCode(): string {
+        return $this->code();
+    }
+}
+
+echo (new Order())->secretTotal(), "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    private int $secret = 7;
+
+    private function code(): string
+    {
+        return "x" . $this->secret;
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Acme\Shop\Order::$secret` is `private`, so only `Acme\Shop\Order`'s own bodies reach it
+%A
+   |                ^^^^^^^^^^^^^ this access is inside `App\OrderTools`
+%A
+error[E0471]: `Acme\Shop\Order::code()` is `private`, so only `Acme\Shop\Order`'s own bodies reach it
+%A
+   |                       ^^^^ this access is inside `App\OrderTools`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

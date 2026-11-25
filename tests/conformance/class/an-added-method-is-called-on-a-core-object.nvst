@@ -1,0 +1,37 @@
+--TEST--
+an `extend` block adds instance methods to a `Core` class: a file that uses the block calls them on any instance, an added method calls the type's own public methods through `$this`, and a `private` added method is called from inside its block — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Core\Time\Weekday;
+use Core\Unit;
+use Shop\BusinessDays;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return !$this->isWeekend();
+    }
+
+    public function nextBusinessDay(): Date {
+        var $day = $this->plus(1, Unit::Day);
+        while (!$day->isBusinessDay()) {
+            $day = $day->plus(1, Unit::Day);
+        }
+        return $day;
+    }
+
+    private function isWeekend(): bool {
+        return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
+    }
+}
+
+var $saturday = Date::at(2026, 9, 19);
+echo $saturday->isBusinessDay() ? "yes" : "no", "\n";
+echo Date::at(2026, 9, 17)->isBusinessDay() ? "yes" : "no", "\n";
+echo $saturday->nextBusinessDay()->day(), "\n";
+--EXPECT--
+no
+yes
+21

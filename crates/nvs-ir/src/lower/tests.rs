@@ -7651,3 +7651,41 @@ bool $same = $a == $b;
     assert_eq!(text.matches("helper.identical").count(), 0, "{text}");
     assert!(text.contains("= eq "), "{text}");
 }
+
+/// `rule:classes/an-extend-block-adds-members-to-a-type`: an added method is
+/// compiled under its block's label, and every call of it, instance, static
+/// or through `self::`, is one direct call of that function. A static one
+/// takes a `0` in slot 0, never a class descriptor.
+#[test]
+fn added_method_lowers_to_a_direct_call() {
+    let src = "<?nvs\nnamespace Shop;\nuse Core\\Time\\Date;\nuse Shop\\Tools;\n\
+               extend Date as Tools {\n  \
+               public function isFirst(): bool { return $this->day() == 1; }\n  \
+               public static function make(): Date { return Date::at(2026, 1, 1); }\n  \
+               public static function check(): bool { return self::make()->isFirst(); }\n}\n\
+               echo Date::make()->isFirst() ? \"y\" : \"n\";\n";
+    let program = lower_whole_file_with_src(src).0;
+    for label in [
+        "Shop\\Tools::isFirst",
+        "Shop\\Tools::make",
+        "Shop\\Tools::check",
+    ] {
+        assert!(
+            program.functions.iter().any(|f| f.name == label),
+            "no function `{label}`"
+        );
+    }
+    let is_first = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Shop\\Tools::isFirst");
+    let make = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Shop\\Tools::make");
+    let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
+    let descriptor = |kind: &InstKind| {
+        matches!(
+            kind,
+            InstKind::ClassDescConst { .. } | InstKind::ClassDescOf { .. }
+        )
+    };
+    assert_eq!(insts_where(&program, is_first), 2);
+    assert_eq!(insts_where(&program, make), 2);
+    assert_eq!(insts_where(&program, late), 0);
+    assert_eq!(insts_where(&program, descriptor), 0);
+}

@@ -5166,46 +5166,49 @@ impl<'a> Lowering<'a> {
         // is the receiver's own — see `nvs_runtime::object`'s module
         // docs. Nothing is retained for it; a descriptor is not
         // refcounted.
-        let receiver_v = if is_static && self.enums.get(&call.class).is_some() {
-            // An enum's static method, reached through a case: slot 0 takes
-            // the `0` every call of one passes (`lower_method_of`).
-            self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0
-        } else if is_static {
-            // `rule:classes/revocable-objects`: the call uses the object to
-            // find its class, and that is a use, so a revoked one throws.
-            let class = call.class.to_string();
-            self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
-            let (v, _) = self.emit(
-                *cur,
-                Ty::ClassDesc,
-                InstKind::ClassDescOf { object: object_v },
-            );
-            v
-        } else {
-            // The receiver is parameter 0, so it is an ordinary
-            // argument for ownership purposes: Novis's convention is
-            // that the caller retains an aliasing argument and the
-            // callee releases every refcounted parameter at scope exit
-            // (see `Self::release_all_locals`). `$this->m()` and
-            // `$obj->m()` both read an existing slot, so both need the
-            // retain `Self::lower_call_args` already inserts for one.
-            let aliasing = self.sole_operand_borrowed(object);
-            self.account_for_arg(
-                object_v,
-                receiver_ty,
-                ArgOwnership::Transferred,
-                aliasing,
-                *cur,
-            );
-            object_v
-        };
+        // An enum's static method and a static method an `extend` block adds
+        // take a `0` in slot 0 (`super::lower_method_of`).
+        let receiver_v =
+            if is_static && (call.added_to.is_some() || self.enums.get(&call.class).is_some()) {
+                // An enum's static method, reached through a case: slot 0 takes
+                // the `0` every call of one passes (`lower_method_of`).
+                self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0
+            } else if is_static {
+                // `rule:classes/revocable-objects`: the call uses the object to
+                // find its class, and that is a use, so a revoked one throws.
+                let class = call.class.to_string();
+                self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
+                let (v, _) = self.emit(
+                    *cur,
+                    Ty::ClassDesc,
+                    InstKind::ClassDescOf { object: object_v },
+                );
+                v
+            } else {
+                // The receiver is parameter 0, so it is an ordinary
+                // argument for ownership purposes: Novis's convention is
+                // that the caller retains an aliasing argument and the
+                // callee releases every refcounted parameter at scope exit
+                // (see `Self::release_all_locals`). `$this->m()` and
+                // `$obj->m()` both read an existing slot, so both need the
+                // retain `Self::lower_call_args` already inserts for one.
+                let aliasing = self.sole_operand_borrowed(object);
+                self.account_for_arg(
+                    object_v,
+                    receiver_ty,
+                    ArgOwnership::Transferred,
+                    aliasing,
+                    *cur,
+                );
+                object_v
+            };
         // `rule:classes/revocable-objects`: a call of a revoked object throws
         // before its arguments run. `revoke()` and `isRevoked()` compile no
         // check, and the receiver is staged above, so a throw releases it.
         let intrinsic = call.class.to_string() == "Revocable"
             && matches!(call.method.as_str(), "revoke" | "isRevoked");
         if !is_static && !intrinsic {
-            let class = call.class.to_string();
+            let class = call.receiver_class().to_string();
             self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
         }
         // Every `inout $x` this call stages is written back below, in the block the
@@ -5535,7 +5538,9 @@ impl<'a> Lowering<'a> {
         // An enum's method is never overridden and the enum has no descriptor,
         // so its call is always direct, and a static one passes `0` in slot 0
         // (`lower_method_of`).
-        let on_enum = self.enums.get(&call.class).is_some();
+        // An `extend` block's method is never late-bound, and its static
+        // method takes a `0` in slot 0, as an enum's does.
+        let on_enum = call.added_to.is_some() || self.enums.get(&call.class).is_some();
         let late_bound = !on_enum
             && ((matches!(class.kind, ExprKind::StaticExpr)
                 && (call.overridden || !cheaper_forms_on()))

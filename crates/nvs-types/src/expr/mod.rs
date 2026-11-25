@@ -1491,6 +1491,12 @@ pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
                 let backing = env.enums.backing_of(qname);
                 env.interner.enum_(qname.clone(), backing)
             }
+            // A `Core` enum has no symbol, and an `extend` block's body can
+            // name one.
+            None if qname.is_core() && env.enums.get(qname).is_some() => {
+                let backing = env.enums.backing_of(qname);
+                env.interner.enum_(qname.clone(), backing)
+            }
             _ => env.interner.class(qname.clone()),
         },
         None => env.interner.mixed(),

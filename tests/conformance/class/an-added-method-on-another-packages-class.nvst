@@ -1,0 +1,64 @@
+--TEST--
+an `extend` block adds methods and a constant to a class of another package: the application calls them on the class and on its subclass, through `::` on the class's name, and the block's body uses the class's public members — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace App;
+
+use Acme\Shop\Order;
+use Acme\Shop\GiftOrder;
+use App\OrderTools;
+
+autoload 'Acme\Shop' from './vendor/acme/shop/src';
+
+extend Order as OrderTools {
+    public const int LIMIT = 100;
+
+    public function isLarge(): bool {
+        return $this->total > self::LIMIT;
+    }
+
+    public function summary(): string {
+        return $this->label() . ": " . ($this->isLarge() ? "large" : "small");
+    }
+
+    public static function empty(): Order {
+        return new Order(0);
+    }
+}
+
+echo (new Order(250))->summary(), "\n";
+echo (new GiftOrder(40))->summary(), "\n";
+echo Order::empty()->isLarge() ? "large" : "small", "\n";
+echo Order::LIMIT, "\n";
+--FILE vendor/acme/shop/src/Order.nvs--
+<?nvs
+namespace Acme\Shop;
+
+class Order
+{
+    public function constructor(public int $total) {}
+
+    public function label(): string
+    {
+        return "order";
+    }
+}
+--FILE vendor/acme/shop/src/GiftOrder.nvs--
+<?nvs
+namespace Acme\Shop;
+
+final class GiftOrder extends Order
+{
+    public function label(): string
+    {
+        return "gift";
+    }
+}
+--FILE vendor/acme/shop/package.toml--
+[package]
+name = 'Acme\Shop'
+--EXPECT--
+order: large
+gift: small
+small
+100

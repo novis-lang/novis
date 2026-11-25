@@ -1,0 +1,51 @@
+--TEST--
+an added method or static method is reached only in a file that uses its block: a file without the `use` line gets the ordinary unknown-member error, and its help names the block and the `use` line to add — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+autoload 'Shop' from './shop';
+
+use Core\Time\Date;
+
+echo Shop\Report::today(), "\n";
+echo Date::at(2026, 9, 19)->isBusinessDay() ? "yes" : "no", "\n";
+echo Date::newYear(2026)->year(), "\n";
+--FILE shop/Report.nvs--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\BusinessDays;
+
+final class Report
+{
+    public static function today(): string
+    {
+        return Date::at(2026, 9, 17)->isBusinessDay() ? "open" : "closed";
+    }
+}
+--FILE shop/BusinessDays.nvs--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+extend Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+
+    public static function newYear(int $year): Date {
+        return Date::at($year, 1, 1);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Time\Date` has no method named `isBusinessDay`
+%A
+  = help: the `extend` block `Shop\BusinessDays` adds `isBusinessDay`. Write `use Shop\BusinessDays;` at the top of this file to call it
+error[E0405]: `Core\Time\Date` has no member named `newYear`
+%A
+  = help: the `extend` block `Shop\BusinessDays` adds `newYear`. Write `use Shop\BusinessDays;` at the top of this file to call it
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

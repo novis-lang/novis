@@ -109,7 +109,9 @@ pub(crate) fn infer_method_call(
     let resolved = match (receiver_class.as_ref(), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
-            let found = resolve_method_ref(qname, &name, signatures, graph);
+            let found = resolve_method_ref(qname, &name, signatures, graph).or_else(|| {
+                crate::extend::added_method(qname, &name, ctx.imports, signatures, graph)
+            });
             // A `Core` receiver is held to the registry here for the same reason
             // the static path holds one at [`infer_static_call`]: the registry
             // states every member `Core` has, so a name it does not hold is
@@ -621,16 +623,25 @@ pub(crate) fn infer_static_call(
                     // so a private handler may be linked from anywhere.
                     let link_target = matches!(args, CallArgs::MethodRef)
                         && env.link_target_args.contains(&expr.span);
-                    let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
-                        |(owner, sig)| {
+                    let found = resolve_method(&qname, &name, env.signatures, env.graph)
+                        .or_else(|| {
+                            crate::extend::added_method(
+                                &qname,
+                                &name,
+                                ctx.imports,
+                                env.signatures,
+                                env.graph,
+                            )
+                            .map(|(block, sig)| (block.clone(), sig.clone()))
+                        })
+                        .map(|(owner, sig)| {
                             if !link_target {
                                 check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
                             }
                             // The declaring class — see [`infer_method_call`] for why
                             // the receiver's own is the wrong label.
                             (owner, name.clone(), sig)
-                        },
-                    );
+                        });
                     // `rule:classes/constructor-is-a-method-named-constructor`:
                     // `parent::constructor(...)` written in a constructor's own
                     // body is the one call by name, and `crate::ctor_init`
@@ -1124,6 +1135,9 @@ fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QNa
     match &class.kind {
         ExprKind::ConstFetch(_) => resolve_class_expr(class, ctx, env),
         ExprKind::SelfExpr | ExprKind::ParentExpr if ctx.in_anon_fn => ctx.current_class.cloned(),
+        // An `extend` block's static method holds no called class: `self::`
+        // names the extended type itself.
+        ExprKind::SelfExpr if env.extend_block.is_some() => ctx.current_class.cloned(),
         _ => None,
     }
 }
@@ -2003,7 +2017,9 @@ pub(crate) fn resolved_call(
 ) -> ResolvedCall {
     let overridden = signatures.is_overridden(&qname, &name);
     let extension = signatures.is_extension(&qname);
+    let added_to = signatures.get(&qname).and_then(|sig| sig.added_to.clone());
     ResolvedCall {
+        added_to,
         extension,
         class: qname,
         method: name,

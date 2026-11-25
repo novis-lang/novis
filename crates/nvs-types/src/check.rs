@@ -605,6 +605,7 @@ fn file_env<'a>(
         link_target_args: FxHashSet::default(),
         argument_element_types: rustc_hash::FxHashMap::default(),
         spawn_entry_args: FxHashSet::default(),
+        extend_block: None,
         body_writers: crate::response::BodyWriters::default(),
         in_call_argument: false,
         secret_in_arguments: false,
@@ -966,7 +967,31 @@ pub(crate) fn check_stmts(
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
             // An `extend` block: its target and which members it may add
             // (`rule:classes/an-extend-block-adds-members-to-a-type`).
-            StmtKind::ExtendDecl(decl) => crate::extend::check_block(decl, &current_ns, env),
+            // Its bodies are checked with `$this` and `self` naming the extended
+            // type, the block as the place visibility is judged from, and the
+            // block's own members visible without a `use`.
+            StmtKind::ExtendDecl(decl) => {
+                crate::extend::check_block(decl, &current_ns, env);
+                let block = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                if let Some(target) = env.graph.block_target(&block).cloned() {
+                    env.exprs
+                        .record_extend_target(decl.name.span, target.clone());
+                    let imports = crate::extend::imports_with_block(&current_imports, &block);
+                    let ctx = Ctx {
+                        namespace: &current_ns,
+                        imports: &imports,
+                        current_class: Some(&target),
+                        current_hook: None,
+                        generator_elem: None,
+                        in_constructor: false,
+                        in_anon_fn: false,
+                        in_test_code: false,
+                    };
+                    let outer = env.extend_block.replace(block);
+                    check_members(&decl.members, &ctx, env);
+                    env.extend_block = outer;
+                }
+            }
             // An `attribute` declaration: its site list and its fields.
             StmtKind::AttributeDecl(decl) => {
                 let ctx = Ctx {
@@ -1419,18 +1444,23 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // no body still has a label, and nothing here needs a body to spell one.
     // See `ExprTypeTable::method_label` for why the definition side of the
     // label is recorded at all.
-    let label = ctx
-        .current_class
+    // A method an `extend` block adds is labelled by its block.
+    let owner = env
+        .extend_block
+        .clone()
+        .or_else(|| ctx.current_class.cloned());
+    let label = owner
+        .as_ref()
         .map(|class| format!("{class}::{}", span_text(env.src, m.name)));
     if let Some(label) = &label {
         env.exprs.record_method(m.name, label.clone());
-        if let Some(class) = ctx.current_class
+        if let Some(class) = &owner
             && env.test_code.contains(class, span_text(env.src, m.name))
         {
             env.exprs.record_test_code(label.clone());
         }
     }
-    if let Some(class) = ctx.current_class {
+    if let Some(class) = &owner {
         crate::deprecated::record_entry(class, span_text(env.src, m.name), m.name, env);
     }
 

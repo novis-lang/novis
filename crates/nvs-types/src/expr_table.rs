@@ -101,6 +101,11 @@ pub struct ResolvedCall {
     /// or `new` target's own class, or an ancestor it inherited the method
     /// from; never `self`/`static`/`parent` unresolved.
     pub class: QName,
+    /// The type an `extend` block adds this method to, when [`Self::class`]
+    /// is the block (`rule:classes/an-extend-block-adds-members-to-a-type`).
+    /// The call is always direct, and its receiver in slot 0 is this type's:
+    /// the object, the case's integer of an enum, or `0` for a static method.
+    pub added_to: Option<QName>,
     /// The method's own name.
     pub method: String,
     /// Each parameter's declared type, positional — [`crate::signatures::MethodSig::params`].
@@ -312,6 +317,13 @@ pub struct ResolvedCall {
 }
 
 impl ResolvedCall {
+    /// The type of the receiver in slot 0: [`Self::added_to`] for a member an
+    /// `extend` block adds, and [`Self::class`] for every other call.
+    #[must_use]
+    pub fn receiver_class(&self) -> &QName {
+        self.added_to.as_ref().unwrap_or(&self.class)
+    }
+
     /// What the text of the parameter filled by parameter index `index`
     /// names — [`crate::signatures::MethodSig::text_at`]'s answer, kept with
     /// the call.
@@ -1705,6 +1717,8 @@ pub struct ExprTypeTable {
     spans: Vec<Span>,
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
+    /// Each `extend` block's target, keyed by the span of the block's name.
+    extend_targets: FxHashMap<Span, QName>,
     unresolved_calls: FxHashMap<Span, UnresolvedCall>,
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
@@ -1909,6 +1923,7 @@ impl ExprTypeTable {
             spans,
             by_span,
             methods,
+            extend_targets,
             unresolved_calls,
             types,
             float_widened,
@@ -1980,6 +1995,7 @@ impl ExprTypeTable {
                 .map(|(span, id)| (span, ExprId(id.0 + offset))),
         );
         self.methods.extend(methods);
+        self.extend_targets.extend(extend_targets);
         self.unresolved_calls.extend(unresolved_calls);
         self.types.extend(types);
         self.float_widened.extend(float_widened);
@@ -2537,6 +2553,20 @@ impl ExprTypeTable {
     /// declaration is recorded in a table otherwise about expressions.
     pub(crate) fn record_method(&mut self, span: Span, label: String) {
         self.methods.insert(span, label);
+    }
+
+    /// Records the type the `extend` block whose name sits at `span` adds
+    /// members to.
+    pub(crate) fn record_extend_target(&mut self, span: Span, target: QName) {
+        self.extend_targets.insert(span, target);
+    }
+
+    /// The type the `extend` block whose name sits at `span` adds members to,
+    /// or `None` for a block whose target did not resolve. `nvs-ir` reads it
+    /// to compile each added method with its target's receiver.
+    #[must_use]
+    pub fn extend_target(&self, span: Span) -> Option<&QName> {
+        self.extend_targets.get(&span)
     }
 
     /// Records that the expression at `span` uses deprecated code and checks

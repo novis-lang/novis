@@ -1,0 +1,39 @@
+--TEST--
+an `extend` block adds a static method and a constant to a `Core` class: a file that uses the block reaches both through the type's name, the block's body reaches them through `self::`, and a static method of the block is a method reference — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Shop\Calendar;
+
+extend Date as Calendar {
+    public const int MONTHS = 12;
+
+    private const uint FIRST = 1;
+
+    public static function newYear(int $year): Date {
+        return Date::at($year, self::FIRST, self::FIRST);
+    }
+
+    public static function lastMonth(): int {
+        return self::MONTHS;
+    }
+
+    public static function newYearOfNext(int $year): Date {
+        return self::newYear($year + 1);
+    }
+}
+
+echo Date::MONTHS, "\n";
+echo Date::lastMonth(), "\n";
+echo Date::newYear(2026)->year(), "-", Date::newYear(2026)->month(), "\n";
+echo Date::newYearOfNext(2026)->year(), "\n";
+var $make = Date::newYear;
+echo $make(2030)->year(), "\n";
+--EXPECT--
+12
+12
+2026-1
+2027
+2030

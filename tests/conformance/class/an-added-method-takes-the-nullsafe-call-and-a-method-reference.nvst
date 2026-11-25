@@ -1,0 +1,37 @@
+--TEST--
+an added method is called with `?->` on a nullable value, where `null` skips the call, and it is a method reference on an object and on an enum case, which calls it later — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+use Core\Time\Weekday;
+use Shop\DateTools;
+use Shop\WeekdayTools;
+
+extend Date as DateTools {
+    public function isLeapDay(): bool {
+        return $this->month() == 2 && $this->day() == 29;
+    }
+}
+
+extend Weekday as WeekdayTools {
+    public function isFriday(): bool {
+        return $this == Weekday::Friday;
+    }
+}
+
+?Date $none = null;
+?Date $leap = Date::at(2024, 2, 29);
+echo $none?->isLeapDay() ?? "null", "\n";
+echo $leap?->isLeapDay() ? "leap" : "plain", "\n";
+
+var $check = Date::at(2023, 3, 1)->isLeapDay(...);
+echo $check() ? "leap" : "plain", "\n";
+var $friday = Weekday::Friday->isFriday(...);
+echo $friday() ? "friday" : "other", "\n";
+--EXPECT--
+null
+leap
+plain
+friday

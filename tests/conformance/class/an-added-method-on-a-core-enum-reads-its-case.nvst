@@ -1,0 +1,38 @@
+--TEST--
+an `extend` block adds methods and a constant to a `Core` enum: `$this` in an added method is the case, an added static method and constant are reached through the enum's name, and a case typed as itself takes the added method too — `rule:classes/an-extend-block-adds-members-to-a-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Weekday;
+use Shop\WeekdayTools;
+
+extend Weekday as WeekdayTools {
+    public const string KIND = "day";
+
+    public function isWeekend(): bool {
+        return $this == Weekday::Saturday || $this == Weekday::Sunday;
+    }
+
+    public function label(): string {
+        return ($this->isWeekend() ? "weekend " : "work ") . self::KIND;
+    }
+
+    public static function first(): Weekday {
+        return Weekday::Monday;
+    }
+}
+
+array<Weekday> $days = [Weekday::Friday, Weekday::Saturday];
+foreach ($days as Weekday $day) {
+    echo $day->label(), "\n";
+}
+echo Weekday::first()->isWeekend() ? "yes" : "no", "\n";
+echo Weekday::Sunday->isWeekend() ? "yes" : "no", "\n";
+echo Weekday::KIND, "\n";
+--EXPECT--
+work day
+weekend day
+no
+yes
+day

@@ -1362,6 +1362,7 @@ mod tests {
             link_target_args: rustc_hash::FxHashSet::default(),
             argument_element_types: rustc_hash::FxHashMap::default(),
             spawn_entry_args: rustc_hash::FxHashSet::default(),
+            extend_block: None,
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             secret_in_arguments: false,
