@@ -384,7 +384,7 @@ fn infer_kind(
         ExprKind::SelfExpr | ExprKind::StaticExpr => class_of_ctx(ctx, env),
         ExprKind::ParentExpr => env.interner.mixed(),
         ExprKind::ArrayLiteral(items) => {
-            check_array_literal(items, expected, live, scope, ctx, env)
+            check_array_literal(expr.span, items, expected, live, scope, ctx, env)
         }
         ExprKind::AnonObject(fields) => {
             check_anon_object(expr.span, fields, expected, live, scope, ctx, env)

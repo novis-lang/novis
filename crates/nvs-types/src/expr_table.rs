@@ -1806,6 +1806,7 @@ pub struct ExprTypeTable {
     attribute_names: Vec<(Span, QName)>,
     attribute_shapes: FxHashMap<Span, TypeId>,
     object_shapes: FxHashMap<Span, TypeId>,
+    keyed_literals: FxHashMap<Span, TypeId>,
     shape_field_docs: FxHashMap<(TypeId, String), nvs_syntax::ast::DocComment>,
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
@@ -2008,6 +2009,7 @@ impl ExprTypeTable {
             attribute_names,
             attribute_shapes,
             object_shapes,
+            keyed_literals,
             shape_field_docs,
             deprecation_checks,
             deprecated_entries,
@@ -2081,6 +2083,7 @@ impl ExprTypeTable {
         self.attribute_names.extend(attribute_names);
         self.attribute_shapes.extend(attribute_shapes);
         self.object_shapes.extend(object_shapes);
+        self.keyed_literals.extend(keyed_literals);
         for (key, doc) in shape_field_docs {
             self.shape_field_docs.entry(key).or_insert(doc);
         }
@@ -2182,6 +2185,7 @@ impl ExprTypeTable {
         section("attribute_names", sorted(&self.attribute_names));
         section("attribute_shapes", sorted(&self.attribute_shapes));
         section("object_shapes", sorted(&self.object_shapes));
+        section("keyed_literals", sorted(&self.keyed_literals));
         section("shape_field_docs", sorted(&self.shape_field_docs));
         section("deprecation_checks", sorted(&self.deprecation_checks));
         section("deprecated_entries", sorted(&self.deprecated_entries));
@@ -2364,6 +2368,20 @@ impl ExprTypeTable {
     #[must_use]
     pub fn object_shape(&self, span: Span) -> Option<TypeId> {
         self.object_shapes.get(&span).copied()
+    }
+
+    /// Records that the array literal at `span` is written where an
+    /// `array<E, T>` is expected, as the enum `E`. An editor offers `E`'s cases
+    /// at a key of it. One entry per such literal, while compiling only.
+    pub(crate) fn record_keyed_literal(&mut self, span: Span, key: TypeId) {
+        self.keyed_literals.insert(span, key);
+    }
+
+    /// The enum whose cases key the array literal written at `span`, or
+    /// `None` where no `array<E, T>` is expected there.
+    #[must_use]
+    pub fn keyed_literal(&self, span: Span) -> Option<TypeId> {
+        self.keyed_literals.get(&span).copied()
     }
 
     /// Records the `///` run above the field `name` of a written shape type.

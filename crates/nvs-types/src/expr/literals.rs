@@ -1172,6 +1172,7 @@ fn report_duplicate_shape_field(field: &AnonObjectField, name: &str, env: &mut E
 }
 
 pub(crate) fn check_array_literal(
+    span: Span,
     items: &[ArrayItem],
     expected: Option<TypeId>,
     live: &mut Live,
@@ -1196,6 +1197,10 @@ pub(crate) fn check_array_literal(
     // cases, and an element with no key, or a spread, is refused, because
     // both append under a number key.
     let key_expected = expected.and_then(|id| env.interner.array_enum_key(id));
+    if let Some(key) = key_expected {
+        // Read by an editor, for the cases it offers at a key.
+        env.exprs.record_keyed_literal(span, key);
+    }
     // A literal written as the argument of a dispatching `Core` parameter is
     // judged element by element, since each element is passed on as a value
     // of its own (`nvs_stdlib::registry::CoreTy::Dispatched`). Taken here, so

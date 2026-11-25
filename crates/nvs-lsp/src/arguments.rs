@@ -71,7 +71,7 @@ const THROWN: &[(&str, &str)] = &[("Core\\Test", "assertThrows")];
 
 /// The call kinds an argument is written inside, as `nvs_syntax::walk` spells
 /// them.
-const CALLS: &[&str] = &["Call", "MethodCall", "StaticCall", "New"];
+pub(crate) const CALLS: &[&str] = &["Call", "MethodCall", "StaticCall", "New"];
 
 /// One string literal at a marked parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -235,37 +235,12 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
 /// Whether the cursor at `offset` writes the method reference that names the
 /// route of a `Core\Router` link or of `Core\Router\Match::is`.
 ///
-/// The call is the innermost one in `path` whose argument list the cursor is
-/// inside. A link whose route the table holds is recorded as
-/// `nvs_types::ExprInfo::RouteLink` or `RouteIs` over the call, and carries
-/// the call it was recorded over; any other is a resolved call. The argument
-/// the cursor is in fills the parameter called `route`, or, at a call of a
-/// user method that takes a route, the `Target` parameter its
-/// `nvs_types::ResolvedCall::route_slots` names. A cursor in no written
-/// argument is writing that parameter where exactly as many arguments end
-/// before it as come before that parameter.
+/// The argument the cursor is in ([`param_at`]) fills the parameter called
+/// `route`, or, at a call of a user method that takes a route, the `Target`
+/// parameter its `nvs_types::ResolvedCall::route_slots` names.
 pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> bool {
-    let Some(node) = path.nodes().iter().find(|node| CALLS.contains(&node.kind)) else {
+    let Some((call, index)) = param_at(analysed, path, offset) else {
         return false;
-    };
-    let children: Vec<Span> = analysed
-        .index
-        .children_of(*node)
-        .iter()
-        .map(|child| child.span)
-        .collect();
-    let Some(open) = opens_at(analysed, node.span, &children) else {
-        return false;
-    };
-    if offset <= open {
-        return false;
-    }
-    let call = match analysed.exprs.lookup(node.span) {
-        Some(ExprInfo::RouteLink { call, .. } | ExprInfo::RouteIs { call, .. }) => call,
-        _ => match call_at(analysed, node.span) {
-            Some(call) => call,
-            None => return false,
-        },
     };
     let target = match call.route_slots {
         Some(slots) => slots.target,
@@ -279,20 +254,54 @@ pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: By
         }
         None => return false,
     };
+    index == target
+}
+
+/// The call whose argument list the cursor is inside, and the index of the
+/// parameter the argument at the cursor fills.
+///
+/// The call is the innermost one in `path` whose argument list the cursor is
+/// inside. A link whose route the table holds is recorded as
+/// `nvs_types::ExprInfo::RouteLink` or `RouteIs` over the call, and carries
+/// the call it was recorded over; any other is a resolved call. A written
+/// argument fills the parameter its `nvs_types::ResolvedCall::arg_slots`
+/// names. A cursor in no written argument fills the parameter after the
+/// arguments that end before it.
+pub(crate) fn param_at<'a>(
+    analysed: &'a Analysed,
+    path: &NodePath,
+    offset: BytePos,
+) -> Option<(&'a ResolvedCall, usize)> {
+    let node = path.nodes().iter().find(|node| CALLS.contains(&node.kind))?;
+    let children: Vec<Span> = analysed
+        .index
+        .children_of(*node)
+        .iter()
+        .map(|child| child.span)
+        .collect();
+    let open = opens_at(analysed, node.span, &children)?;
+    if offset <= open {
+        return None;
+    }
+    let call = match analysed.exprs.lookup(node.span) {
+        Some(ExprInfo::RouteLink { call, .. } | ExprInfo::RouteIs { call, .. }) => call,
+        _ => call_at(analysed, node.span)?,
+    };
     let written: Vec<Span> = children
         .into_iter()
         .filter(|child| child.start >= open)
         .collect();
-    match written
+    let index = match written
         .iter()
         .position(|child| child.start <= offset && offset <= child.end)
     {
         Some(at) => match call.arg_slots.get(at) {
-            Some(ArgSlot::Param(index)) => *index == target,
-            _ => at == target,
+            Some(ArgSlot::Param(index)) => *index,
+            _ => at,
         },
-        None => written.iter().filter(|child| child.end <= offset).count() == target,
-    }
+        None => written.iter().filter(|child| child.end <= offset).count(),
+    };
+    Some((call, index))
 }
 
 /// Every string literal argument the entry document writes, named by its

@@ -3486,6 +3486,7 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
                 if crate::arguments::route_argument_at(cursor.analysed, path, cursor.offset) {
                     items.extend(routed_methods(cursor));
                 }
+                items.extend(expected_cases(cursor));
                 items.extend(in_scope(cursor));
                 items.extend(followed(
                     cursor,
@@ -4249,6 +4250,7 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 /// as likely as the next, and its order is its labels'.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tier {
+    Expected,
     Override,
     Route,
     Variable,
@@ -4302,6 +4304,45 @@ fn routed_methods(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             Some(Tier::Route.ranks(item(label, CompletionItemKind::METHOD, detail)))
         })
         .collect()
+}
+
+/// The cases of the enum the cursor's position expects, before every other
+/// row ([`crate::expected`]): at a `match` arm or a literal's key only the
+/// cases not written yet, and `null` at an arm of a `match` over `?E` that
+/// has none. Each case is written the shortest way that resolves at the
+/// cursor ([`written_as`]).
+fn expected_cases(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let Some(expected) = crate::expected::enum_at(cursor.analysed, cursor.path, cursor.offset)
+    else {
+        return Vec::new();
+    };
+    let short: FxHashMap<String, String> = imports_of(cursor.analysed)
+        .iter()
+        .map(|(name, target)| (target.to_string(), name.clone()))
+        .collect();
+    let here = namespace_at(cursor.analysed, cursor.offset);
+    let prefix = written_as(&expected.enum_.to_string(), &here, &short);
+    let mut items: Vec<CompletionItem> = members_of(cursor, &expected.enum_, Reach::Static)
+        .into_iter()
+        .filter(|row| {
+            row.kind == Some(CompletionItemKind::ENUM_MEMBER)
+                && !expected.written.contains(&row.label)
+        })
+        .map(|row| {
+            Tier::Expected.ranks(CompletionItem {
+                label: format!("{prefix}::{}", row.label),
+                ..row
+            })
+        })
+        .collect();
+    if expected.nullable && !expected.written.contains("null") {
+        items.push(Tier::Expected.ranks(item(
+            "null".to_owned(),
+            CompletionItemKind::KEYWORD,
+            String::new(),
+        )));
+    }
+    items
 }
 
 /// The variables the body the cursor is in declared, with the type each was
@@ -4815,7 +4856,7 @@ fn resolved_class(info: &ExprInfo) -> Option<&QName> {
 /// or a property access carries its own type and is the same answer wherever it
 /// was written. A plain variable read carries none, and that is what the local
 /// scopes below are for.
-fn receiver_ty(analysed: &Analysed, span: Span, offset: BytePos) -> Option<TypeId> {
+pub(crate) fn receiver_ty(analysed: &Analysed, span: Span, offset: BytePos) -> Option<TypeId> {
     if let Some(ty) = analysed.exprs.lookup(span).and_then(recorded_ty) {
         return Some(ty);
     }
