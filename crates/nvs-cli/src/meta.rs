@@ -117,6 +117,13 @@
 //! omission rule is the registry's, key for key: a declaration with no `///`
 //! has no `doc`, and no array is ever emitted empty.
 //!
+//! An `extend` block is a row of its own under `blocks`, never one of
+//! `classes`: it declares no type. Its row carries `kind: "extend"`, its own
+//! qualified `name`, the fully qualified `target` it adds members to, and the
+//! body keys a class row carries, so a renderer reads an added member as it
+//! reads a declared one. [`crate::agent`] indexes each added member under its
+//! target's name.
+//!
 //! A class names its lineage the way the registry's exception tree names a
 //! `parent`, but in the words a program writes: `extends` is its parent class
 //! and `implements` its interfaces, and an interface's `extends` is the list of
@@ -147,7 +154,7 @@ use nvs_stdlib::registry::{
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
-    InterfaceDecl, MethodMember, Modifier, Name, Param, PropertyMember, Stmt, StmtKind,
+    ExtendDecl, InterfaceDecl, MethodMember, Modifier, Name, Param, PropertyMember, Stmt, StmtKind,
     TypeAliasDecl,
 };
 use nvs_syntax::doc_target::DocTarget;
@@ -950,29 +957,32 @@ fn manifest_enum_json(
 // The program half (`rule:tooling/meta-json-takes-a-program`)
 // ============================================================================
 
-/// The four rosters a program contributes, each in the order its declarations
+/// The five rosters a program contributes, each in the order its declarations
 /// were loaded and then written.
 ///
-/// One accumulator rather than four out-parameters, because the walk that
+/// One accumulator rather than five out-parameters, because the walk that
 /// fills them is one walk: a declaration's roster is decided by its statement
-/// kind, and the namespace it sits in is the same fact for all four.
+/// kind, and the namespace it sits in is the same fact for all five.
 #[derive(Default)]
 struct Declared {
     classes: Vec<Value>,
     interfaces: Vec<Value>,
     enums: Vec<Value>,
     types: Vec<Value>,
+    /// Each `extend` block, as [`user_block_json`] writes it.
+    blocks: Vec<Value>,
 }
 
 impl Declared {
     /// How long each roster is, so [`Self::rebase_see`] reaches only what one
     /// file added.
-    fn lengths(&self) -> [usize; 4] {
+    fn lengths(&self) -> [usize; 5] {
         [
             self.classes.len(),
             self.interfaces.len(),
             self.enums.len(),
             self.types.len(),
+            self.blocks.len(),
         ]
     }
 
@@ -983,12 +993,13 @@ impl Declared {
     /// from the root alone, without knowing which source file wrote the tag.
     /// [`put_doc`] writes the tag as it was written, because the walk below it
     /// is shared with the built-in components, which have no program root.
-    fn rebase_see(&mut self, before: [usize; 4], base: &Path, root: &Path) {
+    fn rebase_see(&mut self, before: [usize; 5], base: &Path, root: &Path) {
         let rosters = [
             &mut self.classes,
             &mut self.interfaces,
             &mut self.enums,
             &mut self.types,
+            &mut self.blocks,
         ];
         for (roster, from) in rosters.into_iter().zip(before) {
             for value in &mut roster[from..] {
@@ -1102,6 +1113,7 @@ fn program_json(checked: &crate::Checked) -> Value {
     put_values(&mut out, "interfaces", declared.interfaces);
     put_values(&mut out, "enums", declared.enums);
     put_values(&mut out, "types", declared.types);
+    put_values(&mut out, "blocks", declared.blocks);
     let entries: Map<String, Value> = schemas.into_entries().into_iter().collect();
     if !entries.is_empty() {
         out.insert("schemas".into(), Value::Object(entries));
@@ -1163,6 +1175,10 @@ fn collect(
                 src,
                 qualify(&namespace, text(src, decl.name.span)),
             )),
+            StmtKind::ExtendDecl(decl) => {
+                out.blocks
+                    .push(user_block_json(decl, src, &namespace, &scope));
+            }
             _ => {}
         }
     }
@@ -1267,6 +1283,26 @@ fn user_interface_json(
         .collect();
     put_values(&mut out, "extends", extends);
     body_json(&decl.members, src, &name, &mut out);
+    put_doc(&mut out, decl.doc.as_ref(), src, &[]);
+    Value::Object(out)
+}
+
+/// One `extend` block (`rule:classes/an-extend-block-adds-members-to-a-type`):
+/// its own qualified `name`, `kind` `extend`, the `target` type it adds to,
+/// and its body in a class's shape.
+///
+/// `target` is fully qualified by the function the compiler resolves the
+/// target with, so it is `Core\Time\Date` however the file wrote it. A nested
+/// enum or alias is named under the target, `Core\Time\Date::Name`, because
+/// that is the name a program that uses the block writes.
+fn user_block_json(decl: &ExtendDecl, src: &SourceFile, namespace: &str, scope: &Scope) -> Value {
+    let mut out = Map::new();
+    let name = qualify(namespace, text(src, decl.name.span));
+    out.insert("name".into(), Value::from(name.as_str()));
+    out.insert("kind".into(), Value::from("extend"));
+    let target = scope.resolve(src, decl.target);
+    out.insert("target".into(), Value::from(target.as_str()));
+    body_json(&decl.members, src, &target, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src, &[]);
     Value::Object(out)
 }

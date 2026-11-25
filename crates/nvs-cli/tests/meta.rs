@@ -764,6 +764,65 @@ fn a_class_scoped_enum_is_listed_under_its_owner() {
     );
 }
 
+/// An `extend` block is a row of its own under `blocks`, never one of
+/// `classes`: `kind` `extend`, its own qualified `name`, the fully qualified
+/// `target` it adds to, and its members and constants in a class row's shape,
+/// each with its `///` card and its visibility, a private one included.
+#[test]
+fn an_extend_block_is_written_with_its_target_and_members() {
+    let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/extend-block.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &entry]);
+
+    assert_eq!(
+        declared(&program, "blocks", "App\\Time\\BusinessDays"),
+        serde_json::json!({
+            "name": "App\\Time\\BusinessDays",
+            "kind": "extend",
+            "target": "Core\\Time\\Date",
+            "members": [
+                {
+                    "name": "isBusinessDay",
+                    "kind": "instance",
+                    "visibility": "public",
+                    "signature": "isBusinessDay(): bool",
+                    "doc": { "short": "Whether the date is a business day." },
+                },
+                {
+                    "name": "newYear",
+                    "kind": "static",
+                    "visibility": "public",
+                    "signature": "newYear(int $year): Date",
+                    "names": ["year"],
+                    "doc": { "short": "The first day of a year." },
+                },
+                {
+                    "name": "isWeekend",
+                    "kind": "instance",
+                    "visibility": "private",
+                    "signature": "isWeekend(): bool",
+                },
+            ],
+            "constants": [
+                {
+                    "name": "PER_WEEK",
+                    "visibility": "public",
+                    "type": "int",
+                    "value": "5",
+                    "doc": { "short": "How many business days a week has." },
+                },
+            ],
+            "doc": { "short": "Business days on a date." },
+        })
+    );
+    assert!(
+        program.get("classes").is_none(),
+        "a block declares no class"
+    );
+}
+
 /// A `@see` file target written in a required file is listed relative to the
 /// entry's folder, with `/` separators and its anchor, so a consumer finds the
 /// file without knowing which file wrote the tag. A member target is unchanged.

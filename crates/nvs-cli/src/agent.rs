@@ -514,6 +514,7 @@ fn gates(document: &Value) -> Vec<(String, &str)> {
 
 /// Every line of the index, in the registry's own order: the members class by
 /// class, then the members of each `Core` interface a program implements, then
+/// the members each `extend` block of the document's program adds, then
 /// the enums, exceptions and attributes beside them, then each
 /// chapter over its headings, then the configuration keys, the commands with
 /// their flags and the diagnostic codes.
@@ -566,6 +567,8 @@ fn entries(document: &Value) -> Vec<Entry> {
         out.push(Entry::new("interface", name.to_owned(), line));
         push_members(&mut out, &gates, interface);
     }
+
+    push_added_members(&mut out, document);
 
     for core_enum in array(document, "enums") {
         let name = text(core_enum, "name");
@@ -648,6 +651,48 @@ fn push_members(out: &mut Vec<Entry>, gates: &[(String, &str)], owner: &Value) {
         entry.capability = capability;
         out.push(entry);
     }
+}
+
+/// One `member` entry for each public member an `extend` block of the
+/// document's program adds, named `<Target>::<member>` as a program calls it.
+/// Its line ends with `added by <Block>`, the block a file has to `use` to
+/// call it. A private added member is only called inside its block, so it has
+/// no line. A document without a program, which is what `index`, `find` and
+/// `show` render today, has no block and adds nothing.
+fn push_added_members(out: &mut Vec<Entry>, document: &Value) {
+    for block in array(&document["program"], "blocks") {
+        let target = text(block, "target");
+        let block_name = text(block, "name");
+        for member in array(block, "members") {
+            if text(member, "visibility") != "public" {
+                continue;
+            }
+            let name = text(member, "name");
+            let signature = text(member, "signature");
+            let mut line = member_line(target, name, signature);
+            line.push_str("  added by ");
+            line.push_str(block_name);
+            let mut entry = Entry::new("member", format!("{target}::{name}"), line);
+            entry.signature = Some(signature.to_owned());
+            out.push(entry);
+        }
+    }
+}
+
+/// The member row `member_name` of the type `owner_name`: the type's own row
+/// first, and failing that the row an `extend` block of the document's program
+/// adds to it.
+fn member_row<'a>(document: &'a Value, owner_name: &str, member_name: &str) -> &'a Value {
+    let own = row(owner(document, owner_name), "members", member_name);
+    if !own.is_null() {
+        return own;
+    }
+    array(&document["program"], "blocks")
+        .iter()
+        .filter(|block| text(block, "target") == owner_name)
+        .map(|block| row(block, "members", member_name))
+        .find(|member| !member.is_null())
+        .unwrap_or(&ABSENT)
 }
 
 /// A member's line without its capability: `Owner::signature`, and for a
@@ -1464,7 +1509,7 @@ fn card(document: &Value, entry: &Entry) -> Map<String, Value> {
     match entry.kind {
         "member" => {
             let (owner_name, member_name) = symbol.split_once("::").unwrap_or((symbol, ""));
-            let doc = &row(owner(document, owner_name), "members", member_name)["doc"];
+            let doc = &member_row(document, owner_name, member_name)["doc"];
             out.insert("prose".into(), or_null(text(doc, "short")));
             out.insert("params".into(), named_rows(array(doc, "params"), "name"));
             out.insert("returns".into(), or_null(text(doc, "return")));
@@ -2968,6 +3013,47 @@ mod tests {
                 "the `# nvs reload` section lacks {needed:?}"
             );
         }
+    }
+
+    /// A public member an `extend` block adds is indexed under the type it
+    /// extends, its line names the block, and its card is the block's `///`
+    /// run. A private added member has no line.
+    #[test]
+    fn agent_find_names_an_added_member() {
+        let entry =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/meta/extend-block.nvs");
+        let document = crate::meta::program_document(&entry)
+            .unwrap_or_else(|_| panic!("the fixture checks: {}", entry.display()));
+        let entries = super::entries(&document);
+
+        let found: Vec<&super::Entry> = entries
+            .iter()
+            .filter(|entry| entry.named(|name| name.contains("isbusinessday")))
+            .collect();
+        assert_eq!(found.len(), 1, "one line names the added method");
+        let added = found[0];
+        assert_eq!(added.kind, "member");
+        assert_eq!(added.symbol, "Core\\Time\\Date::isBusinessDay");
+        assert_eq!(
+            added.line,
+            "Core\\Time\\Date::isBusinessDay(): bool  added by App\\Time\\BusinessDays"
+        );
+
+        let card = super::card(&document, added);
+        assert_eq!(card["prose"], "Whether the date is a business day.");
+
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.symbol == "Core\\Time\\Date::newYear"),
+            "the added static method has a line"
+        );
+        assert!(
+            !entries
+                .iter()
+                .any(|entry| entry.named(|name| name.contains("isweekend"))),
+            "a private added method has no line"
+        );
     }
 
     /// A plural and its singular compare equal, and a word ending in `ss` keeps

@@ -2134,6 +2134,15 @@ resolving a name itself, and a consumer that wants every ancestor walks the edge
 `static` is the member's `kind`, never part of its `signature`, which is the member's own spelling as the
 registry writes it.
 
+An `extend` block ([`classes/an-extend-block-adds-members-to-a-type`](classes.md#classes-an-extend-block-adds-members-to-a-type)) is a row of its own in the
+program's `blocks` roster, never in `classes`, because it declares no type. The row has `kind: "extend"`,
+`name`, the block's own qualified name, and `target`, the type it adds to, fully qualified by
+`nvs_hir::resolve_ref` as a lineage name is. Its body is written with a class's keys: `members`,
+`constants`, `enums` and `types`, with each member's `visibility`, `signature` and `///` card as a class
+writes them. A nested enum or alias is named under the target, `Core\Time\Date::Name`, the name a program
+that uses the block writes. `nvs agent` indexes each added member under `<Target>::<member>`, and its line
+ends with `added by <Block>`.
+
 A user class whose `#[Json\Derive]` codec the checker recorded carries `json`, the codec's object schema.
 It is the schema `nvs build --openapi` writes for that codec, from the same renderer, so the two
 documents never disagree: inherited fields first, each under its wire key, a skipped field absent, and a
