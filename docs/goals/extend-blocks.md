@@ -433,7 +433,7 @@ classes are the ones that goal makes compare by value.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-syntax/src/parser/decl.rs:2013` and `:2118`: methods and constants parse in an enum
+- [x] `crates/nvs-syntax/src/parser/decl.rs:2013` and `:2118`: methods and constants parse in an enum
   body; a property and a nested enum stay `E0220` (`crates/nvs-diagnostics/src/code/rejected_php.rs:118`),
   its help rewritten to name a class for state.
 - [ ] `crates/nvs-types/src/expr/members.rs:774`: `class_qname_of` takes `Ty::EnumCase`;
@@ -559,44 +559,55 @@ flipped; the session writes the rules, the reference and the website entries.
 
 ### State
 
-Stage 1 is nine items of eleven in. Two commits: the four designed rules (`89d477a014`), and the
-parse, walk, formatter, symbol, target resolution, autoload shape and checker shape errors
-(`0066fd29bb`). Build and clippy are green. The `parse` tests and `layout_coverage` pass, run once by
-name. What exists:
+Stage 1 is done (`b8adb756bd`): the VS Code grammar colours `extend <Type> as <Name>`
+(`#extend-declaration`), completion offers `extend` at a file-scope statement only
+(`FILE_DECLARATION_WORDS` in `crates/nvs-lsp/src/completion.rs`), and the three `shape` cases
+pass. `tests/lsp/completion/a-file-offers-the-word-that-opens-an-extend-block.lspt` is new.
 
-- `ExtendDecl` (`crates/nvs-syntax/src/ast.rs`, `@ExtendDecl`) with `target`, `type_params:
-  Vec<Type>`, `name`, `attributes`, `doc`, `members`. The parser is `at_extend_decl`,
-  `parse_extend_decl` and `parse_extend_decl_body` in `crates/nvs-syntax/src/parser/decl.rs`. A block
-  in a class body is E0233 there, and in a function body E0233 through `nvs_types::locals`.
-- `Core\Ast\ExtendDecl` is in the walk's `KINDS` and `nvs_stdlib::ast`'s productions.
-- `SymbolKind::Extend` and `DeclKind::Extend` (disk index tag 10, the outline's `CLASS`, file word
-  `extend`). `ClassGraph::block_target` and `blocks()` give block → target. `resolve_extend_target`
-  in `crates/nvs-hir/src/hierarchy.rs` never asks `seals`. The `requires` walk loads the target.
-- `crates/nvs-types/src/extend.rs` `check_block`, called from `check.rs`'s file-scope walk: E0336
-  for a `Core` name that is no class, interface or enum, E0337 own type through `Packages::of`, and
-  E0338 for a constructor, a `protected`/`abstract`/`final` member, a `static` or `readonly` property,
-  a stored property with no start value, a `type` alias, and a nested enum or attribute on an enum.
+Stage 2's parser item landed (`39429e359e`). `parse_enum_body` keeps methods and constants; only a
+property (truncated, E0220 "an enum has no properties") and a nested enum are refused.
+`casing.rs`'s `check_enum_decl` now runs `check_members`, so an enum method needs its written
+visibility. `tests/conformance/reject/an-enum-body-still-takes-no-property.nvst` passes. The two
+older reject cases and example `declaring-an-enum/06-a-property-in-an-enum` (renamed from
+`06-a-constant-in-an-enum`) now refuse a property.
 
-Nothing yet reads a block's members for calls, and no conformance case exists. Expected to go red
-in stage 2: `tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst`. The
-VS Code extension writes no letter for the new file word `extend` until stage 6.
+A probe shows what is left: `Suit::first()` and `$s->isRed()` type-check and stop at codegen with
+E0901 (no descriptor for the enum), and `Suit::COUNT` is E0309 in `nvs-hir`'s member table. An
+Explore pass found: `signatures.rs:1509` already registers enum members through
+`collect_members`; `check.rs:949` already runs `check_members` on them; `lower/mod.rs:1214` calls
+`lower_method` from the class walk only; `members.rs:77` `infer_class_const` has the enum branch at
+`:129-186`. Treat these as pointers.
+
+`tests/conformance/enum/a-class-of-your-own-replaces-every-php-enum-member.nvst` does not go red:
+it uses no enum member. Its item stays for stage 7, to show the new shape beside it.
 
 ### Next
 
-Finish stage 1, then stage 2.
+Stage 2, items 2 to 5.
 
-1. `editors/vscode/syntaxes/nvs.tmLanguage.json:270` and `:161`: `extend` as a declaration word and
-   `as <Name>` as the declared name, then `bun nv render` for `website/config/novis.tmLanguage.json`.
-   `crates/nvs-lsp/src/completion.rs:1822`: `extend` offered at statement start.
-2. The three reject cases the check `shape` names, under `tests/conformance/reject/`: an own-package
-   type (a class declared in the same file is enough, since a file with no package is the
-   application), a target that is a `type` alias (E0336), and a block with a `constructor` and a
-   `protected` method (E0338 twice). Run `looper check --name shape` once. Then set stage 1 `done`.
-3. Stage 2 from its first item (`crates/nvs-syntax/src/parser/decl.rs:2013`).
+1. `crates/nvs-hir/src/members.rs:328`/`:348`: record an enum's constants and static methods so
+   `Suit::COUNT` and `Suit::first()` are not E0309.
+2. `crates/nvs-types/src/expr/members.rs:774` `class_qname_of` takes `Ty::EnumCase`;
+   `crates/nvs-types/src/expr/members.rs:129` reads a constant before the case lookup; `$this` in an
+   enum method is `Ty::Enum`. Check what `check_method` (`check.rs:1417`) gives `$this` now.
+3. `crates/nvs-ir/src/lower/mod.rs:1214`: lower an enum's methods with parameter 0 the case integer,
+   and make every call `Callee::Direct` with no descriptor (the source of today's E0901). Enum
+   constants lower as class constants do.
+4. The two `enum-body` run cases, `tests/conformance/enum/an-enum-method-reads-its-case-as-this.nvst`
+   and `an-enum-static-method-and-constant-are-called-on-the-enum.nvst` (the probe at the top of this
+   list is a start), then `looper check --name enum-body`.
+5. `docs/rules/enums/no-class-machinery.md` rewritten, `enums.md:408`'s table, the enum rule flips
+   to `shipped`, `bun nv rules --render`. Then stage 3.
 
 ### Backlog
 
+- Stage 7 owes the enum pages: `docs/examples/lang/enums/declaring-an-enum/about.md:10` and
+  `details.md:19`, `what-an-enum-does-not-have/details.md` and `an-enum-inside-a-class/details.md`
+  still say an enum has no method or constant. `data/proofs/review-baseline.json:5917` still names
+  the old example file `06-a-constant-in-an-enum.nvs`; the review restamps it.
 - A block's attribute other than `#[Core\Deprecated]` is not refused yet. It belongs with stage 4's
   deprecation item.
 - `HierarchyResolver::written` (the editor's graph for an unloaded file) does not carry blocks. Stage
   6 needs it for completion in a file the program has not loaded.
+- Completion inside an `extend` body offers nothing yet: `completion.rs:3235` sends only
+  `ClassDecl`/`InterfaceDecl` nodes to `member()`. Stage 6 adds `ExtendDecl`.
