@@ -45,6 +45,17 @@ and nowhere else, and its row holds one extra string, the class's name. `Core\Re
 the match by clone, one reference-count bump on the row plus one string per capture. A request that
 matches nothing pays nothing.
 
+**A `final` class's `parse` may load a stored record** and return it, since `static` is that class
+(`rule:statements/static-is-a-member-modifier`). Every typed capture is bound before `Gate::allows`,
+so `allows` reads the loaded record with `$route->parameter(...)` and checks it like any other input.
+**What it spends:** the program's lookup runs for every request that matches the route, before
+`allows`, signed in or not — a read of the program's own store per matched request, chosen by the
+program when it declares the type. A missing id is the `400` of a refused `parse` and a forbidden one
+the `403` of a denied route, so a program that must not show which ids exist sets the same status for
+`Refusal::BadCapture` and `Refusal::Denied` in `refused`. The time the lookup takes is not hidden: a
+program that must not show whether an id exists even by timing declares the capture `string` and
+loads the record in the route method, after `allows`.
+
 **Declined:**
 - **A `bool` path capture.** A path names a resource and a yes-or-no filters it, which is the query
   string's job. A segment `1` would also be claimed by a `bool` and a `uint` capture at one position.

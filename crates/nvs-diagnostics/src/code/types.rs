@@ -31,12 +31,14 @@ codes! {
     /// `nvs_types::conformance::check_method_overrides` reports the return
     /// type, each parameter, the count, `static` and the visibility, and
     /// `reject_dropped_static_return` a `: static` an interface's implementor
-    /// drops.
+    /// drops. A `final` class may write its own name or `self` where the
+    /// parent writes `static`, because `static` is that class there.
     pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404").card(
         "This method replaces a method of a parent class or an interface, and a call through the \
          parent cannot use it. Keep the parameters, `static` and the visibility. A parameter may \
          accept a wider type, and the return type may be narrower. A parameter with a narrower \
-         type needs `covariant` before its type.",
+         type needs `covariant` before its type. A `final` class may write its own name or \
+         `self` where the parent returns `static`.",
     );
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405").card(

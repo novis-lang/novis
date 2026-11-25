@@ -1,0 +1,45 @@
+--TEST--
+In a `final` class `static` is that class, so a method declared `static`, `?static` or `array<static>` may return any value of it (`rule:statements/static-is-a-member-modifier`)
+--FILE--
+<?nvs
+// covers: lang:classes/methods-self-static-and-parent
+// `Color` is `final`, so no class can extend it.
+// In its methods `static` is `Color`, and these methods may return any `Color`.
+final class Color {
+    public function constructor(public string $name) {}
+
+    // `new Color(...)` names the class. This is allowed because the class is `final`.
+    public static function red(): static {
+        return new Color("red");
+    }
+
+    // A local variable of the class is allowed too.
+    public static function named(string $name): ?static {
+        Color $found = new self($name);
+        return $found;
+    }
+
+    // This array is built in a loop and has the type `array<Color>`.
+    public static function all(): array<static> {
+        array<Color> $out = [];
+        foreach (["red", "green", "blue"] as var $name) {
+            $out[] = new Color($name);
+        }
+        return $out;
+    }
+
+    // A call on the class name returns a `Color` as well.
+    public function same(): static {
+        return Color::red();
+    }
+}
+
+echo Color::red()->name, "\n";
+echo Color::named("green")?->name ?? "none", "\n";
+echo Core\Arr::count(Color::all()), "\n";
+echo Color::red()->same()->name, "\n";
+--EXPECT--
+red
+green
+3
+red

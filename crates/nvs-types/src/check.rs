@@ -1584,6 +1584,11 @@ fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
 /// An explicitly named class (`Base::make()`) is deliberately not on that
 /// list: naming a class *sets* the called class, so its answer is that class
 /// and not this frame's.
+///
+/// **A `final` class is not asked.** No subclass can be the called class, so
+/// `static` is exactly the declaring class, and the type check alone settles
+/// the body: a `parse` may return a record it loaded, or any other value of
+/// the class.
 fn reject_static_return_of_another_class(
     m: &MethodMember,
     body: &Block,
@@ -1592,6 +1597,7 @@ fn reject_static_return_of_another_class(
 ) {
     let binds = ctx.current_class.is_some_and(|class| {
         crate::signatures::static_use(m.return_type.as_ref(), class, env.src).binds
+            && !crate::signatures::class_is_final(class, env.signatures)
     });
     if !binds {
         return;
@@ -1616,7 +1622,8 @@ fn reject_static_return_of_another_class(
             .with_secondary(declared, "declared `static` here")
             .with_help(
                 "`static` is the class the call named, which a subclass may be — return `$this` \
-                 or `new static(...)`, or declare `self` if the declaring class is what is meant",
+                 or `new static(...)`, or declare `self` if the declaring class is what is meant. \
+                   In a `final` class `static` is that class, so any value of it may be returned",
             ),
         );
     }

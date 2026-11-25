@@ -1,0 +1,49 @@
+--TEST--
+A method of a `final` class may return its own class or `self` where the parent class or an interface declares `static` (`rule:statements/static-is-a-member-modifier`)
+--FILE--
+<?nvs
+// covers: lang:classes/methods-self-static-and-parent
+// `Shape::scaled` returns `static`. `Square` and `Circle` are `final`,
+// so each one may write its own class name or `self` as the return type.
+abstract class Shape {
+    abstract public function scaled(int $by): static;
+}
+
+final class Square extends Shape {
+    public function constructor(public int $side) {}
+
+    public function scaled(int $by): Square {
+        return new Square($this->side * $by);
+    }
+}
+
+final class Circle extends Shape {
+    public function constructor(public int $radius) {}
+
+    public function scaled(int $by): self {
+        return new Circle($this->radius * $by);
+    }
+}
+
+// `Parses::parse` returns `static` too. `Code` writes `Code` in its place.
+final class Code implements Parses {
+    public function constructor(public tainted string $text) {}
+
+    public static function parse(tainted string $s): Code {
+        return new Code($s);
+    }
+}
+
+echo (new Square(2))->scaled(3)->side, "\n";
+echo (new Circle(1))->scaled(5)->radius, "\n";
+
+// A call through the parent class runs the method of the object's class.
+Shape $shape = new Square(4);
+echo $shape->scaled(2) is Square ? "a Square" : "another shape", "\n";
+
+echo Code::parse("abc")->text, "\n";
+--EXPECT--
+6
+5
+a Square
+abc

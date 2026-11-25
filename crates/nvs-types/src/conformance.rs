@@ -445,9 +445,18 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
             continue;
         }
         let answer = resolve_method(qname, &method, env.signatures, env.graph)
-            .map(|(_, sig)| (sig.has_body, sig.returns_static));
-        if let Some((true, keeps_static)) = answer {
-            if !keeps_static {
+            .map(|(_, sig)| (sig.has_body, sig.returns_static, sig.return_ty));
+        if let Some((true, keeps_static, own_return)) = answer {
+            let declared = env
+                .signatures
+                .get(&interface)
+                .and_then(|sig| sig.methods.get(&method))
+                .map(|sig| sig.return_ty);
+            let kept = keeps_static
+                || declared.is_some_and(|declared| {
+                    final_class_names_itself(qname, &interface, own_return, declared, env)
+                });
+            if !kept {
                 reject_dropped_static_return(decl, qname, &interface, &method, env);
             }
             continue;
@@ -628,6 +637,10 @@ fn reachable_method_names(
 /// The primary lands on the class's own declaration of the member where it has
 /// one; a class that inherits the weakened answer gets its own name instead,
 /// which is the only span it wrote.
+///
+/// A `final` class is not asked here when its answer names the class itself
+/// ([`final_class_names_itself`]): no subclass can name it, so the called class
+/// is always that class.
 fn reject_dropped_static_return(
     decl: &ClassDecl,
     qname: &QName,
@@ -662,9 +675,33 @@ fn reject_dropped_static_return(
         )
         .with_help(format!(
             "write `: static` here. `{interface}::{method}` returns the class the call names, \
-             and that may be a subclass"
+             and that may be a subclass. A `final` class may write its own name or `self`"
         )),
     );
+}
+
+/// Whether `qname` is `final` and `own_return` keeps the promise of `declared`,
+/// which `owner` declares with `static`, once `static` is read as `qname`.
+///
+/// In a `final` class `static` means exactly that class, because no subclass
+/// can be the class a call names. So an answer that writes the class's own
+/// name or `self` where `owner` writes `static` keeps the promise
+/// (`rule:statements/static-is-a-member-modifier`). A non-`final` class is
+/// never asked, and neither is an answer naming some other class: the bound
+/// type is `qname`, so `owner`'s own class does not fit it.
+fn final_class_names_itself(
+    qname: &QName,
+    owner: &QName,
+    own_return: TypeId,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    if !crate::signatures::class_is_final(qname, env.signatures) {
+        return false;
+    }
+    let itself = env.interner.class(qname.clone());
+    let bound = crate::signatures::bind_static(declared, owner, itself, env.interner);
+    crate::expr::assign::field_fits(own_return, bound, env.interner, env.graph, env.signatures)
 }
 
 /// The promises `final` makes, checked where the declaration that breaks
@@ -932,6 +969,7 @@ fn compare_override(
         && !own.returns_static
         && (parent.has_body
             || env.symbols.get(owner).map(|symbol| symbol.kind) != Some(SymbolKind::Interface))
+        && !final_class_names_itself(qname, owner, own.return_ty, parent.return_ty, env)
     {
         // A bodiless interface member is `reject_dropped_static_return`'s,
         // which reports it at every class that answers it.

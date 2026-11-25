@@ -790,10 +790,15 @@ codes! {
     /// `Base` and every later check reads a class label that was never there.
     /// `self` is the return type that was meant when the body really does
     /// answer the declaring class, and it is what the help names.
+    ///
+    /// A `final` class is never reported: no subclass can be the called class,
+    /// so `static` is exactly the declaring class and the type check settles
+    /// the body. That is what lets a `parse` return a record it loaded.
     pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741").card(
         "A method with the return type `static` must return `$this`, `new static(...)`, or the \
          result of another method that returns `static`. If the method always returns this exact \
-         class, declare the return type `self`.",
+         class, declare the return type `self`. In a `final` class, `static` is that class, so \
+         the method may return any value of the class.",
     );
 
     /// `void` or `never` stands somewhere that is not a return type: a

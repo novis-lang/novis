@@ -1,0 +1,80 @@
+--TEST--
+A `final` class's `parse` may return a stored object, and `Gate::allows` reads that object from the match before the route method runs (`rule:security/route-capture-is-laundered-by-its-type`)
+--FILE--
+<?nvs
+// covers: Core\Router\Gate, Core\Router\Match
+// `Order::parse` loads a stored order by its id. `allows` reads the order
+// and lets each person see only their own orders.
+
+final class Order implements Parses {
+    public function constructor(public uint $id, public string $owner) {}
+
+    // The orders this program has stored.
+    public static function find(uint $id): ?Order {
+        return match ($id) {
+            1 => new Order(1, "ann"),
+            2 => new Order(2, "bob"),
+            default => null,
+        };
+    }
+
+    // `parse` returns an order that already exists. It throws an error for an unknown id.
+    public static function parse(tainted string $s): static {
+        ?uint $id = $s as ?uint;
+        ?Order $order = $id == null ? null : Order::find($id);
+        if ($order != null) {
+            return $order;
+        }
+        throw new ParseError("no such order");
+    }
+}
+
+class Orders {
+    #[Core\Route(path: "/orders/{order}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Order $order): void {
+        echo "order ", $order->id, " of ", $order->owner, "\n";
+    }
+}
+
+// In this example the person signed in is always `ann`.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        var $value = $route->parameter("order");
+        if ($value == null) {
+            return false;
+        }
+        Order $order = $value as Order;
+        return $order->owner == "ann";
+    }
+
+    // A missing order and an order of another person both give `404`.
+    // So a visitor cannot find out which ids exist.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        if ($reason == Core\Router\Refusal::BadCapture || $reason == Core\Router\Refusal::Denied) {
+            Core\Response::setStatus(404);
+        }
+        echo "not found\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $own = Core\Test::request(Core\Http\Method::Get, "/orders/1");
+    echo $own->status(), " ", $own->body();
+
+    var $other = Core\Test::request(Core\Http\Method::Get, "/orders/2");
+    echo $other->status(), " ", $other->body();
+
+    var $missing = Core\Test::request(Core\Http\Method::Get, "/orders/9");
+    echo $missing->status(), " ", $missing->body();
+}
+--EXPECT--
+200 order 1 of ann
+404 not found
+404 not found
