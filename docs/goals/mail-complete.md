@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/db/registry.rs]
   - id: 4
     title: "the body is a string or Core\\Html\\Markup, the plain text is built from the HTML, and a message carries attachments and inline images"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/mime.rs, crates/nvs-stdlib/src/registry.rs]
   - id: 5
     title: "a mail's CSS is inlined, Core\\Mail::preview returns what send would send, and a stylesheet link throws an error that names the fix"
@@ -269,6 +269,15 @@ configuration, never by traffic. The test proves reuse by a connection count, ne
   $data, {type})`, `::inlineFile(path)`, `::inlineBytes(string $name, bytes $data, {type})`. A path
   is resolved and checked under `fs.read` like `Core\File`'s. `type` defaults to `Core\Mime`'s answer
   from the bytes, then `application/octet-stream`.
+- Built in stage 4 (session's choices): `fromFile` and `inlineFile` read the file when called, through
+  `crate::io::slurp`, so a missing or ungranted file throws on the line that names it and the type is
+  detected at once; the value holds the bytes until freed. `$data` takes `string|bytes`, as
+  `Core\Http\Part::bytes` does, so a CSV a program built needs no conversion. `inlineFile` takes
+  `{type}` too, for an SVG no signature detects. The Content-ID is `<32 hex>@inline`, made at
+  construction, because `src()` is read before any message or `from` domain exists. A name is 1 to
+  255 bytes with no control character; `type` is `type/subtype` with RFC 6838's characters. The
+  `cid:` scan reads every attribute value starting `cid:` and every `cid:` inside a `style`
+  attribute or a `<style>` element.
 - An inline attachment has `src(): string`, the `cid:` URL to write in `<img src="…">`. Its
   Content-ID is random. Every `cid:` in the HTML needs an inline attachment of this message, and
   every inline attachment needs a `cid:` in the HTML; either miss is a `RuntimeError` that names it.
@@ -447,19 +456,19 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 4. the body is a string or Core\Html\Markup, the plain text is built from the HTML, and a message carries attachments and inline images
 
-- [ ] `crates/nvs-stdlib/src/mail.rs:179` (`CLASS`): `$body` as `CoreTy::Union` of text and
+- [x] `crates/nvs-stdlib/src/mail.rs:179` (`CLASS`): `$body` as `CoreTy::Union` of text and
   `Instance(Core\Html\Markup)`; the `text` option; `html` removed. `rule:core-classes/html-auto-escape`.
-- [ ] `crates/nvs-stdlib/src/mail/parts.rs:1` (new): `Core\Mail\Attachment` and its four
+- [x] `crates/nvs-stdlib/src/mail/parts.rs:1` (new): `Core\Mail\Attachment` and its four
   constructors, `src()`, `Core\Mime` detection (`crates/nvs-stdlib/src/mime.rs:1`), RFC 2231 names,
   the cid checks.
-- [ ] `crates/nvs-stdlib/src/mail.rs:703` (`compose`): the mixed > related > alternative nesting.
-- [ ] `crates/nvs-stdlib/src/mail/parts.rs:1`: the plain text from HTML over html5ever, per § *The
+- [x] `crates/nvs-stdlib/src/mail.rs:703` (`compose`): the mixed > related > alternative nesting.
+- [x] `crates/nvs-stdlib/src/mail/parts.rs:1`: the plain text from HTML over html5ever, per § *The
   body and its parts*.
-- [ ] Every caller of the old shape: `docs/examples/core/Mail/send/01-sending-an-order-receipt.nvs:1`,
+- [x] Every caller of the old shape: `docs/examples/core/Mail/send/01-sending-an-order-receipt.nvs:1`,
   `03-a-contact-form.nvs:1`, the `mail-*` and `test-sent-mail-*` cases under `tests/conformance/core/`,
   and what `rg "Core\\\\Mail::send"` lists outside `crates/`.
-- [ ] `tests/conformance/core/mail-a-tainted-string-is-sent-as-plain-text.nvst:1` (new).
-- [ ] The eleven tests of the check `parts`, then `cargo test --lib mail::` once.
+- [x] `tests/conformance/core/mail-a-tainted-string-is-sent-as-plain-text.nvst:1` (new).
+- [x] The eleven tests of the check `parts`, then `cargo test --lib mail::` once.
 
 ### 5. a mail's CSS is inlined, Core\Mail::preview returns what send would send, and a stylesheet link throws an error that names the fix
 
@@ -548,8 +557,15 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
 `return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stages 1 to 3 are done, and the `headers`, `transport`, `pool` and `unknown-issuer-hint` tests pass
-(`cargo test --lib mail::`, 35 green). `smtp.rs` has `open` (greeting, TLS, `authenticate`, the
+Stages 1 to 4 are done. `cargo test --lib mail::` runs 47 green, with the eleven `parts` tests, and
+the case `mail-a-tainted-string-is-sent-as-plain-text` passes (`1932603b0d`). `mail/parts.rs` holds
+`Core\Mail\Attachment` (its helpers reach `mod.rs`'s tests through `parts::HELPERS`), `part_of`,
+`parameter` (RFC 2231), `check_cids` and `read_html` (plain text and `cid:` URLs from one parse).
+`compose` takes a `compose::Body` and nests through `entity`, `leaf` and `multipart`. `send` reads
+`$body` with `body_of` and the attachments with `attachments_of`. `KeptMail` is unchanged: `text`
+is the sent plain text and `html` the Markup's source; attachments reach it in stage 8.
+The nightly failures of run 45609291264 that the sweep listed are all fixed on disk (by
+`1c3196b0e8` and `c115a735a1`); nothing was left to do for them. `smtp.rs` has `open` (greeting, TLS, `authenticate`, the
 `EHLO` extensions kept on the `Session`), `reset` (`RSET`) and `transact` (`SIZE`, envelope,
 `DATA`); `deliver` runs both halves for `pool = false`. `mail/pool.rs` `deliver` takes a `Lease`
 from `mod.rs` `lease_for` and keeps the session in `nvs_runtime::pool`. `[mail.<name>.pool]` is
@@ -562,18 +578,19 @@ stack-page test is in § *Backlog*.
 
 ### Next
 
-Stage 4, the body and its parts. Start with `CLASS` (`crates/nvs-stdlib/src/mail/mod.rs:234`):
-`$body` as `CoreTy::Union` of text and `Instance(Core\Html\Markup)`, the `text` option, `html`
-removed, and the slot constants beside it. Then the new `crates/nvs-stdlib/src/mail/parts.rs`
-(`Core\Mail\Attachment`, its four constructors, `src()`, the cid checks, RFC 2231 names, and the
-plain text from HTML over html5ever). Then `compose` (`crates/nvs-stdlib/src/mail/compose.rs:427`)
-nests mixed > related > alternative. Last, every caller of the old shape the stage names. The
-stage's item anchors still say `mail.rs`; read them as `mail/mod.rs` and `mail/compose.rs`.
+Stage 5, CSS inlining. Start with `css-inline` 0.25 (`default-features = false`) in the workspace
+`Cargo.toml` and `crates/nvs-stdlib/Cargo.toml`, and check `cargo tree -i html5ever` shows one
+version. Then the new `crates/nvs-stdlib/src/mail/css.rs`, called from `body_of`
+(`crates/nvs-stdlib/src/mail/mod.rs`, `fn body_of`) before `parts::read_html`, so the plain text
+and the `cid:` scan read the inlined HTML. `preview` shares `body_of`, `attachments_of` and
+`compose::entity` with `send`. The stage's anchors still say `mail.rs`; read them as `mail/mod.rs`.
 
-Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send` and
-`Core\Mail\Address::of` (no `about.md`, examples, bench, attack or website page yet), and the
-reference-card review for `send`, whose `bounceTag`, `RuntimeError` and `IOError` texts changed.
-No unit test or conformance case is expected red.
+Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
+`Core\Mail\Address::of` and the five `Core\Mail\Attachment` members (no `about.md`, examples,
+bench, attack or website page yet), and the reference-card review for `send`, whose `body`,
+`text`, `attachments` and `RuntimeError` texts changed. The examples under
+`docs/examples/core/Test-SentMail/html/` changed, so their members are stale too. No unit test or
+conformance case is expected red: the rewritten examples, cases and attacks each passed once.
 
 ### Backlog
 
