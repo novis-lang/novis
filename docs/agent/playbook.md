@@ -47,6 +47,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   another goal that the first list did not. Passed to `--review --stamp`, they were stamped
   unreviewed, and their `review-baseline.json` entries were removed. Save the key list once, at the review, and
   stamp only that list. See `tools/nv/cmd/site.ts`.
+- **A newcomer review that adds definitions can push an `about.md` past its 200 words.** In
+  `mail-receive` stage 5, seven files grew to 204 to 235 words. `proofs --owed` then named
+  `about`, and each cut needed another read, more stamps and new questions. After a review's
+  fixes, run `bun nv proofs --owed --goal <slug>` before you stamp. See `tools/nv/cmd/proofs.ts`.
 - **A website page has no inline Novis code: every ` ```nvs ` block is a `<Snippet>`.** In
   `mail-complete` stage 9, a writing subagent briefed with the page's path alone wrote ten inline
   fences, and `site --check snippets` refused them all. It could not write the snippet files
