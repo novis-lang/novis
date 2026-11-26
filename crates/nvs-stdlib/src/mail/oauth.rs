@@ -5,7 +5,7 @@
 //! client-credentials grant, the shape Microsoft 365 uses for an application that sends as a
 //! mailbox. A block with one sends it with the refresh-token grant, the shape Google uses. Both
 //! send the client's id and secret, and the scope when the block names one (RFC 6749 § 4.4 and
-//! § 6).
+//! RFC 6749 § 6).
 //!
 //! **The host fetches the token itself**, over [`nvs_host::tls`] with the compiled-in anchors,
 //! never through `Core\Http`. The URL came from root-owned configuration, so it is not put

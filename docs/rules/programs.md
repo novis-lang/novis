@@ -964,7 +964,7 @@ standard-library tier test rather than by convenience:
 | `Core\Password` | privilege, sink | Argon2id hash and constant-time verify over a `secret`, a crypto primitive rather than an application-security protocol |
 | `Core\Queue` | privilege | enqueue, claim, retry, dead-letter |
 | `Core\Socket` / `Core\Sse` | privilege, waits | persistent connections as isolates |
-| `Core\Mail` | waits | **transport only** — an SMTP endpoint the operator names in root-owned configuration under a `mail.send` capability; composition belongs to the program or a package |
+| `Core\Mail` | waits | **the transport and the message** — an SMTP endpoint the operator names in root-owned configuration under a `mail.send` capability ([`core-classes/mail-transport`](core-classes.md#core-classes-mail-transport)), and every part and header a program can set as a typed parameter, so `Core` writes every line break of the message ([`core-classes/mail-message`](core-classes.md#core-classes-mail-message)) |
 | `Core\Storage` | waits | local-filesystem object storage over the existing `fs.*` capabilities; remote backends are a package or an extension, never `Core` |
 | `Core\Cldr::pluralCategory` | data nothing else carries | the cardinal plural categories and, beside them, the ordinal forms a place takes, over a **closed** roster of languages — one outside it is refused rather than given another language's rules ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)) |
 

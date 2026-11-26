@@ -1,0 +1,19 @@
+{
+  "title": "`Core\\Mail` composes the whole message from typed parameters: HTML only as `Core\\Html\\Markup`, its CSS always inlined, and `preview` builds what `send` sends",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/mail-transport",
+    "programs/framework-core-half",
+    "core-classes/html-auto-escape",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/mail/compose.rs",
+    "crates/nvs-stdlib/src/mail/parts.rs",
+    "crates/nvs-stdlib/src/mail/css.rs",
+    "tests/conformance/core/mail-a-tainted-string-is-sent-as-plain-text.nvst",
+    "tests/conformance/core/mail-preview-shows-the-css-inlined.nvst",
+    "tests/conformance/core/mail-a-named-address-is-a-recipient-a-cc-a-bcc-and-the-reply-to.nvst",
+    "tests/conformance/core/mail-an-international-domain-is-sent-as-punycode.nvst"
+  ]
+}

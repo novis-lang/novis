@@ -1,0 +1,18 @@
+{
+  "title": "A `[mail.<name>]` block is the whole transport: verified TLS, its sign-in, the envelope, a pool of sessions, its DKIM key, and capture",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/mail-message",
+    "core-classes/db-capabilities",
+    "testing/a-test-reads-its-logs-and-mail",
+    "testing/the-debug-stream-reaches-the-service-through-the-disk"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/mail.rs",
+    "crates/nvs-stdlib/src/mail/smtp.rs",
+    "crates/nvs-stdlib/src/mail/pool.rs",
+    "crates/nvs-stdlib/src/mail/oauth.rs",
+    "crates/nvs-stdlib/src/mail/dkim.rs",
+    "crates/nvs-stdlib/src/mail/capture.rs"
+  ]
+}

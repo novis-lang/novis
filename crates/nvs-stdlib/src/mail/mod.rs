@@ -77,8 +77,9 @@
 //!
 //! # `Core` composes the whole message, and HTML is only ever `Core\Html\Markup`
 //!
-//! `rule:programs/framework-core-half` gives this class the transport and the message: every part
-//! a program can send is a typed parameter, so [`compose`](fn@compose) stays the one writer of a
+//! `rule:programs/framework-core-half` gives this class the transport and the message. The rule of
+//! the message is `rule:core-classes/mail-message`, and of the block that sends it
+//! `rule:core-classes/mail-transport`. Every part a program can send is a typed parameter, so [`compose`](fn@compose) stays the one writer of a
 //! `\r\n`. A raw MIME parameter for packages is declined, because it reopens the injection the
 //! class closes.
 //!

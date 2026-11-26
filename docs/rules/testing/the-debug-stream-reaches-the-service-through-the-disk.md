@@ -62,6 +62,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
 | `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
 | `run` | `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` (`rule:testing/a-run-is-recorded-like-a-request`) |
+| `mail` | a message a `capture = true` block kept (`rule:core-classes/mail-transport`): `endpoint`, `message_id`, `from`, `to`, `subject`, `text`, `auto_submitted`; optional `from_name`, `cc`, `bcc`, `reply_to`, `html_written` (the HTML as the program wrote it), `html` (as sent, its CSS inlined), `kept_css`, `unused_css`, `in_reply_to`, `references`, `unsubscribe`, `bounce_tag`, `attachments` (each with `name`, `type`, `size`, optional `content_id` for an inline one and `base64`) and `elided` (the bodies and the attachment bytes were removed to fit the line). A block that sends writes only its `mail` event, never a `mail` line |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 An *exception* has `class`, `message`, `file` and `line`. It also has optional `frames` (each with

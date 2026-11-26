@@ -72,6 +72,8 @@
     "core-classes/ldap-dn-is-the-launderer",
     "core-classes/ldap-value-types",
     "core-classes/ldap-error",
+    "core-classes/mail-message",
+    "core-classes/mail-transport",
     "core-classes/queue-storage-is-a-table",
     "core-classes/a-session-opens-on-its-first-use",
     "core-classes/ratelimit-two-members",

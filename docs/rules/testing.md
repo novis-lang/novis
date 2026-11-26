@@ -1141,7 +1141,12 @@ test, freed with it.
 **Under `nvs test`, `Core\Mail` sends nothing.** `Core\Mail::send` keeps the message and opens no
 connection, and `Core\Test::sentMail(): array<Core\Test\SentMail>` returns the messages sent since
 the test started, by the test, its requests and its runs, in the order sent. `Core\Test\SentMail`'s
-members are the fields `Core\Mail::send` takes, read back. It is the reason an outbound HTTP call is
+members are the fields `Core\Mail::send` takes, read back, and what it wrote: `messageId()`,
+`fromName()`, `inReplyTo()`, `references()`, `unsubscribe()`, `autoSubmitted()`, `bounceTag()`, and
+`attachments()`, each a `Core\Mail\Attachment` with `name()`, `type()`, `bytes()` and `isInline()`.
+`html()` is the HTML as sent, its CSS inlined, and `text()` the plain text as sent, built from the
+HTML where the program gave none. A `[mail.<name>] capture = true` block keeps its mail the same way
+outside a test ([`core-classes/mail-transport`](core-classes.md#core-classes-mail-transport)). It is the reason an outbound HTTP call is
 answered from a table in a test ([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)): a test
 never reaches a real person. What it spends: the messages of one test, freed with it.
 
@@ -3158,6 +3163,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
 | `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
 | `run` | `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
+| `mail` | a message a `capture = true` block kept ([`core-classes/mail-transport`](core-classes.md#core-classes-mail-transport)): `endpoint`, `message_id`, `from`, `to`, `subject`, `text`, `auto_submitted`; optional `from_name`, `cc`, `bcc`, `reply_to`, `html_written` (the HTML as the program wrote it), `html` (as sent, its CSS inlined), `kept_css`, `unused_css`, `in_reply_to`, `references`, `unsubscribe`, `bounce_tag`, `attachments` (each with `name`, `type`, `size`, optional `content_id` for an inline one and `base64`) and `elided` (the bodies and the attachment bytes were removed to fit the line). A block that sends writes only its `mail` event, never a `mail` line |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 An *exception* has `class`, `message`, `file` and `line`. It also has optional `frames` (each with
@@ -3957,6 +3963,8 @@ version, and the index is rebuilt from the spool, which is what a cache is for
 | `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us`, `min_memory` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
 | `GET /api/runs` | the page of runs ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)), filtered by `of`, `name`, `outcome`, `min_us` and `min_memory`, paged on the run's id as the requests are | the requests' bound, over run ids |
 | `GET /api/run?trace=` | the newest run of the trace, its uncaught exception with its stack, and every event, dump and log line of its trace | 5,000 events, 200 dumps and 1,000 log lines, as one request's answer, and `cut` says which list stopped |
+| `GET /api/mails` | the page of kept mail ([`core-classes/mail-transport`](core-classes.md#core-classes-mail-transport)), newest first, paged on the row id with `before`, `since` and `limit`; each row has the block, the subject and the `to` addresses, and no body | the page size |
+| `GET /api/mail?id=` | one kept message's whole `mail` line: its headers, its text, its HTML as written and as sent, its CSS report and its attachments as base64 | one line, which the spool bounds to its line size |
 | `GET /api/summary` | twelve buckets over the last five minutes of the request count and the error count, and the p50, p95 and largest duration | the newest 10,000 rows of the window, and the answer says when it was cut |
 | `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | the newest 10,000 requests and 200 routes by count, and the answer says when older requests were not counted; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
 | `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | the newest 100,000 event ids and 200 sites by total time, and the answer says when older events were not read |
