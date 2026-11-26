@@ -92,8 +92,7 @@ decisions* beyond those is the session's call, open until the user changes one.
 ## Standing decisions
 
 **A listing is sorted by name, in byte order.** `list` and every folder `walk` reads sort their
-names by the bytes of the UTF-8 name, on every platform (`rule:core-classes/io-a-listing-shows-what-the-program-may-read`,
-new). There is no locale and no case folding. The sort runs once per folder in
+names by the bytes of the UTF-8 name, on every platform (the new rule `core-classes/io-a-listing-shows-what-the-program-may-read`). There is no locale and no case folding. The sort runs once per folder in
 `crates/nvs-runtime/src/capability.rs:1367` `read_dir`, so every caller gets it. **What it spends:**
 O(n log n) name comparisons per folder, beside one `readdir` per folder. The about.md lines that tell
 a program to call `Core\Arr::sort` are rewritten.
@@ -119,7 +118,7 @@ writes `{ skip: ['.*'] }`.
 
 **`Core\Path::matches(string $pattern, string $path): bool`** is a new static method in
 `crates/nvs-stdlib/src/path.rs:104` `CLASS`. It never touches the disk. Its syntax, in
-`rule:core-classes/path-matches-is-one-pattern-syntax` (new):
+the new rule `core-classes/path-matches-is-one-pattern-syntax`:
 - The path and the pattern are split into parts the way `Core\Path::split` splits a path
   (`path.rs:170`): `/` and `\` are both separators on every platform, and a repeated or trailing
   separator is nothing. A root or drive at the start of the path never takes part in a match.
@@ -260,7 +259,7 @@ in order, and stage 4 needs stage 2's matcher. The goal runs on the chain after 
 
 - [ ] `crates/nvs-runtime/src/capability.rs:1367`: `read_dir` sorts the entries by the bytes of the
   name and leaves out each entry the read door would deny, with no check where the grant is every
-  path. Its doc comment says so, with what it spends. `rule:core-classes/io-a-listing-shows-what-the-program-may-read`.
+  path. Its doc comment says so, with what it spends. The new rule `core-classes/io-a-listing-shows-what-the-program-may-read`.
 - [ ] `crates/nvs-runtime/src/capability.rs:924`: the yes/no half of `allow` is callable without
   building a denial, per § *A listing leaves out*.
 - [ ] `crates/nvs-stdlib/src/io.rs:4116` and `:4148`: the doc comments of `list` and `walk` say
@@ -278,7 +277,7 @@ in order, and stage 4 needs stage 2's matcher. The goal runs on the chain after 
 - [ ] `crates/nvs-stdlib/src/path.rs:104`: the `matches` row, its `MethodDoc` with end-user text and
   its helper, per § *`Core\Path::matches`*. The matcher is a set-of-positions simulation over the
   parts `split` gives (`path.rs:170`), with graphemes from `nvs_runtime::graphemes`. It returns its step
-  count to the test that bounds it. `rule:core-classes/path-matches-is-one-pattern-syntax`.
+  count to the test that bounds it. The new rule `core-classes/path-matches-is-one-pattern-syntax`.
 - [ ] The capability and taint tables that list every `Core` member name it, as `split`'s rows do
   (the session finds them by `nvs_core_path_split`).
 - [ ] The ten tests of the check `matches` in `crates/nvs-stdlib/tests/file_scan.rs`, then
@@ -289,7 +288,7 @@ in order, and stage 4 needs stage 2's matcher. The goal runs on the chain after 
 - [ ] `crates/nvs-stdlib/src/io.rs:1940`: `WALK` becomes its own iterator with the trio's symbols
   and slots for the start folder and the stack of sorted listings. `ENTRY` (`Core\IO\Entry`) is a
   new class with its six members and end-user docs. The `WALK` doc comment is rewritten whole.
-  `rule:core-classes/io-walk-reads-while-the-loop-runs`.
+  The new rule `core-classes/io-walk-reads-while-the-loop-runs`.
 - [ ] `crates/nvs-stdlib/src/io.rs:4148` and `:4189`: `nvs_core_io_walk` reads the start folder
   through the door, and `iterate`, `advance` and `current` walk depth-first, reading each folder
   when the walk reaches it, as § *`walk` reads while the loop runs* says.
@@ -316,7 +315,7 @@ in order, and stage 4 needs stage 2's matcher. The goal runs on the chain after 
 - [ ] `crates/nvs-stdlib/src/io.rs:1875` and `:2444`: `LINES` becomes its own iterator over an open
   file and one buffer, per § *`lines` reads while the loop runs*. `nvs_core_io_lines_iterate`
   (`:2479`) and `held_strings` (`:2502`) go once nothing reads them. The `LINES` doc comment is
-  rewritten whole. `rule:core-classes/io-lines-reads-while-the-loop-runs`.
+  rewritten whole. The new rule `core-classes/io-lines-reads-while-the-loop-runs`.
 - [ ] Tests that assert the old reading are updated: `io.rs:4630` (a bad byte now throws at its
   line) and `:5987`, and the cases `tests/conformance/core/io-lines-walks-a-file-forward-and-walks-it-again.nvst`
   and `io-lines-asks-the-door-read-asks-before-it-splits-anything.nvst`, each renamed for the new rule.

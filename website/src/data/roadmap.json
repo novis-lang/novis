@@ -44,6 +44,13 @@
         "test-only",
         "narrowed-static"
       ]
+    },
+    {
+      "title": "Read large folders and files in a loop",
+      "text": "`Core\\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\\Path::matches` tests a path against a pattern.",
+      "goals": [
+        "file-scan"
+      ]
     }
   ]
 }
