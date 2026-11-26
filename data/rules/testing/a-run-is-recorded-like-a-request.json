@@ -1,12 +1,16 @@
 {
   "title": "A scheduled job, a queue job and a command run are each recorded as one `run` line with their events, dumps and logs, and the viewer lists them in a Runs view",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-debug-stream-reaches-the-service-through-the-disk",
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/a-recorded-exception-keeps-its-frames-and-never-a-value",
     "testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time"
   ],
-  "guardedBy": [],
-  "goal": "deeper-debug-records"
+  "guardedBy": [
+    "crates/nvs-runtime/src/spool.rs",
+    "crates/nvs-cli/src/debug/runs.rs",
+    "crates/nvs-cli/tests/debug_api.rs",
+    "viewer/test/runs.browser.test.ts"
+  ]
 }

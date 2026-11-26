@@ -393,7 +393,8 @@ cases are disjoint files and may go to two writing subagents.
 
 - [ ] `crates/nvs-lsp/src/refactor.rs:1` (new): `checked(workspace, index, rewrites, moves)` applies the
   rewrites in memory, analyses the changed files and their readers, and returns the rewrites or the
-  first new error with its position. `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.
+  first new error with its position. This stage writes the rule
+  `ide/a-refactoring-checks-its-edit-before-it-writes` that states it.
 - [ ] `crates/nvs-lsp/src/generate.rs:632`: `writes_cleanly` calls `refactor::checked` or is replaced by
   it; the four generators keep their behaviour.
 - [ ] `crates/nvs-lsp/src/query.rs:395` and `crates/nvs-lsp/src/server.rs:1837`: rename and the file

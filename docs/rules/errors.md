@@ -896,10 +896,11 @@ against it — a strict validator would then pass in production and fail in deve
 direction for a bug to point. So a development-mode API response is byte-identical in shape to its
 production counterpart.
 
-**The inline block names its request.** From goal `deeper-debug-records`, the block an HTML body
-gets under `[debug] inline` has one more line: the number of queries the request ran so far, and a
-link to the request in the viewer, `/requests/<trace id>/<span id>` on the address `[debug] listen`
-names. The line is written only when `[debug] inline` is on and `[debug] store` is on for the
+**The inline block names its request.** The block an HTML body gets under `[debug] inline` starts
+with one line: the number of queries the request ran, and a link to the request in the viewer,
+`/requests/<trace id>/<span id>` on the address `[debug] listen` names, with the scheme and host
+`nvs debug` prints its own link with. A `listen` that names no address a link can use, such as the
+port `0`, leaves the count alone on the line. The line is written only when `[debug] inline` is on and `[debug] store` is on for the
 request: without `store`, the viewer has no record of it. The link carries no token, so the page
 leaks none. A browser that has opened the viewer once has its cookie, and any other gets the
 viewer's own login.

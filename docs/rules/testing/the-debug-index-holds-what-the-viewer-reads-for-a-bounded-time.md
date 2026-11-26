@@ -44,8 +44,8 @@ and is not in the index, because discarding the index must lose nothing a person
 **A run is forgotten as a request is,** by its start past `index_age` and oldest first past
 `index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
 a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
-named columns would be mostly empty on every row. Each stage of goal `deeper-debug-records` that adds
-a column raises the schema version once, so the index is rebuilt from the spool.
+named columns would be mostly empty on every row. Each change that adds a column raises the schema
+version once, so the index is rebuilt from the spool.
 
 A schema version in `meta` that the running binary does not know is a cache miss: the file is
 discarded and rebuilt from what is still on disk

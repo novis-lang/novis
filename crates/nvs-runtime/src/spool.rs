@@ -2239,7 +2239,11 @@ mod tests {
     #[cfg_attr(miri, ignore = "Miri's isolation refuses the working directory")]
     fn a_runs_files_are_written_relative_to_the_working_directory() {
         let cwd = std::env::current_dir().expect("the working directory");
-        let inside = cwd.join("jobs").join("receipt.nvs").to_string_lossy().into_owned();
+        let inside = cwd
+            .join("jobs")
+            .join("receipt.nvs")
+            .to_string_lossy()
+            .into_owned();
         let outside = std::env::temp_dir()
             .join("elsewhere.nvs")
             .to_string_lossy()

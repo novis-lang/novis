@@ -3,8 +3,6 @@
 
 # Testing
 
-*2 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -3159,7 +3157,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `profile` | `path` (the profile file's absolute path), written when the profile starts |
 | `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
 | `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
-| `run` | from goal `deeper-debug-records`: `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
+| `run` | `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 An *exception* has `class`, `message`, `file` and `line`. It also has optional `frames` (each with
@@ -3408,7 +3406,7 @@ index_max`, the oldest request first.
 | Table | One row per | What the viewer reads it for |
 |---|---|---|
 | `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site, and nullable `memory_peak`, `memory_limit`, `handler`, `bytes_in` and `bytes_out`; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, the routes view ([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)), and a request's memory, handler and sizes |
-| `runs` | from goal `deeper-debug-records`, `run` line: trace id, `of`, name, start, duration, outcome, nullable memory peak and limit, its exception group, and its dump, log and query counts and summed event durations kept by the same triggers as a request's; indexed on start and on (`of`, `name`, `start_us`) | the Runs view ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
+| `runs` | `run` line: trace id, `of`, name, start, duration, outcome, nullable memory peak and limit, its exception group, and its dump, log and query counts and summed event durations kept by the same triggers as a request's; indexed on start and on (`of`, `name`, `start_us`) | the Runs view ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
 | `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, the target, and its call site's file, line and file hash, and nullable `outcome`, the event's outcome fields as one JSON object | a request's timeline, and each event's outcome |
@@ -3417,7 +3415,7 @@ index_max`, the oldest request first.
 | `coverage` | `coverage` line: trace id, span, each file's lines and counts as JSON | the lines a request ran |
 | `copies` | one copy site of a `copies` line: trace id, span, file, line, file hash, reason, copies, units; indexed on `copies_site` (file hash, line) | a request's copies, and the copies at one site |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
-| `exceptions` | uncaught exception: trace id, class, message, file, line, group, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`; from goal `deeper-debug-records`, a nullable `run` beside the now nullable `request`, so one names its request or its run | a request's or a run's error and its stack ([`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value)) |
+| `exceptions` | uncaught exception: trace id, class, message, file, line, group, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`; a nullable `request` and a nullable `run`, so one names its request or its run | a request's or a run's error and its stack ([`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value)) |
 | `exception_groups` | class and throw site: count, first seen, last seen | grouped exceptions |
 | `search` | searchable text of one row above, with its table and row id | full-text search |
 | `dropped` | `dropped` line: the records and files a writer's share of the spool cap deleted | what was lost before it was read |
@@ -3447,8 +3445,8 @@ and is not in the index, because discarding the index must lose nothing a person
 **A run is forgotten as a request is,** by its start past `index_age` and oldest first past
 `index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
 a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
-named columns would be mostly empty on every row. Each stage of goal `deeper-debug-records` that adds
-a column raises the schema version once, so the index is rebuilt from the spool.
+named columns would be mostly empty on every row. Each change that adds a column raises the schema
+version once, so the index is rebuilt from the spool.
 
 A schema version in `meta` that the running binary does not know is a cache miss: the file is
 discarded and rebuilt from what is still on disk
@@ -3467,7 +3465,7 @@ discarded and rebuilt from what is still on disk
 
 <a id="testing-a-recorded-exception-keeps-its-frames-and-never-a-value"></a>
 
-## A recorded uncaught exception keeps at most 64 frames and 8 `previous` links of names, files and lines, and never an argument's value  *(designed — owned by goal deeper-debug-records)*
+## A recorded uncaught exception keeps at most 64 frames and 8 `previous` links of names, files and lines, and never an argument's value
 
 `rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`
 
@@ -3511,7 +3509,7 @@ wrote it, as the request line's message already is.
 
 <a id="testing-a-run-is-recorded-like-a-request"></a>
 
-## A scheduled job, a queue job and a command run are each recorded as one `run` line with their events, dumps and logs, and the viewer lists them in a Runs view  *(designed — owned by goal deeper-debug-records)*
+## A scheduled job, a queue job and a command run are each recorded as one `run` line with their events, dumps and logs, and the viewer lists them in a Runs view
 
 `rule:testing/a-run-is-recorded-like-a-request`
 
@@ -3534,8 +3532,13 @@ outcome, so no new branch runs while `store` is off:
   (`crates/nvs-server/src/metrics.rs`);
 - a queue job, where the worker settles an attempt as succeeded, failed or dead-lettered
   (`crates/nvs-cli/src/worker.rs`), one line per attempt;
-- a command run, where `nvs run` and `nvs test` seal their spool at exit
-  (`crates/nvs-cli/src/main.rs`, `sealed`). A run stopped by a signal is `cancelled`.
+- a command run, where the program's task ends, after its exit hooks and its session's
+  write-back, so every event it filed is in (`crates/nvs-cli/src/main.rs`, `run_run`). A run
+  whose task was cancelled is `cancelled`, and an `exit` with code `0` is `ok`;
+- `nvs test` of a program's `#[Test]` methods, once per invocation, where the suite returns
+  (`crates/nvs-cli/src/runner.rs`), named `test` and the entry file, and `failed` when a test
+  failed. A `.nvst` tree writes no line of its own, because each case runs in an `nvs` process
+  of its own, which writes its own line.
 
 **The Runs view.** The viewer has a Runs view beside Requests: the same list, filters and paging,
 and the same page with its tabs, without the Request and Response tabs, because a run has neither.
@@ -3947,7 +3950,9 @@ version, and the index is rebuilt from the spool, which is what a cache is for
 
 | Route | Answers | Bound |
 |---|---|---|
-| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
+| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us`, `min_memory` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
+| `GET /api/runs` | the page of runs ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)), filtered by `of`, `name`, `outcome`, `min_us` and `min_memory`, paged on the run's id as the requests are | the requests' bound, over run ids |
+| `GET /api/run?trace=` | the newest run of the trace, its uncaught exception with its stack, and every event, dump and log line of its trace | 5,000 events, 200 dumps and 1,000 log lines, as one request's answer, and `cut` says which list stopped |
 | `GET /api/summary` | twelve buckets over the last five minutes of the request count and the error count, and the p50, p95 and largest duration | the newest 10,000 rows of the window, and the answer says when it was cut |
 | `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | the newest 10,000 requests and 200 routes by count, and the answer says when older requests were not counted; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
 | `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | the newest 100,000 event ids and 200 sites by total time, and the answer says when older events were not read |
