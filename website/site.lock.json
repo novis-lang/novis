@@ -57,7 +57,7 @@
     "directive:extension": "c7b0fb316e8c1bec"
   },
   "docs/examples/config/http/about.md": {
-    "directive:http": "fa3c9b38f5884fa8"
+    "directive:http": "dccbc7cb066592ac"
   },
   "docs/examples/config/http-client-pool_idle/about.md": {
     "directive:http.client.pool_idle": "1a82385d7c8ed604"
@@ -66,10 +66,10 @@
     "directive:http.client.pool_idle_timeout": "5614dabc2d180b99"
   },
   "docs/examples/config/http-client-proxy/about.md": {
-    "directive:http.client.proxy": "f97d140d4f289e95"
+    "directive:http.client.proxy": "7856c57c41ea9674"
   },
   "docs/examples/config/http-client-socket/about.md": {
-    "directive:http.client.socket": "970b1d567e4f8c5e"
+    "directive:http.client.socket": "4dc8d1ed101b030b"
   },
   "docs/examples/config/http-client-tls/about.md": {
     "directive:http.client.tls": "90c9a4e462028b87"
@@ -193,6 +193,9 @@
   },
   "docs/examples/config/session/about.md": {
     "directive:session": "d7521e8e89ad0b7b"
+  },
+  "docs/examples/config/tls-client/about.md": {
+    "directive:tls.client": "22e5f16e35fea9da"
   },
   "docs/examples/config/trace/about.md": {
     "directive:trace": "af40cc613bcfff08"
@@ -1071,31 +1074,31 @@
     "Core\\Http::methodName": "a9cd4784a9e09cac"
   },
   "docs/examples/core/Http-Client/delete/about.md": {
-    "Core\\Http\\Client::delete": "1879bcecb60ae47d"
+    "Core\\Http\\Client::delete": "8b3ff967f3798db4"
   },
   "docs/examples/core/Http-Client/get/about.md": {
-    "Core\\Http\\Client::get": "ef104dfef9330249"
+    "Core\\Http\\Client::get": "f74c3a2d4ed3a365"
   },
   "docs/examples/core/Http-Client/head/about.md": {
-    "Core\\Http\\Client::head": "c5e1fbe0ec1189bf"
+    "Core\\Http\\Client::head": "a8151d6e9e844840"
   },
   "docs/examples/core/Http-Client/openSocket/about.md": {
-    "Core\\Http\\Client::openSocket": "63964688d7893f29"
+    "Core\\Http\\Client::openSocket": "b7585ed13e9d1b29"
   },
   "docs/examples/core/Http-Client/openStream/about.md": {
-    "Core\\Http\\Client::openStream": "d4f705563f94b528"
+    "Core\\Http\\Client::openStream": "7ca3f83c0d1223c7"
   },
   "docs/examples/core/Http-Client/patch/about.md": {
-    "Core\\Http\\Client::patch": "e71bff303659c168"
+    "Core\\Http\\Client::patch": "ec2e303b552d2e4d"
   },
   "docs/examples/core/Http-Client/post/about.md": {
-    "Core\\Http\\Client::post": "98ad6847fbb63190"
+    "Core\\Http\\Client::post": "f01f20ab44bacb97"
   },
   "docs/examples/core/Http-Client/put/about.md": {
-    "Core\\Http\\Client::put": "71bd6c5088b7b372"
+    "Core\\Http\\Client::put": "1f5149ed01c77f50"
   },
   "docs/examples/core/Http-Client/request/about.md": {
-    "Core\\Http\\Client::request": "044eeefaa9d7f02d"
+    "Core\\Http\\Client::request": "9163a2fa77dd0094"
   },
   "docs/examples/core/Http-Event/data/about.md": {
     "Core\\Http\\Event::data": "2bb5894f7b28f483"
@@ -1683,7 +1686,7 @@
     "Core\\Mail::preview": "d216e8f7129ecafe"
   },
   "docs/examples/core/Mail/send/about.md": {
-    "Core\\Mail::send": "9eb6e00c813d0ee0"
+    "Core\\Mail::send": "36f0bc2f3724dd1c"
   },
   "docs/examples/core/Mail-Address/of/about.md": {
     "Core\\Mail\\Address::of": "103b90585645fd3e"
@@ -5113,7 +5116,7 @@
   },
   "guides/how-to-use/sending-mail.mdx": {
     "Core\\Mail::preview": "11b446fbdca0096d",
-    "Core\\Mail::send": "58d39dc70906ef9d",
+    "Core\\Mail::send": "56be119cf2f3f1a4",
     "Core\\Mail\\Address::of": "81ba636cbe9ada69",
     "Core\\Mail\\Attachment::fromBytes": "fd33105260bb8c9f",
     "Core\\Mail\\Attachment::fromFile": "847674b78e7471c3",
@@ -6730,7 +6733,7 @@
     "Core\\Mail::preview": "d2f8e8dc119d419b"
   },
   "help:Core\\Mail::send": {
-    "Core\\Mail::send": "e98ddbae61ab0b88"
+    "Core\\Mail::send": "bc91a08e6909e0af"
   },
   "help:Core\\Mail\\Address::of": {
     "Core\\Mail\\Address::of": "907a4254cc41bdae"
@@ -8812,7 +8815,7 @@
     "directive:extension": "83286e1b80fb7245"
   },
   "help:directive:http": {
-    "directive:http": "a501cb15118eaf6c"
+    "directive:http": "a930235412b0ac5a"
   },
   "help:directive:http.client.pool_idle": {
     "directive:http.client.pool_idle": "4c68cfb2ff5b0c53"
@@ -8821,10 +8824,10 @@
     "directive:http.client.pool_idle_timeout": "ad869a0b6fd477fb"
   },
   "help:directive:http.client.proxy": {
-    "directive:http.client.proxy": "c3b94b89728c4510"
+    "directive:http.client.proxy": "def12399531383f6"
   },
   "help:directive:http.client.socket": {
-    "directive:http.client.socket": "92a9dda34f2b4b4c"
+    "directive:http.client.socket": "e6751b8b8a212164"
   },
   "help:directive:http.client.tls": {
     "directive:http.client.tls": "b31f2f5496ab1bee"
@@ -8948,6 +8951,9 @@
   },
   "help:directive:session": {
     "directive:session": "a93870ba58b10a83"
+  },
+  "help:directive:tls.client": {
+    "directive:tls.client": "16d980c45a0adc06"
   },
   "help:directive:trace": {
     "directive:trace": "1bd50c8fe75f7424"

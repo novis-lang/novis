@@ -7658,7 +7658,6 @@
   "help:Core\\Html::toSource": "a6ab0bde6550154a",
   "help:Core\\Http::allowUrl": "56e710790c074c12",
   "help:Core\\Http::methodName": "e5f3e73458d6c0f6",
-  "help:Core\\Http\\Client::openSocket": "cfc46b295cd36c74",
   "help:Core\\Http\\Event::data": "f618cb5f4121ad68",
   "help:Core\\Http\\Event::name": "78e8f3aa1d6930da",
   "help:Core\\Http\\Identity::read": "a331e4972c2080fb",

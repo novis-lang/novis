@@ -7,8 +7,8 @@ description: How to set up a mail server in nvs.toml, send text and HTML mail wi
 import Snippet from '@components/Snippet.astro'
 
 Your program sends mail with `Core\Mail::send`. The mail server, its password and the sender
-address are in `nvs.toml`. Your code names a block of settings, and nothing else. So a program
-cannot send mail as somebody else.
+address are in `nvs.toml`. Your code gives only the name of a block of settings. It cannot set the
+server or the sender address. So a program cannot send mail as somebody else.
 
 ## The settings block
 
@@ -32,7 +32,7 @@ The `[capabilities.mail]` block allows the program to use the block. Without it,
 
 - `tls` is `implicit`, `starttls` or `none`. TLS encrypts the connection to the mail server. The
   default is `implicit` on port 465. On another port, it is `starttls` when the block has a
-  password or a token. Otherwise it is `none`. Novis never sends a password without TLS.
+  password or uses `auth = "xoauth2"`. Otherwise it is `none`. Novis never sends a password without TLS.
 - `tls_ca_file` is a PEM file (a text file with certificates). It contains the certificate of your
   own certificate authority, which is the service that signs your server certificates. Use it for a
   mail server inside your company. Without `tls_ca_file`, Novis uses the certificate authorities in
@@ -117,9 +117,9 @@ Three rules stay in the `<style>` element:
 - A rule with `:hover` stays, because it applies only while the mouse is over the element.
 - A rule that matches no element stays, such as `.note` here.
 
-`keptCss()` of the preview returns every rule that stayed. `unusedCss()` returns the rules that
-could match an element and did not. Here it returns `.note { color: gray; }`. A preview is useful
-in a test, or on an admin page that shows the mail.
+`keptCss()` of the preview returns every rule that stayed. `unusedCss()` returns only the rules that
+match no element. Here it returns `.note { color: gray; }`. A preview is useful in a test, or on an
+admin page that shows the mail.
 
 A `<link rel="stylesheet">` throws a `RuntimeError`. A mail cannot load a stylesheet, so put the CSS
 in a `<style>` element.
@@ -131,8 +131,8 @@ Mail programs show a reply and the message it replies to in one thread. Pass the
 
 <Snippet src="guides/how-to-use/sending-mail/threads.nvs" />
 
-`inReplyTo` is the message this one replies to. `references` lists the earlier messages of the thread,
-oldest first.
+`inReplyTo` takes the message id of the message this one replies to. `references` takes a list of
+the message ids of the earlier messages in the thread, oldest first.
 
 ## Unsubscribe
 

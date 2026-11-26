@@ -2369,10 +2369,11 @@ macro_rules! connection_params {
 /// A card's entries for a request row: [`connection_params`]' list with the
 /// exchange half written into it — see [`request_options`], whose keys these
 /// describe one for one.
+/// The first entry is the row's `deadline`, because `openStream`'s covers less
+/// of the exchange than every other row's.
 macro_rules! request_params {
-    ($($leading:expr),* $(,)?) => { request_params!($($leading),* ; ) };
-    ($($leading:expr),* ; $($trailing:expr),* $(,)?) => { connection_params!(
-    $($leading,)* URL_PARAM, DEADLINE_PARAM ;
+    ($deadline:expr ; $($leading:expr),* ; $($trailing:expr),* $(,)?) => { connection_params!(
+    $($leading,)* URL_PARAM, $deadline ;
     ParamDoc {
         name: "followRedirects",
         desc: "How many redirects to follow. If it is not given, the runtime's `[http.client] \
@@ -2382,8 +2383,8 @@ macro_rules! request_params {
     },
     ParamDoc {
         name: "retryAttempts",
-        desc: "The total number of attempts, including the first. `1` is the same as the \
-               default, and `0` throws an error. Retries wait a random delay (jitter), and all \
+        desc: "The total number of attempts, including the first. The default is `1`, which \
+               means no retry. `0` throws an error. Retries wait a random delay (jitter), and all \
                attempts share one deadline.",
         shape: &[],
     },
@@ -2446,14 +2447,15 @@ macro_rules! request_params {
 }
 
 /// Every row but `request`'s: the URL, then the bag — see [`request_params`].
-const REQUEST_PARAMS: &[ParamDoc] = request_params!();
+const REQUEST_PARAMS: &[ParamDoc] = request_params!(DEADLINE_PARAM ; ;);
 
 /// `request`'s: the verb it is handed, ahead of what every other row documents.
-const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM);
+const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(DEADLINE_PARAM ; METHOD_PARAM ;);
 
-/// `openStream`'s: `request`'s list, and after it the two bounds that row's own bag
-/// declares — see [`STREAM_OPTIONS`].
-const STREAM_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM ; IDLE_PARAM, MAX_DURATION_PARAM);
+/// `openStream`'s: `request`'s list with its own `deadline`, and after it the two
+/// bounds that row's own bag declares — see [`STREAM_OPTIONS`].
+const STREAM_PARAMS: &[ParamDoc] =
+    request_params!(STREAM_DEADLINE_PARAM ; METHOD_PARAM ; IDLE_PARAM, MAX_DURATION_PARAM);
 
 /// `openSocket`'s: the connection keys, then the group
 /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
@@ -2482,6 +2484,16 @@ const DEADLINE_PARAM: ParamDoc = ParamDoc {
     name: "deadline",
     desc: "The time limit for the whole call. It covers the connection, every redirect, every \
            retry and every wait between retries. If it is not given, the runtime's \
+           `[http.client] deadline` is used. There is no way to write a call with no deadline.",
+    shape: &[],
+};
+
+/// The budget `openStream` runs under until its headers arrive — see [`STREAM_PARAMS`].
+const STREAM_DEADLINE_PARAM: ParamDoc = ParamDoc {
+    name: "deadline",
+    desc: "The time limit until the status and headers arrive. It covers the connection, every \
+           redirect, every retry and every wait between retries. It does not cover the body. \
+           `idle` and `maxDuration` limit the body. If it is not given, the runtime's \
            `[http.client] deadline` is used. There is no way to write a call with no deadline.",
     shape: &[],
 };
@@ -2578,8 +2590,7 @@ const MAX_DURATION_PARAM: ParamDoc = ParamDoc {
     name: "maxDuration",
     desc: "The longest time the whole body may take. This limit stops a server that sends one \
            byte at a time, just often enough to pass the `idle` check. If it is not given, the \
-           runtime's `[http.client] max_duration` is used. `deadline` covers only the \
-           connection, the status and the headers.",
+           runtime's `[http.client] max_duration` is used.",
     shape: &[],
 };
 
@@ -2592,45 +2603,98 @@ const METHOD_PARAM: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// What every request member answers, once — see [`REQUEST_PARAMS`].
-const REQUEST_RET: &str = "A `Core\\Http\\Response` with the status and the body of the reply. \
-                           A `404` or a `500` is a normal reply and is returned here. Only a \
-                           request that gets no reply at all throws an error. An `https` URL is \
-                           fetched over TLS. The certificate is checked against the certificate \
-                           authorities in `[tls.client] roots`.";
+/// What a request member's returns say after its first sentence, once — see
+/// [`REQUEST_RET`] and [`HEAD_RET`]. A macro, so `concat!` can join it.
+macro_rules! request_ret_tail {
+    () => {
+        " A `404` or a `500` is a normal reply and is returned here. Only a request that gets no \
+         reply at all throws an error. An `https` URL is fetched over TLS. The certificate is \
+         checked against the certificate authorities in `[tls.client] roots`."
+    };
+}
 
-/// What every request member throws, once — see [`REQUEST_PARAMS`].
-const REQUEST_ERRORS: &[ErrorDoc] = &[
+/// What every request member but `head` returns — see [`REQUEST_PARAMS`].
+const REQUEST_RET: &str = concat!(
+    "A `Core\\Http\\Response` with the status, the headers and the body of the reply.",
+    request_ret_tail!()
+);
+
+/// What `head` returns: a reply to `HEAD` has no body.
+const HEAD_RET: &str = concat!(
+    "A `Core\\Http\\Response` with the status and the headers of the reply. Its body is empty.",
+    request_ret_tail!()
+);
+
+/// What a request member throws, once, with the sentences only its own card
+/// has appended to the `RuntimeError` text — see [`REQUEST_PARAMS`].
+macro_rules! request_errors {
+    ([$($runtime:tt)*] [$($timeout:tt)*]) => { &[
     ErrorDoc {
         error: "RuntimeError",
-        desc: "The URL is not allowed. It is not a URL, its scheme is not `http` or `https`, or \
-               it has no host. Or `net.connect` does not grant the host. Or the host resolves to \
-               a loopback, private, link-local or unspecified address that `net.internal` does \
-               not list. An option is out of range. A `deadline`, `connectTimeout` or \
-               `retryBackoff` is not a positive duration. On `openStream`, the same is true for \
-               `idle` and `maxDuration`. Or `retryAttempts` is zero. A header name or value \
-               contains a control byte, which would end the line early. An `https` server sent a \
-               certificate that does not verify against the certificate authorities Novis \
-               includes. Or the certificate is not valid for that name. Or the reply is not \
-               HTTP, or it is larger than the limit for one request. A body that is not text does not \
-               cause this error. `Core\\Http\\Response::text` throws for it. `request` gets the \
-               method as a value, so it checks two things before the first attempt. The other \
-               methods check them at compile time. The first is a body option on a `Get` or a \
-               `Head`. The second is retries on a `Post` or a `Patch` without \
-               `retryIdempotencyKey`.",
+        desc: concat!(
+            "The URL is not allowed. It is not a URL, its scheme is not `http` or `https`, or \
+             it has no host. Or `net.connect` does not grant the host. Or the host resolves to \
+             a loopback, private, link-local or unspecified address that `net.internal` does \
+             not list. An option is out of range. A `deadline`, `connectTimeout` or \
+             `retryBackoff` is not a positive duration. Or `retryAttempts` is zero. A header \
+             name or value contains a control byte, which would end the line early. An `https` \
+             server sent a certificate that does not verify against `[tls.client] roots`, or \
+             against `tlsCa` when it is given. Or the certificate is not valid for that name. \
+             For these two cases, the message says which setting fixes it. Or the reply is not \
+             HTTP, or it is larger than the limit for one request.",
+            $($runtime)*
+        ),
     },
     ErrorDoc {
         error: "TimeoutError",
-        desc: "The `deadline` passed before a reply arrived. It covers the connection, every \
-               redirect, every retry and every wait between retries. If a wait would end after \
-               the deadline, the error is thrown at once, without waiting.",
+        desc: $($timeout)*,
     },
     ErrorDoc {
         error: "IOError",
-        desc: "The last attempt could not reach the pinned address, or the connection failed while \
-               the request was being sent or the reply read.",
+        desc: "The last attempt could not connect to the approved address. Or the connection \
+               failed while the request was sent or the reply was read.",
     },
-];
+    ] };
+}
+
+/// The `TimeoutError` text of every request member but `openStream`.
+macro_rules! request_timeout {
+    () => {
+        "The `deadline` passed before the reply arrived. It covers the connection, every \
+         redirect, every retry and every wait between retries. If a wait would end after the \
+         deadline, the error is thrown at once, without waiting."
+    };
+}
+
+/// The check `request` and `openStream` make at run time, because the method
+/// arrives as a value — see `judge_verb`.
+macro_rules! verb_check {
+    () => {
+        " Before the first attempt, this method checks two mistakes that the other methods \
+         find at compile time. A body option on a `Get` or a `Head` throws an error. Retries on \
+         a `Post` or a `Patch` without `retryIdempotencyKey` also throw an error."
+    };
+}
+
+/// What every member with a fixed verb throws — see [`request_errors`].
+const REQUEST_ERRORS: &[ErrorDoc] = request_errors!([] [request_timeout!()]);
+
+/// What `request` throws: [`REQUEST_ERRORS`] and the run-time verb check.
+const DYNAMIC_ERRORS: &[ErrorDoc] = request_errors!([verb_check!()] [request_timeout!()]);
+
+/// What `openStream` throws: its own bounds, the verb check, and a deadline that
+/// ends when the headers arrive.
+const STREAM_ERRORS: &[ErrorDoc] = request_errors!(
+    [
+        " An `idle` or `maxDuration` is not a positive duration.",
+        verb_check!()
+    ]
+    [
+        "The `deadline` passed before the status and headers arrived. It covers the connection, \
+         every redirect, every retry and every wait between retries. If a wait would end after \
+         the deadline, the error is thrown at once, without waiting."
+    ]
+);
 
 /// `Core\Http\Client::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
@@ -2681,7 +2745,7 @@ const HEAD_DOC: MethodDoc = MethodDoc {
     short: "Sends a `HEAD` request to `$url`. The reply has the headers only. It has the same \
             time limit as `get`.",
     params: REQUEST_PARAMS,
-    ret: REQUEST_RET,
+    ret: HEAD_RET,
     errors: REQUEST_ERRORS,
 };
 
@@ -2692,7 +2756,7 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
             method. There is no request object. This call takes the same options as the others.",
     params: DYNAMIC_PARAMS,
     ret: REQUEST_RET,
-    errors: REQUEST_ERRORS,
+    errors: DYNAMIC_ERRORS,
 };
 
 /// `Core\Http\Client::openStream`'s reference card — `rule:core-api/reference-card`.
@@ -2704,7 +2768,7 @@ const STREAM_DOC: MethodDoc = MethodDoc {
     ret: "A `Core\\Http\\Stream`. Its `status()`, `header()` and `headers()` methods return the \
           status and headers. Read the body with exactly one of `events()`, `lines()`, `chunks()` \
           and `saveTo()`.",
-    errors: REQUEST_ERRORS,
+    errors: STREAM_ERRORS,
 };
 
 /// `Core\Http\Client::openSocket`'s reference card — `rule:core-api/reference-card`.
