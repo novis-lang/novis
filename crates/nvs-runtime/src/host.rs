@@ -416,6 +416,11 @@ pub struct Failure {
     /// site with it
     /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
     pub location: String,
+    /// The throw's frames and its `previous` chain, each bounded, copied only for an uncaught
+    /// throw while `[debug] store` is on for the request or run, and `None` otherwise
+    /// (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`). Boxed, so a
+    /// failure nobody records carries one null word.
+    pub stack: Option<Box<crate::spool::Stack>>,
 }
 
 impl Failure {

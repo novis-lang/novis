@@ -265,13 +265,34 @@ struct Covered {
     elided: bool,
 }
 
-/// An uncaught exception: its class, its message and the site of its `throw`.
+/// An uncaught exception: its class, its message, the site of its `throw`, and its frames and
+/// `previous` chain where the line had them.
 #[derive(Serialize)]
 struct Exception {
     class: String,
     message: String,
     file: String,
     line: i64,
+    #[serde(flatten)]
+    stack: Stack,
+}
+
+/// An exception's frames and its `previous` chain, in the spool's shape.
+pub(crate) type Stack = nvs_runtime::spool::Stack;
+
+/// The stack an `exceptions` row keeps in the four columns from `at`: `frames`, `frames_cut`,
+/// `previous` and `previous_cut`. A JSON column that does not parse reads as none.
+pub(crate) fn stack(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Stack> {
+    fn parsed<T: serde::de::DeserializeOwned + Default>(text: Option<String>) -> T {
+        text.and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default()
+    }
+    Ok(Stack {
+        frames: parsed(row.get(at)?),
+        frames_cut: row.get(at + 1)?,
+        previous: parsed(row.get(at + 2)?),
+        previous_cut: row.get(at + 3)?,
+    })
 }
 
 /// One trace event: a call, a query, a spawn, a garbage-collection pause or an outbound call.
@@ -861,7 +882,8 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     let input = input(&tx, request.id, &key.trace, &writer, seq)?;
     let exception = tx
         .query_row(
-            "SELECT class, message, file, line FROM exceptions WHERE request = ?1",
+            "SELECT class, message, file, line, frames, frames_cut, previous, previous_cut \
+             FROM exceptions WHERE request = ?1",
             [request.id],
             |row| {
                 Ok(Exception {
@@ -869,6 +891,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
                     message: row.get(1)?,
                     file: row.get(2)?,
                     line: row.get(3)?,
+                    stack: stack(row, 4)?,
                 })
             },
         )

@@ -1685,6 +1685,7 @@ fn refusal(message: String) -> nvs_host::Failure {
         message,
         limit: None,
         location: String::new(),
+        stack: None,
     }
 }
 
@@ -2455,6 +2456,7 @@ mod tests {
                     message: message.to_string(),
                     limit: None,
                     location: String::new(),
+                    stack: None,
                 },
             ));
         }

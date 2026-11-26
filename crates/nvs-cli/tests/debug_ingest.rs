@@ -389,6 +389,69 @@ fn a_requests_memory_handler_and_sizes_reach_its_row_and_an_older_line_reads() {
     );
 }
 
+/// `rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`: an exception's frames
+/// and chain reach its row, a line without them reads with none, and `nvs debug to-test` prints
+/// the same test for both.
+#[test]
+fn an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged() {
+    let folder = Folder::new();
+    let start = now_us();
+    let (traced, bare) = (
+        "0000000000000000000000000000000b",
+        "0000000000000000000000000000000c",
+    );
+    let with = copy("11-1-0", traced, start);
+    let mut without = copy("11-2-0", bare, start + 10_000);
+    for line in &mut without {
+        if let Record::Request(request) = &mut line.record
+            && let Some(exception) = &mut request.exception
+        {
+            exception.stack = nvs_runtime::spool::Stack::default();
+        }
+    }
+    folder.write("11-1-0.0.spool", &with);
+    folder.write("11-2-0.0.spool", &without);
+    folder.ingest();
+    let db = folder.index();
+    let stack = |trace: &str| -> (Option<String>, bool, Option<String>, bool) {
+        db.query_row(
+            "SELECT e.frames, e.frames_cut, e.previous, e.previous_cut FROM exceptions e \
+             JOIN requests r ON r.id = e.request WHERE r.trace = ?1",
+            [trace],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("the exception has its row")
+    };
+    let (frames, frames_cut, previous, previous_cut) = stack(traced);
+    let frames = frames.expect("the sample's frames are kept");
+    assert!(frames.contains("Shop\\\\Stock::take"), "{frames}");
+    assert!(
+        previous
+            .expect("the sample's chain is kept")
+            .contains("no row for item 7")
+    );
+    assert!(!frames_cut && !previous_cut);
+    assert_eq!(stack(bare), (None, false, None, false), "a line without them reads");
+
+    let printed = |trace: &str| {
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .current_dir(&*folder.data)
+            .arg("--data")
+            .arg(&*folder.data)
+            .arg("--no-init")
+            .args(["debug", "to-test", trace])
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(
+            out.status.success(),
+            "`nvs debug to-test` succeeds: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).replace(trace, "TRACE")
+    };
+    assert_eq!(printed(traced), printed(bare), "the frames do not change the test");
+}
+
 #[test]
 fn a_search_finds_a_dumps_text() {
     let folder = Folder::new();

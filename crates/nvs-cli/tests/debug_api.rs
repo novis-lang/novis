@@ -466,7 +466,19 @@ fn spool() -> String {
             request["bytes_out"] = json!(13);
             request["exception"] = json!({
                 "class": "Shop\\OutOfStock", "message": "item 7 is out of stock",
-                "file": "src/Shop/Orders.nvs", "line": 42
+                "file": "src/Shop/Orders.nvs", "line": 42,
+                "frames": [
+                    { "function": "Shop\\Stock::take", "file": "src/Shop/Stock.nvs", "line": 18 },
+                    { "function": "Shop\\Orders::create", "file": "src/Shop/Orders.nvs", "line": 42 },
+                    { "function": "Core\\Http\\Router::dispatch" }
+                ],
+                "previous": [{
+                    "class": "Shop\\StockError", "message": "no row for item 7",
+                    "file": "src/Shop/Stock.nvs", "line": 11,
+                    "frames": [
+                        { "function": "Shop\\Stock::row", "file": "src/Shop/Stock.nvs", "line": 11 }
+                    ]
+                }]
             });
             request["input"] = json!({
                 "query": "coupon=SPRING",
@@ -562,8 +574,13 @@ fn throwing_spool() -> String {
             "status": if exception.is_some() { 500 } else { 200 }
         });
         if let Some((class, message, file, line)) = exception {
-            request["exception"] =
-                json!({ "class": class, "message": message, "file": file, "line": line });
+            request["exception"] = json!({
+                "class": class, "message": message, "file": file, "line": line,
+                "frames": [
+                    { "function": "Shop\\Orders::create", "file": file, "line": line },
+                    { "function": "Core\\Http\\Router::dispatch" }
+                ]
+            });
         }
         lines.push(request.to_string());
     }
@@ -779,6 +796,10 @@ fn an_exception_is_one_row_per_class_and_site_and_opens_to_its_requests() {
     let site = "class=Shop%5COutOfStock&file=src%2FShop%2FOrders.nvs&line=42";
     let one = service.json(&format!("/api/exceptions?{site}"));
     assert_eq!(one["group"]["count"], 3);
+    assert_eq!(
+        one["latest"]["frames"][0]["function"], "Shop\\Orders::create",
+        "the group gives its latest throw's frames"
+    );
     let paths: Vec<&str> = one["requests"]
         .as_array()
         .expect("a list")
@@ -982,6 +1003,9 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     let detail = service.json(&thrown);
     assert_eq!(detail["request"], *threw);
     assert_eq!(detail["exception"]["message"], "item 7 is out of stock");
+    assert_eq!(detail["exception"]["frames"][0]["function"], "Shop\\Stock::take");
+    assert_eq!(detail["exception"]["frames"][2]["file"], Value::Null);
+    assert_eq!(detail["exception"]["previous"][0]["class"], "Shop\\StockError");
     let kinds: Vec<&str> = detail["events"]
         .as_array()
         .expect("a list")

@@ -470,10 +470,20 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                     "UPDATE requests SET exception_group = ?1 WHERE id = ?2",
                     params![group, id],
                 )?;
+                let stack = &exception.stack;
+                let frames = (!stack.frames.is_empty())
+                    .then(|| serde_json::to_string(&stack.frames))
+                    .transpose()
+                    .unwrap_or_default();
+                let previous = (!stack.previous.is_empty())
+                    .then(|| serde_json::to_string(&stack.previous))
+                    .transpose()
+                    .unwrap_or_default();
                 tx.execute(
                     "INSERT INTO exceptions \
-                     (request, trace, class, message, file, line, exception_group) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                     (request, trace, class, message, file, line, exception_group, frames, \
+                     frames_cut, previous, previous_cut) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                     params![
                         id,
                         trace,
@@ -482,6 +492,10 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                         exception.file,
                         exception.line,
                         group,
+                        frames,
+                        stack.frames_cut,
+                        previous,
+                        stack.previous_cut,
                     ],
                 )?;
             }

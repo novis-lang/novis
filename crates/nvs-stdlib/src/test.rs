@@ -7563,6 +7563,7 @@ mod tests {
             message: "the cart is empty".to_owned(),
             limit: None,
             location: String::new(),
+            stack: None,
         };
         assert_eq!(
             error_of(

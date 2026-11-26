@@ -334,6 +334,7 @@ fn crossed_failure(message: &str) -> Crossed {
             message: message.to_owned(),
             limit: None,
             location: String::new(),
+            stack: None,
         }),
         wall: None,
         coverage: None,

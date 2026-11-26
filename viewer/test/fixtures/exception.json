@@ -40,6 +40,18 @@
     ],
     "sampled": false
   },
+  "latest": {
+    "frames": [
+      {
+        "file": "src/Shop/Orders.nvs",
+        "function": "Shop\\Orders::create",
+        "line": 42
+      },
+      {
+        "function": "Core\\Http\\Router::dispatch"
+      }
+    ]
+  },
   "older": null,
   "requests": [
     {

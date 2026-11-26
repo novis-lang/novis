@@ -145,8 +145,38 @@
   "exception": {
     "class": "Shop\\OutOfStock",
     "file": "src/Shop/Orders.nvs",
+    "frames": [
+      {
+        "file": "src/Shop/Stock.nvs",
+        "function": "Shop\\Stock::take",
+        "line": 18
+      },
+      {
+        "file": "src/Shop/Orders.nvs",
+        "function": "Shop\\Orders::create",
+        "line": 42
+      },
+      {
+        "function": "Core\\Http\\Router::dispatch"
+      }
+    ],
     "line": 42,
-    "message": "item 7 is out of stock"
+    "message": "item 7 is out of stock",
+    "previous": [
+      {
+        "class": "Shop\\StockError",
+        "file": "src/Shop/Stock.nvs",
+        "frames": [
+          {
+            "file": "src/Shop/Stock.nvs",
+            "function": "Shop\\Stock::row",
+            "line": 11
+          }
+        ],
+        "line": 11,
+        "message": "no row for item 7"
+      }
+    ]
   },
   "input": {
     "body": {

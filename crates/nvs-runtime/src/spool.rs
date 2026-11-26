@@ -245,6 +245,79 @@ pub struct Exception {
     pub file: String,
     /// The line that threw it.
     pub line: u32,
+    /// Its stack and its `previous` chain, where the line has them
+    /// (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`).
+    #[serde(flatten)]
+    pub stack: Stack,
+}
+
+/// The most frames one exception or one link of its chain keeps: the innermost ones.
+pub const FRAMES_MAX: usize = 64;
+
+/// The most links of a `previous` chain a recorded exception keeps: the nearest ones.
+pub const PREVIOUS_MAX: usize = 8;
+
+/// An uncaught exception's frames and its `previous` chain, each bounded, and never a value
+/// (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`). Every field is
+/// optional on read, so an exception written before it had them still reads, with none.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stack {
+    /// The backtrace, innermost first, at most [`FRAMES_MAX`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frames: Vec<Frame>,
+    /// Whether the backtrace had more frames than [`FRAMES_MAX`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frames_cut: bool,
+    /// The `previous` chain, the nearest cause first, at most [`PREVIOUS_MAX`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub previous: Vec<Link>,
+    /// Whether the chain had more links than [`PREVIOUS_MAX`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub previous_cut: bool,
+}
+
+impl Stack {
+    /// `frames`, kept to the innermost [`FRAMES_MAX`], and whether any were cut.
+    #[must_use]
+    pub fn bounded(mut frames: Vec<Frame>) -> (Vec<Frame>, bool) {
+        let cut = frames.len() > FRAMES_MAX;
+        frames.truncate(FRAMES_MAX);
+        (frames, cut)
+    }
+}
+
+/// One frame of a recorded stack: the function it ran and its site, never an argument.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Frame {
+    /// `Class::method`, or a script's own label.
+    pub function: String,
+    /// The file, where the frame names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// The one-based line, where the frame names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+}
+
+/// One link of a `previous` chain: the cause's class, message, throw site and frames.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Link {
+    /// Its class.
+    pub class: String,
+    /// Its message.
+    pub message: String,
+    /// The file that threw it, where its raise named a site.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// The line that threw it, on the same terms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    /// Its backtrace, innermost first, at most [`FRAMES_MAX`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frames: Vec<Frame>,
+    /// Whether its backtrace had more frames than [`FRAMES_MAX`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frames_cut: bool,
 }
 
 /// A request's input as the program saw it.
@@ -1276,8 +1349,8 @@ mod tests {
 
     use super::{
         BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Copies, CopyCount, Coverage, Dropped,
-        Dump, Event, EventKind, Exception, Input, Line, Log, Now, Query, Record, Recorder, Request,
-        Response, SEAL_AFTER, Store, Writer,
+        Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Now, Query, Record,
+        Recorder, Request, Response, SEAL_AFTER, Stack, Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -1606,6 +1679,34 @@ mod tests {
                 message: "item 7 is out of stock".to_owned(),
                 file: "src/Shop/Orders.nvs".to_owned(),
                 line: 42,
+                stack: Stack {
+                    frames: vec![
+                        Frame {
+                            function: "Shop\\Stock::take".to_owned(),
+                            file: Some("src/Shop/Stock.nvs".to_owned()),
+                            line: Some(18),
+                        },
+                        Frame {
+                            function: "Shop\\Orders::create".to_owned(),
+                            file: Some("src/Shop/Orders.nvs".to_owned()),
+                            line: Some(42),
+                        },
+                    ],
+                    frames_cut: false,
+                    previous: vec![Link {
+                        class: "Shop\\StockError".to_owned(),
+                        message: "no row for item 7".to_owned(),
+                        file: Some("src/Shop/Stock.nvs".to_owned()),
+                        line: Some(11),
+                        frames: vec![Frame {
+                            function: "Shop\\Stock::row".to_owned(),
+                            file: Some("src/Shop/Stock.nvs".to_owned()),
+                            line: Some(11),
+                        }],
+                        frames_cut: false,
+                    }],
+                    previous_cut: false,
+                },
             }),
             input: Some(Input {
                 query: "page=2".to_owned(),

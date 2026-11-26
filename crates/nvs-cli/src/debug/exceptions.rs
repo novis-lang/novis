@@ -72,6 +72,8 @@ struct Requests {
     /// The last batch this page is complete up to.
     watermark: i64,
     group: Group,
+    /// The frames and the `previous` chain of its latest throw still in the index.
+    latest: api::Stack,
     /// The requests that threw it, newest first.
     requests: Vec<Row>,
     /// The `before` that gives the next older page, or `None` when this page has the oldest.
@@ -275,6 +277,15 @@ fn requests(
     let Some(group) = group else {
         return Ok(None);
     };
+    let latest = tx
+        .query_row(
+            "SELECT frames, frames_cut, previous, previous_cut FROM exceptions \
+             WHERE exception_group = ?1 ORDER BY id DESC LIMIT 1",
+            [group.id],
+            |row| api::stack(row, 0),
+        )
+        .optional()?
+        .unwrap_or_default();
     let mut found = {
         let mut statement = tx.prepare_cached(&format!(
             "SELECT {ROW}, e.id FROM exceptions e JOIN requests r ON r.id = e.request \
@@ -297,6 +308,7 @@ fn requests(
     Ok(Some(Requests {
         watermark,
         group,
+        latest,
         requests: found.into_iter().map(|(row, _)| row).collect(),
         older,
     }))

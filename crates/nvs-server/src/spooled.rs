@@ -158,8 +158,9 @@ pub fn covered(
     spool::record_under(store, trace, spool::Record::Coverage(coverage));
 }
 
-/// The uncaught exception `failure` names, as a `request` line records it. A failure that names no
-/// site is recorded with an empty file and line `0`.
+/// The uncaught exception `failure` names, as a `request` line records it, with the frames and
+/// the chain the isolate copied under the gate. A failure that names no site is recorded with an
+/// empty file and line `0`.
 #[must_use]
 pub fn exception(failure: &Failure) -> spool::Exception {
     let (file, line) = failure.site().unwrap_or(("", 0));
@@ -168,6 +169,11 @@ pub fn exception(failure: &Failure) -> spool::Exception {
         message: failure.message.clone(),
         file: file.to_owned(),
         line,
+        stack: failure
+            .stack
+            .as_deref()
+            .cloned()
+            .unwrap_or_default(),
     }
 }
 

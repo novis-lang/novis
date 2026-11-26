@@ -1610,6 +1610,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 // throw no `catch` saw.
                 limit: isolate_ctx.limit_reached(),
                 location: thrown.location(),
+                // Copied under the gate alone, so a throw nobody records copies no frame.
+                stack: store.map(|_| Box::new(thrown.stack())),
             }),
             // Filled by whoever ran the body, on every path out of here: this
             // one measures the child, and a throw is a way for a body to end
@@ -1682,6 +1684,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 message: refused.to_string(),
                 limit: None,
                 location: String::new(),
+                stack: None,
             }),
             wall: None,
             trace,
@@ -1751,6 +1754,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
             message: message.to_string(),
             limit: None,
             location: String::new(),
+            stack: None,
         }),
         // No body ran, so there is no child time for a split to subtract, and
         // nothing filed an event for a trace to be derived from.
@@ -1781,6 +1785,7 @@ pub(crate) fn cancelled_completion() -> Completion {
             message: "the isolate was cancelled".to_owned(),
             limit: None,
             location: String::new(),
+            stack: None,
         }),
         // The body never reported, so nothing measured it — the join that reads
         // this still closes the event, with the wall it observed alone.

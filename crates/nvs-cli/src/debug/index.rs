@@ -32,6 +32,11 @@
 //! the handler's name and the body bytes read and written, each null where the line has none.
 //! Spends: four integers and one name per request row.
 //!
+//! An `exceptions` row keeps the uncaught exception's frames and its `previous` chain as two
+//! JSON texts, each null where the line has none, and whether either was cut. The viewer draws
+//! them and never filters on them, so they are not searched. Spends: per recorded exception, at
+//! most 64 frames and 8 links of names, paths and lines.
+//!
 //! # The viewer's cursor
 //!
 //! A request's id is `AUTOINCREMENT`, so it only rises, and in the order the batches were
@@ -68,7 +73,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 11;
+pub(crate) const SCHEMA: i64 = 12;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -279,7 +284,11 @@ CREATE TABLE exceptions (
     message TEXT NOT NULL,
     file TEXT NOT NULL,
     line INTEGER NOT NULL,
-    exception_group INTEGER NOT NULL
+    exception_group INTEGER NOT NULL,
+    frames TEXT,
+    frames_cut INTEGER NOT NULL DEFAULT 0,
+    previous TEXT,
+    previous_cut INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX exceptions_trace ON exceptions (trace);
 CREATE INDEX exceptions_group ON exceptions (exception_group);

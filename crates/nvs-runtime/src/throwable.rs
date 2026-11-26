@@ -857,6 +857,64 @@ impl Thrown {
         out
     }
 
+    /// The frames and the `previous` chain a recorded uncaught exception keeps, each under its
+    /// bound (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`). A frame is
+    /// its function and site alone, so no value of the program is copied. The chain is walked
+    /// through the `previous` property, the nearest cause first, and stops at the first value
+    /// that is not an object.
+    ///
+    /// **What it spends:** per call, at most [`crate::spool::FRAMES_MAX`] frames for the
+    /// exception and for each of at most [`crate::spool::PREVIOUS_MAX`] links. Its one caller
+    /// copies them only for an uncaught exception under `[debug] store`.
+    #[must_use]
+    pub fn stack(&self) -> crate::spool::Stack {
+        use crate::spool::{Link, PREVIOUS_MAX, Stack};
+        let (frames, frames_cut) = Stack::bounded(self.spool_frames());
+        let mut stack = Stack {
+            frames,
+            frames_cut,
+            ..Stack::default()
+        };
+        let mut cause = self.field(PREVIOUS_SLOT).and_then(Value::obj_ptr);
+        while let Some(ptr) = cause {
+            if stack.previous.len() == PREVIOUS_MAX {
+                stack.previous_cut = true;
+                break;
+            }
+            // A borrowed view: the object that holds this `previous` keeps it alive, and the
+            // view is never dropped, so no reference is taken or released.
+            let link = std::mem::ManuallyDrop::new(Self { ptr });
+            let location = link.location();
+            let (file, line) = match location.rsplit_once(':') {
+                Some((file, line)) => (Some(file.to_owned()), line.parse().ok()),
+                None => (None, None),
+            };
+            let (frames, frames_cut) = Stack::bounded(link.spool_frames());
+            stack.previous.push(Link {
+                class: link.class_name(),
+                message: link.message(),
+                file,
+                line,
+                frames,
+                frames_cut,
+            });
+            cause = link.field(PREVIOUS_SLOT).and_then(Value::obj_ptr);
+        }
+        stack
+    }
+
+    /// [`Self::frames`] in the spool's shape.
+    fn spool_frames(&self) -> Vec<crate::spool::Frame> {
+        self.frames()
+            .into_iter()
+            .map(|frame| crate::spool::Frame {
+                function: frame.function,
+                file: frame.file,
+                line: frame.line,
+            })
+            .collect()
+    }
+
     /// Whether the `backtrace` property already names a frame.
     ///
     /// The one question [`Ctx::seed_raise_site`] asks. A pending exception
@@ -1577,6 +1635,97 @@ mod tests {
         assert_eq!(frames.len(), 64);
         assert_eq!(frames[0].label(), "f0");
         assert_eq!(frames[63].label(), "f63");
+    }
+
+    /// An exception of `class` whose `previous` is `cause`, which it takes over.
+    fn caused(class: *const ClassDesc, message: &str, cause: Thrown) -> Thrown {
+        let previous = Value::from_obj_ptr(cause.into_raw());
+        #[expect(
+            unsafe_code,
+            reason = "the table outlives the instance, and `previous`'s reference is handed over"
+        )]
+        unsafe {
+            Thrown::new_as(class, ThrownClass::Runtime, message, &[(PREVIOUS_SLOT, previous)])
+        }
+    }
+
+    /// `rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`: a throw three
+    /// frames deep records the three, innermost first, as functions and sites.
+    #[test]
+    fn a_three_deep_throw_records_three_frames() {
+        let (_table, _, leaf) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "deep") };
+        e.push_frame("Stock::take() at src/Stock.nvs:18");
+        e.push_frame("Orders::create() at src/Orders.nvs:42");
+        e.push_frame("app/main.nvs#1$script() at app/main.nvs:3");
+        let stack = e.stack();
+        let sites: Vec<_> = stack
+            .frames
+            .iter()
+            .map(|frame| (frame.function.as_str(), frame.file.as_deref(), frame.line))
+            .collect();
+        assert_eq!(
+            sites,
+            [
+                ("Stock::take", Some("src/Stock.nvs"), Some(18)),
+                ("Orders::create", Some("src/Orders.nvs"), Some(42)),
+                ("app/main.nvs#1$script", Some("app/main.nvs"), Some(3)),
+            ]
+        );
+        assert!(!stack.frames_cut);
+        assert!(stack.previous.is_empty() && !stack.previous_cut);
+    }
+
+    /// A chain of two causes records both, the nearest first, each with its own frames.
+    #[test]
+    fn a_chain_of_two_records_both_links() {
+        let (_table, root, leaf) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let inner = unsafe { Thrown::new(root, "no row") };
+        inner.push_frame("Stock::row() at src/Stock.nvs:11");
+        let middle = caused(root, "stock failed", inner);
+        let outer = caused(leaf, "order failed", middle);
+        outer.push_frame("Orders::create() at src/Orders.nvs:42");
+        let stack = outer.stack();
+        assert_eq!(stack.frames.len(), 1);
+        let links: Vec<_> = stack
+            .previous
+            .iter()
+            .map(|link| (link.class.as_str(), link.message.as_str(), link.frames.len()))
+            .collect();
+        assert_eq!(
+            links,
+            [("Throwable", "stock failed", 0), ("Throwable", "no row", 1)]
+        );
+        assert_eq!(stack.previous[1].frames[0].function, "Stock::row");
+        assert!(!stack.previous_cut);
+    }
+
+    /// 65 frames record the innermost 64 and say so, and a chain of nine records the nearest
+    /// eight and says so.
+    #[test]
+    fn a_stack_past_its_bounds_is_cut() {
+        let (_table, root, _) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let deep = unsafe { Thrown::new(root, "deep") };
+        for i in 0..65 {
+            deep.push_frame(&format!("f{i}() at t.nvs:{i}"));
+        }
+        let stack = deep.stack();
+        assert_eq!(stack.frames.len(), crate::spool::FRAMES_MAX);
+        assert_eq!(stack.frames[63].function, "f63");
+        assert!(stack.frames_cut);
+
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let mut chain = unsafe { Thrown::new(root, "cause 0") };
+        for i in 1..=9 {
+            chain = caused(root, &format!("cause {i}"), chain);
+        }
+        let stack = chain.stack();
+        assert_eq!(stack.previous.len(), crate::spool::PREVIOUS_MAX);
+        assert_eq!(stack.previous[0].message, "cause 8");
+        assert!(stack.previous_cut);
     }
 
     #[test]
