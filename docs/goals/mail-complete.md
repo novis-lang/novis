@@ -628,7 +628,7 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
   a 1 MB attachment. Attacks: a header through a display name, a file name and a message id; a
   tainted string sent as a body; a `cid:` pointing at another message; a stylesheet link.
 - [x] `docs/examples/core/Mail/send/about.md:1`: rewritten, with a section on styling a mail.
-- [ ] `website/src/content/docs/guides/how-to-use/sending-mail.mdx:1` (new): the settings block,
+- [x] `website/src/content/docs/guides/how-to-use/sending-mail.mdx:1` (new): the settings block,
   sending, names, attachments and inline images, "Styling an HTML mail" with the before and after,
   threads, unsubscribe, sending in the background, testing and the viewer.
 - [x] `docs/reference/tools/20-config.md:1`: every new `[mail.<name>]` key.
@@ -647,54 +647,82 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Stages 1 to 8 are done. Stage 9 is mostly written. This session's commits:
+Stages 1 to 8 are done. Stage 9's writing is done, and its review is read but not yet fixed.
+This session's commits:
 
-- `c188a10560`: the rules. `core-classes/mail-message` and `core-classes/mail-transport` are new,
-  with their records under `data/rules/core-classes/`. `programs/framework-core-half`'s row,
-  `testing/a-test-reads-its-logs-and-mail`'s readers, the debug stream's `mail` line and the
-  viewer's two mail routes are written. `bun nv rules` is clean.
-- `904338abaa`: the config reference's mail keys; `changes.json`'s mail entries, green, with
-  eleven test-only moves recorded `unseen`.
-- `25b3db81dd`, `a4e2ab43ad`, `fe363b4e75`: about, three examples, an attack and a bench (perf
-  skipped for the `SentMail` readers) for every new member, send's rewritten `about.md` over a
-  `capture = true` block, and eight `mail-attachment-*` and `mail-preview-*` cases.
-- `037d5f4b28`: `website/src/content/docs/guides/how-to-use/sending-mail.mdx`, a draft. Its
-  ten Novis blocks are inline fences, which `site --check snippets` refuses.
-- `05f89f8784`: the unit test `an_inline_file_is_read_when_called_and_its_src_is_its_content_id`
-  (ran once, green), the reader `covers:` lines, and send's card no longer names `host`.
+- `0895ce3a4e`: the how-to page's ten Novis blocks are nine snippets in
+  `website/snippets/guides/how-to-use/sending-mail/` over a `capture = true` block, blessed. The
+  `Core\Queue::push` block is prose. The page is in the sidebar and in `how-to-use/index.mdx`, and
+  it and six stale reference pages have stamped questions. `site --check snippets` and `questions`
+  are green.
+- `55b71a1b31`: `Test-SentMail/html` and `text` about.md name the body `send` takes, not the
+  removed `html` option. The root `nvs.toml`'s unused `[[app]]` for the send attack is deleted.
 
-`bun nv proofs --owed --goal mail-complete` now names only `perf` and `reviewed`, for 69 features.
+Perf: `bun nv proofs --record-perf --goal mail-complete` was started, and is reported below.
 
-CI: run 45609291264's failures (stdlib Miri zone tests, the quotient attack, the macOS count) ran
-on `53e94a9181`. Each failed test is fixed on main by `1c3196b0e8` and `c115a735a1`, checked one by
-one.
+CI: run 45609291264 ran on `53e94a9181`. Its failures are fixed on main by `1c3196b0e8` and
+`c115a735a1`, which the last session checked one by one.
 
 ### Next
 
-1. **The how-to page's snippets.** Each ` ```nvs ` fence in `sending-mail.mdx` becomes a
-   `<Snippet src="…"/>` over a file in `website/snippets/guides/how-to-use/sending-mail/`, with an
-   `nvs.toml` holding a `capture = true` block, and `.out` files from `bun nv site --bless`. Read
-   another page that uses `<Snippet>` first. A message id is random, so a snippet prints a fixed
-   line. The `Core\Queue::push` block becomes prose. The styling "after" block can be that
-   snippet's `.out`. Then add the page to `website/astro.config.ts`'s sidebar and to
-   `guides/how-to-use/index.mdx`, run `bun nv site --questions --owed pages` and stamp the
-   questions.
-2. **Perf.** `bun nv proofs --record-perf` for the owed features (the 42 `Core\IO` members and
-   `Core\Mime` are stale since `io.rs` changed in stage 4), then `bun nv scaling --budget --write`
-   for the new benches.
-3. **The review.** `bun nv site --review`, batched to `reader` subagents per `docs/agent/prose.md`
-   § *A newcomer reads it*. Fix every finding, `cargo build`, then stamp. Then `bun nv site --check
-   stale` and stamp what is still right. `changes` must stay green: the new tests may move a
-   feature again.
-4. Small fixes found this session: `docs/examples/core/Test-SentMail/html/about.md` still names the
-   removed `html` option. The root `nvs.toml` `[[app]]` for
-   `tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs` (about line 442) is unused
-   now that the folder has its own `nvs.toml`, and its comment is wrong. Delete it.
-5. Then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), and stage 10.
+1. **Fix the review's findings, then stamp.** Twelve `reader` subagents read all 182 texts
+   `bun nv site --review` lists (this session's batches). Each fix is to the text, and each help
+   text is in `crates/nvs-stdlib/src/mail/` or `test_records`' card rows. Split by feature folder
+   to writing subagents with disjoint files, each brief naming AGENTS.md § *Text an end user reads*
+   and the 190-word bound of an `about.md`. The findings, by kind:
+   - **Every `Mail-Attachment/*` bench** says "The round before and the counter choose the X" or
+     "The file is chosen by the round before". Readers did not understand it. Say what the loop does
+     in plain words. `src.nvs`: "the counter also chooses the image" too.
+   - **Every `Mail-Preview/*` bench and `Mail/preview.nvs`** say "Measures how `x()` returns …, as
+     a test … does". Write "Measures `x()` on …. A test of a mail template calls it the same way."
+   - **Help cards** of `fromBytes`, `fromFile`, `inlineBytes`, `inlineFile`: a sentence starting
+     "Or `type` is not a media type" is a fragment; `inlineBytes`'s and `inlineFile`'s `$type`
+     example is `application/pdf`, use `image/svg+xml`. "media type" and `cid:` need a few plain
+     words where first used. `preview`'s card: "A string from the request does not compile here"
+     needs the word `tainted` and why. `send`'s card: the RuntimeError list is one long run of "Or
+     …" clauses; split it. `$inReplyTo` says "answers" (a Not word).
+   - **`cid:` and "inline image"** are used undefined in `src/about.md`, `inlineBytes/about.md`,
+     `inlineFile/about.md`, `Test-SentMail/attachments/about.md`, the page and the attacks. Define
+     once per text: "a `cid:` URL points at an image inside the same mail".
+   - **"`Core\Test::request` runs this file again for the request"** in every `Test-SentMail/*/03`
+     example and `html/03`: readers did not understand it. Say what happens: the test sends a
+     request to this program, and the code outside the class runs for it.
+   - **Figures of speech:** `name` attack "climbs out of the folder"; `send/02` "This address hides
+     a second line"; `inReplyTo` attack "end the header early"; `references` attack "hides one bad
+     id among good ones"; `autoSubmitted` attack "hopes the next messages keep it";
+     `unusedCss/03` "goes in through `Html::escape`"; `preview/02` "a block of its own".
+   - **Over 25 words:** `send/01` attack's first sentence, `bytes` attack's first sentence,
+     `Test-SentMail/attachments` attack's first sentence.
+   - **Unclear:** `keptCss` and `unusedCss` about "returns the `Core\Mail\Preview` it is a method
+     of"; `keptCss` attack "They stay escapes in the result"; `preview` attack step 3 (`@import`
+     is kept, not thrown) contradicts its top line; `send/01` "It keeps each message and sends
+     nothing" names no subject; `send/03` "the answer for a correct address"; `messageId` hostile
+     step "Changes the id that `messageId()` returned"; `fromName` attack "so it is sent";
+     `autoSubmitted/01` "marked as" (a Not word); `send/about.md` "Text a user typed" (say
+     `tainted` text from a request).
+   - **The page:** "To answer the visitor first" (a Not word); TLS, PEM and "certificate
+     authority" undefined; "Every certificate is checked" names no certificate; the two `tls`
+     defaults read in the wrong order. Snippets: `after-response.nvs` "The response." fragment,
+     `send-html.nvs` "that `send` made" (say "that `send` makes"), `testing.nvs` "this line" (say
+     "the `echo` line below").
+   - **`changes.json`:** the mail entries' "pays no new TLS handshake" (idiom). Older entries'
+     findings (`answerCli` "answers", "members", a 30-word `Router::url` sentence, "The methods
+     this entry names", "epoch methods") are in the same text, so fix them too to stamp it.
+   - **`help:tools:config/secrets-from-files` and `help:tools:config/the-blocks-the-binary-accepts`**
+     (`docs/reference/tools/20-config.md`): dashes joining sentences, sentences of 50 words,
+     "holds", "refuses", "rather than", "lives inside a block", "the seam". They are reference
+     chapters the goal only added keys to. Rewrite each flagged sentence, not the chapter.
+   Then `cargo build` once, `bun nv site --review --stamp <key>...` for every key (the help stamps
+   read the built binary), `bun nv site --check stale` and stamp what is still right, and `changes`
+   green.
+2. **Perf**, if the run above did not finish: `bun nv proofs --record-perf --goal mail-complete`
+   (the 42 `Core\IO` members and `Core\Mime` are stale since stage 4), then `bun nv scaling --budget
+   --write` for the new benches.
+3. Then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), and stage 10.
 
-Expected red: `site --check stale`, `review`, `snippets` and `questions` for the mail features and
-the page; `proofs --gate` for `perf` and `reviewed`. No unit test or conformance case is expected
-red.
+Expected red: `site --check stale` and `review` for the mail features, the page, its snippets,
+`changes.json` and the two config help texts; `proofs --gate` for `reviewed`, and `perf` until it is
+recorded. No unit test or conformance case is expected red.
 
 ### Backlog
 
