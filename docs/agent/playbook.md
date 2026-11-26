@@ -32,6 +32,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   with every local run. In `long-run-records` stage 3, at 113 MB, `aCopyOpensOnlyWithItsKey` and
   `aRestoreBringsBackEveryRelease` hit the `[limits] memory` ceiling after 40 s. CI starts without
   the file. Move it aside and rerun. See `apps/registry/src/BackupTest.nvs`.
+- **`site --check stale` and `review` green do not make the website's checks green: a help-card
+  edit also makes each page's search questions stale.** In `tls-client-block` stage 4, the close
+  was red on 11 pages' questions and on a renamed block's page that had none. After a help or
+  `about.md` edit, run `bun nv site --check questions` beside `stale`, and stamp each page with
+  `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>` once its questions still fit. See
+  `tools/nv/cmd/site.ts`.
 - **Stamp the keys `site --review` printed before the build, not the list it prints after.** In
   `mail-complete` stage 9, the list read again after a `cargo build` had ten debug texts from
   another goal that the first list did not. Passed to `--review --stamp`, they were stamped
