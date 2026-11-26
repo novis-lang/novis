@@ -14,7 +14,7 @@ stages:
     context: [viewer/src/views/run.tsx, viewer/src/api.ts, viewer/test/runs.browser.test.ts, website/src/content/docs/tools/debug-viewer/index.mdx]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rows
@@ -136,7 +136,7 @@ table.
 ### 3. the goal is verified once, and every failure is fixed
 
 - [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
   - [x] This goal's reds: `debug-index_age/about.md` was 227 words (bound 200), and the questions of
     `/reference/config/debug/` and `/tools/debug-viewer/` were stale. Fixed in `ad134efa32`.
   - [ ] The `Core\Arr` reds, then `bun nv close --goal long-run-records` green.
@@ -145,30 +145,22 @@ table.
 
 ### State
 
-Written on 2026-11-26 by the loop session that ran stage 3's close. A build, clippy and the four
-tests of the check `rows`, by name, are green. `bun nv close --goal long-run-records` was red in
-two parts, `goal proofs` and `website stale guard`. This goal's three reds are fixed in
-`ad134efa32`: `debug-index_age/about.md` is shortened under its 200-word bound and had its newcomer
-review, and both debug pages' questions are rewritten and stamped.
-
-Every red left is the `Core\Arr` uint-key fix's (`983903d5f5`, `fa8838ab80`), which another
-session committed to `main` while this one ran. `goal proofs` names 57 `Core\Arr` members as
-`perf: stale` (`crates/nvs-stdlib/src/arr.rs` changed since they were measured). `site --check
-questions` names 9 `/reference/core/arr/` pages as stale. `site stale`, `review` and `changes` are
-green. The goal file had a duplicated block of stages and an old handoff from the last session's
-edit, now removed.
+Written on 2026-11-26 by the loop session that closed stage 3. `bun nv close --goal
+long-run-records` is green in every part. The `CoreArr` uint-key fix's reds are paid: 57
+members measured again in `6eaef338bb`, and nine `/reference/core/arr/` pages' questions
+rewritten and stamped in `67a13be4d6`. The `file-scan` goal, committed while this session ran,
+cited four rules it has not written yet and had no roadmap theme; both are fixed in
+`b18274b422`. The local `apps/registry` tests failed on a 113 MB `registry.sqlite` that the
+tests had filled over many runs; it was moved aside and they pass. CI starts with no such file.
 
 The acceptance sweep's nine nightly failures are all run 45813627231, which the Backlog below
-already accounts for: eight were fixed after the commit it tested, and the ninth is the aarch64
+accounts for: eight were fixed after the commit it tested, and the ninth is the aarch64
 stack-page test.
 
 ### Next
 
-Rerun `bun nv close --goal long-run-records`. If the `Core\Arr` reds are still there, pay them:
-measure the stale `Core\Arr` benches (`bun nv proofs --id 'Core\Arr::count'` names what perf
-needs), and rewrite and stamp the questions of the nine pages
-`site --questions --owed core` lists (`MSYS_NO_PATHCONV=1` before `--stamp`). Then claim DONE.
-No test is expected to go red.
+Nothing in this goal. Its DONE runs the checks `rows`, `viewer` and `close`. No test is
+expected to go red.
 
 ### Backlog
 

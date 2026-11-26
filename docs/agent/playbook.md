@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`site --check apps` fails `apps/registry`'s backup tests locally once its `registry.sqlite`
+  is large.** Its tests write accounts into the app's own database, which git ignores, so it grows
+  with every local run. In `long-run-records` stage 3, at 113 MB, `aCopyOpensOnlyWithItsKey` and
+  `aRestoreBringsBackEveryRelease` hit the `[limits] memory` ceiling after 40 s. CI starts without
+  the file. Move it aside and rerun. See `apps/registry/src/BackupTest.nvs`.
 - **Stamp the keys `site --review` printed before the build, not the list it prints after.** In
   `mail-complete` stage 9, the list read again after a `cargo build` had ten debug texts from
   another goal that the first list did not. Passed to `--review --stamp`, they were stamped
