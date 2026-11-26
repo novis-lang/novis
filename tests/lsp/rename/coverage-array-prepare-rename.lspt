@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `[` that opens an array literal names no symbol, so prepareRename is refused
+--FILE--
+<?nvs
+array<int> $rows = <|>[1, 2, 3];
+echo $rows[0];
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. You can rename a class, a variable, a method, a property, a constant or an enum case.

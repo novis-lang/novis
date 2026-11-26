@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `[` that opens an array literal written on one line is offered to put its items on separate lines
+--FILE--
+<?nvs
+array<int> $rows = <|>[1, 2, 3];
+echo $rows[0];
+--REQUEST--
+codeAction
+--EXPECT--
+2:20-2:29 refactor.rewrite Put on separate lines -> "[\n    1,\n    2,\n    3,\n]"

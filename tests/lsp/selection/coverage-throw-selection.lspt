@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the `throw` keyword expands to the `throw`, its statement, the `if` body and the `if`
+--FILE--
+<?nvs
+int $stock = 0;
+if ($stock === 0) {
+    thr<|>ow new RuntimeError('out of stock');
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-4:43
+4:5-4:44
+3:19-5:2
+3:1-5:2

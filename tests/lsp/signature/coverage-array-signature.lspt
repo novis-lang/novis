@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `[` that opens an array literal gives no signatureHelp answer
+--FILE--
+<?nvs
+array<int> $rows = <|>[1, 2, 3];
+echo $rows[0];
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

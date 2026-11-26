@@ -1,0 +1,10 @@
+--TEST--
+an array literal given to an `int` variable is a type error that starts at the literal's `[`
+--FILE--
+<?nvs
+int $count = [1, 2];
+echo $count;
+--REQUEST--
+diagnostics
+--EXPECT--
+2:14-2:20 error E0401 expected `int`, found `array<mixed>`

@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `throw` keyword gives no signatureHelp answer
+--FILE--
+<?nvs
+int $stock = 0;
+if ($stock === 0) {
+    thr<|>ow new RuntimeError('out of stock');
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

@@ -1,0 +1,17 @@
+--TEST--
+a cursor on the `extend` keyword gives no codeAction answer
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+ext<|>end Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

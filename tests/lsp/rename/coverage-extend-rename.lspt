@@ -1,0 +1,17 @@
+--TEST--
+a cursor on the `extend` keyword names no symbol, so rename is refused
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Time\Date;
+
+ext<|>end Date as BusinessDays {
+    public function isBusinessDay(): bool {
+        return $this->day() != 19;
+    }
+}
+--REQUEST--
+rename to=total
+--EXPECT--
+refused: There is nothing to rename here. You can rename a class, a variable, a method, a property, a constant or an enum case.

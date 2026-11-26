@@ -1,0 +1,14 @@
+--TEST--
+a `match` over an enum that misses a case is an error that starts at the `match` keyword
+--FILE--
+<?nvs
+enum Size { Small, Large }
+Size $s = Size::Small;
+string $label = match ($s) {
+    Size::Small => "small",
+};
+echo $label;
+--REQUEST--
+diagnostics
+--EXPECT--
+4:17-4:22 error E1016 this `match` does not handle `Size::Large`

@@ -1,0 +1,11 @@
+--TEST--
+a cursor on the `]` that closes a subscript expands to the subscript, then to its statement
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+echo $rows[1<|>];
+--REQUEST--
+selectionRange
+--EXPECT--
+3:6-3:14
+3:1-3:15

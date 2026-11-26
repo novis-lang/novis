@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the `match` keyword expands to the `match` expression, then to its statement
+--FILE--
+<?nvs
+int $n = 2;
+string $label = mat<|>ch ($n) {
+    1 => "one",
+    default => "many",
+};
+echo $label;
+--REQUEST--
+selectionRange
+--EXPECT--
+3:17-6:2
+3:1-6:3

@@ -1,0 +1,15 @@
+--TEST--
+a throw recorded on the line where a subscript's `[` starts has a lens that starts at that `[`, `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+int $i = 5;
+echo $rows
+    [$i];
+--FILE debug/index.sql--
+CREATE TABLE exception_groups (id INTEGER PRIMARY KEY, class TEXT NOT NULL, file TEXT NOT NULL, line INTEGER NOT NULL, count INTEGER NOT NULL, first_us INTEGER NOT NULL, last_us INTEGER NOT NULL);
+INSERT INTO exception_groups VALUES (1, 'Shop\MissingRow', 'case.nvs', 5, 2, 4102444700000000, 4102444800000000);
+--REQUEST--
+codeLens
+--EXPECT--
+5:5 Shop\MissingRow thrown 2 times, last just now

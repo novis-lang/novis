@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `]` that closes a subscript gives no references answer
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+echo $rows[1<|>];
+--REQUEST--
+references
+--EXPECT--
+none

@@ -1,0 +1,14 @@
+--TEST--
+a cursor on the `match` keyword gives no documentHighlight answer
+--FILE--
+<?nvs
+int $n = 2;
+string $label = mat<|>ch ($n) {
+    1 => "one",
+    default => "many",
+};
+echo $label;
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

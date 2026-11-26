@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `throw` keyword is a position where the locals in scope are offered
+--FILE--
+<?nvs
+int $stock = 0;
+if ($stock === 0) {
+    thr<|>ow new RuntimeError('out of stock');
+}
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$stock  variable  int
