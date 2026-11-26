@@ -369,6 +369,14 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **A new `Core` class fails a dozen roster tests that a chain goal's own checks never run.** In
+  `mail-receive` stage 2, CI run 45829711007 was red on the mail classes from `mail-complete`:
+  `capability`, `in_place`, `taint_signatures`, `ext_world`, `conformance_coverage`,
+  `added_slot`, `nvs-types` `core_lib`, the `nvs-config` secret tests and `nvs-fmt` `identity`.
+  Fixing them took three subagents. After a slice adds a class, a member, a config key or an
+  example, run `cargo test --test capability --test in_place --test taint_signatures --test
+  ext_world --test conformance_coverage` and `cargo test --lib added_slot core_lib` once. See
+  `crates/nvs-stdlib/tests/`.
 - **A worktree of another commit never builds into the tree's `target/`.** In `long-run-records`
   stage 1, a measurement at an older commit ran with `CARGO_TARGET_DIR` set to the tree's
   `target/`. Cargo gives a workspace crate the same artifact name in both checkouts. The next

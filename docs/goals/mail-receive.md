@@ -10,7 +10,7 @@ stages:
     context: [Cargo.toml, crates/nvs-stdlib/Cargo.toml, crates/nvs-stdlib/src/mail/parts.rs, crates/nvs-stdlib/src/zip.rs]
   - id: 2
     title: "a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status"
-    status: open
+    status: done
   - id: 3
     title: "Core\\Imap opens an operator-named block, lists folders, searches and fetches a parsed message"
     status: open
@@ -164,6 +164,19 @@ reads only the first 1,000 root header lines (`receive.rs` `parse`).
   other half of `send`'s `bounceTag`.
 - A bounce that is not a delivery report is `Other`. Guessing from a subject or a sender is declined:
   `rule:errors/ambiguous-input-refused`, and the large senders all write RFC 3464.
+- **Built in stage 2:** the code is `crates/nvs-stdlib/src/mail/receive/classify.rs`, run once
+  inside `parse`, and its result is four more slots of the message. The two enums are
+  `Core\Mail\Message::Kind` and `Core\Mail\ReportRecipient::Action`, not `Core\Mail\Kind` and
+  `Core\Mail\ReportAction`: `rule:enums/an-enum-lives-in-the-class-that-uses-it` puts an enum one
+  class returns inside that class. `Delay` is a delivery report with no `failed` recipient and at
+  least one `delayed` one, so a report that mixes `delayed` and `delivered` is a delay. A delivery
+  report of `delivered` recipients only is not a bounce or a delay and falls through the order, so
+  it is `AutoReply` when it has `Auto-Submitted`. A report reads at most 1,000 recipients
+  (`classify::MAX_RECIPIENTS`) and 1,000 lines per group; a recipient with no `Final-Recipient`
+  or an `Action` RFC 3464 does not define is skipped. `status()` is the first word of `Status`,
+  empty when there is none. `message/global-delivery-status` and `message/global-headers` (RFC
+  6533) are read as their ASCII forms are. `send`'s tag rule is one predicate,
+  `smtp::is_bounce_tag`, that both halves call.
 
 **`Core\Imap` (stages 3 and 4).** The shape is `[mail.<name>]`'s.
 - `[imap.<name>]` in `crates/nvs-config/src/tree.rs` (beside `mail`, `:113`) and `default.toml`:
@@ -230,13 +243,13 @@ Gate: `docs/goals/mail-complete.md` does not exist.
 
 ### 2. a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status
 
-- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: `Core\Mail\Kind` and `kind()`, the auto-reply
+- [x] `crates/nvs-stdlib/src/mail/receive.rs:1`: `Core\Mail\Kind` and `kind()`, the auto-reply
   table, per § *Classifying*.
-- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: `report()`, `Core\Mail\Report`,
+- [x] `crates/nvs-stdlib/src/mail/receive.rs:1`: `report()`, `Core\Mail\Report`,
   `Core\Mail\ReportRecipient`, `Core\Mail\ReportAction`, `answers()` and `bounceTag()`.
-- [ ] Neutral sample messages for each kind under `crates/nvs-stdlib/src/mail/samples/` (written by
+- [x] Neutral sample messages for each kind under `crates/nvs-stdlib/src/mail/samples/` (written by
   hand, never copied from a real mailbox).
-- [ ] The eleven tests of the check `classify`, then `cargo test --lib mail::` once.
+- [x] The eleven tests of the check `classify`, then `cargo test --lib mail::` once.
 
 ### 3. Core\Imap opens an operator-named block, lists folders, searches and fetches a parsed message
 
@@ -291,28 +304,36 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stage 1 is done, and its checks `parse` and `parse-taint` are green. `Core\Mail\Message` is in
-`crates/nvs-stdlib/src/mail/receive.rs`, with its tests in `receive/tests.rs`: the nine of the
-check and `parse_stops_at_the_header_line_bound`. The fuzz target is `mail_parse`
-(`crates/nvs-fuzz-checks/src/mail_parse.rs`, `fuzz/fuzz_targets/mail_parse.rs`, five seeds under
-`fuzz/seeds/mail_parse/`, one of them a delivery report for stage 2). The decisions stage 1 made
-are under § *Standing decisions*, § *The parser*, each marked "Built in stage 1". The session also
-reverted session 1569's WIP commit, a debug `eprintln!` in `crates/nvs-cli/src/serve.rs`.
+Stages 1 and 2 are done, and the checks `parse`, `parse-taint` and `classify` are green. The
+classifier is `crates/nvs-stdlib/src/mail/receive/classify.rs`, with its eleven tests in
+`classify/tests.rs` over six hand-written samples in `crates/nvs-stdlib/src/mail/samples/`. It
+adds `Core\Mail\Message::kind`, `answers`, `report` and `bounceTag`, the classes
+`Core\Mail\Report` and `Core\Mail\ReportRecipient`, and the enums `Core\Mail\Message::Kind` and
+`Core\Mail\ReportRecipient::Action`. § *Classifying* marks what stage 2 built, including the two
+enum names that the enum rule changed.
 
-Expected red until stage 5: the proof checks over the new members (`Core\Mail\Message::*`,
-`Core\Mail\Address::address` and `::name`) and the changed `Core\Mail\Attachment::name` and
-`::bytes`, which have no `about.md`, help, examples, bench or attack yet. `bun nv rules --check`
-may name `rule:core-classes/mail-receive`, which `receive.rs` cites and stage 5 writes. `site
---check stale` and `changes` will name the attachment members whose return types changed.
+The failures of CI run 45829711007 in mail code are fixed and green locally (`4ede711347`,
+`e953ca07db`, `edabc4106f`): roster rows, `send` as an owning entry, Miri ignores, test fixtures,
+formatting and ten conformance cases. The nightly's zone and uuid failures were already fixed.
+
+Expected red until stage 5: the proof checks over every new member (`Core\Mail\Message::*`,
+`Core\Mail\Report::recipients`, `Core\Mail\ReportRecipient::*`, `Core\Mail\Address::address` and
+`::name`) and the changed `Core\Mail\Attachment::name` and `::bytes`, which have no `about.md`,
+help, examples, bench or attack yet. `bun nv rules --check` may name
+`rule:core-classes/mail-receive`, which `receive.rs` and the new conformance cases cite and stage
+5 writes. `site --check stale` and `changes` will name the attachment members. `site --check
+shots` may name the debug-viewer shots: the viewer has a new "Mail" tab, and only `run.shot` and
+`runs.shot` were shot again.
 
 ### Next
 
-Stage 2 from its first item, in `crates/nvs-stdlib/src/mail/receive.rs`. `parse` keeps only the
-root message's headers, bodies and attachments. `kind()` and `report()` need the
-`message/delivery-status` and `text/rfc822-headers` parts, so read them in `parse` from
-`root.parts()` by `content_type`, and add slots for what they give. The seed
-`fuzz/seeds/mail_parse/d256f231b5af88184e1c94155c6237102b982c56` is a delivery report to start
-the samples from. Stage 3 may run beside it in a worktree.
+Stage 3 from its first item: `[imap.<name>]` in `crates/nvs-config/src/tree.rs` (beside `mail`)
+and `Core\Imap` under `crates/nvs-stdlib/src/imap/`, per § *`Core\Imap`*. Drive `imap-codec` over
+`NvsTcp` and `NvsTls` as `crates/nvs-stdlib/src/mail/smtp.rs` drives SMTP, and reuse
+`mail/oauth.rs` for XOAUTH2. A fetched message is `receive::message_of(raw)`. Each new class
+needs the roster rows this session added for the mail classes (capability or NEEDS_NONE,
+added_slot, ext_world, core_lib's tainted roster, conformance floor). Run those tests by name
+after the build, because CI fails on them and the chain gate does not run them.
 
 ### Backlog
 
@@ -331,3 +352,14 @@ Left by `mail-complete`, about sending. A session of this goal that touches the 
 - `css-inline` rewrites a CSS value's double quotes as single quotes when it copies it into a
   `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Inlining cost grows with
   rules times elements, and only depth is capped; the author of the markup alone can trigger it.
+
+Left by CI runs 45813627231 and 45829711007. None of them is in mail code. Stage 6 checks each
+again.
+
+- `serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+  (`crates/nvs-cli/src/serve.rs:5555`) failed on Linux x86_64 and aarch64 with `(333, 0) idle and
+  (686, 96) waiting` pages for 32 connections. Read whether the bound or the stack size changed.
+- `tests/conformance/core/a-channel-send-waits-only-once-its-bound-is-reached.nvst` printed `---`
+  for `--w` once on macOS aarch64. It looks like a scheduling race in the case.
+- `proofs`: `site shots` named `website/snippets/guides/how-to-use/sending-mail/files/logo.png`,
+  which has no `.shot`, and the other debug-viewer shots. Re-shoot with `bun nv site --shoot`.
