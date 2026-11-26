@@ -9,12 +9,15 @@ use Core\Unit;
 // The added methods work only in a file that has this `use` line.
 use Shop\BusinessDays;
 
-extend Date as BusinessDays {
-    public function isBusinessDay(): bool {
+extend Date as BusinessDays
+{
+    public function isBusinessDay(): bool
+    {
         return !$this->isWeekend();
     }
 
-    public function plusBusinessDays(int $days): Date {
+    public function plusBusinessDays(int $days): Date
+    {
         var $day = $this;
         int $left = $days;
         while ($left > 0) {
@@ -27,13 +30,14 @@ extend Date as BusinessDays {
     }
 
     // A `private` method is visible only inside this block.
-    private function isWeekend(): bool {
+    private function isWeekend(): bool
+    {
         return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
     }
 }
 
 var $ordered = Date::at(2026, 9, 18);
-echo "Ordered on a business day: ", $ordered->isBusinessDay() ? "yes" : "no", "\n";
+echo 'Ordered on a business day: ', $ordered->isBusinessDay() ? 'yes' : 'no', "\n";
 
 var $delivery = $ordered->plusBusinessDays(3);
-echo "Delivery: ", $delivery->year(), "-", $delivery->month(), "-", $delivery->day(), "\n";
+echo 'Delivery: ', $delivery->year(), '-', $delivery->month(), '-', $delivery->day(), "\n";

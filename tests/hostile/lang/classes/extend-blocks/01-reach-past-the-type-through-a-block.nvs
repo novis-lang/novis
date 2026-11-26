@@ -7,32 +7,38 @@
 
 namespace App;
 
-use Core\Time\Date;
 use Acme\Shop\Order;
 use App\OrderSecrets;
 use App\YearFix;
+use Core\Time\Date;
 
 autoload 'Acme\Shop' from './vendor/acme/shop/src';
 
-extend Order as OrderSecrets {
+extend Order as OrderSecrets
+{
     // 1. Reads a private property and calls a private method of `Order`.
-    public function stolenTotal(): int {
+    public function stolenTotal(): int
+    {
         return $this->total;
     }
 
-    public function stolenNote(): string {
+    public function stolenNote(): string
+    {
         return $this->internalNote();
     }
 
     // 2. Calls a method that only `Order` may call.
-    public function stolenCode(): string {
+    public function stolenCode(): string
+    {
         return $this->discountCode();
     }
 }
 
-extend Date as YearFix {
+extend Date as YearFix
+{
     // 3. Declares `year` again, so a call of `$date->year()` might run this method.
-    public function year(): int {
+    public function year(): int
+    {
         return 1999;
     }
 }

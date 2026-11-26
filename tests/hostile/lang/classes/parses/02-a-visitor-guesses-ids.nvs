@@ -120,8 +120,15 @@ if (Core\Env::context() == Core\Env::Context::Request) {
 
     // 3. Sends ids that are not plain numbers: negative, too large, with spaces, and empty.
     array<string> $odd = [
-        '/orders/-1', '/orders/18446744073709551616', '/orders/2%20', '/orders/%202',
-        '/order?order=-2', '/order?order=', '/order?order=2.0', '/order?order[]=2', '/order',
+        '/orders/-1',
+        '/orders/18446744073709551616',
+        '/orders/2%20',
+        '/orders/%202',
+        '/order?order=-2',
+        '/order?order=',
+        '/order?order=2.0',
+        '/order?order[]=2',
+        '/order',
     ];
     echo '3: ', Visitor::differentAnswers($odd), " answers differ\n";
 

@@ -4031,11 +4031,11 @@ final class Order extends Model
 }
 
 // The function takes an `Order`, so it can read `$o->total`.
-echo Order::passes('o-1', fn (Order $o): bool => $o->total > 100) ? "big order\n" : "small order\n";
-echo Order::passes('o-2', fn (Order $o): bool => $o->total > 500) ? "big order\n" : "small order\n";
+echo Order::passes('o-1', fn(Order $o): bool => $o->total > 100) ? "big order\n" : "small order\n";
+echo Order::passes('o-2', fn(Order $o): bool => $o->total > 500) ? "big order\n" : "small order\n";
 
 Order $order = new Order('o-3');
-echo $order->describe(fn (Order $o): string => $o->id . ' costs ' . $o->total), "\n";
+echo $order->describe(fn(Order $o): string => $o->id . ' costs ' . $o->total), "\n";
 ```
 
 ```output
@@ -17930,8 +17930,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
     // This prints `200` once and then `404` twice, for each address.
     var $paths = [
-        '/orders/1', '/orders/9', '/orders/2',
-        '/order?order=1', '/order?order=9', '/order?order=2',
+        '/orders/1',
+        '/orders/9',
+        '/orders/2',
+        '/order?order=1',
+        '/order?order=9',
+        '/order?order=2',
     ];
     foreach ($paths as string $path) {
         var $response = Core\Test::request(Method::Get, $path);
@@ -18268,12 +18272,15 @@ use Core\Unit;
 // The added methods work only in a file that has this `use` line.
 use Shop\BusinessDays;
 
-extend Date as BusinessDays {
-    public function isBusinessDay(): bool {
+extend Date as BusinessDays
+{
+    public function isBusinessDay(): bool
+    {
         return !$this->isWeekend();
     }
 
-    public function plusBusinessDays(int $days): Date {
+    public function plusBusinessDays(int $days): Date
+    {
         var $day = $this;
         int $left = $days;
         while ($left > 0) {
@@ -18286,16 +18293,17 @@ extend Date as BusinessDays {
     }
 
     // A `private` method is visible only inside this block.
-    private function isWeekend(): bool {
+    private function isWeekend(): bool
+    {
         return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
     }
 }
 
 var $ordered = Date::at(2026, 9, 18);
-echo "Ordered on a business day: ", $ordered->isBusinessDay() ? "yes" : "no", "\n";
+echo 'Ordered on a business day: ', $ordered->isBusinessDay() ? 'yes' : 'no', "\n";
 
 var $delivery = $ordered->plusBusinessDays(3);
-echo "Delivery: ", $delivery->year(), "-", $delivery->month(), "-", $delivery->day(), "\n";
+echo 'Delivery: ', $delivery->year(), '-', $delivery->month(), '-', $delivery->day(), "\n";
 ```
 
 ```output
@@ -18324,7 +18332,8 @@ class Orders
     }
 }
 
-extend Match as RequestNotes {
+extend Match as RequestNotes
+{
     // A stored property needs a default value or a `?` type.
     public ?uint $orderId;
     public int $checks = 0;
@@ -18386,12 +18395,15 @@ namespace Acme\Billing;
 use Core\Time\Date;
 use Core\Unit;
 
-extend Date as InvoiceDates {
-    public function dueDate(): Date {
+extend Date as InvoiceDates
+{
+    public function dueDate(): Date
+    {
         return $this->plus(30, Unit::Day);
     }
 
-    public function lateFeeFrom(): Date {
+    public function lateFeeFrom(): Date
+    {
         return $this->dueDate()->plus(14, Unit::Day);
     }
 }
@@ -18403,8 +18415,8 @@ extend Date as InvoiceDates {
 
 namespace Acme\Billing;
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
+use Core\Time\Date;
 
 final class Reminder
 {
@@ -18420,9 +18432,9 @@ final class Reminder
 <?nvs
 // Uses a package that adds methods to `Core\Time\Date` and allows only one of them outside the package.
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
 use Acme\Billing\Reminder;
+use Core\Time\Date;
 
 autoload 'Acme\Billing' from './packages/acme-billing/src';
 
@@ -28826,16 +28838,17 @@ class Meeting
         public DateTime $starts,
         public Duration $length,
         public Zone $zone,
-    ) {}
+    )
+    {}
 }
 
 var $meeting = new Meeting(
-    Uuid::parse("0190f3a2-7b1c-7def-8a12-3456789abcde"),
-    Date::fromIso("2026-03-02"),
-    TimeOfDay::fromIso("09:00"),
-    DateTime::fromIso("2026-03-02T09:00:00+01:00[Europe/Vienna]"),
-    Duration::parse("1h30m"),
-    Zone::of("Europe/Vienna"),
+    Uuid::parse('0190f3a2-7b1c-7def-8a12-3456789abcde'),
+    Date::fromIso('2026-03-02'),
+    TimeOfDay::fromIso('09:00'),
+    DateTime::fromIso('2026-03-02T09:00:00+01:00[Europe/Vienna]'),
+    Duration::parse('1h30m'),
+    Zone::of('Europe/Vienna'),
 );
 
 // Each property is one JSON string.
@@ -28846,14 +28859,14 @@ echo $json, "\n";
 // A decode reads the same strings back into the classes.
 // This prints `2026-03-02 5400`.
 var $back = Json::decodeAs<Meeting>($json);
-echo $back->day->toIso(), " ", $back->length->toSeconds(), "\n";
+echo $back->day->toIso(), ' ', $back->length->toSeconds(), "\n";
 
 // A string that is not a valid date throws a `ParseError`.
 // The error names the field.
 try {
     Json::decodeAs<Meeting>(Core\Str::replace($json, "\"2026-03-02\"", "\"02.03.2026\""));
 } catch (ParseError $bad) {
-    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+    echo $bad->issues['0']->path, ': ', $bad->issues['0']->message, "\n";
 }
 ```
 
@@ -62835,47 +62848,69 @@ folder that only your account can open. In production, a record has no headers a
 
 `nvs debug` also serves the debug viewer, a page that shows the recorded requests in a browser. It
 prints a link to the page when it starts. Open that link, because it contains a token. The viewer
-answers only a browser that has the token. Another account on the same computer does not have it,
-so it cannot read your requests. The address is `127.0.0.1:8137` unless `[debug] listen` or
-`--listen` sets another one. If that port is in use, `nvs debug` stops with an
-error. It does not pick another port, so a link to the viewer still works after a restart.
+opens only in a browser that has the token. Another account on the same computer does not have it,
+so it cannot read your requests. `nvs debug link` prints the same link again. The address is
+`127.0.0.1:8137` unless `[debug] listen` or `--listen` sets another one. If that port is in use,
+`nvs debug` stops with an error. It does not pick another port, so a link to the viewer still works
+after a restart.
+
+A rail on the left lists the pages. The bar at the top has the search box, the live state and the
+theme button. The live state shows *Live* when `nvs serve` started `nvs debug`. It shows *Recording
+stopped* when `nvs debug` runs without a server. It shows how many records were lost when a record
+could not be saved or read.
 
 | Page | What it shows |
 |---|---|
 | `/` | the requests, newest first: method, route, status, duration, queries, dumps and exceptions |
-| `/requests/<trace id>/<span id>` | one request: its timeline, its queries, dumps and log lines, and its input |
+| `/requests/<trace id>/<span id>` | one request, with a tab for its timeline, request, response, queries, dumps, log lines and coverage |
+| `/routes` | one row for each route: requests, errors, the p50 and p95 duration, queries and the last request |
+| `/queries` | one row for each line that ran a query: how often it ran, its total and longest time |
 | `/stream` | every record of every request, as one list you can filter |
 | `/log` | the log lines |
 | `/search` | a full-text search over requests, dumps, logs, queries and exceptions |
 | `/exceptions` | one row for each exception class and the line that threw it, with a count |
 | `/compare/...` | two requests side by side |
+| `/settings` | the theme, the editor, the saved filters, the lost records, and a button that deletes all records |
+
+The request list has filters for the method, the status, the route, the duration and whether the
+request threw an error. A status filter can be one code, such as `404`, or a class, such as `5xx`.
+Three tiles above the list show the requests, the durations and the errors of the last five
+minutes. Each row shows how its time was split between queries, HTTP calls, cache, session, files,
+garbage collection, processes and your own code. A gold badge shows that one query ran several times
+at the same line in that request.
 
 New rows appear at the top while you watch. Press `p` or scroll down to pause the list. The list
-then counts the new rows and does not move. Each page and each filter has its own link, which still
-works after a reload. You can paste a trace id, or the value of a `traceresponse` header, into the
-search box. The viewer then opens that request.
+then counts the new rows and does not move. Each page, each tab and each filter has its own link,
+which still works after a reload. You can paste a trace id, or the value of a `traceresponse`
+header, into the search box. The viewer then opens that request.
 
-Every key is listed when you press `?`. `j` and `k` move the selection, `Enter` opens it, `/` goes to
-the search box and `s` saves a filter. `m` marks a request, and the next request you open is
-compared with it. `c` compares a request with the previous request to the same route.
+A request's **Request** and **Response** tabs show the headers as a table and the body as text. A
+JSON body is shown as a tree. An HTML body is shown as text, and the viewer never runs it. *Copy as
+curl* copies a `curl` command for the request.
+
+Every key is listed when you press `?`. `Ctrl+K` (`Cmd+K` on macOS) opens a list of every page and
+action. `j` and `k` move the selection, `Enter` opens it, `/` goes to the search box and `s` saves a
+filter. `m` marks a request, and the next request you open is compared with it. `c` compares a
+request with the previous request to the same route.
 
 `r` replays a request: it sends the recorded request to your development server again. The handler
 runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
 started `nvs debug`. `t` makes a test from a request, the same test `nvs debug to-test` prints.
 
-Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor in
-the **Editor** dialog. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
+Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor on
+the settings page. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
 `cursor`, `zed`, `idea`, `phpstorm` and `custom`. With `custom`, you write the link yourself, with
 `{file}`, `{line}` and `{column}` in it. A path mapping replaces the start of a recorded path. Use
 one when the program ran in a container and its paths differ from yours. The viewer saves these
-settings and your saved filters next to the index.
+settings and your saved filters next to the index. The Novis extension for VS Code can show the
+viewer in an editor tab. There, a `file:line` opens in that editor.
 
 A profile that `Core\Debug::startProfile` wrote has a download link. In VS Code, it also has a link
 that opens it in the Novis extension. When the server ran with `[debug] mode = ["coverage"]`, a
 request's page shows which lines of each source file ran, and how often.
 
-The viewer is for you alone. It answers only a browser that opened the printed link, which contains
-a token. `nvs debug` creates the token once, in `debug/` in the data folder, so the link still works
+The viewer is for you alone. It opens only in a browser that opened the printed link, which
+contains a token. `nvs debug` creates the token once, in `debug/` in the data folder, so the link still works
 after a restart. A page on another site cannot read the viewer. When `listen` is not a loopback
 address, for example in a container, `nvs debug` serves the viewer over HTTPS. It creates a
 certificate for that. Your browser warns about the certificate once. `[debug] tls_cert_file`,
@@ -62919,15 +62954,16 @@ command creates it, as `nvs debug` would.
 | Option | What it does |
 |---|---|
 | `--json` | print one JSON object with `url`, `embed`, `running` and `recording` |
-| `--listen <address>` | use this address, the one `nvs debug --listen` was given, in place of `[debug] listen` |
+| `--listen <address>` | use this address and port in place of `[debug] listen`; give it when you started `nvs debug` with `--listen` |
 
 `embed` is the link an editor uses to show the viewer inside its own window. `running` is `true`
-when `nvs debug` runs for the data folder. `recording` is the value of `[debug] store`. The
+when `nvs debug` runs for the same data folder. The data folder is where Novis keeps its own files,
+such as the records and the token file (see `--data`). `recording` is the value of `[debug] store`. The
 command prints a note on standard error when no `nvs debug` runs. It also prints a
-note when `[debug] store` is off, because then no request is recorded.
+note when `[debug] store` is off. Then your server records no request.
 
-If `[debug] listen` has the port `0`, `nvs debug` picks the port when it starts. Then the command
-prints an error, and you use the link that `nvs debug` printed.
+The port `0` in `[debug] listen` means that `nvs debug` picks a free port when it starts. This
+command cannot know that port, so it prints an error. Use the link that `nvs debug` printed.
 
 ### Profiling
 
@@ -67285,12 +67321,13 @@ Use `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations
 | `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
 | `nvs.highlighting.distinctNames` | `false` | gives class names and methods two different colours in `.nvs` files, and keeps your colour theme. On adds colour rules for the current theme to `editor.semanticTokenColorCustomizations` in your user settings. Off removes the rules you did not change |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
+| `nvs.debugViewer.openIn` | `"editor"` | where the debug viewer button opens the viewer. `editor` opens it in a panel of the editor, and `browser` opens it in your web browser |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`,
-`nvs.template.format`, `nvs.ast.enable` and `nvs.highlighting.distinctNames` are the client's own and take effect on the next redraw, request or save,
+`nvs.template.format`, `nvs.ast.enable`, `nvs.highlighting.distinctNames` and `nvs.debugViewer.openIn` are the client's own and take effect on the next redraw, request, save or click,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
 `nvs.check.scope`, `nvs.codeLens.enable`, `nvs.inlayHints.parameterNames` and `nvs.lsp.debounce` are
@@ -67317,6 +67354,8 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.useNovisTheme` | Use Novis Colour Theme | switches to **Novis Dark** or **Novis Light**, the one that matches your current theme's light or dark kind |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
+| `nvs.openDebugViewer` | Open Debug Viewer | opens the debug viewer of `nvs debug` where `nvs.debugViewer.openIn` says. It is the pulse button in the title bar of a `.nvs` file, a `.nvst` file and `nvs.toml` |
+| `nvs.openDebugViewerInBrowser` | Open Debug Viewer in Browser | opens the debug viewer in your web browser |
 
 #### Which binary answered, and which it refuses
 

@@ -19,16 +19,17 @@ class Meeting
         public DateTime $starts,
         public Duration $length,
         public Zone $zone,
-    ) {}
+    )
+    {}
 }
 
 var $meeting = new Meeting(
-    Uuid::parse("0190f3a2-7b1c-7def-8a12-3456789abcde"),
-    Date::fromIso("2026-03-02"),
-    TimeOfDay::fromIso("09:00"),
-    DateTime::fromIso("2026-03-02T09:00:00+01:00[Europe/Vienna]"),
-    Duration::parse("1h30m"),
-    Zone::of("Europe/Vienna"),
+    Uuid::parse('0190f3a2-7b1c-7def-8a12-3456789abcde'),
+    Date::fromIso('2026-03-02'),
+    TimeOfDay::fromIso('09:00'),
+    DateTime::fromIso('2026-03-02T09:00:00+01:00[Europe/Vienna]'),
+    Duration::parse('1h30m'),
+    Zone::of('Europe/Vienna'),
 );
 
 // Each property is one JSON string.
@@ -39,12 +40,12 @@ echo $json, "\n";
 // A decode reads the same strings back into the classes.
 // This prints `2026-03-02 5400`.
 var $back = Json::decodeAs<Meeting>($json);
-echo $back->day->toIso(), " ", $back->length->toSeconds(), "\n";
+echo $back->day->toIso(), ' ', $back->length->toSeconds(), "\n";
 
 // A string that is not a valid date throws a `ParseError`.
 // The error names the field.
 try {
     Json::decodeAs<Meeting>(Core\Str::replace($json, "\"2026-03-02\"", "\"02.03.2026\""));
 } catch (ParseError $bad) {
-    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+    echo $bad->issues['0']->path, ': ', $bad->issues['0']->message, "\n";
 }

@@ -16,7 +16,8 @@ class Orders
     }
 }
 
-extend Match as RequestNotes {
+extend Match as RequestNotes
+{
     // A stored property needs a default value or a `?` type.
     public ?uint $orderId;
     public int $checks = 0;

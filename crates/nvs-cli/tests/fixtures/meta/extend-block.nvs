@@ -3,29 +3,33 @@
 // a row of its own under `blocks`, with its target and the members it adds.
 namespace App\Time;
 
+use App\Time\BusinessDays;
 use Core\Time\Date;
 use Core\Time\Weekday;
-use App\Time\BusinessDays;
 
 /// Business days on a date.
-extend Date as BusinessDays {
+extend Date as BusinessDays
+{
     /// How many business days a week has.
     public const int PER_WEEK = 5;
 
     /// Whether the date is a business day.
-    public function isBusinessDay(): bool {
+    public function isBusinessDay(): bool
+    {
         return !$this->isWeekend();
     }
 
     /// The first day of a year.
-    public static function newYear(int $year): Date {
+    public static function newYear(int $year): Date
+    {
         return Date::at($year, 1, 1);
     }
 
-    private function isWeekend(): bool {
+    private function isWeekend(): bool
+    {
         return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
     }
 }
 
-echo Date::at(2026, 9, 17)->isBusinessDay() ? "yes" : "no", "\n";
-echo Date::newYear(2026)->year(), " ", Date::PER_WEEK, "\n";
+echo Date::at(2026, 9, 17)->isBusinessDay() ? 'yes' : 'no', "\n";
+echo Date::newYear(2026)->year(), ' ', Date::PER_WEEK, "\n";

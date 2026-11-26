@@ -7,11 +7,13 @@
 
 namespace Bench;
 
-use Core\Time\Date;
 use Bench\InvoiceDays;
+use Core\Time\Date;
 
-extend Date as InvoiceDays {
-    public function isLate(int $lastDay): bool {
+extend Date as InvoiceDays
+{
+    public function isLate(int $lastDay): bool
+    {
         return $this->day() > $lastDay;
     }
 }

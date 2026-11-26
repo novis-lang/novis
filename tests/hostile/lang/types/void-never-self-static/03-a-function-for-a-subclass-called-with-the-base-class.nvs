@@ -24,9 +24,9 @@ class Order extends Model
     public int $total = 5;
 }
 
-echo Order::withNew(fn (Order $o): int => $o->total), "\n";
+echo Order::withNew(fn(Order $o): int => $o->total), "\n";
 Order $order = new Order();
-echo $order->withVariable(fn (Order $o): int => $o->total), "\n";
+echo $order->withVariable(fn(Order $o): int => $o->total), "\n";
 
 // 3. Calls the method on `Model` with a function that takes only `Order`.
-echo Model::withNew(fn (Order $o): int => $o->total), "\n";
+echo Model::withNew(fn(Order $o): int => $o->total), "\n";

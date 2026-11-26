@@ -7,12 +7,15 @@ namespace Acme\Billing;
 use Core\Time\Date;
 use Core\Unit;
 
-extend Date as InvoiceDates {
-    public function dueDate(): Date {
+extend Date as InvoiceDates
+{
+    public function dueDate(): Date
+    {
         return $this->plus(30, Unit::Day);
     }
 
-    public function lateFeeFrom(): Date {
+    public function lateFeeFrom(): Date
+    {
         return $this->dueDate()->plus(14, Unit::Day);
     }
 }

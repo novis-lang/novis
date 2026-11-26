@@ -336,7 +336,7 @@
     "Core\\Arr::reverse": "b8f8916dc019fdbd"
   },
   "docs/examples/core/Arr/shapeAs/about.md": {
-    "Core\\Arr::shapeAs": "d87a6ae1bf6850be"
+    "Core\\Arr::shapeAs": "5f30b8c1e642ec25"
   },
   "docs/examples/core/Arr/slice/about.md": {
     "Core\\Arr::slice": "bb7a4a6229f4837c"
@@ -1323,7 +1323,7 @@
     "Core\\Json::decode": "b970c6ed14832243"
   },
   "docs/examples/core/Json/decodeAs/about.md": {
-    "Core\\Json::decodeAs": "5da6d941dc48ddd9"
+    "Core\\Json::decodeAs": "7f05f8ce7ab3e7e0"
   },
   "docs/examples/core/Json/decodeEach/about.md": {
     "Core\\Json::decodeEach": "4b73468d678b3db7"
@@ -3450,7 +3450,7 @@
     "Core\\Uri::withQueryParameter": "93c0b74988cbe8fd"
   },
   "docs/examples/core/Uuid/format/about.md": {
-    "Core\\Uuid::format": "c2b79d876dcc6423"
+    "Core\\Uuid::format": "1ff0d889a77973cb"
   },
   "docs/examples/core/Uuid/fromBytes/about.md": {
     "Core\\Uuid::fromBytes": "323d5223ecadaffa"
@@ -3597,7 +3597,7 @@
     "lang:attributes/core-command-and-core-option-the-command-table": "d268dbada7bd507d"
   },
   "docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "444e7303356da7e7"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5b65f7c540d4b58e"
   },
   "docs/examples/lang/attributes/core-program-implementing-i-every-class-that-is-an-i/about.md": {
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "aad574ac7b5b80ac"
@@ -3630,7 +3630,7 @@
     "lang:classes/declaring-a-class": "e7e29f3cb55816ff"
   },
   "docs/examples/lang/classes/extend-blocks/about.md": {
-    "lang:classes/extend-blocks": "399418d4ab5080a8"
+    "lang:classes/extend-blocks": "1c9a284760d670bd"
   },
   "docs/examples/lang/classes/inheritance/about.md": {
     "lang:classes/inheritance": "25e1eb3c6d112520"
@@ -3654,7 +3654,7 @@
     "lang:classes/objects-are-handles": "b2547845ca372754"
   },
   "docs/examples/lang/classes/parses/about.md": {
-    "lang:classes/parses": "681766a31b754964"
+    "lang:classes/parses": "cbf7b4ec4dd605b1"
   },
   "docs/examples/lang/classes/properties/about.md": {
     "lang:classes/properties": "77f98a389e344932"
@@ -3999,7 +3999,7 @@
     "lang:types/values-written-in-the-code": "bfac11b8c231eaec"
   },
   "docs/examples/lang/types/void-never-self-static/about.md": {
-    "lang:types/void-never-self-static": "fe6e8f0e6fd3beb8"
+    "lang:types/void-never-self-static": "8dc46785aadd95ca"
   },
   "docs/examples/lang/types/what-does-not-exist/about.md": {
     "lang:types/what-does-not-exist": "e7d199638c0afd7d"
@@ -4611,7 +4611,7 @@
     "tools:editor/nvs-lsp-test": "df416dc062c9527f"
   },
   "docs/examples/tools/editor/the-vs-code-extension/about.md": {
-    "tools:editor/the-vs-code-extension": "b707b1934a6752dd"
+    "tools:editor/the-vs-code-extension": "d77a2516fc544bd9"
   },
   "docs/examples/tools/install/linux-and-macos/about.md": {
     "tools:install/linux-and-macos": "aa1e569a66536097"
@@ -5205,7 +5205,7 @@
     "Core\\Arr::SetOn": "ead13f83019b8012"
   },
   "help:Core\\Arr::shapeAs": {
-    "Core\\Arr::shapeAs": "72dc52257df12f0a"
+    "Core\\Arr::shapeAs": "25d46cb6d9fa4e4c"
   },
   "help:Core\\Arr::slice": {
     "Core\\Arr::slice": "5729626248eb5b6e"
@@ -6270,7 +6270,7 @@
     "Core\\Json::decode": "4009022567bc2f70"
   },
   "help:Core\\Json::decodeAs": {
-    "Core\\Json::decodeAs": "fb3850a8aeb7d941"
+    "Core\\Json::decodeAs": "f8c99fe8e5586266"
   },
   "help:Core\\Json::decodeEach": {
     "Core\\Json::decodeEach": "294f417438df5031"
@@ -8463,7 +8463,7 @@
     "Core\\Uri::withQueryParameter": "75ae2ee1e0b10140"
   },
   "help:Core\\Uuid::format": {
-    "Core\\Uuid::format": "26123602557889d4"
+    "Core\\Uuid::format": "75d50e733df3fe77"
   },
   "help:Core\\Uuid::fromBytes": {
     "Core\\Uuid::fromBytes": "b58c2a2941f917ee"
@@ -9674,7 +9674,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e4c9ab67937b5dbe"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "69be55a38c453c26"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "ef1a17e048c141cf"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "b49c07bd7c088da9",
@@ -9715,7 +9715,7 @@
     "lang:classes/declaring-a-class": "105095d5ce39ba12"
   },
   "syntax/classes/extend-blocks.mdx": {
-    "lang:classes/extend-blocks": "0b88be70805f6251"
+    "lang:classes/extend-blocks": "187fb27f0113248d"
   },
   "syntax/classes/interfaces.mdx": {
     "lang:classes/interfaces": "c2df17e11935d2ac"
@@ -9757,7 +9757,7 @@
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
     "lang:classes/comparable": "930aac4adee213e9",
-    "lang:classes/parses": "69eb8751e86a9e78",
+    "lang:classes/parses": "62e0bdee031b24f6",
     "lang:classes/stringable": "33fdc04b0d92eee6",
     "Parses": "025b90ce877bab36",
     "Stringable": "536c3bdb6784fac9"
@@ -9867,7 +9867,7 @@
     "lang:expressions/calls": "52c9e75ff8e8f32d"
   },
   "syntax/functions/declaring.mdx": {
-    "lang:types/void-never-self-static": "bb382f8d6f72ae52"
+    "lang:types/void-never-self-static": "871493aca6e496f7"
   },
   "syntax/functions/parameters.mdx": {
     "lang:types/parameters": "f31a899baabf5e73"
@@ -10066,7 +10066,7 @@
   },
   "tools/editor/index.mdx": {
     "tools:editor/nvs-lsp": "b2f8c4279869b2db",
-    "tools:editor/the-vs-code-extension": "4a8700ac5275da6b"
+    "tools:editor/the-vs-code-extension": "3bce161c43298594"
   },
   "tools/formatter/index.mdx": {
     "tools:cli/nvs-fmt": "f7b8d5fff9019377"

@@ -33,7 +33,7 @@ class Invoice extends Model
 {}
 
 Order $order = new Order();
-$order->keep(fn (Order $o): bool => $o->total > 0);
+$order->keep(fn(Order $o): bool => $o->total > 0);
 
 // 1. Calls each stored function with a `Model`. The error is caught, so step 2 still runs.
 foreach ($order->rules as callable $rule) {

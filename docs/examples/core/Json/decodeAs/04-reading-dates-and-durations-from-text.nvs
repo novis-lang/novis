@@ -7,17 +7,17 @@ use Core\Json;
 string $body = '{"id":"0190f3a2-7b1c-7def-8a12-3456789abcde","day":"2026-05-14","length":"45m"}';
 
 // Each field type is a `Core` class, so the decode converts each string.
-var $booking = Json::decodeAs<{id: Core\Uuid, day: Core\Time\Date, length: Core\Time\Duration}>($body);
+var $booking = Json::decodeAs<{ id: Core\Uuid, day: Core\Time\Date, length: Core\Time\Duration }>($body);
 
 // This prints `2026-05-14 0190f3a2-7b1c-7def-8a12-3456789abcde`.
-echo $booking->day->toIso(), " ", $booking->id->toString(), "\n";
+echo $booking->day->toIso(), ' ', $booking->id->toString(), "\n";
 
 // This prints `2700 seconds`.
 echo $booking->length->toSeconds(), " seconds\n";
 
 // A string that is not a valid duration throws a `ParseError`.
 try {
-    Json::decodeAs<{length: Core\Time\Duration}>('{"length":"soon"}');
+    Json::decodeAs<{ length: Core\Time\Duration }>('{"length":"soon"}');
 } catch (ParseError $bad) {
-    echo $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+    echo $bad->issues['0']->path, ': ', $bad->issues['0']->message, "\n";
 }

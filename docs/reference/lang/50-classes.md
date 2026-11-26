@@ -4109,8 +4109,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
     // This prints `200` once and then `404` twice, for each address.
     var $paths = [
-        '/orders/1', '/orders/9', '/orders/2',
-        '/order?order=1', '/order?order=9', '/order?order=2',
+        '/orders/1',
+        '/orders/9',
+        '/orders/2',
+        '/order?order=1',
+        '/order?order=9',
+        '/order?order=2',
     ];
     foreach ($paths as string $path) {
         var $response = Core\Test::request(Method::Get, $path);
@@ -4447,12 +4451,15 @@ use Core\Unit;
 // The added methods work only in a file that has this `use` line.
 use Shop\BusinessDays;
 
-extend Date as BusinessDays {
-    public function isBusinessDay(): bool {
+extend Date as BusinessDays
+{
+    public function isBusinessDay(): bool
+    {
         return !$this->isWeekend();
     }
 
-    public function plusBusinessDays(int $days): Date {
+    public function plusBusinessDays(int $days): Date
+    {
         var $day = $this;
         int $left = $days;
         while ($left > 0) {
@@ -4465,16 +4472,17 @@ extend Date as BusinessDays {
     }
 
     // A `private` method is visible only inside this block.
-    private function isWeekend(): bool {
+    private function isWeekend(): bool
+    {
         return $this->weekday() == Weekday::Saturday || $this->weekday() == Weekday::Sunday;
     }
 }
 
 var $ordered = Date::at(2026, 9, 18);
-echo "Ordered on a business day: ", $ordered->isBusinessDay() ? "yes" : "no", "\n";
+echo 'Ordered on a business day: ', $ordered->isBusinessDay() ? 'yes' : 'no', "\n";
 
 var $delivery = $ordered->plusBusinessDays(3);
-echo "Delivery: ", $delivery->year(), "-", $delivery->month(), "-", $delivery->day(), "\n";
+echo 'Delivery: ', $delivery->year(), '-', $delivery->month(), '-', $delivery->day(), "\n";
 ```
 
 ```output
@@ -4503,7 +4511,8 @@ class Orders
     }
 }
 
-extend Match as RequestNotes {
+extend Match as RequestNotes
+{
     // A stored property needs a default value or a `?` type.
     public ?uint $orderId;
     public int $checks = 0;
@@ -4565,12 +4574,15 @@ namespace Acme\Billing;
 use Core\Time\Date;
 use Core\Unit;
 
-extend Date as InvoiceDates {
-    public function dueDate(): Date {
+extend Date as InvoiceDates
+{
+    public function dueDate(): Date
+    {
         return $this->plus(30, Unit::Day);
     }
 
-    public function lateFeeFrom(): Date {
+    public function lateFeeFrom(): Date
+    {
         return $this->dueDate()->plus(14, Unit::Day);
     }
 }
@@ -4582,8 +4594,8 @@ extend Date as InvoiceDates {
 
 namespace Acme\Billing;
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
+use Core\Time\Date;
 
 final class Reminder
 {
@@ -4599,9 +4611,9 @@ final class Reminder
 <?nvs
 // Uses a package that adds methods to `Core\Time\Date` and allows only one of them outside the package.
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
 use Acme\Billing\Reminder;
+use Core\Time\Date;
 
 autoload 'Acme\Billing' from './packages/acme-billing/src';
 

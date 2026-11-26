@@ -19,4 +19,4 @@ echo "refused 0123456789abcdef\"><script>alert(1)</script>\n";
 echo "refused 0123456789 abcdef%2F\u{00e9}\n";
 
 // 6. A long token that is valid. The link should contain it as it is.
-echo "kept " . Core\Str::repeat('a1-_.~', 200) . "\n";
+echo 'kept ' . Core\Str::repeat('a1-_.~', 200) . "\n";

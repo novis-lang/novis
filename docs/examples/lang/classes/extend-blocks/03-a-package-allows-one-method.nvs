@@ -1,9 +1,9 @@
 <?nvs
 // Uses a package that adds methods to `Core\Time\Date` and allows only one of them outside the package.
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
 use Acme\Billing\Reminder;
+use Core\Time\Date;
 
 autoload 'Acme\Billing' from './packages/acme-billing/src';
 

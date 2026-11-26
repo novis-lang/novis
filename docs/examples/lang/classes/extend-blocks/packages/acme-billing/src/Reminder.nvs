@@ -3,8 +3,8 @@
 
 namespace Acme\Billing;
 
-use Core\Time\Date;
 use Acme\Billing\InvoiceDates;
+use Core\Time\Date;
 
 final class Reminder
 {

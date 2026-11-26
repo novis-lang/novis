@@ -93,8 +93,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // Each address is tried with order 1 (ann's), order 9 (missing) and order 2 (bob's).
     // This prints `200` once and then `404` twice, for each address.
     var $paths = [
-        '/orders/1', '/orders/9', '/orders/2',
-        '/order?order=1', '/order?order=9', '/order?order=2',
+        '/orders/1',
+        '/orders/9',
+        '/orders/2',
+        '/order?order=1',
+        '/order?order=9',
+        '/order?order=2',
     ];
     foreach ($paths as string $path) {
         var $response = Core\Test::request(Method::Get, $path);

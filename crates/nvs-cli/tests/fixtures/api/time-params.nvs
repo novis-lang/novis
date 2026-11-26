@@ -13,7 +13,8 @@ class Calendar
         Core\Time\TimeOfDay $opens,
         Core\Time\Instant $since,
         #[Core\Query] ?Core\Time\DateTime $starts = null,
-    ): string {
+    ): string
+    {
         return 'the day';
     }
 }

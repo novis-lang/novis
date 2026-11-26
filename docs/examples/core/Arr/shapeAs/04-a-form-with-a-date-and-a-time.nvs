@@ -5,7 +5,7 @@
 array<string> $form = ['day' => '2026-05-14', 'opens' => '08:30', 'zone' => 'Europe/Vienna'];
 
 try {
-    var $slot = Core\Arr::shapeAs<{day: Core\Time\Date, opens: Core\Time\TimeOfDay, zone: Core\Time\Zone}>($form);
+    var $slot = Core\Arr::shapeAs<{ day: Core\Time\Date, opens: Core\Time\TimeOfDay, zone: Core\Time\Zone }>($form);
     // This prints `2026-05-14 at 08:30:00`.
     echo $slot->day->toIso(), ' at ', $slot->opens->toIso(), "\n";
 } catch (ParseError $bad) {
@@ -16,7 +16,7 @@ try {
 
 // A visitor types the date in another format. The field is listed with its problem.
 try {
-    Core\Arr::shapeAs<{day: Core\Time\Date}>(['day' => '14.05.2026']);
+    Core\Arr::shapeAs<{ day: Core\Time\Date }>(['day' => '14.05.2026']);
 } catch (ParseError $bad) {
-    echo $bad->issues["0"]->path, ': ', $bad->issues["0"]->message, "\n";
+    echo $bad->issues['0']->path, ': ', $bad->issues['0']->message, "\n";
 }

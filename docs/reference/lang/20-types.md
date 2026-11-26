@@ -1856,11 +1856,11 @@ final class Order extends Model
 }
 
 // The function takes an `Order`, so it can read `$o->total`.
-echo Order::passes('o-1', fn (Order $o): bool => $o->total > 100) ? "big order\n" : "small order\n";
-echo Order::passes('o-2', fn (Order $o): bool => $o->total > 500) ? "big order\n" : "small order\n";
+echo Order::passes('o-1', fn(Order $o): bool => $o->total > 100) ? "big order\n" : "small order\n";
+echo Order::passes('o-2', fn(Order $o): bool => $o->total > 500) ? "big order\n" : "small order\n";
 
 Order $order = new Order('o-3');
-echo $order->describe(fn (Order $o): string => $o->id . ' costs ' . $o->total), "\n";
+echo $order->describe(fn(Order $o): string => $o->id . ' costs ' . $o->total), "\n";
 ```
 
 ```output

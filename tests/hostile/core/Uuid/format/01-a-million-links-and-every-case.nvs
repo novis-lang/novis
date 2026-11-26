@@ -4,7 +4,7 @@
 
 class Orders
 {
-    #[Core\Route(path: "/orders/{order}", method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/orders/{order}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function show(Core\Uuid $order): void
     {
