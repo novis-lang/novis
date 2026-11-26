@@ -50,7 +50,7 @@ stages:
     context: [docs/agent/prose.md, website/src/content/docs/tools/debug-viewer/index.mdx, website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json, tools/nv/cmd/site.ts]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: viewer-built
@@ -762,58 +762,51 @@ pages, after the session has listed what each page must say.
 
 ### 12. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review, [prose.md](../agent/prose.md) § *A newcomer reads it*, over every page,
+- [x] The newcomer review, [prose.md](../agent/prose.md) § *A newcomer reads it*, over every page,
   help text and card this goal wrote, and `bun nv site --check review` is green.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 11 are done. One rule is `designed` and owned by this goal:
-`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`. Stage 12 ships it: it sets
-`data/rules/testing/<slug>.json` to `shipped`, drops `goal`, fills `guardedBy` with the tests that
-pin it (the request page's browser test and the `api` test), and runs `bun nv rules --render`. The
-names stages 3 to 10 gave are under Standing decisions.
+All twelve stages are done. The rule
+`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it` is `shipped` (`00e324dc6a`),
+and this goal owns no rule that is still `designed`. The full gate also covered route-values,
+extend-blocks, static-in-callables and enum-tables. Its fourth run was green after three rounds of
+fixes:
 
-Stage 11 landed in three commits. `nvs debug link` has its proofs: an `about.md`, an example of its
-options, `// covers:` on the two link tests, and the attack
-`tests/hostile/tools/cli/nvs-debug-link/01-token-files-that-try-to-change-the-link.nvs`, whose lines
-`debug_viewer.rs` `nvs_debug_link_refuses_a_token_file_that_would_change_the_link` runs as forged
-token files (green by name). Every viewer shot is taken in the dark theme
-(`tools/nv/lib/shoot.ts` `takeSteps(..., dark)`, and the live pill's port is masked). The seven old
-shots are taken again, and `routes`, `queries`, `request-tabs` and `lost` are new, the last two with
-fixtures beside them. Both pages, the reference of `nvs debug` and `nvs debug link`, the help and
-both `about.md` are rewritten, stamped and reviewed by three readers, every finding fixed.
-`changes.json` has the four entries. The viewer and the extension entries are `highlight`, which
-also lets them name features whose tests did not move. The design drawing is deleted. Green:
-`site --check stale changes shots review`, `proofs --owed` and `proofs --gate` for the goal, clippy,
-and the examples and attacks of the three debug features.
+- `99271708a6`: the corpus and the reference code blocks are what `nvs fmt` writes.
+- `e46d0b0761`: the `Core` pre-pass lowers a method's parameters twice only for a keyed member, so
+  `start_cost`'s `core` phase is at 6,399 allocations, down from 9,115, under an unchanged bound.
+- `2f3d849a52`: a call through `Parses::format` or `Comparable::compareTo` on a `Core` receiver
+  reaches its native method (`dispatch.rs` `interface_floor`). Before, it stopped with an internal error.
+- `ab29982aed`: 47 `coverage-*` LSP cases. `4122c7b0f3` and `fa79e401a1`: test tables new code had
+  outgrown, and the editor chapter's rows for the viewer.
 
-The nightly CI failures of run 45609291264 tested `53e94a9181` and are fixed on disk by
-`1c3196b0e8`; this session checked that again.
+The nightly CI failures of run 45609291264 tested `53e94a9181` and are fixed by `1c3196b0e8`.
 
 ### Next
 
-Stage 12, the goal's gate. Item 1: `bun nv site --check review` is already green, because stage 11
-reviewed every text it wrote; run `bun nv site --review` and review only what it lists. Then ship
-the rule above, then the check the pack names.
-
-The reshoot showed viewer flaws that no check turns red. Fix them in stage 12 if its run is red
-anyway, else they go to `deeper-debug-records`. A change to `viewer/dist` changes every shot's
-`assets` hash, so all eleven shots are taken again with `bun nv site --shoot` after it.
-
-- The lost-records line says "in 1 reports" (`viewer/src/views/settings.tsx`, the `#lost` part).
-- A request's Queries tab squeezes the Driver column when a call site is a long absolute path.
-- In `requests.png`, the peek pane pushes the Age column off screen at 1280 pixels.
-- In `to-test.png`, the generated test's `#[Test]` and `public function` lines look indented wrong;
-  check `crates/nvs-cli/src/debug/` `to_test` against its own test first.
+The goal-end checks. `bun nv close --goal debug-viewer-flagship` was red on three things after the
+green gate. The perf figures of `lang:types` and `lang:classes` were stale, because the formatter
+changed their chapters. The question lists of seven pages were stale and one was owed. A paragraph of
+the debug viewer page had seven sentences. This session reran the perf groups and fixed the
+questions and the paragraph, and recorded `lang:attributes` too. `close`, `verify --doc` and
+`ci --check` are green, stage 12 is done, and the goal is claimed DONE. No test is expected to go
+red. The viewer flaws the reshoot showed go to `deeper-debug-records`, listed under Backlog.
 
 `queries.shot` orders its rows by total time, so its fixture's three queries are far apart in time;
-it was red once when they were closer. No test is expected to go red.
+it was red once when they were closer.
 
 ### Backlog
+
+- Viewer flaws no check turns red, for `deeper-debug-records`: the lost-records line says "in 1
+  reports" (`viewer/src/views/settings.tsx`, `#lost`); a long absolute call site squeezes the Queries
+  tab's Driver column; the peek pane pushes the Age column off screen at 1280 pixels in
+  `requests.png`; and the generated test's `#[Test]` lines in `to-test.png` look wrongly indented.
+  Retake all eleven shots with `bun nv site --shoot` after a change to `viewer/dist`.
 
 - The memory figures, the handler link, the exception's stack and the response size in the drawing
   are the goal `deeper-debug-records`. This goal draws each only when a record has the field.
