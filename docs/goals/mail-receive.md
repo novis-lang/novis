@@ -365,11 +365,12 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6's full gate is in its fourth `looper verify` run, which this
-session left running; its report is in `.agent-tmp/verify.txt`. Each earlier run stopped at its
-first red check step, and each is fixed: `directives` missed `mail.return_path` (`db7db14c95`),
-`render` (`8b98062a5e`) and `rules --render` (`358e87b015`). `links`, `layout` and `release
---check` pass by hand.
+Stages 1 to 5 are done. Stage 6's fourth `looper verify` run is red on one test:
+`the_identity_printer_reproduces_every_corpus_file` (`crates/nvs-fmt/tests/identity.rs`) names 19
+files the formatter changes, every `.nvs` under `tests/hostile/core/Mail-Message/`, `Mail-Report/`
+and `Mail-ReportRecipient/`, and `website/snippets/guides/how-to-use/receiving-mail/webhook.nvs`.
+The three earlier runs' reds are fixed: `directives` missed `mail.return_path` (`db7db14c95`),
+`render` (`8b98062a5e`) and `rules --render` (`358e87b015`).
 
 **The eleven bugs the proof agents found are fixed**, each with a test (`c136463405`): a `Date`
 with an out-of-range zone or year is `null` (`receive.rs` `readable_date`), `Message-ID` is the
@@ -386,8 +387,9 @@ Expected red: the website build. `Date::range`'s signature names `Core\Unit::Day
 
 ### Next
 
-1. Read `.agent-tmp/verify.txt`, or run `looper verify` once if it did not finish. Fix every red
-   it names in one pass, then run it once more.
+1. Format the 19 files with the Novis formatter, as `e953ca07db` did for 21 mail examples, and
+   rerun the identity test by name. A file whose `.out` moves is blessed. Then run `looper verify`
+   once more.
 2. Give `Core\Unit` (`crates/nvs-stdlib/src/time.rs:1694`) a reference page, or find why
    `bun nv render --website` leaves it out. Re-shoot the 11 stale `.shot.out` files under
    `website/snippets/tools/debug-viewer/` and give `sending-mail/files/logo.png` a `.shot`
