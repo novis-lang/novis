@@ -130,13 +130,12 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Debug records that stay within their limits.** *Working on it now.* The settings `index_age` and `index_max` under `[debug]` also delete the records of a finished run, oldest first. The run's page in the debug viewer shows which of its records were deleted.
-2. **One setting for the certificates your server trusts.** A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.
-3. **Mail that a web app needs.** `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
-4. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
-5. **Completion that offers only what your program can load.** Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.
-6. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
-7. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
+1. **One setting for the certificates your server trusts.** *Working on it now.* A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.
+2. **Mail that a web app needs.** `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
+3. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
+4. **Completion that offers only what your program can load.** Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.
+5. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
+6. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
 <!-- roadmap:end -->
 
 ## Contributing

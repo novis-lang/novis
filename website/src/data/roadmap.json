@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Debug records that stay within their limits",
-      "text": "The settings `index_age` and `index_max` under `[debug]` also delete the records of a finished run, oldest first. The run's page in the debug viewer shows which of its records were deleted.",
-      "goals": [
-        "long-run-records"
-      ]
-    },
-    {
       "title": "One setting for the certificates your server trusts",
       "text": "A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.",
       "goals": [
