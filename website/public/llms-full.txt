@@ -145,6 +145,9 @@ Conventions the whole file uses:
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
 | [`Core\Secret`](#core-core-secret) | the one narrow way a value loses the `secret` qualifier — a call that says so by name and carries a written reason |
 | [`Core\Mail`](#core-core-mail) |  |
+| [`Core\Mail\Address`](#core-core-mail-address) |  |
+| [`Core\Mail\Attachment`](#core-core-mail-attachment) |  |
+| [`Core\Mail\Preview`](#core-core-mail-preview) |  |
 | [`Core\Storage`](#core-core-storage) |  |
 | [`Core\Cldr`](#core-core-cldr) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
@@ -281,7 +284,7 @@ Conventions the whole file uses:
 
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, --mutate, --since, NoMutate, mutants.toml, mutation testing, --tag, --shard, --rerun-failed, --shuffle, --watch, --jobs, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — the three steps that set up a server; which commands ask for admin rights; the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, --yes, nvs serve, nvs service install, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator, admin rights, User Account Control, UAC, sudo, root, --no-elevate)*
-- C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
+- C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, SMTP, DKIM, XOAUTH2, OAuth, capture, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, `nvs reload`, the drain, what happens when the client goes away and `nvs service` *(nvs serve, nvs reload, reload now, program reloaded, program reload failed, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, development_hosts, Host header, 421, Misdirected Request, loopback, DNS rebinding, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
 - C.6 [Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, the `[[restrict]]` table, which says where a class or method may be used, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract`, `nvs pkg unlist` and `nvs pkg advise`, which publish a package, change its versions and send an advisory on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock` *([[restrict]], restrict, allow, restriction, where a method may be used, E0664, E0665, E0666, W1031, nvs pkg audit, nvs pkg advise, version range, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish)*
@@ -45101,7 +45104,7 @@ Returns the extra fields of the record, as the log wrote them.
 <a id="core-core-test-sentmail"></a>
 ### `Core\Test\SentMail`
 
-Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html
+Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html, messageId, fromName, attachments, inReplyTo, references, unsubscribe, autoSubmitted, bounceTag
 
 | Member | Signature |
 |---|---|
@@ -45113,6 +45116,14 @@ Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html
 | [`Core\Test\SentMail->bcc`](#core-core-test-sentmail-bcc) | `bcc(): array<string>` |
 | [`Core\Test\SentMail->replyTo`](#core-core-test-sentmail-replyto) | `replyTo(): ?string` |
 | [`Core\Test\SentMail->html`](#core-core-test-sentmail-html) | `html(): ?string` |
+| [`Core\Test\SentMail->messageId`](#core-core-test-sentmail-messageid) | `messageId(): string` |
+| [`Core\Test\SentMail->fromName`](#core-core-test-sentmail-fromname) | `fromName(): ?string` |
+| [`Core\Test\SentMail->attachments`](#core-core-test-sentmail-attachments) | `attachments(): array<Core\Mail\Attachment>` |
+| [`Core\Test\SentMail->inReplyTo`](#core-core-test-sentmail-inreplyto) | `inReplyTo(): ?string` |
+| [`Core\Test\SentMail->references`](#core-core-test-sentmail-references) | `references(): array<string>` |
+| [`Core\Test\SentMail->unsubscribe`](#core-core-test-sentmail-unsubscribe) | `unsubscribe(): ?string` |
+| [`Core\Test\SentMail->autoSubmitted`](#core-core-test-sentmail-autosubmitted) | `autoSubmitted(): bool` |
+| [`Core\Test\SentMail->bounceTag`](#core-core-test-sentmail-bouncetag) | `bounceTag(): ?string` |
 
 <a id="core-core-test-sentmail-endpoint"></a>
 #### `Core\Test\SentMail->endpoint`
@@ -45156,7 +45167,7 @@ $sentMail->text(): string
 
 Returns the plain-text body of the message.
 
-**Returns** `string` — The `$text` given to `Core\Mail::send`.
+**Returns** `string` — The plain text that was sent: a `string` body, the `text` option, or the text made from the HTML body.
 
 <a id="core-core-test-sentmail-cc"></a>
 #### `Core\Test\SentMail->cc`
@@ -45198,9 +45209,97 @@ Returns the `replyTo` address of the message.
 $sentMail->html(): ?string
 ```
 
-Returns the HTML body of the message.
+Returns the HTML body of the message, as it is sent. The CSS of its `<style>` elements is already copied into the elements.
 
-**Returns** `?string` — The `html` body, or `null` when none was given.
+**Returns** `?string` — The HTML that is sent, or `null` when the body was a `string`.
+
+<a id="core-core-test-sentmail-messageid"></a>
+#### `Core\Test\SentMail->messageId`
+
+```nvs skip
+$sentMail->messageId(): string
+```
+
+Returns the `Message-ID` of the message, without angle brackets.
+
+**Returns** `string` — The same string `Core\Mail::send` returned for this message.
+
+<a id="core-core-test-sentmail-fromname"></a>
+#### `Core\Test\SentMail->fromName`
+
+```nvs skip
+$sentMail->fromName(): ?string
+```
+
+Returns the sender name in the `From:` header.
+
+**Returns** `?string` — The `fromName` option, or else the `from_name` of the `[mail.<name>]` block. `null` when neither is set.
+
+<a id="core-core-test-sentmail-attachments"></a>
+#### `Core\Test\SentMail->attachments`
+
+```nvs skip
+$sentMail->attachments(): array<Core\Mail\Attachment>
+```
+
+Returns the attachments of the message, including inline images.
+
+**Returns** `array<Core\Mail\Attachment>` — One `Core\Mail\Attachment` for each attachment, in the order given. The list is empty when there were none.
+
+<a id="core-core-test-sentmail-inreplyto"></a>
+#### `Core\Test\SentMail->inReplyTo`
+
+```nvs skip
+$sentMail->inReplyTo(): ?string
+```
+
+Returns the message id in the `In-Reply-To` header.
+
+**Returns** `?string` — The `inReplyTo` option, or `null` when none was given.
+
+<a id="core-core-test-sentmail-references"></a>
+#### `Core\Test\SentMail->references`
+
+```nvs skip
+$sentMail->references(): array<string>
+```
+
+Returns the message ids in the `References` header.
+
+**Returns** `array<string>` — The `references` option, in the order given. The list is empty when none were given.
+
+<a id="core-core-test-sentmail-unsubscribe"></a>
+#### `Core\Test\SentMail->unsubscribe`
+
+```nvs skip
+$sentMail->unsubscribe(): ?string
+```
+
+Returns the URL in the `List-Unsubscribe` header.
+
+**Returns** `?string` — The `unsubscribe` option, or `null` when none was given.
+
+<a id="core-core-test-sentmail-autosubmitted"></a>
+#### `Core\Test\SentMail->autoSubmitted`
+
+```nvs skip
+$sentMail->autoSubmitted(): bool
+```
+
+Checks whether the message has the header `Auto-Submitted: auto-generated`.
+
+**Returns** `bool` — The `autoSubmitted` option. It is `true` when the option was not given.
+
+<a id="core-core-test-sentmail-bouncetag"></a>
+#### `Core\Test\SentMail->bounceTag`
+
+```nvs skip
+$sentMail->bounceTag(): ?string
+```
+
+Returns the bounce tag of the message.
+
+**Returns** `?string` — The `bounceTag` option, or `null` when none was given.
 
 <a id="core-core-test-sentrequest"></a>
 ### `Core\Test\SentRequest`
@@ -48820,17 +48919,18 @@ Returns `secret bytes` as plain `bytes`, such as a key the program must save. It
 <a id="core-core-mail"></a>
 ### `Core\Mail`
 
-Keywords: send
+Keywords: send, preview
 
 | Member | Signature |
 |---|---|
-| [`Core\Mail::send`](#core-core-mail-send) | `send(string $endpoint, array<string> $to, string $subject, string $text, { cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string }): void` |
+| [`Core\Mail::send`](#core-core-mail-send) | `send(string $endpoint, array<string\|Core\Mail\Address> $to, string $subject, string\|Core\Html\Markup $body, { cc?: array<string\|Core\Mail\Address>, bcc?: array<string\|Core\Mail\Address>, replyTo?: string\|Core\Mail\Address, text?: string, fromName?: string, attachments?: array<Core\Mail\Attachment>, inReplyTo?: string, references?: array<string>, unsubscribe?: string, autoSubmitted?: bool, bounceTag?: string }): string` |
+| [`Core\Mail::preview`](#core-core-mail-preview) | `preview(string\|Core\Html\Markup $body, { text?: string, attachments?: array<Core\Mail\Attachment> }): Core\Mail\Preview` |
 
 <a id="core-core-mail-send"></a>
 #### `Core\Mail::send`
 
 ```nvs skip
-Core\Mail::send(string $endpoint, array<string> $to, string $subject, string $text, { cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string }): void
+Core\Mail::send(string $endpoint, array<string|Core\Mail\Address> $to, string $subject, string|Core\Html\Markup $body, { cc?: array<string|Core\Mail\Address>, bcc?: array<string|Core\Mail\Address>, replyTo?: string|Core\Mail\Address, text?: string, fromName?: string, attachments?: array<Core\Mail\Attachment>, inReplyTo?: string, references?: array<string>, unsubscribe?: string, autoSubmitted?: bool, bounceTag?: string }): string
 ```
 
 Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns when that server has accepted the message. Under `nvs test`, it sends nothing. `Core\Test::sentMail` returns the message.
@@ -48838,17 +48938,275 @@ Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns w
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$endpoint` | `string` (sink) | The name of the `[mail.<name>]` block in `nvs.toml` to send through. A value that comes from the request is `tainted`, and a `tainted` value does not compile here. Write the name in your code. |
-| `$to` | `array<string>` | The recipients, one address per array entry. It is a list because a comma-separated string can be read in more than one way. |
+| `$to` | `array<string\|Core\Mail\Address>` | The recipients, one per array entry. Each is an address string, or a `Core\Mail\Address` to show a name with the address. A domain that is not ASCII is sent in its `xn--` form. |
 | `$subject` | `string` (neutral) | The subject. If it contains characters that a header line cannot contain, it is encoded with RFC 2047. So no subject can add a header. A long subject is split over several header lines, and a mail program joins them again. |
-| `$text` | `string` (neutral) | The plain-text body. Every message has one. |
-| `{ cc: … }` | `array<string>` (default `[]`) | More recipients. Their addresses are shown in the message. |
-| `{ bcc: … }` | `array<string>` (default `[]`) | More recipients. Their addresses are not shown in the message. They are sent to the server only, and no header contains them. |
-| `{ replyTo: … }` | `string` (default `null`, neutral) | The address that replies go to, when it is not the sender in the settings. |
-| `{ html: … }` | `string` (default `null`, neutral) | An HTML version of `$text`. If you give it, the message is `multipart/alternative` and both versions are sent. |
+| `$body` | `string\|Core\Html\Markup` (neutral) | The message. In a `Core\Html\Markup` body, each CSS rule of a `<style>` element is copied into the `style` attribute of each element it matches. Most mail programs ignore a `<style>` element. A `string` is sent as plain text. A `Core\Html\Markup` is sent as HTML, together with a plain-text version made from it. A `tainted` string, such as text from the request, is always sent as plain text. So it cannot add HTML to a message. `preview` returns the result without sending it. |
+| `{ cc: … }` | `array<string\|Core\Mail\Address>` (default `[]`) | More recipients, as strings or `Core\Mail\Address` values. Their addresses are shown in the message. |
+| `{ bcc: … }` | `array<string\|Core\Mail\Address>` (default `[]`) | More recipients, as strings or `Core\Mail\Address` values. Their addresses are not shown in the message. They are sent to the server only, and no header contains them. |
+| `{ replyTo: … }` | `string\|Core\Mail\Address` (default `null`, neutral) | The address that replies go to, when it is not the sender in the settings. A string or a `Core\Mail\Address`. |
+| `{ text: … }` | `string` (default `null`, neutral) | The plain-text version of an HTML body, in place of the one made from the HTML. Links become their text and the URL in parentheses, and list items start with `- `. With a `string` body, this option throws an error. |
+| `{ fromName: … }` | `string` (default `null`, neutral) | The sender name that mail programs show, such as `Example Shop`. It replaces `from_name` of the block. The sender address is always `from` of the block. |
+| `{ attachments: … }` | `array<Core\Mail\Attachment>` (default `[]`) | Files to send with the message, and images to show inside the HTML, each a `Core\Mail\Attachment`. An inline image needs its `src()` in the HTML. |
+| `{ inReplyTo: … }` | `string` (default `null`, neutral) | The message id of the message this one replies to. Mail programs then show both in one thread. Pass the id that `send` returned, without angle brackets. |
+| `{ references: … }` | `array<string>` (default `[]`) | The message ids of the earlier messages in the thread, oldest first. Each one is a message id, as `send` returns it. |
+| `{ unsubscribe: … }` | `string` (default `null`, neutral) | An `https://` URL that unsubscribes the recipient with one click. Mail programs show an unsubscribe button and send a POST request to this URL. |
+| `{ autoSubmitted: … }` | `bool` (default `true`) | Whether the message has the header `Auto-Submitted: auto-generated`. It is `true` by default, and then automatic replies such as out-of-office messages are not sent back. Use `false` for a message that a person wrote. |
+| `{ bounceTag: … }` | `string` (default `null`, neutral) | A short tag, such as an order number, that is added to the bounce address. With `return_path = "bounces@example.com"` and the tag `order-42`, a bounce goes to `bounces+order-42@example.com`. The tag has 1 to 64 letters, digits, dots, underscores or hyphens. |
 
-**Returns** `void` — Nothing. The mail server accepted the message. Delivery after that is the mail server's job.
+**Returns** `string` — The message id, such as `3f2a…@example.com`, without angle brackets. The call returns when the mail server has accepted the message, or when a `capture = true` block or `nvs test` has kept it. Store the id to match a reply or a bounce to the message, or to pass it to `inReplyTo` later.
 
-**Throws** `RuntimeError` — The capability `mail.send` does not allow `$endpoint`. Or no `[mail.<name>]` block with that name sets `host` or `from`. Or the block sets only one of `user` and `password`. Or an address is not a valid address. Each of these is a mistake in the settings or the call, not a failed send.; `IOError` — The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when a block sets a password and the server cannot receive it safely. That is when the server has no `STARTTLS`, has no `AUTH PLAIN`, or has a certificate that does not verify. In all these cases, nothing is sent unencrypted.
+**Throws** `RuntimeError` — The settings or the arguments are wrong, and nothing is sent. The capability `mail.send` does not allow `$endpoint`, or no `[mail.<name>]` block has that name. The block sets only one of `user` and `password`. An address is not a valid address. A value in `inReplyTo` or `references` is not a message id. `unsubscribe` is not an `https://` URL. `bounceTag` has a character that is not allowed.; `RuntimeError` — The body or its attachments are wrong, and nothing is sent. `text` is given with a `string` body. The HTML uses a `cid:` URL that no inline attachment has. A `cid:` URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a `<link rel="stylesheet">`. A mail cannot load a stylesheet, so put the CSS in a `<style>` element.; `IOError` — The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no `STARTTLS`, or has a certificate that does not verify. It is thrown when the server offers neither `AUTH PLAIN` nor `AUTH LOGIN`, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the message names every rejected address, and nobody gets the message. An address with letters that are not ASCII before the `@` needs a server that offers `SMTPUTF8`. With another server, nothing is sent.
+
+<a id="core-core-mail-preview"></a>
+#### `Core\Mail::preview`
+
+```nvs skip
+Core\Mail::preview(string|Core\Html\Markup $body, { text?: string, attachments?: array<Core\Mail\Attachment> }): Core\Mail\Preview
+```
+
+Returns the body of a message exactly as `send` would send it, and sends nothing. You can show it on a page, or check it in a test. It needs no `[mail.<name>]` block.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `string\|Core\Html\Markup` (sink) | The message, as for `send`. In a `Core\Html\Markup` body, each CSS rule of a `<style>` element is copied into the `style` attribute of each element it matches. A string from the request is `tainted`, which means it may contain anything a visitor typed. A `tainted` string does not compile here, because `text()` returns it as text that is not `tainted`. |
+| `{ text: … }` | `string` (default `null`, sink) | The plain-text version of an HTML body, as for `send`. |
+| `{ attachments: … }` | `array<Core\Mail\Attachment>` (default `[]`) | The attachments, as for `send`. Each inline image needs its `src()` in the HTML, and each `cid:` URL in the HTML needs its inline image. |
+
+**Returns** `Core\Mail\Preview` — A `Core\Mail\Preview` with the HTML and the plain text that `send` would send, and the CSS rules that stay in a `<style>` element.
+
+**Throws** `RuntimeError` — The body or the attachments have a mistake that `send` throws for. For example, the HTML has a `<link rel="stylesheet">`. A mail cannot load a stylesheet, so put the CSS in a `<style>` element.
+
+<a id="core-core-mail-address"></a>
+### `Core\Mail\Address`
+
+Keywords: of
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\Address::of`](#core-core-mail-address-of) | `of(string $address, string $name): Core\Mail\Address` |
+
+<a id="core-core-mail-address-of"></a>
+#### `Core\Mail\Address::of`
+
+```nvs skip
+Core\Mail\Address::of(string $address, string $name): Core\Mail\Address
+```
+
+Returns an address with a name, such as `"Ada Lovelace" <ada@example.com>`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$address` | `string` (neutral) | The email address, such as `ada@example.com`. A domain with letters that are not ASCII is sent in its `xn--` form. |
+| `$name` | `string` (neutral) | The name to show, such as `Ada Lovelace`. It can be any text, including text a user typed. An empty name sends the address alone. |
+
+**Returns** `Core\Mail\Address` — The address and its name, to pass to `Core\Mail::send`.
+
+**Throws** `RuntimeError` — `$address` is not an email address. A string such as `Ada <ada@example.com>` is not an address either: pass the name as `$name`.
+
+<a id="core-core-mail-attachment"></a>
+### `Core\Mail\Attachment`
+
+Keywords: fromFile, fromBytes, inlineFile, inlineBytes, src, name, type, bytes, isInline
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\Attachment::fromFile`](#core-core-mail-attachment-fromfile) | `fromFile(string $path, { name?: string, type?: string }): Core\Mail\Attachment` |
+| [`Core\Mail\Attachment::fromBytes`](#core-core-mail-attachment-frombytes) | `fromBytes(string $name, string\|bytes $data, { type?: string }): Core\Mail\Attachment` |
+| [`Core\Mail\Attachment::inlineFile`](#core-core-mail-attachment-inlinefile) | `inlineFile(string $path, { type?: string }): Core\Mail\Attachment` |
+| [`Core\Mail\Attachment::inlineBytes`](#core-core-mail-attachment-inlinebytes) | `inlineBytes(string $name, string\|bytes $data, { type?: string }): Core\Mail\Attachment` |
+| [`Core\Mail\Attachment->src`](#core-core-mail-attachment-src) | `src(): string` |
+| [`Core\Mail\Attachment->name`](#core-core-mail-attachment-name) | `name(): string` |
+| [`Core\Mail\Attachment->type`](#core-core-mail-attachment-type) | `type(): string` |
+| [`Core\Mail\Attachment->bytes`](#core-core-mail-attachment-bytes) | `bytes(): bytes` |
+| [`Core\Mail\Attachment->isInline`](#core-core-mail-attachment-isinline) | `isInline(): bool` |
+
+<a id="core-core-mail-attachment-fromfile"></a>
+#### `Core\Mail\Attachment::fromFile`
+
+```nvs skip
+Core\Mail\Attachment::fromFile(string $path, { name?: string, type?: string }): Core\Mail\Attachment
+```
+
+Reads the file at `$path` and returns it as an attachment. The file is read at this call, so it needs the `fs.read` capability here.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to attach. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
+| `{ name: … }` | `string` (default `null`, neutral) | The file name that the recipient sees. By default, it is the last part of the path. |
+| `{ type: … }` | `string` (default `null`, neutral) | The media type, such as `application/pdf`. A media type says what kind of file it is. By default, the type is detected from the first bytes. If it cannot be detected, it is `application/octet-stream`. |
+
+**Returns** `Core\Mail\Attachment` — An attachment. Pass it in the `attachments` option of `Core\Mail::send`.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. This error is also thrown when the name or the type is not allowed, as for `fromBytes`.; `IOError` — The file does not exist or cannot be read.
+
+<a id="core-core-mail-attachment-frombytes"></a>
+#### `Core\Mail\Attachment::fromBytes`
+
+```nvs skip
+Core\Mail\Attachment::fromBytes(string $name, string|bytes $data, { type?: string }): Core\Mail\Attachment
+```
+
+Returns an attachment with the file name `$name` and the content `$data`. Use it for a file that your program made, such as a CSV export.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The file name that the recipient sees, such as `invoice.pdf`. A name with letters that are not ASCII is encoded with RFC 2231. |
+| `$data` | `string\|bytes` (neutral) | The content, as a `string` or `bytes`. |
+| `{ type: … }` | `string` (default `null`, neutral) | The media type, such as `application/pdf`. A media type says what kind of file it is. By default, the type is detected from the first bytes. If it cannot be detected, it is `application/octet-stream`. |
+
+**Returns** `Core\Mail\Attachment` — An attachment. Pass it in the `attachments` option of `Core\Mail::send`.
+
+**Throws** `RuntimeError` — The file name is empty, is longer than 255 bytes, or contains a control character. This error is also thrown when `type` is not a media type such as `image/png`.
+
+<a id="core-core-mail-attachment-inlinefile"></a>
+#### `Core\Mail\Attachment::inlineFile`
+
+```nvs skip
+Core\Mail\Attachment::inlineFile(string $path, { type?: string }): Core\Mail\Attachment
+```
+
+Reads the image at `$path` and returns it as an inline attachment. An inline attachment is an image shown inside the HTML of the mail, not as a download. Write its `src()` in an `<img src>` of the HTML body to show the image in the message.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The image file. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
+| `{ type: … }` | `string` (default `null`, neutral) | The media type, such as `image/svg+xml`. A media type says what kind of file it is. By default, the type is detected from the first bytes. Give it for an SVG image, because the type of an SVG cannot be detected. |
+
+**Returns** `Core\Mail\Attachment` — An inline attachment. Pass it in the `attachments` option of `Core\Mail::send`, together with an HTML body that uses its `src()`.
+
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path. This error is also thrown when `type` is not a media type.; `IOError` — The file does not exist or cannot be read.
+
+<a id="core-core-mail-attachment-inlinebytes"></a>
+#### `Core\Mail\Attachment::inlineBytes`
+
+```nvs skip
+Core\Mail\Attachment::inlineBytes(string $name, string|bytes $data, { type?: string }): Core\Mail\Attachment
+```
+
+Returns an inline attachment with the file name `$name` and the content `$data`. An inline attachment is an image shown inside the HTML of the mail, not as a download. Write its `src()` in an `<img src>` of the HTML body to show the image.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The file name of the image, such as `logo.png`. |
+| `$data` | `string\|bytes` (neutral) | The image, as a `string` or `bytes`. |
+| `{ type: … }` | `string` (default `null`, neutral) | The media type, such as `image/svg+xml`. A media type says what kind of file it is. By default, the type is detected from the first bytes. Give it for an SVG image, because the type of an SVG cannot be detected. |
+
+**Returns** `Core\Mail\Attachment` — An inline attachment. Pass it in the `attachments` option of `Core\Mail::send`, together with an HTML body that uses its `src()`.
+
+**Throws** `RuntimeError` — The file name is empty, is longer than 255 bytes, or contains a control character. This error is also thrown when `type` is not a media type such as `image/png`.
+
+<a id="core-core-mail-attachment-src"></a>
+#### `Core\Mail\Attachment->src`
+
+```nvs skip
+$attachment->src(): string
+```
+
+Returns the URL to write in `<img src="…">`, such as `cid:3f2a…@inline`. A `cid:` URL points at an image inside the same mail. A mail program shows the image there.
+
+**Returns** `string` — The `cid:` URL of this inline attachment.
+
+**Throws** `RuntimeError` — The attachment is not inline. Only `inlineFile` and `inlineBytes` make an attachment with a `src()`.
+
+<a id="core-core-mail-attachment-name"></a>
+#### `Core\Mail\Attachment->name`
+
+```nvs skip
+$attachment->name(): string
+```
+
+Returns the file name of the attachment, such as `invoice.pdf`.
+
+**Returns** `string` — The file name the recipient sees.
+
+<a id="core-core-mail-attachment-type"></a>
+#### `Core\Mail\Attachment->type`
+
+```nvs skip
+$attachment->type(): string
+```
+
+Returns the media type of the attachment, such as `application/pdf`.
+
+**Returns** `string` — The `type` given when the attachment was made, or the detected type.
+
+<a id="core-core-mail-attachment-bytes"></a>
+#### `Core\Mail\Attachment->bytes`
+
+```nvs skip
+$attachment->bytes(): bytes
+```
+
+Returns the content of the attachment.
+
+**Returns** `bytes` — The bytes that are sent.
+
+<a id="core-core-mail-attachment-isinline"></a>
+#### `Core\Mail\Attachment->isInline`
+
+```nvs skip
+$attachment->isInline(): bool
+```
+
+Checks whether the attachment is shown inside the HTML body.
+
+**Returns** `bool` — `true` for an attachment made with `inlineFile` or `inlineBytes`. `false` for one made with `fromFile` or `fromBytes`.
+
+<a id="core-core-mail-preview"></a>
+### `Core\Mail\Preview`
+
+Keywords: html, text, keptCss, unusedCss
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\Preview->html`](#core-core-mail-preview-html) | `html(): ?Core\Html\Markup` |
+| [`Core\Mail\Preview->text`](#core-core-mail-preview-text) | `text(): string` |
+| [`Core\Mail\Preview->keptCss`](#core-core-mail-preview-keptcss) | `keptCss(): array<string>` |
+| [`Core\Mail\Preview->unusedCss`](#core-core-mail-preview-unusedcss) | `unusedCss(): array<string>` |
+
+<a id="core-core-mail-preview-html"></a>
+#### `Core\Mail\Preview->html`
+
+```nvs skip
+$preview->html(): ?Core\Html\Markup
+```
+
+Returns the HTML that would be sent. Each CSS rule of a `<style>` element is copied into the `style` attribute of the elements it matches.
+
+**Returns** `?Core\Html\Markup` — The HTML, or `null` when the body is a `string`.
+
+<a id="core-core-mail-preview-text"></a>
+#### `Core\Mail\Preview->text`
+
+```nvs skip
+$preview->text(): string
+```
+
+Returns the plain text that would be sent.
+
+**Returns** `string` — A `string` body as it is, the `text` option, or the plain text made from the HTML.
+
+<a id="core-core-mail-preview-keptcss"></a>
+#### `Core\Mail\Preview->keptCss`
+
+```nvs skip
+$preview->keptCss(): array<string>
+```
+
+Returns the CSS rules that stay in a `<style>` element. These are rules such as `@media` and `a:hover`, and rules that match no element.
+
+**Returns** `array<string>` — One string for each rule, in the order of the HTML. The list is empty when every rule was copied into the elements.
+
+<a id="core-core-mail-preview-unusedcss"></a>
+#### `Core\Mail\Preview->unusedCss`
+
+```nvs skip
+$preview->unusedCss(): array<string>
+```
+
+Returns the CSS rules that match no element of the HTML. A rule for an attribute that a mail program adds later is in this list, and it still works there.
+
+**Returns** `array<string>` — One string for each rule, in the order of the HTML. Each is also in `keptCss()`.
 
 <a id="core-core-storage"></a>
 ### `Core\Storage`
@@ -62806,41 +63164,50 @@ tree are each an error beside it.
 
     nvs debug [--once] [--tail <file>]... [--listen <address>]
 
-With `[debug] store = true` in `nvs.toml`, every request is recorded. The records are written to
-files in `debug/spool` in the data folder. `nvs debug` reads those files into one SQLite database,
-`debug/index.sqlite`, and deletes each file once it is read. Then it waits for new files.
+With `[debug] store = true` in `nvs.toml`, Novis records every request. It also records every job
+of a `[[schedule]]` block, every job that a worker takes from the queue, and every `nvs run` and
+`nvs test`. The records are written to files in `debug/spool` in the data folder. `nvs debug` reads
+those files into one database, `debug/index.sqlite`. This database is the index. It is a SQLite
+database, which is one file. `nvs debug` deletes each record file after it has read it. Then it
+waits for new files.
 
-You usually do not start it yourself. A `nvs serve` in development starts `nvs debug` when
-`store` is on, and stops it when the server stops. A production server never starts it. On a
-production host, you run `nvs debug` yourself, when and where you choose.
+You usually do not start it yourself. In development mode, `nvs serve` starts `nvs debug` when
+`store` is on. It stops `nvs debug` when the server stops. A production server never starts it. On a
+production host, you start `nvs debug` yourself.
 
 | Option | What it does |
 |---|---|
 | `--once` | read the files that are ready, delete old records, then exit |
 | `--tail <file>` | also read this log file, and each line added to it later; you can give it more than once |
+| `--listen <address>` | serve the debug viewer on this IP address and port; this replaces `[debug] listen` for this run |
 
 A `--tail` file must use the `json` log format (`[log] format = "json"`). `nvs debug` never changes
-that file. It remembers how far it read, so a restart goes on from there. When the file is rotated,
-it first reads the rest of `<file>.1`.
+that file. It saves the position of the last line it read. After a restart, it continues from that
+line. The log can be rotated: the file is renamed to `<file>.1`, and a new `<file>` starts. Then
+`nvs debug` first reads the lines of `<file>.1` that it has not read yet.
 
 Only one `nvs debug` runs for a data folder. A second one prints an error and exits with status
-`1`. A server that finds one running uses it.
+`1`. When `nvs serve` starts and an `nvs debug` already runs for its data folder, the server does
+not start another one.
 
-The index deletes a request's records once they are older than `[debug] index_age` (`7d`). When it
-grows past `[debug] index_max` (`1G`), the oldest requests are deleted first. A line that cannot be
-read is kept as an error record, and the lines after it are read as usual. A file that cannot be
-read is tried again later, and the other files are read in the meantime.
+The index deletes records once they are older than `[debug] index_age` (`7d`). When the index grows
+past `[debug] index_max` (`1G`), the oldest records are deleted first. The records of a command that
+is still running are deleted too. A line in a file can be impossible to read. `nvs debug` saves that
+line as an error record. Then it reads the next lines as usual. A file that cannot be read is tried
+again later. The other files are read in the meantime.
 
-**What a record contains.** In development, a record has the request's method, path, query,
-headers and body, and the response's status, headers and body. The values of `Authorization`,
-`Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
-as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
-program did not read is not stored. A program can read a body into a class with
-`Core\Request::jsonAs<X>()` or `formFieldsAs<X>()`. The decoder fills each `secret` property of `X`, and
-the stored body has `[redacted]` in place of that value. If Novis cannot find those values in the
-body, the body is not stored. That is the case for a multipart form, for example. A body the program
-read another way is stored as it was read, so a password in it is in the index. The files are in a
-folder that only your account can open. In production, a record has no headers and no body.
+**What a record contains.** In development mode, a record has the request's method, path, query,
+headers and body. It also has the response's status, headers and body. The values of
+`Authorization`, `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`.
+A body is stored up to `[limits] request_body`. A longer body is cut at that size. A body that the
+program did not read is not stored.
+
+A program can read a body into a class with `Core\Request::jsonAs<X>()` or `formFieldsAs<X>()`. Then
+the stored body has `[redacted]` for each `secret` property of `X`. Sometimes Novis cannot find
+those values in the body. Then the body is not stored. A form that uploads files (a multipart form)
+is an example. A program can also read the body as plain text. Then the record has the body exactly
+as it was sent, with every password in it. The record files are in a folder that only your account
+can open. In production mode, a record has no headers and no body.
 
 ### The debug viewer
 
@@ -64083,7 +64450,7 @@ the path filled in.
 <a id="tools-config"></a>
 ## C.3 Configuration: nvs.toml, limits and capabilities
 
-Keywords: nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+Keywords: nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, SMTP, DKIM, XOAUTH2, OAuth, capture, Core\Config
 
 ### The file and where it is read from
 
@@ -64127,22 +64494,23 @@ wall_time=unset
 
 ### The blocks the binary accepts
 
-A directive always lives inside a block; the root table holds none. The full roster the parser
-accepts is below. Any other block is `E0601` when it contains a setting. An unknown block with no
+Every directive is written in a block. The root table has no directives. The table below lists
+every block the parser accepts. Any other block is `E0601` when it contains a setting. An unknown block with no
 setting under it gives the warning `W1024`, and Novis ignores it.
 
-| Block | Holds |
+| Block | Contains |
 |---|---|
 | `[limits]`, `[limits.hard]` | resource limits and their ceilings (below) |
 | `[mode]` | `default`, `ceiling` (below) |
 | `[capabilities]` | capability grants (below) |
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
-| `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
+| `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here. It is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `journal_mode`, `pool` |
-| `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
-| `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
-| `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
+| `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the connection pool's bounds, written as a table. `pool = false` turns the pool off |
+| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. That includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
+| `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`; the default is `implicit` on port 465, `starttls` when the block has a credential, and `none` otherwise), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
+| `[mail.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the bounds of the block's kept connections, as `[db.<name>.pool]` has them. `pool = false` opens a new connection for every message |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
@@ -64584,10 +64952,12 @@ on Windows and on Linux, and what each refusal message means.
 
 ### Secrets from files
 
-A directive that holds a secret has a `_file` sibling: the file's **whole content** is the value,
-with exactly one trailing newline (and a `\r` before it) removed and nothing else trimmed. Exactly
-one of the pair may be set — both is `E0608`. Two directives have such a pair today,
-`[db.<name>] password` and `[mail.<name>] password`:
+A directive that contains a secret has a `_file` sibling. The file's **whole content** is the
+value. Exactly one trailing newline (and a `\r` before it) is removed, and nothing else is trimmed.
+Only one of the pair may be set. Setting both is `E0608`. These directives have such a pair:
+`[db.<name>] password`, `[mail.<name>] password`, `[mail.<name>] oauth_client_secret`,
+`[mail.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
+`[http] csrf_key` and `[cache.shared] password`:
 
 ```toml
 [db.main]
@@ -64602,31 +64972,31 @@ user = "app"
 password_file = "/run/secrets/mail-password"
 ```
 
-The value is read at boot, and again each time the configuration is applied, never per request. It never appears
-in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
-from, so an audit can act on the file without the credential passing through the audit.
+The value is read at boot, and again each time the configuration is applied, never per request. It
+never appears in a diagnostic or a dump. `nvs config dump` prints `<secret>` and names the file the
+value came from. So an audit can check the file without seeing the credential.
 `Core\Config::get("db.main.password")` returns the value. `Core\Config::get("db.main.password_file")`
 returns the path as it was written, so a program can say where a credential came from without
 printing it.
 
-A secret file is part of the trust boundary above, because an account that can rewrite it chooses
-the credential the server connects with. So a secret file another account can **write** refuses the
-boot; one another account can only **read** is a warning and not a refusal, because a Docker Compose
-secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`, and from inside a
-container that is the norm rather than a mistake.
+A secret file is part of the trust boundary above. An account that can rewrite it chooses the
+credential the server connects with. So the boot stops with an error when another account can
+**write** a secret file. When another account can only **read** it, the boot gives a warning and
+goes on. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
+`0644`. Inside a container, a file that others can read is normal.
 
-A credential is used exactly as it was written, and no part of the runtime trims one: a password may
-legitimately begin or end with a space. Because such a space is invisible — there is nothing to see
-inside a secret file, and at the end of a TOML line it is one character before a quote — the boot
-warns `W1007` naming the directive, and goes on with the value.
+A credential is used exactly as it was written, and no part of the runtime trims one. A password may
+begin or end with a space. Such a space is hard to see. A secret file is never shown, and at the end
+of a TOML line the space is one character before a quote. So the boot warns `W1007`, names the
+directive, and goes on with the value.
 
 There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
 or it is the content of a file the directive names.
 
 #### Encrypted secrets: SOPS, `age`, sealed secrets
 
-Novis decrypts nothing itself, and does not need to: every secret-management tool in common use ends
-by producing a plaintext file, and `_file` is the seam that takes one.
+Novis decrypts nothing itself, and does not need to. Every common secret-management tool can write
+the secret to a plaintext file. A `_file` directive reads that file.
 
 | How the deployment manages secrets | What it produces | What `nvs.toml` names |
 |---|---|---|
@@ -64636,15 +65006,14 @@ by producing a plaintext file, and `_file` is the seam that takes one.
 | Kubernetes — Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
 | Vault or a cloud secret manager | an agent or sidecar templating a file | `password_file = "/run/novis/db-password"` |
 
-Two things make this work rather than merely parse. Write the decrypted file where only the serving
-account can read it — a `tmpfs` mount, or the directory systemd's `LoadCredential=` hands the unit —
-because the boot warns about one the rest of the host can read. And decrypt **before** the server
-starts: a `password_file` that is not there yet is a boot refusal naming the path, which is the
-failure an operator wants, rather than a first request that cannot connect.
+Two things make this setup safe and reliable. First, write the decrypted file where only the serving
+account can read it. A `tmpfs` mount works, and so does the directory that systemd's
+`LoadCredential=` gives the unit. The boot warns about a file the rest of the host can read. Second,
+decrypt **before** the server starts. When a `password_file` does not exist yet, the boot stops with
+an error that names the path. So the operator sees the problem at boot, not at the first request.
 
-This keeps the decryption key out of the serving process. The process holding the master key and the
-process serving requests are deliberately different processes, and a file path is what separates
-them.
+This keeps the decryption key out of the serving process. The process with the master key and the
+process serving requests are different processes. A file path is the only thing they share.
 
 ### Reading and changing it from a program: `Core\Config`
 

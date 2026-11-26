@@ -111,15 +111,14 @@
 
 mod capture;
 mod compose;
-mod css;
+pub(crate) mod css;
 mod dkim;
 mod oauth;
-mod parts;
+pub(crate) mod parts;
 mod pool;
 mod smtp;
 
-pub(crate) use css::PREVIEW;
-pub(crate) use parts::{ATTACHMENT, ATTACHMENT_NAME, built as attachment};
+pub(crate) use parts::{ATTACHMENT_NAME, built as attachment};
 #[cfg(test)]
 pub(crate) use parts::{
     nvs_core_mail_attachment_bytes, nvs_core_mail_attachment_is_inline,
@@ -1735,11 +1734,18 @@ mod tests {
 
         let part = parts::part_of(first, "send").expect("an attachment");
         assert_eq!(part.name, "logo.png", "the name is the path's last part");
-        assert_eq!(part.media_type, "image/png", "the type is read from the bytes");
+        assert_eq!(
+            part.media_type, "image/png",
+            "the type is read from the bytes"
+        );
         assert_eq!(part.data, b"\x89PNG\r\n\x1a\n");
         let id = part.content_id.expect("an inline image has a Content-ID");
         assert_eq!(src.as_text(), Some(format!("cid:{id}").as_str()));
-        assert_ne!(src.as_text(), other.as_text(), "each read has its own Content-ID");
+        assert_ne!(
+            src.as_text(),
+            other.as_text(),
+            "each read has its own Content-ID"
+        );
 
         std::fs::remove_file(&logo_path).expect("the test's own file");
         assert!(

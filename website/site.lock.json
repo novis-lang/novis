@@ -1701,7 +1701,7 @@
     "Core\\Mail\\Attachment::inlineBytes": "c35d91feb4ecf67c"
   },
   "docs/examples/core/Mail-Attachment/inlineFile/about.md": {
-    "Core\\Mail\\Attachment::inlineFile": "60af3d89d99c94b4"
+    "Core\\Mail\\Attachment::inlineFile": "0d54b24ee765c129"
   },
   "docs/examples/core/Mail-Attachment/isInline/about.md": {
     "Core\\Mail\\Attachment::isInline": "620649652211c9bc"
@@ -1710,7 +1710,7 @@
     "Core\\Mail\\Attachment::name": "4c8abe17853b5ab8"
   },
   "docs/examples/core/Mail-Attachment/src/about.md": {
-    "Core\\Mail\\Attachment::src": "851f4f296a509cf9"
+    "Core\\Mail\\Attachment::src": "d626bd00fc7405b1"
   },
   "docs/examples/core/Mail-Attachment/type/about.md": {
     "Core\\Mail\\Attachment::type": "bb60f937c9a3b2c7"
@@ -5117,8 +5117,8 @@
     "Core\\Mail\\Address::of": "81ba636cbe9ada69",
     "Core\\Mail\\Attachment::fromBytes": "fd33105260bb8c9f",
     "Core\\Mail\\Attachment::fromFile": "847674b78e7471c3",
-    "Core\\Mail\\Attachment::inlineFile": "d2aaab98442bc5b7",
-    "Core\\Mail\\Attachment::src": "0177354b636c7483",
+    "Core\\Mail\\Attachment::inlineFile": "50d8775f29ece96f",
+    "Core\\Mail\\Attachment::src": "6cc7076cdca7743f",
     "Core\\Mail\\Preview::html": "a17869c74a9e9840",
     "Core\\Mail\\Preview::keptCss": "6a68f1def945eb75",
     "Core\\Mail\\Preview::unusedCss": "a35afd0ef44cd1f8",
@@ -6748,7 +6748,7 @@
     "Core\\Mail\\Attachment::inlineBytes": "09450e6c2d5aacaa"
   },
   "help:Core\\Mail\\Attachment::inlineFile": {
-    "Core\\Mail\\Attachment::inlineFile": "be19f077f819fb55"
+    "Core\\Mail\\Attachment::inlineFile": "6d14fe0b760a230b"
   },
   "help:Core\\Mail\\Attachment::isInline": {
     "Core\\Mail\\Attachment::isInline": "59fe666ca3ca2600"
@@ -6757,7 +6757,7 @@
     "Core\\Mail\\Attachment::name": "607e47ea04baba14"
   },
   "help:Core\\Mail\\Attachment::src": {
-    "Core\\Mail\\Attachment::src": "8926c77fb14fd675"
+    "Core\\Mail\\Attachment::src": "f78fd6ca07d205bf"
   },
   "help:Core\\Mail\\Attachment::type": {
     "Core\\Mail\\Attachment::type": "da379cbfd6f50d5d"

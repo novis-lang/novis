@@ -451,7 +451,7 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
     ),
     // `send` checks the name and the type again, and the Content-ID is any text.
     (
-        &crate::mail::ATTACHMENT,
+        &crate::mail::parts::ATTACHMENT,
         Slots::Typed(&[
             CoreTy::Str,
             CoreTy::Str,
@@ -461,7 +461,7 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
     ),
     // `preview` builds it, and each slot is read back as it is.
     (
-        &crate::mail::PREVIEW,
+        &crate::mail::css::PREVIEW,
         Slots::Typed(&[
             CoreTy::Nullable(&CoreTy::Instance(crate::html::MARKUP_NAME)),
             CoreTy::Str,

@@ -13394,6 +13394,10 @@
           "url": "/reference/core/html/sanitize/"
         },
         {
+          "name": "Core\\Mail\\Preview::html",
+          "url": "/reference/core/mail-preview/html/"
+        },
+        {
           "name": "Core\\Markdown::toHtml",
           "url": "/reference/core/markdown/tohtml/"
         },
@@ -23747,7 +23751,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "send(string $endpoint, array<string> $to, string $subject, string $text, { cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string }): void",
+          "signature": "send(string $endpoint, array<string|Core\\Mail\\Address> $to, string $subject, string|Core\\Html\\Markup $body, { cc?: array<string|Core\\Mail\\Address>, bcc?: array<string|Core\\Mail\\Address>, replyTo?: string|Core\\Mail\\Address, text?: string, fromName?: string, attachments?: array<Core\\Mail\\Attachment>, inReplyTo?: string, references?: array<string>, unsubscribe?: string, autoSubmitted?: bool, bounceTag?: string }): string",
           "params": [
             {
               "kind": "param",
@@ -23760,7 +23764,7 @@
             {
               "kind": "param",
               "name": "to",
-              "type": "array<string>",
+              "type": "array<string|Core\\Mail\\Address>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -23775,8 +23779,8 @@
             },
             {
               "kind": "param",
-              "name": "text",
-              "type": "string",
+              "name": "body",
+              "type": "string|Core\\Html\\Markup",
               "default": null,
               "optional": false,
               "variadic": false
@@ -23785,22 +23789,50 @@
           "options": [
             {
               "name": "cc",
-              "type": "array<string>"
+              "type": "array<string|Core\\Mail\\Address>"
             },
             {
               "name": "bcc",
-              "type": "array<string>"
+              "type": "array<string|Core\\Mail\\Address>"
             },
             {
               "name": "replyTo",
+              "type": "string|Core\\Mail\\Address"
+            },
+            {
+              "name": "text",
               "type": "string"
             },
             {
-              "name": "html",
+              "name": "fromName",
+              "type": "string"
+            },
+            {
+              "name": "attachments",
+              "type": "array<Core\\Mail\\Attachment>"
+            },
+            {
+              "name": "inReplyTo",
+              "type": "string"
+            },
+            {
+              "name": "references",
+              "type": "array<string>"
+            },
+            {
+              "name": "unsubscribe",
+              "type": "string"
+            },
+            {
+              "name": "autoSubmitted",
+              "type": "bool"
+            },
+            {
+              "name": "bounceTag",
               "type": "string"
             }
           ],
-          "returnType": "void",
+          "returnType": "string",
           "doc": {
             "shortHtml": "Sends one message to the SMTP server that <code>[mail.$endpoint]</code> names. It returns when that server has accepted the message. Under <code>nvs test</code>, it sends nothing. <code>Core\\Test::sentMail</code> returns the message.",
             "params": [
@@ -23810,48 +23842,136 @@
               },
               {
                 "name": "to",
-                "descHtml": "The recipients, one address per array entry. It is a list because a comma-separated string can be read in more than one way."
+                "descHtml": "The recipients, one per array entry. Each is an address string, or a <code>Core\\Mail\\Address</code> to show a name with the address. A domain that is not ASCII is sent in its <code>xn--</code> form."
               },
               {
                 "name": "subject",
                 "descHtml": "The subject. If it contains characters that a header line cannot contain, it is encoded with RFC 2047. So no subject can add a header. A long subject is split over several header lines, and a mail program joins them again."
               },
               {
-                "name": "text",
-                "descHtml": "The plain-text body. Every message has one."
+                "name": "body",
+                "descHtml": "The message. In a <code>Core\\Html\\Markup</code> body, each CSS rule of a <code>&lt;style&gt;</code> element is copied into the <code>style</code> attribute of each element it matches. Most mail programs ignore a <code>&lt;style&gt;</code> element. A <code>string</code> is sent as plain text. A <code>Core\\Html\\Markup</code> is sent as HTML, together with a plain-text version made from it. A <code>tainted</code> string, such as text from the request, is always sent as plain text. So it cannot add HTML to a message. <code>preview</code> returns the result without sending it."
               },
               {
                 "name": "cc",
-                "descHtml": "More recipients. Their addresses are shown in the message."
+                "descHtml": "More recipients, as strings or <code>Core\\Mail\\Address</code> values. Their addresses are shown in the message."
               },
               {
                 "name": "bcc",
-                "descHtml": "More recipients. Their addresses are not shown in the message. They are sent to the server only, and no header contains them."
+                "descHtml": "More recipients, as strings or <code>Core\\Mail\\Address</code> values. Their addresses are not shown in the message. They are sent to the server only, and no header contains them."
               },
               {
                 "name": "replyTo",
-                "descHtml": "The address that replies go to, when it is not the sender in the settings."
+                "descHtml": "The address that replies go to, when it is not the sender in the settings. A string or a <code>Core\\Mail\\Address</code>."
               },
               {
-                "name": "html",
-                "descHtml": "An HTML version of <code>$text</code>. If you give it, the message is <code>multipart/alternative</code> and both versions are sent."
+                "name": "text",
+                "descHtml": "The plain-text version of an HTML body, in place of the one made from the HTML. Links become their text and the URL in parentheses, and list items start with <code>- </code>. With a <code>string</code> body, this option throws an error."
+              },
+              {
+                "name": "fromName",
+                "descHtml": "The sender name that mail programs show, such as <code>Example Shop</code>. It replaces <code>from_name</code> of the block. The sender address is always <code>from</code> of the block."
+              },
+              {
+                "name": "attachments",
+                "descHtml": "Files to send with the message, and images to show inside the HTML, each a <code>Core\\Mail\\Attachment</code>. An inline image needs its <code>src()</code> in the HTML."
+              },
+              {
+                "name": "inReplyTo",
+                "descHtml": "The message id of the message this one replies to. Mail programs then show both in one thread. Pass the id that <code>send</code> returned, without angle brackets."
+              },
+              {
+                "name": "references",
+                "descHtml": "The message ids of the earlier messages in the thread, oldest first. Each one is a message id, as <code>send</code> returns it."
+              },
+              {
+                "name": "unsubscribe",
+                "descHtml": "An <code>https://</code> URL that unsubscribes the recipient with one click. Mail programs show an unsubscribe button and send a POST request to this URL."
+              },
+              {
+                "name": "autoSubmitted",
+                "descHtml": "Whether the message has the header <code>Auto-Submitted: auto-generated</code>. It is <code>true</code> by default, and then automatic replies such as out-of-office messages are not sent back. Use <code>false</code> for a message that a person wrote."
+              },
+              {
+                "name": "bounceTag",
+                "descHtml": "A short tag, such as an order number, that is added to the bounce address. With <code>return_path = &quot;bounces@example.com&quot;</code> and the tag <code>order-42</code>, a bounce goes to <code>bounces+order-42@example.com</code>. The tag has 1 to 64 letters, digits, dots, underscores or hyphens."
               }
             ],
-            "returnHtml": "Nothing. The mail server accepted the message. Delivery after that is the mail server's job.",
+            "returnHtml": "The message id, such as <code>3f2a…@example.com</code>, without angle brackets. The call returns when the mail server has accepted the message, or when a <code>capture = true</code> block or <code>nvs test</code> has kept it. Store the id to match a reply or a bounce to the message, or to pass it to <code>inReplyTo</code> later.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The capability <code>mail.send</code> does not allow <code>$endpoint</code>. Or no <code>[mail.&lt;name&gt;]</code> block with that name sets <code>host</code> or <code>from</code>. Or the block sets only one of <code>user</code> and <code>password</code>. Or an address is not a valid address. Each of these is a mistake in the settings or the call, not a failed send."
+                "descHtml": "The settings or the arguments are wrong, and nothing is sent. The capability <code>mail.send</code> does not allow <code>$endpoint</code>, or no <code>[mail.&lt;name&gt;]</code> block has that name. The block sets only one of <code>user</code> and <code>password</code>. An address is not a valid address. A value in <code>inReplyTo</code> or <code>references</code> is not a message id. <code>unsubscribe</code> is not an <code>https://</code> URL. <code>bounceTag</code> has a character that is not allowed."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The body or its attachments are wrong, and nothing is sent. <code>text</code> is given with a <code>string</code> body. The HTML uses a <code>cid:</code> URL that no inline attachment has. A <code>cid:</code> URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a <code>&lt;link rel=&quot;stylesheet&quot;&gt;</code>. A mail cannot load a stylesheet, so put the CSS in a <code>&lt;style&gt;</code> element."
               },
               {
                 "error": "IOError",
-                "descHtml": "The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when a block sets a password and the server cannot receive it safely. That is when the server has no <code>STARTTLS</code>, has no <code>AUTH PLAIN</code>, or has a certificate that does not verify. In all these cases, nothing is sent unencrypted."
+                "descHtml": "The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no <code>STARTTLS</code>, or has a certificate that does not verify. It is thrown when the server offers neither <code>AUTH PLAIN</code> nor <code>AUTH LOGIN</code>, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the message names every rejected address, and nobody gets the message. An address with letters that are not ASCII before the <code>@</code> needs a server that offers <code>SMTPUTF8</code>. With another server, nothing is sent."
               }
             ]
           },
           "slug": "send",
           "url": "/reference/core/mail/send/",
           "examples": "core/Mail/send"
+        },
+        {
+          "id": "Mail.preview",
+          "name": "preview",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "preview(string|Core\\Html\\Markup $body, { text?: string, attachments?: array<Core\\Mail\\Attachment> }): Core\\Mail\\Preview",
+          "params": [
+            {
+              "kind": "param",
+              "name": "body",
+              "type": "string|Core\\Html\\Markup",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "text",
+              "type": "string"
+            },
+            {
+              "name": "attachments",
+              "type": "array<Core\\Mail\\Attachment>"
+            }
+          ],
+          "returnType": "Core\\Mail\\Preview",
+          "doc": {
+            "shortHtml": "Returns the body of a message exactly as <code>send</code> would send it, and sends nothing. You can show it on a page, or check it in a test. It needs no <code>[mail.&lt;name&gt;]</code> block.",
+            "params": [
+              {
+                "name": "body",
+                "descHtml": "The message, as for <code>send</code>. In a <code>Core\\Html\\Markup</code> body, each CSS rule of a <code>&lt;style&gt;</code> element is copied into the <code>style</code> attribute of each element it matches. A string from the request is <code>tainted</code>, which means it may contain anything a visitor typed. A <code>tainted</code> string does not compile here, because <code>text()</code> returns it as text that is not <code>tainted</code>."
+              },
+              {
+                "name": "text",
+                "descHtml": "The plain-text version of an HTML body, as for <code>send</code>."
+              },
+              {
+                "name": "attachments",
+                "descHtml": "The attachments, as for <code>send</code>. Each inline image needs its <code>src()</code> in the HTML, and each <code>cid:</code> URL in the HTML needs its inline image."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Mail\\Preview</code> with the HTML and the plain text that <code>send</code> would send, and the CSS rules that stay in a <code>&lt;style&gt;</code> element.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The body or the attachments have a mistake that <code>send</code> throws for. For example, the HTML has a <code>&lt;link rel=&quot;stylesheet&quot;&gt;</code>. A mail cannot load a stylesheet, so put the CSS in a <code>&lt;style&gt;</code> element."
+              }
+            ]
+          },
+          "slug": "preview",
+          "url": "/reference/core/mail/preview/",
+          "examples": "core/Mail/preview"
         }
       ],
       "slug": "mail",
@@ -23862,6 +23982,519 @@
         }
       ],
       "returnedBy": []
+    },
+    {
+      "id": "Mail.Address",
+      "name": "Core\\Mail\\Address",
+      "summary": "An email address with a name. A mail program shows the name in place of the address. You can pass it to `Core\\Mail::send` as a recipient, a `cc`, a `bcc` or the `replyTo`.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.Address.of",
+          "name": "of",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "of(string $address, string $name): Core\\Mail\\Address",
+          "params": [
+            {
+              "kind": "param",
+              "name": "address",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Mail\\Address",
+          "doc": {
+            "shortHtml": "Returns an address with a name, such as <code>&quot;Ada Lovelace&quot; &lt;ada@example.com&gt;</code>.",
+            "params": [
+              {
+                "name": "address",
+                "descHtml": "The email address, such as <code>ada@example.com</code>. A domain with letters that are not ASCII is sent in its <code>xn--</code> form."
+              },
+              {
+                "name": "name",
+                "descHtml": "The name to show, such as <code>Ada Lovelace</code>. It can be any text, including text a user typed. An empty name sends the address alone."
+              }
+            ],
+            "returnHtml": "The address and its name, to pass to <code>Core\\Mail::send</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$address</code> is not an email address. A string such as <code>Ada &lt;ada@example.com&gt;</code> is not an address either: pass the name as <code>$name</code>."
+              }
+            ]
+          },
+          "slug": "of",
+          "url": "/reference/core/mail-address/of/",
+          "examples": "core/Mail-Address/of"
+        }
+      ],
+      "slug": "mail-address",
+      "url": "/reference/core/mail-address/",
+      "summaryBlocks": [
+        {
+          "html": "<p>An email address with a name. A mail program shows the name in place of the address. You can pass it to <code>Core\\Mail::send</code> as a recipient, a <code>cc</code>, a <code>bcc</code> or the <code>replyTo</code>.</p>"
+        }
+      ],
+      "returnedBy": []
+    },
+    {
+      "id": "Mail.Attachment",
+      "name": "Core\\Mail\\Attachment",
+      "summary": "A file that is sent with a message, or an image that is shown inside its HTML. Pass it in the `attachments` option of `Core\\Mail::send`.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.Attachment.fromFile",
+          "name": "fromFile",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromFile(string $path, { name?: string, type?: string }): Core\\Mail\\Attachment",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "returnType": "Core\\Mail\\Attachment",
+          "doc": {
+            "shortHtml": "Reads the file at <code>$path</code> and returns it as an attachment. The file is read at this call, so it needs the <code>fs.read</code> capability here.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "The file to attach. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
+              },
+              {
+                "name": "name",
+                "descHtml": "The file name that the recipient sees. By default, it is the last part of the path."
+              },
+              {
+                "name": "type",
+                "descHtml": "The media type, such as <code>application/pdf</code>. A media type says what kind of file it is. By default, the type is detected from the first bytes. If it cannot be detected, it is <code>application/octet-stream</code>."
+              }
+            ],
+            "returnHtml": "An attachment. Pass it in the <code>attachments</code> option of <code>Core\\Mail::send</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The configuration does not grant <code>fs.read</code> for this path. This error is also thrown when the name or the type is not allowed, as for <code>fromBytes</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The file does not exist or cannot be read."
+              }
+            ]
+          },
+          "slug": "fromfile",
+          "url": "/reference/core/mail-attachment/fromfile/",
+          "examples": "core/Mail-Attachment/fromFile"
+        },
+        {
+          "id": "Mail.Attachment.fromBytes",
+          "name": "fromBytes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromBytes(string $name, string|bytes $data, { type?: string }): Core\\Mail\\Attachment",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "string|bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "returnType": "Core\\Mail\\Attachment",
+          "doc": {
+            "shortHtml": "Returns an attachment with the file name <code>$name</code> and the content <code>$data</code>. Use it for a file that your program made, such as a CSV export.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The file name that the recipient sees, such as <code>invoice.pdf</code>. A name with letters that are not ASCII is encoded with RFC 2231."
+              },
+              {
+                "name": "data",
+                "descHtml": "The content, as a <code>string</code> or <code>bytes</code>."
+              },
+              {
+                "name": "type",
+                "descHtml": "The media type, such as <code>application/pdf</code>. A media type says what kind of file it is. By default, the type is detected from the first bytes. If it cannot be detected, it is <code>application/octet-stream</code>."
+              }
+            ],
+            "returnHtml": "An attachment. Pass it in the <code>attachments</code> option of <code>Core\\Mail::send</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The file name is empty, is longer than 255 bytes, or contains a control character. This error is also thrown when <code>type</code> is not a media type such as <code>image/png</code>."
+              }
+            ]
+          },
+          "slug": "frombytes",
+          "url": "/reference/core/mail-attachment/frombytes/",
+          "examples": "core/Mail-Attachment/fromBytes"
+        },
+        {
+          "id": "Mail.Attachment.inlineFile",
+          "name": "inlineFile",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "inlineFile(string $path, { type?: string }): Core\\Mail\\Attachment",
+          "params": [
+            {
+              "kind": "param",
+              "name": "path",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "returnType": "Core\\Mail\\Attachment",
+          "doc": {
+            "shortHtml": "Reads the image at <code>$path</code> and returns it as an inline attachment. An inline attachment is an image shown inside the HTML of the mail, not as a download. Write its <code>src()</code> in an <code>&lt;img src&gt;</code> of the HTML body to show the image in the message.",
+            "params": [
+              {
+                "name": "path",
+                "descHtml": "The image file. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
+              },
+              {
+                "name": "type",
+                "descHtml": "The media type, such as <code>image/svg+xml</code>. A media type says what kind of file it is. By default, the type is detected from the first bytes. Give it for an SVG image, because the type of an SVG cannot be detected."
+              }
+            ],
+            "returnHtml": "An inline attachment. Pass it in the <code>attachments</code> option of <code>Core\\Mail::send</code>, together with an HTML body that uses its <code>src()</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The configuration does not grant <code>fs.read</code> for this path. This error is also thrown when <code>type</code> is not a media type."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The file does not exist or cannot be read."
+              }
+            ]
+          },
+          "slug": "inlinefile",
+          "url": "/reference/core/mail-attachment/inlinefile/",
+          "examples": "core/Mail-Attachment/inlineFile"
+        },
+        {
+          "id": "Mail.Attachment.inlineBytes",
+          "name": "inlineBytes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "inlineBytes(string $name, string|bytes $data, { type?: string }): Core\\Mail\\Attachment",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "string|bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "type",
+              "type": "string"
+            }
+          ],
+          "returnType": "Core\\Mail\\Attachment",
+          "doc": {
+            "shortHtml": "Returns an inline attachment with the file name <code>$name</code> and the content <code>$data</code>. An inline attachment is an image shown inside the HTML of the mail, not as a download. Write its <code>src()</code> in an <code>&lt;img src&gt;</code> of the HTML body to show the image.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The file name of the image, such as <code>logo.png</code>."
+              },
+              {
+                "name": "data",
+                "descHtml": "The image, as a <code>string</code> or <code>bytes</code>."
+              },
+              {
+                "name": "type",
+                "descHtml": "The media type, such as <code>image/svg+xml</code>. A media type says what kind of file it is. By default, the type is detected from the first bytes. Give it for an SVG image, because the type of an SVG cannot be detected."
+              }
+            ],
+            "returnHtml": "An inline attachment. Pass it in the <code>attachments</code> option of <code>Core\\Mail::send</code>, together with an HTML body that uses its <code>src()</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The file name is empty, is longer than 255 bytes, or contains a control character. This error is also thrown when <code>type</code> is not a media type such as <code>image/png</code>."
+              }
+            ]
+          },
+          "slug": "inlinebytes",
+          "url": "/reference/core/mail-attachment/inlinebytes/",
+          "examples": "core/Mail-Attachment/inlineBytes"
+        },
+        {
+          "id": "Mail.Attachment.src",
+          "name": "src",
+          "static": false,
+          "receiver": "attachment",
+          "generics": null,
+          "signature": "src(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the URL to write in <code>&lt;img src=&quot;…&quot;&gt;</code>, such as <code>cid:3f2a…@inline</code>. A <code>cid:</code> URL points at an image inside the same mail. A mail program shows the image there.",
+            "returnHtml": "The <code>cid:</code> URL of this inline attachment.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The attachment is not inline. Only <code>inlineFile</code> and <code>inlineBytes</code> make an attachment with a <code>src()</code>."
+              }
+            ]
+          },
+          "slug": "src",
+          "url": "/reference/core/mail-attachment/src/",
+          "examples": "core/Mail-Attachment/src"
+        },
+        {
+          "id": "Mail.Attachment.name",
+          "name": "name",
+          "static": false,
+          "receiver": "attachment",
+          "generics": null,
+          "signature": "name(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the file name of the attachment, such as <code>invoice.pdf</code>.",
+            "returnHtml": "The file name the recipient sees."
+          },
+          "slug": "name",
+          "url": "/reference/core/mail-attachment/name/",
+          "examples": "core/Mail-Attachment/name"
+        },
+        {
+          "id": "Mail.Attachment.type",
+          "name": "type",
+          "static": false,
+          "receiver": "attachment",
+          "generics": null,
+          "signature": "type(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the media type of the attachment, such as <code>application/pdf</code>.",
+            "returnHtml": "The <code>type</code> given when the attachment was made, or the detected type."
+          },
+          "slug": "type",
+          "url": "/reference/core/mail-attachment/type/",
+          "examples": "core/Mail-Attachment/type"
+        },
+        {
+          "id": "Mail.Attachment.bytes",
+          "name": "bytes",
+          "static": false,
+          "receiver": "attachment",
+          "generics": null,
+          "signature": "bytes(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the content of the attachment.",
+            "returnHtml": "The bytes that are sent."
+          },
+          "slug": "bytes",
+          "url": "/reference/core/mail-attachment/bytes/",
+          "examples": "core/Mail-Attachment/bytes"
+        },
+        {
+          "id": "Mail.Attachment.isInline",
+          "name": "isInline",
+          "static": false,
+          "receiver": "attachment",
+          "generics": null,
+          "signature": "isInline(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Checks whether the attachment is shown inside the HTML body.",
+            "returnHtml": "<code>true</code> for an attachment made with <code>inlineFile</code> or <code>inlineBytes</code>. <code>false</code> for one made with <code>fromFile</code> or <code>fromBytes</code>."
+          },
+          "slug": "isinline",
+          "url": "/reference/core/mail-attachment/isinline/",
+          "examples": "core/Mail-Attachment/isInline"
+        }
+      ],
+      "slug": "mail-attachment",
+      "url": "/reference/core/mail-attachment/",
+      "summaryBlocks": [
+        {
+          "html": "<p>A file that is sent with a message, or an image that is shown inside its HTML. Pass it in the <code>attachments</code> option of <code>Core\\Mail::send</code>.</p>"
+        }
+      ],
+      "returnedBy": []
+    },
+    {
+      "id": "Mail.Preview",
+      "name": "Core\\Mail\\Preview",
+      "summary": "The body of a message, exactly as `Core\\Mail::send` would send it. `Core\\Mail::preview` returns it.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.Preview.html",
+          "name": "html",
+          "static": false,
+          "receiver": "preview",
+          "generics": null,
+          "signature": "html(): ?Core\\Html\\Markup",
+          "params": [],
+          "options": [],
+          "returnType": "?Core\\Html\\Markup",
+          "doc": {
+            "shortHtml": "Returns the HTML that would be sent. Each CSS rule of a <code>&lt;style&gt;</code> element is copied into the <code>style</code> attribute of the elements it matches.",
+            "returnHtml": "The HTML, or <code>null</code> when the body is a <code>string</code>."
+          },
+          "slug": "html",
+          "url": "/reference/core/mail-preview/html/",
+          "examples": "core/Mail-Preview/html"
+        },
+        {
+          "id": "Mail.Preview.text",
+          "name": "text",
+          "static": false,
+          "receiver": "preview",
+          "generics": null,
+          "signature": "text(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the plain text that would be sent.",
+            "returnHtml": "A <code>string</code> body as it is, the <code>text</code> option, or the plain text made from the HTML."
+          },
+          "slug": "text",
+          "url": "/reference/core/mail-preview/text/",
+          "examples": "core/Mail-Preview/text"
+        },
+        {
+          "id": "Mail.Preview.keptCss",
+          "name": "keptCss",
+          "static": false,
+          "receiver": "preview",
+          "generics": null,
+          "signature": "keptCss(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the CSS rules that stay in a <code>&lt;style&gt;</code> element. These are rules such as <code>@media</code> and <code>a:hover</code>, and rules that match no element.",
+            "returnHtml": "One string for each rule, in the order of the HTML. The list is empty when every rule was copied into the elements."
+          },
+          "slug": "keptcss",
+          "url": "/reference/core/mail-preview/keptcss/",
+          "examples": "core/Mail-Preview/keptCss"
+        },
+        {
+          "id": "Mail.Preview.unusedCss",
+          "name": "unusedCss",
+          "static": false,
+          "receiver": "preview",
+          "generics": null,
+          "signature": "unusedCss(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the CSS rules that match no element of the HTML. A rule for an attribute that a mail program adds later is in this list, and it still works there.",
+            "returnHtml": "One string for each rule, in the order of the HTML. Each is also in <code>keptCss()</code>."
+          },
+          "slug": "unusedcss",
+          "url": "/reference/core/mail-preview/unusedcss/",
+          "examples": "core/Mail-Preview/unusedCss"
+        }
+      ],
+      "slug": "mail-preview",
+      "url": "/reference/core/mail-preview/",
+      "summaryBlocks": [
+        {
+          "html": "<p>The body of a message, exactly as <code>Core\\Mail::send</code> would send it. <code>Core\\Mail::preview</code> returns it.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Mail::preview",
+          "url": "/reference/core/mail/preview/"
+        }
+      ]
     },
     {
       "id": "Markdown",
@@ -49275,7 +49908,7 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the plain-text body of the message.",
-            "returnHtml": "The <code>$text</code> given to <code>Core\\Mail::send</code>."
+            "returnHtml": "The plain text that was sent: a <code>string</code> body, the <code>text</code> option, or the text made from the HTML body."
           },
           "slug": "text",
           "url": "/reference/core/test-sentmail/text/",
@@ -49346,12 +49979,156 @@
           "options": [],
           "returnType": "?string",
           "doc": {
-            "shortHtml": "Returns the HTML body of the message.",
-            "returnHtml": "The <code>html</code> body, or <code>null</code> when none was given."
+            "shortHtml": "Returns the HTML body of the message, as it is sent. The CSS of its <code>&lt;style&gt;</code> elements is already copied into the elements.",
+            "returnHtml": "The HTML that is sent, or <code>null</code> when the body was a <code>string</code>."
           },
           "slug": "html",
           "url": "/reference/core/test-sentmail/html/",
           "examples": "core/Test-SentMail/html"
+        },
+        {
+          "id": "Test.SentMail.messageId",
+          "name": "messageId",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "messageId(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the <code>Message-ID</code> of the message, without angle brackets.",
+            "returnHtml": "The same string <code>Core\\Mail::send</code> returned for this message."
+          },
+          "slug": "messageid",
+          "url": "/reference/core/test-sentmail/messageid/",
+          "examples": "core/Test-SentMail/messageId"
+        },
+        {
+          "id": "Test.SentMail.fromName",
+          "name": "fromName",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "fromName(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the sender name in the <code>From:</code> header.",
+            "returnHtml": "The <code>fromName</code> option, or else the <code>from_name</code> of the <code>[mail.&lt;name&gt;]</code> block. <code>null</code> when neither is set."
+          },
+          "slug": "fromname",
+          "url": "/reference/core/test-sentmail/fromname/",
+          "examples": "core/Test-SentMail/fromName"
+        },
+        {
+          "id": "Test.SentMail.attachments",
+          "name": "attachments",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "attachments(): array<Core\\Mail\\Attachment>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\Attachment>",
+          "doc": {
+            "shortHtml": "Returns the attachments of the message, including inline images.",
+            "returnHtml": "One <code>Core\\Mail\\Attachment</code> for each attachment, in the order given. The list is empty when there were none."
+          },
+          "slug": "attachments",
+          "url": "/reference/core/test-sentmail/attachments/",
+          "examples": "core/Test-SentMail/attachments"
+        },
+        {
+          "id": "Test.SentMail.inReplyTo",
+          "name": "inReplyTo",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "inReplyTo(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the message id in the <code>In-Reply-To</code> header.",
+            "returnHtml": "The <code>inReplyTo</code> option, or <code>null</code> when none was given."
+          },
+          "slug": "inreplyto",
+          "url": "/reference/core/test-sentmail/inreplyto/",
+          "examples": "core/Test-SentMail/inReplyTo"
+        },
+        {
+          "id": "Test.SentMail.references",
+          "name": "references",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "references(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the message ids in the <code>References</code> header.",
+            "returnHtml": "The <code>references</code> option, in the order given. The list is empty when none were given."
+          },
+          "slug": "references",
+          "url": "/reference/core/test-sentmail/references/",
+          "examples": "core/Test-SentMail/references"
+        },
+        {
+          "id": "Test.SentMail.unsubscribe",
+          "name": "unsubscribe",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "unsubscribe(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the URL in the <code>List-Unsubscribe</code> header.",
+            "returnHtml": "The <code>unsubscribe</code> option, or <code>null</code> when none was given."
+          },
+          "slug": "unsubscribe",
+          "url": "/reference/core/test-sentmail/unsubscribe/",
+          "examples": "core/Test-SentMail/unsubscribe"
+        },
+        {
+          "id": "Test.SentMail.autoSubmitted",
+          "name": "autoSubmitted",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "autoSubmitted(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Checks whether the message has the header <code>Auto-Submitted: auto-generated</code>.",
+            "returnHtml": "The <code>autoSubmitted</code> option. It is <code>true</code> when the option was not given."
+          },
+          "slug": "autosubmitted",
+          "url": "/reference/core/test-sentmail/autosubmitted/",
+          "examples": "core/Test-SentMail/autoSubmitted"
+        },
+        {
+          "id": "Test.SentMail.bounceTag",
+          "name": "bounceTag",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "bounceTag(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the bounce tag of the message.",
+            "returnHtml": "The <code>bounceTag</code> option, or <code>null</code> when none was given."
+          },
+          "slug": "bouncetag",
+          "url": "/reference/core/test-sentmail/bouncetag/",
+          "examples": "core/Test-SentMail/bounceTag"
         }
       ],
       "slug": "test-sentmail",

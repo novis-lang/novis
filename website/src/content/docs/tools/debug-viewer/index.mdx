@@ -100,7 +100,9 @@ events. Press `Enter` to open the request.
 
 When you open a request, you see its method, path, status, duration and route. You also see its
 trace id and span id. The trace id is a unique id that Novis gives each request. The span id is the
-id of this request's own part of the work. You also see the handler: the method in your code that
+id of this request's own part of the work.
+
+You also see the handler: the method in your code that
 the route called. Boxes show the duration and the number of queries, dumps and log lines. Below
 them, a bar shows how the time was split.
 
@@ -287,8 +289,9 @@ recorded request.
 Your server saves each request as records: one for the request, and one for each query, dump and
 log line. These records wait in a folder until `nvs debug` reads them. The folder has a size limit,
 `[debug] spool_max`. When the folder is full, Novis deletes the oldest files, and their records are
-lost. A record is
-also lost when `nvs debug` cannot read it. Then the live state turns orange and shows the number of
+lost.
+
+A record is also lost when `nvs debug` cannot read it. Then the live state turns orange and shows the number of
 lost records. Click it to see each count on the **Settings** page.
 
 <Shot src="tools/debug-viewer/lost.shot" alt="The settings page at Lost records. It says that 5 records were dropped. The top bar shows an orange state with the text 5 lost." />
