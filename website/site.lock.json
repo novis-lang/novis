@@ -15,7 +15,7 @@
     "directive:debug.index_age": "245fe3dfebfc073b"
   },
   "docs/examples/config/debug-index_max/about.md": {
-    "directive:debug.index_max": "b18422a34d6dab10"
+    "directive:debug.index_max": "53206fd6ab1ec403"
   },
   "docs/examples/config/debug-inline/about.md": {
     "directive:debug.inline": "02433dc5e658a22c"
@@ -4506,7 +4506,7 @@
     "tools:cli/nvs-config-check-and-nvs-config-dump": "f45a5ca1d4120bee"
   },
   "docs/examples/tools/cli/nvs-debug/about.md": {
-    "tools:cli/nvs-debug": "9e8caebb3b22fcab"
+    "tools:cli/nvs-debug": "9d76953768111e64"
   },
   "docs/examples/tools/cli/nvs-debug-link/about.md": {
     "tools:cli/nvs-debug-link": "e68a7fbcfe1059d6"
@@ -8613,10 +8613,10 @@
     "directive:capabilities": "e61749c7583627e4"
   },
   "help:directive:debug.index_age": {
-    "directive:debug.index_age": "a75470a280e22c02"
+    "directive:debug.index_age": "1d61a8a897688f71"
   },
   "help:directive:debug.index_max": {
-    "directive:debug.index_max": "9b32c48c8a0b315e"
+    "directive:debug.index_max": "e40b9b867eac26be"
   },
   "help:directive:debug.inline": {
     "directive:debug.inline": "7476c32a408c2acd"
@@ -8634,7 +8634,7 @@
     "directive:debug.spool_max": "e050a1da50823430"
   },
   "help:directive:debug.store": {
-    "directive:debug.store": "8c284e6baf6e0c5f"
+    "directive:debug.store": "f11183dc44379da1"
   },
   "help:directive:debug.tls_cert_file": {
     "directive:debug.tls_cert_file": "5bdd929d97fe71be"
