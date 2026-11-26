@@ -102,6 +102,15 @@ const DRIVERS: &[(&str, &str, Driver)] = &[
     ),
     (
         "nvs-runtime/src/dispatch.rs",
+        "interface_floor",
+        Driver::TypedBy(
+            "a `Core` member's own address off the receiver's descriptor: `format` takes the \
+             receiver alone, and `compareTo` checks that its operand is of the receiver's class \
+             before it reads it",
+        ),
+    ),
+    (
+        "nvs-runtime/src/dispatch.rs",
         "call_unwind",
         Driver::TypedBy("the receiver alone"),
     ),
