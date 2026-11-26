@@ -581,6 +581,7 @@ mod tests {
 
     /// Each reader reads its own form and refuses the next class's.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn each_reader_reads_its_own_form() {
         assert!(date("2026-01-05").is_ok());
         assert!(date("2026-01-05T08:30").is_err());

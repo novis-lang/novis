@@ -9710,6 +9710,7 @@ pub(crate) mod tests {
     /// Each class of [`VALUE_TEXT`] decodes from its text into an instance of
     /// itself, and the encoder writes back the document it was read from.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn value_text_round_trips_every_core_value_type() {
         let rows = [
             (crate::time::DATE_NAME, "2026-01-05"),
@@ -9805,6 +9806,7 @@ pub(crate) mod tests {
     /// a winter text in one zone each come back with their own offset, and a
     /// text with an offset and no `[Zone]` is refused.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn value_text_datetime_keeps_its_zone() {
         for text in [
             "2026-07-05T08:30:00+02:00[Europe/Vienna]",

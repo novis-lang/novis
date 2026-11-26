@@ -1620,6 +1620,7 @@ mod tests {
     /// A `DateTime` value needs its `[Zone]`, because nothing else names one.
     /// The offset before it picks one moment, and the zone must have it.
     #[test]
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     fn time_capture_datetime_reads_its_offset_and_zone() {
         let conv = CaptureConv::DateTime;
         let Some(Param::DateTime(at)) = conv.convert("2026-01-05T08:30:00+01:00[Europe/Vienna]")
