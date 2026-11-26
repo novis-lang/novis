@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/src/http.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/directive.rs, crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs]
   - id: 2
     title: "every outbound client that names no tls_ca_file is proven to trust [tls.client] roots, and an unknown issuer names both settings"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-stdlib/src/ldap/mod.rs, crates/nvs-ldap/src/conn.rs, crates/nvs-cli/tests/live_config.rs]
   - id: 3
     title: "the rule, the settings docs, the feature proofs and the website say so"
@@ -104,6 +104,12 @@ fix is to set the block's `host` or `url` (or the program's URL) to one of them.
 unknown issuer. Both hints cover HTTP as well (`crates/nvs-stdlib/src/http/transport.rs:1902`), so
 every client words the two cases the same way.
 
+**The hint is worded once, in `crates/nvs-stdlib/src/tls_fix.rs`.** `nvs_host::tls::Refusal` is
+the two cases as a plain value, so `nvs_ldap::Error` keeps it beside its message (an `io::Error` is
+not `Clone`). The shared cache has no `tls_ca_file`, so its hint names `[tls.client] roots` alone,
+and `[cache.shared] url` for a name (`Settings::BlockWithoutCaFile`). An HTTP call that named its
+own CAs with `tlsCa` gets no roots hint for an unknown issuer, because the roots do not apply to it.
+
 **No per-call CA for `Ldap::open` or `Db::open`.** HTTP's `tlsCa` under the `tls.anchors` grant
 (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`) is the shape one would take, and no
 report needs it. It is not built here.
@@ -161,19 +167,19 @@ call per crate.
 
 ### 2. every outbound client that names no tls_ca_file is proven to trust [tls.client] roots, and an unknown issuer names both settings
 
-- [ ] `crates/nvs-cli/tests/client_roots.rs:1` (new): the five trust tests of the check `every-client`,
+- [x] `crates/nvs-cli/tests/client_roots.rs:1` (new): the five trust tests of the check `every-client`,
   shaped per § *The tests run `nvs` as a child process*.
-- [ ] `crates/nvs-stdlib/src/ldap/mod.rs:299` (`fault_of`) or the open and connect paths that call it
+- [x] `crates/nvs-stdlib/src/ldap/mod.rs:299` (`fault_of`) or the open and connect paths that call it
   (`:1002`, `:634`): an unknown issuer gives the hint of § *The unknown-issuer hint*.
   `crates/nvs-ldap/src/conn.rs:353` keeps the `io::Error` reachable so the stdlib layer can ask
   `unknown_issuer`.
-- [ ] `crates/nvs-stdlib/src/mail/smtp.rs:166`: the message also names `[tls.client] roots`.
-- [ ] `crates/nvs-stdlib/src/db/open.rs:604` and the place a `[db]` handshake failure becomes a
+- [x] `crates/nvs-stdlib/src/mail/smtp.rs:166`: the message also names `[tls.client] roots`.
+- [x] `crates/nvs-stdlib/src/db/open.rs:604` and the place a `[db]` handshake failure becomes a
   `Db\DbError` (not checked: find it from `crates/nvs-db/src/pg.rs:1143`); `crates/nvs-stdlib/src/cache/redis.rs:631`.
-- [ ] `crates/nvs-host/src/tls.rs:465`: `names_presented` beside `unknown_issuer`, with a unit test
+- [x] `crates/nvs-host/src/tls.rs:465`: `names_presented` beside `unknown_issuer`, with a unit test
   on a certificate made for another name. Every handshake site above and HTTP's
   (`crates/nvs-stdlib/src/http/transport.rs:1902`) gives both hints of § *Standing decisions*.
-- [ ] The three hint tests of `every-client`, then `cargo test --test client_roots` once.
+- [x] The three hint tests of `every-client`, then `cargo test --test client_roots` once.
 
 ### 3. the rule, the settings docs, the feature proofs and the website say so
 
@@ -202,24 +208,28 @@ call per crate.
 
 ### State
 
-Stage 1 is done and the check `rename` is green. `Config.tls: Option<Tls>` holds `client:
-Option<TlsClient>` (`crates/nvs-config/src/tree.rs:105`, `:785`), and `[http.client]` has no `tls`
-field. Every code, test and settings file under `crates`, `tools`, `nvs.toml` and `examples` names
-`[tls.client]`. The directive row is `tls.client` (`directive.rs:116`), and the two census tests in
-`crates/nvs-config/tests/directives.rs` no longer count it among the `http` exceptions.
-`default.toml:582` writes `[tls.client]` where the old block stood, between `[http.client.socket]` and
-`[http.client.proxy]`. Its comment still talks about `https` calls only, which stage 3 rewrites.
+Stages 1 and 2 are done, and the checks `rename` and `every-client` are green (all nine
+`client_roots` tests passed in one run). `c6694a35b4` added `crates/nvs-cli/tests/client_roots.rs`:
+each case runs `nvs run` against a loopback TLS peer that reports whether its handshake completed.
+`c17a910f67` added the hints: `nvs_host::tls::names_presented`, `Refusal` and `refusal`
+(`crates/nvs-host/src/tls.rs:483`, `:501`), `nvs_ldap::Error::refusal`, and the one wording in
+`crates/nvs-stdlib/src/tls_fix.rs`, used by LDAP (`ldap/mod.rs` `walk` and `dial_fault`), mail
+(`smtp.rs:166`), the database (`db/open.rs` `dial_failed`), the shared cache (`cache/redis.rs:210`)
+and HTTP (`http/transport.rs:1916`). `crates/nvs-ext/tests/http.rs:620` now checks the new HTTP
+wording.
 
-The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`. `c115a735a1` fixed the Miri
-four and `28a4d7a6bf` fixed the conformance four, both before this session. The aarch64
+The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`, which is older than both
+fixes: `c115a735a1` (the Miri four) and `28a4d7a6bf` (the conformance four). The aarch64
 `serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` failure is in
 `docs/goals/release-green.md` § *Backlog*, and no goal on the chain owns it.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-cli/tests/client_roots.rs` (new), shaped per § *The tests
-run `nvs` as a child process*. Start from `crates/nvs-cli/tests/live_config.rs:2119`, which already
-writes a `[tls.client] roots` file and makes a CA with `rcgen`.
+Stage 3 from its first item: move `docs/rules/http-server/the-client-trust-roots-are-the-operators.md`
+to `docs/rules/security/` per § *The rule moves*, naming every client and the hints of
+§ *The hint is worded once*. Then `default.toml:582`'s comment, the example and attack moves, and the
+`changes.json` entry. The two new features (the hints) reach `directive:tls.client` and each
+client's `Core` member; `bun nv proofs --owed --goal tls-client-block` names what they owe.
 
 Expected red until stage 3: the example `docs/examples/config/http-client-tls/` (its `nvs.toml` is
 now an unknown key) and the three attacks under `tests/hostile/config/` that stage 3's third item
