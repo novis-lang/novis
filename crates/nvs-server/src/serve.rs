@@ -2029,8 +2029,7 @@ where
                 return;
             }
             let later = matches!(ending, crate::spooled::Ending::Later);
-            let (store, outcome) =
-                ending.settled(|| crate::spooled::door_store(under), &trace);
+            let (store, outcome) = ending.settled(|| crate::spooled::door_store(under), &trace);
             // In `development`, the response as it goes out: its headers and
             // the bytes of a whole body. A streamed body is recorded as it is
             // sent, and its line waits for it.

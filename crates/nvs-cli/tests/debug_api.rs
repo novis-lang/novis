@@ -1003,9 +1003,15 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     let detail = service.json(&thrown);
     assert_eq!(detail["request"], *threw);
     assert_eq!(detail["exception"]["message"], "item 7 is out of stock");
-    assert_eq!(detail["exception"]["frames"][0]["function"], "Shop\\Stock::take");
+    assert_eq!(
+        detail["exception"]["frames"][0]["function"],
+        "Shop\\Stock::take"
+    );
     assert_eq!(detail["exception"]["frames"][2]["file"], Value::Null);
-    assert_eq!(detail["exception"]["previous"][0]["class"], "Shop\\StockError");
+    assert_eq!(
+        detail["exception"]["previous"][0]["class"],
+        "Shop\\StockError"
+    );
     let kinds: Vec<&str> = detail["events"]
         .as_array()
         .expect("a list")
@@ -1205,7 +1211,11 @@ fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
     );
     let missing = row("/missing", "GET");
     assert_eq!(
-        (&missing["memory_peak"], &missing["handler"], &missing["bytes_out"]),
+        (
+            &missing["memory_peak"],
+            &missing["handler"],
+            &missing["bytes_out"]
+        ),
         (&Value::Null, &Value::Null, &Value::Null),
         "a line without the fields reads with each null"
     );

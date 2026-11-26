@@ -1645,7 +1645,12 @@ mod tests {
             reason = "the table outlives the instance, and `previous`'s reference is handed over"
         )]
         unsafe {
-            Thrown::new_as(class, ThrownClass::Runtime, message, &[(PREVIOUS_SLOT, previous)])
+            Thrown::new_as(
+                class,
+                ThrownClass::Runtime,
+                message,
+                &[(PREVIOUS_SLOT, previous)],
+            )
         }
     }
 
@@ -1692,7 +1697,13 @@ mod tests {
         let links: Vec<_> = stack
             .previous
             .iter()
-            .map(|link| (link.class.as_str(), link.message.as_str(), link.frames.len()))
+            .map(|link| {
+                (
+                    link.class.as_str(),
+                    link.message.as_str(),
+                    link.frames.len(),
+                )
+            })
             .collect();
         assert_eq!(
             links,

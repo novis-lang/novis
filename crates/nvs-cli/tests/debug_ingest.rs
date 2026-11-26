@@ -482,7 +482,11 @@ fn each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none()
         outcome("spawn"),
         Some(serde_json::json!({"command": "convert", "exit": 2}))
     );
-    assert_eq!(outcome("session"), None, "an event without an outcome has none");
+    assert_eq!(
+        outcome("session"),
+        None,
+        "an event without an outcome has none"
+    );
 }
 
 /// `rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`: an exception's frames
@@ -527,7 +531,11 @@ fn an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged() {
             .contains("no row for item 7")
     );
     assert!(!frames_cut && !previous_cut);
-    assert_eq!(stack(bare), (None, false, None, false), "a line without them reads");
+    assert_eq!(
+        stack(bare),
+        (None, false, None, false),
+        "a line without them reads"
+    );
 
     let printed = |trace: &str| {
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -545,7 +553,11 @@ fn an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged() {
         );
         String::from_utf8_lossy(&out.stdout).replace(trace, "TRACE")
     };
-    assert_eq!(printed(traced), printed(bare), "the frames do not change the test");
+    assert_eq!(
+        printed(traced),
+        printed(bare),
+        "the frames do not change the test"
+    );
 }
 
 #[test]

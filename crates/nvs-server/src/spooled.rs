@@ -169,11 +169,7 @@ pub fn exception(failure: &Failure) -> spool::Exception {
         message: failure.message.clone(),
         file: file.to_owned(),
         line,
-        stack: failure
-            .stack
-            .as_deref()
-            .cloned()
-            .unwrap_or_default(),
+        stack: failure.stack.as_deref().cloned().unwrap_or_default(),
     }
 }
 
