@@ -3,8 +3,8 @@ returns one `Core\Test\SentMail` for each message, and `attachments()` is one of
 
 The result is a list of `Core\Mail\Attachment` values, in the order your program gave them to the
 `attachments` option of `Core\Mail::send`. When the program gave no attachments, the list is empty.
-The list also contains each inline image. An inline image is an image that the HTML body shows
-through its `cid:` URL.
+The list also contains each inline image. An inline image is shown inside the HTML of the mail.
+The HTML shows it with a `cid:` URL. A `cid:` URL points at an image inside the same mail.
 
 Each `Core\Mail\Attachment` has these methods:
 

@@ -15,7 +15,7 @@ class Kept
     }
 }
 
-// 1. A kept rule writes `</style><script>` with CSS escapes. They stay escapes in the result.
+// 1. A kept rule writes `</style><script>` with CSS escapes. The kept rule still contains the escapes as text.
 Kept::show('1', html`<style>a:hover { content: "\\3c/style\\3e\\3cscript\\3e alert(1)\\3c/script\\3e" }</style><p>Hi</p>`);
 
 // 2. A kept rule has a comment that is never closed.

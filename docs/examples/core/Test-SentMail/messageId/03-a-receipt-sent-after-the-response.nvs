@@ -10,7 +10,7 @@ class ReceiptTest
     #[Test]
     public function theReceiptIdIsInTheLog(): void
     {
-        // `Test::request` returns after the work that runs after the response has ended.
+        // `Test::request` returns only when the work that runs after the response is done.
         // So the receipt is already in `Test::sentMail()`.
         Core\Test\Response $response = Test::request(Method::Post, '/orders/1042/pay');
         Test::assertSame($response->body(), "Order 1042 is paid.\n");
@@ -22,8 +22,8 @@ class ReceiptTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. This part answers first.
-// `Core\Task::runAfterResponse` sends the receipt after the answer, so the customer does not wait.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// It prints the response. `Core\Task::runAfterResponse` then sends the receipt, so the customer does not wait.
 if (Core\Env::context() == Core\Env::Context::Request) {
     echo "Order 1042 is paid.\n";
     Core\Task::runAfterResponse(fn(): void => {

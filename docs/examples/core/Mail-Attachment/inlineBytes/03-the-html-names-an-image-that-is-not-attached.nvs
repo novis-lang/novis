@@ -3,7 +3,7 @@
 
 use Core\Mail;
 
-// This HTML comes from a template. Its `cid:` URL names an image, but no image is attached.
+// A `cid:` URL points at an image inside the same mail. This HTML has one, but no image is attached.
 // A mail program would show a broken image, so `send` throws a `RuntimeError` and sends nothing.
 try {
     Mail::send(

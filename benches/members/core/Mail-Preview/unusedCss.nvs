@@ -1,5 +1,5 @@
 <?nvs
-// Measures how `unusedCss()` returns the CSS rules that match nothing, as a test of a mail template does.
+// Measures `unusedCss()` on a previewed mail. A test of a mail template calls it the same way.
 // bench: iterations 2048
 // bench: complexity constant
 

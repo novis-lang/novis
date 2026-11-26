@@ -9,7 +9,8 @@ array<Attachment> $parts = [
     Attachment::fromBytes('orders.csv', "order,total\n", { type: 'text/csv' }),
 ];
 
-// `inlineFile` and `inlineBytes` make inline attachments. `fromFile` and `fromBytes` make files.
+// `inlineFile` and `inlineBytes` make inline attachments, which are shown inside the HTML.
+// `fromFile` and `fromBytes` make files to download.
 foreach ($parts as Attachment $part) {
     echo $part->name(), ': ', $part->isInline() ? 'inside the HTML' : 'a file to download', "\n";
 }

@@ -1,5 +1,5 @@
 <?nvs
-// Measures how `text()` returns the plain text of a previewed mail, as a test that checks a link does.
+// Measures `text()` on a previewed mail. A test that checks a link in a mail calls it the same way.
 // bench: iterations 2048
 // bench: complexity constant
 

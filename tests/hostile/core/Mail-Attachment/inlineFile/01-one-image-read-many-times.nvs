@@ -27,7 +27,7 @@ try {
     echo '2 ', $e::class, "\n";
 }
 
-// 3. A text file is read as an inline image. Its type is detected, and the mail is sent.
+// 3. A text file is read as an inline image, an image shown inside the mail. Its type is detected, and the mail is sent.
 try {
     Attachment $text = Attachment::inlineFile('files/notes.txt');
     Mail::send('shop', ['anna@example.com'], 'Hello', html`<img src="{$text->src()}">`, {

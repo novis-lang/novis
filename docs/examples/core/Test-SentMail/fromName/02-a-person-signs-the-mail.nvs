@@ -7,7 +7,7 @@ use Core\Test;
 
 class Support
 {
-    // Sends an answer from a support agent. `fromName` replaces the name of the block.
+    // Sends a reply from a support agent. `fromName` replaces the name of the block.
     // The address is still `from` of the block.
     public static function answer(string $email, string $agent, string $text): void
     {

@@ -1,5 +1,5 @@
 <?nvs
-// Measures how `html()` returns the HTML of a previewed mail, as a page that shows the mail does.
+// Measures `html()` on a previewed mail. A page that shows the mail calls it the same way.
 // bench: iterations 2048
 // bench: complexity constant
 

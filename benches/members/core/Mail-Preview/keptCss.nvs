@@ -1,5 +1,5 @@
 <?nvs
-// Measures how `keptCss()` returns the CSS rules left in a mail, as a test of a mail template does.
+// Measures `keptCss()` on a previewed mail. A test of a mail template calls it the same way.
 // bench: iterations 2048
 // bench: complexity constant
 

@@ -17,7 +17,7 @@ A `[mail.<name>]` block describes one mail server. You choose the name. This blo
 ```toml
 [mail.shop]
 host = "smtp.example.com"
-port = 465                                   # TLS from the first byte
+port = 465                                   # encrypted from the first byte
 from = "shop@example.com"                    # the sender of every message
 from_name = "Example Shop"                   # the name a mail program shows
 user = "shop@example.com"
@@ -30,13 +30,15 @@ send = ["shop"]                              # the blocks this program may send 
 The `[capabilities.mail]` block allows the program to use the block. Without it, `send` throws a
 `RuntimeError`. These keys change how Novis connects:
 
-- `tls` is `implicit`, `starttls` or `none`. On port 465 the default is `implicit`. With a password
-  it is `starttls`. Novis never sends a password without TLS.
-- `tls_ca_file` is a PEM file with the certificates of your own certificate authority. Use it for a
+- `tls` is `implicit`, `starttls` or `none`. TLS encrypts the connection to the mail server. The
+  default is `implicit` on port 465. On another port, it is `starttls` when the block has a
+  password or a token. Otherwise it is `none`. Novis never sends a password without TLS.
+- `tls_ca_file` is a PEM file (a text file with certificates). It contains the certificate of your
+  own certificate authority, which is the service that signs your server certificates. Use it for a
   mail server inside your company.
 - `auth` is `plain`, `login` or `xoauth2`. The default is `plain` when the server offers it.
 
-Every certificate is checked. Read every key in
+Novis always checks the certificate of the mail server. Read every key in
 [Reference: configuration](/reference/config/the-blocks-the-binary-accepts/).
 
 ## Sending a message
@@ -82,13 +84,14 @@ name as the second argument of `Address::of`.
 
 ## Attachments and inline images
 
-The `attachments` option takes a list of `Core\Mail\Attachment` values:
+The `attachments` option takes a list of `Core\Mail\Attachment` values. An inline image is an image
+that is part of the mail and shows inside the HTML.
 
 - `Attachment::fromFile` reads a file. The file is read at this call, so it needs the `fs.read`
   capability.
 - `Attachment::fromBytes` makes a file from a value in your program, such as a CSV export.
-- `Attachment::inlineFile` reads an image to show inside the HTML. Write its `src()` in an
-  `<img src>`.
+- `Attachment::inlineFile` reads an inline image. Its `src()` returns a `cid:` URL. A `cid:` URL
+  points at an image inside the same mail. Write it in an `<img src>`.
 
 <Snippet src="guides/how-to-use/sending-mail/attachments.nvs" />
 
@@ -122,12 +125,12 @@ in a `<style>` element.
 
 ## Threads
 
-Mail programs show a reply and the message it answers in one thread. Pass the message id that
+Mail programs show a reply and the message it replies to in one thread. Pass the message id that
 `send` returned:
 
 <Snippet src="guides/how-to-use/sending-mail/threads.nvs" />
 
-`inReplyTo` is the message this one answers. `references` lists the earlier messages of the thread,
+`inReplyTo` is the message this one replies to. `references` lists the earlier messages of the thread,
 oldest first.
 
 ## Unsubscribe
@@ -142,7 +145,7 @@ Your route for that URL removes the reader from the list. Any other URL scheme t
 
 ## Sending in the background
 
-`send` waits for the mail server. To answer the visitor first, send the mail with
+`send` waits for the mail server. To send the response to the visitor first, send the mail with
 `Core\Task::runAfterResponse`. The function runs after the browser has the page:
 
 <Snippet src="guides/how-to-use/sending-mail/after-response.nvs" />

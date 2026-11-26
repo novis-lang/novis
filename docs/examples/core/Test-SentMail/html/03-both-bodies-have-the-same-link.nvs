@@ -25,8 +25,8 @@ class InvoiceTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. This part sends
-// the invoice link in an HTML body. The plain-text body is made from the HTML.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// It sends the invoice link in an HTML body. The plain-text body is made from the HTML.
 if (Core\Env::context() == Core\Env::Context::Request) {
     string $link = 'https://example.com/invoices/77.pdf';
     Markup $body = ('<p><a href="' as Markup) + Html::escape($link)

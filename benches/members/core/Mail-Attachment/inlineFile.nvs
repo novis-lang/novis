@@ -1,5 +1,5 @@
 <?nvs
-// Measures how a small image is read from the disk as an inline image, as a mail with a logo does.
+// Measures how an inline image (an image shown inside the mail) is read from the disk, as a mail with a logo does.
 // bench: iterations 256
 // bench: complexity constant
 
@@ -13,7 +13,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The file is chosen by the round before. Each one is a few hundred bytes.
+            // Each round uses the total so far to pick one of the two files. Each file is a few hundred bytes.
             Attachment $image = $total % 3 == 1
                 ? Attachment::inlineFile('files/logo.png')
                 : Attachment::inlineFile('files/invoice.pdf', { type: 'image/png' });

@@ -1,7 +1,7 @@
 <?nvs
-// Attack: every field of a message tries to add a header with a line break, and two
-// lists of 100000 addresses try to exhaust memory. No line break may become a new
-// header. The `shop` block keeps each message and sends nothing.
+// Attack: each part of a message contains a line break that tries to add a header.
+// Two lists of 100000 addresses try to use up all memory. No line break may add a header.
+// The `shop` block keeps each message and sends nothing.
 // hostile: timeout-ms 30000
 
 // 1. The subject has a line break and a `Bcc:` line. The subject is encoded,
@@ -45,8 +45,8 @@ try {
     echo '4 ', $e::class, "\n";
 }
 
-// 5. 100000 hidden recipients that are all valid. The call builds the whole message,
-//    and no recipient is in a header.
+// 5. 100000 `bcc` addresses that are all correct. The call builds the whole message,
+//    and no `bcc` address is in a header.
 try {
     Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { bcc: $many });
     echo "5 sent\n";
@@ -54,7 +54,7 @@ try {
     echo '5 ', $e::class, "\n";
 }
 
-// 6. A subject of 4 million characters full of line breaks. It is encoded as one header.
+// 6. A subject of 4 million characters with many line breaks. It is encoded as one header.
 string $long = Core\Str::repeat("é\r\nBcc: x@example.com\r\n", 200000);
 try {
     Core\Mail::send('shop', ['anna@example.com'], $long, Core\Html::escape($long), { text: $long });

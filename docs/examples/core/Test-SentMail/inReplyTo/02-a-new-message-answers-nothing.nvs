@@ -7,7 +7,7 @@ use Core\Test;
 
 class Signup
 {
-    // Sends the first mail to a new customer. It is not an answer to anything.
+    // Sends the first mail to a new customer. It does not reply to an earlier message.
     public static function welcome(string $email): void
     {
         Mail::send('shop', [$email], 'Welcome to Example Shop', 'Thank you for signing up.');

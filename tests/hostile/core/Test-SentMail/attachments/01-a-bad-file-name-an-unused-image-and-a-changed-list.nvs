@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a test attaches a file whose name has a line break, an image the HTML never shows, and
-// many files. Then it changes the list it read. Each bad call should throw, and nothing may change.
+// Attack: a test attaches a file whose name has a line break. It also attaches an image that
+// the HTML does not show, and many files. Then it changes the list it read.
+// Each bad call should throw. A sent message should never change.
 // proof: test
 
 use Core\Mail;
@@ -20,7 +21,8 @@ class AttachmentsAttackTest
         }, RuntimeError::class);
         Test::assertCount(Test::sentMail(), 0);
 
-        // 2. An inline image that the HTML does not show. `send` throws, and no message is kept.
+        // 2. An inline image is shown inside the HTML of the mail. This HTML does not show it,
+        // so `send` throws, and no message is kept.
         Test::assertThrows(fn(): void => {
             Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});
             Mail::send('shop', ['ada@example.com'], 'Hi', html`<p>No image here.</p>`, {attachments: [$logo]});

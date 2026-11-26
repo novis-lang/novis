@@ -47,22 +47,22 @@ wall_time=unset
 
 # The blocks the binary accepts
 
-A directive always lives inside a block; the root table holds none. The full roster the parser
-accepts is below. Any other block is `E0601` when it contains a setting. An unknown block with no
+Every directive is written in a block. The root table has no directives. The table below lists
+every block the parser accepts. Any other block is `E0601` when it contains a setting. An unknown block with no
 setting under it gives the warning `W1024`, and Novis ignores it.
 
-| Block | Holds |
+| Block | Contains |
 |---|---|
 | `[limits]`, `[limits.hard]` | resource limits and their ceilings (below) |
 | `[mode]` | `default`, `ceiling` (below) |
 | `[capabilities]` | capability grants (below) |
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
-| `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
+| `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here. It is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `journal_mode`, `pool` |
-| `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
-| `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
-| `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
+| `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the connection pool's bounds, written as a table. `pool = false` turns the pool off |
+| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. That includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
+| `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`; the default is `implicit` on port 465, `starttls` when the block has a credential, and `none` otherwise), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
 | `[mail.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the bounds of the block's kept connections, as `[db.<name>.pool]` has them. `pool = false` opens a new connection for every message |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
@@ -506,9 +506,9 @@ on Windows and on Linux, and what each refusal message means.
 
 # Secrets from files
 
-A directive that holds a secret has a `_file` sibling: the file's **whole content** is the value,
-with exactly one trailing newline (and a `\r` before it) removed and nothing else trimmed. Exactly
-one of the pair may be set — both is `E0608`. These directives have such a pair:
+A directive that contains a secret has a `_file` sibling. The file's **whole content** is the
+value. Exactly one trailing newline (and a `\r` before it) is removed, and nothing else is trimmed.
+Only one of the pair may be set. Setting both is `E0608`. These directives have such a pair:
 `[db.<name>] password`, `[mail.<name>] password`, `[mail.<name>] oauth_client_secret`,
 `[mail.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
 `[http] csrf_key` and `[cache.shared] password`:
@@ -526,31 +526,31 @@ user = "app"
 password_file = "/run/secrets/mail-password"
 ```
 
-The value is read at boot, and again each time the configuration is applied, never per request. It never appears
-in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
-from, so an audit can act on the file without the credential passing through the audit.
+The value is read at boot, and again each time the configuration is applied, never per request. It
+never appears in a diagnostic or a dump. `nvs config dump` prints `<secret>` and names the file the
+value came from. So an audit can check the file without seeing the credential.
 `Core\Config::get("db.main.password")` returns the value. `Core\Config::get("db.main.password_file")`
 returns the path as it was written, so a program can say where a credential came from without
 printing it.
 
-A secret file is part of the trust boundary above, because an account that can rewrite it chooses
-the credential the server connects with. So a secret file another account can **write** refuses the
-boot; one another account can only **read** is a warning and not a refusal, because a Docker Compose
-secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`, and from inside a
-container that is the norm rather than a mistake.
+A secret file is part of the trust boundary above. An account that can rewrite it chooses the
+credential the server connects with. So the boot stops with an error when another account can
+**write** a secret file. When another account can only **read** it, the boot gives a warning and
+goes on. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
+`0644`. Inside a container, a file that others can read is normal.
 
-A credential is used exactly as it was written, and no part of the runtime trims one: a password may
-legitimately begin or end with a space. Because such a space is invisible — there is nothing to see
-inside a secret file, and at the end of a TOML line it is one character before a quote — the boot
-warns `W1007` naming the directive, and goes on with the value.
+A credential is used exactly as it was written, and no part of the runtime trims one. A password may
+begin or end with a space. Such a space is hard to see. A secret file is never shown, and at the end
+of a TOML line the space is one character before a quote. So the boot warns `W1007`, names the
+directive, and goes on with the value.
 
 There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
 or it is the content of a file the directive names.
 
 ## Encrypted secrets: SOPS, `age`, sealed secrets
 
-Novis decrypts nothing itself, and does not need to: every secret-management tool in common use ends
-by producing a plaintext file, and `_file` is the seam that takes one.
+Novis decrypts nothing itself, and does not need to. Every common secret-management tool can write
+the secret to a plaintext file. A `_file` directive reads that file.
 
 | How the deployment manages secrets | What it produces | What `nvs.toml` names |
 |---|---|---|
@@ -560,15 +560,14 @@ by producing a plaintext file, and `_file` is the seam that takes one.
 | Kubernetes — Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
 | Vault or a cloud secret manager | an agent or sidecar templating a file | `password_file = "/run/novis/db-password"` |
 
-Two things make this work rather than merely parse. Write the decrypted file where only the serving
-account can read it — a `tmpfs` mount, or the directory systemd's `LoadCredential=` hands the unit —
-because the boot warns about one the rest of the host can read. And decrypt **before** the server
-starts: a `password_file` that is not there yet is a boot refusal naming the path, which is the
-failure an operator wants, rather than a first request that cannot connect.
+Two things make this setup safe and reliable. First, write the decrypted file where only the serving
+account can read it. A `tmpfs` mount works, and so does the directory that systemd's
+`LoadCredential=` gives the unit. The boot warns about a file the rest of the host can read. Second,
+decrypt **before** the server starts. When a `password_file` does not exist yet, the boot stops with
+an error that names the path. So the operator sees the problem at boot, not at the first request.
 
-This keeps the decryption key out of the serving process. The process holding the master key and the
-process serving requests are deliberately different processes, and a file path is what separates
-them.
+This keeps the decryption key out of the serving process. The process with the master key and the
+process serving requests are different processes. A file path is the only thing they share.
 
 # Reading and changing it from a program: `Core\Config`
 

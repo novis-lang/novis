@@ -10,6 +10,7 @@ array<Attachment> $parts = [
     Attachment::fromFile('files/invoice-1042.pdf'),
 ];
 
+// An inline image is an image shown inside the mail.
 // This loop adds an `<img>` tag for each inline image. It skips each file to download.
 Markup $body = html`<p>Your invoice is attached.</p>`;
 foreach ($parts as Attachment $part) {

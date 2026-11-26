@@ -13,7 +13,7 @@ bytes $photo = Encoding::fromHex(
 );
 array<string> $products = ['Blue mug', 'Red mug', 'Tea towel'];
 
-// This loop makes one inline image and one line of HTML for each product.
+// This loop makes one inline image (an image shown inside the mail) and one line of HTML for each product.
 // Each image gets its own `src()`, so each line shows the right image.
 array<Attachment> $images = [];
 Markup $rows = '' as Markup;

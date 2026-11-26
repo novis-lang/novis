@@ -4,7 +4,7 @@
 
 class Support
 {
-    // `replyTo` is the visitor's address, so the support team can answer with one click.
+    // `replyTo` is the visitor's address, so the support team can reply with one click.
     // An address that is not correct throws a `RuntimeError`.
     public static function forward(string $visitor, string $message): string
     {
@@ -23,6 +23,7 @@ class Support
     }
 }
 
-// This prints the answer for a correct address, then for an address without `@`.
+// For a correct address, this prints `Thank you. We answer within one day.`
+// For an address without `@`, it prints `Please check your email address.`
 echo Support::forward('ben@example.com', 'Where is my order 1042?'), "\n";
 echo Support::forward('ben.example.com', 'Where is my order 1042?'), "\n";

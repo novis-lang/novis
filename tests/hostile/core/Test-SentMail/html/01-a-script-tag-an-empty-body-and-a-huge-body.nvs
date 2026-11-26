@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a test sends HTML bodies with a script tag, a NUL byte, an empty string and several
-// megabytes of text. Each body should be kept exactly as given, and nothing may crash.
+// megabytes of text. Each body should be kept exactly as given, and the program should not crash.
 // proof: test
 
 use Core\Html;
@@ -33,7 +33,7 @@ class HtmlAttackTest
         }
         Test::assertSame(Test::sentMail()[1]->html(), '');
 
-        // 3. An HTML body with a NUL byte and a line that is only a dot.
+        // 3. An HTML body with a NUL byte and a line that is only a dot. `html()` returns it exactly.
         try {
             Mail::send('site', ['ada@example.com'], 'Hi', "<p>a\0b</p>\r\n.\r\nQUIT" as Markup);
         } catch (RuntimeError $error) {

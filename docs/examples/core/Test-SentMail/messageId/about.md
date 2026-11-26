@@ -5,8 +5,8 @@
 returns the same string. It has no angle brackets. It looks like `3f2a…@example.com`: 32 random hex
 digits, `@`, and the domain of the `from` address of the mail block.
 
-A program stores the id when it needs to find the message again. A reply to the message names this
-id, and so does a bounce. Pass the id to the `inReplyTo` option to send an answer in the same thread.
+A program stores the id when it needs to find the message again. A reply to the message contains this
+id, and so does a bounce. Pass the id to the `inReplyTo` option to send a reply in the same thread.
 
 Use `messageId()` to check that your program stored the id of the message it sent.
 

@@ -15,7 +15,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The round before and the counter choose the report. Each send returns a new message id.
+            // Each round adds the counter to the total so far. The result picks one of the two reports.
+            // Each call to `Mail::send` returns a new message id.
             Attachment $file = Attachment::fromBytes('report.csv', $reports[(($total + $i) % 2) as int], { type: 'text/csv' });
             string $id = Mail::send('shop', ['accounts@example.com'], 'Report', 'The report is attached.', {
                 attachments: [$file],

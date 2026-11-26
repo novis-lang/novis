@@ -1,5 +1,5 @@
 <?nvs
-// Measures how a program checks whether an attachment is an inline image, as a loop over a mail's attachments does.
+// Measures how a program checks whether an attachment is an inline image (an image shown inside the mail), as a loop over attachments does.
 // bench: iterations 2048
 // bench: complexity constant
 
@@ -17,7 +17,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The round before and the counter choose the attachment.
+            // Each round adds the counter to the total so far. The result picks one of the three attachments.
             $total = $total + ($parts[(($total + $i) % 3) as int]->isInline() ? 1 : 4) as uint;
             $i = $i + 1;
         }

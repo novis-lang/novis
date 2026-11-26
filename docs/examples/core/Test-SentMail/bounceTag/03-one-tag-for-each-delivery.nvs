@@ -19,8 +19,8 @@ class DeliveryTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. This part sends one message
-// for each reader. The tag has the number of the newsletter and the number of the reader.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// It sends one message for each reader. The tag has the newsletter number and the reader number.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $readers = ['1' => 'anna@example.com', '2' => 'bo@example.com'];
     foreach ($readers as string $number => string $email) {

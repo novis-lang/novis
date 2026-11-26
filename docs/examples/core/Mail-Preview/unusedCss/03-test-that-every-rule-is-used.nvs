@@ -8,7 +8,7 @@ use Core\Test;
 
 class Receipt
 {
-    // Builds the body of a receipt. The total goes in through `Html::escape`.
+    // Builds the body of a receipt. `Html::escape` escapes the total before it is added.
     public static function body(string $total): Markup
     {
         return html`<style>

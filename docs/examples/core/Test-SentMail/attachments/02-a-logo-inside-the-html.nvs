@@ -9,8 +9,8 @@ use Core\Test;
 
 class Newsletter
 {
-    // An inline attachment is an image that the HTML shows. `src()` returns its `cid:` URL,
-    // and the `<img>` tag uses that URL.
+    // An inline image is shown inside the HTML of the mail. A `cid:` URL points at an image
+    // inside the same mail. `src()` returns that URL, and the `<img>` tag uses it.
     public static function send(string $email): void
     {
         Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});

@@ -1,5 +1,5 @@
 <?nvs
-// Measures how an inline image is made from bytes in memory, as a mail with a product photo does.
+// Measures how an inline image (an image shown inside the mail) is made from bytes, as a mail with a product photo does.
 // bench: iterations 1024
 // bench: complexity constant
 
@@ -14,7 +14,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The round before and the counter choose the photo.
+            // Each round adds the counter to the total so far. The result picks one of the two photos.
             Attachment $image = Attachment::inlineBytes('photo.png', $photos[(($total + $i) % 2) as int], { type: 'image/png' });
             $total = $total + Bytes::length($image->bytes());
             $i = $i + 1;

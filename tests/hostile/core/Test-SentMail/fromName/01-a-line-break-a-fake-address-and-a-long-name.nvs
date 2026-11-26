@@ -12,8 +12,8 @@ class FromNameAttackTest
     #[Test]
     public function theNameStaysText(): void
     {
-        // 1. A name with a line break and a `Bcc:` header. The name is encoded, so it is sent.
-        // It is kept as one name, and no bcc address is added.
+        // 1. A name with a line break and a `Bcc:` header. `send` encodes the line break, so it
+        // cannot start a new header. The message is sent with this name and no bcc address.
         string $name = "Shop\r\nBcc: spy@example.com";
         Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {fromName: $name});
         Test::assertSame(Test::sentMail()[0]->fromName(), $name);

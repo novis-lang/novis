@@ -1,10 +1,10 @@
 <?nvs
-// Attack: the name of an address hides a line break and a new header or recipient.
+// Attack: the name of an address contains a line break and a new header or recipient.
 // The name is encoded, so each mail should have one recipient and no added header.
 
 use Core\Mail\Address;
 
-// 1. The name ends the `To:` header and adds a `Bcc:` line.
+// 1. The name has a line break and then a `Bcc:` line.
 try {
     Core\Mail::send('shop', [Address::of('anna@example.com', "Anna\r\nBcc: everyone@example.com")], 'Hello', 'Hi.');
     echo "1 sent\n";
@@ -12,7 +12,7 @@ try {
     echo '1 ', $e::class, "\n";
 }
 
-// 2. Only a bare line feed, in the `replyTo` name.
+// 2. The `replyTo` name has a `\n` with no `\r` before it, and then a `Reply-To:` line.
 try {
     Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { replyTo: Address::of('help@example.com', "Help\nReply-To: eve@evil.example") });
     echo "2 sent\n";
@@ -20,7 +20,7 @@ try {
     echo '2 ', $e::class, "\n";
 }
 
-// 3. The name closes its own quotes and writes a second address.
+// 3. The name has a `"` that ends the quoted name, and then a second address.
 try {
     Core\Mail::send('shop', [Address::of('anna@example.com', 'Anna" <eve@evil.example>, "x')], 'Hello', 'Hi.');
     echo "3 sent\n";
@@ -36,7 +36,7 @@ try {
     echo '4 ', $e::class, "\n";
 }
 
-// 5. A name of 2 million characters full of line breaks and a NUL byte.
+// 5. A name of 2 million characters with many line breaks and a NUL byte.
 string $long = Core\Str::repeat("é\r\nBcc: x@example.com\0", 100000);
 try {
     Core\Mail::send('shop', [Address::of('anna@example.com', $long)], 'Hello', 'Hi.', { cc: [Address::of('bo@example.com', $long)] });

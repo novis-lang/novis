@@ -1,4 +1,5 @@
-Returns the URL of an inline image inside its mail, such as `cid:3f2a…@inline`. Write it in the
+Returns the URL of an inline image, such as `cid:3f2a…@inline`. An inline image is an image shown
+inside the HTML of the mail. A `cid:` URL points at an image inside the same mail. Write it in the
 `src` of an `<img>` tag, and the mail program shows the image at that place.
 
 Only an attachment made with `inlineFile` or `inlineBytes` has a `src()`. On an attachment made

@@ -1,5 +1,6 @@
 <?nvs
-// Attack: text a user typed contains HTML tags and a script, and it is sent as the body.
+// Attack: a `tainted` string contains HTML tags and a script, and it is sent as the body.
+// A `tainted` string is text from outside the program, such as a request.
 // It should be sent as plain text, so no tag in it becomes HTML.
 
 tainted string $typed = "<b>Hi</b><script>alert(1)</script><style>p { display: none }</style>";

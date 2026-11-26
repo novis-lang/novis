@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a test sends one message with `autoSubmitted: false` and hopes the next messages keep it.
-// Each message should have its own value, and every message without the option should be automatic.
+// Attack: a test sends messages with `autoSubmitted: false` between messages without that option.
+// The `false` value should apply only to its own message. Every message without the option
+// should have the `Auto-Submitted` header.
 // proof: test
 
 use Core\Http\Method;
@@ -39,8 +40,8 @@ class AutoSubmittedAttackTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. This part sends one message
-// that a person wrote.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// It sends one message that a person wrote.
 if (Core\Env::context() == Core\Env::Context::Request) {
     Mail::send('shop', ['bo@example.com'], 'Re: Hi', 'A person wrote this.', {autoSubmitted: false});
     Core\Response::setStatus(202);

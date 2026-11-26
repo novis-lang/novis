@@ -34,7 +34,7 @@ try {
     echo '3 ', $e3::class, "\n";
 }
 
-// 4. A name with Unicode line separators and an encoded word. Both are encoded, so the mail is sent.
+// 4. A name with Unicode line separators and the text `=?utf-8?q?…?=`. Both are encoded, so the mail is sent.
 try {
     Attachment $odd = Attachment::fromBytes("a\u{2028}b\u{2029}=?utf-8?q?=0D=0ABcc:x?=.pdf", 'x');
     Mail::send('shop', ['anna@example.com'], 'Invoice', 'Attached.', { attachments: [$odd] });

@@ -1,5 +1,5 @@
 <?nvs
-// Shows how to test that a request answers a customer's mail in the same thread.
+// Shows how to test that a request replies to a customer's mail in the same thread.
 // proof: test
 
 use Core\Http\Method;
@@ -20,8 +20,8 @@ class QuestionTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. The program saved the message id of
-// the customer's question when the question arrived. The answer passes it to `inReplyTo`.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// The program saved the message id of the customer's question. The reply passes it to `inReplyTo`.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $questionIds = ['55' => 'q55.7f3a@mail.example.net'];
     string $id = $questionIds['55'];

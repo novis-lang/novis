@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a mail tries to carry an inline image that the reader never sees, by hiding its URL
-// where no image is shown. Each such mail should throw an error, and nothing should be sent.
+// Attack: an inline image is an image shown inside the mail. A mail attaches one and puts its URL
+// in a place where no image is shown, so the reader never sees it.
+// Each such mail should throw an error, and nothing should be sent.
 // hostile: timeout-ms 30000
 
 use Core\Mail;

@@ -8,5 +8,5 @@ Core\Task::runAfterResponse(fn(): void => {
     echo "The receipt is sent.\n";
 });
 
-// The response. This line prints first.
+// This line is part of the response. It prints first.
 echo "Thank you! Your order is confirmed.\n";

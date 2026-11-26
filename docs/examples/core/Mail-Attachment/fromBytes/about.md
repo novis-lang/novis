@@ -4,7 +4,8 @@ program builds, such as a CSV export.
 Pass the result in the `attachments` option of `Core\Mail::send`. The content can be a `string` or
 `bytes`. Nothing is written to the disk.
 
-The type, such as `image/png`, is detected from the first bytes of the content. Plain text has no
+The type is a media type, such as `image/png`. It says what kind of file it is. `fromBytes`
+detects it from the first bytes of the content. Plain text has no
 such start, so a CSV file or a text file gets `application/octet-stream`. Give the `type` option
 for those files, such as `text/csv`.
 

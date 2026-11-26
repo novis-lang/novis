@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a `type` option tries to add a parameter or a header line to the part of the mail.
+// Attack: a `type` option tries to add a parameter or a header line to the attachment in the mail.
 // Each such type should throw an error. The types that are allowed should be read back unchanged.
 // proof: test
 

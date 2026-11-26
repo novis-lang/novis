@@ -18,5 +18,5 @@ class ReceiptTest
     }
 }
 
-// `nvs run` runs this line and not the test.
+// `nvs run` runs the `echo` line below and not the test.
 echo "Run `nvs test testing.nvs` to run the test.\n";

@@ -1,5 +1,5 @@
 <?nvs
-// Measures how the URL of an inline image is read, as a mail template does for each `<img>` tag.
+// Measures how the URL of an inline image (an image shown inside the mail) is read, as a mail template does for each `<img>` tag.
 // bench: iterations 2048
 // bench: complexity constant
 
@@ -17,7 +17,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Every URL has the same length, so the counter also chooses the image.
+            // Each round adds the counter to the total so far. The result picks one of the three images.
             $total = $total + Core\Str::length($images[(($total + $i) % 3) as int]->src());
             $i = $i + 1;
         }

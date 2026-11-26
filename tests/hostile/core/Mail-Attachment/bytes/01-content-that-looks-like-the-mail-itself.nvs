@@ -1,5 +1,6 @@
 <?nvs
-// Attack: the content of a file tries to end its part of the mail and start a new part or a new mail.
+// Attack: a mail is made of parts, and each attachment is one part. The content of a file
+// tries to end its part early. It also tries to start a new part or a new mail.
 // Every byte should be sent and read back unchanged, and nothing should end the part early.
 // proof: test
 // hostile: timeout-ms 30000
@@ -25,7 +26,7 @@ class BytesAttackTest
         $pieces[] = "\r\n--boundary--\r\nContent-Type: text/html\r\n\r\n<script>x</script>" as bytes;
         bytes $content = Bytes::join($pieces);
 
-        // 2. The same content as a file, an inline image, and an empty file.
+        // 2. The same content as a file, an inline image (an image shown inside the mail), and an empty file.
         Attachment $image = Attachment::inlineBytes('x.png', $content, { type: 'image/png' });
         Mail::send('shop', ['anna@example.com'], 'Bytes', html`<img src="{$image->src()}">`, {
             attachments: [Attachment::fromBytes('x.bin', $content), $image, Attachment::fromBytes('empty.bin', '')],

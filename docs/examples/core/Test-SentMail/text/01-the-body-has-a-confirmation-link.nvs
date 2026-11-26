@@ -24,8 +24,8 @@ class SubscribeTest
         Subscribe::start('ada@example.com', 'k7Q2');
         string $text = Test::sentMail()[0]->text();
 
-        // `Str::contains` checks one part of the body. `Str::after` returns the text after the
-        // link's start, so this is `k7Q2` and the line break after it.
+        // `Str::contains` checks one part of the body. `Str::after` returns the text after
+        // `confirm?code=`. Here that is `k7Q2` and a line break.
         Test::assertTrue(Str::contains($text, 'https://example.com/newsletter/confirm?code='));
         Test::assertSame(Str::after($text, 'confirm?code='), "k7Q2\n");
     }

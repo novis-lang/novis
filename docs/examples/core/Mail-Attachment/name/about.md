@@ -10,7 +10,7 @@ sent.
 file name from an upload form. Escape it before you put it into HTML.
 
 In a test, `Core\Test::sentMail()[0]->attachments()` returns the attachments of the first mail
-that was sent. `name()` then checks which files the mail had.
+that was sent. Compare each `name()` with the file name you expect.
 
 **The examples below** show the name from a path, a list of names in the text of a mail, and a
 test that checks the name.

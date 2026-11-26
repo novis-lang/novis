@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a test sends thousands of messages and looks for two with the same id. Then it changes
-// an id it read. Every id should be different, and a second read should return the first id.
+// a copy of an id it read. Every id should be different, and a second read should return the first id.
 // proof: test
 
 use Core\Mail;
@@ -32,7 +32,8 @@ class MessageIdAttackTest
         Test::assertSame(Str::length($first), 44);
         Test::assertTrue(Str::endsWith($first, '@example.com'));
 
-        // 4. Changes the id that `messageId()` returned. A second read returns the first id.
+        // 4. Adds a line break and a `Bcc:` header to a copy of the id. `messageId()` should
+        // still return the first id, with no `Bcc:` header.
         string $copy = $first;
         $copy = $copy . "\r\nBcc: spy@example.com";
         Test::assertSame(Test::sentMail()[0]->messageId(), $first);

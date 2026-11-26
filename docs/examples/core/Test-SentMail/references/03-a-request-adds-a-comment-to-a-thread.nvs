@@ -15,13 +15,13 @@ class CommentTest
         Core\Test\SentMail $mail = Test::sentMail()[0];
         Test::assertEquals($mail->references(), ['issue-12@example.com', 'comment-1@example.com']);
 
-        // The last id of the list is also the message that this comment answers.
+        // The last id of the list is also the message that this comment replies to.
         Test::assertSame($mail->inReplyTo(), 'comment-1@example.com');
     }
 }
 
-// `Core\Test::request` runs this file again for the request. The issue has two earlier
-// messages. The program saved their ids, and the new comment passes them to `references`.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// The program saved the ids of two earlier messages. The new comment passes them to `references`.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $earlier = ['issue-12@example.com', 'comment-1@example.com'];
     Core\Mail::send('shop', ['team@example.com'], 'Re: Issue 12: the search is slow', 'It is fast again.', {

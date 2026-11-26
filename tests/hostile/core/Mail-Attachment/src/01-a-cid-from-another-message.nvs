@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a mail tries to show an image that belongs to another mail, with a `cid:` URL
-// written in many ways. Each such mail should throw an error, and nothing should be sent.
+// Attack: a `cid:` URL points at an image inside the same mail. A mail tries to show an image
+// of another mail, with a `cid:` URL written in many ways.
+// Each such mail should throw an error, and nothing should be sent.
 
 use Core\Mail;
 use Core\Mail\Attachment;

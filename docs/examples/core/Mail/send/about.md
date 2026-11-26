@@ -1,10 +1,11 @@
 Sends one email and returns its Message-ID.
 
 The first argument is the name of a `[mail.<name>]` block in `nvs.toml`. The block has the
-server, the password and the sender, so your program never writes a host or a sender.
+server, the password and the sender.
 
 A `string` body is sent as plain text. A `Core\Html\Markup` body is sent as HTML, with a
-plain-text version made from it. Text a user typed is always sent as plain text.
+plain-text version made from it. A `tainted` string (text from outside the program, such as a
+request) is always sent as plain text.
 
 Options add `cc`, `bcc`, `replyTo`, your own plain text (`text`), `attachments`, `inReplyTo`,
 `references`, an `unsubscribe` link and more.

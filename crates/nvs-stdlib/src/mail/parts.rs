@@ -186,14 +186,24 @@ const CARD: ClassDoc = ClassDoc {
 const NAME_OR_TYPE_ERROR: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
     desc: "The file name is empty, is longer than 255 bytes, or contains a control character. \
-           Or `type` is not a media type such as `image/png`.",
+           This error is also thrown when `type` is not a media type such as `image/png`.",
 };
 
-/// The `type` option's card, the same on every constructor.
+/// The `type` option's card on `fromFile` and `fromBytes`.
 const TYPE_PARAM: ParamDoc = ParamDoc {
     name: "type",
-    desc: "The media type, such as `application/pdf`. By default, the type is detected from the \
-           first bytes. If it cannot be detected, it is `application/octet-stream`.",
+    desc: "The media type, such as `application/pdf`. A media type says what kind of file it is. \
+           By default, the type is detected from the first bytes. If it cannot be detected, it is \
+           `application/octet-stream`.",
+    shape: &[],
+};
+
+/// The `type` option's card on `inlineFile` and `inlineBytes`.
+const INLINE_TYPE_PARAM: ParamDoc = ParamDoc {
+    name: "type",
+    desc: "The media type, such as `image/svg+xml`. A media type says what kind of file it is. \
+           By default, the type is detected from the first bytes. Give it for an SVG image, \
+           because the type of an SVG cannot be detected.",
     shape: &[],
 };
 
@@ -220,8 +230,8 @@ const FROM_FILE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path. Or the name or the \
-                   type is not allowed, as for `fromBytes`.",
+            desc: "The configuration does not grant `fs.read` for this path. This error is also \
+                   thrown when the name or the type is not allowed, as for `fromBytes`.",
         },
         ErrorDoc {
             error: "IOError",
@@ -254,8 +264,9 @@ const FROM_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `inlineFile`'s card.
 const INLINE_FILE_DOC: MethodDoc = MethodDoc {
-    short: "Reads the image at `$path` and returns it as an inline attachment. Write its `src()` \
-            in an `<img src>` of the HTML body to show the image in the message.",
+    short: "Reads the image at `$path` and returns it as an inline attachment. An inline \
+            attachment is an image shown inside the HTML of the mail, not as a download. Write \
+            its `src()` in an `<img src>` of the HTML body to show the image in the message.",
     params: &[
         ParamDoc {
             name: "path",
@@ -263,15 +274,15 @@ const INLINE_FILE_DOC: MethodDoc = MethodDoc {
                    code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
-        TYPE_PARAM,
+        INLINE_TYPE_PARAM,
     ],
     ret: "An inline attachment. Pass it in the `attachments` option of `Core\\Mail::send`, \
           together with an HTML body that uses its `src()`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.read` for this path. Or `type` is not a \
-                   media type.",
+            desc: "The configuration does not grant `fs.read` for this path. This error is also \
+                   thrown when `type` is not a media type.",
         },
         ErrorDoc {
             error: "IOError",
@@ -283,8 +294,8 @@ const INLINE_FILE_DOC: MethodDoc = MethodDoc {
 /// `inlineBytes`' card.
 const INLINE_BYTES_DOC: MethodDoc = MethodDoc {
     short: "Returns an inline attachment with the file name `$name` and the content `$data`. \
-            Write its `src()` in an `<img src>` of the HTML body to show the image in the \
-            message.",
+            An inline attachment is an image shown inside the HTML of the mail, not as a \
+            download. Write its `src()` in an `<img src>` of the HTML body to show the image.",
     params: &[
         ParamDoc {
             name: "name",
@@ -296,7 +307,7 @@ const INLINE_BYTES_DOC: MethodDoc = MethodDoc {
             desc: "The image, as a `string` or `bytes`.",
             shape: &[],
         },
-        TYPE_PARAM,
+        INLINE_TYPE_PARAM,
     ],
     ret: "An inline attachment. Pass it in the `attachments` option of `Core\\Mail::send`, \
           together with an HTML body that uses its `src()`.",
@@ -305,8 +316,8 @@ const INLINE_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `src`'s card.
 const SRC_DOC: MethodDoc = MethodDoc {
-    short: "Returns the URL to write in `<img src=\"…\">`, such as `cid:3f2a…@inline`. A mail \
-            program shows the attachment at that place.",
+    short: "Returns the URL to write in `<img src=\"…\">`, such as `cid:3f2a…@inline`. A `cid:` \
+            URL points at an image inside the same mail. A mail program shows the image there.",
     params: &[],
     ret: "The `cid:` URL of this inline attachment.",
     errors: &[ErrorDoc {

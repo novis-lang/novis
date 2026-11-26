@@ -8,7 +8,7 @@ use Core\Test;
 
 class Welcome
 {
-    // Builds the HTML body of the welcome mail. The name goes in through `Html::escape`.
+    // Builds the HTML body of the welcome mail. `Html::escape` escapes the name before it is added.
     public static function body(string $name): Markup
     {
         return html`<h1>Welcome</h1><p>Hello ` + Html::escape($name) + html`, your account is ready.</p>`;
@@ -22,7 +22,7 @@ class WelcomeTest
     {
         Core\Mail\Preview $mail = Core\Mail::preview(Welcome::body('Ada'));
 
-        // The plain text is made from the HTML. Each heading and paragraph is a block of its own.
+        // The plain text is made from the HTML. An empty line separates the heading and the paragraph.
         Test::assertSame($mail->text(), "Welcome\n\nHello Ada, your account is ready.\n");
     }
 }

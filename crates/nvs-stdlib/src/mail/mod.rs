@@ -299,7 +299,9 @@ const PREVIEW_DOC: MethodDoc = MethodDoc {
             name: "body",
             desc: "The message, as for `send`. In a `Core\\Html\\Markup` body, each CSS rule of a \
                    `<style>` element is copied into the `style` attribute of each element it \
-                   matches. A string from the request does not compile here.",
+                   matches. A string from the request is `tainted`, which means it may contain \
+                   anything a visitor typed. A `tainted` string does not compile here, because \
+                   `text()` returns it as text that is not `tainted`.",
             shape: &[],
         },
         ParamDoc {
@@ -484,8 +486,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    element is copied into the `style` attribute of each element it matches. \
                    Most mail programs ignore a `<style>` element. A `string` is sent as \
                    plain text. A `Core\\Html\\Markup` is sent as HTML, together with a \
-                   plain-text version made from it. A string from the request is always sent \
-                   as plain text, so it cannot add HTML to a message. `preview` returns the \
+                   plain-text version made from it. A `tainted` string, such as text from the \
+                   request, is always sent as plain text. So it cannot add HTML to a message. `preview` returns the \
                    result without sending it.",
             shape: &[],
         },
@@ -529,7 +531,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "inReplyTo",
-            desc: "The message id of the message this one answers. Mail programs then show both \
+            desc: "The message id of the message this one replies to. Mail programs then show both \
                    in one thread. Pass the id that `send` returned, without angle brackets.",
             shape: &[],
         },
@@ -568,16 +570,21 @@ const SEND_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The capability `mail.send` does not allow `$endpoint`. Or no `[mail.<name>]` \
-                   block has that name. Or the block sets only one \
-                   of `user` and `password`. Or an address is not a valid address. Or \
-                   `inReplyTo` or `references` has a value that is not a message id. Or \
-                   `unsubscribe` is not an `https://` URL. Or `bounceTag` has a character that \
-                   is not allowed. Or `text` is given with a `string` body. Or the HTML uses \
-                   a `cid:` URL that no inline attachment has, or an inline attachment is not \
-                   used in the HTML. Or the HTML has a `<link rel=\"stylesheet\">`. A mail cannot \
-                   load a stylesheet, so put the CSS in a `<style>` element. Each of these is a mistake in the settings or the call, not a \
-                   failed send.",
+            desc: "The settings or the arguments are wrong, and nothing is sent. The capability \
+                   `mail.send` does not allow `$endpoint`, or no `[mail.<name>]` block has that \
+                   name. The block sets only one of `user` and `password`. An address is not a \
+                   valid address. A value in `inReplyTo` or `references` is not a message id. \
+                   `unsubscribe` is not an `https://` URL. `bounceTag` has a character that is \
+                   not allowed.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body or its attachments are wrong, and nothing is sent. `text` is given \
+                   with a `string` body. The HTML uses a `cid:` URL that no inline attachment \
+                   has. A `cid:` URL points at an image inside the same mail. An inline \
+                   attachment is not used in the HTML. The HTML has a \
+                   `<link rel=\"stylesheet\">`. A mail cannot load a stylesheet, so put the CSS \
+                   in a `<style>` element.",
         },
         ErrorDoc {
             error: "IOError",

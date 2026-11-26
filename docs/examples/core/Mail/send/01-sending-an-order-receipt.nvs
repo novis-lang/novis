@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to send an email receipt for an order. The `[mail.shop]` block of
-// `nvs.toml` names the sender. It keeps each message and sends nothing.
+// `nvs.toml` names the sender. Its `capture = true` line keeps each message, so nothing is sent.
 
 // `Core\Mail::send` sends the message through the `[mail.shop]` block.
 // The body is HTML, so the message also gets a plain-text version of it.

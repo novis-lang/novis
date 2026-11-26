@@ -7,7 +7,7 @@ order. The oldest message comes first. When the program gave no `references` opt
 empty. Each id has no angle brackets, in the same form that `Core\Mail::send` returns.
 
 Mail programs use this list to put a message in the right thread, even when a message in the
-middle is missing. An answer usually sets `inReplyTo` to the last id of the list. `Core\Mail::send`
+middle is missing. A reply usually sets `inReplyTo` to the last id of the list. `Core\Mail::send`
 throws an error when an item of the list is not a message id.
 
 Use `references()` to check that a new message lists the whole thread.

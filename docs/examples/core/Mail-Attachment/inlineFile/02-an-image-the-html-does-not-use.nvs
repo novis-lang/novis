@@ -4,6 +4,7 @@
 use Core\Mail;
 use Core\Mail\Attachment;
 
+// `inlineFile` makes an inline image, which is an image shown inside the mail.
 Attachment $logo = Attachment::inlineFile('files/logo.png');
 Attachment $banner = Attachment::inlineFile('files/banner.png');
 

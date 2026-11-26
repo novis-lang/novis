@@ -36,7 +36,7 @@
       "features": [
         "Core\\Mail::send"
       ],
-      "text": "A `[mail.<name>]` block keeps its connection open for the next message, so a second message pays no new TLS handshake or sign-in. `pool = false` opens one connection per message."
+      "text": "A `[mail.<name>]` block keeps its connection open for the next message, so a second message does not need a new TLS connection or sign-in. `pool = false` opens one connection per message."
     },
     {
       "kind": "new",
@@ -192,7 +192,7 @@
       "features": [
         "lang:classes/extend-blocks"
       ],
-      "text": "`extend Core\\Time\\Date as BusinessDays { … }` adds methods, constants and properties to a class, an interface or an enum from `Core` or from another package. A file that writes `use` for the block can call the added members. A call of an added method costs the same as a call of a static method."
+      "text": "`extend Core\\Time\\Date as BusinessDays { … }` adds methods, constants and properties to a class, an interface or an enum from `Core` or from another package. A file that writes `use` for the block can call the added methods. A call of an added method costs the same as a call of a static method."
     },
     {
       "kind": "changed",
@@ -222,7 +222,7 @@
         "Core\\Router::url",
         "Core\\Uri::buildQuery"
       ],
-      "text": "`Core\\Router::url` and `Core\\Uri::buildQuery` write a `Core\\Time` value as its ISO text, and an object of a `Parses` class as the text of its `format` method. `Core\\Router::url` leaves out a query key whose value is `null`. A value in the `$params` array whose type the parameter cannot take, such as a `Date` for a `uint`, does not compile."
+      "text": "`Core\\Router::url` and `Core\\Uri::buildQuery` write a `Core\\Time` value as its ISO text, and a `Parses` object as the text of its `format` method. `Core\\Router::url` leaves out a query key whose value is `null`. A value in the `$params` array whose type the parameter cannot take, such as a `Date` for a `uint`, does not compile."
     },
     {
       "kind": "changed",
@@ -555,7 +555,7 @@
         "Core\\Test\\Outcome::passed",
         "Core\\Test\\Outcome::hasPassed"
       ],
-      "text": "`Core\\Test::answerCli` gives the answers for the prompts of a test. `Core\\Test\\Outcome->hasPassed()` checks whether a test passed. The old names were `scriptAnswers` and `passed`.",
+      "text": "`Core\\Test::answerCli` sets the input that each prompt reads in a test. `Core\\Test\\Outcome->hasPassed()` checks whether a test passed. The old names were `scriptAnswers` and `passed`.",
       "breaking": true,
       "instead": "Write `Core\\Test::answerCli([...])` where you wrote `Core\\Test::scriptAnswers([...])`, and `$outcome->hasPassed()` where you wrote `$outcome->passed()`."
     },
@@ -1359,7 +1359,7 @@
         "Core\\Test::tlsSession",
         "Core\\Test::scriptAnswers"
       ],
-      "text": "The methods this entry names throw a `LogicError` in a request, a connection, a scheduled task and a queued job. They work in a test, and in a request or a program that a test starts. They also work in a command-line program.",
+      "text": "`Core\\Test::answerHttp`, `Core\\Test::answerSocket`, `Core\\Test::tlsSession` and `Core\\Test::scriptAnswers` throw a `LogicError` in a request, a connection, a scheduled task and a queued job. They work in a test, and in a request or a program that a test starts. They also work in a command-line program.",
       "breaking": true,
       "instead": "Call these methods only in a test or in a command-line program.",
       "security": true
@@ -1400,7 +1400,7 @@
         "Core\\Time\\Instant::toEpochMillis",
         "Core\\Time\\Instant::toEpochMicros"
       ],
-      "text": "The three epoch methods round down to the earlier whole unit. For example, the instant half a second before 1970 gives `-1` seconds. `Instant::fromEpoch` with the result and the remaining part gives the same instant.",
+      "text": "`toEpochSeconds`, `toEpochMillis` and `toEpochMicros` return the time since 1 January 1970, rounded down to the earlier whole unit. For example, the instant half a second before 1970 gives `-1` seconds. `Instant::fromEpoch` with the result and the remaining part gives the same instant.",
       "breaking": true,
       "instead": "Before 1970, add one to the result when the instant has a part of a unit left."
     },

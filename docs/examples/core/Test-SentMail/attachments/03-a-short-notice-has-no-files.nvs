@@ -17,7 +17,8 @@ class ShippingTest
     }
 }
 
-// `Core\Test::request` runs this file again for the request. This part sends a short notice.
+// `Test::request` sends a request to this program. The code below, outside the class, runs for it.
+// It sends a short notice.
 if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Mail::send('shop', ['anna@example.com'], 'Order 1042 has shipped', 'Your parcel is on its way.');
     Core\Response::setStatus(202);

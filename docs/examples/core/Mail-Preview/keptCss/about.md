@@ -1,6 +1,6 @@
-`keptCss()` returns the CSS rules that stay in a `<style>` element of the mail, after the other
-rules are copied into the elements. `Core\Mail::preview` returns the `Core\Mail\Preview` it is a
-method of.
+`keptCss()` returns the list of CSS rules that stay in the `<style>` element of the mail. The
+other rules are copied into the elements. You call `keptCss()` on the result of
+`Core\Mail::preview`.
 
 A rule stays when a `style` attribute cannot do the same thing:
 

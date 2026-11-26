@@ -1,5 +1,5 @@
 `text()` returns the plain text that `Core\Mail::send` would send for the body of a
-`Core\Mail\Preview`. `Core\Mail::preview` returns the preview.
+`Core\Mail\Preview`. You call `text()` on the result of `Core\Mail::preview`.
 
 Every mail has a plain text. A mail program that does not show HTML shows it. It is one of three
 things:

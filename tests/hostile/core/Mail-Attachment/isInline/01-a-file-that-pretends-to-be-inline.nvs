@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a file to download pretends to be an inline image, with a name and a type like one.
-// It should stay a file to download, and its `src()` should throw an error.
+// Attack: a file to download gets a name and a type that look like an inline image.
+// An inline image is an image shown inside the mail. A `cid:` URL points at one.
+// The file should stay a file to download, and its `src()` should throw an error.
 // proof: test
 // hostile: timeout-ms 30000
 

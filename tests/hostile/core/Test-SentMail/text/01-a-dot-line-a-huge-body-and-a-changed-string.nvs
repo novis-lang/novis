@@ -1,6 +1,7 @@
 <?nvs
-// Attack: a test sends bodies with a dot line, a NUL byte and 8 MB of text. Then it changes
-// the body that it read. Each body should be kept exactly as given, and nothing may crash.
+// Attack: a test sends bodies with a line that is only a dot, a NUL byte and 8 MB of text.
+// Then it changes the body that it read. Each body should be kept exactly as given.
+// The program should not crash.
 // proof: test
 
 use Core\Mail;

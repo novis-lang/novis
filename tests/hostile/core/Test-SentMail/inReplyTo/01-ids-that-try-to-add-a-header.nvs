@@ -12,7 +12,7 @@ class InReplyToAttackTest
     #[Test]
     public function onlyAMessageIdIsTaken(): void
     {
-        // 1. Each value tries to end the header early, or is not `local@domain`.
+        // 1. No value has the form `local@domain`. Some have a line break that would start a new header.
         array<string> $bad = [
             "a1@example.com\r\nBcc: spy@example.com",
             "a1@example.com\nBcc: spy@example.com",

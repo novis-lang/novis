@@ -1,6 +1,6 @@
 <?nvs
-// Measures how `Core\Mail::preview` copies the CSS of a styled order mail into its elements,
-// as a shop does before it shows or sends a receipt.
+// Measures `Core\Mail::preview` on a styled order mail. A shop calls it the same way
+// before it shows or sends a receipt.
 // bench: iterations 64
 // bench: complexity constant
 

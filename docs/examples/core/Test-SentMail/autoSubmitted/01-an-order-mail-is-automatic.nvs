@@ -1,5 +1,5 @@
 <?nvs
-// Shows how to test that an order confirmation is marked as a mail that a program sent.
+// Shows how to test that an order confirmation has a header that says a program sent it.
 // proof: test
 
 use Core\Mail;
