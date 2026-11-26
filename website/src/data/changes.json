@@ -3,6 +3,14 @@
     {
       "kind": "fixed",
       "features": [
+        "directive:debug.index_max",
+        "directive:debug.index_age"
+      ],
+      "text": "`[debug] index_age` and `[debug] index_max` delete the records of a finished run one at a time, oldest first. Before, all the records of a finished run were deleted at the same time. The page of a run in the debug viewer says the time before which its records were deleted."
+    },
+    {
+      "kind": "fixed",
+      "features": [
         "directive:debug.index_max"
       ],
       "text": "`[debug] index_max` now limits every record in the debug database, oldest first, including the records of a command that is still running. Before, the records of a running command were not deleted for size. The records of every finished request were deleted instead."

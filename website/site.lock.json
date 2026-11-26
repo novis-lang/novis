@@ -12,10 +12,10 @@
     "directive:capabilities": "cc900670d6c8c44b"
   },
   "docs/examples/config/debug-index_age/about.md": {
-    "directive:debug.index_age": "364d7b8b78c3a0fe"
+    "directive:debug.index_age": "8a6a3143d5cfccd3"
   },
   "docs/examples/config/debug-index_max/about.md": {
-    "directive:debug.index_max": "94099319cf2277b3"
+    "directive:debug.index_max": "0cda043528a773f8"
   },
   "docs/examples/config/debug-inline/about.md": {
     "directive:debug.inline": "02433dc5e658a22c"
@@ -4626,7 +4626,7 @@
     "tools:cli/the-compile-cache": "376e91459698612a"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
-    "tools:cli/the-debug-viewer": "6265e2e768cf025e"
+    "tools:cli/the-debug-viewer": "4c26d4e0c2659dd9"
   },
   "docs/examples/tools/config/app-per-application-blocks/about.md": {
     "tools:config/app-per-application-blocks": "3b6a996a5eec7017"
@@ -8764,10 +8764,10 @@
     "directive:capabilities": "e61749c7583627e4"
   },
   "help:directive:debug.index_age": {
-    "directive:debug.index_age": "c559f6482af239e4"
+    "directive:debug.index_age": "bb65b9745ab147f2"
   },
   "help:directive:debug.index_max": {
-    "directive:debug.index_max": "0fc8e4bd523e9f10"
+    "directive:debug.index_max": "74d01a7a702fbb09"
   },
   "help:directive:debug.inline": {
     "directive:debug.inline": "7476c32a408c2acd"
@@ -9652,7 +9652,7 @@
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
   },
   "help:tools:cli/the-debug-viewer": {
-    "tools:cli/the-debug-viewer": "fdc90909e367fc90"
+    "tools:cli/the-debug-viewer": "963c9e805aebcf8c"
   },
   "help:tools:config/app-per-application-blocks": {
     "tools:config/app-per-application-blocks": "dfd1d768aa58cf4e"
@@ -10210,7 +10210,7 @@
     "tools:cli/nvs-debug": "df2a3261de9b6623",
     "tools:cli/nvs-debug-link": "029beb0ef1a5782a",
     "tools:cli/nvs-debug-to-test": "580aa3b406024784",
-    "tools:cli/the-debug-viewer": "16753991bb700b28"
+    "tools:cli/the-debug-viewer": "d1b67d065dd25f8d"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "e7529dc767e5836e"

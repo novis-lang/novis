@@ -438,13 +438,14 @@
 #spool_max = "256M"                   # default
 
 # The index is the database of `nvs debug`, `debug/index.sqlite` in the data folder. `nvs debug`
-# deletes records from the index once they are this old. The records of a request or a run are
-# deleted together, when the request or run started this long ago.
+# deletes records from the index once they are this old. A request is deleted with all of its
+# records when it started this long ago. The records of a run are deleted one at a time. The run
+# itself is deleted when it ended this long ago.
 #index_age = "7d"                     # default
 
 # The largest size of the index, the database of `nvs debug`. When the index is larger,
-# `nvs debug` deletes the oldest records first. It also deletes the old records of a command that
-# is still running.
+# `nvs debug` deletes the oldest records first. A run is a job or a command such as `nvs run`. Its
+# records are deleted one at a time, also before the run ends.
 #index_max = "1G"                     # default
 
 # The address `nvs debug` serves the debug viewer on: an IP address and a port. `nvs debug` prints

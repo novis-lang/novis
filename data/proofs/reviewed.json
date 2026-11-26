@@ -158,9 +158,9 @@
   "benches/members/lang/iteration/keys-and-values-from-a-map.scale.nvs": "78f24fcbb67545c8",
   "benches/members/lang/programs/doc-comments.nvs": "ea8116474f9933e8",
   "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs": "391bdf2ddc6dddd6",
-  "docs/examples/config/debug-index_age/about.md": "9832855952ba511d",
+  "docs/examples/config/debug-index_age/about.md": "7030428a38887fd9",
   "docs/examples/config/debug-index_max/01-the-largest-size-of-the-debug-database.nvs": "f21c16273e7a4cff",
-  "docs/examples/config/debug-index_max/about.md": "1fa67b214166f4fe",
+  "docs/examples/config/debug-index_max/about.md": "9cf183c7606e5360",
   "docs/examples/config/debug-inline/about.md": "9eba604612896fdf",
   "docs/examples/config/debug-keep_temporary/about.md": "11e066ed8eaf2f42",
   "docs/examples/config/debug-listen/01-the-address-of-the-debug-viewer.nvs": "eac76b83779bd74a",
@@ -1773,8 +1773,8 @@
   "help:Novis\\Spreadsheet\\Workbook::defineName": "fb9f6eb71b868058",
   "help:Revocable": "819935aa39f1a081",
   "help:RevokedObjectError": "f627d25b13dd8443",
-  "help:directive:debug.index_age": "9b49e4a472a548a9",
-  "help:directive:debug.index_max": "989ac3a5c08c1549",
+  "help:directive:debug.index_age": "049ac0e4854939e5",
+  "help:directive:debug.index_max": "bd2a234361eea7f6",
   "help:directive:debug.inline": "09b65085fbd18724",
   "help:directive:debug.keep_temporary": "302018af212500f7",
   "help:directive:debug.listen": "6ea66f9d6fd91aed",
@@ -2183,8 +2183,8 @@
   "website/src/content/docs/syntax/testing/writing-tests.mdx": "663309b50d56941f",
   "website/src/content/docs/syntax/values/enums.mdx": "23bfb6c7082043d4",
   "website/src/content/docs/tools/api-document/index.mdx": "3f87a1064fddeacd",
-  "website/src/content/docs/tools/debug-viewer/index.mdx": "376fab4b60f2c6ab",
+  "website/src/content/docs/tools/debug-viewer/index.mdx": "4d2a5b06494874fc",
   "website/src/content/docs/tools/editor/index.mdx": "af67ac2ece3b551e",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "96cc6a8416abadd1"
+  "website/src/data/changes.json": "a40a56a7e52e4cdd"
 }

@@ -179,6 +179,11 @@ outcome, a minimum duration and a minimum memory peak.
 Press `Enter` to open a run. A run's page has the same boxes and tabs as a request's page. It has no
 **Request**, **Response** and **Coverage** tabs, because a run has no HTTP request.
 
+`nvs debug` deletes the oldest records of a long run first. When it has deleted records of a run,
+the page of the run says so. It gives a time, and says that the records before that time were
+deleted.
+
+
 <Shot src="tools/debug-viewer/run.shot" alt="The page of the failed job send-receipts at its Exception tab. The RuntimeError says The mail server did not answer, and the stack lists three functions with their file and line." />
 
 ## Mail
