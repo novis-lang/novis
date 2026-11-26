@@ -2381,7 +2381,34 @@ impl ClassDesc {
         clippy::arithmetic_side_effects
     )]
     pub unsafe fn conforms_to(&self, other: *const ClassDesc) -> bool {
-        std::ptr::eq(self, other) || self.conforms.contains(&other)
+        if std::ptr::eq(self, other) || self.conforms.contains(&other) {
+            return true;
+        }
+        if !self.is_core || other.is_null() {
+            return false;
+        }
+        #[expect(unsafe_code, reason = "the caller guarantees `other` is live")]
+        let other = unsafe { &*other };
+        self.answers_natively(&other.name)
+    }
+
+    /// Whether this `Core` class is the interface `name` through a native
+    /// member: `Comparable` when it carries [`Self::comparer`], and `Parses`
+    /// when it carries [`Self::formatter`].
+    ///
+    /// A `Core` class satisfies those two interfaces with a native member,
+    /// never a method row, so its descriptor names neither in
+    /// [`Self::conforms`]: the interfaces are the program's descriptors, and a
+    /// `Core` descriptor is the process's. The checker lets a program pass a
+    /// `Core\Uuid` as a `Parses` on the same two fields, so `$x is Parses` and
+    /// the checked build's parameter test give the checker's answer. **Cost:**
+    /// one string compare, only for a `Core` instance whose class test missed.
+    fn answers_natively(&self, name: &str) -> bool {
+        match name {
+            NATIVE_COMPARABLE => !self.compare.is_null(),
+            NATIVE_PARSES => !self.format.is_null(),
+            _ => false,
+        }
     }
 
     /// [`Self::conforms_to`] asked **by name** — the same flattened set, read
@@ -2406,6 +2433,7 @@ impl ClassDesc {
     )]
     pub fn conforms_to_name(&self, name: &str) -> bool {
         self.name == name
+            || (self.is_core && self.answers_natively(name))
             || self
                 .conforms
                 .iter()
@@ -6094,6 +6122,14 @@ pub const COMPARE_TO: &str = "compareTo";
 /// [`ClassDesc::formatter`] carries a `Core` class's native address under it,
 /// and [`bodiless_floor`] names the floor a call of it reaches.
 pub const FORMAT: &str = "format";
+
+/// The interface [`ClassDesc::comparer`] makes a `Core` class: the name
+/// `nvs_hir::interfaces::COMPARABLE` gives it, which this crate cannot import.
+const NATIVE_COMPARABLE: &str = "Comparable";
+
+/// The interface [`ClassDesc::formatter`] makes a `Core` class: the name
+/// `nvs_hir::interfaces::PARSES` gives it, which this crate cannot import.
+const NATIVE_PARSES: &str = "Parses";
 
 /// Builds an instance of `class` by running its own `constructor` — what a
 /// native member does where compiled code would emit

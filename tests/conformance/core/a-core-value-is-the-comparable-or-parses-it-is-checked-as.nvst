@@ -1,0 +1,31 @@
+--TEST--
+A `Core` object is, at run time, each of `Comparable` and `Parses` the checker accepts it as: `is` is true for it, and the checked build passes it to a parameter of that type — `rule:classes/comparable`
+--FILE--
+<?nvs
+// covers: Core\Uuid::format
+class Probe
+{
+    public static function either(bool $uuid): mixed
+    {
+        return $uuid
+            ? Core\Uuid::fromBytes(Core\Encoding::fromHex("00112233445566778899aabbccddeeff"))
+            : Core\BigInt::of(3);
+    }
+
+    public static function ordered(Comparable $value): string
+    {
+        return "comparable";
+    }
+}
+
+var $uuid = Probe::either(true);
+var $big = Probe::either(false);
+echo $uuid is Parses ? "parses" : "not parses", "\n";
+echo $big is Comparable ? "comparable" : "not comparable", "\n";
+echo $big is Parses ? "parses" : "not parses", "\n";
+echo Probe::ordered(Core\BigInt::of(3)), "\n";
+--EXPECT--
+parses
+comparable
+not parses
+comparable
