@@ -2,6 +2,8 @@
 Every Core\Arr parameter that takes a key takes a uint, as a subscript does, and the key is its decimal string
 --FILE--
 <?nvs
+// covers: Core\Arr::fillKeys, Core\Arr::fromKeysAndValues, Core\Arr::flip, Core\Arr::hasKey
+// covers: Core\Arr::column, Core\Arr::mapKeys, Core\Arr::groupBy, Core\Arr::sortByKey
 final class Render {
     public static function keys(array<mixed> $a): tainted string {
         return Core\Str::join(Core\Arr::keys($a), ",");

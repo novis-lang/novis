@@ -1483,7 +1483,7 @@
         "Core\\Arr::groupCounts",
         "Core\\Arr::sortByKey"
       ],
-      "text": "Every `Core\\Arr` function that takes a key also takes a `uint`, as `$a[$key]` does. `Core\\Arr::fillKeys($ids, true)` now compiles when `$ids` is an `array<uint>`."
+      "text": "A `Core\\Arr` function that takes a key, such as `hasKey`, gave a compile error for a `uint` key (an unsigned whole number). It now takes a `uint` key, as `$a[$key]` already did. So `Core\\Arr::fillKeys($ids, true)` works when `$ids` is a list of `uint` values."
     }
   ],
   "unseen": {
@@ -1493,10 +1493,6 @@
     },
     "Core\\Arr::SetOn": {
       "hash": "7e47e83c481ad6fe",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
-    },
-    "Core\\Arr::groupBy": {
-      "hash": "f709c09d7d6efbcc",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\BigInt::abs": {
