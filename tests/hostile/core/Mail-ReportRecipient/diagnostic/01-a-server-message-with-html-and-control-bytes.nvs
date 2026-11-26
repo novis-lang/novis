@@ -1,6 +1,8 @@
 <?nvs
 // Attack: a forged report puts HTML, control bytes and a very long text into the server message.
-// Every text should be read without a crash, stay tainted, and show as plain text after `Core\Html::escape`.
+// Every text should be read without a crash. Every text should stay tainted.
+// Tainted means that the text comes from outside the program, so the program must check or escape it.
+// After `Core\Html::escape`, every text should show as plain text.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
@@ -33,10 +35,10 @@ array<string> $codes = [
     "smtp; 550 a\x00b",
     'smtp; 550 ' . $esc . '[2J' . $esc . '[31mred',
     "smtp; 550 one\rtwo",
-    // 3. A value that is only `smtp;`, and a value with many `;` in it.
+    // 3. A value that is only `smtp;` should give `null`. A value with many `;` loses only the `smtp;` in front.
     'smtp;',
     'smtp; x; y; z',
-    // 4. A message folded over 100,000 lines, and one line of two million characters.
+    // 4. A message continues over 100,000 lines, and another message is one line of two million characters.
     'smtp; 550' . Core\Str::repeat("\n x", 100000),
     'smtp; ' . Core\Str::repeat('y', 2000000),
 ];

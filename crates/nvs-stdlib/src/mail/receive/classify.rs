@@ -106,15 +106,15 @@ const ACTION_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Delivered",
-            desc: "The message was delivered.",
+            desc: "The server put the message in the mailbox.",
         },
         CaseDoc {
             name: "Relayed",
-            desc: "The message was passed to a server that sends no report.",
+            desc: "The message was passed to another server, which sends no report.",
         },
         CaseDoc {
             name: "Expanded",
-            desc: "The message was delivered to a mailing list, which sends it on.",
+            desc: "The message was sent on to the members of a mailing list.",
         },
     ],
 };
@@ -241,9 +241,12 @@ const RECIPIENT_CARD: ClassDoc = ClassDoc {
 
 /// `address`' card.
 const ADDRESS_DOC: MethodDoc = MethodDoc {
-    short: "Returns the address that the server tried to deliver to, from `Final-Recipient`.",
+    short: "Returns the address that the server tried to deliver to. It comes from the \
+            `Final-Recipient` line of the report. The type `rfc822;` and the angle brackets are \
+            removed.",
     params: &[],
-    ret: "The address, such as `user@example.com`.",
+    ret: "The address, such as `user@example.com`. It is tainted, because the server that sent \
+          the report wrote it.",
     errors: &[],
 };
 
@@ -259,7 +262,8 @@ const ACTION_MEMBER_DOC: MethodDoc = MethodDoc {
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "Returns the status code, such as `5.1.1` for an address that does not exist.",
     params: &[],
-    ret: "The status code, or an empty string when the report gives none.",
+    ret: "The status code from the `Status` line of the report, or an empty string when the \
+          report gives none. It is tainted, because the server that sent the report wrote it.",
     errors: &[],
 };
 
@@ -274,10 +278,11 @@ const PERMANENT_DOC: MethodDoc = MethodDoc {
 
 /// `diagnostic`'s card.
 const DIAGNOSTIC_DOC: MethodDoc = MethodDoc {
-    short: "Returns the server's own message, from `Diagnostic-Code`, such as \
-            `550 5.1.1 User unknown`.",
+    short: "Returns the server's own message, such as `550 5.1.1 User unknown`. It comes from \
+            the `Diagnostic-Code` line of the report.",
     params: &[],
-    ret: "The message, or `null` when the report gives none.",
+    ret: "The message, or `null` when the report gives none. It is tainted, because the server \
+          that sent the report wrote it.",
     errors: &[],
 };
 

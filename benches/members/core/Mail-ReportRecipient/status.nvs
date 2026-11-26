@@ -24,8 +24,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three recipients.
-            // Each code has 5 characters, so each round adds 6 and the rounds visit the recipients in turn.
+            // Each code has 5 characters, so `$total` grows by 6, and `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads recipient 1, 2, 3, then recipient 1 again, and so on.
             $total = $total + Core\Str::length($recipients[(($total + $i) % 3) as int]->status()) + 1;
             $i = $i + 1;
         }

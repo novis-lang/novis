@@ -4,6 +4,8 @@
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
 
+// A bounce is a message from a mail server that says your mail could not be delivered.
+// Its delivery report is the standard part that lists each recipient and what happened.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
     . "Subject: Undelivered Mail Returned to Sender\n"

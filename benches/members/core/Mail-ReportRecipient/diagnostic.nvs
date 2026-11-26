@@ -26,9 +26,9 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three recipients.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads recipient 1, 2, 3, then recipient 1 again, and so on.
             ?tainted string $text = $recipients[(($total + $i) % 3) as int]->diagnostic();
-            // Each round adds a multiple of 3, so the rounds visit the recipients in turn.
             uint $length = $text == null ? 1 as uint : Core\Str::length($text);
             $total = $total + 3 * $length;
             $i = $i + 1;

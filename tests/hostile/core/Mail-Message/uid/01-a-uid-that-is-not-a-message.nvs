@@ -1,5 +1,7 @@
 <?nvs
-// Attack: the mailbox folder has files named `05.eml`, `0.eml`, `-1.eml` and `4294967296.eml`, and the program asks for UIDs that cannot exist.
+// Attack: the folder has files with names that are not valid UIDs, and the program asks for UIDs that cannot exist.
+// `05.eml` has a leading zero, `0.eml` is zero, and `-1.eml` is a negative number.
+// `4294967296.eml` is a number too large for a UID.
 // Only `5.eml` should be a message, its `uid()` should be 5, and every other UID should throw an error.
 
 use Core\Mail\Message;
@@ -9,7 +11,7 @@ var $inbox = Core\Imap::open('inbox')->folder('INBOX');
 // 1. `search()` lists only the files whose name is a valid UID.
 echo "1 ", Core\Str::join(Core\Arr::map($inbox->search(), fn(int $uid): string => $uid . ''), ','), "\n";
 
-// 2. The message has an `X-Uid: 99` header. `uid()` is the UID of the file.
+// 2. The sender wrote an `X-Uid: 99` header in the message. `uid()` ignores it and should return the UID of the file.
 echo "2 ", $inbox->fetch(5)->uid() ?? 0, "\n";
 
 // 3. UIDs that cannot exist. Each error is caught, so the next one still runs.

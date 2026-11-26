@@ -1,7 +1,7 @@
 <?nvs
-// Attack: a stranger sends a forged delivery report. It has far too many recipients, very long
-// groups, or report lines in a message that is not a report. Each report should be read within
-// its limits, quickly, and a message that is not a report should have no recipients.
+// Attack: a stranger sends a forged delivery report with very many recipients or very long groups.
+// Each recipient is a group of lines, and an empty line ends it. Each report should be read
+// quickly and within its limits. A message that is not a report should have no recipients.
 // proof: test
 
 use Core\Mail\Message;
@@ -52,7 +52,7 @@ class RecipientsAttackTest
     #[Test]
     public function atMostOneThousandRecipientsAreRead(): void
     {
-        // 3. A report with 5,000 recipients. Only the first 1,000 are read.
+        // 3. This step sends a report with 5,000 recipients. Only the first 1,000 should be read.
         string $one = "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\n";
         Test::assertSame(Forged::count(Forged::report(Str::repeat($one, 5000))), 1000);
     }
@@ -60,7 +60,7 @@ class RecipientsAttackTest
     #[Test]
     public function emptyGroupsCountTowardsTheLimit(): void
     {
-        // 4. 2,000 groups without a recipient, then a real one. The real one is past the limit.
+        // 4. This step sends 2,000 groups without a recipient, then a real one. The real one is past the limit, so it should not be read.
         string $groups = Str::repeat("X-Padding: 1\n\n", 2000) . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n";
         Test::assertSame(Forged::count(Forged::report($groups)), 0);
     }
@@ -68,10 +68,10 @@ class RecipientsAttackTest
     #[Test]
     public function aLongGroupIsCut(): void
     {
-        // 5. One recipient with 5,000 lines before its `Action`. Only 1,000 lines of a group are read.
+        // 5. This step sends one recipient with 5,000 lines before its `Action`. Only 1,000 lines of a group are read, so it should not be in the list.
         string $group = "Final-Recipient: rfc822; ada@example.org\n" . Str::repeat("X-Padding: 1\n", 5000) . "Action: failed\n";
         Test::assertSame(Forged::count(Forged::report($group)), 0);
-        // 6. One address continued over 200,000 lines. It is read once, as one recipient.
+        // 6. This step sends one address that continues over 200,000 lines. It should be read once, as one recipient.
         string $long = "Final-Recipient: rfc822; ada@example.org\n" . Str::repeat(" more\n", 200000) . "Action: failed\n";
         Test::assertSame(Forged::count(Forged::report($long)), 1);
     }

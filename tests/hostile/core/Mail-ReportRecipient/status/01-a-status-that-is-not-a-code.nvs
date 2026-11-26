@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a stranger sends a report whose `Status` fields are not real status codes.
+// Attack: a stranger sends a report whose `Status` lines are not real status codes.
 // Each one should be read without a crash, and `status()` should give only the first word.
 
 use Core\Mail\Message;
@@ -7,7 +7,7 @@ use Core\Mail\ReportRecipient;
 
 class Forged
 {
-    // A delivery report with one failed recipient for each status line in `$statuses`.
+    // This function returns a delivery report. Each line in `$statuses` gives one failed recipient.
     public static function report(array<string> $statuses): Message
     {
         string $groups = '';
@@ -27,7 +27,8 @@ class Forged
 }
 
 array<string> $statuses = [
-    // 1. A class alone, a class and a dot, a class of two digits, words, and an empty value.
+    // 1. The class is the first number of the code.
+    // These values are a class alone, a class and a dot, a class of two digits, words, and nothing.
     'Status: 5',
     'Status: 5.',
     'Status: 55.1.1',
@@ -35,7 +36,7 @@ array<string> $statuses = [
     'Status:',
     // 2. A code of one million characters with no space in it.
     'Status: ' . Core\Str::repeat('5', 1000000),
-    // 3. A code with a NUL byte, a tab, and a status field written twice.
+    // 3. A code with a NUL byte (the byte 0), a code with tabs, and a `Status` line written twice.
     "Status: 5.1\x001",
     "Status:\t4.2.2\t5.1.1",
     "Status: 4.4.1\nStatus: 5.1.1",

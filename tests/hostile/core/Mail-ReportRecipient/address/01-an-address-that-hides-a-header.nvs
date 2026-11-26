@@ -1,7 +1,8 @@
 <?nvs
 // Attack: a forged report gives addresses with hidden control characters, a second header after
-// a carriage return, or only brackets. No address with a control character should be returned,
-// and an empty address should not be in the list.
+// a carriage return, only brackets, or 4 MB of text. An address with a control character should
+// not be in the list. An empty address should not be in it either. A large address is allowed,
+// and it should be returned whole.
 // proof: test
 
 use Core\Mail\Message;
@@ -47,7 +48,8 @@ class AddressAttackTest
     #[Test]
     public function aLineAfterTheAddressIsNotPartOfIt(): void
     {
-        // 3. A new line that starts a `Bcc` field. It is a field of the group, not part of the address.
+        // 3. A new line after the address starts a `Bcc` header.
+        // It is read as another line of the report, not as part of the address.
         string $groups = "Final-Recipient: rfc822; ada@example.org\nBcc: all@example.com\nAction: failed\n";
         Test::assertSame(Forged::addresses($groups), ['ada@example.org']);
     }
@@ -55,7 +57,7 @@ class AddressAttackTest
     #[Test]
     public function anEmptyAddressIsNotInTheList(): void
     {
-        // 4. Only brackets, only the type, and nothing at all.
+        // 4. The address is only brackets, only the type, or nothing at all. None of them should be in the list.
         string $groups = "Final-Recipient: rfc822; <<<>>>\nAction: failed\n\n"
             . "Final-Recipient: rfc822;\nAction: failed\n\n"
             . "Final-Recipient:\nAction: failed\n";

@@ -14,8 +14,8 @@ Message $form = Message::parse(
     . "Do you deliver to Austria?"
 );
 
-// The answer goes to the visitor, and not to the website.
-// The name is tainted, because the visitor typed it into the form.
+// The answer goes to the visitor. The name is tainted, because the visitor typed it into the form.
+// Tainted means that the value comes from outside your program, so you must check or escape it.
 foreach ($form->replyTo() as Address $visitor) {
     echo 'To: ', $visitor->address(), "\n";
     echo 'Hello ', $visitor->name(), ", yes, we deliver to Austria.\n";

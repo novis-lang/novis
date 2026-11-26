@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a visitor writes a `<script>` tag as their name in `Reply-To`, and a page shows the name as HTML.
-// The name is tainted, and tainted text is not HTML. So this program should not compile.
+// The name is tainted: it comes from outside the program, and the program must check or escape it.
+// A tainted string is not `Core\Html\Markup`, so the page cannot show it as HTML. So this program should not compile.
 // hostile: expect-refusal
 
 use Core\Html\Markup;

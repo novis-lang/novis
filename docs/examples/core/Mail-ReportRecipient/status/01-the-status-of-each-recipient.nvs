@@ -4,7 +4,7 @@
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
 
-// A mail server sends this report back. It is about three recipients.
+// A mail server sends this report back. The report lists three recipients.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
     . "Subject: Undelivered Mail\n"

@@ -3,7 +3,8 @@
 
 use Core\Mail\Message;
 
-// The mail program wrote `Crème brûlée for 4` in an encoded form.
+// The sender's mail program wrote `Crème brûlée for 4` as an encoded word.
+// An encoded word is the way a header writes text that is not ASCII.
 Message $mail = Message::parse(
     "From: ada@example.org\r\n"
     . "Subject: =?UTF-8?Q?Cr=C3=A8me_br=C3=BBl=C3=A9e_for_4?=\r\n"

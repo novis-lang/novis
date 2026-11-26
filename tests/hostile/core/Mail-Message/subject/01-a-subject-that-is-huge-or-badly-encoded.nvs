@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a sender writes a subject that is huge, folded many times, or encoded in a broken way.
-// `subject` should return a valid string each time, and the program should run to its end.
+// A folded header continues on the next line, which starts with a space.
+// `subject` should return a valid string each time, and the program should finish.
 // hostile: timeout-ms 30000
 
 use Core\Mail\Message;
@@ -13,11 +14,11 @@ echo '1 ', Core\Str::length($huge->subject()), "\n";
 Message $folded = Message::parse('Subject: ' . Core\Str::repeat("word\r\n ", 100000) . "end\r\n\r\nx");
 echo '2 ', Core\Str::length($folded->subject()), "\n";
 
-// 3. 100,000 encoded words in a row.
+// 3. 100,000 encoded words in a row. An encoded word is the way a header writes text that is not ASCII.
 Message $words = Message::parse('Subject: ' . Core\Str::repeat('=?UTF-8?B?w6k=?= ', 100000) . "\r\n\r\nx");
 echo '3 ', Core\Str::length($words->subject()), "\n";
 
-// 4. Encoded words that decode to bytes that are not UTF-8, to a line break, and to a NUL character.
+// 4. Encoded words decode to bytes that are not UTF-8, to a line break, and to a NUL character (the byte 0).
 Message $bytes = Message::parse("Subject: =?UTF-8?Q?=FF=FE?= =?UTF-8?Q?a=0D=0AFrom:_x?= =?UTF-8?Q?=00?=\r\n\r\nx");
 echo '4 ', Core\Str::length($bytes->subject()), "\n";
 

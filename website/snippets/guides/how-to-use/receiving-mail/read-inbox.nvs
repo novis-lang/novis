@@ -6,6 +6,7 @@ use Core\Mail\Message;
 var $mailbox = Core\Imap::open('inbox');
 var $inbox = $mailbox->folder('INBOX');
 
+// A UID is the number the server gives each message in a folder.
 // `search` returns the UID of each message that is not read yet. The oldest message is first.
 foreach ($inbox->search({ unseen: true }) as int $uid) {
     // `fetch` reads one message. The message stays unread.

@@ -1,11 +1,11 @@
 <?nvs
-// Shows that `diagnostic()` returns `null` when the report has no `Diagnostic-Code` field.
+// Shows that `diagnostic()` returns `null` when the report has no `Diagnostic-Code` line.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
 
+// The first recipient has no `Diagnostic-Code` line.
 // The second recipient has a long message that continues on the next line.
-// The two lines are joined with a space.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
     . "Subject: Undelivered Mail\n"
@@ -19,6 +19,7 @@ Message $bounce = Message::parse(
 );
 
 // The first recipient has no message, so the result is `null`.
+// For the second recipient, the two lines are joined with a space.
 foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
     ?tainted string $text = $recipient->diagnostic();
     echo $recipient->address(), ': ', $text == null ? 'null' : $text, "\n";

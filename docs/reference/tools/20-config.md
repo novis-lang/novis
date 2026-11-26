@@ -48,7 +48,7 @@ wall_time=unset
 # The blocks the binary accepts
 
 Every directive is written in a block. The root table has no directives. The table below lists
-every block the parser accepts. Any other block is `E0601` when it contains a setting. An unknown block with no
+every block the parser accepts. Any other block that contains a setting is the error `E0601`. An unknown block with no
 setting under it gives the warning `W1024`, and Novis ignores it.
 
 | Block | Contains |
@@ -61,10 +61,10 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here. It is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `journal_mode`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the connection pool's bounds, written as a table. `pool = false` turns the pool off |
-| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. That includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
-| `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`; the default is `implicit` on port 465, `starttls` when the block has a credential, and `none` otherwise), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
+| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. This includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
+| `[mail.<name>]` | an SMTP server a program sends mail through. The server and the sender: `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the address that bounces go to) and `timeout`. The sign-in: `user`, `password`, `password_file` and `auth` (`plain`, `login` or `xoauth2`). `tls` is `implicit`, `starttls` or `none`. The default is `implicit` on port 465. On another port it is `starttls` when the block has a credential, and `none` otherwise. `tls_ca_file` names your own certificate authority. For `xoauth2`: `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file`. To sign each message: `dkim_selector`, `dkim_key_file`, `dkim_domain`. `capture` keeps each message and sends nothing. `pool` sets the kept connections |
 | `[mail.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the bounds of the block's kept connections, as `[db.<name>.pool]` has them. `pool = false` opens a new connection for every message |
-| `[imap.<name>]` | an IMAP mailbox that `Core\Imap::open` reads. `host`, `port` (default 993), `timeout` (default `30s`); `user`, `password`, `password_file`; `tls` (`implicit`, the default, or `starttls`; there is no `none`), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`, as in `[mail.<name>]`. `directory` reads a folder on disk instead of a server: each subfolder is a mail folder and each `<uid>.eml` file a message. A block with `directory` has no other key |
+| `[imap.<name>]` | a mailbox that `Core\Imap::open` reads over IMAP (the protocol a program uses to read a mailbox on a server). The server: `host`, `port` (default 993) and `timeout` (default `30s`). The sign-in: `user`, `password`, `password_file` and `auth` (`plain`, `login` or `xoauth2`). `tls` is `implicit`, the default, or `starttls`. There is no `none`. `tls_ca_file` works as in `[mail.<name>]`. For `xoauth2`, as in `[mail.<name>]`: `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file`. `directory` reads a folder of `.eml` files on disk instead of a server. Each subfolder is a mail folder, and each `<uid>.eml` file is a message. A `directory` block needs no other key, and it does not allow one |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
@@ -240,7 +240,7 @@ This table is the complete list of capabilities:
 | `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
-| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly. A `net.connect` grant does not give it |
+| `net.listen` | binding an endpoint | the `address:port` endpoints the program may bind. Each one must match exactly. A `net.connect` grant does not allow binding |
 | `net.local` | connecting to or binding a socket path | the paths or directories reachable. `net.connect` and `net.local` are separate grants |
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
@@ -252,8 +252,7 @@ This table is the complete list of capabilities:
 | `queue.purge` | removing a queue's rows with `Core\Queue::delete` and `purge` | the queue names |
 | `env` | reading environment variables with `Core\Env::get`, `secret` and `all`, and `Core\Config::secret` | `true` or `false`; write `env = true` under `[capabilities]` |
 
-Every capability in the table is accepted in `nvs.toml`, also one that no method of this version
-checks yet.
+Every capability in the table is accepted in `nvs.toml`, even one that no method checks yet.
 
 A grant is a list or `true` or `false`. A dotted key is the same as a nested block:
 
@@ -271,7 +270,7 @@ names. So `data/../etc` is not under `data`, and `data2` is not under `data`. A 
 does not allow running it as a script.
 
 **A denied call throws an ordinary `RuntimeError`.** Its message names the method, the capability
-and the argument. A program can catch it and go on. In this example, the program catches two
+and the argument. A program can catch it and continue. In this example, the program catches two
 denied calls:
 
 ```toml file=nvs.toml
@@ -539,13 +538,13 @@ printing it.
 A secret file is part of the trust boundary above. An account that can rewrite it chooses the
 credential the server connects with. So the boot stops with an error when another account can
 **write** a secret file. When another account can only **read** it, the boot gives a warning and
-goes on. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
+continues. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
 `0644`. Inside a container, a file that others can read is normal.
 
 A credential is used exactly as it was written, and no part of the runtime trims one. A password may
-begin or end with a space. Such a space is hard to see. A secret file is never shown, and at the end
-of a TOML line the space is one character before a quote. So the boot warns `W1007`, names the
-directive, and goes on with the value.
+begin or end with a space. Such a space is hard to see. Novis never prints the content of a secret file.
+In a TOML line, a space at the end of the value is only one character before the closing quote. So
+the boot warns `W1007`, names the directive, and continues with the value.
 
 There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
 or it is the content of a file the directive names.
@@ -560,7 +559,7 @@ the secret to a plaintext file. A `_file` directive reads that file.
 | [SOPS](https://getsops.io/) with `age` or a KMS, in a task runner or a `make` target | `sops -d --extract '["db"]["password"]' secrets.enc.yaml > /run/novis/db-password` | `password_file = "/run/novis/db-password"` |
 | SOPS under systemd | a `sops -d` in `ExecStartPre`, or `LoadCredential=` | `password_file = "/run/credentials/novis.service/db-password"` |
 | Docker Compose | a `secrets:` entry, mounted `0444` | `password_file = "/run/secrets/db-password"` |
-| Kubernetes — Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
+| Kubernetes: Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
 | Vault or a cloud secret manager | an agent or sidecar templating a file | `password_file = "/run/novis/db-password"` |
 
 Two things make this setup safe and reliable. First, write the decrypted file where only the serving

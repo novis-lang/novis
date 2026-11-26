@@ -14,8 +14,8 @@ array<string> $messages = [
         . "--b--\n",
 ];
 
-// The second message says the mail was not delivered, but it is plain text and not a report.
-// So it has no report. The third is a report where the mail arrived.
+// The first message is a reply. The second message says that the mail was not delivered.
+// Neither of them has a report. The third message is a delivery report that says the mail arrived.
 foreach ($messages as string $what => string $raw) {
     ?Core\Mail\Report $report = Message::parse($raw)->report();
     echo $what, ': ', $report == null ? 'no report' : 'a report', "\n";

@@ -4,7 +4,8 @@
 use Core\Mail\Address;
 use Core\Mail\Message;
 
-// `Kitchen:` starts a group, and `;` ends it. The last address is not in the group.
+// A group is a name, a colon, a list of addresses and a `;`. Here the group is `Kitchen`.
+// The last address comes after the `;` that ends the group, so it is not in the group.
 Message $mail = Message::parse(
     "From: manager@example.com\r\n"
     . "To: Kitchen: ana@example.com, bo@example.com;, cleo@example.com\r\n"

@@ -1,12 +1,12 @@
 <?nvs
-// Removes each address that failed for good from a newsletter list, and keeps the others.
+// Removes each address that failed permanently from a newsletter list, and keeps the others.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
 
 array<string> $subscribers = ['ada@example.org', 'bo@example.org', 'cy@example.org', 'dee@example.org'];
 
-// The bounces that arrived after the last newsletter.
+// These bounces arrived after the last newsletter.
 array<string> $bounces = [
     "From: mailer-daemon@mx.example.net\n"
     . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
@@ -23,7 +23,7 @@ array<string> $bounces = [
     . "--c--\n",
 ];
 
-// The addresses that failed for good.
+// This loop collects the addresses that failed permanently.
 array<tainted string> $dead = [];
 foreach ($bounces as string $raw) {
     foreach (Message::parse($raw)->report()?->recipients() ?? [] as ReportRecipient $recipient) {

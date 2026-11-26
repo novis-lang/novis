@@ -7,7 +7,8 @@ use Core\Mail\ReportRecipient;
 
 class Forged
 {
-    // A delivery report with the recipient groups in `$groups`, each separated by an empty line.
+    // This function returns a delivery report with the recipients in `$groups`.
+    // Each recipient is a group of lines, and an empty line ends it.
     public static function report(string $groups): Message
     {
         return Message::parse(
@@ -35,7 +36,7 @@ foreach (Forged::report($groups)->report()?->recipients() ?? [] as ReportRecipie
     echo $recipient->address(), ' ', $recipient->isPermanent() ? 'permanent' : 'temporary', "\n";
 }
 
-// 4. Five thousand permanent recipients in one report. At most 1,000 should be read.
+// 4. One report has 5,000 permanent recipients. Only 1,000 recipients of a report are read, so this should print `1000 permanent`.
 string $many = Core\Str::repeat("Final-Recipient: rfc822; x@example.org\nAction: failed\nStatus: 5.1.1\n\n", 5000);
 int $permanent = 0;
 foreach (Forged::report($many)->report()?->recipients() ?? [] as ReportRecipient $recipient) {

@@ -6,7 +6,7 @@ use Core\Mail\Message;
 
 class Reply
 {
-    // Returns the `Reply-To` addresses, or the sender when there are none.
+    // This function returns the `Reply-To` addresses. When there are none, it returns the sender.
     public static function addresses(Message $mail): array<Address>
     {
         array<Address> $addresses = $mail->replyTo();

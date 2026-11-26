@@ -11,12 +11,15 @@ final class Sorter
         foreach ($folder->search({ unseen: true }) as int $uid) {
             Message::Kind $kind = $folder->fetch($uid)->kind();
             if ($kind == Message::Kind::Bounce) {
+                // A bounce is a message from a mail server that says your mail could not be delivered.
                 // `move` puts the bounce in the folder `Bounces`. There it gets a new UID.
                 $folder->move($uid, 'Bounces');
             } elseif ($kind == Message::Kind::Delay) {
-                // A delay report needs no work, so `delete` removes it from the server.
+                // A delay report says that your mail is not delivered yet. The server tries again.
+                // It needs no work, so `delete` removes it from the server.
                 $folder->delete($uid);
             } elseif ($kind == Message::Kind::Reply) {
+                // A flag is a mark the server keeps on a message, such as `\Seen` or `\Flagged`.
                 // `flag` adds the flag `\Flagged`. The reply stays unread, so a person reads it.
                 $folder->flag($uid, "\\Flagged");
             } else {
@@ -41,7 +44,8 @@ class SorterTest
         Test::assertEquals($mailbox->folder('Bounces')->search(), [1, 2]);
         Test::assertEquals($inbox->search({ unseen: true }), [2]);
 
-        // These lines undo the changes, so the next run finds the same files.
+        // These lines move the bounce back to `INBOX` and make the messages unread again.
+        // The next run of the test then gives the same result.
         $mailbox->folder('Bounces')->move(2, 'INBOX');
         $inbox->unflag(2, "\\Flagged");
         $inbox->markUnseen(1);
@@ -49,5 +53,5 @@ class SorterTest
     }
 }
 
-// `nvs run` runs the `echo` line below and not the test.
+// `nvs run sort.nvs` prints the line below. It does not run the test.
 echo "Run `nvs test sort.nvs` to run the test.\n";

@@ -1,5 +1,5 @@
 <?nvs
-// Shows which recipients of a delivery report failed for good and which may still get the mail.
+// Shows which recipients of a delivery report failed permanently and which may still get the mail.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;

@@ -19,6 +19,7 @@ class Label
 
 var $inbox = Core\Imap::open('inbox')->folder('INBOX');
 
+// `kind()` returns what kind of message it is: a bounce, a delay, a complaint, an automatic reply, a reply or other.
 foreach ($inbox->search() as int $uid) {
     Message $message = $inbox->fetch($uid);
     // `answers()` returns the message id of the message this one is about.

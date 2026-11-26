@@ -12,6 +12,7 @@ Message $mail = Message::parse(
     . "Please answer me at home."
 );
 
+// `from` returns the address of the `From` header.
 // This prints `ada@work.example.org`.
 echo 'From: ', $mail->from()?->address() ?? '', "\n";
 

@@ -1,7 +1,7 @@
 <?nvs
-// Attack: a forged report gives each recipient an action that is not a real one, or two actions.
-// A recipient with an unknown action should not be in the list. Such a recipient should never
-// make the message a bounce.
+// Attack: a forged report gives each recipient two actions, or an action that the delivery report
+// standard (RFC 3464) does not define. A recipient with an unknown action should not be in the
+// list. Such a recipient should never make the message a bounce.
 // proof: test
 
 use Core\Mail\Message;

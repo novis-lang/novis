@@ -7,6 +7,6 @@ use Core\Mail\Message;
 Message $parsed = Message::parse("Subject: Hello\n\nHi!");
 echo $parsed->uid() ?? 'null', "\n";
 
-// This message is read from the folder `INBOX`. This prints `3`.
+// This message is read from the folder `INBOX`. This prints `3`, the UID of the message.
 Message $fetched = Core\Imap::open('inbox')->folder('INBOX')->fetch(3);
 echo $fetched->uid() ?? 'null', "\n";

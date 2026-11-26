@@ -6,7 +6,8 @@ use Core\Mail\ReportRecipient;
 
 class Reason
 {
-    // The codes this shop sees most often. Any other code gets a general reason from its first number.
+    // This function checks for the codes that this shop sees most often.
+    // Any other code gets a general reason from its first number.
     public static function of(tainted string $status): string
     {
         if ($status == '5.1.1') {

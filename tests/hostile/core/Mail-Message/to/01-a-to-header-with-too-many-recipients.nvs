@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a sender writes a `To` header with a huge number of recipients, or with groups that never end.
-// `to` should return an array each time, and the program should run to its end.
+// `to` should return an array each time, and the program should finish.
 // hostile: timeout-ms 30000
 
 use Core\Mail\Message;
@@ -9,11 +9,11 @@ use Core\Mail\Message;
 Message $crowd = Message::parse('To: ' . Core\Str::join(Core\Arr::fill(200000, 'a@example.org'), ', ') . "\r\n\r\nx");
 echo '1 ', Core\Arr::count($crowd->to()), "\n";
 
-// 2. 5,000 `To` headers. Only the first one is read.
+// 2. 5,000 `To` headers. A message has one `To` header, so only the first one should be read.
 Message $headers = Message::parse(Core\Str::repeat("To: b@example.org\r\n", 5000) . "\r\nx");
 echo '2 ', Core\Arr::count($headers->to()), "\n";
 
-// 3. A group inside a group, 100,000 times, and none of them ends.
+// 3. 100,000 groups start one inside the other. No group has the `;` that ends it.
 Message $groups = Message::parse('To: ' . Core\Str::repeat('Team: ', 100000) . "c@example.org\r\n\r\nx");
 echo '3 ', Core\Arr::count($groups->to()), "\n";
 

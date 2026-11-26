@@ -9,7 +9,8 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        // These messages are parsed from text, so each `uid()` is `null`. The cost to read it is the same.
+        // A UID is the number of a message in its mailbox folder. These messages have none, so `uid()` returns `null`.
+        // Reading it costs the same as for a message fetched from a server.
         array<Message> $messages = [
             Message::parse("Subject: Hi\n\nThanks!"),
             Message::parse("Subject: Re: Order 42\n\nIt arrived."),
@@ -18,8 +19,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // The number is multiplied by 3, so the next round picks the next message.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads message 1, 2, 3, then message 1 again, and so on.
             $total = $total + 3 * ($messages[(($total + $i) % 3) as int]->uid() ?? 1) as uint;
             $i = $i + 1;
         }

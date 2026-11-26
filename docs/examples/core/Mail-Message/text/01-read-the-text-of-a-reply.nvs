@@ -21,5 +21,5 @@ Message $reply = Message::parse(
 );
 
 // `text()` returns the `text/plain` part. This prints `Thank you, the mug arrived.`
-// The text ends with a line break, so `echo` needs none.
+// `echo` adds no line break, and the text already ends with one.
 echo $reply->text() ?? 'no text';

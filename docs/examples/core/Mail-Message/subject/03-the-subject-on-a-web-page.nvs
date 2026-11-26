@@ -11,7 +11,8 @@ Message $mail = Message::parse(
     . "I would like a refund."
 );
 
-// The subject is tainted. An html`...` template escapes it, so the tag shows as text.
+// The subject is tainted, because the sender wrote it. You must escape it before you show it.
+// An html`...` template escapes it, so the tag shows as text.
 Markup $row = html`<td>{$mail->subject()}</td>`;
 
 // This prints `<td>&lt;img src=x onerror=alert(1)&gt; Refund</td>`.

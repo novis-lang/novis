@@ -323,7 +323,7 @@ const FROM_DOC: MethodDoc = MethodDoc {
 const TO_DOC: MethodDoc = MethodDoc {
     short: "Returns the addresses of the `To` header.",
     params: &[],
-    ret: "One address for each recipient, in order. The array is empty when there is none.",
+    ret: "One address for each recipient, in order. The array is empty when there are none.",
     errors: &[],
 };
 
@@ -390,7 +390,8 @@ const REFERENCES_DOC: MethodDoc = MethodDoc {
 
 /// `text`'s card.
 const TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Returns the plain text body of the message.",
+    short: "Returns the plain text body of the message: its first `text/plain` part. The \
+            result is tainted, because the sender wrote it.",
     params: &[],
     ret: "The text, or `null` when the message has no `text/plain` part.",
     errors: &[],

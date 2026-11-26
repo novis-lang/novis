@@ -22,7 +22,7 @@
         "Core\\Mail\\Address::address",
         "Core\\Mail\\Address::name"
       ],
-      "text": "`Core\\Mail\\Message::parse` reads a raw email, such as an `.eml` file or the body of a webhook. It returns the headers, the text and HTML bodies and the attachments. Every value is tainted, and a broken message is not an error."
+      "text": "`Core\\Mail\\Message::parse` reads a raw email, such as an `.eml` file or the body of a webhook. It returns the headers, the text and HTML bodies and the attachments. Every value is tainted: it comes from outside your program, so you must check or escape it. A broken message does not throw an error."
     },
     {
       "kind": "new",
@@ -32,7 +32,7 @@
         "Core\\Mail\\Message::answers",
         "Core\\Mail\\Message::bounceTag"
       ],
-      "text": "`Core\\Mail\\Message::kind` says if a received message is a bounce, a delay, a complaint, an automatic reply, a reply or other. `answers()` returns the Message-ID of the mail it is about, so you can find the mail you sent."
+      "text": "`Core\\Mail\\Message::kind` returns what kind of message it is: a bounce, a delay, a complaint, an automatic reply, a reply or other. A bounce is a message from a mail server that says your mail could not be delivered. `answers()` returns the message id of the mail it is about. With it, you can find the mail you sent."
     },
     {
       "kind": "new",
@@ -46,7 +46,7 @@
         "Core\\Mail\\ReportRecipient::isPermanent",
         "Core\\Mail\\ReportRecipient::diagnostic"
       ],
-      "text": "`Core\\Mail\\Message::report` reads a delivery report. For each recipient, it gives the address, what happened, the status code such as `5.1.1`, and if the failure is permanent."
+      "text": "`Core\\Mail\\Message::report` reads the delivery report in a bounce or a delay. For each recipient, it gives the address, what happened, the status code such as `5.1.1`, and whether the failure is permanent."
     },
     {
       "kind": "new",
@@ -66,7 +66,7 @@
         "Core\\Imap\\Folder::delete",
         "Core\\Mail\\Message::uid"
       ],
-      "text": "`Core\\Imap` reads a mailbox over IMAP. A program opens an `[imap.<name>]` block of `nvs.toml` by name, then searches, fetches, moves, flags and deletes messages. A `directory` block reads a folder of `.eml` files instead, for tests."
+      "text": "`Core\\Imap` reads a mailbox over IMAP (the protocol a program uses to read a mailbox on a server). A program opens an `[imap.<name>]` block of `nvs.toml` by its name. It can then search, fetch, move, flag and delete messages. For tests, a `directory` block reads a folder of `.eml` files instead of a server."
     },
     {
       "kind": "changed",
@@ -1390,7 +1390,7 @@
       "features": [
         "lang:types/qualifiers-tainted-and-secret"
       ],
-      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. You may pass a `tainted` value to a parameter that does not accept `tainted` text. The compile error then names the method that makes the value safe for that parameter."
+      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. A `tainted` value passed to a parameter that does not accept `tainted` text does not compile. The error names the method that makes the value safe for that parameter."
     },
     {
       "kind": "fixed",

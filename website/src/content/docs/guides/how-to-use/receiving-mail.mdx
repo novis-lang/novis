@@ -11,7 +11,8 @@ comes from a person. Your program reads these messages in two ways:
 
 - `Core\Imap` reads a mailbox on a mail server. IMAP is the protocol that mail programs use to
   read a mailbox.
-- `Core\Mail\Message::parse` reads one message that a mail provider posts to your webhook.
+- `Core\Mail\Message::parse` reads one message that a mail provider posts to your webhook. A webhook
+  is a request that a mail provider sends to your server when something happens.
 
 Both ways give you a `Core\Mail\Message`. [Sending mail](/guides/how-to-use/sending-mail/) shows how
 to send the messages.
@@ -40,7 +41,7 @@ another mailbox.
   is encrypted before the sign-in. There is no `none`, so a password is never sent unencrypted.
 - `tls_ca_file` is a PEM file with the certificate of your own certificate authority. It works as
   in a `[mail.<name>]` block.
-- `auth = "xoauth2"` signs in with an OAuth token in place of a password. The keys
+- `auth = "xoauth2"` signs in with an OAuth token instead of a password. The keys
   `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_scope` and
   `oauth_refresh_token` work as in a `[mail.<name>]` block.
 - `timeout` is how long one command to the server may take. The default is `30s`.
@@ -50,8 +51,8 @@ Read every key in [Reference: configuration](/reference/config/the-blocks-the-bi
 ## Reading a mailbox
 
 `Core\Imap::open` connects to the server and signs in. `folder` opens one folder, such as `INBOX`.
-`search` returns the UID of each message that matches. A UID is the number of a message in its
-folder. `fetch` reads the message with that UID:
+`search` returns the UID of each message that matches. A UID is the number the server gives each
+message in a folder. `fetch` reads the message with that UID:
 
 <Snippet src="guides/how-to-use/receiving-mail/read-inbox.nvs" />
 
@@ -89,7 +90,7 @@ request is the whole message. `Core\Mail\Message::parse` reads it:
 - `Other`: any other message, such as a new question.
 
 Novis reads the kind from the standard headers and report formats. It never guesses from the
-subject or the sender. So a bounce that is not a standard delivery report is not a `Bounce`.
+subject or the sender. A bounce that does not contain a standard delivery report has the kind `Other`.
 
 <Snippet src="guides/how-to-use/receiving-mail/kinds.nvs" />
 
@@ -98,8 +99,8 @@ subject or the sender. So a bounce that is not a standard delivery report is not
 `answers()` returns the message id of the message that this one is about. For a bounce, a delay or
 a complaint, it comes from the copy of your message inside the report. For any other message, it
 comes from the `In-Reply-To` header, or else from the last id in `References`. `Core\Mail::send`
-returned the same id when you sent the message. Store it, and you can find the order or the user
-that the message is about.
+returns this id when you send the message. Save it, so you can find the message later. With it, you
+can find the order or the user that the message is about.
 
 A bounce does not always contain a copy of your message. The `bounceTag` option of `send` helps
 here. It adds a tag to the bounce address. With `return_path = "bounces@example.com"` in the
@@ -110,10 +111,16 @@ above, it returns `order-1042`.
 ## The delivery report
 
 A bounce and a delay contain a delivery report. `report()` returns it. For a message that is not
-a delivery report, the result is `null`. Its `recipients()` returns one `Core\Mail\ReportRecipient` for each address:
+a delivery report, the result is `null`. The report is a `Core\Mail\Report`.
+`Core\Mail\Report::recipients()` returns one `Core\Mail\ReportRecipient` for each address:
 
 - `address()` is the address of the recipient.
-- `action()` is `Failed`, `Delayed`, `Delivered`, `Relayed` or `Expanded`.
+- `action()` is what happened to the message for this recipient. It is one of these:
+  - `Failed`: the message could not be delivered.
+  - `Delayed`: the message is not delivered yet. The server tries again.
+  - `Delivered`: the message was delivered.
+  - `Relayed`: the message was passed to a server that sends no report.
+  - `Expanded`: the message was delivered to a mailing list. The list sends it to its members.
 - `status()` is the status code, such as `5.1.1`. It is an empty string when the report has none.
 - `isPermanent()` is `true` when the status code starts with `5`. Mail to this address will not
   arrive later, so do not send to it again.
@@ -137,7 +144,8 @@ A `Core\Imap\Folder` changes messages on the server:
 
 - `move($uid, $folder)` moves the message to another folder. There it has a new UID.
 - `markSeen($uid)` marks the message as read, and `markUnseen($uid)` marks it as not read.
-- `flag($uid, $flag)` adds a flag, such as `\Flagged`, and `unflag` removes it.
+- `flag($uid, $flag)` adds a flag, and `unflag` removes it. A flag is a mark the server keeps on a
+  message, such as `\Seen` or `\Flagged`.
 - `delete($uid)` deletes this one message. Other messages stay.
 
 `flag` does not accept `\Deleted`. Call `delete` to delete a message. This program sorts the new
@@ -148,7 +156,7 @@ messages of a folder by their kind:
 ## Testing
 
 A test should not read or change a real mailbox. For tests, the block reads a folder on your disk
-in place of a server. Write `directory` in the block, and no other key:
+instead of a server. Write `directory` in the block, and no other key:
 
 ```toml
 [imap.inbox]
@@ -167,8 +175,10 @@ Each folder inside `mail` is a mail folder, such as `mail/INBOX`. Each message i
 flags of a message are in a `<uid>.flags` file beside it, one flag on each line.
 
 The program needs `fs.read` for the folder. It also needs `fs.write` to move, mark or delete a
-message. Each change is made to the files on disk. So the test in the snippet above undoes its
-changes at the end. The snippets on this page use this block, so the output shows the messages in its folder.
+message. Both go in the `[capabilities.fs]` block, as above. Each change is made to the files on
+disk. So the test in the snippet above undoes its changes at the end.
+
+The examples on this page read the `.eml` files in this folder. Their output comes from those files.
 
 ## Do and don't
 

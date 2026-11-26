@@ -6,7 +6,8 @@ use Core\Mail\Message;
 
 class Bounces
 {
-    // Returns every bounce in the folder.
+    // A bounce is a message from a mail server that says your mail could not be delivered.
+    // This function returns every bounce in the folder.
     public static function in(Folder $folder): array<Message>
     {
         array<Message> $found = [];

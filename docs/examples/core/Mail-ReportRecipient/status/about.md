@@ -5,8 +5,10 @@ means a temporary problem, and `5` means a permanent failure. The second and thi
 went wrong. For example, `5.1.1` means the address does not exist, and `4.2.2` means the mailbox is
 full for now.
 
-The result is the first word of the `Status` field, so a comment after the code is not part of it.
-When the report gives no status, the result is an empty string.
+The code comes from the `Status` line of the report. The result is the first word of that line, so
+a comment after the code is not part of it. When the report gives no status, the result is an empty
+string.
 
 **Good to know:** the server that sent the report wrote this text, so the result is a tainted
-string. Compare it with the codes you know. Do not show it on a page without escaping it.
+string. Tainted means that the value comes from outside your program, so you must check or escape
+it before you use it. Compare it with the codes you know. Escape it before you show it on a page.

@@ -1,5 +1,5 @@
 <?nvs
-// Shows that only a delivery report has recipients. Other messages give an empty list.
+// Shows that only a delivery report has recipients. Other messages give an empty array.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
@@ -8,7 +8,8 @@ class Count
 {
     public static function recipients(Message $message): uint
     {
-        // `report()` is `null` here, so `?->` gives `null`, and `?? []` gives an empty list.
+        // `?->` calls the method only when the value is not `null`.
+        // `?? []` gives an empty array when the result is `null`.
         array<ReportRecipient> $recipients = $message->report()?->recipients() ?? [];
         return Core\Arr::count($recipients);
     }

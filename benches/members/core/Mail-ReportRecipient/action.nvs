@@ -24,8 +24,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three recipients.
-            // Each action adds a multiple of 3, so each recipient is picked in turn.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads recipient 1, 2, 3, then recipient 1 again, and so on.
             uint $step = $recipients[(($total + $i) % 3) as int]->action() == ReportRecipient::Action::Failed ? 3 : 6;
             $total = $total + $step;
             $i = $i + 1;

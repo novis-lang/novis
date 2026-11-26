@@ -1,5 +1,5 @@
 <?nvs
-// A newsletter removes each address that failed for good, and keeps the addresses that are only late.
+// A newsletter removes each address that failed permanently, and keeps the addresses that are only late.
 
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;

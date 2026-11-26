@@ -6,7 +6,7 @@ use Core\Mail\ReportRecipient;
 
 class Customers
 {
-    // The customers of the shop, by email address.
+    // This function returns the name of each customer of the shop, by email address.
     public static function names(): array<string>
     {
         return [

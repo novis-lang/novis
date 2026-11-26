@@ -1,5 +1,6 @@
 <?nvs
-// This route reads a bounce that a mail provider posts, and prints what happened to each recipient.
+// This route reads a bounce from a webhook, and prints what happened to each recipient.
+// A webhook is a request that a mail provider sends to your server when something happens.
 use Core\Mail\Message;
 use Core\Mail\ReportRecipient;
 

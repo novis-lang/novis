@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a stranger hides recipient lines where a report is not, or sends a huge report.
-// `report()` should be `null` for a message that is not a delivery report, and a report should have at most 1,000 recipients.
+// `report()` should be `null` for a message that is not a delivery report.
+// A report should have at most 1,000 recipients.
 
 use Core\Mail\Message;
 use Core\Str;
@@ -28,13 +29,13 @@ Show::report('1', Show::message('multipart/mixed', $status . $one));
 // 2. A spam complaint that carries recipient lines.
 Show::report('2', Show::message('multipart/report; report-type=feedback-report', $status . $one));
 
-// 3. A `report-type` with a value that only starts like the real one.
+// 3. A `report-type` value only starts like `delivery-status`. The message should have no report.
 Show::report('3', Show::message('multipart/report; report-type=delivery-status-x', $status . $one));
 
 // 4. 100,000 recipients in one report.
 Show::report('4', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat($one, 100000)));
 
-// 5. A report of 10 MB of blank lines, then one recipient.
+// 5. A report has 10 MB of blank lines, then one recipient. The report should have that one recipient.
 Show::report('5', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat("\n", 10000000) . $one));
 
 // 6. A report part that is all one line of 10 MB.

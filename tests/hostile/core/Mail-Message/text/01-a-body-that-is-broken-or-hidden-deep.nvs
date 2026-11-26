@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a stranger sends a text body that is broken, very large or hidden deep inside other parts.
+// Attack: a stranger sends a text body that is broken, very large, or inside many levels of other parts.
 // `text()` should return what it can read, or `null`, and the program should keep running.
 
 use Core\Mail\Message;
@@ -12,7 +12,7 @@ echo "1 ", Core\Str::length($unknown->text() ?? ''), "\n";
 Message $broken = Message::parse("Content-Type: text/plain\nContent-Transfer-Encoding: base64\n\n@@@!!!===SGVsbG8\n");
 echo "2 ", Core\Str::length($broken->text() ?? ''), "\n";
 
-// 3. A text part inside 40 levels of nested parts. Only 16 levels are read.
+// 3. A text part is inside 40 levels of nested parts. Only 16 levels are read, so `text()` should return `null`.
 string $open = '';
 string $close = '';
 int $level = 0;

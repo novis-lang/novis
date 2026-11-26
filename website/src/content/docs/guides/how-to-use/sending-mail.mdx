@@ -32,12 +32,14 @@ The `[capabilities.mail]` block allows the program to use the block. Without it,
 
 - `tls` is `implicit`, `starttls` or `none`. TLS encrypts the connection to the mail server. The
   default is `implicit` on port 465. On another port, it is `starttls` when the block has a
-  password or uses `auth = "xoauth2"`. Otherwise it is `none`. Novis never sends a password without TLS.
+  password or uses `auth = "xoauth2"`. Otherwise it is `none`. A block with a password or a token
+  cannot use `none`, and this is an error at startup. So Novis never sends a password without TLS.
 - `tls_ca_file` is a PEM file (a text file with certificates). It contains the certificate of your
   own certificate authority, which is the service that signs your server certificates. Use it for a
   mail server inside your company. Without `tls_ca_file`, Novis uses the certificate authorities in
   `[tls.client] roots`.
 - `auth` is `plain`, `login` or `xoauth2`. The default is `plain` when the server offers it.
+  Otherwise the default is `login`.
 
 Novis always checks the certificate of the mail server. Read every key in
 [Reference: configuration](/reference/config/the-blocks-the-binary-accepts/).
@@ -56,8 +58,8 @@ to the message. [Reading bounces and replies](/guides/how-to-use/receiving-mail/
 The snippets on this page use a block with `capture = true`, so they send no mail. The section
 [Testing](#testing) explains this setting.
 
-A `Core\Html\Markup` body is sent as HTML. An `html` template gives you one, and each `{$name}` in
-it is escaped:
+A `Core\Html\Markup` body is sent as HTML. An `html` template gives you one. An `html` template is a
+string written as `` html`...` ``, and it escapes each value in it, such as `{$name}`:
 
 <Snippet src="guides/how-to-use/sending-mail/send-html.nvs" />
 
@@ -80,8 +82,8 @@ it for one message. The sender address is always `from` of the block.
 
 <Snippet src="guides/how-to-use/sending-mail/names.nvs" />
 
-A plain string is only an address. The string `'Anna <anna@example.com>'` throws an error. Pass the
-name as the second argument of `Address::of`.
+A plain string must be an address alone, so the string `'Anna <anna@example.com>'` throws an error.
+Use `Core\Mail\Address::of` to add a name. The name is its second argument.
 
 ## Attachments and inline images
 

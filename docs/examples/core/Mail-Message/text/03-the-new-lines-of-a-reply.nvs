@@ -15,7 +15,7 @@ Message $reply = Message::parse(
 );
 
 // A mail program puts `>` in front of each line it quotes. This loop skips those lines.
-// `text()` returns a tainted string, so each line is tainted too.
+// Each line is tainted: it comes from outside your program, so you must check or escape it.
 foreach (Core\Str::lines($reply->text() ?? '') as var $line) {
     if (!Core\Str::startsWith($line, '>') && $line != '') {
         echo $line, "\n";

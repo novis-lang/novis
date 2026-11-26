@@ -15,7 +15,8 @@ Message $notice = Message::parse(
     . "--b--\n"
 );
 
-// No recipient failed or is late, so the kind is `Other`.
+// `kind()` returns the kind of message. `Other` means it is not a bounce, a delay, a complaint, a reply or an automatic reply.
+// No recipient failed or is late, so the kind is `Other`. This prints `bounce: no`.
 echo 'bounce: ', $notice->kind() == Message::Kind::Bounce ? 'yes' : 'no', "\n";
 
 // The report is still there, and the action of the recipient is `Delivered`.

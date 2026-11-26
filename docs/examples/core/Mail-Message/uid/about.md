@@ -9,4 +9,5 @@ Pass the UID to the other methods of the same folder, such as `move`, `markSeen`
 UID belongs to one folder. When a message is moved, it gets a new UID in the other folder.
 
 **The examples below** show the UID of each message in a folder, a parsed message with no UID, and
-how to keep the UIDs of the bounces in a folder.
+how to keep the UIDs of the bounces in a folder. A bounce is a message from a mail server that says
+your mail could not be delivered.
