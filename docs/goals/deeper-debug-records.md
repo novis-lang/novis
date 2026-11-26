@@ -34,11 +34,11 @@ stages:
     context: [docs/rules/errors/debug-dump.md, crates/nvs-server/src/debug_style.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 8
     title: the feature proofs, the help and the website say what a record holds
-    status: open
+    status: done
     context: [docs/agent/prose.md, website/src/content/docs/tools/debug-viewer/index.mdx, website/src/data/changes.json]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: lines
@@ -429,64 +429,46 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
   outcomes), `new` the Runs view, `changed` `[debug] inline`.
 - [x] A browser test of `/runs` and `/runs/<trace>` beside `viewer/test/requests.browser.test.ts`,
   the Runs view's feature proof.
-- [ ] `bun nv proofs --owed --goal deeper-debug-records` names nothing, and the check `proofs` is
+- [x] `bun nv proofs --owed --goal deeper-debug-records` names nothing, and the check `proofs` is
   green.
   - [x] The 114 member benches that stages 4 and 5 made stale are measured again and committed.
-  - [ ] `bun nv proofs --gate --limit 0` and the check `proofs` are green.
+  - [x] `bun nv proofs --gate --limit 0` and the check `proofs` are green.
 - [x] `bun nv site --check stale`, `changes` and `shots` are green.
   - [x] `stale` and `changes` are green.
   - [x] `shots` is green.
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review, [prose.md](../agent/prose.md) § *A newcomer reads it*, over every page,
+- [x] The newcomer review, [prose.md](../agent/prose.md) § *A newcomer reads it*, over every page,
   help text and card this goal wrote, and `bun nv site --check review` is green.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 8 is done except its `proofs` item, whose only red is two reviews that stage 9's first item
-does. `bun nv proofs --gate --goal deeper-debug-records` names exactly two owed proofs:
-`reviewed` for `docs/examples/config/debug-inline/about.md` and
-`docs/examples/tools/cli/the-debug-viewer/about.md`. Nothing else is owed.
+Every stage is done, and `bun nv close --goal deeper-debug-records` is green. The goal is reached.
 
-- `7a825c9ec9`: `spool::record_under` calls `Record::anchor_files`
-  (`crates/nvs-runtime/src/spool.rs`). It writes each exception, frame, chain and dump file under
-  the working directory relative to it, so a scheduled or queued run's sites read as a request's.
-  The unit test `a_runs_files_are_written_relative_to_the_working_directory` pins it. A query or
-  copy site's file is left as the program named it, because the editor's lens matches on it.
-  The run list's name keeps its room (`viewer/src/styles/requests.css` `.path-text`).
-- `a02b3dad16`: `runs.shot` and `run.shot` are on the page's Runs section, and every viewer shot is
-  taken again. The stack's `.frame` rule had broken the window's grid on every page (the rail sat
-  in a row of its own), so a stack frame is `.stack-frame` now, and
-  `viewer/test/request.browser.test.ts` checks the window stays a grid. A `.shot.out` masks a size
-  as `<size>` (`tools/nv/lib/shoot.ts`), because a memory peak moves between runs.
-  `site --check stale changes shots` is green.
-- `Core\IO\Metadata::modifiedAt` is recorded again (`growth: unclear`, which the gate accepts).
+- `039191ec91`: the newcomer review of every text the goal changed. Two `reader` subagents read
+  both `about.md` files, the `[debug] inline` and viewer help, the run snippets, the viewer page
+  and the changelog. Each finding is fixed: the memory limit names `[limits] memory`, the layout
+  words (rail, tiles, pane, gold badge, mark) are plain ones, and `site --check review` is green.
+- `2cb0405119`: `viewer/test/runs.browser.test.ts` read the stack by the old `.frame` class.
+- `5aa12972dd`: both designed rules are `shipped` with their guards, so `owners` is green. The
+  index rule names no goal. `refactor-commands.md` cited a rule its first stage writes, which
+  failed `rules --check`, so it names the rule as plain text.
+- `8b1d81aeea`: the three debug pages' search questions are rewritten and stamped. The roadmap's
+  mail and refactoring themes landed in `ab4b74fa99` from a concurrent session.
+- The run rule's Declined list now holds the two Runs-view choices only this file held.
 
-The nightly sweep's red jobs tested `53e94a9181`; HEAD already fixes all three causes.
-Expected red at stage 9: `site --check review` for the rewritten texts, and the two `reviewed`
-proofs above.
+The nightly sweep's red jobs tested `53e94a9181`. HEAD fixes them: the Miri skips on the zone
+time tests (`1c3196b0e8`, `8ca2f09e1b`) and the served pool count (`0d358ed02e`).
 
 ### Next
 
-Stage 9 (this goal closes; the full gate runs at a later goal on the chain):
-
-1. The newcomer review, prose.md § *A newcomer reads it*: `bun nv site --review`, batch the keys,
-   send each brief to a `reader` subagent, fix every finding, then stamp. Include both `about.md`
-   files above, the debug viewer page and the `[debug] inline` help. Run `cargo build` before
-   stamping a `help:` key.
-2. Tick stage 8's `proofs` item once `bun nv proofs --gate --goal deeper-debug-records` is green,
-   and set stage 8 done in the front matter.
-3. The close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, the tests this goal wrote,
-   by name (`cargo test --test debug_ingest`, `cargo test --test debug_api`, the spool unit test
-   above, `bun test viewer/test/runs.browser.test.ts viewer/test/request.browser.test.ts`), then
-   `bun nv close --goal deeper-debug-records`, fixing each red it names.
-4. Before the goal file is deleted, move each standing decision only its prose holds into a rule
-   or a module doc.
+Nothing: the driver retires the goal. The full gate runs at a later goal on the chain. Expected
+red there: none known.
 
 ### Backlog
 

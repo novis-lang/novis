@@ -3554,6 +3554,10 @@ The index keeps runs in a `runs` table of their own
   route to fill the request's required fields with.
 - **A `run` line for each scheduled tick that does not start a job.** It records no work, and a
   schedule that ticks every second would fill the spool cap with nothing.
+- **The run list saved as a filter.** The viewer's saved view and its `view` setting would each
+  gain a value, and nothing has asked for it. A saved filter names a request list.
+- **A cursor for an exception group's runs.** The group's first page lists at most `limit` of its
+  newest runs, as plain links beside its requests. A group's runs are few next to its requests.
 
 <sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value), [`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time).</sub>
 
