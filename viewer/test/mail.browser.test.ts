@@ -168,7 +168,8 @@ describe.skipIf(!EXE)("the kept mail list and a message's page in Chromium", () 
   }, 30_000);
 
   test("an id with no message says so", async () => {
-    const tab = await open("/mail/999", `document.querySelector(".mail-one .note") !== null`);
+    // The page shows "Loading." until the fetch ends, so the wait is on a note with other text.
+    const tab = await open("/mail/999", `(document.querySelector(".mail-one .note")?.textContent ?? "Loading.") !== "Loading."`);
     expect(await tab.eval(`document.querySelector(".mail-one .note").textContent`)).toBe("No kept message has this id.");
     await tab.close();
   }, 30_000);

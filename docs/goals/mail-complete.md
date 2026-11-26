@@ -647,8 +647,14 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Every stage is done, and `bun nv close --goal mail-complete` is green on all fourteen checks. This
-session's commits:
+Every stage is done, and `bun nv close --goal mail-complete` is green on all fourteen checks.
+
+- The DONE was refused on `viewer`: `mail.browser.test.ts`'s "an id with no message says so"
+  waited for `.mail-one .note`, which the `Loading.` note also matches. It now waits for a note
+  whose text is not `Loading.`, and `looper check --name viewer` is green. The nightly failures the
+  sweep listed are run 45813627231's, fixed by `28a4d7a6bf` and `c115a735a1` below.
+
+The previous session's commits:
 
 - `28a4d7a6bf`: the nightly run 45813627231 failed its checked-types conformance leg on four
   runners, because a `Core` object was never `Parses` or `Comparable` at run time. `$uuid is
@@ -676,6 +682,4 @@ in `docs/rules/core-classes/mail-message.md` and `mail-transport.md`, and the vi
 - The new `Core\Mail::send` and `Address::of` perf records have a clock of 0 ns/op (the old `send`
   record had 4498), measured while another session loaded the machine. The four counts match.
   The next `--record-perf` of either re-measures it.
-- `viewer/test/mail.browser.test.ts` failed once under load earlier in this stage, then passed.
-  If it fails again, read it for a wait on time, not on an event.
 

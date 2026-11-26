@@ -599,6 +599,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A viewer browser test waits on the final state, not on an element the loading state shares.**
+  In `mail-complete`'s acceptance, `mail.browser.test.ts` waited for `.mail-one .note`, which the
+  page's `Loading.` note also matches, and a DONE was refused on the race. Wait on the note's text
+  being other than `Loading.`. See `viewer/test/mail.browser.test.ts`.
 - **A `--RUN-- test` case's result line pads the test name to a column, and `%f` does not take
   the spaces.** In `mail-complete` stage 8, a new case copied `name     %f ms` from another case
   with a longer name and failed on the spacing alone. `bun nv suite` names only the failing case:
