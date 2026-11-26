@@ -365,8 +365,11 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6, the full gate, is running: `looper verify` was started over
-everything since the last full gate.
+Stages 1 to 5 are done. Stage 6's full gate is in its fourth `looper verify` run, which this
+session left running; its report is in `.agent-tmp/verify.txt`. Each earlier run stopped at its
+first red check step, and each is fixed: `directives` missed `mail.return_path` (`db7db14c95`),
+`render` (`8b98062a5e`) and `rules --render` (`358e87b015`). `links`, `layout` and `release
+--check` pass by hand.
 
 **The eleven bugs the proof agents found are fixed**, each with a test (`c136463405`): a `Date`
 with an out-of-range zone or year is `null` (`receive.rs` `readable_date`), `Message-ID` is the
@@ -376,16 +379,21 @@ folder may not end with a dot or a space, and a flag is at most 255 bytes. The t
 Every text it reached is reviewed and stamped, the perf figures are new (`3fa9c2a6dd`), and
 `proofs --owed --goal mail-receive` names nothing.
 
-Expected red at the gate: none known. The changed error text is pinned in
-`docs/examples/core/Imap-Mailbox/folder/02-a-folder-that-does-not-exist.out` and the conformance
-case `imap-a-directory-folder-throws-for-a-bad-name-flag-or-uid`, which passes.
+Expected red: the website build. `Date::range`'s signature names `Core\Unit::Day`, and
+`website/src/data/core.json` has no `Core\Unit` page, so `website/src/lib/core.ts:280` throws
+(Website run 45829710914). Run 45829711007's other causes are fixed since (`e953ca07db`,
+`4ede711347`, `edabc4106f`, and `8b98062a5e` for `fuzz/Cargo.lock`).
 
 ### Next
 
-1. Read `looper verify`'s report. Only if it is red, fix every failure in one pass and run it once
-   more.
-2. Then `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
-   fixed, and recheck the CI items under § *Backlog*. Then `DONE`.
+1. Read `.agent-tmp/verify.txt`, or run `looper verify` once if it did not finish. Fix every red
+   it names in one pass, then run it once more.
+2. Give `Core\Unit` (`crates/nvs-stdlib/src/time.rs:1694`) a reference page, or find why
+   `bun nv render --website` leaves it out. Re-shoot the 11 stale `.shot.out` files under
+   `website/snippets/tools/debug-viewer/` and give `sending-mail/files/logo.png` a `.shot`
+   (`bun nv site --shoot`).
+3. Then `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
+   fixed. Then `DONE`.
 
 ### Backlog
 
