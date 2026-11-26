@@ -857,6 +857,85 @@ pub fn call_compare_to(
         })
 }
 
+crate::nvs_helper! {
+    /// The floor of a compiled call of `Comparable::compareTo` — what
+    /// [`crate::object::bodiless_floor`] names for it — and so what a `Core`
+    /// receiver reaches, since its `compareTo` is native and never a method
+    /// row.
+    ///
+    /// The call site transferred the receiver and the operand, as every
+    /// late-bound call does, so this calls the native member under its own
+    /// borrowing convention and then releases both.
+    fn nvs_core_compare_to(ctx, args: [2]) {
+        interface_floor(ctx, args, crate::object::COMPARE_TO, ClassDesc::comparer)
+    }
+}
+
+crate::nvs_helper! {
+    /// The floor of a compiled call of `Parses::format`, on
+    /// [`nvs_core_compare_to`]'s terms: a `Core` receiver's `format` is
+    /// native, so the call finds no row and reaches this. It calls the
+    /// native member borrowing the receiver, then releases the receiver the
+    /// call transferred.
+    fn nvs_core_format(ctx, args: [1]) {
+        interface_floor(ctx, args, crate::object::FORMAT, ClassDesc::formatter)
+    }
+}
+
+/// The two floors' one body: calls the native member `native` reads off the
+/// receiver's descriptor with `args` borrowed, then releases every one of
+/// `args`, which the late-bound call transferred to its callee.
+///
+/// A receiver whose descriptor carries no native member is the engine fault
+/// [`crate::nvs_abstract_method`] reports. The checker lets no such call
+/// compile, so it never reaches a behaving program.
+fn interface_floor(
+    ctx: &mut Ctx,
+    args: &[Value],
+    member: &str,
+    native: fn(&ClassDesc) -> Option<*const u8>,
+) -> Result<Value, Fault> {
+    let target = args
+        .first()
+        .and_then(|receiver| descriptor_of(*receiver, "a bodiless method's floor", member).ok())
+        .and_then(|desc| {
+            #[expect(
+                unsafe_code,
+                reason = "`descriptor_of` answers only a non-null descriptor, and one \
+                          is owned by its class table for that table's whole life"
+            )]
+            native(unsafe { &*desc })
+        });
+    let result = match target {
+        Some(target) => {
+            #[expect(
+                unsafe_code,
+                reason = "the address came out of `ClassTable::set_compare` or \
+                          `ClassTable::set_format`, which `nvs-stdlib` calls only with \
+                          a registered `Core` member's own address, and every one of \
+                          those has this signature"
+            )]
+            let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
+            crate::abi::call(target, ctx, args).map_err(|status| {
+                debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
+                Fault::Pending(status)
+            })
+        }
+        None => Err(crate::object::abstract_method_fault()),
+    };
+    for value in args {
+        #[expect(
+            unsafe_code,
+            reason = "the late-bound call transferred each argument's reference to \
+                      this callee, so this frame owes exactly one release for it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+    result
+}
+
 /// Resumes the dying generator `receiver` into its unwind entry point, at the
 /// address its class carries ([`crate::ClassDesc::unwind_entry`]).
 ///

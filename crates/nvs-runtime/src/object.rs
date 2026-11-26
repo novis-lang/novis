@@ -691,6 +691,19 @@ pub struct ClassDesc {
     /// table. **Cost:** one pointer per class, once per process, not per
     /// instance.
     compare: *const u8,
+    /// The address of the **native** function that writes an instance of this
+    /// class as the text `Parses::parse` reads back — `Parses`'s [`FORMAT`] —
+    /// or null for every class that carries none, which is every class a
+    /// program declares and every `Core` class the registry does not count as
+    /// a `Parses`.
+    ///
+    /// [`Self::compare`]'s field, one member along, and for its reason
+    /// exactly. Its reader is [`nvs_core_format`], the floor a call of
+    /// `Parses::format` reaches when the receiver's method table has no row,
+    /// which is what every `Core` receiver's has. Filled by
+    /// [`ClassTable::set_format`], which only `nvs-stdlib` calls. **Cost:** one
+    /// pointer per class, once per process, not per instance.
+    format: *const u8,
     /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
     /// null for every class that answers no such name — which is every class
     /// but a generator's synthesized state class.
@@ -2574,6 +2587,17 @@ impl ClassDesc {
         }
     }
 
+    /// The address of this class's native `format`, or `None` for a class
+    /// carrying none — see [`Self::format`] for why it is not a method row.
+    #[must_use]
+    pub fn formatter(&self) -> Option<*const u8> {
+        if self.format.is_null() {
+            None
+        } else {
+            Some(self.format)
+        }
+    }
+
     /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
     /// `None` for a class that answers no such name — see [`Self::unwind`].
     #[must_use]
@@ -2879,6 +2903,7 @@ impl ClassTable {
             attributes: Vec::new(),
             render: std::ptr::null(),
             compare: std::ptr::null(),
+            format: std::ptr::null(),
             unwind: std::ptr::null(),
             is_callable: false,
             is_responder: false,
@@ -3682,6 +3707,23 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.compare = address;
+    }
+
+    /// Fills in `id`'s native `format` — see [`ClassDesc::formatter`].
+    ///
+    /// `address` is an `rule:errors/propagation` helper taking the instance as
+    /// its one argument and **borrowing** it, for [`ClassTable::set_compare`]'s
+    /// reason; `nvs_stdlib::instance` is its only caller.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_format(&mut self, id: ClassId, address: *const u8) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.format = address;
     }
 
     /// The descriptor `name` names, **borrowed** — the same one
@@ -6047,6 +6089,12 @@ pub const CONSTRUCTOR: &str = "constructor";
 /// it. A second copy is how the three come to disagree about one string.
 pub const COMPARE_TO: &str = "compareTo";
 
+/// `Parses`'s instance member, which writes the text `parse` reads back.
+///
+/// [`ClassDesc::formatter`] carries a `Core` class's native address under it,
+/// and [`bodiless_floor`] names the floor a call of it reaches.
+pub const FORMAT: &str = "format";
+
 /// Builds an instance of `class` by running its own `constructor` — what a
 /// native member does where compiled code would emit
 /// `nvs_ir::ir::InstKind::New`.
@@ -6240,11 +6288,44 @@ crate::nvs_helper! {
     /// Takes no arguments *by declaration* — it is called with whatever the
     /// original call site passed, and reads none of them.
     fn nvs_abstract_method(_ctx, _args: [0]) {
-        Err(Fault::fatal(
-            "internal error: a method with no body was called, and no class in the \
-             receiver's chain declared one"
-                .to_owned(),
-        ))
+        Err(abstract_method_fault())
+    }
+}
+
+/// The `FATAL` a call of a method with no body reports when nothing in the
+/// receiver's chain answers it — [`nvs_abstract_method`]'s, and the
+/// interface floors' in [`crate::dispatch`] when the receiver carries no
+/// native member either.
+pub(crate) fn abstract_method_fault() -> Fault {
+    Fault::fatal(
+        "internal error: a method with no body was called, and no class in the \
+         receiver's chain declared one"
+            .to_owned(),
+    )
+}
+
+/// The floor `nvs-codegen` passes to [`nvs_class_method`] for a call of the
+/// bodiless method `method`: the symbol a call reaches when the receiver's
+/// method table has no row for it.
+///
+/// A `Core` class satisfies `Comparable` and `Parses` with a native member,
+/// and a native member is never a method row, because it borrows its
+/// arguments where a row transfers them ([`ClassDesc::comparer`] says why).
+/// So a call through either interface on a `Core` receiver finds no row, and
+/// its floor is the one that calls the native member and releases what the
+/// call transferred: `nvs_core_compare_to` for [`COMPARE_TO`] and
+/// `nvs_core_format` for [`FORMAT`]. Every other bodiless method floors at
+/// [`nvs_abstract_method`].
+///
+/// **Cost:** nothing on any call that finds a row. The floor is a constant
+/// address chosen while compiling, and the lookup is the one every late-bound
+/// call already makes.
+#[must_use]
+pub fn bodiless_floor(method: &str) -> &'static str {
+    match method {
+        COMPARE_TO => "nvs_core_compare_to",
+        FORMAT => "nvs_core_format",
+        _ => "nvs_abstract_method",
     }
 }
 

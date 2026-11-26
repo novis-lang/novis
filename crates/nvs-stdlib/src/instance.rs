@@ -52,13 +52,15 @@
 //!
 //! # Decision: a registered member the engine reaches by name gets a descriptor field
 //!
-//! Two members are reached on a `Core` instance by *name* rather than from a
+//! Three members are reached on a `Core` instance by *name* rather than from a
 //! call site that resolved them: `rule:classes/stringable`'s `toString`, when
-//! an erased operand is echoed, and `rule:classes/comparable`'s `compareTo`,
+//! an erased operand is echoed, `rule:classes/comparable`'s `compareTo`,
 //! when a `Core\Heap` or another collection orders two values it knows no
-//! class for. Both are answered by a field on [`ClassDesc`] —
-//! `ClassDesc::renderer` and `ClassDesc::comparer` — and not by a
-//! [`DISPATCH_ROSTER`] row.
+//! class for, and `Parses`'s `format`. A compiled call of `compareTo` or
+//! `format` through the interface type reaches the native member too, through
+//! the floor `nvs_runtime::bodiless_floor` names. Each is answered by a field
+//! on [`ClassDesc`] — `ClassDesc::renderer`, `ClassDesc::comparer` and
+//! `ClassDesc::formatter` — and not by a [`DISPATCH_ROSTER`] row.
 //!
 //! **The fork is the calling convention, not the lookup.** A roster row is
 //! called through `nvs_runtime::dispatch`'s `call_at`, which transfers a
@@ -1238,6 +1240,14 @@ fn descriptors() -> &'static Descriptors {
             if let Some(symbol) = registry::compare_member(class) {
                 table.set_compare(id, crate::address_of(symbol));
             }
+            // `Parses`'s one instance member, on its own descriptor field for
+            // the reason above and derived from the registry for the same one:
+            // `registry::implements_parses` is the check that lets a program
+            // pass this class as a `Parses`, and a call of `format` through
+            // that type reaches this address.
+            if let Some(symbol) = registry::format_member(class) {
+                table.set_format(id, crate::address_of(symbol));
+            }
         }
         // Filled in definition order, so each name keeps the id defined first.
         let mut first = rustc_hash::FxHashMap::default();
@@ -2284,6 +2294,61 @@ mod tests {
                       process, so this borrow is sound for any lifetime"
         )]
         unsafe { &*descriptor(class) }.comparer()
+    }
+
+    /// The same pairing for `Parses`'s `format`: a class the checker lets a
+    /// program pass as a `Parses` is one whose `$value->format()` reaches the
+    /// floor `nvs_runtime::dispatch::nvs_core_format`, which reads the member
+    /// off the descriptor. Asserted in both directions, and against the class's
+    /// own registered symbol.
+    #[cfg_attr(
+        miri,
+        ignore = "it compares function addresses, and Miri gives one function several"
+    )]
+    #[test]
+    fn every_core_class_that_parses_carries_its_format_on_the_descriptor() {
+        let mut parses = 0;
+        for class in registry::CLASSES {
+            if class.slots.is_empty() && class.instance.is_empty() {
+                assert!(
+                    !registry::implements_parses(class.name),
+                    "{} is a `Parses` but has no instances to format",
+                    class.name
+                );
+                continue;
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the leaked table owns the descriptor for the whole \
+                          process, so this borrow is sound for any lifetime"
+            )]
+            let formatter = unsafe { &*descriptor(class) }.formatter();
+            match registry::format_member(class) {
+                Some(symbol) => {
+                    parses += 1;
+                    assert!(
+                        registry::implements_parses(class.name),
+                        "{} carries a `format` the interface check does not see",
+                        class.name
+                    );
+                    assert_eq!(
+                        formatter,
+                        Some(crate::address_of(symbol)),
+                        "{} is a `Parses` where it is written but not at run time",
+                        class.name
+                    );
+                }
+                None => assert!(
+                    formatter.is_none() && !registry::implements_parses(class.name),
+                    "{} formats at run time but is not a `Parses`",
+                    class.name
+                ),
+            }
+        }
+        assert!(
+            parses > 0,
+            "no `Core` class is a `Parses`, so this asserted nothing"
+        );
     }
 
     /// The two rosters this module's docs pair up: a class the checker will

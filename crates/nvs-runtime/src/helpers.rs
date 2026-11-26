@@ -4260,6 +4260,14 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::nvs_abstract_method as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_core_compare_to",
+            (crate::dispatch::nvs_core_compare_to as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_core_format",
+            (crate::dispatch::nvs_core_format as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_class_method",
             (crate::object::nvs_class_method as *const ()).cast::<u8>(),
         ),

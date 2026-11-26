@@ -114,3 +114,73 @@ echo LeafRegistry::viaSelf() . \"/\" . LeafRegistry::viaName();
 ";
     assert_eq!(output_of(source), "leaf/base");
 }
+
+/// Calls of `Parses::format` and `Comparable::compareTo` through the interface
+/// type, on `Core` receivers. Each interface declares the member with no body,
+/// so the call is late-bound, and a `Core` class has no method row for it:
+/// its member is native and borrows its arguments.
+const CORE_THROUGH_AN_INTERFACE: &str = "<?nvs
+class Through {
+    public static function written(Parses $value): tainted string {
+        return $value->format();
+    }
+    public static function ordered(Comparable $a, Comparable $b): int {
+        return $a->compareTo($b);
+    }
+    public static function less(Comparable $a, Comparable $b): bool {
+        return $a < $b;
+    }
+}
+";
+
+#[test]
+fn a_call_through_an_interface_reaches_a_core_receivers_native_member() {
+    // The floor `nvs_runtime::bodiless_floor` names for `format` and
+    // `compareTo` calls the native member. Without it the call stops with the
+    // `FATAL` `nvs_runtime::nvs_abstract_method` reports. The receivers are
+    // read again after each call, so a release too many frees them first.
+    let source = format!(
+        "{CORE_THROUGH_AN_INTERFACE}
+var $id = Core\\Uuid::fromBytes(Core\\Encoding::fromHex(\"00112233445566778899aabbccddeeff\"));
+echo Through::written($id), \" \", $id->format(), \" \";
+var $three = Core\\BigInt::of(3);
+var $four = Core\\BigInt::of(4);
+echo Through::ordered($three, $four), \" \", Through::ordered($four, $three), \" \";
+echo Through::less($three, $four) ? \"less\" : \"not less\", \" \", $three->compareTo($four);
+"
+    );
+    assert_eq!(
+        output_of(&source),
+        "00112233-4455-6677-8899-aabbccddeeff 00112233-4455-6677-8899-aabbccddeeff -1 1 less -1"
+    );
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_call_through_an_interface_on_a_core_receiver_frees_what_it_was_given() {
+    // The call transfers the receiver and the operand, and the floor releases
+    // both after the borrowing native member returns. A missed release keeps a
+    // `format` result or an operand alive on every iteration, so ten times the
+    // iterations must not hold ten times the bytes.
+    let held = |times: usize| {
+        let source = format!(
+            "{CORE_THROUGH_AN_INTERFACE}
+var $id = Core\\Uuid::fromBytes(Core\\Encoding::fromHex(\"00112233445566778899aabbccddeeff\"));
+var $three = Core\\BigInt::of(3);
+int $sum = 0;
+for (int $i = 0; $i < {times}; $i++) {{
+    tainted string $text = Through::written($id);
+    $sum += Through::ordered($three, Core\\BigInt::of($i));
+}}
+"
+        );
+        let unit = compile(&source).expect("the fixture compiles");
+        let mut ctx = Ctx::buffered();
+        unit.install_in(&mut ctx);
+        let entry = unit.script().expect("the script frame was compiled");
+        let before = nvs_runtime::budget::live_bytes();
+        entry.call(&mut ctx).expect("the script ran to completion");
+        nvs_runtime::budget::live_bytes() - before
+    };
+    assert_eq!(held(10), held(100));
+}

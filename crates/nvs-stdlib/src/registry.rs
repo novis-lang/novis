@@ -4740,35 +4740,63 @@ pub(crate) fn compare_member(class: &CoreClass) -> Option<&'static str> {
 /// of it.
 #[must_use]
 pub fn implements_parses(class: &str) -> bool {
-    fn reads_one_text(member: &CoreMethod) -> bool {
-        matches!(member.params, [CoreTy::Text(Qual::Neutral)]) && member.defaults.is_empty()
-    }
-
     nvs_footprint::class(class);
     CLASSES
         .iter()
         .find(|found| found.name == class)
-        .is_some_and(|found| {
-            let parses = found.methods.iter().any(|member| {
-                member.name == "parse"
-                    && reads_one_text(member)
-                    && matches!(member.return_ty, CoreTy::Instance(answered) if answered == class)
-            });
-            let tries = found.methods.iter().any(|member| {
-                member.name == "tryParse"
-                    && reads_one_text(member)
-                    && matches!(
-                        member.return_ty,
-                        CoreTy::Nullable(CoreTy::Instance(answered)) if *answered == class
-                    )
-            });
-            let formats = found.instance.iter().any(|member| {
-                member.name == "format"
-                    && member.params.is_empty()
-                    && matches!(member.return_ty, CoreTy::Str)
-            });
-            parses && tries && formats
-        })
+        .is_some_and(parses)
+}
+
+/// [`implements_parses`] for a class already in hand.
+fn parses(found: &CoreClass) -> bool {
+    fn reads_one_text(member: &CoreMethod) -> bool {
+        matches!(member.params, [CoreTy::Text(Qual::Neutral)]) && member.defaults.is_empty()
+    }
+
+    let class = found.name;
+    let parses = found.methods.iter().any(|member| {
+        member.name == "parse"
+            && reads_one_text(member)
+            && matches!(member.return_ty, CoreTy::Instance(answered) if answered == class)
+    });
+    let tries = found.methods.iter().any(|member| {
+        member.name == "tryParse"
+            && reads_one_text(member)
+            && matches!(
+                member.return_ty,
+                CoreTy::Nullable(CoreTy::Instance(answered)) if *answered == class
+            )
+    });
+    let formats = found.instance.iter().any(is_format);
+    parses && tries && formats
+}
+
+/// Whether `member` is the `format` `Parses` requires: an instance member
+/// taking nothing and answering a `string`.
+fn is_format(member: &CoreMethod) -> bool {
+    member.name == nvs_runtime::FORMAT
+        && member.params.is_empty()
+        && matches!(member.return_ty, CoreTy::Str)
+}
+
+/// The symbol of `class`'s `format` — the implementation half of
+/// [`implements_parses`], and `None` for every class that is not a `Parses`.
+///
+/// [`compare_member`]'s twin, for `Parses`'s one instance member:
+/// `crate::instance` puts this address on the class's own descriptor, so a
+/// call of `$value->format()` on a `Parses $value` that holds a `Core` object
+/// runs the very member this registry told the checker satisfies the
+/// interface.
+#[must_use]
+pub(crate) fn format_member(class: &CoreClass) -> Option<&'static str> {
+    if !parses(class) {
+        return None;
+    }
+    class
+        .instance
+        .iter()
+        .find(|member| is_format(member))
+        .map(|member| member.symbol)
 }
 
 /// `parse` of a `Core` class that [`implements_parses`], called on one text value, or `None`

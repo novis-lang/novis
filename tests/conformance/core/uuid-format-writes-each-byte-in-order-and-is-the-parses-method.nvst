@@ -1,0 +1,21 @@
+--TEST--
+`Core\Uuid::format` writes the sixteen bytes `fromBytes` was given as hex in their order, with dashes after the 4th, 6th, 8th and 10th byte, and it is the same text when it is called as the `format` method `Parses` requires — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// covers: Core\Uuid::format
+class Writer
+{
+    public static function written(Parses $value): tainted string
+    {
+        return $value->format();
+    }
+}
+
+var $id = Core\Uuid::fromBytes(Core\Encoding::fromHex("00112233445566778899aabbccddeeff"));
+echo $id->format(), "\n";
+echo Writer::written($id), "\n";
+echo Writer::written($id) == $id->format() ? "same" : "DIFFERENT", "\n";
+--EXPECT--
+00112233-4455-6677-8899-aabbccddeeff
+00112233-4455-6677-8899-aabbccddeeff
+same

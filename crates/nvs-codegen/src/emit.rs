@@ -3610,9 +3610,12 @@ impl Emitter<'_, '_> {
 
     /// The address `class` answers `method` with, falling back to the
     /// statically resolved `fallback` label's own address — or, when the
-    /// resolved declaration has no body at all, to
-    /// [`nvs_runtime::nvs_abstract_method`], whose whole job is to make that
-    /// a reported `FATAL` instead of a jump through null.
+    /// resolved declaration has no body at all, to the floor
+    /// [`nvs_runtime::bodiless_floor`] names for `method`. That is the native
+    /// call a `Core` receiver of `Comparable` or `Parses` reaches, and
+    /// [`nvs_runtime::nvs_abstract_method`] for every other method, whose
+    /// whole job is to make that a reported `FATAL` instead of a jump through
+    /// null.
     ///
     /// `fallback` is passed as a `func_addr` rather than resolved here: the
     /// unit is not finalized yet, so a compiled function has no address until
@@ -3626,7 +3629,7 @@ impl Emitter<'_, '_> {
         let (name, len) = self.emit_bytes(method.as_bytes())?;
         let target = match fallback {
             Some(label) => self.callee_ref(label)?,
-            None => self.runtime_ref("nvs_abstract_method", RuntimeSig::Helper)?,
+            None => self.runtime_ref(nvs_runtime::bodiless_floor(method), RuntimeSig::Helper)?,
         };
         let fallback = self.b.ins().func_addr(types::I64, target);
         let lookup = self.runtime_ref("nvs_class_method", RuntimeSig::ClassMethod)?;
