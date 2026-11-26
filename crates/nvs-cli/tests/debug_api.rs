@@ -1497,3 +1497,112 @@ fn the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_except
         "{written:?} differed from the API's answers and are written again: commit them"
     );
 }
+
+/// A one-pixel PNG, as base64.
+const PIXEL: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+/// Two messages a capture block kept: a styled HTML receipt with an inline image and a file,
+/// and a plain-text alert.
+fn mails_spool() -> String {
+    let writer = "4444-1700000000000-0";
+    let base: u64 = 1_700_000_000_000_000;
+    let receipt = json!({
+        "kind": "mail", "endpoint": "outbox",
+        "message_id": "5f0c2a9e4b7d41e3a8c6d2f1e0b9a7c3@example.com",
+        "from": "noreply@example.com", "from_name": "Shop",
+        "to": ["ada@example.com", "bo@example.com"], "cc": ["desk@example.com"],
+        "bcc": ["archive@example.com"], "reply_to": "help@example.com",
+        "subject": "Your receipt",
+        "text": "Thank you for your order.\n\nView it online (https://example.com/o/7)\n",
+        "html_written": "<style>p { color: #333 } .dark p { color: #eee }</style>\
+                         <p>Thank you for your order.</p><img src=\"cid:4f1d@inline\" alt=\"Shop\">",
+        "html": "<style>.dark p { color: #eee; }</style><p style=\"color: #333\">Thank you for \
+                 your order.</p><img src=\"cid:4f1d@inline\" alt=\"Shop\">",
+        "kept_css": [".dark p { color: #eee; }"],
+        "unused_css": [".dark p { color: #eee; }"],
+        "attachments": [
+            { "name": "logo.png", "type": "image/png", "content_id": "4f1d@inline",
+              "size": 70, "base64": PIXEL },
+            { "name": "receipt.csv", "type": "text/csv", "size": 10,
+              "base64": "ZGF5LHRvdGFsCg==" }
+        ],
+        "in_reply_to": "0a1b@example.com", "references": ["0a1b@example.com"],
+        "unsubscribe": "https://example.com/unsubscribe/7",
+        "auto_submitted": true, "bounce_tag": "order-7"
+    });
+    let alert = json!({
+        "kind": "mail", "endpoint": "alerts",
+        "message_id": "9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b@example.com",
+        "from": "alerts@example.com", "to": ["ops@example.com"],
+        "subject": "Disk almost full", "text": "The disk is 91% full.\n",
+        "auto_submitted": true
+    });
+    [receipt, alert]
+        .into_iter()
+        .enumerate()
+        .map(|(n, mut line)| {
+            line["writer"] = json!(writer);
+            line["seq"] = json!(n);
+            line["trace"] = json!(format!("{:032x}", 0x6100 + n));
+            line["at_us"] = json!(base + 1_000_000 * n as u64);
+            line.to_string() + "\n"
+        })
+        .collect()
+}
+
+// covers: tools:cli/the-debug-viewer
+#[test]
+fn the_mail_list_pages_newest_first_and_a_message_opens_to_its_whole_line() {
+    let service = Service::ingested_from(&mails_spool());
+
+    let page = service.json("/api/mails");
+    let subjects: Vec<&str> = page["mails"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|mail| mail["subject"].as_str().expect("a subject"))
+        .collect();
+    assert_eq!(subjects, ["Disk almost full", "Your receipt"], "{page}");
+    assert_eq!(page["older"], Value::Null);
+    let receipt = &page["mails"][1];
+    assert_eq!(receipt["endpoint"], "outbox");
+    assert_eq!(receipt["recipients"], "ada@example.com, bo@example.com");
+    assert!(
+        receipt.get("message").is_none(),
+        "the list carries no message body: {receipt}"
+    );
+
+    let first = service.json("/api/mails?limit=1");
+    let older = first["older"]
+        .as_i64()
+        .expect("a page of one has an older page");
+    let rest = service.json(&format!("/api/mails?before={older}"));
+    assert_eq!(rest["mails"][0]["subject"], "Your receipt");
+    for query in ["limit=0", "subject=hi", "before=x"] {
+        let (status, body) = service.get(&format!("/api/mails?{query}"));
+        assert_eq!(status, 400, "{query}: {body}");
+    }
+
+    let id = receipt["id"].as_i64().expect("an id");
+    let one = service.json(&format!("/api/mail?id={id}"));
+    assert_eq!(one["id"], id);
+    let message = &one["message"];
+    assert_eq!(message["from_name"], "Shop");
+    assert_eq!(message["bcc"], json!(["archive@example.com"]));
+    assert_eq!(message["kept_css"], json!([".dark p { color: #eee; }"]));
+    assert_eq!(message["attachments"][0]["content_id"], "4f1d@inline");
+    assert_eq!(message["attachments"][1]["base64"], "ZGF5LHRvdGFsCg==");
+    let (status, body) = service.get("/api/mail?id=9999");
+    assert_eq!(status, 404, "{body}");
+    let (status, body) = service.get("/api/mail?trace=1");
+    assert_eq!(status, 400, "{body}");
+
+    let written: Vec<String> = [("mails.json", &page), ("mail.json", &one)]
+        .into_iter()
+        .filter_map(|(name, value)| fixture(name, value))
+        .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
+}

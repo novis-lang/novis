@@ -1,0 +1,55 @@
+{
+  "at_us": 1700000000000000,
+  "id": 1,
+  "message": {
+    "attachments": [
+      {
+        "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+        "content_id": "4f1d@inline",
+        "name": "logo.png",
+        "size": 70,
+        "type": "image/png"
+      },
+      {
+        "base64": "ZGF5LHRvdGFsCg==",
+        "name": "receipt.csv",
+        "size": 10,
+        "type": "text/csv"
+      }
+    ],
+    "auto_submitted": true,
+    "bcc": [
+      "archive@example.com"
+    ],
+    "bounce_tag": "order-7",
+    "cc": [
+      "desk@example.com"
+    ],
+    "endpoint": "outbox",
+    "from": "noreply@example.com",
+    "from_name": "Shop",
+    "html": "<style>.dark p { color: #eee; }</style><p style=\"color: #333\">Thank you for your order.</p><img src=\"cid:4f1d@inline\" alt=\"Shop\">",
+    "html_written": "<style>p { color: #333 } .dark p { color: #eee }</style><p>Thank you for your order.</p><img src=\"cid:4f1d@inline\" alt=\"Shop\">",
+    "in_reply_to": "0a1b@example.com",
+    "kept_css": [
+      ".dark p { color: #eee; }"
+    ],
+    "message_id": "5f0c2a9e4b7d41e3a8c6d2f1e0b9a7c3@example.com",
+    "references": [
+      "0a1b@example.com"
+    ],
+    "reply_to": "help@example.com",
+    "subject": "Your receipt",
+    "text": "Thank you for your order.\n\nView it online (https://example.com/o/7)\n",
+    "to": [
+      "ada@example.com",
+      "bo@example.com"
+    ],
+    "unsubscribe": "https://example.com/unsubscribe/7",
+    "unused_css": [
+      ".dark p { color: #eee; }"
+    ]
+  },
+  "trace": "00000000000000000000000000006100",
+  "watermark": 1
+}

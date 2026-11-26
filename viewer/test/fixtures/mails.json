@@ -1,0 +1,24 @@
+{
+  "mails": [
+    {
+      "at_us": 1700000001000000,
+      "batch": 1,
+      "endpoint": "alerts",
+      "id": 2,
+      "recipients": "ops@example.com",
+      "subject": "Disk almost full",
+      "trace": "00000000000000000000000000006101"
+    },
+    {
+      "at_us": 1700000000000000,
+      "batch": 1,
+      "endpoint": "outbox",
+      "id": 1,
+      "recipients": "ada@example.com, bo@example.com",
+      "subject": "Your receipt",
+      "trace": "00000000000000000000000000006100"
+    }
+  ],
+  "older": null,
+  "watermark": 1
+}

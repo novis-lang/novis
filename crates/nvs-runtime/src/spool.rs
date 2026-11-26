@@ -1803,9 +1803,9 @@ mod tests {
 
     use super::{
         BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, CacheTier, Copies, CopyCount, Coverage,
-        Dropped, Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Now, Outcome,
-        Query, Record, Recorder, Request, Response, Run, RunOf, RunOutcome, SEAL_AFTER, Stack,
-        Store, Writer,
+        Dropped, Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Mail, MailPart,
+        Now, Outcome, Query, Record, Recorder, Request, Response, Run, RunOf, RunOutcome,
+        SEAL_AFTER, Stack, Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -2319,12 +2319,43 @@ mod tests {
                 },
             }),
         }));
+        let captured = Record::Mail(Box::new(Mail {
+            endpoint: "outbox".to_owned(),
+            message_id: "5f0c2a9e4b7d41e3a8c6d2f1e0b9a7c3@example.com".to_owned(),
+            from: "noreply@example.com".to_owned(),
+            from_name: Some("Shop".to_owned()),
+            to: vec!["ada@example.com".to_owned()],
+            bcc: vec!["archive@example.com".to_owned()],
+            subject: "Your receipt".to_owned(),
+            text: "Thank you.\n".to_owned(),
+            html_written: Some(
+                "<style>p { color: #333 } .dark { color: #fff }</style><p>Thank you.</p>"
+                    .to_owned(),
+            ),
+            html: Some(
+                "<style>.dark { color: #fff; }</style><p style=\"color: #333\">Thank you.</p>"
+                    .to_owned(),
+            ),
+            kept_css: vec![".dark { color: #fff; }".to_owned()],
+            unused_css: vec![".dark { color: #fff; }".to_owned()],
+            attachments: vec![MailPart {
+                name: "receipt.csv".to_owned(),
+                media_type: "text/csv".to_owned(),
+                content_id: None,
+                size: 10,
+                base64: "ZGF5LHRvdGFsCg==".to_owned(),
+            }],
+            in_reply_to: Some("0a@example.com".to_owned()),
+            auto_submitted: true,
+            ..Mail::default()
+        }));
         let dropped = Record::Dropped(Dropped {
             records: 3,
             files: 1,
         });
         vec![
-            body, request, event, cache, dump, log, coverage, copies, mail, queue, run, dropped,
+            body, request, event, cache, dump, log, coverage, copies, mail, queue, run, captured,
+            dropped,
         ]
     }
 
