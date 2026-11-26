@@ -149,7 +149,9 @@ fn intern_core_types(interner: &mut TypeInterner) -> Vec<(String, Vec<String>)> 
                 lower(bound, interner);
             }
             let returns = lower(&method.return_ty, interner);
-            if !method.params.is_empty() {
+            // Only a member that keys its subject or its result interns more types. Every other
+            // member's types are the ones lowered above, so none of them is lowered twice.
+            if !method.params.is_empty() && keys_its_subject(method) {
                 let mut params: Vec<TypeId> = method
                     .params
                     .iter()
@@ -481,6 +483,16 @@ fn return_of(method: &nvs_stdlib::registry::CoreMethod, interner: &mut TypeInter
     } else {
         written
     }
+}
+
+/// Whether [`keep_keys`] or [`case_keys`] rewrites `method`'s types: it is on
+/// `nvs_stdlib::arr::KEEPS_KEYS`, `ENUM_KEYS` or `CASE_KEYS`. Every other
+/// member's signature is its written types alone, so [`intern_core_types`]
+/// lowers them once.
+fn keys_its_subject(method: &nvs_stdlib::registry::CoreMethod) -> bool {
+    nvs_stdlib::arr::KEEPS_KEYS.contains(&method.symbol)
+        || nvs_stdlib::arr::ENUM_KEYS.contains(&method.symbol)
+        || nvs_stdlib::arr::CASE_KEYS.contains(&method.symbol)
 }
 
 /// One registry row as the checker's own signature.
@@ -2378,12 +2390,12 @@ mod tests {
                 (
                     r"Core\Router\Match",
                     "parameter",
-                    "uint|int|null|decimal|tainted string|Core\\Uuid|Parses".to_owned(),
+                    "uint|int|bool|null|decimal|Core\\Time\\Instant|tainted string|Core\\Time\\DateTime|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Uuid|Parses".to_owned(),
                 ),
                 (
                     r"Core\Router\Match",
                     "parameters",
-                    "array<uint|int|decimal|tainted string|Core\\Uuid|Parses>".to_owned(),
+                    "array<uint|int|bool|decimal|Core\\Time\\Instant|tainted string|Core\\Time\\DateTime|Core\\Time\\Date|Core\\Time\\TimeOfDay|Core\\Uuid|Parses>".to_owned(),
                 ),
                 (
                     r"Core\Signature",
