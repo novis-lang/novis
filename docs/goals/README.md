@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [deeper-debug-records]
+chain: [deeper-debug-records, refactor-commands]
 floor:
   - id: ci-check
     name: "every check the full gate's push runs is green"
@@ -32,11 +32,12 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `deeper-debug-records` is live.
+The chain holds 2 goal(s). `deeper-debug-records` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`deeper-debug-records`](deeper-debug-records.md) **live** | Reached when a recorded request carries its memory peak and limit, its handler and where it is declared, and the bytes it read and wrote, an uncaught exception carries its stack frames and its previous chain, a cache, HTTP, file and process event carries its outcome, sending mail and pushing a job are events, a scheduled job, a queue job and a command run are recorded as runs with their events, dumps and logs, the debug viewer shows each of these, the inline debug block links to its request in the viewer, and the rules, the feature proofs and the website say so. | 1 ✓ the rules name every line and field the spool has and gains · 2 ✓ a recorded request carries its memory peak and limit, its handler and the bytes it read and wrote · 3 ✓ an uncaught exception is recorded with its stack frames and its previous chain · 4 ✓ a cache, HTTP, file and process event carries its outcome · 5 ✓ sending mail and pushing a job are events · 6 ✓ a scheduled job, a queue job and a command run are recorded as runs, and the viewer lists them · 7 ✓ the inline debug block links to its request in the viewer · **8 the feature proofs, the help and the website say what a record holds** · 9 the goal is verified once, and every failure is fixed |
+| 2 | [`refactor-commands`](refactor-commands.md) | Reached when a type moves to another namespace by rename, by nvs code move and by a file drag in the editor, a property's name compared in its class's property callbacks is renamed with it, a list of renames applies in one call, unused declarations are listed and deleted safely, extract, implement, inline, change parameters, move a member and extract an interface each work from the editor and from nvs code, every refactoring checks its edit before it writes, and the rules, the feature proofs and the website say so. | **1 every refactoring checks its edit before it writes** · 2 a property's name, compared as a string in its class's property callbacks, is renamed with it · 3 a type moves to another namespace by rename · 4 a list of renames applies in one call · 5 a moved file or folder renames the types its new path names, from nvs code move and from a drag in the editor · 6 unused declarations are listed, greyed out and deleted · 7 extract and implement are nvs code verbs · 8 a local and a method are inlined · 9 a method's parameters change at every call and in every override, from nvs code · 10 the editor runs a refactoring that needs input through workspace/executeCommand · 11 a member moves to another class: a static one anywhere, an instance one up or down its hierarchy · 12 an interface is extracted from a class · 13 the rules, the help, the examples, the feature proofs and the website say so · 14 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`left-out-routes`](left-out-routes.md), [`property-changes`](property-changes.md), [`release-green`](release-green.md), [`zip-writer`](zip-writer.md).
 
