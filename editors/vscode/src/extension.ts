@@ -62,6 +62,7 @@ import * as imports from "./imports";
 import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
 import { revealing } from "./links";
 import * as profile from "./profile";
+import * as debugViewer from "./debugviewer";
 import { profileLink } from "./profilelink";
 import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
@@ -84,15 +85,18 @@ import { refusal } from "./version";
 // and the list of its static members opens at once, and an accepted class after `new` writes
 // `Name()` and signature help opens between the parentheses. A lens runs `nvs.showLocations` with
 // the places it counts, and a "used by" lens runs `nvs.runTests` with the tests that reach its
-// method. The first two are this editor's commands, `nvs.showLocations` is registered below and
-// `nvs.runTests` in `tests.ts`. The server names one only to a client that listed it here: another
-// editor would answer an id it does not know with an error on every accepted item and every click.
+// method. A recorded query or copy lens runs `nvs.openDebugViewer` with the request's path in the
+// viewer, registered in `debugviewer.ts`, so the open panel moves to it. The first two are this
+// editor's commands, `nvs.showLocations` is registered below and `nvs.runTests` in `tests.ts`. The
+// server names one only to a client that listed it here: another editor would answer an id it does
+// not know with an error on every accepted item and every click.
 const EDITOR_COMMANDS = [
   "editor.action.triggerSuggest",
   "editor.action.triggerParameterHints",
   "nvs.showLocations",
   "nvs.runTests",
   "vscode.open",
+  debugViewer.OPEN,
 ];
 
 const editorCommands: StaticFeature = {
@@ -227,6 +231,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // file to run, and until this there is nowhere to keep a copy.
   installCopies(context);
   redactions.install(context);
+  // *Open Debug Viewer* and its browser twin, which ask the client that is answering for the link
+  // (`rule:ide/the-debug-viewer-opens-from-one-button`).
+  debugViewer.install(context, () => client);
   // The embedded services, likewise installed once and asking only while a server is answering.
   // The providers are registered from activation because a document with markup in it is often the
   // one the window opened on (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`).

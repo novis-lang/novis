@@ -70,6 +70,8 @@ interface Manifest {
     css?: { customData: string[] };
     breakpoints?: { language: string }[];
     views?: Record<string, { id: string; name: string; when?: string }[]>;
+    menus?: Record<string, { command: string; when?: string; group?: string }[]>;
+    taskDefinitions?: { type: string; properties: { command: { enum: string[] } } }[];
     debuggers?: {
       type: string;
       languages: string[];
@@ -112,6 +114,7 @@ const SETTINGS = [
   "nvs.stubs.dir",
   "nvs.highlighting.distinctNames",
   "nvs.inlayHints.parameterNames",
+  "nvs.debugViewer.openIn",
 ];
 
 const COMMANDS = [
@@ -127,6 +130,8 @@ const COMMANDS = [
   "nvs.downloadBinary",
   "nvs.openReleases",
   "nvs.useNovisTheme",
+  "nvs.openDebugViewer",
+  "nvs.openDebugViewerInBrowser",
 ];
 
 // A view id is where somebody's layout keeps the view's place and size, and `<id>.focus` is a
@@ -394,6 +399,35 @@ describe("the file types the extension claims", () => {
   });
 });
 
+describe("the debug viewer button", () => {
+  // `rule:ide/the-debug-viewer-opens-from-one-button`: one button, first in the editor's title bar
+  // for a Novis file, a case file and `nvs.toml`, and `nvs debug` as a task the button may start.
+  it("is the first command in the editor's title bar for nvs, nvst and nvs.toml", () => {
+    const title = manifest.contributes.menus?.["editor/title"] ?? [];
+    const button = title.find((entry) => entry.command === "nvs.openDebugViewer");
+    assert.ok(button, "nvs.openDebugViewer is not in editor/title");
+    assert.equal(button.group, "navigation@0");
+    for (const part of ["resourceLangId == nvs", "resourceLangId == nvst", "resourceFilename == nvs.toml"]) {
+      assert.ok(button.when?.split("||").map((s) => s.trim()).includes(part), `${part} is not in its when`);
+    }
+    const icon = manifest.contributes.commands.find((c) => c.command === "nvs.openDebugViewer") as
+      { icon?: string } | undefined;
+    assert.equal(icon?.icon, "$(pulse)");
+  });
+
+  it("can start nvs debug as a task of the nvs type", () => {
+    const nvs = manifest.contributes.taskDefinitions?.find((definition) => definition.type === "nvs");
+    assert.deepEqual(nvs?.properties.command.enum, ["run", "test", "debug"]);
+    assert.match(CLIENT, /command: "debug", file: folder/);
+  });
+
+  it("is a command the server may put on a recorded lens", () => {
+    assert.match(CLIENT, /EDITOR_COMMANDS = \[[^\]]*debugViewer\.OPEN/);
+    assert.match(CLIENT, /export const OPEN = "nvs\.openDebugViewer"/);
+    assert.ok(SERVER.includes('OPEN_VIEWER: &\'static str = "nvs.openDebugViewer"'));
+  });
+});
+
 describe("the frozen identifiers", () => {
   it("contributes exactly the settings the roster names", () => {
     assert.deepEqual(Object.keys(manifest.contributes.configuration.properties).sort(),
@@ -458,6 +492,8 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.stubs.dir"].default, "");
     assert.equal(properties["nvs.highlighting.distinctNames"].default, false);
     assert.equal(properties["nvs.inlayHints.parameterNames"].default, true);
+    assert.equal(properties["nvs.debugViewer.openIn"].default, "editor");
+    assert.deepEqual(properties["nvs.debugViewer.openIn"].enum, ["editor", "browser"]);
   });
 });
 

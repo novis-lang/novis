@@ -110,13 +110,14 @@ function collect(matcher: Matcher, output: string[]): Problem[] {
 
 describe("the Tasks the manifest contributes", () => {
   it("declares one task type, taking a subcommand and the path it runs on", () => {
-    // Both subcommands take a path — `nvs run <FILE>` and `nvs test <PATHS>...` — so a definition
-    // that made `file` optional would describe a task that cannot run.
+    // Every subcommand takes a path — `nvs run <FILE>`, `nvs test <PATHS>...`, and the folder
+    // `nvs debug` runs in — so a definition that made `file` optional would describe a task that
+    // cannot run.
     assert.equal(definitions.length, 1);
     const definition = definitions[0];
     assert.equal(definition.type, "nvs");
     assert.deepEqual(definition.required, ["command", "file"]);
-    assert.deepEqual(definition.properties["command"].enum, ["run", "test"]);
+    assert.deepEqual(definition.properties["command"].enum, ["run", "test", "debug"]);
     assert.equal(definition.properties["file"].type, "string");
     assert.equal(definition.properties["args"].type, "array");
   });

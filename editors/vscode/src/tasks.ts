@@ -11,6 +11,10 @@
 // `nvs.run` and `nvs.test` start these same Tasks rather than spawning a second way, so a user who
 // runs one from the palette and one from the task list gets the same process, the same terminal and
 // the same Problems entries.
+//
+// The third command, `debug`, is `nvs debug` run in the folder `file` names, which reads that
+// folder's `nvs.toml`. *Open Debug Viewer* starts it when the developer chooses
+// *Start nvs debug* (`rule:ide/the-debug-viewer-opens-from-one-button`).
 
 import {
   ExtensionContext,
@@ -37,7 +41,7 @@ export const MATCHER = "$nvs";
 
 /** A task as `tasks.json` holds it: the manifest's `taskDefinitions` entry, in TypeScript. */
 export interface NvsTaskDefinition extends TaskDefinition {
-  command: "run" | "test";
+  command: "run" | "test" | "debug";
   file: string;
   args?: string[];
 }
@@ -58,13 +62,18 @@ export function install(context: ExtensionContext): void {
  * to *no Novis file is open* is said once, here, rather than left to a process that would exit with
  * a usage error in a terminal the user has to go and read.
  */
-export async function execute(command: NvsTaskDefinition["command"]): Promise<void> {
+export async function execute(command: "run" | "test"): Promise<void> {
   const file = active();
   if (file === undefined) {
     void window.showInformationMessage(`nvs ${command} needs a Novis file: open one first.`);
     return;
   }
   await tasks.executeTask(await taskFor({ type: TYPE, command, file }));
+}
+
+/** Start `nvs debug` in `folder`, which is what *Start nvs debug* does. */
+export async function startDebug(folder: string): Promise<void> {
+  await tasks.executeTask(await taskFor({ type: TYPE, command: "debug", file: folder }));
 }
 
 const provider: TaskProvider = {
@@ -132,11 +141,17 @@ async function taskFor(
   scope?: WorkspaceFolder | TaskScope,
 ): Promise<Task> {
   const { command } = await runnable();
-  const execution = new ProcessExecution(
-    command,
-    [definition.command, definition.file, ...(definition.args ?? [])],
-    { env: { NO_COLOR: "1" } },
-  );
+  // `nvs debug` takes no file, and reads the configuration of the folder it runs in.
+  const execution = definition.command === "debug"
+    ? new ProcessExecution(command, ["debug", ...(definition.args ?? [])], {
+      env: { NO_COLOR: "1" },
+      cwd: definition.file,
+    })
+    : new ProcessExecution(
+      command,
+      [definition.command, definition.file, ...(definition.args ?? [])],
+      { env: { NO_COLOR: "1" } },
+    );
   return new Task(
     definition,
     scope ?? folderOf(definition.file),

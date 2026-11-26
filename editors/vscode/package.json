@@ -223,6 +223,19 @@
           "scope": "application",
           "markdownDescription": "Gives class names and methods two different colours in `.nvs` files. Your colour theme stays the same.\n\nWhen you turn this on, Novis adds colour rules for your current colour theme to `#editor.semanticTokenColorCustomizations#` in your user settings. When you change the colour theme, Novis adds rules for the new theme too. When you turn this off, Novis removes these rules. If you changed a rule yourself, Novis keeps it.\n\nThe Novis Dark and Novis Light colour themes already give class names and methods their own colours. To switch to one of them, click [Use the Novis colour theme](command:nvs.useNovisTheme)."
         },
+        "nvs.debugViewer.openIn": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "browser"
+          ],
+          "enumDescriptions": [
+            "Open the debug viewer in a panel of the editor.",
+            "Open the debug viewer in your web browser."
+          ],
+          "default": "editor",
+          "description": "Where the Open Debug Viewer button opens the debug viewer. The debug viewer shows the requests that nvs debug recorded."
+        },
         "nvs.stubs.dir": {
           "type": "string",
           "default": "",
@@ -291,6 +304,17 @@
         "command": "nvs.useNovisTheme",
         "title": "Use Novis Colour Theme",
         "category": "Novis"
+      },
+      {
+        "command": "nvs.openDebugViewer",
+        "title": "Open Debug Viewer",
+        "category": "Novis",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "nvs.openDebugViewerInBrowser",
+        "title": "Open Debug Viewer in Browser",
+        "category": "Novis"
       }
     ],
     "themes": [
@@ -314,6 +338,13 @@
         {
           "command": "nvs.convertToHtmlTemplate",
           "when": "editorLangId == nvs"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "nvs.openDebugViewer",
+          "when": "resourceLangId == nvs || resourceLangId == nvst || resourceFilename == nvs.toml",
+          "group": "navigation@0"
         }
       ],
       "editor/context": [
@@ -359,17 +390,19 @@
             "type": "string",
             "enum": [
               "run",
-              "test"
+              "test",
+              "debug"
             ],
             "enumDescriptions": [
               "Check the file, then compile and run it.",
-              "Run the file's #[Test] methods, or the .nvst cases under it."
+              "Run the file's #[Test] methods, or the .nvst cases under it.",
+              "Start the debug service in the folder `file` names. It records requests and serves the debug viewer."
             ],
             "description": "The nvs subcommand this task is."
           },
           "file": {
             "type": "string",
-            "description": "The file or directory the subcommand is given. Both of them take one."
+            "description": "The file or directory the subcommand is given. For debug, it is the folder the service runs in."
           },
           "args": {
             "type": "array",
