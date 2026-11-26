@@ -182,6 +182,17 @@ in two JSON columns, as the rule's row names them, and does not search them. A g
 its latest throw's stack (`latest` on `GET /api/exceptions?class=&file=&line=`), one indexed read.
 A `Core` frame is one whose function starts with `Core\`.
 
+**Stage 4 settled the outcome's shape.** `spool::Outcome` is one flattened struct of optional
+fields, and a kind sets only its own. `tier` is on every cache call and `hit` only on a plain
+`get`: a `getSecret` with a `fill` returns a value on a miss, so its result does not say which.
+`bytes` is set on a whole-file read and on a write, and `bytes_in` only where an outbound call
+read the whole body, so a streamed reply and a WebSocket have none. `command` is the program's
+file name, never its directory. `Record::Event` is boxed, as `Record::Request` is, because the
+outcome made it the large variant: one allocation per recorded event line, only with `store` on.
+The end-to-end miss-then-hit check is a Rust test in `crates/nvs-cli/tests/request.rs`, which
+already reads a served request's spool lines, and not a conformance case: no `.nvst` section
+reads the spool, and a new harness section for one check is a mechanism nothing else uses.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -259,16 +270,26 @@ handler, as `file.rs:NN` and one line.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/spool.rs:538`: the optional outcome fields on an event, and
+- [x] `crates/nvs-runtime/src/spool.rs:538`: the optional outcome fields on an event, and
   `crates/nvs-runtime/src/ctx/trace.rs:732` takes them from the watched member.
-- [ ] `crates/nvs-stdlib/src/cache.rs:2860` (hit and tier), `http.rs:4651` (status and bytes),
+  - [x] `spool::Outcome` and `CacheTier`, flattened into `Event`, and `Record::Event` boxed
+  - [x] `record_site_event` and `close_spawn_with` take an outcome
+- [x] `crates/nvs-stdlib/src/cache.rs:2860` (hit and tier), `http.rs:4651` (status and bytes),
   `io.rs:2321` (bytes), `process.rs:1713` (command and exit).
-- [ ] `crates/nvs-cli/src/debug/index.rs:151` and `ingest.rs:736`: one JSON `detail` column on
+  - [x] `site::watched_with` reads the outcome off the result only when the event is filed
+  - [x] cache, file, HTTP and process members pass theirs
+- [x] `crates/nvs-cli/src/debug/index.rs:151` and `ingest.rs:736`: one JSON `outcome` column on
   `events`, and the API gives it.
-- [ ] The viewer's timeline row and the Queries tab's neighbours: a hit or miss chip, the status of
+  - [x] schema 13, and the API gives each event's `target` and `outcome`
+- [x] The viewer's timeline row and the Queries tab's neighbours: a hit or miss chip, the status of
   a call, the bytes, the exit code. A cache tab lists hits and misses by key.
-- [ ] Tests per kind in `debug_ingest.rs`, and one conformance case under `tests/conformance/` that
-  reads a recorded `get` as a miss and then a hit.
+  - [x] the timeline's detail and `Hit` chip, and the Cache tab
+  - [x] `viewer/test/outcome.test.ts`, and `bun nv viewer --verify` is green
+- [ ] Tests per kind in `debug_ingest.rs`, and one end-to-end test that reads a recorded `get` as a
+  miss and then a hit (the conformance case it replaces is a standing decision).
+  - [x] `each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none`
+  - [ ] a test in `crates/nvs-cli/tests/request.rs` that runs `get`, `put`, `get` with `store`
+    on and reads the two `get` lines' `hit` as `false` and then `true`, with `tier` `memory`
 
 ### 5. sending mail and pushing a job are events
 
@@ -328,35 +349,39 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 3 is done, in two commits. `aa030d1b55` is the runtime, index and API part:
-`Thrown::stack()` in `crates/nvs-runtime/src/throwable.rs` (bounded by `spool::FRAMES_MAX` and
-`spool::PREVIOUS_MAX`), `Failure::stack` filled in `crates/nvs-host/src/isolate.rs` under the store
-gate, `spool::Stack`, `Frame` and `Link` flattened into `spool::Exception`, index schema 12 with
-`frames`, `frames_cut`, `previous` and `previous_cut` on `exceptions`, `api::stack()` for the request
-API, and `latest` on one group's page in `crates/nvs-cli/src/debug/exceptions.rs`. `fa269106ff`
-is the viewer: `viewer/src/ui/stack.tsx`, used by the Exception tab and the group page, with its
-styles in `viewer/src/styles/request.css`. The two rules' "from goal" wording for the exception
-fields is now present tense.
+Stage 4 is done but for one test, in two commits. `aeb3754a14` is the runtime, index and API
+part: `spool::Outcome` and `CacheTier` flattened into `spool::Event` (`Record::Event` is now
+boxed), `Ctx::record_site_event` and the new `Ctx::close_spawn_with` take an outcome in
+`crates/nvs-runtime/src/ctx/trace.rs`, `site::watched_with` and `site::length_of` in
+`crates/nvs-stdlib/src/site.rs`, and the members: `cache.rs` (`outcome_of`), `io.rs`
+(`read_outcome`, `written_outcome`), `http.rs` (`traced` takes the bytes read, `HttpSpan::status`)
+and `process.rs` (the wait's join). Index schema 13 has `outcome` on `events`, and the request API
+gives each event's `target` and `outcome`. The two rules' "from goal" wording for the stage 4
+fields is now present tense. `3d215ad133` is the viewer: `viewer/src/views/request/outcome.ts`
+(`outcomeText`, `cacheGroups`), the timeline's detail and `Hit` chip (`viewer/src/ui/badges.tsx`),
+the Cache tab (`viewer/src/views/request/cache.tsx`), and `size` moved to `viewer/src/format.ts`.
 
-Tests that ran, each green: three unit tests in `throwable.rs` (`a_three_deep_throw_…`,
-`a_chain_of_two_…`, `a_stack_past_its_bounds_is_cut`), `the_sample_spool_is_what_the_writer_writes`
-(it rewrote `one-of-each.spool`), the new
-`an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged` in `debug_ingest.rs`, the
-whole `debug_api` suite (it rewrote `request.json` and `exception.json`, then passed), `bun nv viewer
---verify`, and the request and exceptions browser tests (12). No test is expected to go red.
+Tests that ran, each green: the spool unit tests (`the_sample_spool_is_what_the_writer_writes`
+rewrote `one-of-each.spool`, which gains a cache `get` hit), the whole `debug_ingest` suite with the
+new `each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none`, the whole
+`debug_api` suite (it rewrote `viewer/test/fixtures/request.json`, then passed),
+`viewer/test/outcome.test.ts`, `bun nv viewer --verify`, and `request.browser.test.ts`. No test is
+expected to go red.
 
 The nightly failures the sweep listed were from run `45609291264` on `53e94a9181`, and were
 already fixed by `1c3196b0e8` and `8ca2f09e1b`, which are on `main` after it.
 
 ### Next
 
-Stage 4, an event's outcome. The spool's `Event` is at `crates/nvs-runtime/src/spool.rs:614`,
-the `events` table at `crates/nvs-cli/src/debug/index.rs:168` (the schema goes to 13) and its
-insert at `crates/nvs-cli/src/debug/ingest.rs:541`. The members are the stage's own anchors:
-`cache.rs:2860`, `http.rs:4651`, `io.rs:2321` and `process.rs:1713` under `crates/nvs-stdlib/src/`.
-Stage 1 settled the field names: `http_status` and not `status`, and one nullable JSON `outcome`
-column in the index. The `debug_api` tests that write a viewer fixture fail once when it changes
-and pass on the next run.
+1. Stage 4's last item: a test in `crates/nvs-cli/tests/request.rs` that serves a program running
+   `Core\Cache::memory()->get('k')`, `->put('k', 1)`, `->get('k')` with `[debug] store` on, and
+   reads the two `get` event lines' `outcome.hit` as `false` then `true`, with `tier` `Memory`. Its
+   spool helpers are `spooled_as` (`request.rs:311`) and `spooled_queries` (`request.rs:302`). Run
+   it once by name, tick it, and set stage 4 to done in the front matter.
+2. Stage 5, mail and queue events. Both share `crates/nvs-stdlib/src/site.rs` with stage 4: a
+   `mail` and a `queue` kind join `TraceKind` (`crates/nvs-runtime/src/ctx/trace.rs:120`) and
+   `spool::EventKind`, and `Outcome` gains `recipients`, `ok`, `queue`, `job` and `delay_ms`. The
+   viewer's `EventKind` and `KIND_NAMES` in `viewer/src/views/timeline.tsx` gain the two kinds.
 
 ### Backlog
 
