@@ -77,6 +77,7 @@
     "security/image-component-declares-nothing",
     "security/one-tls-client",
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "security/the-client-trust-roots-are-the-operators",
     "security/protocol-roster",
     "security/protocol-admission-test",
     "security/algorithm-comes-from-the-key",

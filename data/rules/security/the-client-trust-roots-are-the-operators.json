@@ -1,5 +1,5 @@
 {
-  "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
+  "title": "`[tls.client]` is the operator's alone and every outbound connection's: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
   "status": "shipped",
   "seeAlso": [
     "security/one-tls-client",
@@ -8,9 +8,11 @@
     "http-server/an-unsafe-or-unbounded-default-is-a-defect"
   ],
   "guardedBy": [
-    "crates/nvs-config/src/http.rs",
+    "crates/nvs-config/src/tree.rs",
     "crates/nvs-cli/src/config.rs",
     "crates/nvs-host/src/tls.rs",
+    "crates/nvs-stdlib/src/tls_fix.rs",
+    "crates/nvs-cli/tests/client_roots.rs",
     "crates/nvs-config/tests/resolve.rs",
     "crates/nvs-config/tests/tree.rs"
   ]

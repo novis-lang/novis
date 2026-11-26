@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
-    "http-server/the-client-trust-roots-are-the-operators",
+    "security/the-client-trust-roots-are-the-operators",
     "security/tainted-qualifier",
     "core-api/a-lifetime-is-an-object"
   ],

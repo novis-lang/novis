@@ -4,7 +4,7 @@
   "seeAlso": [
     "security/one-tls-client",
     "security/capability-question-is-grant-and-scope",
-    "http-server/the-client-trust-roots-are-the-operators",
+    "security/the-client-trust-roots-are-the-operators",
     "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
     "http-server/a-reply-reports-its-tls-session"
   ],

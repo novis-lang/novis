@@ -69,7 +69,6 @@
     "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
     "http-server/an-outbound-proxy-is-operator-configured",
     "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
-    "http-server/the-client-trust-roots-are-the-operators",
     "http-server/a-reply-reports-its-tls-session",
     "http-server/an-outbound-socket-is-opened-like-an-outbound-call",
     "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it",

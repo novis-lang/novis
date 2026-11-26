@@ -2120,7 +2120,7 @@ connections unmatchable, so they age out rather than serve a call the operator h
   verify the proxy; the second is a routing table rather than a block. Neither has a deployment asking
   for it.
 
-<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
+<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-client-trust-roots-are-the-operators`](security.md#security-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
 
 <a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
 
@@ -2173,39 +2173,6 @@ program code decides or branches on.
 
 <sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline).</sub>
 
-<a id="http-server-the-client-trust-roots-are-the-operators"></a>
-
-## `[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`
-
-`rule:http-server/the-client-trust-roots-are-the-operators`
-
-Which certificates the outbound client believes is the operator's decision and has no code-side spelling
-at all. `[http.client.tls]` carries three keys, every one of them `System` class
-([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)) because they configure the one `ClientConfig` the process
-shares ([`security/one-tls-client`](security.md#security-one-tls-client)):
-
-| Key | Ships | Allows |
-|---|---|---|
-| `roots` | `["bundled"]` | Each entry is `"bundled"` — the compiled-in Mozilla set — or a PEM file. `["bundled", "/etc/novis/corp-ca.pem"]` adds a company CA; a list without `"bundled"` trusts only its files. Each file is resolved and trust-checked at boot exactly as `[db.<name>] tls_ca_file` is, and parsed by `nvs_host::tls` alone. |
-| `min_version` | `"1.2"` | `"1.3"` raises the floor for every call. There is nothing below `1.2` to write. |
-| `keylog` | unset | A file every session's secrets are appended to in the `SSLKEYLOGFILE` format, so an operator can read their own traffic. **Refused at boot in `production`**, naming the key; in `development` the boot says it is on, every start. |
-
-`1.2` as the shipped floor is the one place the client trades a stronger default for reach: a great many
-corporate and payment endpoints still speak nothing else, and a client that cannot reach them is a client
-a deployment replaces with `curl`. Raising the floor is one line, and `nvs config dump` says what it
-currently is.
-
-`keylog` is refused rather than warned about, because a file of live session secrets is not a
-configuration mistake a warning improves — the process must not start with it. A program relaxes *its
-own* call's verification only through [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), and
-never through any of these three keys.
-
-- **Memory:** per process, the `roots` files, parsed once beside or in place of the bundled set. A call
-  naming any per-call TLS option builds its own client configuration and frees it with the call, so that
-  cost is O(in-flight).
-
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
-
 <a id="http-server-a-reply-reports-its-tls-session"></a>
 
 ## `Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none
@@ -2233,7 +2200,7 @@ The chain is `tainted` and the timings are not here: where a call's time went is
 ([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
 that disagrees.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`security/the-client-trust-roots-are-the-operators`](security.md#security-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 

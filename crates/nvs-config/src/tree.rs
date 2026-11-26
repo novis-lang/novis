@@ -104,7 +104,7 @@ pub struct Config {
     /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
     /// `[tls.client]` — whose certificates every outbound TLS connection believes, for HTTP and
-    /// for every other protocol (`rule:http-server/the-client-trust-roots-are-the-operators`).
+    /// for every other protocol (`rule:security/the-client-trust-roots-are-the-operators`).
     pub tls: Option<Tls>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// `rule:security/db-pool-reset-is-a-boundary` lets an operator write beside them rather than

@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
-    "http-server/the-client-trust-roots-are-the-operators",
+    "security/the-client-trust-roots-are-the-operators",
     "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
     "http-server/retry-is-opt-in-jittered-and-closed",
     "security/no-cross-request-state",
