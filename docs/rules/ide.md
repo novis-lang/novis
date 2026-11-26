@@ -3,7 +3,7 @@
 
 # The editor
 
-*2 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -547,7 +547,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 `rule:ide/the-request-set-is-closed`
 
 `nvs lsp` answers twenty-two standard requests, the code actions of
-[`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows) and organize imports, and seven
+[`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows) and organize imports, and eight
 requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
@@ -717,6 +717,12 @@ nothing new built: the index already reads every file it lists, and the kind is 
 own scan, recorded once per file as the index reads it. It is non-standard because LSP has no shape for
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
+
+The eighth is `nvs/debugViewer` ([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)), and it passes the
+test with nothing new built: its answer is `nvs debug link --json`'s, made from the configuration tree
+the server already reads for the query lens and the token and lock `nvs_config::viewer` holds for both
+binaries. It is non-standard because LSP has no shape for a local page an editor frames. It has no
+`.lspt` vocabulary, and `crates/nvs-lsp/tests/handshake.rs` and the module's own tests hold it.
 
 **Declined:**
 - **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
@@ -3498,7 +3504,7 @@ the panel renders nothing of its own.
 
 <a id="ide-the-debug-viewer-opens-from-one-button"></a>
 
-## The extension opens the debug viewer from one button, in an editor panel that frames it or in the browser  *(designed — owned by goal debug-viewer-flagship)*
+## The extension opens the debug viewer from one button, in an editor panel that frames it or in the browser
 
 `rule:ide/the-debug-viewer-opens-from-one-button`
 
@@ -3527,9 +3533,16 @@ panel, so no second tab opens.
 `nvs.toml` turns recording on and opens the file. The browser command passes the link through
 `vscode.env.asExternalUri`, so a remote window opens the forwarded address.
 
-**The stop rule.** If the host test shows that VS Code does not draw an `http://127.0.0.1` frame in a
-webview, the panel is dropped after that one attempt, both commands open the browser, and this rule
-says so.
+**The server and the developer's `nvs debug` read one data folder.** The extension runs `nvs` from a
+copy ([`ide/the-extension-runs-a-copy-of-the-binary`](ide.md#ide-the-extension-runs-a-copy-of-the-binary)), and every process it starts from a copy
+gets `--data` with the `.nvsdata` beside the real path of the binary it was copied from
+(`editors/vscode/src/shadow.ts` `dataBeside`). Without it the server reads the copy's own token and
+lock, finds no service, and the panel opens with a token the service refuses.
+
+**The host test opens the panel against a running service.** `test/host/debugviewer.test.ts` starts
+`nvs debug` with the server's data folder, runs the command, and waits for one webview of type
+`nvs.debugViewer`; a second run opens no other. If VS Code stops drawing an `http://127.0.0.1` frame
+in a webview, the panel is dropped, both commands open the browser, and this rule says so.
 
 - **Memory:** one webview per window while the panel is open, holding a frame of the viewer. The
   viewer's own memory is the browser's, as in a tab.

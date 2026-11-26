@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-cli/src/debug.rs, crates/nvs-cli/src/debug/secure.rs, crates/nvs-cli/tests/debug_viewer.rs, viewer/src/router.ts, viewer/src/editor-link.ts, docs/agent/coding.md]
   - id: 9
     title: the extension opens the viewer in a panel or the browser from one button, and a site in the panel opens in the editor
-    status: open
+    status: done
     context: [editors/vscode/package.json, editors/vscode/src/extension.ts, editors/vscode/src/profile.ts, editors/vscode/src/viewer.ts, editors/vscode/DEVELOPING.md, crates/nvs-lsp/src/server.rs, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, docs/rules/ide/the-request-set-is-closed.md]
   - id: 10
     title: a lens shows what a route, a dump and a throw site recorded, and opens it in the viewer
@@ -716,11 +716,15 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 - [x] Headless tests under `editors/vscode/test/debugviewer/`: the page's policy admits one frame
   source, an `open` for a file outside every workspace folder opens nothing, and a `go` path is
   checked. The check `extension` is green.
-- [ ] Every process the extension runs from a copy gets `--data` with the data folder beside the
+- [x] Every process the extension runs from a copy gets `--data` with the data folder beside the
   binary it was copied from, as Standing decisions say (`editors/vscode/src/binary.ts:59`).
-- [ ] A host test under `editors/vscode/test/host/`: the command opens a panel of type
+  - [x] `shadow.ts` `dataBeside` and `withData`, and `Runnable.data`
+  - [x] the six spawns, and the suite `the data folder every spawn is told`
+- [x] A host test under `editors/vscode/test/host/`: the command opens a panel of type
   `nvs.debugViewer` against a service the test starts. It is the test the stop rule reads.
-- [ ] Ship `ide/the-debug-viewer-opens-from-one-button` and
+  - [x] `test/host/debugviewer.test.ts`
+  - [x] `test:host` green once (17 passing): the panel opens, so the stop rule does not apply
+- [x] Ship `ide/the-debug-viewer-opens-from-one-button` and
   `testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`.
 
 ### 10. a lens shows what a route, a dump and a throw site recorded, and opens it in the viewer
@@ -766,48 +770,43 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 8 are done, and stage 9 is in its first session. Four rules are `designed` and owned
-by this goal, and two are `shipped`:
-`testing/the-viewer-wears-the-websites-palette` and
-`testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
-record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
-`path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3 to 9 gave are under Standing decisions.
+Stages 1 to 9 are done. Two rules are `designed` and owned by this goal:
+`ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded` (stage 10) and
+`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`. The stage that ships a rule
+sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills
+`guardedBy`, then runs `bun nv rules --render`. The `path:line` anchors in later stages come from
+surveys, so a stage checks an anchor before it edits. The names stages 3 to 9 gave are under
+Standing decisions.
 
-Stage 9 landed two commits after `b98e21a68f`. The first moves the token, the links and the lock
-probe into `nvs_config::viewer`, adds `nvs/debugViewer` to the language server, and makes a
-recorded lens run `nvs.openDebugViewer` with its viewer path for a client that names it. The
-second is the extension: two commands, the setting `nvs.debugViewer.openIn`, the `editor/title`
-button, the panel page (`debugpage.ts`) and its commands (`debugviewer.ts`), and the task command
-`debug`. Green: clippy, `cargo test --test handshake the_debug_viewer_request`, the unit tests
-`debug_viewer` (2) and `a_loopback_link_is_http…` in `nvs-config`, and the check `extension`
-(`test:headless`, 400 passing, with the new suite `debugviewer`, 11) and `npm run lint`.
+Stage 9's second session landed `--data` on every spawn from a copy (`shadow.ts` `dataBeside` and
+`withData`, `Runnable.data`, the six spawn sites), the host test
+`editors/vscode/test/host/debugviewer.test.ts`, and shipped
+`ide/the-debug-viewer-opens-from-one-button` and
+`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`. Green: `npm run lint`, the
+check `extension` (`test:headless`, 411 passing) and `test:host` once (17 passing). The panel
+opens against a running service, so the stop rule does not apply. The host test starts
+`nvs debug` in the data folder beside the binary `scripts/host.mjs` names, so it fails if a
+developer's own `nvs debug` holds that folder's lock.
 
-The session found a gap the query lens already had. The extension runs `nvs lsp` from a copy, so
-the server's data folder is the `.nvsdata` beside the copy, and its token and lock are not the
-ones a developer's `nvs debug` uses. Standing decisions say the fix: `--data` on every spawn from
-a copy. Until then the panel opens with a token the service refuses. No host test was run.
+The nightly CI failures of run 45609291264 (Miri zone tests, the quotient attack, the macOS
+json-api allocation count) tested `53e94a9181` and are fixed on disk by `1c3196b0e8`.
 
 ### Next
 
-Stage 9's second session, from its first open item:
+Stage 10, from its first item:
 
-1. `editors/vscode/src/binary.ts:59` `Runnable` gains `data` (the `.nvsdata` beside
-   `realpath(source)`, only when `copy` is set). Put `--data <data>` in front of the subcommand at
-   each spawn: `extension.ts:507` (`lsp`), `tasks.ts` `taskFor`, `format.ts:168`, `ast.ts:173`,
-   `tests.ts:563` and `debug.ts:50`. A headless test pins that each site passes it.
-2. The host test `editors/vscode/test/host/debugviewer.test.ts`: write `nvs.toml` with
-   `[debug] listen = "127.0.0.1:<free port>"` into the workspace copy, start `nvs --data <the
-   data folder> debug` there with `node:child_process`, wait for its printed link (an event, not a
-   time), run `nvs.openDebugViewer` and wait until `openPanel()?.viewType` is `nvs.debugViewer`.
-   Stop the service in `after`. Run `npm --prefix editors/vscode run test:host` once. If VS Code
-   does not draw the frame, the stop rule in Standing decisions applies.
-3. Ship the two rules: `data/rules/ide/the-debug-viewer-opens-from-one-button.json` and
-   `data/rules/testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path.json` go to
-   `shipped`, drop `goal`, and name `crates/nvs-config/src/viewer.rs`,
-   `crates/nvs-lsp/src/debug_viewer.rs`, `editors/vscode/src/debugpage.ts`,
-   `editors/vscode/src/debugviewer.ts` and `editors/vscode/test/debugviewer/page.test.ts` in
-   `guardedBy`. Then set stage 9 to done.
+1. `crates/nvs-lsp/src/recorded.rs`: three bounded reads beside the query lens's: a route's count,
+   p50 and newest failing status with its age (by method and route pattern), the newest dump at a
+   file and line, and the exception group at a file and line.
+2. `crates/nvs-lsp/src/server.rs:2150` `code_lens`: the three lenses beside `query_lenses`
+   (`:2374`), each under `nvs.codeLens.enable`. A dump or throw lens shows only while the file is
+   not newer than its record. Each click builds a `Command` as `open_request` (`:2422`) does:
+   the route lens opens `/requests?method=…&route=…`, the dump lens the request's
+   `?tab=dumps#dump-<id>`, the throw lens the exception group. Their rows go in
+   `crates/nvs-lsp/src/lens_rows.rs`.
+3. Rust tests beside the query lens's: each lens against a fixture index, no lens with no index,
+   and no dump lens for a file newer than its record. Then the `.lspt` cases under `tests/lsp/`
+   (the stage's split), and ship `ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`.
 
 `bun nv site --check shots` stays red until stage 11, and `bun nv proofs --owed` names
 `tools:cli/nvs-debug-link`, which stage 11 pays. No test is expected to go red.

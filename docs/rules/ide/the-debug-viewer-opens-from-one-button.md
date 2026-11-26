@@ -23,9 +23,16 @@ panel, so no second tab opens.
 `nvs.toml` turns recording on and opens the file. The browser command passes the link through
 `vscode.env.asExternalUri`, so a remote window opens the forwarded address.
 
-**The stop rule.** If the host test shows that VS Code does not draw an `http://127.0.0.1` frame in a
-webview, the panel is dropped after that one attempt, both commands open the browser, and this rule
-says so.
+**The server and the developer's `nvs debug` read one data folder.** The extension runs `nvs` from a
+copy (`rule:ide/the-extension-runs-a-copy-of-the-binary`), and every process it starts from a copy
+gets `--data` with the `.nvsdata` beside the real path of the binary it was copied from
+(`editors/vscode/src/shadow.ts` `dataBeside`). Without it the server reads the copy's own token and
+lock, finds no service, and the panel opens with a token the service refuses.
+
+**The host test opens the panel against a running service.** `test/host/debugviewer.test.ts` starts
+`nvs debug` with the server's data folder, runs the command, and waits for one webview of type
+`nvs.debugViewer`; a second run opens no other. If VS Code stops drawing an `http://127.0.0.1` frame
+in a webview, the panel is dropped, both commands open the browser, and this rule says so.
 
 - **Memory:** one webview per window while the panel is open, holding a frame of the viewer. The
   viewer's own memory is the browser's, as in a tab.
