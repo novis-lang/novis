@@ -37,7 +37,7 @@ stages:
     context: [crates/nvs-stdlib/src/test/records.rs, crates/nvs-runtime/src/test_records.rs, crates/nvs-runtime/src/spool.rs, viewer/src/router.ts, docs/rules/testing/a-test-reads-its-logs-and-mail.md]
   - id: 9
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/examples/core/Mail/send/about.md, website/src/content/docs/guides/walkthroughs/after-response.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
@@ -620,7 +620,7 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 - [x] `docs/rules/programs/framework-core-half.md:12`, `docs/rules/core-classes/mail-message.md:1`
   (new), `docs/rules/core-classes/mail-transport.md:1` (new) and
   `docs/rules/testing/a-test-reads-its-logs-and-mail.md:7`, then `bun nv rules`.
-- [ ] The feature proofs `bun nv proofs --owed --goal mail-complete` names. The examples it will
+- [x] The feature proofs `bun nv proofs --owed --goal mail-complete` names. The examples it will
   need include: an invoice with a PDF attachment, a mail with a logo as an inline image, a styled
   mail with its inlined result printed by `Core\Mail::preview`, a reply in a thread through
   `inReplyTo`, a newsletter with `unsubscribe`, and sending after the response with
@@ -632,11 +632,11 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
   sending, names, attachments and inline images, "Styling an HTML mail" with the before and after,
   threads, unsubscribe, sending in the background, testing and the viewer.
 - [x] `docs/reference/tools/20-config.md:1`: every new `[mail.<name>]` key.
-- [ ] `website/src/data/changes.json:1`: entries `changed` `Core\Mail::send`, `new`
+- [x] `website/src/data/changes.json:1`: entries `changed` `Core\Mail::send`, `new`
   `Core\Mail::preview`, `new` `Core\Mail\Attachment`, `new` `Core\Mail\Address`, `changed`
   `Core\Test\SentMail`, `changed` `[mail]` settings. Then `bun nv site --check stale`, `changes` and
   `review` green.
-- [ ] `bun nv proofs --owed --goal mail-complete` names nothing.
+- [x] `bun nv proofs --owed --goal mail-complete` names nothing.
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -647,52 +647,49 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Stages 1 to 8 are done. In stage 9 every mail text the review named is fixed and stamped, as
-review and as stale. This session's commits:
+Stages 1 to 9 are done, and stage 10 (the close) is under way. This session's commits:
 
-- `b53a9270ec`: the review's findings in the mail examples, attacks, benches, help cards,
-  the sending-mail page, its snippets, `changes.json` and two `20-config.md` chapters. 182 stamps.
-- `192ae33e9f`: the 15 new mail benches' lines in `data/perf/bench-budget.json`, and no other.
-  `scaling --budget` still fails on other goals' benches (see the backlog).
-- `b518f9ac31`: the 49 stale mail keys stamped in `website/site.lock.json`. `SentMail::text`'s
-  card (`crates/nvs-stdlib/src/test/records.rs:307`), `Test/sentMail/about.md` and
-  `secrets-from-files/about.md` corrected. The ten debug texts `site --check review` names
-  (from `50a36f29d6`, another goal, never reviewed) are rewritten for their findings: the
-  `debug-*` config pages, `nvs-debug/about.md`, the debug-viewer page, `[debug]` in
-  `default.toml` and `# nvs debug` in `10-cli.md`. They are not stamped yet.
+- `0b69843fbc`: the debug viewer page has a **Mail** section and lists the page in the rail.
+  `debug-store` says a capture block writes the whole message. The ten debug texts and four more
+  were reviewed by a `reader`, fixed and stamped. `nvs debug`'s first help line names the SQLite
+  database. Six `Core\Test\SentMail` readers whose tests moved are recorded as unseen.
+- `39d476a9d1`: `debug-store/about.md` fits the 200-word bound. `proofs --gate --goal
+  mail-complete` is green.
+- `5860b414cc`: `bun nv render` writes `crate::mail::parts::ATTACHMENT` and
+  `crate::mail::css::PREVIEW` into `classes.rs`, so `parts` and `css` are `pub(crate)` and the
+  re-exports are gone. rustfmt, the rendered website data, two long paragraphs of the viewer page
+  and the `index_max` changelog entry (another session's commit `fdbd809da7`) are fixed.
+
+Stage 10's checks, run this session: clippy green; every acceptance check of the goal green
+(`headers` to `proofs`). `viewer` failed once and passed twice after it, while another session ran;
+see the backlog. The nightly run 45609291264's failures are fixed on main (backlog).
+
+`bun nv close --goal mail-complete` was red on four checks. `rendered files`, `rustfmt` and
+`website render` are fixed in `5860b414cc`. The fourth, `website stale guard`, is still red on
+two parts, below.
 
 ### Next
 
-1. **Review the ten debug texts again, then stamp.** `bun nv site --review` lists them.
-   `bun nv site --review --brief <keys>` into one `reader`, fix what it finds, then
-   `bun nv site --review --stamp` the ten keys. Not fixed yet: the first line of the clap doc
-   in `crates/nvs-cli/src/debug.rs` says "the debug index" without defining it; a change there
-   also changes `docs/examples/tools/cli/nvs-debug/01-print-the-options-of-nvs-debug.out`.
-   Check whether `bun nv render` must run after the `10-cli.md` change.
-2. **Stale texts the reread found wrong, still to fix:**
-   - `website/src/content/docs/tools/debug-viewer/index.mdx`: the page list omits **Mail**
-     (between **Logs** and **Stream**, `viewer/src/App.tsx:47`), and "Sent mail shows the number of
-     recipients. The viewer never shows an address or the text." is true only of the timeline
-     event: a `capture = true` block's mail is on the Mail page with addresses, text and HTML. Add a
-     short Mail section.
-   - `docs/examples/tools/cli/the-debug-viewer/about.md:7`: name the Mail page. It is at 188
-     words, so cut a clause.
-   - `docs/examples/config/debug-store/about.md`: say that with `store` on, a `capture = true`
-     mail block writes the whole message (addresses, text, HTML, attachments) to the record files
-     (`crates/nvs-stdlib/src/mail/capture.rs:5`). It is at exactly 190 words: cut first.
-   - `docs/examples/core/Test-LogRecord/fields/about.md`: may say that a long or deep value is cut
-     as the log line cuts it (minor).
-   Then `bun nv site --check stale`, and `bun nv site --stamp` every key it names once the texts
-   are right. The older `Test-SentMail` readers (`endpoint`, `to`, `subject`, `text`, `cc`, `bcc`,
-   `replyTo`, `html`), `Core\Test::logs`, `Test-LogRecord/level` and `message`, `nvs-debug`,
-   `index_age`, `index_max` and `the-blocks-the-binary-accepts` were reread and are still right.
-   Every changed text is reviewed again (`site --review`), then stamped.
-3. Commit, then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), then tick stage 9
-   and take stage 10: a build, the goal's tests by name and `bun nv close --goal mail-complete`.
+1. **`site --check questions`: 37 pages.** Eleven are stale (`/reference/core/mail/send/`,
+   `/reference/core/test/sentmail/`, `test-sentmail/text/` and `html/`, `/reference/config/debug/`,
+   `/reference/config/the-blocks-the-binary-accepts/`, `/reference/config/secrets-from-files/`,
+   `/reference/cli/nvs-debug/`, `/reference/cli/the-debug-viewer/`,
+   `/guides/how-to-use/sending-mail/`, `/tools/debug-viewer/`). 26 owe questions: every
+   `Core\Mail\Attachment`, `Core\Mail\Preview` and `Core\Mail\Address` page, `Core\Mail::preview`,
+   and the eight new `Core\Test\SentMail` readers. `bun nv site --questions --owed core` prints what
+   to write them from. This is wide: split it over writing subagents by class, each brief naming
+   AGENTS.md § *Text an end user reads*. Stamp with `MSYS_NO_PATHCONV=1 bun nv site --questions
+   --stamp <url>...`.
+2. **`site --check roadmap`: five goals on the chain are in no theme** of
+   `website/src/data/roadmap.json`: `long-run-records`, `tls-client-block`, `loadable-completion`,
+   `test-only` and `narrowed-static`. Add each to its theme, or to `internal`.
+3. Then `bun nv close --goal mail-complete` once more, fix what it names, tick stage 10's items,
+   set stage 10 `done`, delete the goal's file after moving any decision only it holds (the
+   standing decisions are in `docs/rules/core-classes/mail-message.md` and `mail-transport.md`;
+   check the stage 6 to 8 session choices are there), and write `DONE`.
 
-Expected red: `site --check review` for the ten debug texts and every text Next 2 changes;
-`site --check stale` for the texts in Next 2; `scaling --budget` for other goals' benches. No unit
-test or conformance case is expected red.
+Expected red: `close`'s `website stale guard` (questions and roadmap) until Next 1 and 2 land;
+`scaling --budget` for other goals' benches. No unit test or conformance case is expected red.
 
 ### Backlog
 
@@ -726,3 +723,6 @@ test or conformance case is expected red.
 - Nightly CI run 45609291264 (miri `nvs-stdlib` shards, proofs on three runners, macOS tests) ran
   on `53e94a9181`; its failures are fixed on main by `1c3196b0e8` and `c115a735a1`. The next
   nightly confirms it.
+- `looper check --name viewer` (`viewer/test/mail.browser.test.ts`) failed once in the close of
+  this goal while another session ran, then passed twice, and `bun test` on the file passed.
+  If it fails again, read its output for a wait on time, not on an event.
