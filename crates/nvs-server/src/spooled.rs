@@ -38,7 +38,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use hyper::HeaderMap;
 use hyper::header::CONTENT_LENGTH;
-use nvs_runtime::host::{Completion, Failure};
+use nvs_runtime::host::Completion;
 use nvs_runtime::spool::{self, BodyOf, Recorder, Store};
 
 use crate::serve::Answer;
@@ -67,7 +67,7 @@ impl Ending {
                 store,
                 coverage: coverage(done),
                 outcome: Outcome {
-                    exception: done.error.as_ref().map(exception),
+                    exception: done.error.as_ref().map(spool::Exception::of),
                     finished: done.recorded.clone(),
                     bytes_in: None,
                 },
@@ -156,21 +156,6 @@ pub fn covered(
     };
     coverage.span = Some(trace.span_id_hex());
     spool::record_under(store, trace, spool::Record::Coverage(coverage));
-}
-
-/// The uncaught exception `failure` names, as a `request` line records it, with the frames and
-/// the chain the isolate copied under the gate. A failure that names no site is recorded with an
-/// empty file and line `0`.
-#[must_use]
-pub fn exception(failure: &Failure) -> spool::Exception {
-    let (file, line) = failure.site().unwrap_or(("", 0));
-    spool::Exception {
-        class: failure.class.clone(),
-        message: failure.message.clone(),
-        file: file.to_owned(),
-        line,
-        stack: failure.stack.as_deref().cloned().unwrap_or_default(),
-    }
 }
 
 /// What a `request` line says about one answer.

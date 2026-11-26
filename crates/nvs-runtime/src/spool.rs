@@ -149,6 +149,10 @@ pub enum Record {
     Coverage(Coverage),
     /// The copies a recorded request made, by copy site.
     Copies(Copies),
+    /// A scheduled job, a queue job or a command run, recorded as a request is
+    /// (`rule:testing/a-run-is-recorded-like-a-request`). Boxed, because its exception makes it
+    /// several times the size of a dump or a log line.
+    Run(Box<Run>),
 }
 
 impl Record {
@@ -181,7 +185,8 @@ impl Record {
                 copies.elided = true;
             }
             // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
-            Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) => {}
+            Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) | Self::Run(_) => {
+            }
         }
     }
 }
@@ -235,6 +240,80 @@ pub struct Request {
     pub response: Option<Response>,
 }
 
+/// Which kind of work a [`Run`] was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunOf {
+    /// A `[[schedule]]` entry's job.
+    Schedule,
+    /// One attempt at a `Core\Queue` job.
+    Queue,
+    /// `nvs run` or `nvs test`.
+    Command,
+}
+
+impl RunOf {
+    /// The name a line and the index write.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Schedule => "schedule",
+            Self::Queue => "queue",
+            Self::Command => "command",
+        }
+    }
+}
+
+/// How a [`Run`] ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunOutcome {
+    /// It finished.
+    Ok,
+    /// It threw, exited non-zero or was stopped by a limit.
+    Failed,
+    /// A signal or a shutdown stopped it.
+    Cancelled,
+}
+
+impl RunOutcome {
+    /// The name a line and the index write.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
+/// `kind: "run"`: what the index's `runs` row is made of
+/// (`rule:testing/a-run-is-recorded-like-a-request`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Run {
+    /// Which kind of work it was.
+    pub of: RunOf,
+    /// The schedule's name, the queue job's script, or the command (`run` or `test`) and its
+    /// script.
+    pub name: String,
+    /// When it started, in Unix microseconds.
+    pub start_us: u64,
+    /// How long it ran, in microseconds.
+    pub duration_us: u64,
+    /// How it ended.
+    pub outcome: RunOutcome,
+    /// The highest its memory was, in bytes, where its context reported it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_peak: Option<u64>,
+    /// Its memory ceiling in bytes, where it had one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_limit: Option<u64>,
+    /// The exception it did not catch, when there was one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exception: Option<Exception>,
+}
+
 /// An exception a request did not catch.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exception {
@@ -250,6 +329,22 @@ pub struct Exception {
     /// (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`).
     #[serde(flatten)]
     pub stack: Stack,
+}
+
+impl Exception {
+    /// The uncaught exception `failure` names, with the frames and the chain the isolate copied
+    /// under the gate. A failure that names no site is recorded with an empty file and line `0`.
+    #[must_use]
+    pub fn of(failure: &crate::host::Failure) -> Self {
+        let (file, line) = failure.site().unwrap_or(("", 0));
+        Self {
+            class: failure.class.clone(),
+            message: failure.message.clone(),
+            file: file.to_owned(),
+            line,
+            stack: failure.stack.as_deref().cloned().unwrap_or_default(),
+        }
+    }
 }
 
 /// The most frames one exception or one link of its chain keeps: the innermost ones.
@@ -1270,6 +1365,114 @@ pub struct Finished {
     pub memory_limit: Option<u64>,
     /// The matched route's handler, `Class::method`, or `None` where no route matched.
     pub handler: Option<String>,
+    /// The trace the child ran in, which every line it wrote carries: a `run` line joins its
+    /// events with it ([`run`]).
+    pub trace: crate::TraceContext,
+}
+
+impl Finished {
+    /// What `ctx` knows as it finishes. The limit is the ceiling the operator wrote, so the fatal
+    /// reserve is added back.
+    #[must_use]
+    pub fn read(ctx: &Ctx) -> Self {
+        Self {
+            memory_peak: ctx.memory_peak() as u64,
+            memory_limit: (ctx.memory_limit() != 0)
+                .then(|| ctx.memory_limit().saturating_add(ctx.fatal_reserve()) as u64),
+            handler: ctx
+                .inbound()
+                .and_then(crate::Inbound::route)
+                .map(|matched| matched.route().handler().to_owned()),
+            trace: *ctx.trace_context(),
+        }
+    }
+}
+
+impl Exception {
+    /// The uncaught `thrown`, with its frames and its chain, for a run that holds the throw
+    /// itself rather than a [`Failure`](crate::host::Failure).
+    #[must_use]
+    pub fn thrown(thrown: &crate::Thrown) -> Self {
+        let location = thrown.location();
+        let (file, line) = location
+            .rsplit_once(':')
+            .and_then(|(file, line)| Some((file.to_owned(), line.parse().ok()?)))
+            .unwrap_or_default();
+        Self {
+            class: thrown.class_name(),
+            message: thrown.message(),
+            file,
+            line,
+            stack: thrown.stack(),
+        }
+    }
+}
+
+/// Writes the `run` line for a run that `ctx` ran in the caller's own frame, as `nvs run` does,
+/// when `[debug] store` is on for it as it ends. `name` and `exception` are called only then.
+pub fn run_in(
+    ctx: &Ctx,
+    of: RunOf,
+    name: impl FnOnce() -> String,
+    started: SystemTime,
+    outcome: RunOutcome,
+    exception: Option<Exception>,
+) {
+    let Some(store) = ctx.config().and_then(Store::of) else {
+        return;
+    };
+    let finished = Finished::read(ctx);
+    let start_us = unix_micros(started);
+    let line = Run {
+        of,
+        name: name(),
+        start_us,
+        duration_us: unix_micros(SystemTime::now()).saturating_sub(start_us),
+        outcome,
+        memory_peak: Some(finished.memory_peak),
+        memory_limit: finished.memory_limit,
+        exception,
+    };
+    record_under(store, &finished.trace, Record::Run(Box::new(line)));
+}
+
+/// Writes the `run` line for a run of kind `of` that ended with `completion` and started at
+/// `started`, when `[debug] store` was on for it as it ended
+/// (`rule:testing/a-run-is-recorded-like-a-request`). `name` is called only then, so a run
+/// nobody records builds no name. A run its task's cancellation stopped is `cancelled`.
+pub fn run(
+    completion: &crate::host::Completion,
+    of: RunOf,
+    name: impl FnOnce() -> String,
+    started: SystemTime,
+    cancelled: bool,
+) {
+    let (Some(store), Some(finished)) = (completion.store, completion.recorded.as_ref()) else {
+        return;
+    };
+    let outcome = if cancelled {
+        RunOutcome::Cancelled
+    } else if completion.ok {
+        RunOutcome::Ok
+    } else {
+        RunOutcome::Failed
+    };
+    let start_us = unix_micros(started);
+    let line = Run {
+        of,
+        name: name(),
+        start_us,
+        duration_us: unix_micros(SystemTime::now()).saturating_sub(start_us),
+        outcome,
+        memory_peak: Some(finished.memory_peak),
+        memory_limit: finished.memory_limit,
+        exception: completion
+            .error
+            .as_ref()
+            .filter(|_| !cancelled)
+            .map(Exception::of),
+    };
+    record_under(store, &finished.trace, Record::Run(Box::new(line)));
 }
 
 /// One header as a record writes it: its value replaced with [`REDACTED`] when its name is one of
@@ -1430,7 +1633,8 @@ mod tests {
     use super::{
         BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, CacheTier, Copies, CopyCount, Coverage,
         Dropped, Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Now, Outcome,
-        Query, Record, Recorder, Request, Response, SEAL_AFTER, Stack, Store, Writer,
+        Query, Record, Recorder, Request, Response, Run, RunOf, RunOutcome, SEAL_AFTER, Stack,
+        Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -1890,12 +2094,66 @@ mod tests {
             }],
             elided: false,
         });
+        let mail = Record::Event(Box::new(Event {
+            event: EventKind::Mail,
+            label: "Core\\Mail::send".to_owned(),
+            start_us: 1_700_000_000_000_500,
+            end_us: 1_700_000_000_000_900,
+            status: None,
+            query: None,
+            target: None,
+            site: None,
+            outcome: Outcome {
+                recipients: Some(2),
+                ok: Some(true),
+                ..Outcome::default()
+            },
+        }));
+        let queue = Record::Event(Box::new(Event {
+            event: EventKind::Queue,
+            label: "Core\\Queue::push".to_owned(),
+            start_us: 1_700_000_000_000_950,
+            end_us: 1_700_000_000_000_990,
+            status: None,
+            query: None,
+            target: None,
+            site: None,
+            outcome: Outcome {
+                queue: Some("mail".to_owned()),
+                job: Some("jobs/receipt.nvs".to_owned()),
+                delay_ms: Some(60_000),
+                ..Outcome::default()
+            },
+        }));
+        let run = Record::Run(Box::new(Run {
+            of: RunOf::Queue,
+            name: "jobs/receipt.nvs".to_owned(),
+            start_us: 1_700_000_060_000_000,
+            duration_us: 8_400,
+            outcome: RunOutcome::Failed,
+            memory_peak: Some(524_288),
+            memory_limit: Some(67_108_864),
+            exception: Some(Exception {
+                class: "Shop\\MailDown".to_owned(),
+                message: "the mail server did not answer".to_owned(),
+                file: "jobs/receipt.nvs".to_owned(),
+                line: 9,
+                stack: Stack {
+                    frames: vec![Frame {
+                        function: "{main}".to_owned(),
+                        file: Some("jobs/receipt.nvs".to_owned()),
+                        line: Some(9),
+                    }],
+                    ..Stack::default()
+                },
+            }),
+        }));
         let dropped = Record::Dropped(Dropped {
             records: 3,
             files: 1,
         });
         vec![
-            body, request, event, cache, dump, log, coverage, copies, dropped,
+            body, request, event, cache, dump, log, coverage, copies, mail, queue, run, dropped,
         ]
     }
 

@@ -17,8 +17,9 @@ outcome, so no new branch runs while `store` is off:
   (`crates/nvs-server/src/metrics.rs`);
 - a queue job, where the worker settles an attempt as succeeded, failed or dead-lettered
   (`crates/nvs-cli/src/worker.rs`), one line per attempt;
-- a command run, where `nvs run` and `nvs test` seal their spool at exit
-  (`crates/nvs-cli/src/main.rs`, `sealed`). A run stopped by a signal is `cancelled`.
+- a command run, where the program's task ends, after its exit hooks and its session's
+  write-back, so every event it filed is in (`crates/nvs-cli/src/main.rs`, `run_run`). A run
+  whose task was cancelled is `cancelled`, and an `exit` with code `0` is `ok`.
 
 **The Runs view.** The viewer has a Runs view beside Requests: the same list, filters and paging,
 and the same page with its tabs, without the Request and Response tabs, because a run has neither.

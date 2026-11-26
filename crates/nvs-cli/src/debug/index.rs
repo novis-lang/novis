@@ -32,6 +32,12 @@
 //! the handler's name and the body bytes read and written, each null where the line has none.
 //! Spends: four integers and one name per request row.
 //!
+//! A `runs` row is a scheduled job, a queue job or a command run
+//! (`rule:testing/a-run-is-recorded-like-a-request`). The same three triggers keep its counts and
+//! summed durations as they keep a request's, each with one more indexed update by trace id, and
+//! the deletion window forgets it as it forgets a request. An `exceptions` row names its request
+//! or its run. Spends: per run row, what a request row spends, less its path, route and sizes.
+//!
 //! An `events` row keeps the event's outcome, such as a cache read's hit and tier or an outbound
 //! call's status and sizes, as one JSON text, null where the line has none. The viewer draws it
 //! and never filters or sums on it, so it is one column and not one per field. Spends: per
@@ -78,7 +84,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 13;
+pub(crate) const SCHEMA: i64 = 14;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -135,6 +141,37 @@ CREATE INDEX requests_trace ON requests (trace);
 CREATE INDEX requests_start ON requests (start_us);
 CREATE INDEX requests_batch ON requests (batch);
 CREATE INDEX requests_route ON requests (method, route, start_us);
+
+CREATE TABLE runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    writer TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    batch INTEGER NOT NULL,
+    trace TEXT NOT NULL,
+    of TEXT NOT NULL,
+    name TEXT NOT NULL,
+    start_us INTEGER NOT NULL,
+    duration_us INTEGER NOT NULL,
+    outcome TEXT NOT NULL,
+    queries INTEGER NOT NULL DEFAULT 0,
+    dumps INTEGER NOT NULL DEFAULT 0,
+    logs INTEGER NOT NULL DEFAULT 0,
+    exception_group INTEGER,
+    db_us INTEGER NOT NULL DEFAULT 0,
+    http_us INTEGER NOT NULL DEFAULT 0,
+    cache_us INTEGER NOT NULL DEFAULT 0,
+    session_us INTEGER NOT NULL DEFAULT 0,
+    file_us INTEGER NOT NULL DEFAULT 0,
+    gc_us INTEGER NOT NULL DEFAULT 0,
+    spawn_us INTEGER NOT NULL DEFAULT 0,
+    repeats INTEGER NOT NULL DEFAULT 0,
+    memory_peak INTEGER,
+    memory_limit INTEGER
+);
+CREATE UNIQUE INDEX runs_key ON runs (writer, seq);
+CREATE INDEX runs_trace ON runs (trace);
+CREATE INDEX runs_start ON runs (start_us);
+CREATE INDEX runs_name ON runs (of, name, start_us);
 
 CREATE TABLE inputs (
     request INTEGER PRIMARY KEY,
@@ -284,7 +321,8 @@ CREATE INDEX logs_at ON logs (at_us);
 
 CREATE TABLE exceptions (
     id INTEGER PRIMARY KEY,
-    request INTEGER NOT NULL,
+    request INTEGER,
+    run INTEGER,
     trace TEXT NOT NULL,
     class TEXT NOT NULL,
     message TEXT NOT NULL,
@@ -368,6 +406,30 @@ CREATE TRIGGER requests_search_in AFTER INSERT ON requests BEGIN
         )
     WHERE id = NEW.id;
 END;
+CREATE TRIGGER runs_count AFTER INSERT ON runs BEGIN
+    UPDATE runs SET
+        queries = (SELECT count(*) FROM events WHERE trace = NEW.trace AND kind = 'query'),
+        dumps = (SELECT count(*) FROM dumps WHERE trace = NEW.trace),
+        logs = (SELECT count(*) FROM logs WHERE trace = NEW.trace),
+        (db_us, http_us, cache_us, session_us, file_us, gc_us, spawn_us) = (
+            SELECT
+                coalesce(sum(CASE kind WHEN 'query' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'http' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'cache' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'session' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'file' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'gc' THEN max(end_us - start_us, 0) END), 0),
+                coalesce(sum(CASE kind WHEN 'spawn' THEN max(end_us - start_us, 0) END), 0)
+            FROM events WHERE trace = NEW.trace
+        ),
+        repeats = (
+            SELECT coalesce(max(n), 0) FROM (
+                SELECT count(*) AS n FROM events WHERE trace = NEW.trace AND kind = 'query'
+                GROUP BY site_file, site_line, sql
+            )
+        )
+    WHERE id = NEW.id;
+END;
 CREATE TRIGGER requests_search_out AFTER DELETE ON requests BEGIN
     DELETE FROM search WHERE rowid = OLD.id * 8 + 1;
 END;
@@ -391,6 +453,21 @@ CREATE TRIGGER events_count AFTER INSERT ON events WHEN NEW.kind <> 'call' BEGIN
                 AND site_line IS NEW.site_line AND sql IS NEW.sql
         )) ELSE repeats END
     WHERE trace = NEW.trace;
+    UPDATE runs SET
+        queries = queries + (NEW.kind = 'query'),
+        db_us = db_us + CASE NEW.kind WHEN 'query' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        http_us = http_us + CASE NEW.kind WHEN 'http' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        cache_us = cache_us + CASE NEW.kind WHEN 'cache' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        session_us = session_us + CASE NEW.kind WHEN 'session' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        file_us = file_us + CASE NEW.kind WHEN 'file' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        gc_us = gc_us + CASE NEW.kind WHEN 'gc' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        spawn_us = spawn_us + CASE NEW.kind WHEN 'spawn' THEN max(NEW.end_us - NEW.start_us, 0) ELSE 0 END,
+        repeats = CASE WHEN NEW.kind = 'query' THEN max(repeats, (
+            SELECT count(*) FROM events
+            WHERE trace = NEW.trace AND kind = 'query' AND site_file IS NEW.site_file
+                AND site_line IS NEW.site_line AND sql IS NEW.sql
+        )) ELSE repeats END
+    WHERE trace = NEW.trace;
 END;
 CREATE TRIGGER events_search_out AFTER DELETE ON events WHEN OLD.sql IS NOT NULL BEGIN
     DELETE FROM search WHERE rowid = OLD.id * 8 + 2;
@@ -399,6 +476,7 @@ END;
 CREATE TRIGGER dumps_search_in AFTER INSERT ON dumps BEGIN
     INSERT INTO search (rowid, text) VALUES (NEW.id * 8 + 3, NEW.tree);
     UPDATE requests SET dumps = dumps + 1 WHERE trace = NEW.trace;
+    UPDATE runs SET dumps = dumps + 1 WHERE trace = NEW.trace;
 END;
 CREATE TRIGGER dumps_search_out AFTER DELETE ON dumps BEGIN
     DELETE FROM search WHERE rowid = OLD.id * 8 + 3;
@@ -407,6 +485,7 @@ END;
 CREATE TRIGGER logs_search_in AFTER INSERT ON logs BEGIN
     INSERT INTO search (rowid, text) VALUES (NEW.id * 8 + 4, NEW.message);
     UPDATE requests SET logs = logs + 1 WHERE NEW.trace IS NOT NULL AND trace = NEW.trace;
+    UPDATE runs SET logs = logs + 1 WHERE NEW.trace IS NOT NULL AND trace = NEW.trace;
 END;
 CREATE TRIGGER logs_search_out AFTER DELETE ON logs BEGIN
     DELETE FROM search WHERE rowid = OLD.id * 8 + 4;
@@ -420,7 +499,11 @@ CREATE TRIGGER exceptions_search_out AFTER DELETE ON exceptions BEGIN
 END;
 ";
 
-/// The tables whose rows name a trace id, deleted with their request.
+/// The tables whose rows each own a trace id and start at a time: a request or a run. Each is
+/// forgotten by its start, with every row of [`BY_TRACE`] that names its trace id.
+const OWNERS: [&str; 2] = ["requests", "runs"];
+
+/// The tables whose rows name a trace id, deleted with their request or run.
 const BY_TRACE: [&str; 9] = [
     "inputs",
     "body_parts",
@@ -518,17 +601,19 @@ impl Index {
     /// it in the second, so every write fails and backs off until a discard succeeds.
     pub(crate) fn rebuild(&mut self, path: &Path) -> Result<i64, String> {
         let watermark = self.watermark().unwrap_or(0);
-        let requests: i64 = self
-            .db
-            .query_row(
-                "SELECT seq FROM sqlite_sequence WHERE name = 'requests'",
-                [],
-                |row| row.get(0),
-            )
-            .optional()
-            .ok()
-            .flatten()
-            .unwrap_or(0);
+        let sequence = |name: &str| -> i64 {
+            self.db
+                .query_row(
+                    "SELECT seq FROM sqlite_sequence WHERE name = ?1",
+                    [name],
+                    |row| row.get(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+                .unwrap_or(0)
+        };
+        let (requests, runs) = (sequence("requests"), sequence("runs"));
         let closed = Connection::open_in_memory().map_err(|err| err.to_string())?;
         drop(std::mem::replace(&mut self.db, closed));
         discard(path);
@@ -546,8 +631,8 @@ impl Index {
             .execute("UPDATE meta SET value = ?1 WHERE key = 'watermark'", [next])
             .and_then(|_| {
                 fresh.db.execute(
-                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('requests', ?1)",
-                    [requests],
+                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('requests', ?1), ('runs', ?2)",
+                    [requests, runs],
                 )
             })
             .map_err(|err| err.to_string())?;
@@ -569,24 +654,30 @@ impl Index {
     pub(crate) fn forget(&mut self, window: Window, now_us: u64) -> rusqlite::Result<Forgotten> {
         let cutoff = i64::try_from(now_us.saturating_sub(window.age_us)).unwrap_or(i64::MAX);
         let mut forgotten = Forgotten::default();
-        loop {
-            let deleted = self.forget_batch(cutoff)?;
-            forgotten.requests += deleted;
-            if deleted == 0 {
-                break;
+        for owner in OWNERS {
+            loop {
+                let deleted = self.forget_batch(owner, cutoff)?;
+                if owner == "requests" {
+                    forgotten.requests += deleted;
+                }
+                if deleted == 0 {
+                    break;
+                }
             }
         }
         while self.bytes_in_use()? > window.max_bytes {
-            let deleted = self.forget_batch(i64::MAX)?;
-            forgotten.requests += deleted;
-            if deleted == 0 {
+            let requests = self.forget_batch("requests", i64::MAX)?;
+            let runs = self.forget_batch("runs", i64::MAX)?;
+            forgotten.requests += requests;
+            if requests == 0 && runs == 0 {
                 break;
             }
         }
         let tx = self.db.transaction()?;
         for table in BY_TIME {
             let unclaimed = if has_trace(table) {
-                " AND (trace IS NULL OR trace NOT IN (SELECT trace FROM requests))"
+                " AND (trace IS NULL OR (trace NOT IN (SELECT trace FROM requests) \
+                 AND trace NOT IN (SELECT trace FROM runs)))"
             } else {
                 ""
             };
@@ -600,15 +691,18 @@ impl Index {
         Ok(forgotten)
     }
 
-    /// Deletes the [`FORGET_BATCH`] oldest requests that started before `cutoff`, with every row
-    /// that names their trace ids, in one transaction. Answers how many requests it deleted.
-    fn forget_batch(&mut self, cutoff: i64) -> rusqlite::Result<u64> {
+    /// Deletes the [`FORGET_BATCH`] oldest rows of `owner`, one of [`OWNERS`], that started before
+    /// `cutoff`, with every row that names their trace ids, in one transaction. Answers how many
+    /// it deleted.
+    fn forget_batch(&mut self, owner: &str, cutoff: i64) -> rusqlite::Result<u64> {
         let tx = self.db.transaction()?;
         tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS doomed (id INTEGER, trace TEXT)")?;
         tx.execute("DELETE FROM temp.doomed", [])?;
         let picked = tx.execute(
-            "INSERT INTO temp.doomed (id, trace) \
-             SELECT id, trace FROM requests WHERE start_us < ?1 ORDER BY start_us LIMIT ?2",
+            &format!(
+                "INSERT INTO temp.doomed (id, trace) \
+                 SELECT id, trace FROM {owner} WHERE start_us < ?1 ORDER BY start_us LIMIT ?2"
+            ),
             params![cutoff, FORGET_BATCH],
         )?;
         if picked == 0 {
@@ -621,7 +715,7 @@ impl Index {
             )?;
         }
         tx.execute(
-            "DELETE FROM requests WHERE id IN (SELECT id FROM temp.doomed)",
+            &format!("DELETE FROM {owner} WHERE id IN (SELECT id FROM temp.doomed)"),
             [],
         )?;
         tx.execute("DELETE FROM temp.doomed", [])?;

@@ -1375,12 +1375,22 @@ where
         let recording = isolate
             .recorded_trace()
             .map(|trace| (trace, nvs_runtime::trace_clock()));
+        let started = std::time::SystemTime::now();
         match isolate.narrowed_by(entry.narrowing.clone()).run(ctx) {
             Ok(mut done) => {
                 if !done.ok {
                     failed();
                 }
                 fires.ran(&entry, &done);
+                // `rule:testing/a-run-is-recorded-like-a-request`'s line, beside the outcome
+                // every other record of this fire reads. A `kill` or the drain cancels the task.
+                nvs_runtime::spool::run(
+                    &done,
+                    nvs_runtime::spool::RunOf::Schedule,
+                    || entry.name().to_owned(),
+                    started,
+                    ctx.cancelled(),
+                );
                 // The entry's name is what the root span is *of*, which is a
                 // scheduled run's whole request line: it has no method and no
                 // path, and the name is what an operator wrote and what every

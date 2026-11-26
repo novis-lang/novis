@@ -1618,6 +1618,7 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
         .as_deref()
         .and_then(nvs_stdlib::queue::payload)
         .unwrap_or_else(nvs_runtime::Value::null);
+    let started = std::time::SystemTime::now();
     match nvs_host::Isolate::new(program, args, nvs_host::Output::Capture)
         .running_as(nvs_runtime::RunKind::Job)
         .narrowed_by(narrowing)
@@ -1638,6 +1639,15 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
             // that a leak and not a footprint. Released before the verdict is read
             // because the obligation is the same on both arms.
             completion.discard_value();
+            // `rule:testing/a-run-is-recorded-like-a-request`'s line for this attempt, where its
+            // outcome is first known. Nothing is built while `[debug] store` is off.
+            nvs_runtime::spool::run(
+                &completion,
+                nvs_runtime::spool::RunOf::Queue,
+                || job.script.clone(),
+                started,
+                ctx.cancelled(),
+            );
             if completion.ok {
                 return None;
             }

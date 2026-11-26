@@ -61,7 +61,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `profile` | `path` (the profile file's absolute path), written when the profile starts |
 | `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
 | `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
-| `run` | from goal `deeper-debug-records`: `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` (`rule:testing/a-run-is-recorded-like-a-request`) |
+| `run` | `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` (`rule:testing/a-run-is-recorded-like-a-request`) |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 An *exception* has `class`, `message`, `file` and `line`. It also has optional `frames` (each with

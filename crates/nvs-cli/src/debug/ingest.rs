@@ -7,8 +7,8 @@
 //! watermark in `meta`, commits, and only then deletes the file. A crash between the commit and the
 //! delete leaves the file to be read again, and every row a line makes is inserted under the
 //! line's dedupe key, `(writer, seq)`, ignoring a conflict, so the second read adds nothing. A
-//! request line inserts its `requests` row first and the rest of what it records only when that
-//! row is new, so its exception group's count is raised once.
+//! request line inserts its `requests` row first, and a run line its `runs` row, and the rest of
+//! what each records only when that row is new, so its exception group's count is raised once.
 //!
 //! # A bad line, and a bad file
 //!
@@ -455,48 +455,12 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
             }
             let id = tx.last_insert_rowid();
             if let Some(exception) = &request.exception {
-                let start = int(request.start_us);
-                let group: i64 = tx.query_row(
-                    "INSERT INTO exception_groups (class, file, line, count, first_us, last_us) \
-                     VALUES (?1, ?2, ?3, 1, ?4, ?4) \
-                     ON CONFLICT (class, file, line) DO UPDATE SET count = count + 1, \
-                     first_us = min(first_us, excluded.first_us), \
-                     last_us = max(last_us, excluded.last_us) \
-                     RETURNING id",
-                    params![exception.class, exception.file, exception.line, start],
-                    |row| row.get(0),
-                )?;
-                tx.execute(
-                    "UPDATE requests SET exception_group = ?1 WHERE id = ?2",
-                    params![group, id],
-                )?;
-                let stack = &exception.stack;
-                let frames = (!stack.frames.is_empty())
-                    .then(|| serde_json::to_string(&stack.frames))
-                    .transpose()
-                    .unwrap_or_default();
-                let previous = (!stack.previous.is_empty())
-                    .then(|| serde_json::to_string(&stack.previous))
-                    .transpose()
-                    .unwrap_or_default();
-                tx.execute(
-                    "INSERT INTO exceptions \
-                     (request, trace, class, message, file, line, exception_group, frames, \
-                     frames_cut, previous, previous_cut) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![
-                        id,
-                        trace,
-                        exception.class,
-                        exception.message,
-                        exception.file,
-                        exception.line,
-                        group,
-                        frames,
-                        stack.frames_cut,
-                        previous,
-                        stack.previous_cut,
-                    ],
+                exception_row(
+                    tx,
+                    Owner::Request(id),
+                    trace,
+                    exception,
+                    int(request.start_us),
                 )?;
             }
             if request.input.is_some() || request.response.is_some() {
@@ -702,7 +666,103 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
+        Record::Run(run) => {
+            let trace = trace.ok_or(Insert::Bad("a run line has no trace id"))?;
+            let inserted = tx.execute(
+                "INSERT OR IGNORE INTO runs \
+                 (writer, seq, batch, trace, of, name, start_us, duration_us, outcome, \
+                 memory_peak, memory_limit) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![
+                    key.0,
+                    key.1,
+                    batch,
+                    trace,
+                    run.of.as_str(),
+                    run.name,
+                    int(run.start_us),
+                    int(run.duration_us),
+                    run.outcome.as_str(),
+                    run.memory_peak.map(int),
+                    run.memory_limit.map(int),
+                ],
+            )?;
+            if inserted == 0 {
+                return Ok(());
+            }
+            let id = tx.last_insert_rowid();
+            if let Some(exception) = &run.exception {
+                exception_row(tx, Owner::Run(id), trace, exception, int(run.start_us))?;
+            }
+        }
     }
+    Ok(())
+}
+
+/// The row an `exceptions` row names: a request's or a run's id.
+#[derive(Clone, Copy)]
+enum Owner {
+    Request(i64),
+    Run(i64),
+}
+
+/// Inserts the uncaught `exception` of `owner` in `trace`, which started at `start`: its group,
+/// counted once, the owner's `exception_group`, and its `exceptions` row with its frames and its
+/// chain.
+fn exception_row(
+    tx: &Transaction<'_>,
+    owner: Owner,
+    trace: &str,
+    exception: &nvs_runtime::spool::Exception,
+    start: i64,
+) -> rusqlite::Result<()> {
+    let group: i64 = tx.query_row(
+        "INSERT INTO exception_groups (class, file, line, count, first_us, last_us) \
+         VALUES (?1, ?2, ?3, 1, ?4, ?4) \
+         ON CONFLICT (class, file, line) DO UPDATE SET count = count + 1, \
+         first_us = min(first_us, excluded.first_us), \
+         last_us = max(last_us, excluded.last_us) \
+         RETURNING id",
+        params![exception.class, exception.file, exception.line, start],
+        |row| row.get(0),
+    )?;
+    let (table, request, run) = match owner {
+        Owner::Request(id) => ("requests", Some(id), None),
+        Owner::Run(id) => ("runs", None, Some(id)),
+    };
+    tx.execute(
+        &format!("UPDATE {table} SET exception_group = ?1 WHERE id = ?2"),
+        params![group, request.or(run)],
+    )?;
+    let stack = &exception.stack;
+    let frames = (!stack.frames.is_empty())
+        .then(|| serde_json::to_string(&stack.frames))
+        .transpose()
+        .unwrap_or_default();
+    let previous = (!stack.previous.is_empty())
+        .then(|| serde_json::to_string(&stack.previous))
+        .transpose()
+        .unwrap_or_default();
+    tx.execute(
+        "INSERT INTO exceptions \
+         (request, run, trace, class, message, file, line, exception_group, frames, \
+         frames_cut, previous, previous_cut) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![
+            request,
+            run,
+            trace,
+            exception.class,
+            exception.message,
+            exception.file,
+            exception.line,
+            group,
+            frames,
+            stack.frames_cut,
+            previous,
+            stack.previous_cut,
+        ],
+    )?;
     Ok(())
 }
 

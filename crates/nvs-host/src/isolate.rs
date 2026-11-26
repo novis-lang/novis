@@ -1558,18 +1558,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // The `request` line's memory figures and handler, read under the same gate, so a request
     // nobody records reads none of them. The limit is the ceiling the operator wrote, so the
     // reserve is added back.
-    let recorded = store.map(|_| nvs_runtime::spool::Finished {
-        memory_peak: isolate_ctx.memory_peak() as u64,
-        memory_limit: (isolate_ctx.memory_limit() != 0).then(|| {
-            isolate_ctx
-                .memory_limit()
-                .saturating_add(isolate_ctx.fatal_reserve()) as u64
-        }),
-        handler: isolate_ctx
-            .inbound()
-            .and_then(nvs_runtime::Inbound::route)
-            .map(|matched| matched.route().handler().to_owned()),
-    });
+    let recorded = store.map(|_| nvs_runtime::spool::Finished::read(isolate_ctx));
     // The copies the request made, by copy site, written here under the same gate and on every
     // ending: a request that threw copied as much as one that returned. A request that copied
     // nothing at a located site writes no line.

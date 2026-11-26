@@ -2607,7 +2607,12 @@ fn run_run(
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
         let workers = workers.clone();
+        let script = path.display().to_string();
         move |ctx| {
+            let started = std::time::SystemTime::now();
+            // The uncaught exception the `run` line records, copied only while `[debug] store`
+            // is on (`rule:testing/a-run-is-recorded-like-a-request`).
+            let mut uncaught = None;
             // The returned value is discarded: the script frame answers with
             // null.
             let outcome = entry.call(ctx).map(|_| ());
@@ -2659,6 +2664,9 @@ fn run_run(
                 // run installed — each of which is taken down with the run
                 // itself, before the exit code is decided.
                 let thrown = ctx.take_thrown();
+                if ctx.config().is_some_and(nvs_config::Request::debug_store) {
+                    uncaught = Some(nvs_runtime::spool::Exception::thrown(&thrown));
+                }
                 // `rule:errors/on-uncaught-throw`'s tier 2, and this is the "request root" that
                 // section names for a CLI run: every frame below returned
                 // without catching, so the program's own last word comes before
@@ -2718,6 +2726,25 @@ fn run_run(
                     upgrade.discard();
                 }
             }
+            // `rule:testing/a-run-is-recorded-like-a-request`'s line for the command run, once
+            // every hook and the session's write-back have run, so its events are all filed.
+            // An `exit` is an ordinary end unless it named a non-zero code.
+            let exited_clean = outcome == Err(nvs_runtime::EXITED) && ctx.exit_code() == 0;
+            let ran = if outcome.is_ok() || finished || exited_clean {
+                nvs_runtime::spool::RunOutcome::Ok
+            } else if ctx.cancelled() {
+                nvs_runtime::spool::RunOutcome::Cancelled
+            } else {
+                nvs_runtime::spool::RunOutcome::Failed
+            };
+            nvs_runtime::spool::run_in(
+                ctx,
+                nvs_runtime::spool::RunOf::Command,
+                || format!("run {script}"),
+                started,
+                ran,
+                uncaught,
+            );
             // A finish is what the run reports, not what the frame answered:
             // the marker travelled the failure path and the ending is a success.
             status.set(Some(if finished { Ok(()) } else { outcome }));

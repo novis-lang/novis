@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nvs_runtime::spool::{LINE_MAX, Line, Record};
+use nvs_runtime::spool::{LINE_MAX, Line, Record, RunOf, RunOutcome};
 use rusqlite::Connection;
 
 /// The tables whose rows name a trace id.
@@ -81,6 +81,7 @@ fn copy(writer: &str, trace: &str, start_us: u64) -> Vec<Line> {
         }
         match &mut line.record {
             Record::Request(request) => request.start_us = start_us,
+            Record::Run(run) => run.start_us = start_us,
             Record::Event(event) => {
                 event.start_us = start_us + 100;
                 event.end_us = start_us + 400;
@@ -583,6 +584,91 @@ fn a_search_finds_a_dumps_text() {
     assert_eq!(found, vec![dump * 8 + 3], "one row, naming the dump");
 }
 
+/// A `run` line of each kind makes its `runs` row, and a failed run's exception is a row that
+/// names the run and no request.
+#[test]
+fn each_kind_of_run_reaches_its_row_and_a_failed_run_keeps_its_exception() {
+    let folder = Folder::new();
+    let start = now_us();
+    let mut lines = Vec::new();
+    for (n, of) in [RunOf::Schedule, RunOf::Queue, RunOf::Command]
+        .into_iter()
+        .enumerate()
+    {
+        let n = u64::try_from(n).expect("few kinds");
+        let mut copied = copy("5-1-0", &format!("{:032x}", n + 1), start + n * 10_000);
+        copied.retain(|line| matches!(line.record, Record::Run(_)));
+        for line in &mut copied {
+            line.seq += n * 100;
+            if let Record::Run(run) = &mut line.record {
+                run.of = of;
+                run.name = format!("{} job", of.as_str());
+                if of != RunOf::Queue {
+                    run.outcome = RunOutcome::Ok;
+                    run.exception = None;
+                }
+            }
+        }
+        lines.extend(copied);
+    }
+    folder.write("5-1-0.0.spool", &lines);
+    folder.ingest();
+    let db = folder.index();
+    // `of`, `name`, `outcome`, the memory peak and limit, and whether it has an exception group.
+    type RunRow = (String, String, String, Option<i64>, Option<i64>, bool);
+    let rows: Vec<RunRow> = db
+        .prepare(
+            "SELECT of, name, outcome, memory_peak, memory_limit, exception_group IS NOT NULL \
+             FROM runs ORDER BY start_us",
+        )
+        .expect("the query prepares")
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ))
+        })
+        .expect("the query runs")
+        .collect::<Result<_, _>>()
+        .expect("each row reads");
+    let row = |of: &str, outcome: &str, failed: bool| {
+        (
+            of.to_owned(),
+            format!("{of} job"),
+            outcome.to_owned(),
+            Some(524_288),
+            Some(67_108_864),
+            failed,
+        )
+    };
+    assert_eq!(
+        rows,
+        vec![
+            row("schedule", "ok", false),
+            row("queue", "failed", true),
+            row("command", "ok", false),
+        ]
+    );
+    let (request, class, frames): (Option<i64>, String, Option<String>) = db
+        .query_row(
+            "SELECT e.request, e.class, e.frames FROM exceptions e \
+             JOIN runs r ON r.id = e.run WHERE r.of = 'queue'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("the failed run's exception has its row");
+    assert_eq!(request, None, "a run's exception names no request");
+    assert_eq!(class, "Shop\\MailDown");
+    assert!(
+        frames.is_some_and(|frames| frames.contains("jobs/receipt.nvs")),
+        "its frames are kept"
+    );
+}
+
 #[test]
 fn ten_throws_from_one_site_make_one_group_of_ten() {
     let folder = Folder::new();
@@ -590,6 +676,8 @@ fn ten_throws_from_one_site_make_one_group_of_ten() {
     let mut lines = Vec::new();
     for n in 0..10u64 {
         let mut copied = copy("3-1-0", &format!("{n:032x}"), start + n * 10_000);
+        // The sample's run throws from a site of its own, so it is left out here.
+        copied.retain(|line| !matches!(line.record, Record::Run(_)));
         for line in &mut copied {
             line.seq += n * 100;
             if let Record::Request(request) = &mut line.record
@@ -815,9 +903,17 @@ fn the_deletion_window_removes_every_row_of_a_request() {
         assert!(left(new) > 0, "`{table}` keeps the new request's rows");
     }
     assert_eq!(
-        count(&db, "SELECT count(*) FROM exceptions"),
+        count(
+            &db,
+            &format!("SELECT count(*) FROM exceptions WHERE trace <> '{new}'")
+        ),
+        0,
+        "only the new trace's exceptions are left"
+    );
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM runs"),
         1,
-        "only the new request's exception is left"
+        "the old trace's run is forgotten with it"
     );
     assert_eq!(
         count(
