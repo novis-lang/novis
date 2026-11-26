@@ -1,0 +1,19 @@
+--TEST--
+a line the index has an exception group for has one lens with the class thrown there, how many times and when last, and a group in another file gives no lens, `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+--FILE--
+<?nvs
+int $stock = 0;
+if ($stock === 0) {
+    throw new RuntimeError('out of stock');
+}
+throw new LogicError('closed');
+--FILE debug/index.sql--
+CREATE TABLE exception_groups (id INTEGER PRIMARY KEY, class TEXT NOT NULL, file TEXT NOT NULL, line INTEGER NOT NULL, count INTEGER NOT NULL, first_us INTEGER NOT NULL, last_us INTEGER NOT NULL);
+INSERT INTO exception_groups VALUES (1, 'Shop\OutOfStock', 'case.nvs', 4, 3, 4102444700000000, 4102444800000000);
+INSERT INTO exception_groups VALUES (2, 'Shop\Closed', 'case.nvs', 6, 1, 4102444800000000, 4102444800000000);
+INSERT INTO exception_groups VALUES (3, 'Shop\Missing', 'other.nvs', 2, 7, 4102444800000000, 4102444800000000);
+--REQUEST--
+codeLens
+--EXPECT--
+4:5 Shop\OutOfStock thrown 3 times, last just now
+6:1 Shop\Closed thrown once, last just now

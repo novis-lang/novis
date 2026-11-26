@@ -1,0 +1,44 @@
+--TEST--
+a route handler the index has requests for has one lens with their count, their median duration and the status of the newest one that failed, a route with no failed request shows no failure, and a route the index has no request for has no route lens, `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+--FILE--
+<?nvs
+use Core\Http\Method;
+
+class Shop {
+    #[Core\Route(path: '/items/{id}', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function item(int $id): void {
+        echo $id;
+    }
+
+    #[Core\Route(path: '/items', method: Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function add(): void {
+        echo 1;
+    }
+
+    #[Core\Route(path: '/items/{id}', method: Method::Delete)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function remove(int $id): void {
+        echo $id;
+    }
+}
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT, start_us INTEGER NOT NULL, duration_us INTEGER NOT NULL, method TEXT NOT NULL, route TEXT, status INTEGER NOT NULL);
+INSERT INTO requests VALUES (1, 'a1', 's1', 4102444700000000, 3000, 'GET', '/items/{id}', 500);
+INSERT INTO requests VALUES (2, 'a2', 's2', 4102444800000000, 1000, 'GET', '/items/{id}', 503);
+INSERT INTO requests VALUES (3, 'a3', 's3', 4102444900000000, 2000, 'GET', '/items/{id}', 200);
+INSERT INTO requests VALUES (4, 'a4', 's4', 4102444900000000, 9000, 'POST', '/items', 201);
+INSERT INTO requests VALUES (5, 'a5', 's5', 4102444900000000, 4000, 'DELETE', '/items', 204);
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 no references
+7:21 3 requests, p50 2.0 ms, last 503 just now
+7:21 no references
+7:21 used by 1 route, 0 tests (static)
+13:21 1 request, p50 9.0 ms
+13:21 no references
+13:21 used by 1 route, 0 tests (static)
+19:21 no references
+19:21 used by 1 route, 0 tests (static)

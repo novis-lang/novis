@@ -1,0 +1,25 @@
+--TEST--
+a line the index has a dump for has one lens with the newest value dumped there written on one line, an object by its class and properties and a redacted value as `[redacted]`, an older dump on the same line is not shown, and a dump in another file gives no lens, `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+--FILE--
+<?nvs
+array<int> $prices = [1, 2, 3];
+Core\Debug::dump($prices);
+string $card = 'secret';
+Core\Debug::dump($card);
+echo $prices[0];
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
+CREATE TABLE dumps (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, at_us INTEGER NOT NULL, file TEXT NOT NULL, line INTEGER NOT NULL, tree TEXT NOT NULL);
+INSERT INTO requests VALUES (1, 'a1', 's1');
+INSERT INTO requests VALUES (2, 'a2', 's2');
+INSERT INTO dumps VALUES (1, 'a1', 4102444800000000, 'case.nvs', 3, '[9]');
+INSERT INTO dumps VALUES (2, 'a2', 4102444800000000, 'case.nvs', 3, '[1,2,3]');
+INSERT INTO dumps VALUES (3, 'a1', 4102444800000000, 'case.nvs', 5, '{"$class":"Shop\\Item","$id":1,"$properties":{"card":{"$redacted":true},"name":"Lamp"}}');
+INSERT INTO dumps VALUES (4, 'a2', 4102444800000000, 'other.nvs', 6, '"elsewhere"');
+INSERT INTO dumps VALUES (5, 'a2', 4102444800000000, 'case.nvs', 4, '{"$redacted":true}');
+--REQUEST--
+codeLens
+--EXPECT--
+3:1 Dumped: [1, 2, 3]
+4:1 Dumped: [redacted]
+5:1 Dumped: Shop\Item {card: [redacted], name: "Lamp"}

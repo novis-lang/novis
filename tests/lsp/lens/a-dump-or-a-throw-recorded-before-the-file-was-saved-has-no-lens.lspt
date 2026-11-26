@@ -1,0 +1,20 @@
+--TEST--
+a dump and a throw whose record is older than the file on disk give no lens, while a dump recorded after it still shows, `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
+--FILE--
+<?nvs
+array<int> $prices = [1, 2, 3];
+Core\Debug::dump($prices);
+Core\Debug::dump($prices[0]);
+throw new RuntimeError('closed');
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
+CREATE TABLE dumps (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, at_us INTEGER NOT NULL, file TEXT NOT NULL, line INTEGER NOT NULL, tree TEXT NOT NULL);
+CREATE TABLE exception_groups (id INTEGER PRIMARY KEY, class TEXT NOT NULL, file TEXT NOT NULL, line INTEGER NOT NULL, count INTEGER NOT NULL, first_us INTEGER NOT NULL, last_us INTEGER NOT NULL);
+INSERT INTO requests VALUES (1, 'a1', 's1');
+INSERT INTO dumps VALUES (1, 'a1', 4102444800000000, 'case.nvs', 3, '[1,2,3]');
+INSERT INTO dumps VALUES (2, 'a1', 1700000000000000, 'case.nvs', 4, '1');
+INSERT INTO exception_groups VALUES (1, 'RuntimeError', 'case.nvs', 5, 2, 1690000000000000, 1700000000000000);
+--REQUEST--
+codeLens
+--EXPECT--
+3:1 Dumped: [1, 2, 3]

@@ -19,8 +19,14 @@ not a line.
 All three are under `nvs.codeLens.enable`, read `debug/index.sqlite` read-only without waiting, and
 show nothing when there is no index, as
 `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` says for the query lens. A click
-calls `nvs.openDebugViewer` with the path (`rule:ide/the-debug-viewer-opens-from-one-button`), and a
-client that did not name that command gets a lens with a title alone.
+calls `nvs.openDebugViewer` with the path (`rule:ide/the-debug-viewer-opens-from-one-button`). A
+client that names only the open command gets the page's address, as the query lens does, and any
+other client gets a lens with a title alone.
+
+**Each read is bounded by rows, never by the index's size.** A route reads at most its newest 10,000
+requests, and its median the newest 500 durations. A dump or a throw lens reads the newest 10,000
+dumps and the 10,000 exception groups thrown most recently, across every file. So in an index where
+many other files dumped or threw since, an open file can show none.
 
 - **Memory:** in the editor process, a few numbers and one line of at most 80 characters per lens,
   freed with the answer.

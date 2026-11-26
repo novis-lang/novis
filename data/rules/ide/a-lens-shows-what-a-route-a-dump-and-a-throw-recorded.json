@@ -1,12 +1,18 @@
 {
   "title": "A lens above a route handler, a dump and a throw shows what the recorded requests did there and opens it in the viewer",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",
     "ide/the-debug-viewer-opens-from-one-button",
     "testing/an-exception-is-one-row-per-class-and-site",
     "security/redaction-reaches-the-tools-own-renderings"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer-flagship"
+  "guardedBy": [
+    "crates/nvs-lsp/src/recorded.rs",
+    "crates/nvs-lsp/src/server.rs",
+    "tests/lsp/lens/a-route-handler-shows-its-request-count-its-median-and-its-newest-failure.lspt",
+    "tests/lsp/lens/a-dump-line-shows-the-newest-value-dumped-there-on-one-line.lspt",
+    "tests/lsp/lens/a-throw-line-shows-its-class-how-often-and-when-last.lspt",
+    "tests/lsp/lens/a-dump-or-a-throw-recorded-before-the-file-was-saved-has-no-lens.lspt"
+  ]
 }

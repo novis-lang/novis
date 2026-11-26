@@ -3,8 +3,6 @@
 
 # The editor
 
-*1 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="ide-one-grammar-one-tree"></a>
 
 ## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
@@ -2156,7 +2154,7 @@ that is absent, or that the service holds locked, gives no lens and no error.
 
 <a id="ide-a-lens-shows-what-a-route-a-dump-and-a-throw-recorded"></a>
 
-## A lens above a route handler, a dump and a throw shows what the recorded requests did there and opens it in the viewer  *(designed — owned by goal debug-viewer-flagship)*
+## A lens above a route handler, a dump and a throw shows what the recorded requests did there and opens it in the viewer
 
 `rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`
 
@@ -2181,8 +2179,14 @@ not a line.
 All three are under `nvs.codeLens.enable`, read `debug/index.sqlite` read-only without waiting, and
 show nothing when there is no index, as
 [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site) says for the query lens. A click
-calls `nvs.openDebugViewer` with the path ([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)), and a
-client that did not name that command gets a lens with a title alone.
+calls `nvs.openDebugViewer` with the path ([`ide/the-debug-viewer-opens-from-one-button`](ide.md#ide-the-debug-viewer-opens-from-one-button)). A
+client that names only the open command gets the page's address, as the query lens does, and any
+other client gets a lens with a title alone.
+
+**Each read is bounded by rows, never by the index's size.** A route reads at most its newest 10,000
+requests, and its median the newest 500 durations. A dump or a throw lens reads the newest 10,000
+dumps and the 10,000 exception groups thrown most recently, across every file. So in an index where
+many other files dumped or threw since, an open file can show none.
 
 - **Memory:** in the editor process, a few numbers and one line of at most 80 characters per lens,
   freed with the answer.
