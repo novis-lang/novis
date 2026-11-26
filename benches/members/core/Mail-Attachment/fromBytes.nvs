@@ -1,0 +1,30 @@
+<?nvs
+// Measures how a mail with a 1 MB file attached is built and sent, as a program does with a report it made.
+// bench: iterations 16
+// bench: complexity linear
+
+use Core\Bytes;
+use Core\Mail;
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<bytes> $reports = [Bytes::fill(1048576, 65), Bytes::fill(1048576, 66)];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The round before and the counter choose the report. Each send returns a new message id.
+            Attachment $file = Attachment::fromBytes('report.csv', $reports[(($total + $i) % 2) as int], { type: 'text/csv' });
+            string $id = Mail::send('shop', ['accounts@example.com'], 'Report', 'The report is attached.', {
+                attachments: [$file],
+            });
+            $total = $total + Core\Str::length($id) + Bytes::length($file->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

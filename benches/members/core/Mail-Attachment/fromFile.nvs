@@ -1,0 +1,27 @@
+<?nvs
+// Measures how a small file is read from the disk as an attachment, as a shop does for each invoice it mails.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Bytes;
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file is chosen by the round before. Each one is a few hundred bytes.
+            Attachment $file = $total % 3 == 1
+                ? Attachment::fromFile('files/logo.png')
+                : Attachment::fromFile('files/invoice.pdf');
+            $total = $total + Bytes::length($file->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

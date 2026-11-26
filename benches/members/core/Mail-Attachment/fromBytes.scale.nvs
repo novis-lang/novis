@@ -1,0 +1,29 @@
+<?nvs
+// Measures how a mail with an attached file is built and sent, at growing file sizes in kilobytes.
+// bench: start 64
+// bench: max 2048
+
+use Core\Bytes;
+use Core\Mail;
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<bytes> $reports = [Bytes::fill($size * 1024, 65), Bytes::fill($size * 1024, 66)];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 8) {
+            Attachment $file = Attachment::fromBytes('report.csv', $reports[(($total + $i) % 2) as int], { type: 'text/csv' });
+            string $id = Mail::send('shop', ['accounts@example.com'], 'Report', 'The report is attached.', {
+                attachments: [$file],
+            });
+            $total = $total + Core\Str::length($id) + Bytes::length($file->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

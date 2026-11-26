@@ -1,0 +1,62 @@
+--TEST--
+`Core\Mail\Attachment::src` names an image of one message only: a `cid:` of another message's attachment, in any attribute, case or spacing, throws a `RuntimeError` before anything is sent, and `src()` of an attachment that is not inline throws
+--FILE--
+<?nvs
+// covers: Core\Mail\Attachment::src, Core\Mail\Attachment::inlineBytes
+use Core\Mail\Attachment;
+
+Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' });
+Attachment $banner = Attachment::inlineBytes('banner.png', 'pixel', { type: 'image/png' });
+
+// The first message uses its own image.
+Core\Mail::preview(html`<img src="{$logo->src()}">`, { attachments: [$logo] });
+echo "own image: built\n";
+
+// Another message uses the logo's URL without the logo.
+try {
+    Core\Mail::preview(html`<img src="{$logo->src()}">`);
+    echo "no attachment: built\n";
+} catch (RuntimeError $e) {
+    echo "no attachment: ", Core\Str::contains($e->message, $logo->src()) ? 'names the cid' : $e->message, "\n";
+}
+
+// Another message attaches its own image and uses the logo's URL.
+try {
+    Core\Mail::preview(html`<img src="{$logo->src()}">`, { attachments: [$banner] });
+    echo "other attachment: built\n";
+} catch (RuntimeError $e2) {
+    echo "other attachment: RuntimeError\n";
+}
+
+// Capital letters, a leading space, CSS and a link are each read as a use of the URL.
+string $id = Core\Str::slice($logo->src(), 4);
+array<Core\Html\Markup> $bodies = [
+    html`<img src="CID:{$id}">`,
+    html`<img src=" cid:{$id}">`,
+    html`<div style="background: url(cid:{$id})">x</div>`,
+    html`<a href="cid:{$id}">x</a>`,
+];
+foreach ($bodies as Core\Html\Markup $body) {
+    try {
+        Core\Mail::preview($body, { attachments: [$banner] });
+        echo "variant: built\n";
+    } catch (RuntimeError $e3) {
+        echo "variant: RuntimeError\n";
+    }
+}
+
+// A file to download has no `src()`.
+try {
+    echo Attachment::fromBytes('a.pdf', '%PDF-1.4')->src(), "\n";
+} catch (RuntimeError $e4) {
+    echo $e4->message, "\n";
+}
+--EXPECT--
+own image: built
+no attachment: names the cid
+other attachment: RuntimeError
+variant: RuntimeError
+variant: RuntimeError
+variant: RuntimeError
+variant: RuntimeError
+Core\Mail\Attachment::src: this attachment is not inline, so it has no `src()`. Build it with `inlineFile` or `inlineBytes` to show it inside the HTML.

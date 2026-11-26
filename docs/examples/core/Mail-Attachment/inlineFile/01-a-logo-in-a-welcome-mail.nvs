@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to send a welcome mail with the shop's logo shown inside the text.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// `Attachment::inlineFile` reads the image now. The path starts at the folder of this program.
+Attachment $logo = Attachment::inlineFile('files/logo.png');
+
+// `src()` returns the URL of the image inside this mail. It goes in the `src` of the `<img>` tag.
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Welcome to Example Shop',
+    html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Welcome, Anna!</p>`,
+    { attachments: [$logo] },
+);
+
+echo 'Sent the welcome mail with ', $logo->name(), " inside it.\n";

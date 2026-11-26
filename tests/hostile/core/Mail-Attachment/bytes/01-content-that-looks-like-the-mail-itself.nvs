@@ -1,0 +1,49 @@
+<?nvs
+// Attack: the content of a file tries to end its part of the mail and start a new part or a new mail.
+// Every byte should be sent and read back unchanged, and nothing should end the part early.
+// proof: test
+// hostile: timeout-ms 30000
+
+use Core\Bytes;
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class BytesAttackTest
+{
+    #[Test]
+    public function everyByteComesBack(): void
+    {
+        // 1. Every byte value from 0 to 255, a line with only a dot, and a line that starts a new part.
+        array<bytes> $pieces = [];
+        uint $value = 0;
+        while ($value < 256) {
+            $pieces[] = Bytes::pack('C', $value);
+            $value = $value + 1;
+        }
+        $pieces[] = "\r\n.\r\n" as bytes;
+        $pieces[] = "\r\n--boundary--\r\nContent-Type: text/html\r\n\r\n<script>x</script>" as bytes;
+        bytes $content = Bytes::join($pieces);
+
+        // 2. The same content as a file, an inline image, and an empty file.
+        Attachment $image = Attachment::inlineBytes('x.png', $content, { type: 'image/png' });
+        Mail::send('shop', ['anna@example.com'], 'Bytes', html`<img src="{$image->src()}">`, {
+            attachments: [Attachment::fromBytes('x.bin', $content), $image, Attachment::fromBytes('empty.bin', '')],
+        });
+        array<Attachment> $parts = Test::sentMail()[0]->attachments();
+        Test::assertCount($parts, 3);
+        Test::assertSame($parts[0]->bytes(), $content);
+        Test::assertSame($parts[1]->bytes(), $content);
+        Test::assertSame(Bytes::length($parts[2]->bytes()), 0);
+    }
+
+    #[Test]
+    public function aLargeFileComesBack(): void
+    {
+        // 3. A file of 20 MB is sent and read back with the same length.
+        Mail::send('shop', ['anna@example.com'], 'Big', 'Attached.', {
+            attachments: [Attachment::fromBytes('big.bin', Bytes::fill(20971520, 46))],
+        });
+        Test::assertSame(Bytes::length(Test::sentMail()[0]->attachments()[0]->bytes()), 20971520);
+    }
+}

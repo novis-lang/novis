@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error for a `type` option that is not only a media type.
+
+use Core\Mail\Attachment;
+
+// The `type` option takes a media type, such as `text/csv`, and nothing after it.
+// A `; charset=utf-8` part is not allowed, so `fromBytes` throws a `RuntimeError`.
+try {
+    Attachment::fromBytes('orders.csv', "order,total\n", { type: 'text/csv; charset=utf-8' });
+    echo "The file is attached.\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

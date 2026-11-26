@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to test that a mail shows its logo inside the HTML.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Str;
+use Core\Test;
+
+class Welcome
+{
+    // Sends a welcome mail with the logo inside the HTML.
+    public static function send(string $email): void
+    {
+        Attachment $logo = Attachment::inlineFile('files/logo.png');
+        Mail::send(
+            'shop',
+            [$email],
+            'Welcome to Example Shop',
+            html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Welcome!</p>`,
+            { attachments: [$logo] },
+        );
+    }
+}
+
+class WelcomeTest
+{
+    #[Test]
+    public function theLogoIsInsideTheMail(): void
+    {
+        Welcome::send('anna@example.com');
+
+        // The mail has one attachment, and it is the inline logo.
+        Attachment $logo = Test::sentMail()[0]->attachments()[0];
+        Test::assertTrue($logo->isInline());
+        Test::assertSame($logo->type(), 'image/png');
+
+        // The HTML that was sent uses the logo's `src()`.
+        string $html = Test::sentMail()[0]->html() ?? '';
+        Test::assertTrue(Str::contains($html, '<img src="' . $logo->src() . '"'));
+    }
+}

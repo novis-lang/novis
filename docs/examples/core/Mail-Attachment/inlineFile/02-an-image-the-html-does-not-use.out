@@ -1,0 +1,1 @@
+Core\Mail::send: the inline attachment "banner.png" is not used. Write its `src()` in the HTML, or attach it with `fromFile` or `fromBytes`.

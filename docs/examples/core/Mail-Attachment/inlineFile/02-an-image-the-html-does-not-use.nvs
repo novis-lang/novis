@@ -1,0 +1,23 @@
+<?nvs
+// Shows the error `Core\Mail::send` throws when the HTML does not show an inline image.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+Attachment $logo = Attachment::inlineFile('files/logo.png');
+Attachment $banner = Attachment::inlineFile('files/banner.png');
+
+// The HTML shows the logo, but not the banner. Every inline image must appear in the HTML,
+// so `send` throws a `RuntimeError` and sends nothing.
+try {
+    Mail::send(
+        'shop',
+        ['anna@example.com'],
+        'Our winter sale',
+        html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Everything is 20% off.</p>`,
+        { attachments: [$logo, $banner] },
+    );
+    echo "sent\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

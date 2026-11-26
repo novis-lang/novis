@@ -1,0 +1,18 @@
+<?nvs
+// Shows what happens when a file name that a user typed contains a line break.
+
+use Core\Mail\Attachment;
+
+// A name with letters that are not ASCII is allowed. The mail encodes it for every mail program.
+echo Attachment::fromBytes('Rechnung März.txt', "Total: 59.90 EUR\n")->name(), "\n";
+
+// This name hides a second line. In a mail header, that line would add a `Bcc:` recipient.
+string $typed = "report.txt\r\nBcc: everyone@example.com";
+
+// A line break is a control character, so `fromBytes` throws a `RuntimeError`.
+try {
+    Attachment::fromBytes($typed, "Total: 59.90 EUR\n");
+    echo "The report is attached.\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

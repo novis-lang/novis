@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to test that a logo is shown inside the mail and is not a file to download.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class Receipt
+{
+    // Sends a receipt with the logo inside the HTML and the invoice as a PDF file.
+    public static function send(string $email): void
+    {
+        Attachment $logo = Attachment::inlineFile('files/logo.png');
+        Mail::send(
+            'shop',
+            [$email],
+            'Your receipt',
+            html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Thank you for your order.</p>`,
+            { attachments: [$logo, Attachment::fromFile('files/invoice-1042.pdf')] },
+        );
+    }
+}
+
+class ReceiptTest
+{
+    #[Test]
+    public function onlyTheLogoIsInline(): void
+    {
+        Receipt::send('anna@example.com');
+
+        // The attachments are in the order they were given: the logo, then the invoice.
+        array<Attachment> $parts = Test::sentMail()[0]->attachments();
+        Test::assertTrue($parts[0]->isInline());
+        Test::assertTrue(!$parts[1]->isInline());
+    }
+}

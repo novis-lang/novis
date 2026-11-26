@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to check `isInline()` before calling `src()`, so the call does not throw.
+
+use Core\Html\Markup;
+use Core\Mail;
+use Core\Mail\Attachment;
+
+array<Attachment> $parts = [
+    Attachment::inlineFile('files/logo.png'),
+    Attachment::fromFile('files/invoice-1042.pdf'),
+];
+
+// This loop adds an `<img>` tag for each inline image. It skips each file to download.
+Markup $body = html`<p>Your invoice is attached.</p>`;
+foreach ($parts as Attachment $part) {
+    if ($part->isInline()) {
+        $body = $body + html`<p><img src="{$part->src()}" alt="Example Shop"></p>`;
+        echo "Added an image tag for ", $part->name(), "\n";
+    } else {
+        echo "Skipped ", $part->name(), "\n";
+    }
+}
+
+Mail::send('shop', ['anna@example.com'], 'Your invoice', $body, { attachments: $parts });
+echo "Sent.\n";

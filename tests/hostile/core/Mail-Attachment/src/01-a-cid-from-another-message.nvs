@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a mail tries to show an image that belongs to another mail, with a `cid:` URL
+// written in many ways. Each such mail should throw an error, and nothing should be sent.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// The first mail shows its own logo. It is sent.
+Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' });
+Mail::send('shop', ['anna@example.com'], 'Welcome', html`<img src="{$logo->src()}" alt="Logo">`, {
+    attachments: [$logo],
+});
+echo "0 sent\n";
+
+// 1. A second mail uses the logo's `src()` but does not attach the logo. It must throw.
+try {
+    Mail::send('shop', ['ben@example.com'], 'Hello', html`<img src="{$logo->src()}" alt="Logo">`);
+    echo "1 sent\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. A second mail attaches its own image, and its HTML uses the logo's `src()`. It must throw.
+Attachment $banner = Attachment::inlineBytes('banner.png', 'pixel', { type: 'image/png' });
+try {
+    Mail::send('shop', ['ben@example.com'], 'Hello', html`<img src="{$logo->src()}" alt="Logo">`, {
+        attachments: [$banner],
+    });
+    echo "2 sent\n";
+} catch (RuntimeError $e2) {
+    echo '2 ', $e2::class, "\n";
+}
+
+// 3. The logo's URL in capital letters, with a space before it, in CSS, and in a link. Each must throw.
+string $id = Core\Str::slice($logo->src(), 4);
+array<Core\Html\Markup> $bodies = [
+    html`<img src="CID:{$id}">`,
+    html`<img src=" cid:{$id}">`,
+    html`<div style="background: url(cid:{$id})">x</div>`,
+    html`<a href="cid:{$id}">x</a>`,
+];
+foreach ($bodies as Core\Html\Markup $body) {
+    try {
+        Mail::send('shop', ['ben@example.com'], 'Hello', $body);
+        echo "3 sent\n";
+    } catch (RuntimeError $e3) {
+        echo '3 ', $e3::class, "\n";
+    }
+}
+
+// 4. A URL typed by hand that guesses an image of another mail. It must throw.
+try {
+    Mail::send('shop', ['ben@example.com'], 'Hello', html`<img src="cid:00000000000000000000000000000000@inline">`);
+    echo "4 sent\n";
+} catch (RuntimeError $e4) {
+    echo '4 ', $e4::class, "\n";
+}
+
+// 5. A file to download has no `src()`. The call must throw.
+try {
+    echo Attachment::fromBytes('a.pdf', 'x')->src(), "\n";
+} catch (RuntimeError $e5) {
+    echo '5 ', $e5::class, "\n";
+}
+
+// 6. 10000 inline images, and the HTML uses each one. The mail is sent.
+array<Attachment> $many = [];
+Core\Html\Markup $all = '' as Core\Html\Markup;
+int $i = 0;
+while ($i < 10000) {
+    Attachment $image = Attachment::inlineBytes('i.png', 'pixel', { type: 'image/png' });
+    $many[] = $image;
+    $all = $all + html`<img src="{$image->src()}">`;
+    $i = $i + 1;
+}
+try {
+    Mail::send('shop', ['ben@example.com'], 'Many', $all, { attachments: $many });
+    echo "6 sent\n";
+} catch (RuntimeError $e6) {
+    echo '6 ', $e6::class, "\n";
+}

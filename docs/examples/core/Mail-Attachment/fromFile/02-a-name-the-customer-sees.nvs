@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to give an attached file a clearer name than the file on the disk has.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// The `name` option is the file name in the mail. Without it, the name is the last part of the path.
+array<Attachment> $files = [
+    Attachment::fromFile('files/invoice-1042.pdf', { name: 'Example Shop invoice 1042.pdf' }),
+    Attachment::fromFile('files/terms.pdf'),
+];
+
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your invoice for order 1042',
+    'Your invoice and our terms are attached.',
+    { attachments: $files },
+);
+
+foreach ($files as Attachment $file) {
+    echo $file->name(), "\n";
+}

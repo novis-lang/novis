@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error `src()` throws for an attachment that is not inline.
+
+use Core\Mail\Attachment;
+
+// `fromBytes` makes a file to download. A mail program does not show it inside the HTML,
+// so it has no `src()`. The call throws a `RuntimeError`.
+Attachment $receipt = Attachment::fromBytes('receipt.txt', "Total: 59.90 EUR\n", { type: 'text/plain' });
+try {
+    echo $receipt->src(), "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

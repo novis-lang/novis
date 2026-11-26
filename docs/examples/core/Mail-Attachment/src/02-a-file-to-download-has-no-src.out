@@ -1,0 +1,1 @@
+Core\Mail\Attachment::src: this attachment is not inline, so it has no `src()`. Build it with `inlineFile` or `inlineBytes` to show it inside the HTML.

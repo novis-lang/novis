@@ -1,0 +1,3 @@
+# The attack may read files in the `files` folder beside this file, and no other file.
+[capabilities.fs]
+read = ["files"]

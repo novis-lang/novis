@@ -1,0 +1,28 @@
+<?nvs
+// Measures how the file name of an attachment is read, as a test does for each file of a sent mail.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Attachment> $files = [
+            Attachment::fromBytes('inv.pdf', 'x'),
+            Attachment::fromBytes('logo-1.png', 'x'),
+            Attachment::fromBytes('orders-11.csv', 'x'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The round before and the counter choose the file.
+            $total = $total + Core\Str::length($files[(($total + $i) % 3) as int]->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

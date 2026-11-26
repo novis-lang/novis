@@ -1,0 +1,10 @@
+<?nvs
+// Shows the file name an attachment gets from its path, and how to give it another name.
+
+use Core\Mail\Attachment;
+
+// Without the `name` option, the name is the last part of the path. This prints `invoice-1042.pdf`.
+echo Attachment::fromFile('files/invoice-1042.pdf')->name(), "\n";
+
+// With the `name` option, the recipient sees that name instead.
+echo Attachment::fromFile('files/invoice-1042.pdf', { name: 'Invoice 1042.pdf' })->name(), "\n";

@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a mail tries to carry an inline image that the reader never sees, by hiding its URL
+// where no image is shown. Each such mail should throw an error, and nothing should be sent.
+// hostile: timeout-ms 30000
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+Attachment $hidden = Attachment::inlineBytes('tracker.png', 'pixel', { type: 'image/png' });
+
+// 1. The URL is only in an HTML comment, in a script, or in the text of a paragraph. Each must throw.
+array<Core\Html\Markup> $bodies = [
+    html`<p>Hello</p><!-- <img src="{$hidden->src()}"> -->`,
+    html`<p>Hello</p><script>var s = "{$hidden->src()}";</script>`,
+    html`<p>Hello {$hidden->src()}</p>`,
+];
+foreach ($bodies as Core\Html\Markup $body) {
+    try {
+        Mail::send('shop', ['anna@example.com'], 'Hello', $body, { attachments: [$hidden] });
+        echo "1 sent\n";
+    } catch (RuntimeError $e) {
+        echo '1 ', $e::class, "\n";
+    }
+}
+
+// 2. A plain-text mail carries an inline image. It must throw.
+try {
+    Mail::send('shop', ['anna@example.com'], 'Hello', 'Hello ' . $hidden->src(), { attachments: [$hidden] });
+    echo "2 sent\n";
+} catch (RuntimeError $e2) {
+    echo '2 ', $e2::class, "\n";
+}
+
+// 3. A name with a line break and a `Content-ID:` line. It must throw.
+try {
+    Attachment::inlineBytes("logo.png\r\nContent-ID: <x@inline>", 'pixel');
+    echo "3 made\n";
+} catch (RuntimeError $e3) {
+    echo '3 ', $e3::class, "\n";
+}
+
+// 4. The same image is given twice in `attachments`. The mail is sent.
+try {
+    Mail::send('shop', ['anna@example.com'], 'Hello', html`<img src="{$hidden->src()}">`, {
+        attachments: [$hidden, $hidden],
+    });
+    echo "4 sent\n";
+} catch (RuntimeError $e4) {
+    echo '4 ', $e4::class, "\n";
+}
+
+// 5. An image of 20 MB. It is sent, and its memory is freed when the send ends.
+try {
+    Attachment $big = Attachment::inlineBytes('big.png', Core\Bytes::fill(20971520, 0), { type: 'image/png' });
+    Mail::send('shop', ['anna@example.com'], 'Big', html`<img src="{$big->src()}">`, { attachments: [$big] });
+    echo "5 sent\n";
+} catch (RuntimeError $e5) {
+    echo '5 ', $e5::class, "\n";
+}

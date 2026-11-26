@@ -1,0 +1,28 @@
+<?nvs
+// Measures how the URL of an inline image is read, as a mail template does for each `<img>` tag.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Attachment> $images = [
+            Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' }),
+            Attachment::inlineBytes('banner.png', 'pixel', { type: 'image/png' }),
+            Attachment::inlineBytes('footer.png', 'pixel', { type: 'image/png' }),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every URL has the same length, so the counter also chooses the image.
+            $total = $total + Core\Str::length($images[(($total + $i) % 3) as int]->src());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

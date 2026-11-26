@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to test that a newsletter writes each image's `src()` into its HTML.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Str;
+use Core\Test;
+
+class Newsletter
+{
+    // Sends the newsletter with a header image and a footer image inside the HTML.
+    public static function send(string $email): void
+    {
+        string $svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+        Attachment $header = Attachment::inlineBytes('header.svg', $svg, { type: 'image/svg+xml' });
+        Attachment $footer = Attachment::inlineBytes('footer.svg', $svg, { type: 'image/svg+xml' });
+        Mail::send(
+            'shop',
+            [$email],
+            'News from Example Shop',
+            html`<img src="{$header->src()}" alt="News"><p>New mugs are here.</p><img src="{$footer->src()}" alt="">`,
+            { attachments: [$header, $footer] },
+        );
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function eachImageIsInTheHtml(): void
+    {
+        Newsletter::send('anna@example.com');
+
+        // Each attachment that was sent has its `src()`, and the HTML uses each one.
+        string $html = Test::sentMail()[0]->html() ?? '';
+        foreach (Test::sentMail()[0]->attachments() as Attachment $image) {
+            Test::assertTrue(Str::contains($html, 'src="' . $image->src() . '"'));
+        }
+    }
+}

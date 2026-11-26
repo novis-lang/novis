@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to check the size of an attachment before the mail is sent.
+
+use Core\Bytes;
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Str;
+
+// Many mail servers do not accept a mail over 10 MB. This program allows 5 MB, 5242880 bytes, for the file.
+uint $limit = 5242880;
+
+// The program builds a CSV export with one line for each of 1000 orders.
+string $csv = "order,total\n" . Str::repeat("1042,59.90\n", 1000);
+Attachment $export = Attachment::fromBytes('orders.csv', $csv, { type: 'text/csv' });
+
+// `bytes()` returns the content. `Bytes::length` gives its size in bytes. This prints `11012`.
+uint $size = Bytes::length($export->bytes());
+echo 'The file has ', $size, " bytes.\n";
+
+if ($size <= $limit) {
+    Mail::send('shop', ['accounts@example.com'], 'Orders', 'The orders are attached.', {
+        attachments: [$export],
+    });
+    echo "The file is small enough, so it is sent.\n";
+}

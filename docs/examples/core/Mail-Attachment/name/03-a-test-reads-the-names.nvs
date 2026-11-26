@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test the file names of the attachments that a mail was sent with.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class Invoice
+{
+    // Sends the invoice of one order as a PDF file named after the order.
+    public static function send(string $email, int $order): void
+    {
+        Attachment $pdf = Attachment::fromFile('files/invoice-1042.pdf', {
+            name: 'Invoice ' . $order . '.pdf',
+        });
+        Mail::send('shop', [$email], 'Your invoice', 'Your invoice is attached.', {
+            attachments: [$pdf],
+        });
+    }
+}
+
+class InvoiceTest
+{
+    #[Test]
+    public function theFileIsNamedAfterTheOrder(): void
+    {
+        Invoice::send('anna@example.com', 1042);
+
+        // `attachments()` returns the attachments in the order they were given.
+        array<Attachment> $files = Test::sentMail()[0]->attachments();
+        Test::assertCount($files, 1);
+        Test::assertSame($files[0]->name(), 'Invoice 1042.pdf');
+    }
+}

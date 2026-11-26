@@ -1,0 +1,1 @@
+Core\Mail\Attachment::fromBytes: "text/csv; charset=utf-8" is not a media type. Write one such as `image/png`.

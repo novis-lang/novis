@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to send a CSV file that the program builds, with no file on the disk.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// Each key is an order number, and each value is the total of that order.
+array<string> $totals = ['1041' => '19.90', '1042' => '59.90', '1043' => '7.50'];
+
+// This loop adds one line for each order.
+string $csv = "order,total\n";
+foreach ($totals as string $order => string $total) {
+    $csv = $csv . $order . ',' . $total . "\n";
+}
+
+// A CSV file is plain text, so its type cannot be detected. The `type` option sets it.
+Attachment $export = Attachment::fromBytes('orders-november.csv', $csv, { type: 'text/csv' });
+
+Mail::send('shop', ['accounts@example.com'], 'Orders in November', 'The orders are attached.', {
+    attachments: [$export],
+});
+
+echo 'Sent ', $export->name(), " with these lines:\n", $csv;

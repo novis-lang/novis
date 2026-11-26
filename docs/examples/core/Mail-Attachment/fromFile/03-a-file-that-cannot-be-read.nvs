@@ -1,0 +1,21 @@
+<?nvs
+// Shows the errors `Attachment::fromFile` throws when it cannot read a file.
+
+use Core\Mail\Attachment;
+
+// The invoice file does not exist, so `fromFile` throws an `IOError` on this line.
+try {
+    Attachment::fromFile('files/invoice-9999.pdf');
+    echo "The invoice is attached.\n";
+} catch (IOError $missing) {
+    echo "The invoice file is missing, so no mail is sent.\n";
+}
+
+// `nvs.toml` allows reading only the `files` folder. This file is outside it,
+// so `fromFile` throws a `RuntimeError`.
+try {
+    Attachment::fromFile('nvs.toml');
+    echo "The settings file is attached.\n";
+} catch (RuntimeError $notAllowed) {
+    echo "This program may not read nvs.toml.\n";
+}

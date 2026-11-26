@@ -1,0 +1,13 @@
+<?nvs
+// Shows where the type of an attachment comes from.
+
+use Core\Mail\Attachment;
+
+// The type of a PDF file is detected from its first bytes. This prints `application/pdf`.
+echo Attachment::fromFile('files/invoice-1042.pdf')->type(), "\n";
+
+// A CSV file is plain text, so no type is detected. This prints `application/octet-stream`.
+echo Attachment::fromBytes('orders.csv', "order,total\n1042,59.90\n")->type(), "\n";
+
+// The `type` option gives the type. Capital letters become small letters. This prints `text/csv`.
+echo Attachment::fromBytes('orders.csv', "order,total\n1042,59.90\n", { type: 'Text/CSV' })->type(), "\n";

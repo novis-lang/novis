@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to show an image inside a mail when the program has the image's bytes and no file.
+
+use Core\Encoding;
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// A shop often keeps product photos in its database. Here, a tiny PNG image is written in hex.
+bytes $photo = Encoding::fromHex(
+    '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489'
+    . '0000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+);
+
+// The type is detected from the first bytes. This prints `image/png`.
+Attachment $image = Attachment::inlineBytes('mug.png', $photo);
+echo $image->type(), "\n";
+
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your mug is on its way',
+    html`<p><img src="{$image->src()}" alt="Blue mug"></p><p>Your order has shipped.</p>`,
+    { attachments: [$image] },
+);
+echo "Sent the mail with the photo inside it.\n";

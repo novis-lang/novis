@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `bytes()` returns `bytes`, also when the attachment was made from a `string`.
+
+use Core\Encoding;
+use Core\Mail\Attachment;
+
+// The content is the string `Hi!`.
+Attachment $note = Attachment::fromBytes('note.txt', 'Hi!', { type: 'text/plain' });
+
+// `bytes()` returns the same three bytes as `bytes`. In hex, this prints `486921`.
+echo Encoding::toHex($note->bytes()), "\n";
+
+// A string with letters that are not ASCII is stored as UTF-8. `é` is two bytes, so this prints `6361c3a9`.
+echo Encoding::toHex(Attachment::fromBytes('note.txt', 'caé')->bytes()), "\n";

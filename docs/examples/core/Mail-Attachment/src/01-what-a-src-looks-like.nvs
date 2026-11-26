@@ -1,0 +1,23 @@
+<?nvs
+// Shows the URL that `src()` returns for an inline image.
+
+use Core\Mail\Attachment;
+use Core\Str;
+
+Attachment $logo = Attachment::inlineBytes('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>', {
+    type: 'image/svg+xml',
+});
+
+// The URL starts with `cid:` and ends with `@inline`. The part between is random.
+string $src = $logo->src();
+echo Str::startsWith($src, 'cid:') ? "starts with cid:\n" : "other start\n";
+echo Str::endsWith($src, '@inline') ? "ends with @inline\n" : "other end\n";
+
+// The URL is made once, when the attachment is made. So every call returns the same URL.
+echo $src == $logo->src() ? "the same URL each time\n" : "a new URL each time\n";
+
+// A second image gets another random URL.
+Attachment $banner = Attachment::inlineBytes('banner.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>', {
+    type: 'image/svg+xml',
+});
+echo $src == $banner->src() ? "the same URL as the logo\n" : "another URL than the logo\n";

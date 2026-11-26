@@ -1,0 +1,2 @@
+Rechnung März.txt
+Core\Mail\Attachment::fromBytes: the file name "report.txt\r\nBcc: everyone@example.com" contains a control character

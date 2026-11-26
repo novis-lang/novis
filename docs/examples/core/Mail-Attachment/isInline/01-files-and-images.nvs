@@ -1,0 +1,15 @@
+<?nvs
+// Shows which attachments are shown inside the HTML and which are files to download.
+
+use Core\Mail\Attachment;
+
+array<Attachment> $parts = [
+    Attachment::inlineFile('files/logo.png'),
+    Attachment::fromFile('files/invoice-1042.pdf'),
+    Attachment::fromBytes('orders.csv', "order,total\n", { type: 'text/csv' }),
+];
+
+// `inlineFile` and `inlineBytes` make inline attachments. `fromFile` and `fromBytes` make files.
+foreach ($parts as Attachment $part) {
+    echo $part->name(), ': ', $part->isInline() ? 'inside the HTML' : 'a file to download', "\n";
+}

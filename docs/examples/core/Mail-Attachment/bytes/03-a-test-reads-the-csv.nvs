@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test the content of a CSV file that a mail was sent with.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class Export
+{
+    // Sends the orders of one day as a CSV file.
+    public static function send(string $email, array<string> $lines): void
+    {
+        string $csv = "order,total\n";
+        foreach ($lines as string $line) {
+            $csv = $csv . $line . "\n";
+        }
+        Mail::send('shop', [$email], 'Orders of the day', 'The orders are attached.', {
+            attachments: [Attachment::fromBytes('orders.csv', $csv, { type: 'text/csv' })],
+        });
+    }
+}
+
+class ExportTest
+{
+    #[Test]
+    public function theCsvHasEveryOrder(): void
+    {
+        Export::send('accounts@example.com', ['1041,19.90', '1042,59.90']);
+
+        // `bytes()` returns the content that was sent. `as bytes` turns the expected text into bytes.
+        Attachment $file = Test::sentMail()[0]->attachments()[0];
+        Test::assertSame($file->bytes(), "order,total\n1041,19.90\n1042,59.90\n" as bytes);
+    }
+}

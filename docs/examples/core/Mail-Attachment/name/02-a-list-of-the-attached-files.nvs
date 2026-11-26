@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to write the names of the attached files into the text of the mail.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+array<Attachment> $files = [
+    Attachment::fromFile('files/invoice-1042.pdf'),
+    Attachment::fromBytes('Lieferschein März.txt', "1 x Blue mug\n", { type: 'text/plain' }),
+];
+
+// `name()` returns a `tainted string`. Tainted means that the value can come from a user.
+// The text that contains the names is then a `tainted string` too.
+tainted string $text = "Please find these files attached:\n";
+foreach ($files as Attachment $file) {
+    $text = $text . '- ' . $file->name() . "\n";
+}
+
+// A `tainted string` body is sent as plain text, never as HTML.
+Mail::send('shop', ['anna@example.com'], 'Your documents for order 1042', $text, {
+    attachments: $files,
+});
+echo $text;

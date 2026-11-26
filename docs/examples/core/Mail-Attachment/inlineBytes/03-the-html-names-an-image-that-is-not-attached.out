@@ -1,0 +1,1 @@
+Core\Mail::send: the HTML uses `cid:banner@example.com`, and no inline attachment of this message has that `src()`. Pass the attachment in `attachments`.

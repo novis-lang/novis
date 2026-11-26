@@ -1,0 +1,68 @@
+--TEST--
+`Core\Mail\Attachment::src` is the `cid:` URL an inline attachment keeps from the call that built it: the same on every read, different for each attachment, and read back unchanged from the mail that was sent with an `inlineFile` image and a `fromFile` file
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Mail\Attachment::src, Core\Mail\Attachment::inlineFile, Core\Mail\Attachment::fromFile
+use Core\Mail\Attachment;
+use Core\Str;
+use Core\Test;
+
+final class InlineTest {
+    #[Test]
+    public function theSrcIsSentAndReadBack(): void {
+        Attachment $logo = Attachment::inlineFile('files/logo.gif');
+        Attachment $again = Attachment::inlineFile('files/logo.gif');
+        Attachment $invoice = Attachment::fromFile('files/invoice.pdf');
+
+        // `src()` is `cid:`, 32 hex digits and `@inline`, the same on every read.
+        string $src = $logo->src();
+        Test::assertSame(Str::length($src), 43);
+        Test::assertTrue(Str::startsWith($src, 'cid:'));
+        Test::assertTrue(Str::endsWith($src, '@inline'));
+        Test::assertSame($logo->src(), $src);
+
+        // The same file read twice gives two attachments with two URLs.
+        Test::assertTrue($again->src() != $src);
+
+        Core\Mail::send(
+            'site',
+            ['ada@example.com'],
+            'Welcome',
+            html`<p><img src="{$src}" alt="Logo"></p><p>Hello.</p>`,
+            { attachments: [$invoice, $logo] },
+        );
+
+        // The parts come back in the order given, and the inline one keeps its `src()`.
+        array<Attachment> $parts = Test::sentMail()[0]->attachments();
+        Test::assertCount($parts, 2);
+        Test::assertTrue(!$parts[0]->isInline());
+        Test::assertSame($parts[0]->name(), 'invoice.pdf');
+        Test::assertSame($parts[0]->type(), 'application/pdf');
+        Test::assertTrue($parts[1]->isInline());
+        Test::assertSame($parts[1]->src(), $src);
+        Test::assertSame($parts[1]->type(), 'image/gif');
+        Test::assertTrue(Str::contains(Test::sentMail()[0]->html() ?? '', '<img src="' . $src . '"'));
+    }
+}
+--FILE files/invoice.pdf--
+%PDF-1.4
+%%EOF
+--FILE files/logo.gif--
+GIF89a
+--FILE nvs.toml--
+[mail.site]
+capture = true
+from = "hello@example.com"
+
+[capabilities.mail]
+send = ["site"]
+
+[capabilities.fs]
+read = ["files"]
+--EXPECTF--
+  InlineTest
+    ✓ theSrcIsSentAndReadBack          %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

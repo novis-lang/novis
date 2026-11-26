@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program tries to attach a file outside the one folder it may read.
+// Each such call should throw an error, and no file outside that folder should be read.
+
+use Core\Mail\Attachment;
+
+// 0. The allowed file can be attached.
+echo '0 ', Attachment::fromFile('files/invoice.pdf')->type(), "\n";
+
+// 1. Paths that leave the folder with `..`. Each one must throw.
+try {
+    Attachment::fromFile('files/../nvs.toml');
+    echo "1 read\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+try {
+    Attachment::fromFile('../../../../../Cargo.toml');
+    echo "1 read\n";
+} catch (RuntimeError $e1) {
+    echo '1 ', $e1::class, "\n";
+}
+
+// 2. An absolute path on Windows and on Linux. Each one must throw.
+try {
+    Attachment::fromFile('C:/Windows/win.ini');
+    echo "2 read\n";
+} catch (RuntimeError $e2) {
+    echo '2 ', $e2::class, "\n";
+}
+try {
+    Attachment::fromFile('/etc/passwd');
+    echo "2 read\n";
+} catch (RuntimeError $e3) {
+    echo '2 ', $e3::class, "\n";
+}
+
+// 3. A NUL byte in the path, which some systems read as the end of the path. It must throw.
+try {
+    Attachment::fromFile("files/invoice.pdf\x00.txt");
+    echo "3 read\n";
+} catch (RuntimeError $e4) {
+    echo '3 ', $e4::class, "\n";
+}
+
+// 4. The folder itself, and a file that does not exist. Each one must throw.
+try {
+    Attachment::fromFile('files');
+    echo "4 read\n";
+} catch (RuntimeError $e5) {
+    echo '4 ', $e5::class, "\n";
+}
+try {
+    Attachment::fromFile('files/missing.pdf');
+    echo "4 read\n";
+} catch (RuntimeError $e6) {
+    echo '4 ', $e6::class, "\n";
+}
+
+// 5. A `name` option with a line break and a header line. It must throw.
+try {
+    Attachment::fromFile('files/invoice.pdf', { name: "invoice.pdf\r\nBcc: x@example.com" });
+    echo "5 made\n";
+} catch (RuntimeError $e7) {
+    echo '5 ', $e7::class, "\n";
+}
+
+// 6. The same file is read 10000 times. Each attachment is freed when the next one replaces it.
+int $i = 0;
+uint $total = 0;
+while ($i < 10000) {
+    $total = $total + Core\Bytes::length(Attachment::fromFile('files/invoice.pdf')->bytes());
+    $i = $i + 1;
+}
+echo '6 ', $total, "\n";

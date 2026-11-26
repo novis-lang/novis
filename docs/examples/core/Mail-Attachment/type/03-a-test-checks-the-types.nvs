@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test the type of each file that a mail was sent with.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class MonthlyReport
+{
+    // Sends the report as a PDF file and its numbers as a CSV file.
+    public static function send(string $email): void
+    {
+        Mail::send('shop', [$email], 'Report for November', 'The report is attached.', {
+            attachments: [
+                Attachment::fromFile('files/invoice-1042.pdf', { name: 'report.pdf' }),
+                Attachment::fromBytes('report.csv', "month,total\n11,4200.00\n", { type: 'text/csv' }),
+            ],
+        });
+    }
+}
+
+class MonthlyReportTest
+{
+    #[Test]
+    public function eachFileHasItsType(): void
+    {
+        MonthlyReport::send('accounts@example.com');
+
+        // The PDF type was detected, and the CSV type was given.
+        array<Attachment> $files = Test::sentMail()[0]->attachments();
+        Test::assertSame($files[0]->type(), 'application/pdf');
+        Test::assertSame($files[1]->type(), 'text/csv');
+    }
+}

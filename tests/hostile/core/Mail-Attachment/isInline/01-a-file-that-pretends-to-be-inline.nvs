@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a file to download pretends to be an inline image, with a name and a type like one.
+// It should stay a file to download, and its `src()` should throw an error.
+// proof: test
+// hostile: timeout-ms 30000
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class InlineAttackTest
+{
+    #[Test]
+    public function aFileStaysAFile(): void
+    {
+        // 1. A file named like a `cid:` URL, with an image type. It is not inline, and `src()` throws.
+        Attachment $fake = Attachment::fromBytes('cid:0123@inline', 'pixel', { type: 'image/png' });
+        Test::assertTrue(!$fake->isInline());
+        uint $thrown = 0;
+        try {
+            $fake->src();
+        } catch (RuntimeError $e) {
+            $thrown = 1;
+        }
+        Test::assertSame($thrown, 1);
+
+        // 2. The HTML uses the fake name as a URL. No inline image has it, so the send throws.
+        uint $refused = 0;
+        try {
+            Mail::send('shop', ['anna@example.com'], 'Hello', html`<img src="cid:0123@inline">`, {
+                attachments: [$fake],
+            });
+        } catch (RuntimeError $e2) {
+            $refused = 1;
+        }
+        Test::assertSame($refused, 1);
+    }
+
+    #[Test]
+    public function manyPartsKeepTheirKind(): void
+    {
+        // 3. 2000 attachments, every second one inline. Each one is read back with its own kind.
+        array<Attachment> $parts = [];
+        Core\Html\Markup $body = '' as Core\Html\Markup;
+        int $i = 0;
+        while ($i < 2000) {
+            if ($i % 2 == 0) {
+                Attachment $image = Attachment::inlineBytes('i.png', 'pixel', { type: 'image/png' });
+                $body = $body + html`<img src="{$image->src()}">`;
+                $parts[] = $image;
+            } else {
+                $parts[] = Attachment::fromBytes('f.bin', 'data');
+            }
+            $i = $i + 1;
+        }
+        Mail::send('shop', ['anna@example.com'], 'Many', $body, { attachments: $parts });
+
+        array<Attachment> $sent = Test::sentMail()[0]->attachments();
+        Test::assertCount($sent, 2000);
+        int $j = 0;
+        while ($j < 2000) {
+            Test::assertSame($sent[$j]->isInline(), $j % 2 == 0);
+            $j = $j + 1;
+        }
+    }
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows the error `Core\Mail::send` throws when the HTML uses a `cid:` URL with no inline image.
+
+use Core\Mail;
+
+// This HTML comes from a template. Its `cid:` URL names an image, but no image is attached.
+// A mail program would show a broken image, so `send` throws a `RuntimeError` and sends nothing.
+try {
+    Mail::send(
+        'shop',
+        ['anna@example.com'],
+        'Our winter sale',
+        html`<p><img src="cid:banner@example.com" alt="Winter sale"></p><p>Everything is 20% off.</p>`,
+    );
+    echo "sent\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

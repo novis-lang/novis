@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program reads one image many times and tries to make two images with the same URL.
+// Every image should get its own URL, and a file outside the allowed folder should throw.
+// hostile: timeout-ms 30000
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// 1. The same image is read 10000 times. Every `src()` must be different.
+array<bool> $seen = [];
+int $i = 0;
+while ($i < 10000) {
+    $seen[Attachment::inlineFile('files/logo.png')->src()] = true;
+    $i = $i + 1;
+}
+echo '1 ', Core\Arr::count($seen), "\n";
+
+// 2. Two reads of the same image. The mail attaches the second one and uses the URL of the first. It must throw.
+Attachment $first = Attachment::inlineFile('files/logo.png');
+Attachment $second = Attachment::inlineFile('files/logo.png');
+try {
+    Mail::send('shop', ['anna@example.com'], 'Hello', html`<img src="{$first->src()}">`, {
+        attachments: [$second],
+    });
+    echo "2 sent\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. A text file is read as an inline image. Its type is detected, and the mail is sent.
+try {
+    Attachment $text = Attachment::inlineFile('files/notes.txt');
+    Mail::send('shop', ['anna@example.com'], 'Hello', html`<img src="{$text->src()}">`, {
+        attachments: [$text],
+    });
+    echo '3 sent ', $text->type(), "\n";
+} catch (RuntimeError $e3) {
+    echo '3 ', $e3::class, "\n";
+}
+
+// 4. A path that leaves the allowed folder with `..`. It must throw.
+try {
+    Attachment::inlineFile('files/../nvs.toml');
+    echo "4 read\n";
+} catch (RuntimeError $e4) {
+    echo '4 ', $e4::class, "\n";
+}
+
+// 5. A `type` option with a line break and a header line. It must throw.
+try {
+    Attachment::inlineFile('files/logo.png', { type: "image/png\r\nContent-ID: <x@inline>" });
+    echo "5 made\n";
+} catch (RuntimeError $e5) {
+    echo '5 ', $e5::class, "\n";
+}

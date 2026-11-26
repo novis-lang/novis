@@ -1,0 +1,28 @@
+<?nvs
+// Measures how a program checks whether an attachment is an inline image, as a loop over a mail's attachments does.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Attachment;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Attachment> $parts = [
+            Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' }),
+            Attachment::fromBytes('invoice.pdf', 'x'),
+            Attachment::inlineBytes('banner.png', 'pixel', { type: 'image/png' }),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The round before and the counter choose the attachment.
+            $total = $total + ($parts[(($total + $i) % 3) as int]->isInline() ? 1 : 4) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

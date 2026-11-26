@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a `type` option tries to add a parameter or a header line to the part of the mail.
+// Each such type should throw an error. The types that are allowed should be read back unchanged.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class TypeAttackTest
+{
+    #[Test]
+    public function badTypesThrow(): void
+    {
+        // 1. A parameter, a line break, a space, a missing half, a second slash and a letter
+        //    that is not ASCII. Each type must throw.
+        array<string> $bad = [
+            'text/html; charset=utf-8',
+            "image/png\r\nContent-Disposition: inline",
+            'image/png ',
+            '/png',
+            'image/',
+            'image/png/x',
+            'imäge/png',
+            Core\Str::repeat('a', 128) . '/' . Core\Str::repeat('b', 127),
+        ];
+        uint $thrown = 0;
+        foreach ($bad as string $type) {
+            try {
+                Attachment::fromBytes('a.bin', 'x', { type: $type });
+            } catch (RuntimeError $e) {
+                $thrown = $thrown + 1;
+            }
+        }
+        Test::assertSame($thrown, Core\Arr::count($bad));
+    }
+
+    #[Test]
+    public function allowedTypesAreReadBack(): void
+    {
+        // 2. A type of 255 bytes, a type in capital letters and a type with `+` and `.`.
+        //    Each one is sent, and the test reads it back in small letters.
+        string $longest = Core\Str::repeat('a', 127) . '/' . Core\Str::repeat('b', 127);
+        Mail::send('shop', ['anna@example.com'], 'Types', 'Attached.', {
+            attachments: [
+                Attachment::fromBytes('a.bin', 'x', { type: $longest }),
+                Attachment::fromBytes('b.bin', 'x', { type: 'IMAGE/PNG' }),
+                Attachment::fromBytes('c.bin', 'x', { type: 'application/vnd.example+json' }),
+            ],
+        });
+        array<Attachment> $parts = Test::sentMail()[0]->attachments();
+        Test::assertSame($parts[0]->type(), $longest);
+        Test::assertSame($parts[1]->type(), 'image/png');
+        Test::assertSame($parts[2]->type(), 'application/vnd.example+json');
+    }
+}

@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a file name tries to add header lines to the mail, and a very large file tries to
+// use up memory. A name with a line break should throw, and no name should add a header line.
+// hostile: timeout-ms 30000
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// 1. A name with a line break and a `Content-Type:` line. It must throw.
+try {
+    Attachment::fromBytes("report.txt\r\nContent-Type: text/html", 'x');
+    echo "1 made\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. A name with only `\n`, only `\r`, a NUL byte or a tab. Each one must throw.
+array<string> $names = ["a\nBcc: x@example.com", "a\rBcc: x@example.com", "a\x00.pdf", "a\t.pdf"];
+foreach ($names as string $name) {
+    try {
+        Attachment::fromBytes($name, 'x');
+        echo "2 made\n";
+    } catch (RuntimeError $e2) {
+        echo '2 ', $e2::class, "\n";
+    }
+}
+
+// 3. A name that closes its quote and adds a second file name. The quote is escaped, so the mail is sent with one name.
+try {
+    Attachment $quoted = Attachment::fromBytes('invoice.pdf"; filename="invoice.exe', 'x');
+    Mail::send('shop', ['anna@example.com'], 'Invoice', 'Attached.', { attachments: [$quoted] });
+    echo "3 sent\n";
+} catch (RuntimeError $e3) {
+    echo '3 ', $e3::class, "\n";
+}
+
+// 4. A name with Unicode line separators and an encoded word. Both are encoded, so the mail is sent.
+try {
+    Attachment $odd = Attachment::fromBytes("a\u{2028}b\u{2029}=?utf-8?q?=0D=0ABcc:x?=.pdf", 'x');
+    Mail::send('shop', ['anna@example.com'], 'Invoice', 'Attached.', { attachments: [$odd] });
+    echo "4 sent\n";
+} catch (RuntimeError $e4) {
+    echo '4 ', $e4::class, "\n";
+}
+
+// 5. A name of 255 bytes is allowed, and a name of 256 bytes must throw.
+array<int> $lengths = [255, 256];
+foreach ($lengths as int $length) {
+    try {
+        Attachment::fromBytes(Core\Str::repeat('a', $length as uint), 'x');
+        echo '5 made ', $length, "\n";
+    } catch (RuntimeError $e5) {
+        echo '5 ', $e5::class, ' ', $length, "\n";
+    }
+}
+
+// 6. A `type` option with a line break. It must throw.
+try {
+    Attachment::fromBytes('a.pdf', 'x', { type: "application/pdf\r\nBcc: x@example.com" });
+    echo "6 made\n";
+} catch (RuntimeError $e6) {
+    echo '6 ', $e6::class, "\n";
+}
+
+// 7. A file of 20 MB. It is sent, and its memory is freed when the send ends.
+try {
+    Attachment $big = Attachment::fromBytes('big.bin', Core\Bytes::fill(20971520, 65));
+    Mail::send('shop', ['anna@example.com'], 'Big file', 'Attached.', { attachments: [$big] });
+    echo "7 sent\n";
+} catch (RuntimeError $e7) {
+    echo '7 ', $e7::class, "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to send an invoice with a PDF file attached.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// `Attachment::fromFile` reads the file now. The path starts at the folder of this program.
+Attachment $invoice = Attachment::fromFile('files/invoice-1042.pdf');
+
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your invoice for order 1042',
+    'Thank you for your order. Your invoice is attached.',
+    { attachments: [$invoice] },
+);
+
+// The type is detected from the first bytes of the file. This prints `application/pdf`.
+echo 'Sent ', $invoice->name(), ' as ', $invoice->type(), "\n";

@@ -1,0 +1,83 @@
+--TEST--
+`Core\Mail\Attachment::fromFile` and `inlineFile` read the file when they are called: the name is the path's last part unless `name` replaces it, the type is detected from the bytes, and a missing or ungranted file throws on the line that names it
+--FILE--
+<?nvs
+// covers: Core\Mail\Attachment::fromFile, Core\Mail\Attachment::inlineFile
+use Core\Mail\Attachment;
+
+// The name is the last part of the path, and the type is read from the first bytes.
+Attachment $pdf = Attachment::fromFile('files/invoice.pdf');
+echo $pdf->name(), ' ', $pdf->type(), ' ', Core\Bytes::length($pdf->bytes()), ' ', $pdf->isInline() ? 'inline' : 'file', "\n";
+
+// `name` replaces the name and `type` replaces the detected type.
+Attachment $renamed = Attachment::fromFile('files/invoice.pdf', { name: 'Rechnung März.pdf', type: 'Application/X-Invoice' });
+echo $renamed->name(), ' ', $renamed->type(), "\n";
+
+// An inline file is read the same way, and gets a `src()`.
+Attachment $logo = Attachment::inlineFile('files/logo.gif');
+echo $logo->name(), ' ', $logo->type(), ' ', $logo->isInline() ? 'inline' : 'file', ' ', Core\Str::startsWith($logo->src(), 'cid:') ? 'cid' : 'other', "\n";
+
+// The file is read now: changing it afterwards does not change the attachment.
+Core\IO::write(Core\IO::canonicalize('files') . '/notes.txt', 'second');
+Attachment $before = Attachment::fromFile('files/notes.txt');
+Core\IO::write(Core\IO::canonicalize('files') . '/notes.txt', 'third version');
+echo Core\Bytes::length($before->bytes()), ' ', $before->type(), "\n";
+
+// A missing file is an `IOError` on the line that names it.
+try {
+    Attachment::fromFile('files/missing.pdf');
+    echo "missing: read\n";
+} catch (IOError $missing) {
+    echo "missing: IOError\n";
+}
+try {
+    Attachment::inlineFile('files/missing.gif');
+    echo "missing inline: read\n";
+} catch (IOError $missingInline) {
+    echo "missing inline: IOError\n";
+}
+
+// A file outside the `fs.read` grant is a `RuntimeError` that names the capability.
+try {
+    Attachment::fromFile('nvs.toml');
+    echo "outside: read\n";
+} catch (IOError $io) {
+    echo "outside: IOError\n";
+} catch (RuntimeError $outside) {
+    echo 'outside: ', Core\Str::contains($outside->message, 'fs.read') ? 'needs fs.read' : $outside->message, "\n";
+}
+
+// A control character in `name`, and a `type` with a parameter, throw.
+try {
+    Attachment::fromFile('files/invoice.pdf', { name: "a.pdf\r\nBcc: x@example.com" });
+    echo "name: made\n";
+} catch (RuntimeError $badName) {
+    echo "name: RuntimeError\n";
+}
+try {
+    Attachment::inlineFile('files/logo.gif', { type: 'image/gif; x=1' });
+    echo "type: made\n";
+} catch (RuntimeError $badType) {
+    echo "type: RuntimeError\n";
+}
+--FILE files/invoice.pdf--
+%PDF-1.4
+%%EOF
+--FILE files/logo.gif--
+GIF89a
+--FILE files/notes.txt--
+first
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["files"]
+write = ["files"]
+--EXPECT--
+invoice.pdf application/pdf 15 file
+Rechnung März.pdf application/x-invoice
+logo.gif image/gif inline cid
+6 application/octet-stream
+missing: IOError
+missing inline: IOError
+outside: needs fs.read
+name: RuntimeError
+type: RuntimeError

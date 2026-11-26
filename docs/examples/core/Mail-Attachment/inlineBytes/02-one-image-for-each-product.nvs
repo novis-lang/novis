@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to send an order summary with one inline image for each product.
+
+use Core\Encoding;
+use Core\Html;
+use Core\Html\Markup;
+use Core\Mail;
+use Core\Mail\Attachment;
+
+bytes $photo = Encoding::fromHex(
+    '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489'
+    . '0000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+);
+array<string> $products = ['Blue mug', 'Red mug', 'Tea towel'];
+
+// This loop makes one inline image and one line of HTML for each product.
+// Each image gets its own `src()`, so each line shows the right image.
+array<Attachment> $images = [];
+Markup $rows = '' as Markup;
+foreach ($products as string $product) {
+    Attachment $image = Attachment::inlineBytes($product . '.png', $photo);
+    $images[] = $image;
+    $rows = $rows + html`<p><img src="{$image->src()}" alt="{$product}"> {$product}</p>`;
+}
+
+Mail::send('shop', ['anna@example.com'], 'Your order', $rows, { attachments: $images });
+
+// Two images never have the same `src()`. This prints `false`.
+echo $images[0]->src() == $images[1]->src() ? "true\n" : "false\n";
+echo 'Sent ', Core\Arr::count($images), " inline images.\n";

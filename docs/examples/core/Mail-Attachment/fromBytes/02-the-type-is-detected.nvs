@@ -1,0 +1,21 @@
+<?nvs
+// Shows which type `Attachment::fromBytes` gives each file when no `type` option is given.
+
+use Core\Encoding;
+use Core\Mail\Attachment;
+
+// A PNG image starts with fixed bytes, so its type is detected. This prints `image/png`.
+bytes $photo = Encoding::fromHex(
+    '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489'
+    . '0000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+);
+echo Attachment::fromBytes('photo.png', $photo)->type(), "\n";
+
+// A PDF file starts with `%PDF-`. This prints `application/pdf`.
+echo Attachment::fromBytes('report.pdf', "%PDF-1.4\n%%EOF\n")->type(), "\n";
+
+// Plain text has no such start, so the type is `application/octet-stream`.
+echo Attachment::fromBytes('notes.txt', "Call Anna on Monday.\n")->type(), "\n";
+
+// With the `type` option, you set the type yourself.
+echo Attachment::fromBytes('notes.txt', "Call Anna on Monday.\n", { type: 'text/plain' })->type(), "\n";
