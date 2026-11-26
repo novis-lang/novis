@@ -1,5 +1,5 @@
 - **`Core\Config::get` answers nothing for a directive whose value is a list, so writing one into
-  `nvs.toml` to make an example page print a value buys nothing.** `[http.client.tls] roots =
+  `nvs.toml` to make an example page print a value buys nothing.** `[tls.client] roots =
   ["bundled"]` is exactly what this checkout trusts and the page still printed `(nothing)`, because
   `nvs_config::request`'s `get` returns `None` for a key naming a table or a list rather than a
   rendering nothing could set back. Run the example against the binary before writing a line into

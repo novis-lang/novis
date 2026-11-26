@@ -33,9 +33,9 @@ foreach ($secrets as string $key) {
 array<string> $shared = [
     'http.client.pool_idle',
     'http.client.pool_idle_timeout',
-    'http.client.tls',
-    'http.client.tls.ca_file',
-    'http.client.tls.insecure_skip_verify',
+    'tls.client',
+    'tls.client.roots',
+    'tls.client.keylog',
     'http.client.proxy',
     'http.client.proxy.url',
 ];
@@ -88,7 +88,7 @@ array<string> $nearby = [
     'Http.Client.Tls',
     'csrf_key',
     'http.csrf_key.file',
-    'http.client.tls.ca_file.real',
+    'tls.client.roots.real',
     'app.http.csrf_key',
     'http.client.' . Core\Str::repeat('sub.', 10000) . 'tls',
 ];

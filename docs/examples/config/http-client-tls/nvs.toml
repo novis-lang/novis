@@ -1,3 +1,0 @@
-# An outbound call uses TLS 1.2 or newer.
-[http.client.tls]
-min_version = "1.2"

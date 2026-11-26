@@ -4,7 +4,7 @@ options, four grants:
 
 | Option | Grant | Does |
 |---|---|---|
-| `tlsCa: string` | `tls.anchors` | trusts exactly the PEM certificates given, for this call, in place of `[http.client.tls] roots` |
+| `tlsCa: string` | `tls.anchors` | trusts exactly the PEM certificates given, for this call, in place of `[tls.client] roots` |
 | `tlsPin: string\|array<string>` | `tls.pin` | accepts a peer whose SubjectPublicKeyInfo hashes to one of the `sha256//<base64>` values, with no chain |
 | `tlsVerifyHost: false` | `tls.any_name` | builds and checks the chain, and skips only the name |
 | `tlsVerify: false` | `tls.insecure` | checks neither |
@@ -24,6 +24,6 @@ a caller still cannot hand in a session — it hands in a policy value the modul
 policy is part of the pool key
 (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`), so a connection opened
 under `tlsVerify: false` never serves a call that verifies. `tlsMinVersion: "1.3"` needs no grant,
-because it can only tighten, and a value under `[http.client.tls] min_version` throws a `LogicError`
+because it can only tighten, and a value under `[tls.client] min_version` throws a `LogicError`
 rather than being raised silently. And the boot prints every relaxed grant, every start, one line per grant and
 host: a weakening nobody is reminded of outlives the incident it was added for.

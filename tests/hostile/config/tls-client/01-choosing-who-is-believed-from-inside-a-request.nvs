@@ -1,14 +1,13 @@
 <?nvs
-// Attack: a request tries to change `[http.client.tls]`. Every request in the process uses the
-// same TLS client, so these settings decide which certificates every request trusts.
-// Every change should fail.
+// Attack: a request tries to change `[tls.client]`. Every outbound TLS connection uses these
+// settings, so they decide which certificates every request trusts. Every change should fail.
 // hostile: timeout-ms 30000
 
-// `Core\Config::set('http.client.tls.roots', ...)` does not compile, because a program may not change `http.client.tls.roots`.
+// `Core\Config::set('tls.client.roots', ...)` does not compile, because a program may not change `tls.client.roots`.
 // This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
-string $rootsKey = 'http.client.tls.roots';
-string $minVersion = 'http.client.tls.min_version';
-string $keylog = 'http.client.tls.keylog';
+string $rootsKey = 'tls.client.roots';
+string $minVersion = 'tls.client.min_version';
+string $keylog = 'tls.client.keylog';
 
 // 1. Set the trusted certificates to the attacker's file, to an empty list and to invalid values.
 array<string> $roots = [
@@ -27,7 +26,7 @@ array<string> $roots = [
 ];
 foreach ($roots as string $value) {
     Core\Config::set($rootsKey, $value);
-    Core\Config::get('http.client.tls.roots');
+    Core\Config::get('tls.client.roots');
 }
 Core\Config::restore($rootsKey);
 
@@ -46,7 +45,7 @@ array<string> $versions = [
 ];
 foreach ($versions as string $value) {
     Core\Config::set($minVersion, $value);
-    Core\Config::get('http.client.tls.min_version');
+    Core\Config::get('tls.client.min_version');
 }
 Core\Config::restore($minVersion);
 
@@ -63,28 +62,30 @@ array<string> $keylogs = [
 ];
 foreach ($keylogs as string $value) {
     Core\Config::set($keylog, $value);
-    Core\Config::get('http.client.tls.keylog');
+    Core\Config::get('tls.client.keylog');
 }
 Core\Config::restore($keylog);
 
 // 4. Switch to development mode first, and then set the secrets file. This should still fail.
 Core\Config::set('mode.default', 'development');
 Core\Config::set($keylog, '/tmp/keys.log');
-Core\Config::get('http.client.tls.keylog');
+Core\Config::get('tls.client.keylog');
 Core\Config::restore('mode.default');
 
-// 5. Set keys that are almost the real keys, and the same keys under `[http.client.socket]`.
+// 5. Set keys that are almost the real keys, the old `[http.client.tls]` keys, and the same keys under `[http.client.socket]`.
 array<string> $keys = [
-    'http.client.tls',
-    'http.client.tls.',
-    'http.client..tls.roots',
-    'http.client.tls.roots.0',
-    'HTTP.CLIENT.TLS.ROOTS',
-    'Http.Client.Tls.Keylog',
-    'http.client.tlsx.roots',
+    'tls.client',
+    'tls.client.',
+    'tls..client.roots',
+    'tls.client.roots.0',
+    'TLS.CLIENT.ROOTS',
+    'Tls.Client.Keylog',
+    'tls.clientx.roots',
+    'http.client.tls.roots',
+    'http.client.tls.keylog',
     'http.client.socket.tls.roots',
     'http.client.socket.max_message.tls.keylog',
-    'http.client.tls.roots.' . Core\Str::repeat('sub.', 20000) . 'off',
+    'tls.client.roots.' . Core\Str::repeat('sub.', 20000) . 'off',
     'tls.roots',
     'roots',
 ];
@@ -101,4 +102,4 @@ while ($i < 100000) {
     Core\Config::set($keylog, '/tmp/keys.log');
     $i = $i + 1;
 }
-echo Core\Config::get('http.client.tls.min_version') ?? '(nothing)', "\n";
+echo Core\Config::get('tls.client.min_version') ?? '(nothing)', "\n";
