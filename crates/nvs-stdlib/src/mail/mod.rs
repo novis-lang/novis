@@ -113,7 +113,7 @@ mod capture;
 mod compose;
 pub(crate) mod css;
 mod dkim;
-mod oauth;
+pub(crate) mod oauth;
 pub(crate) mod parts;
 mod pool;
 pub(crate) mod receive;
@@ -714,8 +714,14 @@ struct Endpoint {
 /// an operator clearing a setting, and reading it as a name would produce a
 /// refusal about DNS rather than about the configuration.
 fn configured(ctx: &Ctx, endpoint: &str, key: &str) -> Option<String> {
+    configured_in(ctx, "mail", endpoint, key)
+}
+
+/// The directive `<family>.<endpoint>.<key>`, read as [`configured`] reads a `[mail]` one.
+/// `Core\Imap` reads its `[imap.<name>]` blocks with it.
+pub(crate) fn configured_in(ctx: &Ctx, family: &str, endpoint: &str, key: &str) -> Option<String> {
     ctx.config()
-        .and_then(|config| config.get(&format!("mail.{endpoint}.{key}")))
+        .and_then(|config| config.get(&format!("{family}.{endpoint}.{key}")))
         .and_then(present)
 }
 
@@ -786,7 +792,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         )));
     };
     let oauth = if auth == Some(Auth::XOAuth2) {
-        Some(oauth::grant_of(ctx, endpoint, member)?)
+        Some(oauth::grant_of(ctx, "mail", endpoint, member)?)
     } else {
         None
     };

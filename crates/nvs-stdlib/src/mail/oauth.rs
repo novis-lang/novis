@@ -32,7 +32,7 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Ctx, Fault, ThrownClass};
 
-use super::configured;
+use super::configured_in;
 
 /// How long before its `expires_in` a token is fetched again, so a token never expires between
 /// the fetch and the relay's check.
@@ -43,9 +43,9 @@ const MARGIN: Duration = Duration::from_secs(60);
 const REPLY_CEILING: usize = 64 * 1024;
 
 /// What an `auth = "xoauth2"` block wrote: the mailbox and every `oauth_*` value.
-pub(super) struct Grant {
+pub(crate) struct Grant {
     /// `user`, the mailbox the token signs in.
-    pub(super) user: String,
+    pub(crate) user: String,
     /// `oauth_token_url`, already read by [`nvs_config::mail::token_url`].
     url: TokenUrl,
     /// `oauth_client_id`.
@@ -68,57 +68,61 @@ struct Kept {
     renew_at: Instant,
 }
 
-/// Every kept token, by block name.
+/// Every kept token, by block: `mail.<name>` or `imap.<name>`.
 type Cache = Mutex<BTreeMap<String, Kept>>;
 
 /// The process's tokens. [`super`]'s module doc and this module's say why it is one per block.
 static CACHE: Cache = Mutex::new(BTreeMap::new());
 
-/// The block `endpoint`'s grant.
+/// The grant of the block `[<family>.<endpoint>]`, where `family` is `mail` or `imap`. Both
+/// families write the same `user` and `oauth_*` keys.
 ///
 /// # Errors
 ///
 /// A catchable `RuntimeError` for a block the boot would have refused: no `user`, a password, a
 /// token URL that is not `https://`, or no client id or secret.
-pub(super) fn grant_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Grant, Fault> {
+pub(crate) fn grant_of(
+    ctx: &Ctx,
+    family: &str,
+    endpoint: &str,
+    member: &str,
+) -> Result<Grant, Fault> {
+    let read = |key: &str| configured_in(ctx, family, endpoint, key);
     let missing = |key: &str| {
         Fault::thrown(format!(
-            "{member}: `[mail.{endpoint}]` has `auth = \"xoauth2\"` and no `{key}`"
+            "{member}: `[{family}.{endpoint}]` has `auth = \"xoauth2\"` and no `{key}`"
         ))
     };
-    let user = configured(ctx, endpoint, "user").ok_or_else(|| missing("user"))?;
-    if configured(ctx, endpoint, "password").is_some() {
+    let user = read("user").ok_or_else(|| missing("user"))?;
+    if read("password").is_some() {
         return Err(Fault::thrown(format!(
-            "{member}: `[mail.{endpoint}]` has `auth = \"xoauth2\"` and a password, which it \
-             never sends"
+            "{member}: `[{family}.{endpoint}]` has `auth = \"xoauth2\"` and a password, which \
+             it never sends"
         )));
     }
-    let written =
-        configured(ctx, endpoint, "oauth_token_url").ok_or_else(|| missing("oauth_token_url"))?;
+    let written = read("oauth_token_url").ok_or_else(|| missing("oauth_token_url"))?;
     let url = nvs_config::mail::token_url(&written).ok_or_else(|| {
         Fault::thrown(format!(
-            "{member}: `[mail.{endpoint}] oauth_token_url` is not an `https://` URL"
+            "{member}: `[{family}.{endpoint}] oauth_token_url` is not an `https://` URL"
         ))
     })?;
     Ok(Grant {
         user,
         url,
-        client_id: configured(ctx, endpoint, "oauth_client_id")
-            .ok_or_else(|| missing("oauth_client_id"))?,
-        client_secret: configured(ctx, endpoint, "oauth_client_secret")
-            .ok_or_else(|| missing("oauth_client_secret"))?,
-        scope: configured(ctx, endpoint, "oauth_scope"),
-        refresh_token: configured(ctx, endpoint, "oauth_refresh_token"),
+        client_id: read("oauth_client_id").ok_or_else(|| missing("oauth_client_id"))?,
+        client_secret: read("oauth_client_secret").ok_or_else(|| missing("oauth_client_secret"))?,
+        scope: read("oauth_scope"),
+        refresh_token: read("oauth_refresh_token"),
     })
 }
 
-/// The bearer token for `block`: the kept one while it is fresh, else a new one from the token
-/// server. Every wait ends at `until`.
+/// The bearer token for `block`, `mail.<name>` or `imap.<name>`: the kept one while it is fresh,
+/// else a new one from the token server. Every wait ends at `until`.
 ///
 /// # Errors
 ///
 /// [`fetch`]'s.
-pub(super) fn token(
+pub(crate) fn token(
     grant: &Grant,
     block: &str,
     until: Instant,
@@ -127,8 +131,8 @@ pub(super) fn token(
     token_at(&CACHE, grant, block, Instant::now(), until, member)
 }
 
-/// Drops `block`'s kept token, after the relay refused it.
-pub(super) fn forget(block: &str) {
+/// Drops `block`'s kept token, after the server refused it.
+pub(crate) fn forget(block: &str) {
     CACHE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -293,7 +297,7 @@ fn fetch(
         Fault::thrown_as(
             ThrownClass::Io,
             format!(
-                "{member}: `[mail.{block}]` could not fetch its token from {server}: {why}. \
+                "{member}: `[{block}]` could not fetch its token from {server}: {why}. \
                  Nothing was sent."
             ),
         )
@@ -334,7 +338,7 @@ fn fetch(
         return Err(Fault::thrown_as(
             ThrownClass::Io,
             format!(
-                "{member}: the token server of `[mail.{block}]` answered {status}{code}. Nothing \
+                "{member}: the token server of `[{block}]` answered {status}{code}. Nothing \
                  was sent."
             ),
         ));

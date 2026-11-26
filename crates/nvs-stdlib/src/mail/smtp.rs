@@ -572,7 +572,7 @@ fn bearer(
     session
         .command(&line, 235, "the token", member)
         .map(drop)
-        .inspect_err(|_| super::oauth::forget(&endpoint.name))
+        .inspect_err(|_| super::oauth::forget(&format!("mail.{}", endpoint.name)))
 }
 
 /// The `SIZE` limit in `extensions`, when the server advertises one that is not zero.
@@ -656,7 +656,10 @@ pub(super) fn open(
     // The token is fetched before the relay is reached, so a refused token leaves the relay
     // untouched.
     let token = match &endpoint.oauth {
-        Some(grant) => Some(super::oauth::token(grant, &endpoint.name, until, member)?),
+        Some(grant) => {
+            let block = format!("mail.{}", endpoint.name);
+            Some(super::oauth::token(grant, &block, until, member)?)
+        }
         None => None,
     };
     let mut session = Session::open(address, endpoint, until, member)?;
