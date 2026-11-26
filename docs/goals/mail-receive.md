@@ -266,9 +266,14 @@ Gate: `docs/goals/mail-complete.md` does not exist.
   - [x] `crates/nvs-config/src/imap.rs`: `canonicalize` and `validate`, with three tests.
   - [x] The three secret pairs, the defaults rows and `default.toml`'s blocks.
   - [x] The census tests, the secret fixture and the LSP's `NAMED`.
-- [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `imap-codec = "1"`.
+- [x] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `imap-codec = "1"`.
 - [ ] `crates/nvs-stdlib/src/imap/mod.rs:1` and `session.rs:1` (new): the class rows, `open`, TLS,
   sign-in over `mail/oauth.rs`, `folders`, `folder`, `uidValidity`, `search`, `fetch`.
+  - [x] `session.rs`: the protocol over `imap-codec`, TLS, `STARTTLS`, the three sign-ins,
+    `folders`, `select`, `search`, `fetch` and modified UTF-7.
+  - [ ] `mod.rs`: the block read, the grant, `open`, `Mailbox`, `Folder` and their class rows.
+  - [ ] `oauth::grant_of` takes the block's family, and `receive::message_of` gives `uid()`.
+  - [ ] The roster rows of each new class, and their tests run by name.
 - [ ] The ten tests of the check `imap-read` against a fake IMAP server in the test module, then
   `cargo test --lib imap::` once.
 
@@ -315,18 +320,20 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 and 2 are done, and the checks `parse`, `parse-taint` and `classify` are green.
-§ *Classifying* marks what stage 2 built (`crates/nvs-stdlib/src/mail/receive/classify.rs`).
+Stages 1 and 2 are done; `parse`, `parse-taint` and `classify` are green. Stage 3's first two
+items are done: the `[imap.<name>]` block and grant (`2f32e146ec`), and `imap-codec` 1.0 with
+`starttls` plus `chrono` without default features, for a search date (`20168f371c`).
 
-Stage 3's first item is done (`2f32e146ec`): `[imap.<name>]` (`ImapMailbox` in `tree.rs`), the
-grant `[capabilities.imap] connect` (`Cap::ImapConnect`), `crates/nvs-config/src/imap.rs` with
-its three tests, the three secret pairs, the defaults rows, `default.toml`'s `[imap.inbox]` and
-its grant blocks. § *`Core\Imap`* marks what it built. Build, clippy, the new tests, the
-`directives` and `secret` suites and `directives --check-template` are green.
+The third item is half done (`b6cb065892`). `crates/nvs-stdlib/src/imap/session.rs` is the whole
+protocol, with no configuration: `Session::open(address, &Server, &SignIn, until, member)` does
+implicit TLS or `STARTTLS`, refuses `PREAUTH`, and signs in with `PLAIN`, `LOGIN` or `XOAUTH2`.
+`folders`, `select` (gives `UIDVALIDITY`), `search(&Filter)` and `fetch(uid, ceiling)` follow;
+`fetch` reads `RFC822.SIZE`, then `BODY.PEEK[]`. Bounds: `LINE_CEILING`, `SMALL_LITERAL`,
+`MAX_FOLDERS`. `utf7` is modified UTF-7. `imap/mod.rs` holds an `expect(dead_code)` the class rows
+remove. Clippy is green, and no test of it has run yet.
 
-The nightly 45813627231 was read again this session. Its four Miri failures (zone database) were
-fixed by `c115a735a1`, and its uuid conformance case by `28a4d7a6bf`. Only the serve stack test
-in the backlog below is still open.
+The sweep named nightly 45813627231 again. `c115a735a1` and `28a4d7a6bf` fixed it, except the serve
+stack test in the backlog.
 
 Expected red until stage 5: the proof checks over every new member (`Core\Mail\Message::*`,
 `Core\Mail\Report::recipients`, `Core\Mail\ReportRecipient::*`, `Core\Mail\Address::address` and
@@ -339,15 +346,23 @@ shots` may name the debug-viewer shots: the viewer has a new "Mail" tab, and onl
 
 ### Next
 
-Stage 3 from its second item: `imap-codec = "1"` in the workspace `Cargo.toml` and
-`crates/nvs-stdlib/Cargo.toml` (with the workspace row naming its license and dependencies), then
-`Core\Imap` under `crates/nvs-stdlib/src/imap/`, per § *`Core\Imap`*. The grant to ask is
+Stage 3 from the third item's second checkpoint. First the tests: `crates/nvs-stdlib/src/imap/
+session/tests.rs` (add `#[cfg(test)] mod tests;` at the end of `session.rs`) with a fake IMAP
+server shaped like `mail/smtp.rs` `tests::serve` and `converse` (`smtp.rs:1084`). Widen
+`smtp::tests::localhost` from `pub(in crate::mail)` to `pub(crate)` and reuse it for the
+certificate. Eight of the ten `imap-read` tests need only the session: the TLS two, the sign-in,
+the folders, the search, `uid_validity_is_returned`, the folder-name literal and the ceiling. The
+fake must answer a synchronized literal with `+ go ahead`, and check the `N<n>` tag. Then
+`Core\Imap` in `imap/mod.rs`, per § *`Core\Imap`*. The grant to ask is
 `nvs_config::Cap::ImapConnect` at `Scope::Name`, as `mail/mod.rs:751` `endpoint_of` asks
 `MailSend`. Read the block with `ctx.config()` under `imap.<name>.<key>` (`mail/mod.rs:712`), and
 `nvs_config::imap::tls_from` for `tls`. `mail/oauth.rs` `grant_of` reads `mail.<name>.oauth_*`
 keys, so give it the family as a parameter rather than copying it. Drive `imap-codec` over
 `NvsTcp` and `NvsTls` as `crates/nvs-stdlib/src/mail/smtp.rs` drives SMTP, and reuse
-`mail/oauth.rs` for XOAUTH2. A fetched message is `receive::message_of(raw)`. Each new class
+`mail/oauth.rs` for XOAUTH2, and pass its token as `SignIn::Token`. A fetched message is
+`receive::message_of(raw)`, and the ceiling `fetch` takes is the request's remaining memory. Keep
+the session in the `Mailbox` instance so it closes when the request ends (the test
+`the_session_closes_when_the_request_ends`). Each new class
 needs the roster rows this session added for the mail classes (capability or NEEDS_NONE,
 added_slot, ext_world, core_lib's tainted roster, conformance floor). Run those tests by name
 after the build, because CI fails on them and the chain gate does not run them.
