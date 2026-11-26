@@ -1,0 +1,1 @@
+Core\Mail\Address::of: `$address` is not an address — it contains a character an address may not contain: a control character, a space, or one of `< > , ; : ( ) " \ %`

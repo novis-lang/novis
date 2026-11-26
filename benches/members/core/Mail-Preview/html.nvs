@@ -1,0 +1,25 @@
+<?nvs
+// Measures how `html()` returns the HTML of a previewed mail, as a page that shows the mail does.
+// bench: iterations 2048
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Mail\Preview> $mails = [
+            Core\Mail::preview(html`<style>p { color: #333 }</style><p>Your order has shipped.</p>`),
+            Core\Mail::preview(html`<style>.total { font-weight: bold }</style><p class="total">Total: 59.90 EUR</p>`),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Html\Markup $html = $mails[($total % 2) as int]->html();
+            $total = $total + (($html == null ? 1 : 3) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

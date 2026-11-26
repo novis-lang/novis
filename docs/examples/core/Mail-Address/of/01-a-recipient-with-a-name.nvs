@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to send a mail to an address with a name.
+
+use Core\Mail\Address;
+
+// The mail program of the recipient shows `Ada Lovelace` in place of the address.
+Address $ada = Address::of('ada@example.com', 'Ada Lovelace');
+
+// A named address can be a recipient, a `cc`, a `bcc` or the `replyTo` address.
+Core\Mail::send('shop', [$ada], 'Welcome', 'Your account is ready.', {
+    replyTo: Address::of('help@example.com', 'Example Shop Help'),
+});
+echo "The welcome mail is sent.\n";

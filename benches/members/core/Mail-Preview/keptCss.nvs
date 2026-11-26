@@ -1,0 +1,24 @@
+<?nvs
+// Measures how `keptCss()` returns the CSS rules left in a mail, as a test of a mail template does.
+// bench: iterations 2048
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Mail\Preview> $mails = [
+            Core\Mail::preview(html`<style>p { color: #333 } a:hover { color: red }</style><p>Hi</p>`),
+            Core\Mail::preview(html`<style>@media (max-width: 600px) { p { font-size: 18px } }</style><p>Hi</p>`),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($mails[($total % 2) as int]->keptCss());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

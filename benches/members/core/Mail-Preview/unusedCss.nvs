@@ -1,0 +1,24 @@
+<?nvs
+// Measures how `unusedCss()` returns the CSS rules that match nothing, as a test of a mail template does.
+// bench: iterations 2048
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Mail\Preview> $mails = [
+            Core\Mail::preview(html`<style>.buton { color: white }</style><p class="button">Hi</p>`),
+            Core\Mail::preview(html`<style>p { color: #333 } .note { color: #888 }</style><p>Hi</p>`),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($mails[($total % 2) as int]->unusedCss());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

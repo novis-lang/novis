@@ -1,0 +1,1 @@
+Core\Mail::preview: A mail cannot load a stylesheet. Put the CSS in a `<style>` element. `Core\Mail` copies each rule into the elements it matches.

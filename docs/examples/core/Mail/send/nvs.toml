@@ -1,10 +1,9 @@
-# The examples send mail through this server. Port 1 on this computer is closed,
-# so each message fails when it connects, and no mail leaves the computer.
+# The examples send mail through this block. `capture = true` keeps each message
+# and sends nothing, so no mail leaves the computer.
 [mail.shop]
-host = "127.0.0.1"
-port = 1
+capture = true
 from = "shop@example.com"
-timeout = "5s"
+from_name = "Example Shop"
 
 # The program may send mail through the `shop` block.
 [capabilities.mail]

@@ -1,0 +1,3 @@
+<html><head>
+</head><body><p style="font-size: 14px;color: blue">A normal notice.</p>
+<p class="warning" style="font-size: 14px;color: red !important">Your card expires soon.</p></body></html>

@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a message id passed to `inReplyTo` or `references` hides a line break and a
+// new header. Each step should throw a `RuntimeError`, and nothing is sent.
+
+// 1. The id ends its own header with a line break, then adds a `Bcc:` line.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Order', 'Hi.', { inReplyTo: "abc@example.com>\r\nBcc: everyone@example.com" });
+    echo "1 sent\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. Only a bare line feed separates the id from the new header.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Order', 'Hi.', { inReplyTo: "abc@example.com\nBcc: everyone@example.com" });
+    echo "2 sent\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. The id has its own angle brackets and a second id after a space.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Order', 'Hi.', { inReplyTo: '<abc@example.com> <x@evil.example>' });
+    echo "3 sent\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. The last of 10000 correct ids in `references` hides the header.
+array<string> $ids = [];
+uint $i = 0;
+while ($i < 10000) {
+    $ids[] = Core\Str::format('m%d@example.com', $i);
+    $i = $i + 1;
+}
+$ids[] = "last@example.com\r\nBcc: everyone@example.com";
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Order', 'Hi.', { references: $ids });
+    echo "4 sent\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. An id of one million characters with no `@` at all.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Order', 'Hi.', { inReplyTo: Core\Str::repeat('a', 1000000) });
+    echo "5 sent\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}

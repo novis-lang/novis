@@ -1,0 +1,11 @@
+<?nvs
+// Shows how the `text` option replaces the plain text that is made from the HTML.
+
+// The HTML has an image. Its plain text is written by hand.
+Core\Mail\Preview $mail = Core\Mail::preview(
+    html`<p><img src="https://example.com/sale.png" alt="Sale"></p>`,
+    { text: "Our sale starts today. Every mug is 20% off.\n" },
+);
+
+// `text()` returns the `text` option exactly.
+echo $mail->text();

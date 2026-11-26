@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to test that a name a user typed is shown as a name, and never as a second address.
+// proof: test
+
+use Core\Mail\Address;
+use Core\Test;
+
+class SignupTest
+{
+    #[Test]
+    public function theNameIsOnlyAName(): void
+    {
+        // The name has a comma and a second address. It can be any text.
+        string $typed = 'Anna, bo@example.com';
+        Core\Mail::send('shop', [Address::of('anna@example.com', $typed)], 'Welcome', 'Hello.');
+
+        // The mail has one recipient. The comma and the second address are part of the name.
+        Test::assertEquals(Test::sentMail()[0]->to(), ['anna@example.com']);
+    }
+}

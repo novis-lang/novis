@@ -1,18 +1,16 @@
 <?nvs
 // Shows how to send an email receipt for an order. The `[mail.shop]` block of
-// `nvs.toml` names the mail server and the sender address. No mail server runs
-// where this example runs, so the call throws an `IOError`.
+// `nvs.toml` names the sender. It keeps each message and sends nothing.
 
 // `Core\Mail::send` sends the message through the `[mail.shop]` block.
 // The body is HTML, so the message also gets a plain-text version of it.
-try {
-    Core\Mail::send(
-        'shop',
-        ['anna@example.com'],
-        'Your receipt for order 1042',
-        '<p>Thank you for your order. The total is <b>59.90 EUR</b>.</p>' as Core\Html\Markup,
-    );
-    echo "The receipt is sent.\n";
-} catch (IOError $error) {
-    echo "The mail server did not answer, so the receipt is not sent.\n";
-}
+string $id = Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your receipt for order 1042',
+    html`<p>Thank you for your order. The total is <b>59.90 EUR</b>.</p>`,
+);
+
+// `send` returns the Message-ID of the message. It ends with the domain of the sender.
+// Save it to match a reply or a bounce to this order.
+echo Core\Str::endsWith($id, '@example.com') ? "The receipt is sent.\n" : "No id.\n";

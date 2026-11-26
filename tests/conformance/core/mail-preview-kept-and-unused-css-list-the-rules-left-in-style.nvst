@@ -1,0 +1,40 @@
+--TEST--
+`Core\Mail\Preview::keptCss` lists every rule left in `<style>` in the order of the HTML: an at-rule, a pseudo-class, a pseudo-element and a rule that matched nothing; `unusedCss` lists only the kept rules with no `:` outside brackets
+--FILE--
+<?nvs
+// covers: Core\Mail\Preview::keptCss, Core\Mail\Preview::unusedCss
+// Two `<style>` elements. Each kept rule stays in the element it was written in.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+p { margin: 0 }
+@media (max-width: 600px) { p { margin: 4px } }
+a:hover { color: red }
+.missing { color: blue }
+</style><style>
+p::first-line { font-weight: bold }
+[href="https://example.com/x"] { color: green }
+[data-ogsc] p { color: white }
+</style>
+<p><a href="https://example.com/">Home</a></p>`);
+foreach ($mail->keptCss() as string $rule) {
+    echo "kept: ", $rule, "\n";
+}
+foreach ($mail->unusedCss() as string $rule) {
+    echo "unused: ", $rule, "\n";
+}
+echo $mail->html(), "\n";
+--EXPECT--
+kept: @media (max-width: 600px) { p { margin: 4px } }
+kept: a:hover { color: red; }
+kept: .missing { color: blue; }
+kept: p::first-line { font-weight: bold; }
+kept: [href="https://example.com/x"] { color: green; }
+kept: [data-ogsc] p { color: white; }
+unused: .missing { color: blue; }
+unused: [href="https://example.com/x"] { color: green; }
+unused: [data-ogsc] p { color: white; }
+<html><head><style>@media (max-width: 600px) { p { margin: 4px } }
+a:hover { color: red; }
+.missing { color: blue; }</style><style>p::first-line { font-weight: bold; }
+[href="https://example.com/x"] { color: green; }
+[data-ogsc] p { color: white; }</style>
+</head><body><p style="margin: 0;"><a href="https://example.com/">Home</a></p></body></html>

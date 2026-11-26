@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that every CSS rule of a mail template matches an element.
+// proof: test
+
+use Core\Html;
+use Core\Html\Markup;
+use Core\Test;
+
+class Receipt
+{
+    // Builds the body of a receipt. The total goes in through `Html::escape`.
+    public static function body(string $total): Markup
+    {
+        return html`<style>
+.total { font-weight: bold }
+.note { color: #888 }
+</style>
+<p class="total">Total: ` + Html::escape($total) + html`</p>
+<p class="note">Thank you for your order.</p>`;
+    }
+}
+
+class ReceiptTest
+{
+    #[Test]
+    public function everyRuleIsUsed(): void
+    {
+        // An empty list means that no rule has a typo in its selector.
+        Test::assertCount(Core\Mail::preview(Receipt::body('59.90 EUR'))->unusedCss(), 0);
+    }
+}

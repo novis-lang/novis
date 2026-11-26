@@ -1,0 +1,34 @@
+<?nvs
+// Attack: text a user typed contains HTML tags and a script, and it is sent as the body.
+// It should be sent as plain text, so no tag in it becomes HTML.
+
+tainted string $typed = "<b>Hi</b><script>alert(1)</script><style>p { display: none }</style>";
+
+// 1. The typed text is the whole body. It is sent as plain text.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Message', $typed);
+    echo "1 sent\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. The typed text goes into an HTML body through `Core\Html::escape`. Its tags are text.
+Core\Html\Markup $escaped = html`<p>From a visitor:</p>` + Core\Html::escape($typed);
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Message', $escaped);
+    echo "2 sent\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. The same HTML in a preview. Its `<style>` text is not a style element, so no CSS is copied.
+echo Core\Mail::preview($escaped)->html() ?? '', "\n";
+
+// 4. The typed text is one million characters of tags in a plain-text body.
+tainted string $long = Core\Str::repeat($typed, 15000);
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Message', $long);
+    echo "4 sent\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}

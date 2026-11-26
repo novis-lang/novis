@@ -1,0 +1,3 @@
+kept: a:hover { text-decoration: underline; }
+<html><head><style>a:hover { text-decoration: underline; }</style>
+</head><body><p><a href="https://example.com/help" style="color: #0a5;">Get help</a></p></body></html>

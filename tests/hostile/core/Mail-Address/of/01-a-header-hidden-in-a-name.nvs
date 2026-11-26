@@ -1,0 +1,54 @@
+<?nvs
+// Attack: the name of an address hides a line break and a new header or recipient.
+// The name is encoded, so each mail should have one recipient and no added header.
+
+use Core\Mail\Address;
+
+// 1. The name ends the `To:` header and adds a `Bcc:` line.
+try {
+    Core\Mail::send('shop', [Address::of('anna@example.com', "Anna\r\nBcc: everyone@example.com")], 'Hello', 'Hi.');
+    echo "1 sent\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. Only a bare line feed, in the `replyTo` name.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { replyTo: Address::of('help@example.com', "Help\nReply-To: eve@evil.example") });
+    echo "2 sent\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. The name closes its own quotes and writes a second address.
+try {
+    Core\Mail::send('shop', [Address::of('anna@example.com', 'Anna" <eve@evil.example>, "x')], 'Hello', 'Hi.');
+    echo "3 sent\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. The name is already encoded, and the encoded text has a line break.
+try {
+    Core\Mail::send('shop', [Address::of('anna@example.com', '=?utf-8?q?Anna=0D=0ABcc:_eve@evil.example?=')], 'Hello', 'Hi.');
+    echo "4 sent\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. A name of 2 million characters full of line breaks and a NUL byte.
+string $long = Core\Str::repeat("é\r\nBcc: x@example.com\0", 100000);
+try {
+    Core\Mail::send('shop', [Address::of('anna@example.com', $long)], 'Hello', 'Hi.', { cc: [Address::of('bo@example.com', $long)] });
+    echo "5 sent\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}
+
+// 6. The line break is in the address, not the name. `of` throws at once.
+try {
+    Address::of("anna@example.com\r\nBcc: everyone@example.com", 'Anna');
+    echo "6 created\n";
+} catch (RuntimeError $e) {
+    echo '6 ', $e::class, "\n";
+}

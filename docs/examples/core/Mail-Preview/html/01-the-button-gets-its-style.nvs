@@ -1,0 +1,12 @@
+<?nvs
+// Shows the HTML of a mail after its CSS is copied into the `style` attribute of each element.
+
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+.button { background: #0a5; color: white; padding: 12px }
+p { margin: 0 }
+</style>
+<p>Your password was changed.</p>
+<p><a class="button" href="https://example.com/account">Open your account</a></p>`);
+
+// Both paragraphs get the `p` rule. The link gets the `.button` rule.
+echo $mail->html(), "\n";

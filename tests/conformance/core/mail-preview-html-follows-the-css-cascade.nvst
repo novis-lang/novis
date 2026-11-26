@@ -1,0 +1,27 @@
+--TEST--
+`Core\Mail\Preview::html` copies each `<style>` rule onto the elements it matches by the CSS cascade: specificity, then order, `!important` above normal, and the element's own `style` attribute above a normal rule
+--FILE--
+<?nvs
+// covers: Core\Mail\Preview::html
+// Each paragraph shows one step of the cascade.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+p { color: gray }
+.lead { color: green }
+p { font-size: 12px }
+p { font-size: 14px }
+.alert { color: red !important }
+#main { color: blue }
+</style>
+<p>plain</p>
+<p class="lead">a class wins over a tag</p>
+<p id="main" class="lead">an id wins over a class</p>
+<p style="color: black">the attribute wins over a normal rule</p>
+<p class="alert" style="color: black">important wins over the attribute</p>`);
+echo $mail->html(), "\n";
+--EXPECT--
+<html><head>
+</head><body><p style="color: gray;font-size: 14px;">plain</p>
+<p class="lead" style="font-size: 14px;color: green;">a class wins over a tag</p>
+<p class="lead" id="main" style="font-size: 14px;color: blue;">an id wins over a class</p>
+<p style="font-size: 14px;color: black">the attribute wins over a normal rule</p>
+<p class="alert" style="font-size: 14px;color: red !important">important wins over the attribute</p></body></html>

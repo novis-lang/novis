@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a `@media` rule stays in the `<style>` element of a mail.
+
+// The `@media` rule makes the text larger on a small screen. A `style` attribute cannot
+// depend on the screen size, so this rule cannot be copied into the elements.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+p { font-size: 14px }
+@media (max-width: 600px) { p { font-size: 18px } }
+</style>
+<p>Your order has shipped.</p>`);
+
+foreach ($mail->keptCss() as string $rule) {
+    echo $rule, "\n";
+}

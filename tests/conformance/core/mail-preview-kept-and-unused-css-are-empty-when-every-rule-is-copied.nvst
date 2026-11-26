@@ -1,0 +1,30 @@
+--TEST--
+`Core\Mail\Preview::keptCss` and `unusedCss` are empty when every rule matched an element, and for a `string` body or an HTML body with no `<style>` element; a selector list is split, so only the selector that matched nothing stays
+--FILE--
+<?nvs
+// covers: Core\Mail\Preview::keptCss, Core\Mail\Preview::unusedCss
+// Builds a preview of each body and prints how many rules each list has.
+class Count
+{
+    public static function show(Core\Mail\Preview $mail): void
+    {
+        echo Core\Arr::count($mail->keptCss()), " ", Core\Arr::count($mail->unusedCss()), "\n";
+    }
+}
+
+Count::show(Core\Mail::preview(html`<style>h1 { margin: 0 } .a, h1 { color: red }</style><h1 class="a">Hi</h1>`));
+Count::show(Core\Mail::preview("Plain text with p { color: red } in it."));
+Count::show(Core\Mail::preview(html`<p>No style element.</p>`));
+Count::show(Core\Mail::preview(html`<style></style><p>An empty style element.</p>`));
+
+// `.a` matches and is copied. `.b` matches nothing, so it stays alone.
+Core\Mail\Preview $split = Core\Mail::preview(html`<style>.a, .b { color: red }</style><h1 class="a">Hi</h1>`);
+Count::show($split);
+echo $split->html(), "\n";
+--EXPECT--
+0 0
+0 0
+0 0
+0 0
+1 1
+<html><head><style>.b { color: red; }</style></head><body><h1 class="a" style="color: red;">Hi</h1></body></html>

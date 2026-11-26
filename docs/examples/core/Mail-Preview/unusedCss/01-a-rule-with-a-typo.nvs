@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `unusedCss()` finds a CSS rule that matches nothing because of a typo.
+
+// The rule is for `.buton`, but the link has the class `button`.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+.buton { background: #0a5; color: white }
+</style>
+<p><a class="button" href="https://example.com/confirm">Confirm your address</a></p>`);
+
+// This prints the `.buton` rule.
+foreach ($mail->unusedCss() as string $rule) {
+    echo "unused: ", $rule, "\n";
+}

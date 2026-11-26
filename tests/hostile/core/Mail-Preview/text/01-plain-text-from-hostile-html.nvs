@@ -1,0 +1,54 @@
+<?nvs
+// Attack: the HTML of a mail is built so its plain text is very large, very deep or broken.
+// `text()` should return the text, or `preview` should throw, and nothing may crash.
+
+class Build
+{
+    // Returns `$count` copies of `$part` joined into one body.
+    public static function many(Core\Html\Markup $part, uint $count): Core\Html\Markup
+    {
+        Core\Html\Markup $body = html``;
+        uint $i = 0;
+        while ($i < $count) {
+            $body = $body + $part;
+            $i = $i + 1;
+        }
+        return $body;
+    }
+}
+
+// 1. 5000 lists, each one inside the item of the one before.
+try {
+    echo '1 ', Core\Str::length(Core\Mail::preview(Build::many(html`<ul><li>x`, 5000))->text()), "\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. One word of 200000 characters, which cannot be wrapped at 78 characters.
+try {
+    tainted string $word = Core\Str::repeat('x', 200000);
+    echo '2 ', Core\Str::length(Core\Mail::preview(html`<p>` + Core\Html::escape($word) + html`</p>`)->text()), "\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. 20000 links, each with a URL that has a line break and a closing bracket.
+try {
+    echo '3 ', Core\Str::length(Core\Mail::preview(Build::many(html`<a href="https://e.example/a)&#13;&#10;Bcc: x">a</a>`, 20000))->text()), "\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. Entities for a NUL byte, a lone surrogate and a number too large for a character.
+try {
+    echo '4 ', Core\Str::length(Core\Mail::preview(html`<p>&#0; &#xD800; &#99999999999; &bogus;</p>`)->text()), "\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. A table of 20000 cells and 20000 line breaks.
+try {
+    echo '5 ', Core\Str::length(Core\Mail::preview(html`<table><tr>` + Build::many(html`<td>a<br></td>`, 20000) + html`</tr></table>`)->text()), "\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}

@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that the plain text of a reset mail has the whole reset link.
+// proof: test
+
+use Core\Html;
+use Core\Html\Markup;
+use Core\Str;
+use Core\Test;
+
+class Reset
+{
+    // Builds the body of a password reset mail.
+    public static function body(string $link): Markup
+    {
+        return html`<p><a href="` + Html::escape($link) + html`">Choose a new password</a></p>`;
+    }
+}
+
+class ResetTest
+{
+    #[Test]
+    public function theTextHasTheLink(): void
+    {
+        string $link = 'https://example.com/reset?token=7f3a';
+        Core\Mail\Preview $mail = Core\Mail::preview(Reset::body($link));
+
+        // A mail program that shows only text shows this link.
+        Test::assertTrue(Str::contains($mail->text(), $link));
+    }
+}

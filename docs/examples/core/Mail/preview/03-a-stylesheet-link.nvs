@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the HTML of a mail links to a stylesheet.
+
+// A mail program does not load a stylesheet, so `preview` throws a `RuntimeError`.
+// `send` throws the same error for this body.
+try {
+    Core\Mail::preview(html`<html><head><link rel="stylesheet" href="https://example.com/mail.css"></head><body><p>Hello</p></body></html>`);
+    echo "previewed\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the name is written inside the address string.
+
+// `Address::of` reads its first argument as an address only. `<` is not allowed in an address,
+// so the call throws a `RuntimeError`. Pass the name as the second argument.
+try {
+    Core\Mail\Address::of('Ada Lovelace <ada@example.com>', 'Ada Lovelace');
+    echo "created\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

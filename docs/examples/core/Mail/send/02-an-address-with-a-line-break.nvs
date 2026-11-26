@@ -1,6 +1,6 @@
 <?nvs
 // Shows what happens when an email address contains a line break.
-// `Core\Mail::send` checks every address before it connects.
+// `Core\Mail::send` checks every address before it sends anything.
 
 // This address hides a second line. In a mail header, that line would add a `Bcc:` recipient.
 string $typed = "anna@example.com\r\nBcc: everyone@example.com";

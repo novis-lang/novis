@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a rule for a link under the mouse pointer stays in the `<style>` element.
+
+// `a:hover` applies only while the pointer is on the link, so it cannot be a `style` attribute.
+// The rule for `a` is copied into the link.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+a { color: #0a5 }
+a:hover { text-decoration: underline }
+</style>
+<p><a href="https://example.com/help">Get help</a></p>`);
+
+foreach ($mail->keptCss() as string $rule) {
+    echo "kept: ", $rule, "\n";
+}
+echo $mail->html(), "\n";

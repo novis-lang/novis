@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a mail body tries to load CSS from another server. `preview` should throw
+// a `RuntimeError` for each stylesheet link, and nothing is fetched.
+
+// 1. A plain stylesheet link in the head.
+try {
+    Core\Mail::preview(html`<html><head><link rel="stylesheet" href="https://evil.example/a.css"></head><body><p>Hi</p></body></html>`);
+    echo "1 previewed\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. The link is in the body, with `rel` in capital letters and other words beside it.
+try {
+    Core\Mail::preview(html`<p>Hi</p><LINK REL="alternate StyleSheet" href="https://evil.example/b.css">`);
+    echo "2 previewed\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. An `@import` rule in a `<style>` element. It stays in the element, and nothing is fetched.
+try {
+    Core\Mail::preview(html`<style>@import url("https://evil.example/c.css"); p { color: red }</style><p>Hi</p>`);
+    echo "3 previewed\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. A link to a local file.
+try {
+    Core\Mail::preview(html`<link rel="stylesheet" href="file:///etc/passwd"><p>Hi</p>`);
+    echo "4 previewed\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. 10000 paragraphs, and one stylesheet link after the last one.
+Core\Html\Markup $long = html`<style>p { color: red }</style>`;
+uint $i = 0;
+while ($i < 10000) {
+    $long = $long + html`<p>Hi</p>`;
+    $i = $i + 1;
+}
+try {
+    Core\Mail::preview($long + html`<link rel="stylesheet" href="https://evil.example/d.css">`);
+    echo "5 previewed\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}

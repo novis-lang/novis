@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to test that every CSS rule of a mail is copied into its elements.
+// proof: test
+
+use Core\Test;
+
+class NewsletterTest
+{
+    #[Test]
+    public function everyRuleIsCopied(): void
+    {
+        Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+h1 { font-size: 22px }
+p { line-height: 1.5 }
+</style>
+<h1>News for May</h1>
+<p>Three new teas are in the shop.</p>`);
+
+        // Each rule matched an element, so no rule is left in the `<style>` element.
+        Test::assertCount($mail->keptCss(), 0);
+    }
+}

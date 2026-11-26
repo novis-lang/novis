@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test the plain text of a welcome mail without sending it.
+// proof: test
+
+use Core\Html;
+use Core\Html\Markup;
+use Core\Test;
+
+class Welcome
+{
+    // Builds the HTML body of the welcome mail. The name goes in through `Html::escape`.
+    public static function body(string $name): Markup
+    {
+        return html`<h1>Welcome</h1><p>Hello ` + Html::escape($name) + html`, your account is ready.</p>`;
+    }
+}
+
+class WelcomeTest
+{
+    #[Test]
+    public function theTextHasTheName(): void
+    {
+        Core\Mail\Preview $mail = Core\Mail::preview(Welcome::body('Ada'));
+
+        // The plain text is made from the HTML. Each heading and paragraph is a block of its own.
+        Test::assertSame($mail->text(), "Welcome\n\nHello Ada, your account is ready.\n");
+    }
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how the CSS of a styled mail is copied into the `style` attribute of each element.
+
+// The body has a `<style>` element with two rules.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<html><head><style>
+h1 { font-size: 20px; color: #222 }
+.total { font-weight: bold }
+</style></head><body>
+<h1>Thank you for your order</h1>
+<p class="total">Total: 59.90 EUR</p>
+</body></html>`);
+
+// Each rule is now in the `style` attribute of the element it matches.
+// No rule is left, so the `<style>` element is removed.
+echo $mail->html(), "\n";

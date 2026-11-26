@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a styled mail nests elements very deep, has very many rules, or has CSS that tries
+// to leave a `style` attribute. `preview` should return safe HTML or throw a `RuntimeError`.
+
+class Deep
+{
+    // Returns `$depth` nested `<div>` elements around the word `Hi`, after `$head`.
+    public static function body(Core\Html\Markup $head, uint $depth): Core\Html\Markup
+    {
+        Core\Html\Markup $open = html``;
+        Core\Html\Markup $close = html``;
+        uint $i = 0;
+        while ($i < $depth) {
+            $open = $open + html`<div>`;
+            $close = $close + html`</div>`;
+            $i = $i + 1;
+        }
+        return $head + $open + html`Hi` + $close;
+    }
+}
+
+// 1. 200 nested elements and one rule. This is under the limit, so the HTML is returned.
+try {
+    Core\Mail\Preview $mail = Core\Mail::preview(Deep::body(html`<style>div { margin: 0 }</style>`, 200));
+    echo '1 ', $mail->html() == null ? 'no html' : 'html', "\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. 5000 nested elements and one rule. The call throws.
+try {
+    Core\Mail::preview(Deep::body(html`<style>div { margin: 0 }</style>`, 5000));
+    echo "2 previewed\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. 5000 nested elements and no `<style>` element.
+try {
+    Core\Mail::preview(Deep::body(html``, 5000));
+    echo "3 previewed\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. 5000 nested elements, and the rule is in a `<style>` element after them.
+try {
+    Core\Mail::preview(Deep::body(html``, 5000) + html`<style>div { margin: 0 }</style>`);
+    echo "4 previewed\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. A value has quotes and `>`, and tries to leave the `style` attribute it is copied into.
+try {
+    echo '5 ', Core\Mail::preview(html`<style>p { font-family: 'x" onclick="alert(1)' } b { content: "&quot;><script>" }</style><p>Hi <b>x</b></p>`)->html() ?? '', "\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}
+
+// 6. 3000 rules that each match every paragraph, and 3000 paragraphs.
+Core\Html\Markup $body = html`<style>`;
+uint $i = 0;
+while ($i < 3000) {
+    $body = $body + html`p.a.b { color: red !important } p { color: blue }`;
+    $i = $i + 1;
+}
+$body = $body + html`</style>`;
+$i = 0;
+while ($i < 3000) {
+    $body = $body + html`<p class="a b" style="color: green">x</p>`;
+    $i = $i + 1;
+}
+try {
+    Core\Mail::preview($body);
+    echo "6 previewed\n";
+} catch (RuntimeError $e) {
+    echo '6 ', $e::class, "\n";
+}

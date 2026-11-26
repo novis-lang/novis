@@ -1,0 +1,32 @@
+--TEST--
+`Core\Mail\Preview::text` reads the plain text from the HTML tree: a block after a blank line, `<br>` a line break, a list item a `- ` line, a link `text (url)`, an image its `alt`, a table cell a tab, `<style>`, `<script>` and `<head>` nothing, an entity its character, and a line wrapped at 78 columns
+--FILE--
+<?nvs
+// covers: Core\Mail\Preview::text
+Core\Mail\Preview $mail = Core\Mail::preview(html`<html><head><title>Not shown</title></head><body>
+<style>p { color: red }</style><script>var shown = false;</script>
+<h1>Order &amp; receipt</h1>
+<p>First line<br>second line</p>
+<ul><li>one</li><li>two</li></ul>
+<p><a href="https://example.com/o/7">Track it</a> or <img src="https://example.com/logo.png" alt="the logo"></p>
+<table><tr><td>Mug</td><td>9.90</td></tr><tr><td>Tea</td><td>4.50</td></tr></table>
+<p>This sentence is long enough that the plain text has to wrap it, because a line of a mail stays under seventy-eight columns.</p>
+</body></html>`);
+echo $mail->text(), "|\n";
+--EXPECT--
+Order & receipt
+
+First line
+second line
+
+- one
+- two
+
+Track it (https://example.com/o/7) or the logo
+
+Mug	9.90
+Tea	4.50
+
+This sentence is long enough that the plain text has to wrap it, because a
+line of a mail stays under seventy-eight columns.
+|

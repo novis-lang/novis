@@ -1,0 +1,13 @@
+<?nvs
+// Shows which value an element gets when a CSS rule and its own `style` attribute set the same property.
+
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+p { color: #333; font-size: 14px }
+.warning { color: red !important }
+</style>
+<p style="color: blue">A normal notice.</p>
+<p class="warning" style="color: blue">Your card expires soon.</p>`);
+
+// The first paragraph keeps `color: blue` from its `style` attribute.
+// In the second one, `!important` in the `.warning` rule sets the color to red.
+echo $mail->html(), "\n";

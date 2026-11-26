@@ -1,0 +1,28 @@
+--TEST--
+`Core\Mail\Preview::html` is `null` for a `string` body, whose `text()` is the body exactly; inlining an inlined body changes nothing; and the `text` option replaces the built plain text
+--FILE--
+<?nvs
+// covers: Core\Mail\Preview::html, Core\Mail\Preview::text
+// A `string` body has no HTML. Its plain text is the body, tags and all.
+Core\Mail\Preview $plain = Core\Mail::preview("Hello <b>Ada</b>,\nyour code is 4829.");
+echo $plain->html() ?? "null", "\n";
+echo $plain->text(), "|\n";
+
+// The HTML of a preview, previewed again, is the same HTML.
+Core\Mail\Preview $once = Core\Mail::preview(html`<style>p { color: red } a:hover { color: blue }</style><p>Hi</p>`);
+Core\Html\Markup $first = $once->html() ?? html``;
+Core\Mail\Preview $twice = Core\Mail::preview($first);
+echo $first, "\n";
+echo $twice->html() ?? "null", "\n";
+
+// The `text` option is returned exactly, with no wrapping.
+Core\Mail\Preview $own = Core\Mail::preview(html`<p>Hi</p>`, { text: "Line one\nLine two" });
+echo $own->text(), "|\n";
+--EXPECT--
+null
+Hello <b>Ada</b>,
+your code is 4829.|
+<html><head><style>a:hover { color: blue; }</style></head><body><p style="color: red;">Hi</p></body></html>
+<html><head><style>a:hover { color: blue; }</style></head><body><p style="color: red;">Hi</p></body></html>
+Line one
+Line two|

@@ -1,0 +1,43 @@
+<?nvs
+// Attack: CSS in a `<style>` element tries to close the element and add a script, or is very
+// large or broken. Each rule that stays should be CSS only, and nothing may crash.
+
+class Kept
+{
+    // Prints how many rules stay, or the class of the error.
+    public static function show(string $step, Core\Html\Markup $body): void
+    {
+        try {
+            echo $step, ' ', Core\Arr::count(Core\Mail::preview($body)->keptCss()), "\n";
+        } catch (RuntimeError $e) {
+            echo $step, ' ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A kept rule writes `</style><script>` with CSS escapes. They stay escapes in the result.
+Kept::show('1', html`<style>a:hover { content: "\\3c/style\\3e\\3cscript\\3e alert(1)\\3c/script\\3e" }</style><p>Hi</p>`);
+
+// 2. A kept rule has a comment that is never closed.
+Kept::show('2', html`<style>@media (max-width: 600px) { p { color: red } /* no end</style><p>Hi</p>`);
+
+// 3. A rule with more opening braces than closing ones.
+Kept::show('3', html`<style>@media screen { @media print { a:hover { color: red </style><p>Hi</p>`);
+
+// 4. 10000 `@media` rules nested inside each other.
+Core\Html\Markup $deep = html`<style>`;
+uint $i = 0;
+while ($i < 10000) {
+    $deep = $deep + html`@media screen {`;
+    $i = $i + 1;
+}
+Kept::show('4', $deep + html`p { color: red }</style><p>Hi</p>`);
+
+// 5. 20000 `a:hover` rules, which all stay.
+Core\Html\Markup $many = html`<style>`;
+$i = 0;
+while ($i < 20000) {
+    $many = $many + html`a:hover { color: red } `;
+    $i = $i + 1;
+}
+Kept::show('5', $many + html`</style><p><a href="https://example.com">x</a></p>`);

@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `html()` returns `null` for a mail with a `string` body.
+
+// A `string` body is sent as plain text, so the mail has no HTML.
+Core\Mail\Preview $mail = Core\Mail::preview('Your code is 482913.');
+
+// `html()` returns a `?Core\Html\Markup`. `??` gives the text after it when the result is `null`.
+echo $mail->html() ?? 'This mail has no HTML.', "\n";
+echo $mail->text(), "\n";

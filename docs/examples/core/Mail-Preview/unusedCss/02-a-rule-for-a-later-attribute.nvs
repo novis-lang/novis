@@ -1,0 +1,17 @@
+<?nvs
+// Shows a rule that matches nothing now, but works in a mail program that adds an attribute later.
+
+// Outlook adds the `data-ogsc` attribute when it shows a mail in dark mode.
+// No element has it yet, so the rule is in `unusedCss()`. It stays in the `<style>` element.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
+.logo { color: #111 }
+[data-ogsc] .logo { color: #eee }
+</style>
+<p class="logo">Example Shop</p>`);
+
+foreach ($mail->unusedCss() as string $rule) {
+    echo "unused: ", $rule, "\n";
+}
+foreach ($mail->keptCss() as string $rule) {
+    echo "kept: ", $rule, "\n";
+}

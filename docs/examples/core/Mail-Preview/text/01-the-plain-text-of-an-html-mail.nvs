@@ -1,0 +1,11 @@
+<?nvs
+// Shows the plain text that is made from the HTML body of a mail.
+
+Core\Mail\Preview $mail = Core\Mail::preview(html`<h1>Your order</h1>
+<p>You ordered:</p>
+<ul><li>1 x Blue mug</li><li>2 x Tea, 100 g</li></ul>
+<p>See the order at <a href="https://example.com/orders/1042">your account</a>.</p>`);
+
+// A heading and a paragraph start a new block. A list item starts with `- `.
+// A link is its text, then its URL in brackets.
+echo $mail->text();

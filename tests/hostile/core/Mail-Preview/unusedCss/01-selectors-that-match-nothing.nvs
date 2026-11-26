@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a mail has very many rules that match nothing, or selectors that are hard to read.
+// `unusedCss()` should list each rule that matches nothing, and nothing may crash.
+
+class Unused
+{
+    // Prints how many rules match nothing, or the class of the error.
+    public static function show(string $step, Core\Html\Markup $body): void
+    {
+        try {
+            echo $step, ' ', Core\Arr::count(Core\Mail::preview($body)->unusedCss()), "\n";
+        } catch (RuntimeError $e) {
+            echo $step, ' ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A `:` inside square brackets is part of an attribute value, so this rule is listed.
+Unused::show('1', html`<style>[href="https://evil.example"] { color: red }</style><p>Hi</p>`);
+
+// 2. Square brackets that are never closed, and a `:` after them.
+Unused::show('2', html`<style>[data-x="a]:hover { color: red }</style><p>Hi</p>`);
+
+// 3. A selector that is not valid CSS.
+Unused::show('3', html`<style>p >>> ~~ { color: red } p { color: blue }</style><p>Hi</p>`);
+
+// 4. 20000 rules for classes that no element has.
+Core\Html\Markup $many = html`<style>`;
+uint $i = 0;
+while ($i < 20000) {
+    $many = $many + html`.missing .class .chain .of .four { color: red } `;
+    $i = $i + 1;
+}
+Unused::show('4', $many + html`</style><p class="missing">Hi</p>`);
+
+// 5. One selector list of 2000 attribute selectors with 2000 elements to test.
+Core\Html\Markup $list = html`<style>[data-a]`;
+$i = 0;
+while ($i < 2000) {
+    $list = $list + html`, [data-b] p *`;
+    $i = $i + 1;
+}
+$list = $list + html` { color: red }</style>`;
+$i = 0;
+while ($i < 2000) {
+    $list = $list + html`<p><span>x</span></p>`;
+    $i = $i + 1;
+}
+Unused::show('5', $list);
