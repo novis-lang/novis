@@ -1,4 +1,4 @@
-assets 90fedfc63a7f4dfa
+assets fc1cedb9b7eedb0b
 
 N
 Novis debug
@@ -6,6 +6,7 @@ Ctrl K
 Live
 :<port>
 Requests
+Runs
 Routes
 Queries
 Errors
@@ -19,7 +20,7 @@ Make a test
 Copy as curl
 Replay
 
-Route / · <duration> ago · Trace <id> · Span <id>
+Route / · Handler Notes\App::home · <duration> ago · Trace <id> · Span <id>
 
 Duration
 
@@ -37,12 +38,21 @@ Log lines
 
 0
 
+Memory peak
+
+<size> of <size>
+
+Response size
+
+<size>
+
 Database <duration>
 Your code <duration>
 Timeline
 Request
 Response
 Queries2
+Cache0
 Dumps0
 Logs0
 Coverage

@@ -1,0 +1,51 @@
+assets fc1cedb9b7eedb0b
+
+N
+Novis debug
+Ctrl K
+Live
+:<port>
+Requests
+Runs
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+Following new runs.
+Pause
+Kind
+▾
+Outcome
+▾
+Slower than
+▾
+Memory over
+▾
+KIND
+NAME
+OUTCOME
+DURATION
+MEMORY
+QUERIES
+DUMPS
+AGE
+Schedule
+import-orders
+OK
+<duration>
+<size>
+53×
+1
+<duration>
+Schedule
+send-receipts
+RuntimeError
+jobs/send-receipts.nvs:13
+Failed
+<duration>
+<size>
+0
+0
+<duration>

@@ -21,7 +21,7 @@ function Frames(props: { frames: Frame[]; cut: boolean }) {
       <ol class="frames">
         <For each={props.frames}>
           {(frame) => (
-            <li class={isCoreFrame(frame) ? "frame frame-core" : "frame frame-own"}>
+            <li class={isCoreFrame(frame) ? "stack-frame frame-core" : "stack-frame frame-own"}>
               <span class="frame-fn">{frame.function}</span>
               <Show when={frame.file !== undefined && frame.line !== undefined}>
                 <Site site={{ file: frame.file ?? "", line: frame.line ?? 0 }} class="frame-site" />

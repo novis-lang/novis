@@ -49,6 +49,7 @@ describe("a .shot.out", () => {
     const shown = "GET\n/api/notes\n200\n854 µs\n3.45 ms\n12 seconds ago\n2026-10-27 09:12:44\n4bf92f3577b34da6a3ce929d0e0e4736\nhttp://127.0.0.1:51234/\n\n\n\nEnd";
     expect(shotText(shown)).toBe("GET\n/api/notes\n200\n<duration>\n<duration>\n<ago>\n<date>\n<id>\nhttp://127.0.0.1:<port>/\n\nEnd");
     expect(shotText("class GetApiNotesc373d450Test")).toBe("class GetApiNotes<id>Test");
+    expect(shotText("9.93 KiB\nof 128 MiB\n512 B")).toBe("<size>\nof <size>\n<size>");
   });
 
   test("a path inside the run's copy is written from the project's root", () => {

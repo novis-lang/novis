@@ -1,4 +1,4 @@
-assets 90fedfc63a7f4dfa
+assets fc1cedb9b7eedb0b
 
 N
 Novis debug
@@ -6,6 +6,7 @@ Ctrl K
 Live
 :<port>
 Requests
+Runs
 Routes
 Queries
 Errors

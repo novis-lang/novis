@@ -1,0 +1,61 @@
+assets fc1cedb9b7eedb0b
+
+N
+Novis debug
+Ctrl K
+Live
+:<port>
+Requests
+Runs
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+Schedule
+send-receipts
+Failed
+
+<duration> ago · RuntimeError at jobs/send-receipts.nvs:13 · Trace <id>
+
+Duration
+
+<duration>
+
+Queries
+
+0
+
+Dumps
+
+0
+
+Log lines
+
+0
+
+Memory peak
+
+<size> of <size>
+
+Your code <duration>
+Timeline
+Queries0
+Cache0
+Dumps0
+Logs0
+Exception
+Exception
+
+RuntimeError: The mail server did not answer.
+
+Thrown at jobs/send-receipts.nvs:13
+
+Stack
+Receipts::send
+jobs/send-receipts.nvs:13
+Receipts::sendAll
+jobs/send-receipts.nvs:8
+<script>
+jobs/send-receipts.nvs:17

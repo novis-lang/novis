@@ -1,10 +1,11 @@
-assets 90fedfc63a7f4dfa
+assets fc1cedb9b7eedb0b
 
 N
 Novis debug
 Ctrl K
-5 lost
+6 lost
 Requests
+Runs
 Routes
 Queries
 Errors
@@ -43,7 +44,7 @@ Saved filters
 You have no saved filters. Press s in a list to save its filter.
 
 Lost records
-5 records were dropped by a program, in 1 reports. Show the reports
+6 records were dropped by a program, in 1 reports. Show the reports
 0 lines could not be read.
 0 record files are not read now.
 Index

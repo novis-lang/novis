@@ -99,6 +99,8 @@ const MORE_MASKS: [RegExp, string][] = [
   // The class of a test made from a request ends with the first 8 digits of its trace id.
   [/[0-9a-f]{8}Test\b/g, "<id>Test"],
   [/\b\d+\s(?:seconds?|minutes?|hours?|days?)\sago\b/g, "<ago>"],
+  // A memory peak moves by a few bytes from run to run.
+  [/\b\d+(?:\.\d+)?\s(?:B|KiB|MiB|GiB)\b/g, "<size>"],
   // The live pill shows the recorded server's port on a line of its own.
   [/^:\d{1,5}$/gm, ":<port>"],
 ];

@@ -1,4 +1,4 @@
-assets 90fedfc63a7f4dfa
+assets fc1cedb9b7eedb0b
 
 N
 Novis debug
@@ -6,6 +6,7 @@ Ctrl K
 Live
 :<port>
 Requests
+Runs
 Routes
 Queries
 Errors
@@ -27,7 +28,7 @@ Your handler runs again. Anything it changes, such as a payment or an email, hap
 Cancel
 Send
 
-Route /api/notes/{id} · <duration> ago · Trace <id> · Span <id>
+Route /api/notes/{id} · Handler Notes\App::apiShow · <duration> ago · Trace <id> · Span <id>
 
 Duration
 
@@ -45,12 +46,21 @@ Log lines
 
 0
 
+Memory peak
+
+<size> of <size>
+
+Response size
+
+<size>
+
 Database <duration>
 Your code <duration>
 Timeline
 Request
 Response
 Queries2
+Cache0
 Dumps0
 Logs0
 Coverage

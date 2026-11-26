@@ -1,0 +1,6 @@
+app .
+open /runs
+wait .runs .threw
+click .runs .threw
+click .tabs a[href$='tab=exception']
+wait .exception .frames

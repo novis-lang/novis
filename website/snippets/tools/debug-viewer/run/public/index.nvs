@@ -1,0 +1,3 @@
+<?nvs
+// The server has one page. The jobs in `nvs.toml` do the work this shot shows.
+echo "Orders\n";
