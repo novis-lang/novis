@@ -1,6 +1,74 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "highlight": true,
+      "features": [
+        "Core\\Mail\\Message::parse",
+        "Core\\Mail\\Message::messageId",
+        "Core\\Mail\\Message::from",
+        "Core\\Mail\\Message::to",
+        "Core\\Mail\\Message::cc",
+        "Core\\Mail\\Message::replyTo",
+        "Core\\Mail\\Message::subject",
+        "Core\\Mail\\Message::date",
+        "Core\\Mail\\Message::header",
+        "Core\\Mail\\Message::inReplyTo",
+        "Core\\Mail\\Message::references",
+        "Core\\Mail\\Message::text",
+        "Core\\Mail\\Message::html",
+        "Core\\Mail\\Message::attachments",
+        "Core\\Mail\\Message::raw",
+        "Core\\Mail\\Address::address",
+        "Core\\Mail\\Address::name"
+      ],
+      "text": "`Core\\Mail\\Message::parse` reads a raw email, such as an `.eml` file or the body of a webhook. It returns the headers, the text and HTML bodies and the attachments. Every value is tainted, and a broken message is not an error."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Mail\\Message::kind",
+        "Core\\Mail\\Message::Kind",
+        "Core\\Mail\\Message::answers",
+        "Core\\Mail\\Message::bounceTag"
+      ],
+      "text": "`Core\\Mail\\Message::kind` says if a received message is a bounce, a delay, a complaint, an automatic reply, a reply or other. `answers()` returns the Message-ID of the mail it is about, so you can find the mail you sent."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Mail\\Message::report",
+        "Core\\Mail\\Report::recipients",
+        "Core\\Mail\\ReportRecipient::address",
+        "Core\\Mail\\ReportRecipient::action",
+        "Core\\Mail\\ReportRecipient::Action",
+        "Core\\Mail\\ReportRecipient::status",
+        "Core\\Mail\\ReportRecipient::isPermanent",
+        "Core\\Mail\\ReportRecipient::diagnostic"
+      ],
+      "text": "`Core\\Mail\\Message::report` reads a delivery report. For each recipient, it gives the address, what happened, the status code such as `5.1.1`, and if the failure is permanent."
+    },
+    {
+      "kind": "new",
+      "highlight": true,
+      "features": [
+        "Core\\Imap::open",
+        "Core\\Imap\\Mailbox::folders",
+        "Core\\Imap\\Mailbox::folder",
+        "Core\\Imap\\Folder::uidValidity",
+        "Core\\Imap\\Folder::search",
+        "Core\\Imap\\Folder::fetch",
+        "Core\\Imap\\Folder::move",
+        "Core\\Imap\\Folder::markSeen",
+        "Core\\Imap\\Folder::markUnseen",
+        "Core\\Imap\\Folder::flag",
+        "Core\\Imap\\Folder::unflag",
+        "Core\\Imap\\Folder::delete",
+        "Core\\Mail\\Message::uid"
+      ],
+      "text": "`Core\\Imap` reads a mailbox over IMAP. A program opens an `[imap.<name>]` block of `nvs.toml` by name, then searches, fetches, moves, flags and deletes messages. A `directory` block reads a folder of `.eml` files instead, for tests."
+    },
+    {
       "kind": "changed",
       "highlight": true,
       "features": [
