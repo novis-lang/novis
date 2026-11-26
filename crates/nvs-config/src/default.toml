@@ -892,6 +892,18 @@
 #tls_ca_file = "certs/mail-ca.pem"    # default: the built-in Mozilla set
 # How the credential is sent: `plain` or `login`. Both need TLS.
 #auth = "login"                       # default: `plain` when the relay offers it, else `login`
+# A send keeps its connection open for the next send to this block, on the same core. `false`
+# opens a new connection for every message. A table of bounds is the other shape, below.
+#pool = false                         # default: on
+
+#[mail.default.pool]
+# This header stays commented out, because `pool = false` above is the same key. The bounds are
+# `[db.<name>.pool]`'s: `max` connections per core, `idle` kept open, `lifetime` before a connection
+# is closed, and `acquire`, how long a send waits for a free connection before it throws.
+#max = 4                              # default
+#idle = 2                             # default
+#lifetime = "5m"                      # default
+#acquire = "5s"                       # default
 
 
 # ----------------------------------------------------------------------------------------------

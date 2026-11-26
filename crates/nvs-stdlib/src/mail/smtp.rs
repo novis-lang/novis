@@ -1,8 +1,11 @@
 //! One SMTP session: the connection, implicit TLS or `STARTTLS`, `AUTH PLAIN` or `AUTH LOGIN`, and
 //! the envelope, over [`nvs_host`]'s parking stream.
 //!
-//! [`deliver`] is the whole exchange for one message. The module doc of [`super`] says why a
-//! credential needs TLS, and why a block with no credential and no `tls` stays in the clear.
+//! A session has two halves. [`open`] connects, secures and signs in, and [`transact`] sends one
+//! message over the result. [`deliver`] is both, for a block with `pool = false`, and
+//! [`super::pool`] runs the second half again over a session it kept. The module doc of [`super`]
+//! says why a credential needs TLS, and why a block with no credential and no `tls` stays in the
+//! clear.
 //!
 //! **Nothing is sent that the server will refuse part of.** A message over the `SIZE` the server
 //! advertised gets no `MAIL FROM`, and a rejected recipient ends the transaction with `RSET`
@@ -53,8 +56,7 @@ pub(super) fn bounce_sender(
         return Ok(return_path.to_owned());
     };
     let allowed = |byte: &u8| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
-    if tag.is_empty() || tag.len() > BOUNCE_TAG_CEILING || !tag.bytes().all(|byte| allowed(&byte))
-    {
+    if tag.is_empty() || tag.len() > BOUNCE_TAG_CEILING || !tag.bytes().all(|byte| allowed(&byte)) {
         return Err(Fault::thrown(format!(
             "{member}: `bounceTag` is `{}`. A bounce tag has 1 to {BOUNCE_TAG_CEILING} letters, \
              digits, dots, underscores or hyphens.",
@@ -68,16 +70,30 @@ pub(super) fn bounce_sender(
 
 /// One SMTP conversation over [`nvs_host`]'s parking stream.
 ///
-/// Held as a struct for the read buffer alone: a reply is line-oriented and a
+/// Held as a struct for the read buffer: a reply is line-oriented and a
 /// multiline one is only finished when a line's fourth byte is a space, so a
 /// reader that did not keep what it over-read would lose the head of the next
-/// reply.
-struct Session {
+/// reply. It also keeps the extensions of its last `EHLO`, which every message
+/// sent over it reads.
+pub(super) struct Session {
     /// The socket, or the TLS session `STARTTLS` replaced it with — either way
     /// it hands the core back rather than blocking it.
     stream: Wire,
     /// Whatever the last read took past the end of the reply it was completing.
     held: Vec<u8>,
+    /// The lines of the last `EHLO` reply, which [`advertised`] reads.
+    extensions: Vec<String>,
+}
+
+/// The stream is not printed: a pooled session is debugged by its place in the pool.
+impl std::fmt::Debug for Session {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Session")
+            .field("secured", &self.secured())
+            .field("extensions", &self.extensions.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// What a [`Session`] is talking over.
@@ -147,10 +163,17 @@ fn handshake(stream: NvsTcp, endpoint: &Endpoint, member: &str) -> Result<NvsTls
         None => NvsTls::over(stream, name),
     }
     .map_err(|why| {
-        Fault::thrown_as(
-            ThrownClass::Io,
-            format!("{member}: the TLS handshake with `{name}` did not complete — {why}"),
-        )
+        let message = if nvs_host::tls::unknown_issuer(&why) {
+            format!(
+                "{member}: the TLS handshake with `{name}` did not complete. Its certificate is \
+                 signed by a CA this host does not trust. If the server uses a private or company \
+                 CA, set `[mail.{}] tls_ca_file` to a PEM file of that CA.",
+                endpoint.name
+            )
+        } else {
+            format!("{member}: the TLS handshake with `{name}` did not complete — {why}")
+        };
+        Fault::thrown_as(ThrownClass::Io, message)
     })
 }
 
@@ -187,9 +210,24 @@ impl Session {
         let mut session = Self {
             stream,
             held: Vec::new(),
+            extensions: Vec::new(),
         };
         session.expect(220, "the greeting", member)?;
         Ok(session)
+    }
+
+    /// Bounds every later wait of the session by `until`, for the message about to be sent.
+    pub(super) fn set_deadline(&mut self, until: Instant) {
+        match &mut self.stream {
+            Wire::Plain(stream) => stream.set_deadline(Some(until)),
+            Wire::Secured(stream) => stream.set_deadline(Some(until)),
+        }
+    }
+
+    /// Ends the session politely. A `QUIT` the server never answers changes nothing, so its
+    /// reply is not read.
+    pub(super) fn quit(&mut self) {
+        let _ = self.stream.write_all(b"QUIT\r\n");
     }
 
     /// Whether the session runs over TLS, from the first byte or after `STARTTLS`.
@@ -237,6 +275,7 @@ impl Session {
         Ok(Self {
             stream: Wire::Secured(handshake(stream, endpoint, member)?),
             held: Vec::new(),
+            extensions: Vec::new(),
         })
     }
 
@@ -456,7 +495,11 @@ fn authenticate(
         Some(Auth::Plain) if offers(extensions, "PLAIN") => Auth::Plain,
         Some(Auth::Login) if offers(extensions, "LOGIN") => Auth::Login,
         Some(named) => {
-            let word = if named == Auth::Plain { "PLAIN" } else { "LOGIN" };
+            let word = if named == Auth::Plain {
+                "PLAIN"
+            } else {
+                "LOGIN"
+            };
             return Err(Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
@@ -540,15 +583,12 @@ fn envelope_sender(
     Ok(format!("MAIL FROM:<{from}> SMTPUTF8"))
 }
 
-/// The whole exchange, once every argument has been checked and every
-/// deployment question answered. Every wait in it ends at `until`.
+/// The whole exchange over a new connection that is closed after it, once every argument has been
+/// checked and every deployment question answered. Every wait in it ends at `until`.
 ///
 /// # Errors
 ///
-/// A catchable `IOError` for anything the endpoint said or did — see
-/// [`Session`] — for an endpoint that cannot carry the TLS the block asks for,
-/// for a message over the advertised `SIZE`, and for a rejected recipient,
-/// naming every one. In each of these cases no `DATA` is sent.
+/// [`open`]'s and [`transact`]'s. In each case no `DATA` is sent.
 pub(super) fn deliver(
     address: SocketAddr,
     endpoint: &Endpoint,
@@ -557,6 +597,25 @@ pub(super) fn deliver(
     message: &str,
     member: &str,
 ) -> Result<(), Fault> {
+    let mut session = open(address, endpoint, until, member)?;
+    let sent = transact(&mut session, endpoint, envelope, message, member);
+    session.quit();
+    sent
+}
+
+/// A session ready for its first message: connected, greeted, secured where the block asks for
+/// TLS, and signed in where it has a credential. Every wait in it ends at `until`.
+///
+/// # Errors
+///
+/// A catchable `IOError` for anything the endpoint said or did — see [`Session`] — and for an
+/// endpoint that cannot carry the TLS the block asks for.
+pub(super) fn open(
+    address: SocketAddr,
+    endpoint: &Endpoint,
+    until: Instant,
+    member: &str,
+) -> Result<Session, Fault> {
     let mut session = Session::open(address, endpoint, until, member)?;
     // The domain the operator's own `from` names, so nothing about the host
     // serving the request is announced to the relay.
@@ -598,13 +657,63 @@ pub(super) fn deliver(
                 ),
             ));
         }
-        authenticate(&mut session, endpoint, &extensions, (user, password), member)?;
+        authenticate(
+            &mut session,
+            endpoint,
+            &extensions,
+            (user, password),
+            member,
+        )?;
     }
+    session.extensions = extensions;
+    Ok(session)
+}
 
+/// Ends the transaction a kept session may still have open with `RSET`, so the next message
+/// starts clean. Every wait ends at `until`.
+///
+/// # Errors
+///
+/// A catchable `IOError` when the server closed the session or did not answer `250`. The caller
+/// then opens a new one.
+pub(super) fn reset(session: &mut Session, until: Instant, member: &str) -> Result<(), Fault> {
+    session.set_deadline(until);
+    session.command("RSET", 250, "the reset", member).map(drop)
+}
+
+/// One message over an open session: the `SIZE` check, the envelope and `DATA`.
+///
+/// # Errors
+///
+/// A catchable `IOError` for anything the endpoint said or did, for a message over the advertised
+/// `SIZE`, and for a rejected recipient, naming every one. In each of these cases no `DATA` is
+/// sent.
+pub(super) fn transact(
+    session: &mut Session,
+    endpoint: &Endpoint,
+    envelope: &Envelope<'_>,
+    message: &str,
+    member: &str,
+) -> Result<(), Fault> {
+    let extensions = std::mem::take(&mut session.extensions);
+    let sent = transaction(session, endpoint, &extensions, envelope, message, member);
+    session.extensions = extensions;
+    sent
+}
+
+/// [`transact`], with the extensions taken out of the session so the session can be borrowed
+/// mutably beside them.
+fn transaction(
+    session: &mut Session,
+    endpoint: &Endpoint,
+    extensions: &[String],
+    envelope: &Envelope<'_>,
+    message: &str,
+    member: &str,
+) -> Result<(), Fault> {
     // `DATA` sends the message and the five bytes that end it.
     let size = u64::try_from(message.len() + 5).unwrap_or(u64::MAX);
-    if let Some(limit) = size_limit(&extensions).filter(|limit| size > *limit) {
-        let _ = session.stream.write_all(b"QUIT\r\n");
+    if let Some(limit) = size_limit(extensions).filter(|limit| size > *limit) {
         return Err(Fault::thrown_as(
             ThrownClass::Io,
             format!(
@@ -618,14 +727,15 @@ pub(super) fn deliver(
     let mail_from = envelope_sender(
         envelope.sender,
         envelope.recipients,
-        &extensions,
+        extensions,
         &endpoint.host,
         member,
     )?;
     session.command(&mail_from, 250, "the envelope sender", member)?;
     let mut rejected = Vec::new();
     for recipient in envelope.recipients {
-        let (code, reply) = session.ask(&format!("RCPT TO:<{recipient}>"), "a recipient", member)?;
+        let (code, reply) =
+            session.ask(&format!("RCPT TO:<{recipient}>"), "a recipient", member)?;
         // 251 is "not local, will forward", which is an acceptance.
         if code != 250 && code != 251 {
             let said = reply.last().map_or("", String::as_str);
@@ -636,7 +746,6 @@ pub(super) fn deliver(
         // The transaction ends here, so the server forgets the recipients it
         // did accept and nobody gets part of a message.
         let _ = session.command("RSET", 250, "the reset", member);
-        let _ = session.stream.write_all(b"QUIT\r\n");
         return Err(Fault::thrown_as(
             ThrownClass::Io,
             format!(
@@ -660,16 +769,14 @@ pub(super) fn deliver(
             )
         })?;
     session.expect(250, "the message", member)?;
-    // A QUIT the endpoint never answers is not a message that failed to send:
-    // it was accepted at the 250 above, so the reply here is not asked about.
-    let _ = session.stream.write_all(b"QUIT\r\n");
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
     use super::*;
@@ -776,7 +883,9 @@ mod tests {
             envelope_sender(from, to, offered, "mail.example.com", member)
         };
         assert_eq!(
-            line("noreply@example.com", &ascii, &without).ok().as_deref(),
+            line("noreply@example.com", &ascii, &without)
+                .ok()
+                .as_deref(),
             Some("MAIL FROM:<noreply@example.com>")
         );
         assert_eq!(
@@ -784,11 +893,15 @@ mod tests {
             Some("MAIL FROM:<noreply@example.com>")
         );
         assert_eq!(
-            line("noreply@example.com", &international, &with).ok().as_deref(),
+            line("noreply@example.com", &international, &with)
+                .ok()
+                .as_deref(),
             Some("MAIL FROM:<noreply@example.com> SMTPUTF8")
         );
         assert_eq!(
-            line("josé@xn--bcher-kva.example", &ascii, &with).ok().as_deref(),
+            line("josé@xn--bcher-kva.example", &ascii, &with)
+                .ok()
+                .as_deref(),
             Some("MAIL FROM:<josé@xn--bcher-kva.example> SMTPUTF8")
         );
         let Err(fault) = line("noreply@example.com", &international, &without) else {
@@ -801,9 +914,10 @@ mod tests {
         );
     }
 
-    /// A `[mail.<name>]` block that reaches `localhost` with `tls`, and nothing else set.
-    fn block(tls: Tls) -> Endpoint {
+    /// A `[mail.relay]` block that reaches `localhost` with `tls`, and nothing else set.
+    pub(in crate::mail) fn block(tls: Tls) -> Endpoint {
         Endpoint {
+            name: "relay".to_owned(),
             host: "localhost".to_owned(),
             port: 0,
             from: "noreply@example.com".to_owned(),
@@ -822,14 +936,16 @@ mod tests {
     impl<T: Read + Write> Duplex for T {}
 
     /// What the fake server does: TLS from the first byte or after `STARTTLS`, the extensions its
-    /// `EHLO` reply lists, and the recipients it rejects.
+    /// `EHLO` reply lists, the recipients it rejects, and whether it closes the connection after
+    /// the first message it accepts.
     #[derive(Default)]
-    struct Fake {
-        implicit: bool,
-        starttls: bool,
-        extensions: &'static [&'static str],
-        reject: &'static [&'static str],
-        certificate: Option<Arc<rustls::ServerConfig>>,
+    pub(in crate::mail) struct Fake {
+        pub(in crate::mail) implicit: bool,
+        pub(in crate::mail) starttls: bool,
+        pub(in crate::mail) extensions: &'static [&'static str],
+        pub(in crate::mail) reject: &'static [&'static str],
+        pub(in crate::mail) certificate: Option<Arc<rustls::ServerConfig>>,
+        pub(in crate::mail) close_after_message: bool,
     }
 
     /// A self-signed certificate for `localhost`, the server's configuration that presents it, and
@@ -882,11 +998,64 @@ mod tests {
     fn serve(fake: Fake) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
         let address = listener.local_addr().expect("its address");
-        let thread = std::thread::spawn(move || {
+        let thread = std::thread::spawn(move || match listener.accept() {
+            Ok((socket, _)) => converse(&fake, &socket),
+            Err(_) => Vec::new(),
+        });
+        (address, thread)
+    }
+
+    /// A fake server on a loopback port that serves every connection as `fake` says, each on a
+    /// thread of its own, until [`Many::stop`].
+    pub(in crate::mail) struct Many {
+        pub(in crate::mail) address: SocketAddr,
+        stop: Arc<AtomicBool>,
+        acceptor: std::thread::JoinHandle<Vec<Vec<String>>>,
+    }
+
+    impl Many {
+        /// Stops accepting and returns the lines of every connection the client opened, in the
+        /// order they were accepted. A session the client still holds open must be closed
+        /// first, or its thread waits for it.
+        pub(in crate::mail) fn stop(self) -> Vec<Vec<String>> {
+            self.stop.store(true, Ordering::SeqCst);
+            // The acceptor is blocked in `accept`, and this connection wakes it.
+            drop(std::net::TcpStream::connect(self.address));
+            self.acceptor.join().expect("the acceptor")
+        }
+    }
+
+    pub(in crate::mail) fn serve_many(fake: Fake) -> Many {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let address = listener.local_addr().expect("its address");
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::clone(&stop);
+        let fake = Arc::new(fake);
+        let acceptor = std::thread::spawn(move || {
+            let mut sessions = Vec::new();
+            while let Ok((socket, _)) = listener.accept() {
+                if stopped.load(Ordering::SeqCst) {
+                    break;
+                }
+                let fake = Arc::clone(&fake);
+                sessions.push(std::thread::spawn(move || converse(&fake, &socket)));
+            }
+            sessions
+                .into_iter()
+                .map(|session| session.join().expect("a session"))
+                .collect()
+        });
+        Many {
+            address,
+            stop,
+            acceptor,
+        }
+    }
+
+    /// One SMTP conversation over `socket`, served as `fake` says, and every line the client sent.
+    fn converse(fake: &Fake, socket: &std::net::TcpStream) -> Vec<String> {
+        {
             let mut seen = Vec::new();
-            let Ok((socket, _)) = listener.accept() else {
-                return seen;
-            };
             drop(socket.set_nonblocking(false));
             drop(socket.set_read_timeout(Some(Duration::from_secs(10))));
             let secure = |socket: &std::net::TcpStream| -> Option<Box<dyn Duplex>> {
@@ -898,7 +1067,7 @@ mod tests {
                 )))
             };
             let mut wire: Box<dyn Duplex> = if fake.implicit {
-                match secure(&socket) {
+                match secure(socket) {
                     Some(wire) => wire,
                     None => return seen,
                 }
@@ -922,14 +1091,16 @@ mod tests {
                     words
                         .iter()
                         .enumerate()
-                        .map(|(at, word)| format!("250{}{word}", if at == last { ' ' } else { '-' }))
+                        .map(|(at, word)| {
+                            format!("250{}{word}", if at == last { ' ' } else { '-' })
+                        })
                         .collect::<Vec<_>>()
                         .join("\r\n")
                 } else if upper == "STARTTLS" {
                     if say(&mut *wire, "220 go ahead").is_err() {
                         break;
                     }
-                    match secure(&socket) {
+                    match secure(socket) {
                         Some(upgraded) => {
                             wire = upgraded;
                             secured = true;
@@ -965,6 +1136,10 @@ mod tests {
                     }
                     while hear(&mut *wire).is_some_and(|body| body != ".") {}
                     seen.push("<body>".to_owned());
+                    if fake.close_after_message {
+                        drop(say(&mut *wire, "250 queued"));
+                        break;
+                    }
                     "250 queued".to_owned()
                 } else if upper == "QUIT" {
                     drop(say(&mut *wire, "221 bye"));
@@ -977,8 +1152,7 @@ mod tests {
                 }
             }
             seen
-        });
-        (address, thread)
+        }
     }
 
     /// [`deliver`] of a short message to `ada@example.com` from `sender`.
@@ -999,11 +1173,38 @@ mod tests {
         )
     }
 
-    fn ada() -> Vec<String> {
+    pub(in crate::mail) fn ada() -> Vec<String> {
         vec!["ada@example.com".to_owned()]
     }
 
-    const MESSAGE: &str = "Subject: hi\r\n\r\nhello";
+    pub(in crate::mail) const MESSAGE: &str = "Subject: hi\r\n\r\nhello";
+
+    /// A certificate from an issuer the block does not trust gives an `IOError` that names
+    /// `[mail.<name>] tls_ca_file` as the fix, and no `MAIL FROM` is sent.
+    // covers: Core\Mail::send
+    #[test]
+    fn an_unknown_issuer_names_the_tls_ca_file() {
+        let (certificate, _dir, _ca) = localhost();
+        let (address, server) = serve(Fake {
+            starttls: true,
+            certificate: Some(certificate),
+            ..Fake::default()
+        });
+        let endpoint = block(Tls::StartTls);
+        let Err(fault) = send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE) else {
+            panic!("a certificate from an unknown issuer was accepted");
+        };
+        let said = format!("{fault:?}");
+        assert!(
+            said.contains("`[mail.relay] tls_ca_file`") && said.contains("does not trust"),
+            "{said}"
+        );
+        let seen = server.join().expect("the server");
+        assert!(
+            !seen.iter().any(|line| line.starts_with("MAIL")),
+            "{seen:?}"
+        );
+    }
 
     /// `tls = "implicit"`, the default on port 465, starts the handshake before the server's
     /// greeting. A server that answers in plain text gets no `EHLO`.
@@ -1032,7 +1233,10 @@ mod tests {
         let sent = send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE);
         assert!(sent.is_err(), "a plain server was read as TLS");
         let seen = server.join().expect("the server");
-        assert!(!seen.iter().any(|line| line.starts_with("EHLO")), "{seen:?}");
+        assert!(
+            !seen.iter().any(|line| line.starts_with("EHLO")),
+            "{seen:?}"
+        );
     }
 
     /// `tls = "starttls"` with no credential still needs TLS: a server without `STARTTLS` gets no
@@ -1047,7 +1251,10 @@ mod tests {
         };
         assert!(format!("{fault:?}").contains("STARTTLS"), "{fault:?}");
         let seen = server.join().expect("the server");
-        assert!(!seen.iter().any(|line| line.starts_with("MAIL")), "{seen:?}");
+        assert!(
+            !seen.iter().any(|line| line.starts_with("MAIL")),
+            "{seen:?}"
+        );
 
         let (certificate, _dir, _ca) = localhost();
         let (address, server) = serve(Fake {
@@ -1060,7 +1267,10 @@ mod tests {
         };
         assert!(format!("{fault:?}").contains("TLS handshake"), "{fault:?}");
         let seen = server.join().expect("the server");
-        assert!(!seen.iter().any(|line| line.starts_with("MAIL")), "{seen:?}");
+        assert!(
+            !seen.iter().any(|line| line.starts_with("MAIL")),
+            "{seen:?}"
+        );
     }
 
     /// A `tls_ca_file` makes the block trust the certificate it names. It replaces the built-in
@@ -1142,10 +1352,15 @@ mod tests {
             panic!("a message over SIZE was sent");
         };
         let said = format!("{fault:?}");
-        assert!(said.contains("500 bytes") && said.contains("at most 100"), "{said}");
+        assert!(
+            said.contains("500 bytes") && said.contains("at most 100"),
+            "{said}"
+        );
         let seen = server.join().expect("the server");
         assert!(
-            !seen.iter().any(|line| line.starts_with("MAIL") || line == "DATA"),
+            !seen
+                .iter()
+                .any(|line| line.starts_with("MAIL") || line == "DATA"),
             "{seen:?}"
         );
     }
@@ -1223,7 +1438,16 @@ mod tests {
     #[test]
     fn a_bounce_tag_with_another_character_throws() {
         let long = "a".repeat(BOUNCE_TAG_CEILING + 1);
-        for tag in ["", "a b", "x@evil.example", "a+b", "é", "a\r\nRCPT", "a>b", long.as_str()] {
+        for tag in [
+            "",
+            "a b",
+            "x@evil.example",
+            "a+b",
+            "é",
+            "a\r\nRCPT",
+            "a>b",
+            long.as_str(),
+        ] {
             let Err(fault) = bounce_sender("bounces@example.com", Some(tag), "Core\\Mail::send")
             else {
                 panic!("the bounce tag {tag:?} was accepted");

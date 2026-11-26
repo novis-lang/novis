@@ -447,14 +447,34 @@ pub fn pool_of(
     pool: Option<&Pool>,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<PoolBounds, Diagnostic> {
+    pool_over(block, pool, PoolBounds::DEFAULT, origins)
+}
+
+/// [`pool_of`] over another block family's `defaults`, for a family whose connections cost the
+/// server more than a database's do — `[mail.<name>.pool]`'s smaller `max` is the one there is.
+///
+/// # Errors
+///
+/// Exactly [`pool_for`]'s.
+pub fn pool_over(
+    block: &str,
+    pool: Option<&Pool>,
+    defaults: PoolBounds,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<PoolBounds, Diagnostic> {
     let written = match pool {
-        None | Some(Pool::Switch(true)) => return Ok(PoolBounds::DEFAULT),
-        Some(Pool::Switch(false)) => return Ok(PoolBounds::OFF),
+        None | Some(Pool::Switch(true)) => return Ok(defaults),
+        Some(Pool::Switch(false)) => {
+            return Ok(PoolBounds {
+                enabled: false,
+                ..defaults
+            });
+        }
         Some(Pool::Bounds(written)) => written,
     };
     let key = |leaf: &str| format!("{block}.pool.{leaf}");
 
-    let max = written.max.unwrap_or(PoolBounds::DEFAULT.max);
+    let max = written.max.unwrap_or(defaults.max);
     if max == 0 {
         return Err(refuse(
             &key("max"),
@@ -466,7 +486,7 @@ pub fn pool_of(
         ));
     }
 
-    let idle = written.idle.unwrap_or(PoolBounds::DEFAULT.idle);
+    let idle = written.idle.unwrap_or(defaults.idle);
     if idle > max {
         return Err(refuse(
             &key("idle"),
@@ -504,7 +524,7 @@ pub fn pool_of(
             ));
         }
         (Some(lifetime), _) => lifetime,
-        (None, _) => PoolBounds::DEFAULT.lifetime,
+        (None, _) => defaults.lifetime,
     };
 
     let acquire = duration(
@@ -513,7 +533,7 @@ pub fn pool_of(
         origins,
         POOL_HELP,
     )?
-    .unwrap_or(PoolBounds::DEFAULT.acquire);
+    .unwrap_or(defaults.acquire);
 
     Ok(PoolBounds {
         enabled: true,

@@ -458,6 +458,20 @@ impl Leaf {
     }
 }
 
+/// Whether a handshake failed because no trust anchor knows the issuer of the server's
+/// certificate — the one failure a caller's own CA bundle fixes, so a caller can name the setting
+/// that takes one. Asked of the error the handshake returned, without the caller naming `rustls`.
+#[must_use]
+pub fn unknown_issuer(why: &io::Error) -> bool {
+    matches!(
+        why.get_ref()
+            .and_then(|inner| inner.downcast_ref::<rustls::Error>()),
+        Some(rustls::Error::InvalidCertificate(
+            CertificateError::UnknownIssuer
+        ))
+    )
+}
+
 /// What `der` says, or `None` where it is not a certificate this can read.
 ///
 /// An `Option` and not an error: the one caller is a member reporting on a peer

@@ -1001,6 +1001,9 @@ pub struct MailEndpoint {
     /// The envelope sender, `MAIL FROM`, where bounces go. Unset: `from`. The `From:` header stays
     /// `from` either way.
     pub return_path: Option<String>,
+    /// `[mail.<name>.pool]`'s bounds or `pool = false`, read as a `[db]` block's [`Pool`] is, over
+    /// [`crate::mail::POOL_DEFAULTS`].
+    pub pool: Option<Pool>,
 }
 
 /// One `[storage.<name>]` block — `rule:programs/framework-core-half`'s object-storage disk, whose shape is

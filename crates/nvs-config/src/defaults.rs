@@ -241,6 +241,17 @@ pub const LDAP_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAIL_PORT: u16 = 25;
 /// `[mail.<name>] timeout`.
 pub const MAIL_TIMEOUT: Duration = Duration::from_secs(30);
+/// `[mail.<name>.pool] max`. **What it spends:** up to this many SMTP sessions per block per core,
+/// each a socket and a TLS session. Smaller than a database's, because a relay limits the
+/// connections one client may hold.
+pub const MAIL_POOL_MAX: u32 = 4;
+/// `[mail.<name>.pool] idle`.
+pub const MAIL_POOL_IDLE: u32 = 2;
+/// `[mail.<name>.pool] lifetime`. Under RFC 5321's five-minute server timeout, so a relay rarely
+/// closes a session the pool still counts as open.
+pub const MAIL_POOL_LIFETIME: Duration = Duration::from_secs(5 * MINUTE);
+/// `[mail.<name>.pool] acquire`.
+pub const MAIL_POOL_ACQUIRE: Duration = Duration::from_secs(5);
 
 /// `[cache.memory] max_size`. **What it spends:** up to this much once per serving process.
 pub const CACHE_MAX_SIZE: usize = 32 << 20;
@@ -592,6 +603,10 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("ldap.<name>.pool.acquire", Scope::Named, Value::Time(DB_POOL_ACQUIRE)),
     row!("mail.<name>.port", Scope::Named, Value::Count(MAIL_PORT as u64)),
     row!("mail.<name>.timeout", Scope::Named, Value::Time(MAIL_TIMEOUT)),
+    row!("mail.<name>.pool.max", Scope::Named, Value::Count(MAIL_POOL_MAX as u64)),
+    row!("mail.<name>.pool.idle", Scope::Named, Value::Count(MAIL_POOL_IDLE as u64)),
+    row!("mail.<name>.pool.lifetime", Scope::Named, Value::Time(MAIL_POOL_LIFETIME)),
+    row!("mail.<name>.pool.acquire", Scope::Named, Value::Time(MAIL_POOL_ACQUIRE)),
     row!("cache.memory.max_size", Value::Size(CACHE_MAX_SIZE as u64)),
     row!("cache.memory.fill_wait", Value::Time(CACHE_MEMORY_FILL_WAIT)),
     row!("cache.shared.timeout", Scope::Written("cache.shared"), Value::Time(CACHE_SHARED_TIMEOUT)),

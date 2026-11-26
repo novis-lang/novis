@@ -1,5 +1,5 @@
 //! The `[mail.<name>]` blocks of `rule:programs/framework-core-half`, judged once the merge is done:
-//! the `tls` and `auth` words, the credential they go with, and the `tls_ca_file`.
+//! the `tls` and `auth` words, the credential they go with, the `tls_ca_file` and the pool.
 //!
 //! **A credential never travels in the clear.** `tls = "none"` beside a `user` or a password is
 //! refused here, naming the file, so the send that would have refused it later never runs.
@@ -19,6 +19,7 @@ use std::path::Path;
 
 use nvs_diagnostics::{Diagnostic, code};
 
+use crate::db::PoolBounds;
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, MailEndpoint};
 
@@ -45,6 +46,34 @@ pub enum Auth {
     Plain,
     /// The `LOGIN` mechanism: the user and the password, each in its own base64 line.
     Login,
+}
+
+/// The bounds an unwritten `[mail.<name>.pool]` key takes: `max = 4`, `idle = 2`,
+/// `lifetime = "5m"` and `acquire = "5s"`, from [`crate::defaults`].
+pub const POOL_DEFAULTS: PoolBounds = PoolBounds {
+    enabled: true,
+    max: crate::defaults::MAIL_POOL_MAX,
+    idle: crate::defaults::MAIL_POOL_IDLE,
+    lifetime: crate::defaults::MAIL_POOL_LIFETIME,
+    acquire: crate::defaults::MAIL_POOL_ACQUIRE,
+};
+
+/// The block's pool bounds, read as a `[db.<name>]` block's are, over [`POOL_DEFAULTS`].
+///
+/// # Errors
+///
+/// Exactly [`crate::db::pool_of`]'s, naming `mail.<name>.pool`.
+pub fn pool_for(
+    name: &str,
+    block: &MailEndpoint,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<PoolBounds, Diagnostic> {
+    crate::db::pool_over(
+        &format!("mail.{name}"),
+        block.pool.as_ref(),
+        POOL_DEFAULTS,
+        origins,
+    )
 }
 
 /// The `tls` a block means: `written` when it is a word, else the default for `port` and whether a
@@ -114,10 +143,12 @@ pub fn canonicalize(
 /// # Errors
 ///
 /// `E0601` for the first block whose `tls` is not a mode, whose `tls = "none"` is beside a
-/// credential or a `tls_ca_file`, or whose `auth` is not a mechanism or has no credential to send.
+/// credential or a `tls_ca_file`, whose `auth` is not a mechanism or has no credential to send, or
+/// whose `[mail.<name>.pool]` bounds [`crate::db::pool_of`] refuses.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     for (name, block) in &config.mail {
         judge(name, block, origins)?;
+        pool_for(name, block, origins)?;
     }
     Ok(())
 }
@@ -127,9 +158,8 @@ fn judge(
     block: &MailEndpoint,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<(), Diagnostic> {
-    let credential = block.user.is_some()
-        || block.password.is_some()
-        || block.password_file.is_some();
+    let credential =
+        block.user.is_some() || block.password.is_some() || block.password_file.is_some();
     let port = block.port.unwrap_or(crate::defaults::MAIL_PORT);
     let tls_key = format!("mail.{name}.tls");
     match tls_from(block.tls.as_deref(), port, credential) {

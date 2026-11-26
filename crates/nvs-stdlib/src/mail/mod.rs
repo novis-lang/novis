@@ -79,15 +79,21 @@
 //! a mail half its readers cannot read; anything richer — templates, files, `multipart/related` —
 //! belongs to the program or a package, which composes *into* these arguments.
 //!
-//! **Declined:** keeping an SMTP session open between messages. Each send opens its own
-//! connection and closes it, and no measured program sends enough mail for the handshake to count.
+//! # A block's session is kept for its next send
+//!
+//! Over TLS, each new connection pays a handshake, two `EHLO`s and `AUTH` before the envelope.
+//! [`pool`] keeps a session open per block per core under `[mail.<name>.pool]`, the bounds
+//! `[db.<name>.pool]` has, and starts each later message on it with `RSET`. Its module doc says
+//! what it spends and when a session is replaced. `pool = false` opens one connection per message.
 //!
 //! # Where each part lives
 //!
 //! This file has the class row, the reading of `[mail.<name>]` and `send`. [`compose`](mod@compose) writes the
-//! message, and [`smtp`] is the session that delivers it.
+//! message, [`smtp`] is the session that delivers it, and [`pool`] keeps that session open for the
+//! block's next send.
 
 mod compose;
+mod pool;
 mod smtp;
 
 use std::cell::Cell;
@@ -259,10 +265,8 @@ pub(crate) const ADDRESS_NAME: &str = r"Core\Mail\Address";
 /// A plain string is an address only, and never read for a name: `"Ada <ada@example.com>"` is
 /// refused as an address (`rule:errors/ambiguous-input-refused`), because two readers split such
 /// a string differently.
-const RECIPIENT: CoreTy = CoreTy::Union(&[
-    CoreTy::Text(Qual::Neutral),
-    CoreTy::Instance(ADDRESS_NAME),
-]);
+const RECIPIENT: CoreTy =
+    CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Instance(ADDRESS_NAME)]);
 
 /// Slot 0 of an [`ADDRESS`]: the address as the program wrote it. `send` reads it through
 /// [`address_of`] again, so a value rebuilt from bytes is checked too.
@@ -472,6 +476,8 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// What `[mail.<name>]` said, once every question this member asks of it has an
 /// answer.
 struct Endpoint {
+    /// The block's name, `<name>` in `[mail.<name>]`, which a message about a setting names.
+    name: String,
     /// `host`, as written — resolved but never re-read, and never pinned.
     host: String,
     /// `port`, or [`DEFAULT_PORT`].
@@ -596,8 +602,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         .unwrap_or(DEFAULT_TIMEOUT);
 
     let written_tls = configured(ctx, endpoint, "tls");
-    let tls = match nvs_config::mail::tls_from(written_tls.as_deref(), port, credential.is_some())
-    {
+    let tls = match nvs_config::mail::tls_from(written_tls.as_deref(), port, credential.is_some()) {
         Some(Tls::None) if credential.is_some() => {
             return Err(Fault::thrown(format!(
                 "{member}: `[mail.{endpoint}]` sets `tls = \"none\"` and a credential, and a \
@@ -611,8 +616,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
             )));
         }
     };
-    let Ok(auth) = nvs_config::mail::auth_from(configured(ctx, endpoint, "auth").as_deref())
-    else {
+    let Ok(auth) = nvs_config::mail::auth_from(configured(ctx, endpoint, "auth").as_deref()) else {
         return Err(Fault::thrown(format!(
             "{member}: `[mail.{endpoint}] auth` is not `plain` or `login`"
         )));
@@ -623,6 +627,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
     };
 
     Ok(Endpoint {
+        name: endpoint.to_owned(),
         host,
         port,
         from,
@@ -873,8 +878,11 @@ fn send(
     // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
     // were checked above, as they are in production.
     if let Some(records) = ctx.test_records() {
-        let addresses =
-            |list: Vec<Mailbox>| list.into_iter().map(|each| each.address).collect::<Vec<_>>();
+        let addresses = |list: Vec<Mailbox>| {
+            list.into_iter()
+                .map(|each| each.address)
+                .collect::<Vec<_>>()
+        };
         records.mail(nvs_runtime::test_records::KeptMail {
             endpoint: endpoint.to_owned(),
             to: addresses(to),
@@ -920,24 +928,70 @@ fn send(
     // bounds every park under it by the request's wall deadline, and ends
     // the request there (`rule:errors/on-limit`). The name lookup runs off
     // the core, so it also stops at the request's wall deadline itself.
-    let until = Instant::now() + configured.timeout;
+    let now = Instant::now();
+    let until = now + configured.timeout;
     let lookup_until = ctx
         .off_core_deadline()
         .map_or(until, |wall| until.min(wall));
-    resolve(&configured, member, lookup_until).and_then(|address| {
-        smtp::deliver(
-            address,
-            &configured,
-            until,
-            &smtp::Envelope {
-                sender: &sender,
-                recipients: &envelope,
-            },
-            &message,
-            member,
-        )
-    })?;
+    let address = resolve(&configured, member, lookup_until)?;
+    let lease = lease_for(ctx, endpoint, until, member)?;
+    pool::deliver(
+        lease,
+        now,
+        address,
+        &configured,
+        &smtp::Envelope {
+            sender: &sender,
+            recipients: &envelope,
+        },
+        &message,
+        member,
+    )?;
     Ok(Value::text(&message_id))
+}
+
+/// A slot in `[mail.<name>]`'s pool on this core, under the block's bounds and the configuration
+/// generation that declared it. A block the typed tree does not have is read as `pool = false`.
+///
+/// # Errors
+///
+/// A catchable `IOError` when the block already has its `max` of sessions on this core and none
+/// frees within its `acquire`, or before `until`.
+fn lease_for(
+    ctx: &mut Ctx,
+    endpoint: &str,
+    until: Instant,
+    member: &str,
+) -> Result<nvs_runtime::pool::Lease, Fault> {
+    let none = std::collections::BTreeMap::new();
+    let snapshot = ctx
+        .config()
+        .map(|config| std::sync::Arc::clone(config.snapshot()));
+    let bounds = snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.config.mail.get(endpoint))
+        .and_then(|block| nvs_config::mail::pool_for(endpoint, block, &none).ok())
+        .unwrap_or(nvs_config::db::PoolBounds::OFF);
+    let key = format!("mail:{endpoint}");
+    let ticket = match &snapshot {
+        Some(snapshot) => nvs_runtime::pool::Ticket::for_block(snapshot, &key, bounds),
+        None => nvs_runtime::pool::Ticket::for_settings(key, bounds),
+    };
+    let max = bounds.max;
+    let full = |waited: &str| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member}: `[mail.{endpoint}]` already has its `max` of {max} connections open on \
+                 this core, and {waited}. Raise `[mail.{endpoint}.pool] max`, or send fewer \
+                 messages at once."
+            ),
+        )
+    };
+    match nvs_runtime::pool::admit(ticket.clone()) {
+        Some(lease) => Ok(lease),
+        None => crate::db::pool::wait_for_slot(ctx, ticket, &full, Some(until)),
+    }
 }
 
 #[cfg(test)]
@@ -1028,7 +1082,10 @@ mod tests {
         let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
         let id = sent.as_text().expect("send returns a string").to_owned();
         let (random, domain) = id.split_once('@').expect("the id is local@domain");
-        assert_eq!(domain, "xn--bcher-kva.example", "the domain of `from`, as punycode");
+        assert_eq!(
+            domain, "xn--bcher-kva.example",
+            "the domain of `from`, as punycode"
+        );
         assert!(
             random.len() == 32 && random.bytes().all(|byte| byte.is_ascii_hexdigit()),
             "{id}"
@@ -1041,14 +1098,21 @@ mod tests {
         );
 
         let again = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
-        assert_ne!(again.as_text(), Some(id.as_str()), "each message has its own id");
+        assert_ne!(
+            again.as_text(),
+            Some(id.as_str()),
+            "each message has its own id"
+        );
 
         let refused = nvs_runtime::call(
             nvs_core_mail_address_of,
             &mut ctx,
             &[Value::text("Ada <ada@example.com>"), Value::text("Ada")],
         );
-        assert!(refused.is_err(), "a name inside the address string is not read");
+        assert!(
+            refused.is_err(),
+            "a name inside the address string is not read"
+        );
 
         #[expect(unsafe_code, reason = "this test owns every value it made")]
         // SAFETY: each value carries the one reference this test made or was given, and none is

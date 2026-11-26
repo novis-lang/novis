@@ -177,7 +177,10 @@ fn mailbox(display: Option<&str>, address: &str) -> String {
     if quotable {
         return format!("\"{display}\" <{address}>");
     }
-    format!("{} <{address}>", encoded_words(display).replace("\r\n ", " "))
+    format!(
+        "{} <{address}>",
+        encoded_words(display).replace("\r\n ", " ")
+    )
 }
 
 /// The bytes [`message_id_of`] refuses in a message id, beside every control byte and every byte
@@ -681,9 +684,9 @@ mod tests {
                 None,
             );
             assert!(
-                header_lines(&message)
-                    .iter()
-                    .all(|each| each.split_once(": ").is_some_and(|(key, _)| !key.contains(' '))),
+                header_lines(&message).iter().all(|each| each
+                    .split_once(": ")
+                    .is_some_and(|(key, _)| !key.contains(' '))),
                 "a name added a header: {message}"
             );
             header_lines(&message)
@@ -717,7 +720,9 @@ mod tests {
         }
 
         // A long list of named recipients still folds under 78 columns.
-        let many: Vec<Mailbox> = (0..40).map(|n| named(&format!("Reader number {n}"))).collect();
+        let many: Vec<Mailbox> = (0..40)
+            .map(|n| named(&format!("Reader number {n}")))
+            .collect();
         let folded = address_line("To", &many);
         assert!(only_folded(&folded), "{folded:?}");
         assert!(folded.split("\r\n").all(|each| each.len() <= LINE));
@@ -730,11 +735,15 @@ mod tests {
     fn an_international_domain_is_sent_as_punycode() {
         let member = "Core\\Mail::send";
         assert_eq!(
-            address_of("info@bücher.example", "to", member).ok().as_deref(),
+            address_of("info@bücher.example", "to", member)
+                .ok()
+                .as_deref(),
             Some("info@xn--bcher-kva.example")
         );
         assert_eq!(
-            address_of("info@Bücher.Example", "to", member).ok().as_deref(),
+            address_of("info@Bücher.Example", "to", member)
+                .ok()
+                .as_deref(),
             Some("info@xn--bcher-kva.example")
         );
         assert_eq!(
