@@ -122,6 +122,11 @@ checks:
     name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
     run: [bun, nv, close, --goal, mail-complete]
     timeout: 900
+  - id: unknown-issuer-hint
+    stage: 3
+    name: "a certificate from an unknown issuer gives an IOError that names the block's tls_ca_file as the fix"
+    run: [cargo, test, --lib, "mail::"]
+    tests: [an_unknown_issuer_names_the_tls_ca_file]
 ---
 
 # sending mail covers what a web app needs: attachments, inline images, styled HTML, names, threads and every common server
