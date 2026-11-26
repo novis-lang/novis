@@ -892,3 +892,6 @@ pub(super) mod utf7 {
         out
     }
 }
+
+#[cfg(test)]
+mod tests;

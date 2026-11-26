@@ -119,6 +119,10 @@ mod pool;
 pub(crate) mod receive;
 mod smtp;
 
+/// The self-signed `localhost` certificate the SMTP tests serve, for `Core\Imap`'s tests too.
+#[cfg(test)]
+pub(crate) use smtp::tests::localhost;
+
 pub(crate) use parts::{ATTACHMENT_NAME, built as attachment};
 #[cfg(test)]
 pub(crate) use parts::{

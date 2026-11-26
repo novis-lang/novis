@@ -1011,7 +1011,7 @@ pub(crate) mod tests {
     /// name, which the process's outbound client also trusts (`crate::tests::outbound_client`).
     /// A verifier finds an anchor by name, so a shared name would check this certificate against
     /// another key and fail with a bad signature, not an unknown issuer.
-    pub(in crate::mail) fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
+    pub(crate) fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
         static ISSUED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let signing_key = rcgen::KeyPair::generate().expect("a key pair");
         let mut params =
