@@ -1,54 +1,58 @@
-assets 9f927090a545c71c
+assets 90fedfc63a7f4dfa
 
+N
 Novis debug
-Theme
-System
-Dark
-Light
-Editor
-Keys
+Ctrl K
+Live
+:<port>
 Requests
+Routes
+Queries
+Errors
+Logs
 Stream
-Log
-Search
-Exceptions
+Settings
 Back to the request list
 Compare two requests
-Original
-GET /notes/18446744073709551615 500 started <date>, <time>
-Other
-GET /notes/1 404 started <date>, <time>
+ORIGINAL
+GET
+/notes/18446744073709551615
+500 <duration> started <date>, <time>
+OTHER
+GET
+/notes/1
+404 <duration> started <date>, <time>
 
 6 rows differ.
 
 Request
-Field	Original	Other
+FIELD	ORIGINAL	OTHER
 Method	GET	GET
 Path Differs	/notes/18446744073709551615	/notes/1
 Query	None	None
 Duration Differs	<duration>	<duration>
 Request headers
-Header	Original	Other
+HEADER	ORIGINAL	OTHER
 connection	keep-alive	keep-alive
 user-agent	Bun/1.4.4	Bun/1.4.4
 accept	*/*	*/*
 host	127.0.0.1:<port>	127.0.0.1:<port>
 accept-encoding	gzip, deflate, br, zstd	gzip, deflate, br, zstd
 Request body
-Key	Original	Other
+KEY	ORIGINAL	OTHER
 Body	The program did not read this body.	The program did not read this body.
 Response
-Field	Original	Other
+FIELD	ORIGINAL	OTHER
 Status Differs	500	404
 Response headers
-Header	Original	Other
+HEADER	ORIGINAL	OTHER
 content-type	text/html; charset=utf-8	text/html; charset=utf-8
 x-content-type-options	nosniff	nosniff
 content-security-policy	frame-ancestors 'none'	frame-ancestors 'none'
 referrer-policy	strict-origin-when-cross-origin	strict-origin-when-cross-origin
 traceresponse Differs	00-<id>-<id>-00	00-<id>-<id>-00
 Response body
-Key	Original	Other
+KEY	ORIGINAL	OTHER
 Body Differs	<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Something went wrong</title></head>
@@ -59,7 +63,7 @@ Body Differs	<!doctype html>
 <body><h1>Not found</h1><p>There is no page at this address.</p><p><a href="/">All notes</a></p></body>
 </html>
 Queries
-Call	Original	Other
+CALL	ORIGINAL	OTHER
 src/Store.nvs:21	create table if not exists notes (id integer primary key, title text not null, body text not null)	create table if not exists notes (id integer primary key, title text not null, body text not null)
 src/Store.nvs:38 Differs	Not reached	select id, title, body from notes where id = ?
 Dumps

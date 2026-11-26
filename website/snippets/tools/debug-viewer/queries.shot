@@ -1,0 +1,6 @@
+app .
+request GET /report
+request GET /report
+request GET /report
+open /queries
+wait .statements .st-sql

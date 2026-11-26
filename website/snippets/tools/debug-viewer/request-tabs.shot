@@ -1,0 +1,10 @@
+app notes
+request POST /notes title=Buy+milk&body=Two+litres+of+whole+milk.
+request POST /notes title=Call+the+bank&body=Ask+about+the+new+card+before+Friday.
+request GET /api/notes
+open /
+wait .requests .row
+click .requests .row
+wait .tabs a[href*="tab=response"]
+click .tabs a[href*="tab=response"]
+wait .req-panel[data-tab="response"] .rt-head

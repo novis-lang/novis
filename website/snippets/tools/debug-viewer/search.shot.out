@@ -1,17 +1,17 @@
-assets 9f927090a545c71c
+assets 90fedfc63a7f4dfa
 
+N
 Novis debug
-Theme
-System
-Dark
-Light
-Editor
-Keys
+Ctrl K
+Live
+:<port>
 Requests
+Routes
+Queries
+Errors
+Logs
 Stream
-Log
-Search
-Exceptions
+Settings
 Results for notes, newest first.
 Save
 
@@ -20,9 +20,13 @@ Not part of a request
 log
 <time>
 GET /api/notes/7 404
-
-GET /api/notes/{id} 404 <duration> at <date> Mark to compare
-
+GET
+/api/notes/7
+/api/notes/{id}
+404
+<duration>
+<duration> ago
+Mark to compare
 request
 <time>
 /api/notes/7 /api/notes/{id}
@@ -38,9 +42,12 @@ Not part of a request
 log
 <time>
 GET /api/notes 200
-
-GET /api/notes 200 <duration> at <date> Mark to compare
-
+GET
+/api/notes
+200
+<duration>
+<duration> ago
+Mark to compare
 request
 <time>
 /api/notes /api/notes
@@ -50,9 +57,12 @@ create table if not exists notes (id integer primary key, title text…
 query
 <time>
 select id, title, body from notes order by id desc
-
-GET / 200 <duration> at <date> Mark to compare
-
+GET
+/
+200
+<duration>
+<duration> ago
+Mark to compare
 query
 <time>
 create table if not exists notes (id integer primary key, title text…

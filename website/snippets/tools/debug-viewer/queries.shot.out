@@ -1,0 +1,42 @@
+assets 90fedfc63a7f4dfa
+
+N
+Novis debug
+Ctrl K
+Live
+:<port>
+Requests
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+Queries
+QUERY AND CALL SITE
+COUNT
+TOTAL
+MAX
+REQUESTS
+REPEATED
+with recursive day(n) as (select 1 union all select n + 1 from day where n < 600000) select sum(n) as total from day
+public/index.nvs:6
+3
+<duration>
+<duration>
+3
+0
+with recursive day(n) as (select 1 union all select n + 1 from day where n < 100000) select sum(n) as total from day
+public/index.nvs:7
+3
+<duration>
+<duration>
+3
+0
+select ? * 3 as price
+public/index.nvs:9
+90
+<duration>
+<duration>
+3
+3×

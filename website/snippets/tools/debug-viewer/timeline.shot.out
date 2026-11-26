@@ -1,64 +1,63 @@
-assets 9f927090a545c71c
+assets 90fedfc63a7f4dfa
 
+N
 Novis debug
-Theme
-System
-Dark
-Light
-Editor
-Keys
+Ctrl K
+Live
+:<port>
 Requests
-Stream
-Log
-Search
-Exceptions
-Back to the request list
-GET /
-Path
-/
-Status
-200
-Duration
-<duration>
-Started
-<date>, <time>
+Routes
 Queries
-2
-Dumps
-0
-Log lines
-0
-Exception
-None
-Trace id
-<id>
-Span id
-<id>
-No earlier request to this route was found.
-Replay
+Errors
+Logs
+Stream
+Settings
+GET
+/
+200
 Make a test
-Timeline
+Copy as curl
+Replay
+
+Route / · <duration> ago · Trace <id> · Span <id>
+
+Duration
+
 <duration>
-<duration>
-<duration>
-<duration>
-<duration>
-create table if not exists notes (id integer primary key, title text not null, body text not null)
-select id, title, body from notes order by id desc
-Query
-<duration>
-create table if not exists notes (id integer primary key, title text not null, body text not null)
-sqlite, 0 rows
-<duration>
-Query
-<duration>
-select id, title, body from notes order by id desc
-sqlite, 0 rows
-<duration>
+
+Queries
+
+2
+
 Dumps
 
-This request dumped no values.
+0
 
 Log lines
 
-This request wrote no log lines.
+0
+
+Database <duration>
+Your code <duration>
+Timeline
+Request
+Response
+Queries2
+Dumps0
+Logs0
+Coverage
+<duration>
+<duration>
+<duration>
+<duration>
+<duration>
+Query
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+sqlite, 0 rows
+<duration>
+Query
+<duration>
+select id, title, body from notes order by id desc
+sqlite, 0 rows
+<duration>

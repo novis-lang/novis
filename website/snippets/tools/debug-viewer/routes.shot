@@ -1,0 +1,14 @@
+app poll
+request GET /
+request GET /
+request POST /polls question=Where+do+we+eat+on+Friday%3F&answers=Pizza%0ASushi%0ATacos%0ASalad
+request GET /polls/1
+request POST /polls/1/vote answer=2
+request GET /polls/1
+request GET /polls/99
+request POST /polls question=&answers=
+request GET /style.css
+request GET /poll.js
+request GET /missing
+open /routes
+wait .routes .routes-route

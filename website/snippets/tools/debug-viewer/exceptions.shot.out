@@ -1,22 +1,22 @@
-assets 9f927090a545c71c
+assets 90fedfc63a7f4dfa
 
+N
 Novis debug
-Theme
-System
-Dark
-Light
-Editor
-Keys
+Ctrl K
+Live
+:<port>
 Requests
+Routes
+Queries
+Errors
+Logs
 Stream
-Log
-Search
-Exceptions
-Exception
-Thrown at
-Count
-Throws over time
-Seen
+Settings
+EXCEPTION
+THROWN AT
+COUNT
+THROWS OVER TIME
+SEEN
 RuntimeError
 public/index.nvs:8
 3

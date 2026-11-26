@@ -1,0 +1,11 @@
+<?nvs
+// A small shop report. It adds up a year of sales and a week of sales, one query each.
+// Then it looks up a price in a loop, so the same query runs 30 times in one request.
+
+var $db = Core\Db::connect('shop');
+$db->query('with recursive day(n) as (select 1 union all select n + 1 from day where n < 600000) select sum(n) as total from day', []);
+$db->query('with recursive day(n) as (select 1 union all select n + 1 from day where n < 100000) select sum(n) as total from day', []);
+for (int $i = 1; $i <= 30; $i++) {
+    $db->query('select ? * 3 as price', [$i]);
+}
+echo "The report is ready.\n";

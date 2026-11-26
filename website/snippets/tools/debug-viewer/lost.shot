@@ -1,0 +1,5 @@
+app .
+request GET /report
+open /settings#lost
+wait .live.warn
+wait .lost-counts

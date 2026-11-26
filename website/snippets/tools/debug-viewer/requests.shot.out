@@ -1,49 +1,163 @@
-assets 9f927090a545c71c
+assets 90fedfc63a7f4dfa
 
+N
 Novis debug
-Theme
-System
-Dark
-Light
-Editor
-Keys
+Ctrl K
+Live
+:<port>
 Requests
+Routes
+Queries
+Errors
+Logs
 Stream
-Log
-Search
-Exceptions
+Settings
+Requests, last <duration>
+
+9
+
+Duration
+
+<duration> p50
+
+<duration> p95 · <duration> max
+
+Errors
+
+0.0 %
+
 Following new requests.
 Pause
-Mark to compare
 Method
-Route
+▾
 Status
-Duration
-Queries
-Dumps
+▾
+Route
+▾
+Slower than
+▾
 Exception
-Thrown at
-GET
-/api/notes/{id}
-404
+▾
+Mark to compare
+METHOD
+PATH
+STATUS
+DURATION
+QUERIES
+DUMPS
+AGE
+POST
+/polls
+303
 <duration>
-2
+125×
 0
-GET
-/notes/{id}
-404
 <duration>
-2
-0
 GET
-/api/notes
+/style.css
 200
 <duration>
-2
 0
+0
+<duration>
+POST
+/polls
+422
+<duration>
+5
+0
+<duration>
+GET
+/polls/99
+/polls/{id}
+404
+<duration>
+5
+0
+<duration>
+GET
+/polls/1
+/polls/{id}
+200
+<duration>
+6
+0
+<duration>
+POST
+/polls/1/vote
+/polls/{id}/vote
+303
+<duration>
+7
+0
+<duration>
+GET
+/polls/1
+/polls/{id}
+200
+<duration>
+6
+0
+<duration>
+POST
+/polls
+303
+<duration>
+114×
+0
+<duration>
 GET
 /
 200
 <duration>
-2
+5
 0
+<duration>
+POST
+/polls
+303
+Duration
+
+<duration>
+
+Queries
+
+12 · 5× at one site
+
+Dumps
+
+0
+
+Logs
+
+0
+
+Database <duration>
+Your code <duration>
+Timeline
+create table if not exists polls (id integer primary key, question text not null)
+<duration>
+create table if not exists answers (id integer primary key, poll_id integer not null, label text not null)
+<duration>
+create table if not exists votes (poll_id integer not null, voter text not null, answer_id integer not null, primary key (poll_id, voter))
+<duration>
+create index if not exists votes_by_answer on votes (answer_id)
+<duration>
+BEGIN
+<duration>
+insert into polls (question) values (?)
+<duration>
+insert into answers (poll_id, label) values (?, ?)
+<duration>
+insert into answers (poll_id, label) values (?, ?)
+<duration>
+insert into answers (poll_id, label) values (?, ?)
+<duration>
+insert into answers (poll_id, label) values (?, ?)
+<duration>
+insert into answers (poll_id, label) values (?, ?)
+<duration>
+COMMIT
+<duration>
+
+Press Enter to open this request.

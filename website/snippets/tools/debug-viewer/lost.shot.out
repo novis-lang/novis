@@ -1,0 +1,53 @@
+assets 90fedfc63a7f4dfa
+
+N
+Novis debug
+Ctrl K
+5 lost
+Requests
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+Settings
+Theme
+ Follow the system
+ Dark
+ Light
+
+This browser keeps the choice. The theme button in the top bar changes it too.
+
+Editor links
+
+Each file and line in the viewer is a link. The link opens that line in your editor.
+
+Editor
+VS Code
+VS Code Insiders
+VSCodium
+Cursor
+Zed
+IntelliJ IDEA
+PhpStorm
+Other editor
+Path mappings
+
+A mapping replaces the start of a recorded path. Use it when your program runs in a container, a virtual machine or WSL.
+
+Add a mapping
+Save
+Saved filters
+
+You have no saved filters. Press s in a list to save its filter.
+
+Lost records
+5 records were dropped by a program, in 1 reports. Show the reports
+0 lines could not be read.
+0 record files are not read now.
+Index
+
+The viewer reads the records from an index. Discarding it deletes every record the viewer has read.
+
+Discard the index

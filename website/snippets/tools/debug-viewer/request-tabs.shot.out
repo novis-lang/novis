@@ -1,0 +1,69 @@
+assets 90fedfc63a7f4dfa
+
+N
+Novis debug
+Ctrl K
+Live
+:<port>
+Requests
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+GET
+/api/notes
+200
+Make a test
+Copy as curl
+Replay
+
+Route /api/notes · <duration> ago · Trace <id> · Span <id>
+
+Duration
+
+<duration>
+
+Queries
+
+2
+
+Dumps
+
+0
+
+Log lines
+
+0
+
+Database <duration>
+Your code <duration>
+Timeline
+Request
+Response
+Queries2
+Dumps0
+Logs0
+Coverage
+
+Status
+200
+
+Headers
+NAME	VALUE
+content-type	application/json
+x-content-type-options	nosniff
+content-security-policy	frame-ancestors 'none'
+referrer-policy	strict-origin-when-cross-origin
+traceresponse	00-<id>-<id>-00
+Body
+▾list, 2 items
+▾0: map, 3 entries
+id: 2
+title: "Call the bank"
+body: "Ask about the new card before Friday."
+▾1: map, 3 entries
+id: 1
+title: "Buy milk"
+body: "Two litres of whole milk."

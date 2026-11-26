@@ -1,0 +1,9 @@
+<?nvs
+// A small server that dumps a long text ten times for each request.
+// The record files are too small for all ten dumps, so the debug viewer reports lost records.
+
+string $report = Core\Str::repeat('A line of the report. ', 200);
+for (int $i = 0; $i < 10; $i++) {
+    Core\Debug::dump($report);
+}
+echo "Done.\n";

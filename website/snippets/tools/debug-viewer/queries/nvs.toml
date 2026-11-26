@@ -1,0 +1,8 @@
+# The shop's database is kept in memory and deleted when the request ends.
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open this database and no other.
+[capabilities.db]
+connect = ["shop"]

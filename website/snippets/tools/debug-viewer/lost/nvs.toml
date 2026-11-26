@@ -1,0 +1,8 @@
+# The record files may use only 8 KB of disk, so a request that dumps a lot loses some records.
+# The dumps go to the log only, so the page stays short.
+[server]
+workers = 1
+
+[debug]
+spool_max = "8K"
+inline = false

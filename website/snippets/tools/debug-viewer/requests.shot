@@ -1,7 +1,13 @@
-app notes
+app poll
 request GET /
-request GET /api/notes
-request GET /notes/1
-request GET /api/notes/99
+request POST /polls question=Where+do+we+eat+on+Friday%3F&answers=Pizza%0ASushi%0ATacos%0ASalad
+request GET /polls/1
+request POST /polls/1/vote answer=2
+request GET /polls/1
+request GET /polls/99
+request POST /polls question=&answers=
+request GET /style.css
+request POST /polls question=Which+day+suits+the+team+meeting%3F&answers=Monday%0ATuesday%0AWednesday%0AThursday%0AFriday
 open /
 wait .requests .route
+wait .peek .peek-events

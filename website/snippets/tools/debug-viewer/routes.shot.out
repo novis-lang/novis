@@ -1,0 +1,63 @@
+assets 90fedfc63a7f4dfa
+
+N
+Novis debug
+Ctrl K
+Live
+:<port>
+Requests
+Routes
+Queries
+Errors
+Logs
+Stream
+Settings
+Routes
+METHOD
+ROUTE
+COUNT
+ERRORS
+P50
+P95
+QUERIES
+LAST SEEN
+GET
+No route
+3
+0%
+<duration>
+<duration>
+0.0
+<duration>
+GET
+/polls/{id}
+3
+0%
+<duration>
+<duration>
+5.7
+<duration>
+GET
+/
+2
+0%
+<duration>
+<duration>
+5.0
+<duration>
+POST
+/polls
+2
+0%
+<duration>
+<duration>
+8.0
+<duration>
+POST
+/polls/{id}/vote
+1
+0%
+<duration>
+<duration>
+7.0
+<duration>

@@ -99,6 +99,8 @@ const MORE_MASKS: [RegExp, string][] = [
   // The class of a test made from a request ends with the first 8 digits of its trace id.
   [/[0-9a-f]{8}Test\b/g, "<id>Test"],
   [/\b\d+\s(?:seconds?|minutes?|hours?|days?)\sago\b/g, "<ago>"],
+  // The live pill shows the recorded server's port on a line of its own.
+  [/^:\d{1,5}$/gm, ":<port>"],
 ];
 
 /** A page's visible text as a `.shot.out` writes it: every value that differs from run to run masked,
@@ -168,11 +170,13 @@ async function until<T>(what: string, probe: () => Promise<T | null | undefined>
 }
 
 /** Opens `url` in a new tab of `browser` at the shot's size, takes `steps` there, and returns the
- * page's visible text and a PNG of it. */
-async function takeSteps(browser: Browser, base: string, steps: Step[], ready: string): Promise<{ text: string; png: Uint8Array }> {
+ * page's visible text and a PNG of it. `dark` makes the page see `prefers-color-scheme: dark`, so a
+ * viewer shot is drawn in the dark theme on every machine. */
+async function takeSteps(browser: Browser, base: string, steps: Step[], ready: string, dark = false): Promise<{ text: string; png: Uint8Array }> {
   const { sessionId } = await browser.tab();
   await browser.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false }, sessionId);
   await browser.send("Emulation.setLocaleOverride", { locale: LOCALE }, sessionId);
+  if (dark) await browser.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   const js = JSON.stringify;
   const present = (selector: string) => until(`\`${selector}\` was not on the page`, async () => ((await browser.eval(`!!document.querySelector(${js(selector)})`, sessionId)) ? true : null));
   for (const step of steps) {
@@ -256,7 +260,7 @@ async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, fixture: stri
         return (page.requests?.length ?? 0) >= shot.requests.length ? true : null;
       });
       const admit: Step = { kind: "open", path: `/${link.search}` };
-      const { text, png } = await withBrowser((b) => takeSteps(b, viewer, [admit, ...shot.steps],"!document.querySelector('[aria-busy=\"true\"]')"));
+      const { text, png } = await withBrowser((b) => takeSteps(b, viewer, [admit, ...shot.steps], "!document.querySelector('[aria-busy=\"true\"]')", true));
       return { recording: shotOut(hash, shotText(projectPaths(text.replaceAll(server, "http://127.0.0.1:<port>"), app))), png };
     } finally {
       stop.abort();
