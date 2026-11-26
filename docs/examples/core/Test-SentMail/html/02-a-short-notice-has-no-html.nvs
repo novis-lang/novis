@@ -21,7 +21,7 @@ class LoginTest
     {
         Login::newDevice('ada@example.com', 'a phone');
 
-        // No `html` option was given, so `html()` returns `null`.
+        // The body was a `string`, so `html()` returns `null`.
         Test::assertNull(Test::sentMail()[0]->html());
         Test::assertSame(Test::sentMail()[0]->text(), 'Someone signed in from a phone.');
     }

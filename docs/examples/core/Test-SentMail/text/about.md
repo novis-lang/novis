@@ -1,9 +1,9 @@
 `text()` returns the plain-text body of a message. In a test, `Core\Test::sentMail()` returns one
 `Core\Test\SentMail` for each message, and `text()` is one of its methods.
 
-The body is the `$text` string that your program gave to `Core\Mail::send`, with every line break
-in it. A message that also has an HTML body still has this plain-text body. Use `html()` to read
-the HTML body.
+When your program gave `Core\Mail::send` a `string` body, `text()` returns that string, with every
+line break in it. When the body was HTML, `text()` returns the plain text made from it, or the
+`text` option when the program gave one. Use `html()` to read the HTML body.
 
 Use `text()` to check what a person reads in the message. The `Core\Str` functions help you check
 one part of it, such as a link or one line, without writing out the whole body.

@@ -439,15 +439,6 @@ entry = "benches/members/core/Db/connect.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
-# `Core\Mail::send`'s attack, granted `[mail.shop]` by name. It sends through it and is answered by
-# a closed port, so it reaches the socket and no message leaves this machine. The bench is refused
-# before the grant is asked, and holds none.
-[[app]]
-entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
-
-[app.capabilities.mail]
-send = ["shop"]
-
 # `Core\Ldap::connect`'s and `Core\Ldap::open`'s attacks and benches. `connect` is granted
 # `[ldap.corp]`, which dials a closed port. `open` is granted loopback, which a CLI run reaches with
 # no `net.internal`, so the dial is refused by the closed port and not the outbound policy. The
@@ -1506,9 +1497,10 @@ path = ":memory:"
 driver = "sqlite"
 path = ":memory:"
 
-# `Core\Mail::send`'s attack sends through this block. Port 1 on loopback has no listener
-# anywhere this runs, so the connection is refused at once and every run ends the same way, with an
-# `IOError` and nothing sent. No credential, so nothing asks for `STARTTLS`.
+# `Core\Mail::send`'s bench names this block, and its addresses are refused before a connection
+# opens. Its attacks carry an `nvs.toml` of their own. Port 1 on loopback has no listener anywhere
+# this runs, so a send that got that far would end at once with an `IOError` and nothing sent.
+# No credential, so nothing asks for `STARTTLS`.
 [mail.shop]
 host = "127.0.0.1"
 port = 1
