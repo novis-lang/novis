@@ -144,10 +144,12 @@ The placements the tests produce, beyond the `Core` classes the registry already
   traversal rules. `Core\Os` is `posix` minus `fork`, and `Core\Signal` is the graceful-shutdown part of
   `pcntl` and nothing else ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)). `Core\Html`'s parse reads hostile
   markup too, and is Core because the sanitizer must parse to filter ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
+  `Core\Mail\Message::parse` reads a received message, and is Core for `Core\Zip`'s reason: an
+  attachment name's `../` is policy ([`core-classes/mail-receive`](core-classes.md#core-classes-mail-receive)).
 - **Native, by test 1 or test 3.** `Core\Db` and the shared-cache backend behind `Core\Cache` hold
   connections across requests; `Core\Ldap` holds a bound directory session, and its escaper is in `Core`
   by test 2. `Core\Crypto` (AEAD only, TLS over `rustls`), `Core\Http\Client`, `Core\Net`, `Core\Mail`'s
-  transport, `Core\Storage`'s backends and `Core\Process` wait on the outside world, the network ones
+  transport, `Core\Imap` ([`core-classes/imap`](core-classes.md#core-classes-imap)), `Core\Storage`'s backends and `Core\Process` wait on the outside world, the network ones
   over the runtime's own reactor rather than a second event loop. A MongoDB client would be Native or
   nothing, and is unscheduled: its query surface shares nothing with `Core\Db`'s, so it would be a
   second database API rather than another driver.

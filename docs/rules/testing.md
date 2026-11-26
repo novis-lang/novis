@@ -1150,6 +1150,10 @@ outside a test ([`core-classes/mail-transport`](core-classes.md#core-classes-mai
 answered from a table in a test ([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)): a test
 never reaches a real person. What it spends: the messages of one test, freed with it.
 
+A test that reads mail opens an `[imap.<name>] directory` block, a folder of `.eml` files, because an
+`[imap.<name>]` server block is opened under `nvs test` like any other network door
+([`core-classes/imap`](core-classes.md#core-classes-imap)).
+
 What a request or a run wrote crosses back into the test as a copy, because nothing crosses an
 isolate boundary by reference ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
