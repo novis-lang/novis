@@ -970,6 +970,220 @@ fn index_max_deletes_the_oldest_rows_whether_a_request_names_them_or_not() {
     );
 }
 
+/// The sample's run line alone, under `trace`, from `start_us` for `duration_us`, written at its
+/// end by `writer` as line `seq`.
+fn run_line(writer: &str, seq: u64, trace: &str, start_us: u64, duration_us: u64) -> Line {
+    let mut line = sample()
+        .into_iter()
+        .find(|line| matches!(line.record, Record::Run(_)))
+        .expect("the sample has a run line");
+    line.writer = writer.to_owned();
+    line.seq = seq;
+    line.trace = Some(trace.to_owned());
+    line.at_us = start_us + duration_us;
+    if let Record::Run(run) = &mut line.record {
+        run.start_us = start_us;
+        run.duration_us = duration_us;
+    }
+    line
+}
+
+/// `count` of the sample's events under `trace`, written by `writer` from line `seq`, the `n`th at
+/// `at(n)`.
+fn events_at(
+    writer: &str,
+    seq: u64,
+    trace: &str,
+    count: u64,
+    at: impl Fn(u64) -> u64,
+) -> Vec<Line> {
+    let events: Vec<Line> = sample()
+        .into_iter()
+        .filter(|line| matches!(line.record, Record::Event(_)))
+        .collect();
+    (0..count)
+        .map(|n| {
+            let mut line = events[usize::try_from(n).expect("a few") % events.len()].clone();
+            line.writer = writer.to_owned();
+            line.seq = seq + n;
+            line.trace = Some(trace.to_owned());
+            line.at_us = at(n);
+            if let Record::Event(event) = &mut line.record {
+                event.start_us = line.at_us;
+                event.end_us = line.at_us + 300;
+            }
+            line
+        })
+        .collect()
+}
+
+/// `[debug] index_age` deletes the rows of a finished run that are older than it by their own
+/// time, and keeps the run's newer rows and its run row while its end is within it. The newest
+/// time it deleted is the index's cut.
+#[test]
+fn index_age_deletes_a_finished_runs_old_rows_and_keeps_its_new_ones() {
+    let folder = Folder::new();
+    let now = now_us();
+    let trace = "ee".repeat(16);
+    let start = now - 10 * DAY_US;
+    let at = |n: u64| {
+        if n < 5 {
+            start + n * 1_000_000
+        } else {
+            now - 2 * DAY_US + n * 1_000_000
+        }
+    };
+    let mut lines = events_at("8-1-0", 0, &trace, 10, at);
+    lines.push(run_line("8-1-0", 100, &trace, start, 9 * DAY_US));
+    folder.write("8-1-0.0.spool", &lines);
+    folder.ingest();
+    let db = folder.index();
+    let times: Vec<i64> = db
+        .prepare("SELECT at_us FROM events WHERE trace = ?1 ORDER BY at_us")
+        .expect("the query prepares")
+        .query_map([&trace], |row| row.get(0))
+        .expect("the query runs")
+        .collect::<Result<_, _>>()
+        .expect("each row reads");
+    let kept: Vec<i64> = (5..10)
+        .map(|n| i64::try_from(at(n)).expect("the time fits"))
+        .collect();
+    assert_eq!(times, kept, "the run's rows past index_age are deleted");
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM runs"),
+        1,
+        "the run row stays while its end is within index_age"
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM exceptions WHERE run IN (SELECT id FROM runs)"
+        ),
+        1,
+        "the run keeps its exception"
+    );
+    assert_eq!(
+        count(&db, "SELECT value FROM meta WHERE key = 'cut_us'"),
+        i64::try_from(at(4)).expect("the time fits"),
+        "the cut is the newest time deleted"
+    );
+}
+
+/// `[debug] index_max` deletes a long run's rows by their own time. Its oldest rows are older than
+/// every request, so they go first, and every request and the run row stay. The run row is timed
+/// by its end, which is newer than every request.
+#[test]
+fn index_max_deletes_a_long_runs_oldest_rows_before_a_newer_request() {
+    const ROWS: u64 = 20_000;
+    let folder = Folder::new();
+    let now = now_us();
+    let start = |n: u64| now - 1_000_000_000 + n * 1_000_000;
+    let mut lines = Vec::new();
+    for n in 0..500 {
+        let mut one = copy("6-1-0", &format!("{n:032x}"), start(n));
+        for line in &mut one {
+            line.seq += n * 100;
+        }
+        lines.extend(one);
+    }
+    folder.write("6-1-0.0.spool", &lines);
+    folder.ingest();
+    let requests_alone = bytes_in_use(&folder.index());
+
+    let trace = "ff".repeat(16);
+    let run_start = now - 3_000_000_000;
+    let at = |n: u64| run_start + 1_000 + n * 10_000;
+    let mut lines = events_at("7-1-0", 0, &trace, ROWS, at);
+    lines.push(run_line("7-1-0", ROWS, &trace, run_start, 2_990_000_000));
+    folder.write("7-1-0.0.spool", &lines);
+    folder.ingest();
+    let full = bytes_in_use(&folder.index());
+    let rows = format!("SELECT count(*) FROM events WHERE trace = '{trace}'");
+    assert_eq!(
+        count(&folder.index(), &rows),
+        int(usize::try_from(ROWS).expect("a few"))
+    );
+
+    let config = folder.data.join("small.toml");
+    let bound = (requests_alone + full) / 2;
+    std::fs::write(&config, format!("[debug]\nindex_max = \"{bound}\"\n"))
+        .expect("the data folder is writable");
+    folder.ingest_with(&[OsStr::new("--config"), config.as_os_str()]);
+    let db = folder.index();
+    assert!(
+        bytes_in_use(&db) <= bound,
+        "the pages in use fit under `index_max`"
+    );
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM requests"),
+        500,
+        "the requests are newer than the run's oldest rows, so all of them are kept"
+    );
+    assert_eq!(
+        count(
+            &db,
+            &format!("SELECT count(*) FROM runs WHERE trace = '{trace}'")
+        ),
+        1,
+        "the run row's end is newer than every request, so it is kept"
+    );
+    let left = count(&db, &rows);
+    assert!(
+        left > 0 && left < int(usize::try_from(ROWS).expect("a few")),
+        "some of the run's rows are deleted and some kept: {left} left"
+    );
+    assert_eq!(
+        count(
+            &db,
+            &format!("SELECT min(at_us) FROM events WHERE trace = '{trace}'")
+        ),
+        i64::try_from(at(ROWS - u64::try_from(left).expect("a count"))).expect("the time fits"),
+        "the run's rows kept are its newest"
+    );
+}
+
+/// `[debug] index_age` deletes a run row once its end is past it, with its exception, and keeps a
+/// run that started as early while its end is within it.
+#[test]
+fn a_run_row_goes_once_its_end_is_past_index_age() {
+    let folder = Folder::new();
+    let now = now_us();
+    let ended = format!("{:032x}", 0xa1);
+    let going = format!("{:032x}", 0xa2);
+    let start = now - 10 * DAY_US;
+    let lines = vec![
+        run_line("9-1-0", 0, &ended, start, 2 * DAY_US),
+        run_line("9-1-0", 1, &going, start, 4 * DAY_US),
+    ];
+    folder.write("9-1-0.0.spool", &lines);
+    folder.ingest();
+    let db = folder.index();
+    let traces: Vec<String> = db
+        .prepare("SELECT trace FROM runs")
+        .expect("the query prepares")
+        .query_map([], |row| row.get(0))
+        .expect("the query runs")
+        .collect::<Result<_, _>>()
+        .expect("each row reads");
+    assert_eq!(
+        traces,
+        std::slice::from_ref(&going),
+        "only the run that ended within index_age is kept"
+    );
+    let exceptions = |trace: &str| {
+        count(
+            &db,
+            &format!("SELECT count(*) FROM exceptions WHERE trace = '{trace}'"),
+        )
+    };
+    assert_eq!(
+        exceptions(&ended),
+        0,
+        "the deleted run's exception goes with it"
+    );
+    assert_eq!(exceptions(&going), 1, "the kept run keeps its exception");
+}
+
 #[test]
 fn the_deletion_window_removes_every_row_of_a_request() {
     let folder = Folder::new();

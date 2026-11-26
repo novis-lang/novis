@@ -16,7 +16,7 @@
 //! **What it spends:** one page of at most [`api::PAGE_MAX`] rows per API request while it is
 //! written out, and one run's bounded lists.
 
-use rusqlite::{Connection, ToSql, params};
+use rusqlite::{Connection, OptionalExtension, ToSql, params};
 use serde::Serialize;
 
 use super::api::{self, PAGE_DEFAULT, PAGE_MAX};
@@ -72,6 +72,10 @@ struct Detail {
     logs: Vec<api::Log>,
     /// Which lists stopped at their most rows.
     cut: Cut,
+    /// The newest time the deletion window deleted a record at, when the run started at or
+    /// before it, so its records before that time may be gone. `None` otherwise
+    /// (`super::index`'s *The cut*).
+    cut_us: Option<i64>,
 }
 
 /// Whether each list of a [`Detail`] stopped at its most rows.
@@ -323,6 +327,12 @@ fn detail(db: &mut Connection, trace: &str) -> rusqlite::Result<Option<Detail>> 
     let (events, events_cut) = api::events(&tx, of)?;
     let (dumps, dumps_cut) = api::dumps(&tx, of)?;
     let (logs, logs_cut) = api::logs(&tx, of, run.start_us, run.start_us + run.duration_us)?;
+    let cut_us: Option<i64> = tx
+        .query_row("SELECT value FROM meta WHERE key = 'cut_us'", [], |row| {
+            row.get(0)
+        })
+        .optional()?
+        .filter(|cut| run.start_us <= *cut);
     tx.commit()?;
     Ok(Some(Detail {
         watermark,
@@ -336,6 +346,7 @@ fn detail(db: &mut Connection, trace: &str) -> rusqlite::Result<Option<Detail>> 
             dumps: dumps_cut,
             logs: logs_cut,
         },
+        cut_us,
     }))
 }
 

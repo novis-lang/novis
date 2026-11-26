@@ -76,6 +76,11 @@ impl Service {
         // The requests start in 2023, so the deletion window must reach that far back.
         std::fs::write(data.join("nvs.toml"), "[debug]\nindex_age = \"36500d\"\n")
             .expect("the configuration is written");
+        Self::start_on(data)
+    }
+
+    /// A service on `data`, whose `nvs.toml` and index are already written.
+    fn start_on(data: nvs_repo::Scratch) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .current_dir(&*data)
             .arg("--data")
@@ -1496,6 +1501,95 @@ fn the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_except
         written.is_empty(),
         "{written:?} differed from the API's answers and are written again: commit them"
     );
+}
+
+/// `[debug] index_age` deletes a long run's records that are older than seven days, and records
+/// their newest time as the index's cut. `/api/run` gives the cut for a run that started before
+/// it, and `null` for a run that started after it. The data folder is ingested and its window
+/// applied by `nvs debug --once` before the service starts, so the service reads a finished
+/// deletion.
+// covers: tools:cli/the-debug-viewer
+#[test]
+fn a_run_that_started_before_the_cut_returns_it() {
+    const HOUR_US: u64 = 3_600_000_000;
+    let now = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the clock is past 1970")
+            .as_micros(),
+    )
+    .expect("the time fits");
+    let writer = "4545-1700000000000-0";
+    let long = format!("{:032x}", 0x5300);
+    let short = format!("{:032x}", 0x5301);
+    let mut lines = Vec::new();
+    let mut seq = 0_u64;
+    let mut line = |mut value: Value, trace: &str, at_us: u64| {
+        value["writer"] = json!(writer);
+        value["seq"] = json!(seq);
+        value["trace"] = json!(trace);
+        value["at_us"] = json!(at_us);
+        lines.push(value.to_string());
+        seq += 1;
+    };
+    let log = |message: &str| json!({ "kind": "log", "level": "info", "message": message, "fields": {}, "elided": false });
+    let long_start = now - 240 * HOUR_US;
+    let deleted_at = now - 216 * HOUR_US;
+    line(log("an old step"), &long, deleted_at);
+    line(log("a new step"), &long, now - 2 * HOUR_US);
+    line(
+        json!({ "kind": "run", "of": "command", "name": "run scripts/import.nvs",
+                "start_us": long_start, "duration_us": 239 * HOUR_US, "outcome": "ok" }),
+        &long,
+        now - HOUR_US,
+    );
+    let short_start = now - HOUR_US / 2;
+    line(log("a short step"), &short, short_start + 100);
+    line(
+        json!({ "kind": "run", "of": "schedule", "name": "nightly-report",
+                "start_us": short_start, "duration_us": 1_000, "outcome": "ok" }),
+        &short,
+        short_start + 1_000,
+    );
+    let text = lines.join("\n") + "\n";
+
+    let data = nvs_repo::scratch_private("nvsdata");
+    std::fs::write(data.join("nvs.toml"), "[debug]\nindex_age = \"7d\"\n")
+        .expect("the configuration is written");
+    let once = || {
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .current_dir(&*data)
+            .arg("--data")
+            .arg(&*data)
+            .arg("--no-init")
+            .args(["debug", "--once"])
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(
+            out.status.success(),
+            "`nvs debug --once` succeeds: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    once();
+    std::fs::write(data.join("debug").join("spool").join("1-1-0.0.spool"), text)
+        .expect("the spool is writable");
+    once();
+    let service = Service::start_on(data);
+
+    let run = service.json(&format!("/api/run?trace={long}"));
+    assert_eq!(run["cut_us"], json!(deleted_at), "{run}");
+    let messages: Vec<&str> = run["logs"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .filter_map(|log| log["message"].as_str())
+        .collect();
+    assert_eq!(messages, ["a new step"], "only the old record is deleted");
+
+    let run = service.json(&format!("/api/run?trace={short}"));
+    assert_eq!(run["cut_us"], Value::Null, "{run}");
+    assert_eq!(run["logs"].as_array().map(Vec::len), Some(1));
 }
 
 /// A one-pixel PNG, as base64.

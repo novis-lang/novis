@@ -34,9 +34,10 @@
 //!
 //! A `runs` row is a scheduled job, a queue job or a command run
 //! (`rule:testing/a-run-is-recorded-like-a-request`). The same three triggers keep its counts and
-//! summed durations as they keep a request's, each with one more indexed update by trace id, and
-//! the deletion window forgets it as it forgets a request. An `exceptions` row names its request
-//! or its run. Spends: per run row, what a request row spends, less its path, route and sizes.
+//! summed durations as they keep a request's, each with one more indexed update by trace id. The
+//! deletion window deletes a run's rows by their own time and the run row by its end. An
+//! `exceptions` row names its request or its run. Spends: per run row, what a request row spends,
+//! less its path, route and sizes, and one `runs_end` entry.
 //!
 //! An `events` row keeps the event's outcome, such as a cache read's hit and tier or an outbound
 //! call's status and sizes, as one JSON text, null where the line has none. The viewer draws it
@@ -58,20 +59,30 @@
 //!
 //! # The deletion window
 //!
-//! [`Index::forget`] first deletes what is past `[debug] index_age`: each request and run that
-//! started before it, with every row that names its trace id, then each row no request or run
-//! names by its own time, and an exception group once its last seen is. A row no owner names is
-//! one of a command run still going, whose run line is written when it ends, or one whose owner
-//! never arrived.
+//! Only a request deletes its rows with it. A run's rows are loose: each is deleted by its own
+//! time, as a row whose owner never arrived is, so a long run loses its oldest records first and
+//! keeps its newest. A run row is deleted by its end, `start_us + duration_us`, on the `runs_end`
+//! index, with its uncaught exception. Its end is not before any of its rows, so its rows go
+//! first and the row last.
+//!
+//! [`Index::forget`] first deletes what is past `[debug] index_age`: each request that started
+//! before it, with every row that names its trace id, and each run that ended before it. Then
+//! each row no request names, by its own time, and an exception group once its last seen is.
 //!
 //! Then, while the pages in use are past `[debug] index_max`, it deletes the oldest records in one
-//! time order, whether a request or run owns them or not. Each step compares the oldest request,
-//! the oldest run and each table's oldest row no owner names, and deletes one batch of the oldest
-//! of them up to the next oldest: a thousand requests or runs with their rows, or a thousand
-//! rows of one table, so a reader never waits on a long write. The order holds to within one
-//! batch of requests or runs, because an owner's rows are not before its start. Looking up a
-//! table's oldest row no owner names reads only the rows older than the oldest owner, so a step
-//! never reads the rows the owners keep.
+//! time order, whether a request owns them or not. Each step compares the oldest request by its
+//! start, the oldest run by its end and each table's oldest row no request names, and deletes one
+//! batch of the oldest of them up to the next oldest: a thousand requests with their rows, a
+//! thousand runs, or a thousand rows of one table, so a reader never waits on a long write. The
+//! order holds to within one batch of requests, because a request's rows are not before its
+//! start. Looking up a table's oldest row no request names reads only the rows older than the
+//! oldest request or run, so a step never reads the rows the requests keep.
+//!
+//! **The cut.** Each batch of rows deleted by their own time raises `meta`'s `cut_us` to the
+//! newest time it deleted, so `cut_us` is the newest record any time step deleted. `GET /api/run`
+//! gives it for a run that started at or before it, and the run page says that the run's records
+//! before that time were deleted. A rebuilt file has no cut until its first such batch. Spends:
+//! one `meta` write per batch of rows.
 //!
 //! # A discard keeps the numbers rising
 //!
@@ -95,12 +106,12 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 16;
+pub(crate) const SCHEMA: i64 = 17;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
 
-/// How many rows that no request or run names one deletion transaction removes from one table.
+/// How many rows that no request names one deletion transaction removes from one table.
 const FORGET_ROWS: i64 = 1000;
 
 /// The schema, written into a new file.
@@ -185,6 +196,7 @@ CREATE TABLE runs (
 CREATE UNIQUE INDEX runs_key ON runs (writer, seq);
 CREATE INDEX runs_trace ON runs (trace);
 CREATE INDEX runs_start ON runs (start_us);
+CREATE INDEX runs_end ON runs (start_us + duration_us);
 CREATE INDEX runs_name ON runs (of, name, start_us);
 
 CREATE TABLE inputs (
@@ -530,11 +542,33 @@ CREATE TRIGGER exceptions_search_out AFTER DELETE ON exceptions BEGIN
 END;
 ";
 
-/// The tables whose rows each own a trace id and start at a time: a request or a run. Each is
-/// forgotten by its start, with every row of [`BY_TRACE`] that names its trace id.
-const OWNERS: [&str; 2] = ["requests", "runs"];
+/// A table whose rows each have a trace id and are deleted in batches by one time.
+struct Owner {
+    /// The table.
+    table: &'static str,
+    /// The SQL expression of the time a row is deleted by. An index is on exactly this text.
+    time: &'static str,
+    /// The tables whose rows that name its trace id are deleted with it.
+    rows: &'static [&'static str],
+}
 
-/// The tables whose rows name a trace id, deleted with their request or run.
+/// A request, deleted by its start with every row of [`BY_TRACE`] that names its trace id, and a
+/// run, deleted by its end with its uncaught exception. Only a request owns its other rows: the
+/// rows of a run are deleted by their own time, as [`unowned`] says.
+static OWNERS: [Owner; 2] = [
+    Owner {
+        table: "requests",
+        time: "start_us",
+        rows: &BY_TRACE,
+    },
+    Owner {
+        table: "runs",
+        time: "start_us + duration_us",
+        rows: &["exceptions"],
+    },
+];
+
+/// The tables whose rows name a trace id, deleted with their request.
 const BY_TRACE: [&str; 10] = [
     "inputs",
     "body_parts",
@@ -548,7 +582,7 @@ const BY_TRACE: [&str; 10] = [
     "exceptions",
 ];
 
-/// The tables whose rows carry their own time, deleted by it when no request or run names them.
+/// The tables whose rows carry their own time, deleted by it when no request names them.
 /// A `quarantine` row is not one: it stays while its file fails, and goes once the file is read or
 /// is gone.
 const BY_TIME: [&str; 10] = [
@@ -687,10 +721,10 @@ impl Index {
     pub(crate) fn forget(&mut self, window: Window, now_us: u64) -> rusqlite::Result<Forgotten> {
         let cutoff = i64::try_from(now_us.saturating_sub(window.age_us)).unwrap_or(i64::MAX);
         let mut forgotten = Forgotten::default();
-        for owner in OWNERS {
+        for owner in &OWNERS {
             loop {
                 let deleted = self.forget_batch(owner, cutoff)?;
-                if owner == "requests" {
+                if owner.table == "requests" {
                     forgotten.requests += deleted;
                 }
                 if deleted == 0 {
@@ -707,7 +741,7 @@ impl Index {
             let deleted = match self.oldest()? {
                 Some((Oldest::Owner(owner), until)) => {
                     let deleted = self.forget_batch(owner, until)?;
-                    if owner == "requests" {
+                    if owner.table == "requests" {
                         forgotten.requests += deleted;
                     }
                     deleted
@@ -726,18 +760,24 @@ impl Index {
     /// deleted below: the next oldest kind's time plus one, so a tie still deletes. `None` when
     /// the index has no record left to delete.
     ///
-    /// A table's oldest row that no owner names is looked up only below the oldest owner's start,
-    /// so the lookup reads the rows older than every owner and never the rows the owners keep.
+    /// A table's oldest row that no request names is looked up only below the oldest request's
+    /// start and the oldest run's end, so the lookup reads the rows older than both and never the
+    /// rows the requests keep. A request is timed by its start and a run by its end, each on its
+    /// own index.
     fn oldest(&self) -> rusqlite::Result<Option<(Oldest, i64)>> {
         let mut heads: Vec<(i64, Oldest)> = Vec::with_capacity(OWNERS.len() + BY_TIME.len());
-        for owner in OWNERS {
-            let start: Option<i64> =
-                self.db
-                    .query_row(&format!("SELECT min(start_us) FROM {owner}"), [], |row| {
-                        row.get(0)
-                    })?;
-            if let Some(start) = start {
-                heads.push((start, Oldest::Owner(owner)));
+        for owner in &OWNERS {
+            let (table, time) = (owner.table, owner.time);
+            let at: Option<i64> = self
+                .db
+                .query_row(
+                    &format!("SELECT {time} FROM {table} ORDER BY {time} LIMIT 1"),
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(at) = at {
+                heads.push((at, Oldest::Owner(owner)));
             }
         }
         let below = heads
@@ -772,44 +812,62 @@ impl Index {
     }
 
     /// Deletes the [`FORGET_ROWS`] oldest rows of `table`, one of [`BY_TIME`], that are older than
-    /// `until` and that no request or run names, in one transaction. Returns how many it deleted.
+    /// `until` and that no request names, in one transaction. A table with a trace id raises
+    /// `meta`'s `cut_us` to the newest time it deleted: the module doc's *The cut*. Returns how
+    /// many it deleted.
     fn forget_rows(&mut self, table: &str, until: i64) -> rusqlite::Result<u64> {
-        let deleted = self.db.execute(
-            &format!(
+        let tx = self.db.transaction()?;
+        let mut deleted = 0_u64;
+        let mut newest: Option<i64> = None;
+        {
+            let mut statement = tx.prepare(&format!(
                 "DELETE FROM {table} WHERE rowid IN (SELECT rowid FROM {table} \
-                 WHERE at_us < ?1{} ORDER BY at_us LIMIT ?2)",
+                 WHERE at_us < ?1{} ORDER BY at_us LIMIT ?2) RETURNING at_us",
                 unowned(table)
-            ),
-            params![until, FORGET_ROWS],
-        )?;
-        Ok(u64::try_from(deleted).unwrap_or(u64::MAX))
+            ))?;
+            let mut rows = statement.query(params![until, FORGET_ROWS])?;
+            while let Some(row) = rows.next()? {
+                deleted += 1;
+                newest = newest.max(Some(row.get(0)?));
+            }
+        }
+        if let Some(newest) = newest.filter(|_| has_trace(table)) {
+            tx.execute(
+                "INSERT INTO meta (key, value) VALUES ('cut_us', ?1) \
+                 ON CONFLICT (key) DO UPDATE SET value = max(value, excluded.value)",
+                [newest],
+            )?;
+        }
+        tx.commit()?;
+        Ok(deleted)
     }
 
-    /// Deletes the [`FORGET_BATCH`] oldest rows of `owner`, one of [`OWNERS`], that started before
-    /// `cutoff`, with every row that names their trace ids, in one transaction. Answers how many
-    /// it deleted.
-    fn forget_batch(&mut self, owner: &str, cutoff: i64) -> rusqlite::Result<u64> {
+    /// Deletes the [`FORGET_BATCH`] oldest rows of `owner` whose time is before `cutoff`, with
+    /// the rows of its `rows` tables that name their trace ids, in one transaction. Answers how
+    /// many it deleted.
+    fn forget_batch(&mut self, owner: &Owner, cutoff: i64) -> rusqlite::Result<u64> {
+        let (table, time) = (owner.table, owner.time);
         let tx = self.db.transaction()?;
         tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS doomed (id INTEGER, trace TEXT)")?;
         tx.execute("DELETE FROM temp.doomed", [])?;
         let picked = tx.execute(
             &format!(
                 "INSERT INTO temp.doomed (id, trace) \
-                 SELECT id, trace FROM {owner} WHERE start_us < ?1 ORDER BY start_us LIMIT ?2"
+                 SELECT id, trace FROM {table} WHERE {time} < ?1 ORDER BY {time} LIMIT ?2"
             ),
             params![cutoff, FORGET_BATCH],
         )?;
         if picked == 0 {
             return Ok(0);
         }
-        for table in BY_TRACE {
+        for named in owner.rows {
             tx.execute(
-                &format!("DELETE FROM {table} WHERE trace IN (SELECT trace FROM temp.doomed)"),
+                &format!("DELETE FROM {named} WHERE trace IN (SELECT trace FROM temp.doomed)"),
                 [],
             )?;
         }
         tx.execute(
-            &format!("DELETE FROM {owner} WHERE id IN (SELECT id FROM temp.doomed)"),
+            &format!("DELETE FROM {table} WHERE id IN (SELECT id FROM temp.doomed)"),
             [],
         )?;
         tx.execute("DELETE FROM temp.doomed", [])?;
@@ -830,11 +888,11 @@ impl Index {
 }
 
 /// What [`Index::oldest`] found oldest.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum Oldest {
-    /// The oldest request or run, in a table of [`OWNERS`].
-    Owner(&'static str),
-    /// The oldest row that no request or run names, in a table of [`BY_TIME`].
+    /// The oldest request by its start, or the oldest run by its end.
+    Owner(&'static Owner),
+    /// The oldest row that no request names, in a table of [`BY_TIME`].
     Unowned(&'static str),
 }
 
@@ -843,15 +901,13 @@ fn has_trace(table: &str) -> bool {
     !matches!(table, "dropped" | "unparseable")
 }
 
-/// The condition that no request or run names a row of `table`, one of [`BY_TIME`], as an
-/// ` AND …` to append to a `WHERE`. A table without a `trace` column has no owner, so it adds
-/// nothing. Each test is one lookup on the owner's `trace` index.
+/// The condition that no request names a row of `table`, one of [`BY_TIME`], as an ` AND …` to
+/// append to a `WHERE`. A run's rows are not tested, because each is deleted by its own time. A
+/// table without a `trace` column has no owner, so it adds nothing. The test is one lookup on the
+/// `requests_trace` index.
 fn unowned(table: &str) -> String {
     if has_trace(table) {
-        format!(
-            " AND NOT EXISTS (SELECT 1 FROM requests WHERE requests.trace = {table}.trace) \
-             AND NOT EXISTS (SELECT 1 FROM runs WHERE runs.trace = {table}.trace)"
-        )
+        format!(" AND NOT EXISTS (SELECT 1 FROM requests WHERE requests.trace = {table}.trace)")
     } else {
         String::new()
     }

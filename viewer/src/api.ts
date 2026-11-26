@@ -157,6 +157,8 @@ export interface RunFilter {
 export interface RunDetail extends Records {
   watermark: number;
   run: RunRow;
+  /** The newest time the index deleted records at, when the run started at or before it, so its records before that time may be gone. */
+  cut_us: number | null;
 }
 
 /** One page of the run list. */

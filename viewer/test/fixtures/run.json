@@ -4,6 +4,7 @@
     "events": false,
     "logs": false
   },
+  "cut_us": null,
   "dumps": [
     {
       "at_us": 1700000060000500,
