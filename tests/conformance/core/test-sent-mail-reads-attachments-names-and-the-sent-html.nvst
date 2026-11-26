@@ -1,0 +1,88 @@
+--TEST--
+`Core\Test\SentMail` reads every part `Core\Mail::send` now takes: the message id it returned, the sender's name, the attachments, the thread headers, the unsubscribe link, `Auto-Submitted`, the bounce tag, and the HTML as sent with its CSS inlined — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test\SentMail::messageId, Core\Test\SentMail::fromName, Core\Test\SentMail::attachments
+// covers: Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references, Core\Test\SentMail::unsubscribe
+// covers: Core\Test\SentMail::autoSubmitted, Core\Test\SentMail::bounceTag, Core\Test\SentMail::html
+// covers: Core\Mail\Attachment::name, Core\Mail\Attachment::type, Core\Mail\Attachment::bytes, Core\Mail\Attachment::isInline
+// covers: Core\Mail::send
+use Core\Test;
+
+final class ReceiptTest {
+    #[Test]
+    public function everyNewPartIsReadBack(): void {
+        Core\Mail\Attachment $logo = Core\Mail\Attachment::inlineBytes("logo.png", "pixel", {type: "image/png"});
+        Core\Mail\Attachment $csv = Core\Mail\Attachment::fromBytes("receipt.csv", "day,total\n", {type: "text/csv"});
+        string $id = Core\Mail::send(
+            "site",
+            ["ada@example.com"],
+            "Your receipt",
+            html`<html><head><style>p { color: #333 }</style></head><body><p>Thank you.</p><img src="{$logo->src()}" alt="Shop"></body></html>`,
+            {
+                fromName: "Shop",
+                attachments: [$logo, $csv],
+                inReplyTo: "0a1b@example.com",
+                references: ["09ff@example.com", "0a1b@example.com"],
+                unsubscribe: "https://example.com/unsubscribe/7",
+                bounceTag: "order-7"
+            }
+        );
+        Core\Mail::send("site", ["bo@example.com"], "A note", "Written by a person.", {autoSubmitted: false});
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertCount($sent, 2);
+        Core\Test\SentMail $receipt = $sent[0];
+
+        // `send` returns the id it wrote, and the test reads the same id.
+        Test::assertSame($receipt->messageId(), $id);
+        Test::assertSame($receipt->fromName(), "Shop");
+        Test::assertSame($receipt->inReplyTo(), "0a1b@example.com");
+        Test::assertEquals($receipt->references(), ["09ff@example.com", "0a1b@example.com"]);
+        Test::assertSame($receipt->unsubscribe(), "https://example.com/unsubscribe/7");
+        Test::assertTrue($receipt->autoSubmitted());
+        Test::assertSame($receipt->bounceTag(), "order-7");
+
+        // `html()` returns the HTML as sent. The `p` rule is now in the element's `style` attribute.
+        Test::assertTrue(Core\Str::contains($receipt->html() ?? "", "<p style=\"color: #333;\">Thank you.</p>"));
+        Test::assertTrue(Core\Str::contains($receipt->text(), "Thank you."));
+
+        // The attachments, in the order given.
+        array<Core\Mail\Attachment> $parts = $receipt->attachments();
+        Test::assertCount($parts, 2);
+        Test::assertSame($parts[0]->name(), "logo.png");
+        Test::assertSame($parts[0]->type(), "image/png");
+        Test::assertTrue($parts[0]->isInline());
+        Test::assertSame($parts[1]->name(), "receipt.csv");
+        Test::assertSame($parts[1]->type(), "text/csv");
+        Test::assertSame(Core\Encoding::toHex($parts[1]->bytes()), "6461792c746f74616c0a");
+        Test::assertTrue(!$parts[1]->isInline());
+
+        // The second message set none of these parts.
+        Core\Test\SentMail $note = $sent[1];
+        Test::assertNull($note->fromName());
+        Test::assertNull($note->inReplyTo());
+        Test::assertEquals($note->references(), []);
+        Test::assertNull($note->unsubscribe());
+        Test::assertTrue(!$note->autoSubmitted());
+        Test::assertNull($note->bounceTag());
+        Test::assertCount($note->attachments(), 0);
+        Test::assertNull($note->html());
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  ReceiptTest
+    ✓ everyNewPartIsReadBack           %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms
