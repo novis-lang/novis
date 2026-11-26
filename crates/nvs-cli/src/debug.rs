@@ -179,7 +179,7 @@ impl Args {
                 return ExitCode::FAILURE;
             }
         };
-        let lock_path = folder.debug().join("service.lock");
+        let lock_path = folder.service_lock();
         let _lock = match lock(&lock_path) {
             Ok(Some(lock)) => lock,
             Ok(None) if self.parent => return ExitCode::SUCCESS,
@@ -571,7 +571,7 @@ fn quarantined(index: &Index, now: Instant) -> rusqlite::Result<HashMap<PathBuf,
 
 /// The lock on `path`, or `None` when another process holds it. A taken lock is tried
 /// [`LOCK_TRIES`] times, [`LOCK_PAUSE`] apart, because `nvs debug link` and the language server
-/// take it for an instant to learn whether a service runs ([`probe`]).
+/// take it for an instant to learn whether a service runs ([`nvs_config::viewer::probe`]).
 fn lock(path: &Path) -> std::io::Result<Option<File>> {
     let file = OpenOptions::new()
         .create(true)
@@ -595,23 +595,10 @@ fn lock(path: &Path) -> std::io::Result<Option<File>> {
 /// How often [`lock`] tries a taken lock.
 const LOCK_TRIES: u32 = 5;
 
-/// The pause between two of [`lock`]'s tries, far longer than a [`probe`] holds the lock.
+/// The pause between two of [`lock`]'s tries, far longer than a [`nvs_config::viewer::probe`] holds
+/// the lock.
 const LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 
-/// Whether a service holds the lock at `path`. The probe takes the lock and lets it go at once.
-/// No lock file means no service ever ran there.
-pub(crate) fn probe(path: &Path) -> std::io::Result<bool> {
-    let file = match OpenOptions::new().write(true).open(path) {
-        Ok(file) => file,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(err) => return Err(err),
-    };
-    match file.try_lock() {
-        Ok(()) => Ok(false),
-        Err(TryLockError::WouldBlock) => Ok(true),
-        Err(TryLockError::Error(err)) => Err(err),
-    }
-}
 
 /// `[debug] index_age` and `index_max`, then `listen` and the three files it serves with off
 /// loopback, and `[debug] store`, from the working directory's configuration.

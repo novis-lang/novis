@@ -107,6 +107,7 @@ pub mod store;
 pub mod tree;
 pub mod trust;
 pub mod value;
+pub mod viewer;
 
 pub use capability::{Cap, Scope};
 pub use directive::{Apply, DIRECTIVES, Directive};

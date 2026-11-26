@@ -1,5 +1,5 @@
 `nvs lsp` answers twenty-two standard requests, the code actions of
-`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` and organize imports, and seven
+`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` and organize imports, and eight
 requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
 answer. `crates/nvs-lsp/tests/handshake.rs` holds the declared capabilities to exactly that list, and a
@@ -169,6 +169,12 @@ nothing new built: the index already reads every file it lists, and the kind is 
 own scan, recorded once per file as the index reads it. It is non-standard because LSP has no shape for
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
+
+The eighth is `nvs/debugViewer` (`rule:ide/the-debug-viewer-opens-from-one-button`), and it passes the
+test with nothing new built: its answer is `nvs debug link --json`'s, made from the configuration tree
+the server already reads for the query lens and the token and lock `nvs_config::viewer` holds for both
+binaries. It is non-standard because LSP has no shape for a local page an editor frames. It has no
+`.lspt` vocabulary, and `crates/nvs-lsp/tests/handshake.rs` and the module's own tests hold it.
 
 **Declined:**
 - **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is

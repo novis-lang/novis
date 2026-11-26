@@ -105,6 +105,7 @@ mod case;
 pub mod completion;
 pub mod completion_files;
 pub mod coverage;
+pub mod debug_viewer;
 pub mod definition;
 pub mod diagnostics;
 pub mod directives;

@@ -51,6 +51,9 @@ nvs-diagnostics.workspace = true
 # tests when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
 nvs-render.workspace = true
+# The debug viewer's token, 32 bytes from the thread's CSPRNG (`src/viewer.rs`). It is the one
+# CSPRNG the tree has, and `nvs-cli` and `nvs-stdlib` already link it.
+rand.workspace = true
 serde.workspace = true
 toml.workspace = true
 

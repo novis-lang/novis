@@ -586,6 +586,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             show_locations: false,
             run_tests: false,
             open: false,
+            open_viewer: false,
             refresh_lenses: false,
             refresh_hints: false,
             rename_files: false,
@@ -597,6 +598,43 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
         Client::default(),
         "a client that said nothing gets plain text and no command"
     );
+}
+
+#[test]
+fn the_debug_viewer_request_is_answered_and_names_the_two_links() {
+    // `rule:ide/the-debug-viewer-opens-from-one-button`: `nvs/debugViewer` is
+    // on the closed request set, so it never gets `MethodNotFound`. Its answer
+    // is `nvs debug link --json`'s, or a message when the data folder cannot be
+    // used here.
+    let sent = serve_queued(
+        InitializeParams::default(),
+        vec![Message::Request(Request::new(
+            RequestId::from(7),
+            "nvs/debugViewer".to_owned(),
+            serde_json::json!({}),
+        ))],
+    );
+    let answer = sent
+        .iter()
+        .find_map(|message| match message {
+            Message::Response(response) if response.id == RequestId::from(7) => Some(response),
+            _ => None,
+        })
+        .expect("`nvs/debugViewer` is answered");
+    match &answer.response_result {
+        Ok(result) => {
+            let embed = result["embed"].as_str().expect("the answer names `embed`");
+            assert!(embed.contains("/embed/"), "{embed}");
+            assert!(result["url"].as_str().is_some_and(|url| url.contains("?token=")));
+            assert!(result["running"].is_boolean() && result["recording"].is_boolean());
+        }
+        Err(error) => assert_eq!(
+            error.code,
+            lsp_server::ErrorCode::RequestFailed as i32,
+            "{}",
+            error.message
+        ),
+    }
 }
 
 #[test]

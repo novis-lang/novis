@@ -144,6 +144,10 @@ pub struct Client {
     /// The client runs [`Client::OPEN`], so a query lens may open the
     /// request it describes in the debug viewer.
     pub open: bool,
+    /// The client runs [`Client::OPEN_VIEWER`], so a query or copy lens opens
+    /// its request in the editor's own debug viewer, and [`Client::OPEN`] is
+    /// not needed.
+    pub open_viewer: bool,
     /// `workspace.codeLens.refreshSupport`: the server may ask the client to
     /// fetch its lenses again, which a changed setting does.
     pub refresh_lenses: bool,
@@ -177,6 +181,11 @@ impl Client {
     /// with the viewer's page for the request it describes. VS Code opens an
     /// `http` URI in the browser.
     pub const OPEN: &'static str = "vscode.open";
+    /// The client's command that opens the debug viewer at a path such as
+    /// `/requests/<trace>/<span>`, in the panel or the browser its setting
+    /// names (`rule:ide/the-debug-viewer-opens-from-one-button`). An open
+    /// panel moves to the path, so a second click opens no second panel.
+    pub const OPEN_VIEWER: &'static str = "nvs.openDebugViewer";
 
     /// What `params` declared.
     fn from_initialize(params: &InitializeParams) -> Self {
@@ -199,6 +208,7 @@ impl Client {
             show_locations: names(Self::SHOW_LOCATIONS),
             run_tests: names(Self::RUN_TESTS),
             open: names(Self::OPEN),
+            open_viewer: names(Self::OPEN_VIEWER),
             refresh_lenses: capabilities
                 .workspace
                 .as_ref()

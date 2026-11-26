@@ -303,6 +303,13 @@ impl Folder {
         ["viewer.crt", "viewer.key", "viewer.token"].map(|name| debug.join(name))
     }
 
+    /// `debug/service.lock`: the lock the one `nvs debug` of this folder holds while it runs, which
+    /// [`crate::viewer::probe`] reads.
+    #[must_use]
+    pub fn service_lock(&self) -> PathBuf {
+        self.debug().join("service.lock")
+    }
+
     /// Creates [`Folder::debug`] and [`Folder::spool`] privately, checks the folder, `debug/` and
     /// `debug/spool/` as [`Folder::prepare`] checks the folder, and answers the spool's canonical
     /// path. [`Folder::prepare`] does not create them, because only a run with `[debug] store` on

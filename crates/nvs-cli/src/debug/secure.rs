@@ -9,7 +9,7 @@
 //! data folder's private `debug/` directory ([`nvs_config::data::Folder::viewer_secrets`]) and kept,
 //! so a restart serves the same link and a browser keeps the exception it made for the
 //! certificate. The certificate is self-signed with `rcgen` for `localhost` and the bound address,
-//! and the token is 32 bytes from the thread's CSPRNG, written as hex.
+//! and the token is [`nvs_config::viewer::token`]'s.
 //!
 //! **What it spends:** one token file the first time the service runs, one certificate generation
 //! the first time it runs off loopback, and the configuration and token for the service's life.
@@ -19,7 +19,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use rand::RngExt;
+use nvs_config::viewer::write_private;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
@@ -97,37 +97,12 @@ impl Secure {
     }
 }
 
-/// The token `[debug] token_file` names, or the generated file `own`, created here the first time.
-/// `nvs debug link` reads it the same way, so the link it prints is the one the service admits.
+/// The token `[debug] token_file` names, or the generated file `own`, created the first time
+/// ([`nvs_config::viewer::token`]). A named file that does not exist is a warning here.
+/// `nvs debug link` and the language server read it the same way, so every link is the one the
+/// service admits.
 pub(crate) fn token(listen: &Listen, own: &Path) -> Result<String, String> {
-    let path = match given(listen.token.as_deref()) {
-        Some(path) => path,
-        None => {
-            if !own.exists() {
-                let bytes: [u8; 32] = rand::rng().random();
-                let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-                write_private(own, hex.as_bytes())?;
-            }
-            own.to_owned()
-        }
-    };
-    let token = std::fs::read_to_string(&path)
-        .map_err(|err| format!("cannot read `{}`: {err}", path.display()))?
-        .trim()
-        .to_owned();
-    // These characters go into a link, a cookie and a path segment as they are.
-    if token.len() < 16
-        || !token
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~'))
-    {
-        return Err(
-            "the debug viewer's token must be at least 16 characters, each a letter, \
-             a digit, `-`, `_`, `.` or `~`"
-                .to_owned(),
-        );
-    }
-    Ok(token)
+    nvs_config::viewer::token(given(listen.token.as_deref()).as_deref(), own)
 }
 
 /// `path` when it is set and its file exists. A set path whose file does not exist is a warning,
@@ -156,19 +131,6 @@ fn generate(cert: &Path, key: &Path, ip: IpAddr) -> Result<(), String> {
     write_private(cert, made.cert.pem().as_bytes())
 }
 
-/// Writes `bytes` to `path`, readable by this account alone on Unix. On Windows the file inherits
-/// `debug/`'s private access list.
-fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write as _;
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    options
-        .open(path)
-        .and_then(|mut file| file.write_all(bytes))
-        .map_err(|err| format!("cannot write `{}`: {err}", path.display()))
-}
 
 /// The server configuration for the certificate chain in `cert` and the key in `key`.
 fn config(cert: &Path, key: &Path) -> Result<rustls::ServerConfig, String> {

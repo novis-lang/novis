@@ -42,6 +42,7 @@ const EDITOR: Client = Client {
     show_locations: false,
     run_tests: false,
     open: false,
+    open_viewer: false,
     refresh_lenses: false,
     refresh_hints: false,
     rename_files: false,

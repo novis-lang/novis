@@ -102,30 +102,15 @@ pub(crate) const CSP_EMBED: &str = "default-src 'none'; script-src 'self'; style
 img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; \
 frame-ancestors vscode-webview:";
 
-/// The start of every path an editor frames: `/embed/<token>/` and then the path the viewer would
-/// have without it.
-const EMBED: &str = "/embed/";
+// The start of every path an editor frames: `/embed/<token>/` and then the path the viewer would
+// have without it.
+use nvs_config::viewer::EMBED;
 
 /// [`PAGE`] with `base` in front of the paths of its two files.
 fn page(base: &str) -> String {
     PAGE.replace("\"/viewer.", &format!("\"{base}/viewer."))
 }
 
-/// The link `nvs debug` prints for `addr` and `token`, and the link an editor frames. Off loopback
-/// the scheme is `https`, and an unspecified address is named `localhost`.
-pub(crate) fn links(addr: SocketAddr, token: &str) -> (String, String) {
-    let origin = if addr.ip().is_loopback() {
-        format!("http://{addr}")
-    } else if addr.ip().is_unspecified() {
-        format!("https://localhost:{}", addr.port())
-    } else {
-        format!("https://{addr}")
-    };
-    (
-        format!("{origin}/?token={token}"),
-        format!("{origin}{EMBED}{token}/"),
-    )
-}
 
 /// The address and files `[debug]` names, with `--listen` already applied.
 pub(crate) struct Listen {
@@ -167,7 +152,7 @@ pub(crate) fn start(
     let api = Api::open(&index, signal)
         .map_err(|err| format!("the debug viewer cannot read `{}`: {err}", index.display()))?;
     let secure = Secure::load(listen, folder, addr)?;
-    let (link, _) = links(addr, secure.token());
+    let (link, _) = nvs_config::viewer::links(addr, secure.token());
     let embed_page = Bytes::from(page(&format!("{EMBED}{}", secure.token())));
     let site = Arc::new(Site {
         addr,

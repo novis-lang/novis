@@ -19,8 +19,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use super::listen;
-
 /// Print the link to the debug viewer.
 ///
 /// The link contains the token that opens the viewer. This command starts nothing. It reads the
@@ -87,15 +85,15 @@ impl Args {
                 return ExitCode::FAILURE;
             }
         };
-        let lock_path = folder.debug().join("service.lock");
-        let running = match super::probe(&lock_path) {
+        let lock_path = folder.service_lock();
+        let running = match nvs_config::viewer::probe(&lock_path) {
             Ok(running) => running,
             Err(err) => {
                 eprintln!("error: cannot read `{}`: {err}", lock_path.display());
                 return ExitCode::FAILURE;
             }
         };
-        let (url, embed) = listen::links(addr, &token);
+        let (url, embed) = nvs_config::viewer::links(addr, &token);
         if self.json {
             let out = serde_json::json!({
                 "url": url,

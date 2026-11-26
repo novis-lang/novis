@@ -128,6 +128,7 @@ use crate::capabilities::initialize_result;
 use crate::card;
 use crate::completion;
 use crate::completion_files::{self, CompletionFiles, Finding, Reload};
+use crate::debug_viewer;
 use crate::definition;
 use crate::diagnostics::{Phases, SOURCE, dimming, for_document};
 use crate::directives;
@@ -1302,6 +1303,13 @@ fn answer(
             Err(error) => unreadable(id, &method, &error),
         },
         file_kinds::METHOD => Response::new_ok(id, file_kinds::answer(index)),
+        debug_viewer::METHOD => match debug_viewer::Params::from_value(params) {
+            Ok(params) => match debug_viewer::answer_here(&params, settings.root.as_deref()) {
+                Ok(answer) => Response::new_ok(id, answer),
+                Err(message) => refused(id, message),
+            },
+            Err(error) => unreadable(id, &method, &error),
+        },
         directives::METHOD => match directives::Params::from_value(params) {
             Ok(params) => Response::new_ok(
                 id,
@@ -2300,25 +2308,14 @@ fn copy_lenses(
             let start = start + nvs_diagnostics::BytePos::try_from(lead).ok()?;
             let end = start + nvs_diagnostics::BytePos::try_from(line.trim().len()).ok()?;
             let title = recorded::copies_title(&copied);
-            let command = if settings.client.open {
-                let (listen, tls) = viewer.get_or_insert_with(|| viewer_of(path));
-                Command {
-                    title,
-                    command: Client::OPEN.to_owned(),
-                    arguments: Some(vec![serde_json::json!(recorded::viewer_url(
-                        listen,
-                        *tls,
-                        &copied.trace,
-                        copied.span.as_deref()
-                    ))]),
-                }
-            } else {
-                Command {
-                    title,
-                    command: String::new(),
-                    arguments: None,
-                }
-            };
+            let command = open_request(
+                settings,
+                path,
+                &mut viewer,
+                title,
+                &copied.trace,
+                copied.span.as_deref(),
+            );
             Some(CodeLens {
                 range: range_of(file, start, end, encoding),
                 command: Some(command),
@@ -2397,25 +2394,14 @@ fn query_lenses(
             let line = file.line_col(start).0 + 1;
             let ran = recorded::at_site(&db, settings.root.as_deref(), path, line, &hash)?;
             let title = recorded::title(&ran);
-            let command = if settings.client.open {
-                let (listen, tls) = viewer.get_or_insert_with(|| viewer_of(path));
-                Command {
-                    title,
-                    command: Client::OPEN.to_owned(),
-                    arguments: Some(vec![serde_json::json!(recorded::viewer_url(
-                        listen,
-                        *tls,
-                        &ran.trace,
-                        ran.span.as_deref()
-                    ))]),
-                }
-            } else {
-                Command {
-                    title,
-                    command: String::new(),
-                    arguments: None,
-                }
-            };
+            let command = open_request(
+                settings,
+                path,
+                &mut viewer,
+                title,
+                &ran.trace,
+                ran.span.as_deref(),
+            );
             Some(CodeLens {
                 range: range_of(file, start, end, encoding),
                 command: Some(command),
@@ -2423,6 +2409,50 @@ fn query_lenses(
             })
         })
         .collect()
+}
+
+/// The command a recorded lens titled `title` runs to open the request `trace`
+/// and `span` in the viewer.
+///
+/// A client that runs [`Client::OPEN_VIEWER`] gets it with the viewer's path,
+/// and opens the page itself. A client that runs only [`Client::OPEN`] gets the
+/// page's address at the `[debug] listen` of the program's tree ([`viewer_of`]),
+/// read once per answer into `viewer`. Any other client gets a lens with no
+/// command.
+fn open_request(
+    settings: &Settings,
+    path: &Path,
+    viewer: &mut Option<(String, bool)>,
+    title: String,
+    trace: &str,
+    span: Option<&str>,
+) -> Command {
+    if settings.client.open_viewer {
+        let page = match span {
+            Some(span) => format!("/requests/{trace}/{span}"),
+            None => format!("/requests/{trace}"),
+        };
+        return Command {
+            title,
+            command: Client::OPEN_VIEWER.to_owned(),
+            arguments: Some(vec![serde_json::json!(page)]),
+        };
+    }
+    if settings.client.open {
+        let (listen, tls) = viewer.get_or_insert_with(|| viewer_of(path));
+        return Command {
+            title,
+            command: Client::OPEN.to_owned(),
+            arguments: Some(vec![serde_json::json!(recorded::viewer_url(
+                listen, *tls, trace, span
+            ))]),
+        };
+    }
+    Command {
+        title,
+        command: String::new(),
+        arguments: None,
+    }
 }
 
 /// The address `nvs debug` serves the viewer on for the program `path` is in,
