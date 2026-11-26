@@ -625,7 +625,11 @@ fn the_debug_viewer_request_is_answered_and_names_the_two_links() {
         Ok(result) => {
             let embed = result["embed"].as_str().expect("the answer names `embed`");
             assert!(embed.contains("/embed/"), "{embed}");
-            assert!(result["url"].as_str().is_some_and(|url| url.contains("?token=")));
+            assert!(
+                result["url"]
+                    .as_str()
+                    .is_some_and(|url| url.contains("?token="))
+            );
             assert!(result["running"].is_boolean() && result["recording"].is_boolean());
         }
         Err(error) => assert_eq!(

@@ -111,7 +111,6 @@ fn page(base: &str) -> String {
     PAGE.replace("\"/viewer.", &format!("\"{base}/viewer."))
 }
 
-
 /// The address and files `[debug]` names, with `--listen` already applied.
 pub(crate) struct Listen {
     /// `[debug] listen`, as written.

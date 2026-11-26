@@ -21,7 +21,7 @@ const PANEL = "vscode-webview://0a1b2c3d";
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="${BASE}/viewer.css"></head>
 <body><div id="app"></div><script type="module" src="${BASE}/viewer.js"></script></body></html>`;
 
-const DETAIL = detailFixture as RequestDetail;
+const DETAIL = detailFixture as unknown as RequestDetail;
 const LIST = listFixture as RequestPage;
 const { trace: TRACE, span: SPAN } = DETAIL.request;
 

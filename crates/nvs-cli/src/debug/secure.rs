@@ -131,7 +131,6 @@ fn generate(cert: &Path, key: &Path, ip: IpAddr) -> Result<(), String> {
     write_private(cert, made.cert.pem().as_bytes())
 }
 
-
 /// The server configuration for the certificate chain in `cert` and the key in `key`.
 fn config(cert: &Path, key: &Path) -> Result<rustls::ServerConfig, String> {
     let chain = CertificateDer::pem_file_iter(cert)

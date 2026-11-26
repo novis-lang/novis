@@ -455,8 +455,8 @@ pub const DUMP_WIDTH: usize = 80;
 #[must_use]
 pub fn dumps_in(db: &Connection, root: Option<&Path>, file: &Path, since_us: i64) -> Vec<Dumped> {
     let key = canonical_key(file);
-    let Ok(mut statement) =
-        db.prepare_cached("SELECT id, file, line, at_us, trace FROM dumps ORDER BY id DESC LIMIT ?1")
+    let Ok(mut statement) = db
+        .prepare_cached("SELECT id, file, line, at_us, trace FROM dumps ORDER BY id DESC LIMIT ?1")
     else {
         return Vec::new();
     };
@@ -822,7 +822,10 @@ mod tests {
             route_title(&ran, AT + 3 * 60 * SECOND),
             "3 requests, p50 2.0 ms, last 503 2 min ago"
         );
-        assert_eq!(route_page("GET", "/items/{id}"), "/?method=GET&route=%2Fitems%2F%7Bid%7D");
+        assert_eq!(
+            route_page("GET", "/items/{id}"),
+            "/?method=GET&route=%2Fitems%2F%7Bid%7D"
+        );
         let one = route(&db, "POST", "/items").expect("the route has a request");
         assert_eq!(route_title(&one, AT), "1 request, p50 9.0 ms");
         assert_eq!(route(&db, "DELETE", "/items/{id}"), None);
@@ -910,6 +913,9 @@ mod tests {
         let line = one_line(&tree, DUMP_WIDTH);
         assert_eq!(line.chars().count(), DUMP_WIDTH);
         assert!(line.ends_with('…'));
-        assert_eq!(one_line(&serde_json::json!({ "$elided": {"cut": "depth"} }), 80), "…");
+        assert_eq!(
+            one_line(&serde_json::json!({ "$elided": {"cut": "depth"} }), 80),
+            "…"
+        );
     }
 }

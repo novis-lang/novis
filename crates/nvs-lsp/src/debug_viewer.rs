@@ -124,13 +124,18 @@ pub fn answer(read: &Read, folder: &nvs_config::data::Folder) -> Result<Answer, 
         ));
     };
     if addr.port() == 0 {
-        return Err("`[debug] listen` has the port `0`, so `nvs debug` picks a port when it \
+        return Err(
+            "`[debug] listen` has the port `0`, so `nvs debug` picks a port when it \
                     starts. Open the link that `nvs debug` printed."
-            .to_owned());
+                .to_owned(),
+        );
     }
-    folder
-        .prepare_spool()
-        .map_err(|unusable| format!("The debug viewer cannot use the data folder: {}", unusable.reason()))?;
+    folder.prepare_spool().map_err(|unusable| {
+        format!(
+            "The debug viewer cannot use the data folder: {}",
+            unusable.reason()
+        )
+    })?;
     let [_, _, own_token] = folder.viewer_secrets();
     let token = nvs_config::viewer::token(read.token_file.as_deref(), &own_token)?;
     let lock = folder.service_lock();
@@ -151,8 +156,9 @@ pub fn answer(read: &Read, folder: &nvs_config::data::Folder) -> Result<Answer, 
 ///
 /// [`answer`]'s, and when there is no data folder.
 pub fn answer_here(params: &Params, root: Option<&Path>) -> Result<Answer, String> {
-    let folder = nvs_config::data::current()
-        .ok_or_else(|| "The debug viewer needs a data folder, and Novis cannot use one.".to_owned())?;
+    let folder = nvs_config::data::current().ok_or_else(|| {
+        "The debug viewer needs a data folder, and Novis cannot use one.".to_owned()
+    })?;
     answer(&read(params, root), folder)
 }
 
@@ -171,8 +177,14 @@ mod tests {
         };
         let first = answer(&read, &folder).expect("a new folder gives an answer");
         let token = std::fs::read_to_string(folder.viewer_secrets()[2].clone()).unwrap();
-        assert_eq!(first.url, format!("http://127.0.0.1:8137/?token={}", token.trim()));
-        assert_eq!(first.embed, format!("http://127.0.0.1:8137/embed/{}/", token.trim()));
+        assert_eq!(
+            first.url,
+            format!("http://127.0.0.1:8137/?token={}", token.trim())
+        );
+        assert_eq!(
+            first.embed,
+            format!("http://127.0.0.1:8137/embed/{}/", token.trim())
+        );
         assert!(!first.running);
         assert!(first.recording);
         assert_eq!(answer(&read, &folder), Ok(first), "the token is kept");
@@ -185,8 +197,14 @@ mod tests {
 
     #[test]
     fn params_name_a_document_by_its_uri_or_name_none() {
-        assert_eq!(Params::from_value(serde_json::Value::Null).unwrap(), Params::default());
-        assert_eq!(Params::from_value(serde_json::json!({})).unwrap(), Params::default());
+        assert_eq!(
+            Params::from_value(serde_json::Value::Null).unwrap(),
+            Params::default()
+        );
+        assert_eq!(
+            Params::from_value(serde_json::json!({})).unwrap(),
+            Params::default()
+        );
         assert!(Params::from_value(serde_json::json!(3)).is_err());
     }
 }

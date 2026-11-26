@@ -599,7 +599,6 @@ const LOCK_TRIES: u32 = 5;
 /// the lock.
 const LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
 
-
 /// `[debug] index_age` and `index_max`, then `listen` and the three files it serves with off
 /// loopback, and `[debug] store`, from the working directory's configuration.
 fn settings(config: &[PathBuf]) -> Result<(Window, Listen, bool), ExitCode> {

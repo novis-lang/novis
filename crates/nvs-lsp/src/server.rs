@@ -2432,7 +2432,9 @@ fn saved_at(path: &Path, text: &str) -> Option<i64> {
 fn now_us() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| i64::try_from(since.as_micros()).unwrap_or(i64::MAX))
+        .map_or(0, |since| {
+            i64::try_from(since.as_micros()).unwrap_or(i64::MAX)
+        })
 }
 
 /// `textDocument/codeLens`: [`code_lens`]'s answer, with its rows held in
