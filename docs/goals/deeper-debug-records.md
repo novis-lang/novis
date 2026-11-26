@@ -210,7 +210,19 @@ writes its line inside the program task, after the exit hooks and the session's 
 not in `sealed`, because only the task still holds the context and the uncaught throw. An `exit`
 with code `0` is `ok`. `nvs_schedule_runs_total` is declared but never counted in the tree, so
 the scheduled writer sits beside `Fires::ran` instead. A run is forgotten by its start, as a
-request is, with every row of its trace.
+request is, with every row of its trace. `nvs test` of a program's `#[Test]` methods writes one
+line per invocation where its suite returns, named `test` and the entry file, and a `.nvst` tree
+writes none of its own, because each case is an `nvs` process that writes its own. A failed test
+is no uncaught exception, so that line carries none.
+
+**Stage 6 settled the runs API.** `GET /api/runs` and `GET /api/run?trace=` live in
+`crates/nvs-cli/src/debug/runs.rs`, beside the request routes, because `api.rs` is already past
+1,300 lines. A run is opened by its trace id alone: a run draws its own trace, so every record of
+that trace is its own, and the newest run of a trace is given. The event, dump, log and exception
+reads are shared with the request page (`api::events`, `dumps`, `logs`, `exception`, over
+`api::Records`). An exception group's sample reads a run's throw as a request's, with no route,
+and the group's first page lists at most `limit` of its newest runs beside its requests, with no
+cursor of its own.
 
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
@@ -338,28 +350,37 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
   - [x] `Record::Run`, `Run`, `RunOf`, `RunOutcome`, and `Exception::of` and `Exception::thrown`.
   - [x] `spool::run` over a `Completion` and `spool::run_in` over a `Ctx`.
   - [x] The sample spool has a mail, a queue and a run line.
-- [ ] The three writers: the scheduler beside `crates/nvs-server/src/metrics.rs:272`, the queue
+- [x] The three writers: the scheduler beside `crates/nvs-server/src/metrics.rs:272`, the queue
   worker where a job ends, and `crates/nvs-cli/src/main.rs:822` for `nvs run` and `nvs test`.
   - [x] A scheduled fire, in `fire()` (`crates/nvs-server/src/schedule.rs`).
   - [x] A queue attempt, in `run()` (`crates/nvs-cli/src/worker.rs`).
   - [x] `nvs run`, where its program task ends (`crates/nvs-cli/src/main.rs`, `run_run`).
-  - [ ] `nvs test`, one run line per invocation, named `test <path>`
+  - [x] `nvs test`, one run line per invocation, named `test <path>`
     (`crates/nvs-cli/src/runner.rs`).
-- [ ] `crates/nvs-cli/src/debug/index.rs`: the `runs` table, under the deletion window, and
+- [x] `crates/nvs-cli/src/debug/index.rs`: the `runs` table, under the deletion window, and
   `GET /api/runs` and `GET /api/run`.
   - [x] The `runs` table, its triggers, `exceptions.run`, schema 14, the deletion window and the
     rebuild's sequence.
   - [x] The ingester's `run` arm and the shared `exception_row`.
-  - [ ] `GET /api/runs` (paged on `id`, filters `of`, `name`, `outcome`) and `GET /api/run?trace=`.
-  - [ ] `crates/nvs-cli/src/debug/exceptions.rs:291` joins `requests` alone: a run's exception
+  - [x] `GET /api/runs` (paged on `id`, filters `of`, `name`, `outcome`) and `GET /api/run?trace=`.
+  - [x] `crates/nvs-cli/src/debug/exceptions.rs:291` joins `requests` alone: a run's exception
     joins its run too.
 - [ ] The viewer: `/runs` and `/runs/<trace>` on the shared list and the request page's tabs, and
   the rail's Runs item.
+  - [ ] `viewer/src/api.ts`: `RunRow`, `RunPage`, `RunDetail` and the `runs` field of a group's
+    page, and `viewer/test/api.test.ts` checks them against `runs.json`, `run.json` and
+    `exception.json`.
+  - [ ] `viewer/src/router.ts`: `/runs` and `/runs/<trace>`, and the rail's Runs item.
+  - [ ] The Runs list on `viewer/src/ui/list.tsx`, with the `of`, `outcome`, duration and memory
+    filters.
+  - [ ] The run page: the request page's tabs less Request and Response, and the group page's
+    runs.
+  - [ ] `bun nv viewer --verify` is green, and `viewer/dist/` is rebuilt.
 - [ ] Tests: each kind of run round-trips, and a failed run carries its exception. The check `shown`
   is green.
   - [x] `each_kind_of_run_reaches_its_row_and_a_failed_run_keeps_its_exception`
     (`crates/nvs-cli/tests/debug_ingest.rs`).
-  - [ ] A `debug_api` test of `GET /api/runs` and `GET /api/run`, then the check `shown`.
+  - [x] A `debug_api` test of `GET /api/runs` and `GET /api/run`, then the check `shown`.
 
 ### 7. the inline debug block links to its request in the viewer
 
@@ -392,41 +413,36 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 6 is half done (`c50ed78b2d`). The spool has a `run` line (`spool::Run`, `RunOf`,
-`RunOutcome` in `crates/nvs-runtime/src/spool.rs`) and two writers: `spool::run` over a finished
-isolate's `Completion`, and `spool::run_in` over a context that ran in the caller's frame. A
-scheduled fire writes it in `fire()` (`crates/nvs-server/src/schedule.rs`), a queue attempt in
-`run()` (`crates/nvs-cli/src/worker.rs`), and `nvs run` where its program task ends
-(`crates/nvs-cli/src/main.rs`, `run_run`). `spool::Finished` now carries the child's trace and
-has `Finished::read(ctx)`, which the isolate uses. `spooled::exception` moved to
-`spool::Exception::of`. The index is schema 14: a `runs` table with the request triggers' counts,
-`exceptions.request` and `exceptions.run` both nullable, `OWNERS` forgotten by start, and the
-rebuild carries the `runs` sequence. The ingester's `run` arm shares `exception_row` with the
-request arm. Three rule fragments are present tense for the line and the table.
+Stage 6's runtime, index and API are done. Only its viewer item is left. All four writers are in
+place: a scheduled fire, a queue attempt, `nvs run`, and `nvs test` of a program's tests
+(`8c27e46512`, where `runner::run` destructures its `Suite`). The API is `ab08d1409b`:
+`GET /api/runs` and `GET /api/run?trace=` in `crates/nvs-cli/src/debug/runs.rs`, routed in
+`listen.rs`. `api.rs` now shares `events`, `dumps`, `logs`, `exception`, `threw` and
+`time_by_kind` over `api::Records`. An exception group's sample joins runs too, and its first page
+has a `runs` list (`exceptions.rs`). `the-viewer-answers-per-route-and-per-statement.md` lists
+both routes, and `a-run-is-recorded-like-a-request.md` names the `nvs test` writer.
 
-Tests that ran, each green: `the_sample_spool_is_what_the_writer_writes` (the fixture was
-rewritten with a mail, a queue and a run line) and `cargo test --test debug_ingest` (16, two
-assertions updated for the run's own exception, one new test). Expected red: none known. The
-`debug_api` and `debug_viewer` suites read the same fixture and did not run, so a count of
-exceptions or groups there may move by one.
+Tests that ran, each green: `the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_exception`
+(new in `debug_api.rs`), the check `shown` (all of `debug_api`, 7), and
+`a_runs_filter_reads_its_keys_and_names_a_wrong_one` (`cargo test --bin nvs`). The new test wrote
+`viewer/test/fixtures/runs.json` and `run.json`, and `exception.json` gained `"runs": []`. Expected
+red: `viewer/test/api.test.ts` may fail on `exception.json`'s new field or on the two fixtures it
+does not yet type. `debug_viewer` did not run.
 
 The nightly failures the sweep listed are run `45609291264` on `53e94a9181`, already fixed by
 `1c3196b0e8` and `8ca2f09e1b` on `main`.
 
 ### Next
 
-1. `nvs test`'s run line: one per invocation, `RunOf::Command`, named `test <path>`, with
-   `spool::run_in` where `crates/nvs-cli/src/runner.rs` `Args::run` ends (`runner.rs:469`), and
-   for a `.nvst` tree where `nvs_test` returns. Outcome `failed` when any case failed.
-2. `GET /api/runs` and `GET /api/run?trace=` in `crates/nvs-cli/src/debug/api.rs`, shaped like
-   `/api/requests` and `/api/request` (the request list's cursor on `id`, filters `of`, `name`,
-   `outcome`, `min_us`, `min_memory`), the run's events, dumps, logs and exception with its stack.
-   `crates/nvs-cli/src/debug/exceptions.rs:291` and `:188` join `requests` alone; a run's
-   exception joins its run with a `LEFT JOIN`.
-3. A `debug_api` test of both routes, then `looper check --name shown`.
-4. The viewer: `/runs` and `/runs/<trace>` in `viewer/src/router.ts`, the list on
-   `viewer/src/ui/list.tsx`, the page with the request page's tabs less Request and Response, and
-   the rail's Runs item. `bun nv viewer --verify` rebuilds `viewer/dist/`.
+1. `viewer/src/api.ts`: `RunRow`, `RunPage` and `RunDetail` in the shapes of `runs.json` and
+   `run.json`, and `runs: RunRow[]` on a group's page. Then type both fixtures in
+   `viewer/test/api.test.ts`.
+2. `viewer/src/router.ts`: `/runs` and `/runs/<trace>`, and the rail's Runs item beside Requests.
+3. `viewer/src/views/runs.tsx` on `viewer/src/ui/list.tsx`, shaped like
+   `viewer/src/views/requests.tsx`, with the filters `of`, `outcome`, `min_us` and `min_memory`.
+4. The run page: reuse the tabs of `viewer/src/views/request.tsx` and `views/request/`, without
+   Request and Response. Show a group's `runs` on `views/exceptions.tsx`.
+5. `bun nv viewer --verify`, which rebuilds `viewer/dist/`. Then set stage 6 to done.
 
 ### Backlog
 
