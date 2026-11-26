@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `inReplyTo()` returns when the header has more than one message id.
+
+use Core\Mail\Message;
+
+// Some mail programs write two ids in `In-Reply-To`.
+Message $reply = Message::parse(
+    "Subject: Re: Your order\n"
+    . "In-Reply-To: <order-42@example.com> <welcome-1@example.com>\n"
+    . "\n"
+    . "Thanks!\n"
+);
+
+// `inReplyTo()` returns the first id. This prints `order-42@example.com`.
+echo $reply->inReplyTo() ?? 'no id', "\n";
+
+// `header()` returns the whole line, with both ids and their angle brackets.
+echo $reply->header('In-Reply-To')[0], "\n";

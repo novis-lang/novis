@@ -1,0 +1,12 @@
+<?nvs
+// Shows that only a message read from a mailbox folder has a UID.
+
+use Core\Mail\Message;
+
+// This message is read from bytes, not from a folder, so `uid()` returns `null`.
+Message $parsed = Message::parse("Subject: Hello\n\nHi!");
+echo $parsed->uid() ?? 'null', "\n";
+
+// This message is read from the folder `INBOX`. This prints `3`.
+Message $fetched = Core\Imap::open('inbox')->folder('INBOX')->fetch(3);
+echo $fetched->uid() ?? 'null', "\n";

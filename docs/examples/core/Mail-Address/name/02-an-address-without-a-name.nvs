@@ -1,0 +1,16 @@
+<?nvs
+// Shows what `name()` returns for an address that has no name.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse("From: bo@example.org\nSubject: Hi\n\nHello");
+?Address $sender = $mail->from();
+
+// The `From` header has only an address, so `name()` returns an empty string.
+// The program shows the address in its place.
+tainted string $shown = $sender?->name() ?? '';
+if ($shown == '') {
+    $shown = $sender?->address() ?? 'unknown sender';
+}
+echo 'From: ', $shown, "\n";

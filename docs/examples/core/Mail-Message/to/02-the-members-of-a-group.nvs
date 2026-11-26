@@ -1,0 +1,19 @@
+<?nvs
+// Shows that a group in the `To` header gives one address for each member.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+// `Kitchen:` starts a group, and `;` ends it. The last address is not in the group.
+Message $mail = Message::parse(
+    "From: manager@example.com\r\n"
+    . "To: Kitchen: ana@example.com, bo@example.com;, cleo@example.com\r\n"
+    . "Subject: Menu for Saturday\r\n"
+    . "\r\n"
+    . "The new menu is attached."
+);
+
+// This prints the three addresses. The name of the group is not part of the result.
+foreach ($mail->to() as Address $recipient) {
+    echo $recipient->address(), "\n";
+}

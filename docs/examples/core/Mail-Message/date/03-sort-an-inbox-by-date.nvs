@@ -1,0 +1,37 @@
+<?nvs
+// Shows how a help desk sorts messages from different time zones and shows them on its own clock.
+
+use Core\Mail\Message;
+use Core\Time\DateTime;
+use Core\Time\Zone;
+
+array<string> $inbox = [
+    "Subject: From Berlin\r\nDate: Tue, 3 Nov 2026 10:00:00 +0100\r\n\r\nx",
+    "Subject: From New York\r\nDate: Tue, 3 Nov 2026 03:30:00 -0500\r\n\r\nx",
+    "Subject: From Tokyo\r\nDate: Tue, 3 Nov 2026 17:15:00 +0900\r\n\r\nx",
+];
+
+class Inbox
+{
+    // Returns the moment a message was sent, in seconds since 1970 in UTC.
+    // A message without a date gets 0, so it comes first.
+    public static function sentAt(Message $mail): int
+    {
+        ?DateTime $date = $mail->date();
+        return $date == null ? 0 : $date->toInstant()->toEpochSeconds();
+    }
+}
+
+array<Message> $messages = [];
+foreach ($inbox as string $raw) {
+    $messages[] = Message::parse($raw);
+}
+array<Message> $sorted = Core\Arr::sort($messages, { by: fn(Message $mail): int => Inbox::sentAt($mail) });
+
+// Each date is shown on the clock of the help desk in Vienna, oldest first.
+// This prints `09:15 From Tokyo`, `09:30 From New York` and `10:00 From Berlin`.
+foreach ($sorted as Message $mail) {
+    ?DateTime $date = $mail->date();
+    string $time = $date == null ? '--:--' : $date->toInstant()->in(Zone::of('Europe/Vienna'))->format('HH:mm');
+    echo $time, ' ', $mail->subject(), "\n";
+}

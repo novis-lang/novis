@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `subject` decodes a subject with letters outside ASCII.
+
+use Core\Mail\Message;
+
+// The mail program wrote `Crème brûlée for 4` in an encoded form.
+Message $mail = Message::parse(
+    "From: ada@example.org\r\n"
+    . "Subject: =?UTF-8?Q?Cr=C3=A8me_br=C3=BBl=C3=A9e_for_4?=\r\n"
+    . "\r\n"
+    . "Can I order it for Saturday?"
+);
+
+// This prints `Crème brûlée for 4`.
+echo $mail->subject(), "\n";
+
+// A message without a subject gives an empty string. This prints `[]`.
+echo '[', Message::parse("From: ada@example.org\r\n\r\nHi")->subject(), "]\n";

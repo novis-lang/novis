@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a forged report puts HTML, control bytes and a very long text into the server message.
+// Every text should be read without a crash, stay tainted, and show as plain text after `Core\Html::escape`.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Forged
+{
+    // A delivery report with one failed recipient for each `Diagnostic-Code` value in `$codes`.
+    public static function report(array<string> $codes): Message
+    {
+        string $groups = '';
+        foreach ($codes as string $code) {
+            $groups = $groups . "\nFinal-Recipient: rfc822; a@example.org\nAction: failed\nStatus: 5.1.1\nDiagnostic-Code: " . $code . "\n";
+        }
+        return Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n" . $groups
+            . "--b--\n"
+        );
+    }
+}
+
+string $esc = Core\Str::fromCodePoint(27);
+array<string> $codes = [
+    // 1. A script tag, and a text that closes an HTML attribute.
+    'smtp; 550 <script>alert(1)</script>',
+    'smtp; 550 "><img src=x onerror=alert(1)>',
+    // 2. A NUL byte, a terminal escape code and a lone carriage return.
+    "smtp; 550 a\x00b",
+    'smtp; 550 ' . $esc . '[2J' . $esc . '[31mred',
+    "smtp; 550 one\rtwo",
+    // 3. A value that is only `smtp;`, and a value with many `;` in it.
+    'smtp;',
+    'smtp; x; y; z',
+    // 4. A message folded over 100,000 lines, and one line of two million characters.
+    'smtp; 550' . Core\Str::repeat("\n x", 100000),
+    'smtp; ' . Core\Str::repeat('y', 2000000),
+];
+
+foreach (Forged::report($codes)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    ?tainted string $text = $recipient->diagnostic();
+    if ($text == null) {
+        echo "null\n";
+        continue;
+    }
+    // The length is printed for each text, and the escaped text only when it has no control byte.
+    echo Core\Str::length($text), ' characters';
+    if (Core\Str::length($text) < 60 && !Core\Str::contains($text, $esc) && !Core\Str::contains($text, "\x00")) {
+        echo ': ', Core\Html::escape($text);
+    }
+    echo "\n";
+}

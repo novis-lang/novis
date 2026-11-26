@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a sender writes a `From` header that tries to break the address reader.
+// `from` should return one address or `null` each time, and the program should run to its end.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Message;
+
+// 1. A name that decodes to a line break and a new `Bcc` header.
+Message $split = Message::parse("From: =?UTF-8?Q?Ada=0D=0ABcc:_all@example.com?= <ada@example.org>\r\n\r\nx");
+echo '1 ', $split->from()?->address() ?? 'null', ' ', Core\Str::length($split->from()?->name() ?? ''), "\n";
+
+// 2. One `From` header with 100,000 addresses. Only the first one is returned.
+Message $crowd = Message::parse('From: ' . Core\Str::join(Core\Arr::fill(100000, 'a@example.org'), ', ') . "\r\n\r\nx");
+echo '2 ', $crowd->from()?->address() ?? 'null', "\n";
+
+// 3. A comment inside a comment, 100,000 levels deep.
+string $deep = Core\Str::repeat('(', 100000) . Core\Str::repeat(')', 100000);
+Message $comment = Message::parse("From: Ada {$deep} <ada@example.org>\r\n\r\nx");
+echo '3 ', $comment->from()?->address() ?? 'null', "\n";
+
+// 4. A name in a character set that does not exist, and a name that is not valid base64.
+Message $charset = Message::parse("From: =?X-NONE?B?AAAA?= =?UTF-8?B?***?= <ada@example.org>\r\n\r\nx");
+echo '4 ', $charset->from()?->address() ?? 'null', "\n";
+
+// 5. A name of 4 MB in quotes that never close.
+Message $long = Message::parse('From: "' . Core\Str::repeat('A', 4194304) . " <ada@example.org>\r\n\r\nx");
+echo '5 ', Core\Str::length($long->from()?->name() ?? ''), "\n";
+
+// 6. Two `From` headers. Only the first one is read.
+Message $two = Message::parse("From: ada@example.org\r\nFrom: ceo@example.com\r\n\r\nx");
+echo '6 ', $two->from()?->address() ?? 'null', "\n";

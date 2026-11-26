@@ -1,0 +1,10 @@
+# The mailbox `inbox` is the folder `mailbox` beside this file.
+[imap.inbox]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+# The program may read the mailbox, but not change it.
+[capabilities.fs]
+read = ["mailbox"]

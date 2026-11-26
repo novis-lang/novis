@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a stranger attaches files named `../../etc/passwd` and other names that point outside a folder.
+// Each name should be shortened to its last part or be `null`, and thousands of files should not crash the program.
+
+use Core\Mail\Attachment;
+use Core\Mail\Message;
+
+class Mailed
+{
+    // Returns a message with one attached file, under the file name `$name`.
+    public static function with(string $name): Message
+    {
+        return Message::parse(
+            "MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b1\"\n\n"
+            . "--b1\nContent-Type: text/plain\n\nHello\n"
+            . "--b1\nContent-Type: application/octet-stream\nContent-Disposition: attachment; filename=\"" . $name . "\"\n\nroot:x:0:0\n"
+            . "--b1--\n"
+        );
+    }
+
+    // Prints the name that `name()` returns for each attached file.
+    public static function show(int $step, Message $message): void
+    {
+        foreach ($message->attachments() as Attachment $file) {
+            echo $step, ' ', $file->name() ?? 'null', "\n";
+        }
+    }
+}
+
+// 1. A name that climbs two folders up.
+Mailed::show(1, Mailed::with('../../etc/passwd'));
+
+// 2. The same with `\`, as on Windows, and a full Windows path. Both names are encoded,
+// so the `\` characters are still there after the header is read.
+Mailed::show(2, Mailed::with('=?UTF-8?B?Li5cLi5cV2luZG93c1x3aW4uaW5p?='));
+Mailed::show(2, Mailed::with('=?UTF-8?B?QzpcVXNlcnNcUHVibGljXHJ1bi5iYXQ=?='));
+
+// 3. Names that are only `..`, only `.`, or a folder with nothing after it.
+Mailed::show(3, Mailed::with('..'));
+Mailed::show(3, Mailed::with('.'));
+Mailed::show(3, Mailed::with('../../'));
+
+// 4. An encoded name that decodes to `../../etc/passwd`, and one with a line break inside it.
+Mailed::show(4, Mailed::with('=?UTF-8?B?Li4vLi4vZXRjL3Bhc3N3ZA==?='));
+Mailed::show(4, Mailed::with('=?UTF-8?B?cmVwb3J0DQoucGRm?='));
+
+// 5. 3,000 attached files. Only the first 1,000 parts of a message are read.
+string $parts = '';
+int $n = 0;
+while ($n < 3000) {
+    $parts = $parts . "--b1\nContent-Disposition: attachment; filename=\"f" . $n . ".txt\"\n\nx\n";
+    $n = $n + 1;
+}
+Message $many = Message::parse("MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b1\"\n\n" . $parts . "--b1--\n");
+echo "5 ", Core\Arr::count($many->attachments()), "\n";

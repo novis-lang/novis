@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a stranger writes an `In-Reply-To` header that is empty, very long, or full of brackets and line breaks.
+// `inReplyTo()` should return one id or `null`, and the program should keep running.
+
+use Core\Mail\Message;
+
+// Prints what `inReplyTo()` returns, or its length when it is long.
+class Show
+{
+    public static function id(int $step, string $header): void
+    {
+        ?tainted string $id = Message::parse("In-Reply-To: " . $header . "\n\nHello")->inReplyTo();
+        echo $step, ' ', $id == null ? 'null' : Core\Str::length($id ?? ''), "\n";
+    }
+}
+
+// 1. An empty value and a pair of empty angle brackets.
+Show::id(1, '');
+Show::id(1, '<>');
+
+// 2. Brackets that never close, and brackets inside brackets.
+Show::id(2, '<<<<order-42@example.com');
+Show::id(2, '<a<b<c>>>');
+
+// 3. An encoded value that decodes to a line break and a second header.
+Show::id(3, '=?UTF-8?B?PGFAZXhhbXBsZS5jb20+DQpCY2M6IHhAZXhhbXBsZS5uZXQ=?=');
+
+// 4. 100,000 ids on one line, and one id of 1 MB.
+Show::id(4, Core\Str::repeat('<a@example.com> ', 100000));
+Show::id(4, '<' . Core\Str::repeat('a', 1048576) . '@example.com>');

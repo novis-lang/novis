@@ -1,0 +1,54 @@
+--TEST--
+A delivery report recipient's `status()` is the first word of `Status`, empty when there is none; `isPermanent()` is true for class 5 only; and `diagnostic()` is `Diagnostic-Code` without its type, unfolded, and `null` when absent or empty — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\ReportRecipient::status, Core\Mail\ReportRecipient::isPermanent, Core\Mail\ReportRecipient::diagnostic
+use Core\Mail\ReportRecipient;
+
+Core\Mail\Message $bounce = Core\Mail\Message::parse(
+    "From: mailer-daemon@mx.example.net\r\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"B1\"\r\n"
+    . "\r\n"
+    . "--B1\r\n"
+    . "Content-Type: message/delivery-status\r\n"
+    . "\r\n"
+    . "Reporting-MTA: dns; mx.example.net\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; a@example.org\r\n"
+    . "Action: failed\r\n"
+    . "Status: 5.1.1\r\n"
+    . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; b@example.org\r\n"
+    . "Action: delayed\r\n"
+    . "Status: 4.2.2 (5.1.1 in a comment)\r\n"
+    . "Diagnostic-Code: smtp; 452 4.2.2 Mailbox full\r\n"
+    . "  try again later\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; c@example.org\r\n"
+    . "Action: failed\r\n"
+    . "Diagnostic-Code: smtp;\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; d@example.org\r\n"
+    . "Action: failed\r\n"
+    . "status:    5.7.1\r\n"
+    . "Diagnostic-Code: 554 no type\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; e@example.org\r\n"
+    . "Action: delivered\r\n"
+    . "Status: 2.0.0\r\n"
+    . "--B1--\r\n"
+);
+
+// For each recipient: the status in brackets, whether it is permanent, and the server's message.
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), " [", $recipient->status(), "] ";
+    echo $recipient->isPermanent() ? "permanent" : "temporary", " ";
+    echo $recipient->diagnostic() ?? "null", "\n";
+}
+--EXPECT--
+a@example.org [5.1.1] permanent 550 5.1.1 User unknown
+b@example.org [4.2.2] temporary 452 4.2.2 Mailbox full try again later
+c@example.org [] temporary null
+d@example.org [5.7.1] permanent 554 no type
+e@example.org [2.0.0] temporary null

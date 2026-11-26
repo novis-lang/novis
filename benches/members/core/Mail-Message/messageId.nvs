@@ -1,0 +1,28 @@
+<?nvs
+// Measures how the id of a received message is read, as a program does to skip a message it already handled.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $mails = [
+            Message::parse("Message-ID: <a12@example.org>\r\n\r\nx"),
+            Message::parse("Message-ID: <b12345@example.org>\r\n\r\nx"),
+            Message::parse("Message-ID: <c12345678@example.org>\r\n\r\nx"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            $total = $total + Core\Str::length($mails[(($total + $i) % 3) as int]->messageId() ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

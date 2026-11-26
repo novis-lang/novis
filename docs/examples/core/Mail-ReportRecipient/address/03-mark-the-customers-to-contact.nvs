@@ -1,0 +1,34 @@
+<?nvs
+// A shop finds each customer whose address failed, so somebody can ask them for a new one.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Customers
+{
+    // The customers of the shop, by email address.
+    public static function names(): array<string>
+    {
+        return [
+            'ada@example.org' => 'Ada Lovelace',
+            'bo@example.org' => 'Bo Berg',
+        ];
+    }
+}
+
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; BO@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; zed@example.org\nAction: failed\nStatus: 5.1.1\n"
+    . "--b--\n"
+);
+
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    // Servers may change the case of the address, so the program compares in lower case.
+    tainted string $address = Core\Str::lower($recipient->address());
+    ?string $name = Customers::names()[$address] ?? null;
+    echo $address, ': ', $name ?? 'not a customer', "\n";
+}

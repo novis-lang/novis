@@ -1,0 +1,29 @@
+<?nvs
+// Measures how the id that a reply answers is read, as a program does to find the order a customer wrote about.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $messages = [
+            Message::parse("In-Reply-To: <a1@example.com>\n\nThanks!"),
+            Message::parse("In-Reply-To: <order-42@example.com>\n\nThanks!"),
+            Message::parse("In-Reply-To: <welcome-1042.7f3e@mail.example.com>\n\nThanks!"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The length is multiplied by 3, so the next round picks the next message.
+            $total = $total + 3 * Core\Str::length($messages[(($total + $i) % 3) as int]->inReplyTo() ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

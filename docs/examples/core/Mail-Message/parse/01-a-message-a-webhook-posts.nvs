@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the raw message that a mail provider posts to your webhook.
+
+use Core\Mail\Message;
+
+// The body of the request is the whole message, headers first.
+Message $mail = Message::parse(Core\Request::bytes());
+
+// This prints the sender, the subject and the first line of the text.
+echo 'From: ', $mail->from()?->address() ?? 'unknown', "\n";
+echo 'Subject: ', $mail->subject(), "\n";
+echo 'Text: ', Core\Str::trim($mail->text() ?? ''), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to tell a reply from a new message.
+
+use Core\Mail\Message;
+
+array<Message> $inbox = [
+    Message::parse("Subject: Re: Ticket 7\nIn-Reply-To: <ticket-7@example.com>\n\nIt works now."),
+    Message::parse("Subject: My printer is broken\n\nPlease help."),
+];
+
+// A new message has no `In-Reply-To` header, so `inReplyTo()` returns `null`.
+foreach ($inbox as Message $message) {
+    if ($message->inReplyTo() == null) {
+        echo $message->subject(), ": a new ticket\n";
+    } else {
+        echo $message->subject(), ": a reply to ", $message->inReplyTo() ?? '', "\n";
+    }
+}

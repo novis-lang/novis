@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the name of the person who sent a message, to greet them in the answer.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $question = Message::parse(
+    "From: Ada Lovelace <ada@example.org>\n"
+    . "Subject: Opening hours\n"
+    . "\n"
+    . "Are you open on Sunday?\n"
+);
+
+// `name()` returns the name in front of the address. This prints `Hello Ada Lovelace,`.
+?Address $sender = $question->from();
+echo 'Hello ', $sender?->name() ?? '', ",\n";

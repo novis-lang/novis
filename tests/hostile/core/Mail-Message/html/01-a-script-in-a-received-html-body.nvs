@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a stranger sends HTML with scripts, very deep nesting and bytes that are not UTF-8.
+// The program shows it through `Core\Html::sanitize`. No script should reach the page, and nothing should crash.
+
+use Core\Bytes;
+use Core\Mail\Message;
+
+class Received
+{
+    // Returns the sanitized HTML body of a message, as text the program can search.
+    public static function page(bytes $body): string
+    {
+        bytes $head = "From: x@example.net\nMIME-Version: 1.0\nContent-Type: text/html\n\n" as bytes;
+        Message $message = Message::parse(Bytes::join([$head, $body]));
+        return Core\Html::toSource(Core\Html::sanitize($message->html() ?? ''), 'searching the result');
+    }
+
+    // Prints whether the word `steal` is still in the page.
+    public static function check(int $step, string $page): void
+    {
+        echo $step, Core\Str::contains($page, 'steal') ? ' script kept' : ' script removed', "\n";
+    }
+}
+
+// 1. A script, an event handler and a `javascript:` link.
+Received::check(1, Received::page(
+    '<p onclick="steal()">Hi</p><script>steal()</script><a href="javascript:steal()">open</a>' as bytes
+));
+
+// 2. 100,000 nested `div` tags around one script.
+string $deep = Core\Str::repeat('<div>', 100000) . '<script>steal()</script>' . Core\Str::repeat('</div>', 100000);
+Received::check(2, Received::page($deep as bytes));
+
+// 3. A body with the bytes 255 and 0, which are not valid text, before a script.
+Received::check(3, Received::page(Bytes::join([
+    '<p>' as bytes,
+    Bytes::fill(1, 255),
+    Bytes::fill(1, 0),
+    '<script>steal()</script></p>' as bytes,
+])));

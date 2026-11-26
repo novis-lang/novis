@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `text()` returns for a message that has an HTML body only.
+
+use Core\Mail\Message;
+
+Message $newsletter = Message::parse(
+    "From: News <news@example.com>\n"
+    . "Subject: Spring sale\n"
+    . "Content-Type: text/html\n"
+    . "\n"
+    . "<p>Our spring sale starts today.</p>\n"
+);
+
+// The message has no `text/plain` part, so `text()` returns `null`.
+echo $newsletter->text() ?? 'no text', "\n";
+
+// The HTML body is still there. `html()` returns it.
+echo $newsletter->html() == null ? 'no HTML' : 'has HTML', "\n";

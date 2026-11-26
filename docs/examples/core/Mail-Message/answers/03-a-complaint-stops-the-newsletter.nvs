@@ -1,0 +1,29 @@
+<?nvs
+// A spam complaint names the newsletter it is about, and the shop stops that newsletter for the reader.
+
+use Core\Mail\Message;
+
+// The newsletters the shop sent, by the `Message-ID` that `Core\Mail::send` returned.
+array<string> $sentTo = [
+    'news-0611-ada@example.com' => 'ada@example.org',
+    'news-0611-bo@example.com' => 'bo@example.org',
+];
+
+// A mail provider sends this report when a reader marks the newsletter as spam.
+// The last part is a copy of the newsletter.
+Message $complaint = Message::parse(
+    "From: feedback@mail.example.net\nSubject: Complaint about message\n"
+    . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
+    . "--f\nContent-Type: text/plain\n\nA user marked this message as spam.\n"
+    . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\nVersion: 1\n\n"
+    . "--f\nContent-Type: message/rfc822\n\n"
+    . "From: Shop <news@example.com>\nTo: bo@example.org\nSubject: Our June offers\n"
+    . "Message-ID: <news-0611-bo@example.com>\n\nTen percent off.\n"
+    . "--f--\n"
+);
+
+if ($complaint->kind() == Message::Kind::Complaint) {
+    ?tainted string $id = $complaint->answers();
+    ?string $reader = $id != null ? ($sentTo[$id] ?? null) : null;
+    echo $reader != null ? 'No more newsletters for ' . $reader : 'The complaint is about no mail of the shop', "\n";
+}

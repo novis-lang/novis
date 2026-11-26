@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to list the recipients of a received message.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: ada@example.org\r\n"
+    . "To: Sales <sales@example.com>, billing@example.com\r\n"
+    . "Subject: A quote for 40 chairs\r\n"
+    . "\r\n"
+    . "Please send me a quote."
+);
+
+// `to` returns one address for each recipient, in the order of the header.
+// The second address has no name, so its `name()` is an empty string.
+foreach ($mail->to() as Address $recipient) {
+    echo $recipient->address(), ' [', $recipient->name(), "]\n";
+}
+
+// A message without a `To` header gives an empty array. This prints `0`.
+echo Core\Arr::count(Message::parse("Subject: Hi\r\n\r\nHello")->to()), "\n";

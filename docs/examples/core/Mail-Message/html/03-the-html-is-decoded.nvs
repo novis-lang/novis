@@ -1,0 +1,20 @@
+<?nvs
+// Shows that `html()` returns the HTML decoded, as the mail program of the sender wrote it.
+
+use Core\Mail\Message;
+
+// Many mail programs send HTML in the quoted-printable encoding. In it, `=3D` is `=`
+// and a line that ends with `=` goes on in the next line.
+Message $newsletter = Message::parse(
+    "From: News <news@example.com>\n"
+    . "Subject: Spring sale\n"
+    . "MIME-Version: 1.0\n"
+    . "Content-Type: text/html; charset=utf-8\n"
+    . "Content-Transfer-Encoding: quoted-printable\n"
+    . "\n"
+    . "<p>Our <a href=3D\"https://example.com/sale\">spring sale</a> starts to=\n"
+    . "day.</p>\n"
+);
+
+// `html()` returns the decoded HTML. This prints the link with `=` and the word `today`.
+echo Core\Html::sanitize($newsletter->html() ?? '');

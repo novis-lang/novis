@@ -1,0 +1,29 @@
+<?nvs
+// Measures how the ids of a conversation are read from a reply, as a program does to group replies by conversation.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $messages = [
+            Message::parse("References: <order-42@example.com>\n\nThanks!"),
+            Message::parse("References: <order-42@example.com> <a-1@example.org>\n\nThanks!"),
+            Message::parse("References: <order-42@example.com> <a-1@example.org> <b-2@example.com>\n\nThanks!"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The count is multiplied by 3, so the next round picks the next message.
+            $total = $total + 3 * Core\Arr::count($messages[(($total + $i) % 3) as int]->references());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

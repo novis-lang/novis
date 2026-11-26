@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a stranger writes the address headers to send a fake or dangerous bounce tag.
+// A tag that breaks the tag rule should be `null`, and a valid tag on a normal mail should not make it a bounce.
+
+use Core\Mail\Message;
+use Core\Str;
+
+class Show
+{
+    public static function tag(string $step, string $headers): void
+    {
+        Message $message = Message::parse($headers . "Subject: x\n\nBody.\n");
+        ?tainted string $tag = $message->bounceTag();
+        echo $step, ' ', $tag == null ? 'null' : Str::length($tag) . ' characters', ' ';
+        echo $message->kind() == Message::Kind::Bounce ? 'bounce' : 'not a bounce', "\n";
+    }
+}
+
+// 1. A valid tag on a message that is not a delivery report.
+Show::tag('1', "Delivered-To: bounces+order-42@example.com\n");
+
+// 2. A tag of 65 characters, one more than the rule allows.
+Show::tag('2', "To: bounces+" . Str::repeat('a', 65) . "@example.com\n");
+
+// 3. A tag with a quote and a semicolon, written to reach a database query.
+Show::tag('3', "To: \"bounces+1';drop table orders;--\"@example.com\n");
+
+// 4. A tag that tries to add a header with an encoded line break.
+Show::tag('4', "To: =?utf-8?Q?bounces+a=0D=0ABcc:_x@example.org?= <bounces+a=0D=0Ab@example.com>\n");
+
+// 5. A tag with letters that only look like ASCII.
+Show::tag('5', "To: bounces+оrder-42@example.com\n");
+
+// 6. A second `+` in the tag, and a `+` in the domain.
+Show::tag('6', "To: bounces+a+b@example.com, bounces@exa+mple.com\n");
+
+// 7. 100,000 `Delivered-To` lines with no tag, and a tag after them.
+Show::tag('7', Str::repeat("Delivered-To: bounces@example.com\n", 100000) . "To: bounces+late@example.com\n");
+
+// 8. One `To` header with 100,000 addresses.
+Show::tag('8', "To: " . Str::repeat("bounces+x@example.com, ", 100000) . "a@example.com\n");

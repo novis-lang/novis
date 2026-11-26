@@ -1,0 +1,24 @@
+<?nvs
+// Shows the recipients of a bounce, one line for each address in the report.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail Returned to Sender\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.2.2\n\n"
+    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.1\n"
+    . "--b--\n"
+);
+
+// `report()` is `null` for a message that is not a delivery report. Here it is a report.
+array<ReportRecipient> $recipients = $bounce->report()?->recipients() ?? [];
+echo Core\Arr::count($recipients), " recipients\n";
+foreach ($recipients as ReportRecipient $recipient) {
+    echo $recipient->address(), ' ', $recipient->status(), "\n";
+}

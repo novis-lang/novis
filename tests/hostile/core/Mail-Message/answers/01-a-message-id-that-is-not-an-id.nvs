@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a stranger writes the headers that `answers()` reads, to inject text or to waste memory.
+// Each result should be a tainted string or `null`, and every message should be read without a crash.
+
+use Core\Mail\Message;
+use Core\Str;
+
+class Show
+{
+    public static function answers(string $step, string $raw): void
+    {
+        ?tainted string $id = Message::parse($raw)->answers();
+        echo $step, ' ', $id == null ? 'null' : Str::length($id) . ' characters', "\n";
+    }
+
+    public static function bounce(string $returned): string
+    {
+        return "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; x\n\n"
+            . "Final-Recipient: rfc822; a@example.org\nAction: failed\n"
+            . "--b\nContent-Type: text/rfc822-headers\n\n" . $returned . "\n--b--\n";
+    }
+}
+
+// 1. An `In-Reply-To` that tries to add a `Bcc` header.
+Show::answers('1', "In-Reply-To: <a@example.com>\r\nBcc: victim@example.org\r\n\r\nHi.\n");
+
+// 2. An `In-Reply-To` of one million characters.
+Show::answers('2', "In-Reply-To: <" . Str::repeat('a', 1000000) . "@example.com>\n\nHi.\n");
+
+// 3. 100,000 `References` entries.
+Show::answers('3', "References: " . Str::repeat("<r@example.com> ", 100000) . "\n\nHi.\n");
+
+// 4. An empty `In-Reply-To` and empty brackets.
+Show::answers('4', "In-Reply-To: <>\nReferences: <>\n\nHi.\n");
+
+// 5. A bounce whose returned headers have no `Message-ID`.
+Show::answers('5', Show::bounce("Subject: no id"));
+
+// 6. A bounce whose returned headers are not headers at all.
+Show::answers('6', Show::bounce(Str::repeat("\x00\x01<>:;", 100000)));
+
+// 7. A bounce that returns a mail inside a mail, 1,000 times.
+string $inner = "Message-ID: <deep@example.com>\n\nBottom.\n";
+uint $level = 0;
+while ($level < 1000) {
+    $inner = "Content-Type: message/rfc822\n\n" . $inner;
+    $level = $level + 1;
+}
+Show::answers('7', "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n--b\n" . $inner . "--b--\n");

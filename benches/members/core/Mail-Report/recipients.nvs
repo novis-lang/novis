@@ -1,0 +1,46 @@
+<?nvs
+// Measures how the recipients of a delivery report are read, as a bounce handler does for each report.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+use Core\Mail\Report;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Report> $reports = [];
+        array<string> $groups = [
+            "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n",
+            "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\nFinal-Recipient: rfc822; bo@example.org\nAction: delayed\n",
+            "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\nFinal-Recipient: rfc822; bo@example.org\nAction: delayed\n\n"
+            . "Final-Recipient: rfc822; cy@example.org\nAction: failed\n",
+        ];
+        foreach ($groups as string $group) {
+            Message $message = Message::parse(
+                "From: mailer-daemon@mx.example.net\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . $group
+                . "--b--\n"
+            );
+            ?Report $report = $message->report();
+            if ($report != null) {
+                $reports[] = $report;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three reports.
+            // The count is multiplied by 3, so each report is picked in turn.
+            $total = $total + 3 * Core\Arr::count($reports[(($total + $i) % 3) as int]->recipients());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

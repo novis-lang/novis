@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a sender writes `Date` headers with impossible values, huge years and huge offsets.
+// `date` should return a valid date or `null` each time, and the program should run to its end.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Message;
+use Core\Time\DateTime;
+
+array<string> $dates = [
+    // 1. A day, an hour and a minute that do not exist.
+    'Mon, 31 Feb 2026 25:61:61 +0000',
+    // 2. Offsets far past 24 hours, east and west.
+    'Mon, 2 Nov 2026 10:00:00 +9999',
+    'Mon, 2 Nov 2026 10:00:00 -9999',
+    // 3. Years at the far ends of the calendar, and a year with many digits.
+    'Mon, 1 Jan 0 00:00:00 +0000',
+    'Fri, 31 Dec 9999 23:59:59 -2359',
+    'Mon, 1 Jan 99999999999999999999 00:00:00 +0000',
+    // 4. A two-digit year, a time zone name, and a date with nothing after the day.
+    'Mon, 2 Nov 26 10:00 PST',
+    '2 Nov',
+    // 5. An empty date, and a date of 1 MB.
+    '',
+    Core\Str::repeat('1', 1048576),
+];
+
+foreach ($dates as string $at => string $value) {
+    Message $mail = Message::parse("Date: {$value}\r\n\r\nx");
+    ?DateTime $date = $mail->date();
+    echo $at, ' ', $date == null ? 'null' : $date->toInstant()->toIso(), "\n";
+}
+
+// 6. 100,000 `Date` headers. Only the first one is read.
+Message $many = Message::parse(Core\Str::repeat("Date: Mon, 2 Nov 2026 10:00:00 +0000\r\n", 100000) . "\r\nx");
+echo '6 ', $many->date()?->toIso() ?? 'null', "\n";

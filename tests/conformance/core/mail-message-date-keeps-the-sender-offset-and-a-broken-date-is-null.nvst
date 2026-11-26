@@ -1,0 +1,29 @@
+--TEST--
+`Core\Mail\Message::date` keeps the offset the sender wrote, reads the first `Date` header, and is `null` for a date that is missing or cannot be read — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+use Core\Mail\Message;
+use Core\Time\DateTime;
+
+array<string> $headers = [
+    "Date: Tue, 3 Nov 2026 14:05:09 -0530\r\n",
+    "Date: 3 Nov 2026 14:05 +0000\r\n",
+    "Date: Tue, 3 Nov 2026 14:05:09 +0100\r\nDate: Wed, 4 Nov 2026 08:00:00 +0000\r\n",
+    "Date: Mon, 31 Feb 2026 25:61:61 +0000\r\n",
+    "Date: someday\r\n",
+    "Date: \r\n",
+    "",
+];
+foreach ($headers as string $header) {
+    ?DateTime $date = Message::parse($header . "\r\nx")->date();
+    echo $date == null ? 'null' : $date->toIso() . ' ' . $date->toInstant()->toIso(), "\n";
+}
+// covers: Core\Mail\Message::date
+--EXPECT--
+2026-11-03T14:05:09-05:30[-05:30] 2026-11-03T19:35:09Z
+2026-11-03T14:05:00+00:00[UTC] 2026-11-03T14:05:00Z
+2026-11-03T14:05:09+01:00[+01:00] 2026-11-03T13:05:09Z
+null
+null
+null
+null

@@ -1,0 +1,31 @@
+<?nvs
+// Measures how the date of a received message is read, as a help desk does to sort its inbox.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+use Core\Time\DateTime;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $mails = [
+            Message::parse("Date: Tue, 3 Nov 2026 10:00:03 +0100\r\n\r\nx"),
+            Message::parse("Date: Tue, 3 Nov 2026 03:30:06 -0500\r\n\r\nx"),
+            Message::parse("Date: Tue, 3 Nov 2026 17:15:09 +0900\r\n\r\nx"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The seconds are 3, 6 and 9, so the messages are picked in turn.
+            ?DateTime $date = $mails[(($total + $i) % 3) as int]->date();
+            $total = $total + ($date == null ? 0 : $date->second()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

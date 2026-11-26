@@ -1,0 +1,12 @@
+# The mailbox `inbox` is the folder `mailbox` beside this file. Each folder in it is a
+# mailbox folder, and each `<uid>.eml` file in a folder is one message.
+[imap.inbox]
+directory = "mailbox"
+
+# The program may open the mailbox `inbox`.
+[capabilities.imap]
+connect = ["inbox"]
+
+# The program may read the files of the mailbox, and no other file.
+[capabilities.fs]
+read = ["mailbox"]

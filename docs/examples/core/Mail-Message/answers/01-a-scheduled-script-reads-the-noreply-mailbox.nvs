@@ -1,0 +1,61 @@
+<?nvs
+// A scheduled script reads the noreply mailbox and marks each sent mail as bounced or answered.
+// A `[[schedule]]` entry in `nvs.toml` can run it every ten minutes.
+
+use Core\Mail\Message;
+
+class Sent
+{
+    // The bounce tag is read from a received message, so the program uses its own copy of the tag.
+    // The result is `null` when the shop never sent a mail with this tag.
+    public static function tag(array<string> $status, ?tainted string $written): ?string
+    {
+        foreach ($status as string $tag => string $state) {
+            if ($tag == $written) {
+                return $tag;
+            }
+        }
+        return null;
+    }
+}
+
+// The mails the shop sent. The key is the `Message-ID` that `Core\Mail::send` returned.
+// Each mail was sent with the bounce tag in its value.
+array<string> $tagOf = [
+    'order-41@example.com' => 'order-41',
+    'order-42@example.com' => 'order-42',
+    'order-43@example.com' => 'order-43',
+    'order-44@example.com' => 'order-44',
+];
+array<string> $status = [
+    'order-41' => 'sent',
+    'order-42' => 'sent',
+    'order-43' => 'sent',
+    'order-44' => 'sent',
+];
+
+var $inbox = Core\Imap::open('noreply')->folder('INBOX');
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    Message::Kind $kind = $message->kind();
+    if ($kind != Message::Kind::Bounce && $kind != Message::Kind::Reply) {
+        echo $uid, ': skipped, it is not a bounce or a reply', "\n";
+        continue;
+    }
+
+    // `answers()` gives the `Message-ID` of the shop's mail. Some bounces do not
+    // contain it, so the bounce tag is the second way to find the mail.
+    ?tainted string $id = $message->answers();
+    ?string $tag = $id != null ? ($tagOf[$id] ?? null) : null;
+    $tag = $tag ?? Sent::tag($status, $message->bounceTag());
+    if ($tag == null) {
+        echo $uid, ': no mail of the shop matches', "\n";
+        continue;
+    }
+    $status[$tag] = $kind == Message::Kind::Bounce ? 'bounced' : 'answered';
+    echo $uid, ': ', $tag, ' is ', $status[$tag], "\n";
+}
+
+foreach ($status as string $order => string $state) {
+    echo $order, ' ', $state, "\n";
+}

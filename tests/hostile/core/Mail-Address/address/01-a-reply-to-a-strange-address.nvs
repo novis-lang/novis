@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a stranger writes `From` and `To` headers with empty, broken or very many addresses, and the program replies to them.
+// Each address should be read or skipped, and a reply to an address that is not valid should throw an error.
+
+use Core\Mail;
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+// 1. An empty address and an address with no `@`.
+echo "1 ", Message::parse("From: <>\n\nHi")->from()?->address() ?? 'null', "\n";
+echo "1 ", Message::parse("From: Ada <ada>\n\nHi")->from()?->address() ?? 'null', "\n";
+
+// 2. 100,000 addresses in one `To` header.
+Message $crowd = Message::parse('To: ' . Core\Str::repeat('a@example.com, ', 100000) . "\n\nHi");
+echo "2 ", Core\Arr::count($crowd->to()), "\n";
+
+// 3. A reply to addresses with `%`, a space, a comma or a second `@`.
+// Each error is caught, so the next reply still runs.
+array<string> $headers = [
+    "From: <x%y@example.com>",
+    "From: \"Ada\" <ada lovelace@example.org>",
+    "From: <a@b@example.org>",
+    "From: <\"bo,cy\"@example.org>",
+];
+foreach ($headers as string $header) {
+    ?Address $sender = Message::parse($header . "\n\nHi")->from();
+    if ($sender == null) {
+        echo "3 no sender\n";
+        continue;
+    }
+    try {
+        Mail::send('shop', [$sender], 'Re: Hi', 'Thank you.');
+        echo "3 sent to ", $sender->address(), "\n";
+    } catch (RuntimeError $error) {
+        echo "3 RuntimeError for ", $sender->address(), "\n";
+    }
+}

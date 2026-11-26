@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read the email address of the person who sent a message.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $reply = Message::parse(
+    "From: Ada Lovelace <ada@example.org>\n"
+    . "To: Shop <shop@example.com>, orders@example.com\n"
+    . "Subject: Re: Your order\n"
+    . "\n"
+    . "Thank you!\n"
+);
+
+// `from()` returns `null` when the message has no `From` address. This prints `ada@example.org`.
+?Address $sender = $reply->from();
+echo $sender?->address() ?? 'no sender', "\n";
+
+// `address()` returns the address alone, without the name.
+foreach ($reply->to() as Address $recipient) {
+    echo $recipient->address(), "\n";
+}

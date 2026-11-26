@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `html()` returns for a message that has no HTML body.
+
+use Core\Mail\Message;
+
+Message $note = Message::parse(
+    "From: Bo <bo@example.org>\n"
+    . "Subject: Opening hours\n"
+    . "\n"
+    . "Are you open on Sunday?\n"
+);
+
+// The message has a plain text body only, so `html()` returns `null`.
+echo $note->html() ?? 'no HTML', "\n";
+
+// `text()` returns the plain text body. `Core\Html::escape` makes it safe for a page.
+// The body ends with a line break, so `echo` needs none.
+echo Core\Html::escape($note->text() ?? '');

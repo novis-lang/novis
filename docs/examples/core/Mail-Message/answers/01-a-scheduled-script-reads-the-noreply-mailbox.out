@@ -1,0 +1,8 @@
+1: order-42 is bounced
+2: order-43 is answered
+3: skipped, it is not a bounce or a reply
+4: order-44 is bounced
+order-41 sent
+order-42 bounced
+order-43 answered
+order-44 bounced

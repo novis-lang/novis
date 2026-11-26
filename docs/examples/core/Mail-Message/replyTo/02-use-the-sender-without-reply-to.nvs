@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to choose the address for a reply when a message may have no `Reply-To` header.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+class Reply
+{
+    // Returns the `Reply-To` addresses, or the sender when there are none.
+    public static function addresses(Message $mail): array<Address>
+    {
+        array<Address> $addresses = $mail->replyTo();
+        ?Address $sender = $mail->from();
+        if (Core\Arr::isEmpty($addresses) && $sender != null) {
+            return [$sender];
+        }
+        return $addresses;
+    }
+}
+
+Message $withHeader = Message::parse("From: news@example.org\r\nReply-To: team@example.org\r\n\r\nNews");
+Message $withoutHeader = Message::parse("From: bo@example.org\r\n\r\nHello");
+
+// This prints `team@example.org` and then `bo@example.org`.
+echo Reply::addresses($withHeader)[0]->address(), "\n";
+echo Reply::addresses($withoutHeader)[0]->address(), "\n";

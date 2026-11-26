@@ -1,0 +1,74 @@
+--TEST--
+`Core\Mail\Message::kind()` is the first of `Bounce`, `Delay`, `Complaint`, `AutoReply`, `Reply` and `Other` that matches: a failed recipient beats a delayed one, a report of delivered recipients falls through, `Auto-Submitted: no` is not an auto-reply, each row of the auto-reply table counts, and a bounce written as plain text is `Other` — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\Message::Kind, Core\Mail\Message::kind
+use Core\Mail\Message;
+
+final class Show {
+    public static function kind(string $raw): string {
+        return match (Message::parse($raw)->kind()) {
+            Message::Kind::Bounce => "Bounce",
+            Message::Kind::Delay => "Delay",
+            Message::Kind::Complaint => "Complaint",
+            Message::Kind::AutoReply => "AutoReply",
+            Message::Kind::Reply => "Reply",
+            Message::Kind::Other => "Other",
+        };
+    }
+
+    public static function report(string $type, string $groups): string {
+        return "From: mailer-daemon@mx.example.net\r\n"
+            . "Content-Type: multipart/report; report-type=" . $type . "; boundary=\"b\"\r\n\r\n"
+            . "--b\r\nContent-Type: message/delivery-status\r\n\r\n"
+            . "Reporting-MTA: dns; mx.example.net\r\n\r\n" . $groups
+            . "--b--\r\n";
+    }
+
+    public static function group(string $address, string $action): string {
+        return "Final-Recipient: rfc822; " . $address . "\r\nAction: " . $action . "\r\n\r\n";
+    }
+}
+
+// A failed recipient makes a bounce, also after a delayed one.
+echo "1 ", Show::kind(Show::report("delivery-status", Show::group("a@example.org", "delayed") . Show::group("b@example.org", "failed"))), "\n";
+// Only delayed recipients: a delay.
+echo "2 ", Show::kind(Show::report("delivery-status", Show::group("a@example.org", "delayed"))), "\n";
+// Only delivered recipients: the report falls through to `Other`.
+echo "3 ", Show::kind(Show::report("delivery-status", Show::group("a@example.org", "delivered"))), "\n";
+// The report type is read without regard to case.
+echo "4 ", Show::kind(Show::report("Delivery-Status", Show::group("a@example.org", "FAILED"))), "\n";
+// A recipient group inside a feedback report does not make a bounce.
+echo "5 ", Show::kind(Show::report("feedback-report", Show::group("a@example.org", "failed"))), "\n";
+// `Auto-Submitted: no` is a person's message, so `In-Reply-To` makes it a reply.
+echo "6 ", Show::kind("Auto-Submitted: no\r\nIn-Reply-To: <x@example.com>\r\n\r\nHi.\r\n"), "\n";
+// `Auto-Submitted` with any other value comes before `In-Reply-To`.
+echo "7 ", Show::kind("Auto-Submitted: auto-generated\r\nIn-Reply-To: <x@example.com>\r\n\r\nHi.\r\n"), "\n";
+// Each row of the auto-reply table.
+echo "8 ", Show::kind("X-Autoreply: yes\r\n\r\nAway.\r\n"), "\n";
+echo "9 ", Show::kind("X-Autorespond: Away\r\n\r\nAway.\r\n"), "\n";
+echo "10 ", Show::kind("Precedence: auto_reply\r\n\r\nAway.\r\n"), "\n";
+echo "11 ", Show::kind("X-Auto-Response-Suppress: DR, OOF\r\n\r\nAway.\r\n"), "\n";
+// `Precedence: bulk` and `X-Auto-Response-Suppress: All` are not in the table.
+echo "12 ", Show::kind("Precedence: bulk\r\n\r\nNews.\r\n"), "\n";
+echo "13 ", Show::kind("X-Auto-Response-Suppress: All\r\n\r\nNews.\r\n"), "\n";
+// A bounce written as plain text is not guessed from its subject or sender.
+echo "14 ", Show::kind("From: MAILER-DAEMON@example.org\r\nSubject: Undelivered Mail Returned to Sender\r\n\r\nUser unknown.\r\n"), "\n";
+// An empty message is `Other`.
+echo "15 ", Show::kind(""), "\n";
+--EXPECT--
+1 Bounce
+2 Delay
+3 Other
+4 Bounce
+5 Complaint
+6 Reply
+7 AutoReply
+8 AutoReply
+9 AutoReply
+10 AutoReply
+11 AutoReply
+12 Other
+13 Other
+14 Other
+15 Other

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to find which sent mail a customer answered.
+
+use Core\Mail\Message;
+
+// The shop kept the message id of each order mail it sent, with the order number.
+array<int> $sent = ['order-41@example.com' => 41, 'order-42@example.com' => 42];
+
+Message $reply = Message::parse(
+    "From: Ada <ada@example.org>\n"
+    . "Subject: Re: Your order\n"
+    . "In-Reply-To: <order-42@example.com>\n"
+    . "\n"
+    . "Can I change the address?\n"
+);
+
+// `inReplyTo()` returns the id without its angle brackets, as a tainted string.
+// A tainted string can be used to look up a key. This prints `order 42`.
+echo 'order ', $sent[$reply->inReplyTo() ?? ''] ?? 0, "\n";

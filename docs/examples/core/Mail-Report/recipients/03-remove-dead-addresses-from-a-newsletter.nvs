@@ -1,0 +1,41 @@
+<?nvs
+// A newsletter removes each address that failed for good, and keeps the addresses that are only late.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+// The subscribers of the newsletter.
+array<bool> $subscribed = [
+    'ada@example.org' => true,
+    'bo@example.org' => true,
+    'cy@example.org' => true,
+];
+
+// One report about the last newsletter.
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.2.2\n"
+    . "--b--\n"
+);
+
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    if ($recipient->action() != ReportRecipient::Action::Failed || !$recipient->isPermanent()) {
+        echo 'keep ', $recipient->address(), ": the server tries again\n";
+        continue;
+    }
+    // The address comes from the mail server. The program only changes an address it already has.
+    foreach ($subscribed as string $address => bool $on) {
+        if ($address == $recipient->address()) {
+            $subscribed[$address] = false;
+            echo 'remove ', $address, "\n";
+        }
+    }
+}
+
+foreach ($subscribed as string $address => bool $on) {
+    echo $address, ': ', $on ? 'subscribed' : 'removed', "\n";
+}

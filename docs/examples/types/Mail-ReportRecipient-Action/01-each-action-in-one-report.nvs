@@ -1,0 +1,42 @@
+<?nvs
+// Shows the five actions a delivery report can give, one for each recipient.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Action
+{
+    public static function meaning(ReportRecipient::Action $action): string
+    {
+        return match ($action) {
+            ReportRecipient::Action::Failed => 'Failed: the message was not delivered',
+            ReportRecipient::Action::Delayed => 'Delayed: the server still tries',
+            ReportRecipient::Action::Delivered => 'Delivered: the message is in the mailbox',
+            ReportRecipient::Action::Relayed => 'Relayed: passed to a server that sends no report',
+            ReportRecipient::Action::Expanded => 'Expanded: sent on to the members of a list',
+        };
+    }
+}
+
+// One recipient for each action. The address names the action.
+array<string> $words = ['failed', 'delayed', 'delivered', 'relayed', 'expanded'];
+string $groups = '';
+foreach ($words as string $word) {
+    $groups = $groups . "\nFinal-Recipient: rfc822; " . $word . "@example.org\nAction: " . $word . "\n";
+}
+
+Message $report = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n"
+    . $groups
+    . "--b--\n"
+);
+
+foreach ($report->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ' -> ', Action::meaning($recipient->action()), "\n";
+}
+
+// One recipient is `Failed`, so the whole message is a bounce.
+echo 'bounce: ', $report->kind() == Message::Kind::Bounce ? 'yes' : 'no', "\n";

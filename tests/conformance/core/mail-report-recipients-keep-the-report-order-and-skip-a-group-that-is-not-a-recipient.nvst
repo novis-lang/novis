@@ -1,0 +1,71 @@
+--TEST--
+`recipients()` lists each recipient in the order of the report, with its bare `address()` and its `action()`, and skips a group with no `Final-Recipient`, an address with a control character, or an `Action` RFC 3464 does not define — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\Report::recipients, Core\Mail\ReportRecipient::address, Core\Mail\ReportRecipient::action, Core\Mail\ReportRecipient::Action
+use Core\Mail\ReportRecipient;
+
+final class Show {
+    public static function action(ReportRecipient::Action $action): string {
+        return match ($action) {
+            ReportRecipient::Action::Failed => "failed",
+            ReportRecipient::Action::Delayed => "delayed",
+            ReportRecipient::Action::Delivered => "delivered",
+            ReportRecipient::Action::Relayed => "relayed",
+            ReportRecipient::Action::Expanded => "expanded",
+        };
+    }
+}
+
+Core\Mail\Message $report = Core\Mail\Message::parse(
+    "From: mailer-daemon@mx.example.net\r\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"B1\"\r\n"
+    . "\r\n"
+    . "--B1\r\n"
+    . "Content-Type: message/delivery-status\r\n"
+    . "\r\n"
+    . "Reporting-MTA: dns; mx.example.net\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; <ada@example.org>\r\n"
+    . "Action: Delivered\r\n"
+    . "\r\n"
+    . "Action: failed\r\n"
+    . "Status: 5.1.1\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; bo@example.org\r\n"
+    . "Action: bounced\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; cy\x00@example.org\r\n"
+    . "Action: failed\r\n"
+    . "\r\n"
+    . "Final-Recipient: dee@example.org\r\n"
+    . "Action: relayed (to a gateway)\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; list@example.org\r\n"
+    . "Action: expanded\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; eve@example.org\r\n"
+    . "Action: delayed\r\n"
+    . "Action: failed\r\n"
+    . "--B1--\r\n"
+);
+
+// No group with a `Final-Recipient` failed, and one is late, so the kind is `Delay`.
+echo $report->kind() == Core\Mail\Message::Kind::Delay ? "delay" : "not a delay", "\n";
+
+// Three groups are skipped: no `Final-Recipient`, an unknown action, and a NUL in the address.
+// The first `Action` of a group is the one read.
+foreach ($report->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), " ", Show::action($recipient->action()), "\n";
+}
+
+// A message that is not a delivery report has no report.
+Core\Mail\Message $plain = Core\Mail\Message::parse("From: a@example.org\r\n\r\nFinal-Recipient: rfc822; b@example.org\r\nAction: failed\r\n");
+echo $plain->report() == null ? "no report" : "a report", "\n";
+--EXPECT--
+delay
+ada@example.org delivered
+dee@example.org relayed
+list@example.org expanded
+eve@example.org delayed
+no report

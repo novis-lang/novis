@@ -1,0 +1,30 @@
+<?nvs
+// Measures how the bounce tag of a received message is read, as a script does to find the order of a bounce.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $messages = [
+            Message::parse("Delivered-To: bounces+order-7@example.com\nSubject: x\n\nBody.\n"),
+            Message::parse("X-Original-To: bounces+order-42@example.com\nSubject: x\n\nBody.\n"),
+            Message::parse("To: Shop <bounces+order-1042@example.com>\nSubject: x\n\nBody.\n"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The length is multiplied by 3, so each message is picked in turn.
+            ?tainted string $tag = $messages[(($total + $i) % 3) as int]->bounceTag();
+            $total = $total + 3 * Core\Str::length($tag ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

@@ -1,0 +1,10 @@
+Returns the recipients in the `Cc` header of a received message, as an array of `Core\Mail\Address`.
+
+`Cc` means "carbon copy". These are the people who got a copy of the message. The addresses are in
+the order of the header, and a message without a `Cc` header returns an empty array.
+
+**Good to know:** the sender writes the `Cc` header, so each address and name is tainted. People
+who got a blind copy, with `Bcc`, do not appear in any header that the recipients see.
+
+**The examples below** list the copied recipients, show a message without `Cc`, and collect the
+addresses for a reply to everyone.

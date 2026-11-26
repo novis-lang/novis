@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the id of a received message.
+
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: ada@example.org\r\n"
+    . "Subject: Opening hours\r\n"
+    . "Message-ID: <5d41@mail.example.org>\r\n"
+    . "\r\n"
+    . "Are you open on Sunday?"
+);
+
+// `messageId` returns the id without the angle brackets.
+// This prints `5d41@mail.example.org`.
+echo $mail->messageId() ?? 'no id', "\n";

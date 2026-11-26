@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a support inbox skips a message that a mail provider delivered twice.
+
+use Core\Mail\Message;
+
+// The provider sent the first message again, so its id appears two times.
+array<string> $deliveries = [
+    "Message-ID: <a1@example.org>\r\nSubject: Broken lamp\r\n\r\nThe lamp arrived broken.",
+    "Message-ID: <b2@example.org>\r\nSubject: Invoice\r\n\r\nPlease send the invoice again.",
+    "Message-ID: <a1@example.org>\r\nSubject: Broken lamp\r\n\r\nThe lamp arrived broken.",
+];
+
+// `$seen` is the list of ids that were already handled.
+// The ids are tainted, because the sender wrote them. So the list is `array<tainted string>`.
+array<tainted string> $seen = [];
+foreach ($deliveries as string $raw) {
+    Message $mail = Message::parse($raw);
+    tainted string $id = $mail->messageId() ?? '';
+    if (Core\Arr::contains($seen, $id)) {
+        echo 'skipped ', $id, "\n";
+        continue;
+    }
+    $seen[] = $id;
+    echo 'new ticket: ', $mail->subject(), "\n";
+}
+// This prints two new tickets and one skipped message.

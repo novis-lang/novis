@@ -1,0 +1,32 @@
+<?nvs
+// Shows that a late delivery is a `Delay`, and a failed delivery is a `Bounce`.
+
+use Core\Mail\Message;
+
+class Report
+{
+    // Builds a delivery report with one recipient and the given action and status.
+    public static function with(string $action, string $status): string
+    {
+        return "From: mailer-daemon@mx.example.net\n"
+            . "Subject: Delivery Status Notification\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\n"
+            . "Action: " . $action . "\nStatus: " . $status . "\n"
+            . "--b--\n";
+    }
+}
+
+// The server could not reach ada's mail server yet. It tries again later.
+Message $late = Message::parse(Report::with('delayed', '4.4.1'));
+echo $late->kind() == Message::Kind::Delay ? 'delay: wait, the mail may still arrive' : 'not a delay', "\n";
+
+// Two days later the server gives up. Now the report says `failed`.
+Message $failed = Message::parse(Report::with('failed', '4.4.7'));
+echo $failed->kind() == Message::Kind::Bounce ? 'bounce: the mail did not arrive' : 'not a bounce', "\n";
+
+// A report where every recipient got the mail is neither. Its kind is `Other`.
+Message $delivered = Message::parse(Report::with('delivered', '2.0.0'));
+echo $delivered->kind() == Message::Kind::Other ? 'other: nothing to do' : 'something else', "\n";

@@ -1,0 +1,36 @@
+<?nvs
+// Measures how the `Message-ID` a received message is about is read, as a script does to find the mail that bounced.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $messages = [
+            Message::parse("From: cy@example.org\nIn-Reply-To: <order-7@example.com>\n\nThanks.\n"),
+            Message::parse("From: dee@example.org\nReferences: <a@example.com> <order-42@example.com>\n\nSee below.\n"),
+            Message::parse(
+                "From: mailer-daemon@mx.example.net\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; x\n\n"
+                . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+                . "--b\nContent-Type: text/rfc822-headers\n\nMessage-ID: <order-1042@example.com>\n\n--b--\n"
+            ),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The length is multiplied by 3, so each message is picked in turn.
+            ?tainted string $id = $messages[(($total + $i) % 3) as int]->answers();
+            $total = $total + 3 * Core\Str::length($id ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

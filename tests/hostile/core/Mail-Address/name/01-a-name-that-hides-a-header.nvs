@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a stranger sends a name that decodes to a line break and `Bcc: x@example.net`, and the program replies to that name.
+// The name should stay a name, so the reply should have one recipient and no `Bcc`.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Address;
+use Core\Mail\Message;
+use Core\Test;
+
+class NameAttackTest
+{
+    // Replies to the sender of `$raw`, with the name and the address the sender wrote.
+    private static function reply(string $raw): void
+    {
+        ?Address $sender = Message::parse($raw)->from();
+        if ($sender != null) {
+            Mail::send('shop', [Address::of($sender->address(), $sender->name())], 'Re: Hi', 'Thank you.');
+        }
+    }
+
+    #[Test]
+    public function aLineBreakInTheNameAddsNoHeader(): void
+    {
+        // 1. The name decodes to `Ada`, a line break and `Bcc: x@example.net`.
+        self::reply("From: =?UTF-8?B?QWRhDQpCY2M6IHhAZXhhbXBsZS5uZXQ=?= <ada@example.org>\n\nHi");
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ada@example.org']);
+        Test::assertCount(Test::sentMail()[0]->bcc(), 0);
+    }
+
+    #[Test]
+    public function aNameWithAnAddressInItIsOnlyAName(): void
+    {
+        // 2. The name has a comma and a second address in it.
+        self::reply("From: \"Ada, x@example.net\" <ada@example.org>\n\nHi");
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ada@example.org']);
+    }
+
+    #[Test]
+    public function aVeryLongNameIsSent(): void
+    {
+        // 3. A name of 1 MB, and a name of characters that change the direction of the text.
+        self::reply('From: "' . Core\Str::repeat('A', 1048576) . "\" <ada@example.org>\n\nHi");
+        self::reply("From: \"\u{202E}gpj.exe\" <bo@example.org>\n\nHi");
+        Test::assertCount(Test::sentMail(), 2);
+    }
+}

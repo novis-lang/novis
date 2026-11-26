@@ -1,0 +1,20 @@
+<?nvs
+// Shows that a broken message does not stop a program that reads many messages.
+
+use Core\Mail\Message;
+
+// The second message has no headers, and the third one has a date that is not a date.
+array<string> $inbox = [
+    "From: ada@example.org\r\nSubject: Invoice question\r\nDate: 3 Nov 2026 10:00 +0000\r\n\r\nHello.",
+    "this is not an email",
+    "From: bo@example.org\r\nSubject: Opening hours\r\nDate: someday\r\n\r\nHi.",
+];
+
+// `parse` does not throw an error. A missing subject is an empty string,
+// and a missing sender or date is `null`. The subject is tainted, because the sender wrote it.
+foreach ($inbox as string $raw) {
+    Message $mail = Message::parse($raw);
+    tainted string $subject = $mail->subject() == '' ? '(no subject)' : $mail->subject();
+    echo $mail->from()?->address() ?? '(no sender)', ': ', $subject;
+    echo $mail->date() == null ? ', no date' : ', dated', "\n";
+}

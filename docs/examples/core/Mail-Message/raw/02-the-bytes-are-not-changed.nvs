@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `raw()` returns the bytes exactly as `parse` read them.
+
+use Core\Mail\Message;
+
+// The subject is encoded, and the lines end with `\r\n`.
+string $received = "Subject: =?UTF-8?B?R3LDvMOfZQ==?=\r\n\r\nHello\r\n";
+Message $message = Message::parse($received);
+
+// `subject()` returns the decoded text. This prints `Grüße`.
+echo $message->subject(), "\n";
+
+// `raw()` still has the encoded subject and every `\r\n`. This prints `same bytes`.
+echo $message->raw() == $received as bytes ? 'same bytes' : 'changed', "\n";

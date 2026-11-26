@@ -1,0 +1,6 @@
+Bounce: stop sending to the failed address
+Delay: wait, the server tries again
+Complaint: stop sending newsletters to this reader
+AutoReply: ignore it
+Reply: add it to the conversation
+Other: read it as a new message

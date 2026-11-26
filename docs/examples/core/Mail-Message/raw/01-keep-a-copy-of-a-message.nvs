@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to save a received message as an `.eml` file, which every mail program can open.
+
+use Core\IO;
+use Core\Mail\Message;
+
+Message $complaint = Message::parse(
+    "From: Ada <ada@example.org>\r\n"
+    . "Subject: The mug arrived broken\r\n"
+    . "\r\n"
+    . "Please send a new one.\r\n"
+);
+
+// `raw()` returns the whole message as tainted bytes: the headers and the body.
+string $folder = IO::createTemporaryDirectory();
+string $path = Core\Path::join($folder, 'complaint-1.eml');
+IO::write($path, $complaint->raw());
+
+// The file has the same 88 bytes that were parsed.
+echo 'saved ', IO::size($path), " bytes\n";
+
+// This example deletes the file again, so it leaves nothing behind.
+IO::remove($path);
+IO::removeDirectory($folder);

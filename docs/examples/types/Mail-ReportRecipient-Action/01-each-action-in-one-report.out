@@ -1,0 +1,6 @@
+failed@example.org -> Failed: the message was not delivered
+delayed@example.org -> Delayed: the server still tries
+delivered@example.org -> Delivered: the message is in the mailbox
+relayed@example.org -> Relayed: passed to a server that sends no report
+expanded@example.org -> Expanded: sent on to the members of a list
+bounce: yes

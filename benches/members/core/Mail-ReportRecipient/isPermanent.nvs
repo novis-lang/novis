@@ -1,0 +1,35 @@
+<?nvs
+// Measures how a program checks whether a bounced recipient failed for good, as it does before it removes an address from a list.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Message $bounce = Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+            . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n\n"
+            . "Final-Recipient: rfc822; cy@example.org\nAction: failed\nStatus: 5.7.1\n"
+            . "--b--\n"
+        );
+        array<ReportRecipient> $recipients = $bounce->report()?->recipients() ?? [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three recipients.
+            $total = $total + ($recipients[(($total + $i) % 3) as int]->isPermanent() ? 6 as uint : 3 as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

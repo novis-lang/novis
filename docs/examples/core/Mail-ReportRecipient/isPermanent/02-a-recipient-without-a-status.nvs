@@ -1,0 +1,21 @@
+<?nvs
+// Shows that a recipient without a status code is not a permanent failure.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+// The report says the delivery failed, but it gives no `Status` field.
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+    . "--b--\n"
+);
+
+// The status is an empty string, so the result is `false`. This prints `false`.
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ' [', $recipient->status(), '] ', $recipient->isPermanent() ? 'true' : 'false', "\n";
+}

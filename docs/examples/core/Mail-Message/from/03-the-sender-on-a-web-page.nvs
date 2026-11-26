@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a help desk page lists the sender of each new message.
+
+use Core\Html\Markup;
+use Core\Mail\Message;
+
+// The sender chose this name, and it has HTML in it.
+Message $mail = Message::parse(
+    "From: \"<b>Bo</b>\" <bo@example.org>\r\n"
+    . "Subject: Refund\r\n"
+    . "\r\n"
+    . "I would like a refund."
+);
+
+// The name and the address are tainted. An html`...` template escapes every value in it,
+// so the name shows as text and not as tags.
+tainted string $name = $mail->from()?->name() ?? '';
+tainted string $address = $mail->from()?->address() ?? '';
+Markup $row = html`<li>{$name} &lt;{$address}&gt;</li>`;
+
+// This prints `<li>&lt;b&gt;Bo&lt;/b&gt; &lt;bo@example.org&gt;</li>`.
+echo $row, "\n";

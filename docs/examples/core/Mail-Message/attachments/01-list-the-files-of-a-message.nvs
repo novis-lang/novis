@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to list the files that are attached to a received message.
+
+use Core\Mail\Attachment;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: Ada <ada@example.org>\n"
+    . "Subject: My documents\n"
+    . "MIME-Version: 1.0\n"
+    . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
+    . "\n"
+    . "--b1\n"
+    . "Content-Type: text/plain\n"
+    . "\n"
+    . "Here are the two files.\n"
+    . "--b1\n"
+    . "Content-Type: text/csv; name=\"orders.csv\"\n"
+    . "Content-Disposition: attachment; filename=\"orders.csv\"\n"
+    . "\n"
+    . "id,total\n41,12.50\n42,8.00\n"
+    . "--b1\n"
+    . "Content-Type: application/pdf\n"
+    . "Content-Disposition: attachment; filename=\"invoice.pdf\"\n"
+    . "Content-Transfer-Encoding: base64\n"
+    . "\n"
+    . "JVBERi0xLjQKJcOkw7zDtsOfCg==\n"
+    . "--b1--\n"
+);
+
+// `attachments()` returns one attachment for each file, in order.
+// The text part is the body of the message, so it is not in the array.
+foreach ($mail->attachments() as Attachment $file) {
+    echo $file->name() ?? 'no name', ', ', $file->type(), ', ', Core\Bytes::length($file->bytes()), " bytes\n";
+}

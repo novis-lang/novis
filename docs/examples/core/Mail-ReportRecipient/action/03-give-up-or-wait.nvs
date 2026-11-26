@@ -1,0 +1,37 @@
+<?nvs
+// A bounce handler stops mailing an address that failed, and waits for one that is late.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Handler
+{
+    public static function decide(ReportRecipient $recipient): string
+    {
+        return match ($recipient->action()) {
+            ReportRecipient::Action::Failed => 'stop sending to this address',
+            ReportRecipient::Action::Delayed => 'wait, the server tries again',
+            default => 'nothing to do',
+        };
+    }
+}
+
+array<string> $reports = [
+    "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n",
+    "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.7\n",
+    "Final-Recipient: rfc822; list@example.org\nAction: expanded\nStatus: 2.0.0\n",
+];
+
+foreach ($reports as string $group) {
+    Message $message = Message::parse(
+        "From: mailer-daemon@mx.example.net\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . $group
+        . "--b--\n"
+    );
+    foreach ($message->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+        echo $recipient->address(), ': ', Handler::decide($recipient), "\n";
+    }
+}

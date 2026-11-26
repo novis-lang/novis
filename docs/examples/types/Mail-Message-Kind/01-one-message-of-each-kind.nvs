@@ -1,0 +1,51 @@
+<?nvs
+// Shows one message of each kind, and what a program usually does with it.
+
+use Core\Mail\Message;
+
+class Handle
+{
+    public static function kind(Message::Kind $kind): string
+    {
+        return match ($kind) {
+            Message::Kind::Bounce => 'Bounce: stop sending to the failed address',
+            Message::Kind::Delay => 'Delay: wait, the server tries again',
+            Message::Kind::Complaint => 'Complaint: stop sending newsletters to this reader',
+            Message::Kind::AutoReply => 'AutoReply: ignore it',
+            Message::Kind::Reply => 'Reply: add it to the conversation',
+            Message::Kind::Other => 'Other: read it as a new message',
+        };
+    }
+}
+
+class Sample
+{
+    // A report of the given type, with one part.
+    public static function report(string $type, string $part): string
+    {
+        return "From: mailer-daemon@mx.example.net\nSubject: Report\n"
+            . "Content-Type: multipart/report; report-type=" . $type . "; boundary=\"b\"\n\n"
+            . "--b\n" . $part . "--b--\n";
+    }
+
+    // The part of a delivery report, with one recipient and the given action.
+    public static function status(string $action): string
+    {
+        return "Content-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.net\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\nAction: " . $action . "\n";
+    }
+}
+
+array<string> $messages = [
+    Sample::report('delivery-status', Sample::status('failed')),
+    Sample::report('delivery-status', Sample::status('delayed')),
+    Sample::report('feedback-report', "Content-Type: message/feedback-report\n\nFeedback-Type: abuse\n"),
+    // This message has `In-Reply-To` too, but `AutoReply` is checked first.
+    "From: bo@example.org\nAuto-Submitted: auto-replied\nIn-Reply-To: <a1@example.com>\n\nI am away.\n",
+    "From: cy@example.org\nIn-Reply-To: <a1@example.com>\n\nYes, thank you.\n",
+    "From: dee@example.org\nSubject: A question\n\nHello.\n",
+];
+
+foreach ($messages as string $raw) {
+    echo Handle::kind(Message::parse($raw)->kind()), "\n";
+}

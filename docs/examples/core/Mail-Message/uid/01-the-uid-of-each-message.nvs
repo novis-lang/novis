@@ -1,0 +1,13 @@
+<?nvs
+// Shows the UID of each message that is read from a mailbox folder.
+
+use Core\Mail\Message;
+
+var $inbox = Core\Imap::open('inbox')->folder('INBOX');
+
+// `search()` returns the UIDs of the folder, the oldest first.
+// `fetch()` reads one message, and its `uid()` is the UID it was read with.
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    echo $message->uid() ?? 0, ': ', $message->subject(), "\n";
+}

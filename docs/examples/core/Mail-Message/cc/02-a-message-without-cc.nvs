@@ -1,0 +1,13 @@
+<?nvs
+// Shows what `cc` returns for a message that has no `Cc` header.
+
+use Core\Mail\Message;
+
+Message $mail = Message::parse("From: ada@example.org\r\nTo: support@example.com\r\nSubject: Hi\r\n\r\nHello");
+
+// The header is missing, so the result is an empty array. This prints `0`.
+echo Core\Arr::count($mail->cc()), "\n";
+
+// A loop over an empty array runs zero times, so the message needs no extra check.
+// This prints `no copies`.
+echo Core\Arr::isEmpty($mail->cc()) ? 'no copies' : 'copies', "\n";

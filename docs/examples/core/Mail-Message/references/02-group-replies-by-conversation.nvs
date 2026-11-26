@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to group received messages by the first message of their conversation.
+
+use Core\Mail\Message;
+
+array<Message> $inbox = [
+    Message::parse("Subject: Re: Order 42\nReferences: <order-42@example.com>\n\nWhen does it arrive?"),
+    Message::parse("Subject: Re: Order 43\nReferences: <order-43@example.com>\n\nThanks."),
+    Message::parse("Subject: Re: Re: Order 42\nReferences: <order-42@example.com> <a-7@example.com>\n\nIt arrived."),
+    Message::parse("Subject: A question\n\nAre you open on Sunday?"),
+];
+
+// The first id of `references()` is the message that started the conversation.
+// A new message has no `References` header, so its array is empty.
+foreach ($inbox as Message $message) {
+    array<tainted string> $thread = $message->references();
+    echo Core\Arr::first($thread) ?? 'new', ': ', $message->subject(), "\n";
+}

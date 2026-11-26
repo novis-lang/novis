@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `name()` decodes a name that a mail program encoded.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+// A name with letters that are not ASCII is sent encoded, such as `=?UTF-8?Q?...?=`.
+Message $mail = Message::parse(
+    "From: =?UTF-8?Q?J=C3=BCrgen_M=C3=BCller?= <juergen@example.org>\n"
+    . "Subject: Order 42\n"
+    . "\n"
+    . "Hello\n"
+);
+
+// `name()` returns the decoded name. This prints `Jürgen Müller`.
+?Address $sender = $mail->from();
+echo $sender?->name() ?? '', "\n";

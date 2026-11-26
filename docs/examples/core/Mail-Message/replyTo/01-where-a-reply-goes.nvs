@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read the address that a reply to a message should go to.
+
+use Core\Mail\Message;
+
+// Ada writes from her work address, and she wants the answer at home.
+Message $mail = Message::parse(
+    "From: Ada <ada@work.example.org>\r\n"
+    . "Reply-To: Ada at home <ada@home.example.org>\r\n"
+    . "Subject: My order\r\n"
+    . "\r\n"
+    . "Please answer me at home."
+);
+
+// This prints `ada@work.example.org`.
+echo 'From: ', $mail->from()?->address() ?? '', "\n";
+
+// `replyTo` returns the addresses of the `Reply-To` header.
+// This prints `ada@home.example.org (Ada at home)`.
+echo 'Reply to: ', $mail->replyTo()[0]->address(), ' (', $mail->replyTo()[0]->name(), ")\n";

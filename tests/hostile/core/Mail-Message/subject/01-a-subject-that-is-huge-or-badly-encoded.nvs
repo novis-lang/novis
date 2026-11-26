@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a sender writes a subject that is huge, folded many times, or encoded in a broken way.
+// `subject` should return a valid string each time, and the program should run to its end.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Message;
+
+// 1. A subject of 8 MB on one line.
+Message $huge = Message::parse('Subject: ' . Core\Str::repeat('A', 8388608) . "\r\n\r\nx");
+echo '1 ', Core\Str::length($huge->subject()), "\n";
+
+// 2. A subject folded over 100,000 lines.
+Message $folded = Message::parse('Subject: ' . Core\Str::repeat("word\r\n ", 100000) . "end\r\n\r\nx");
+echo '2 ', Core\Str::length($folded->subject()), "\n";
+
+// 3. 100,000 encoded words in a row.
+Message $words = Message::parse('Subject: ' . Core\Str::repeat('=?UTF-8?B?w6k=?= ', 100000) . "\r\n\r\nx");
+echo '3 ', Core\Str::length($words->subject()), "\n";
+
+// 4. Encoded words that decode to bytes that are not UTF-8, to a line break, and to a NUL character.
+Message $bytes = Message::parse("Subject: =?UTF-8?Q?=FF=FE?= =?UTF-8?Q?a=0D=0AFrom:_x?= =?UTF-8?Q?=00?=\r\n\r\nx");
+echo '4 ', Core\Str::length($bytes->subject()), "\n";
+
+// 5. Character sets that do not exist or that switch modes, and words that never end.
+Message $charsets = Message::parse("Subject: =?X-NONE?Q?a?= =?UTF-7?Q?+AGE-?= =?ISO-2022-JP?B?GyRC?= =?UTF-8?B?\r\n\r\nx");
+echo '5 ', Core\Str::length($charsets->subject()), "\n";

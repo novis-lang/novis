@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a stranger writes a `References` header with a very long list, broken brackets, or many copies of the header.
+// `references()` should return what it can read, and the program should keep running.
+
+use Core\Mail\Message;
+
+// 1. 200,000 ids on one header line.
+Message $long = Message::parse('References: ' . Core\Str::repeat('<a@example.com> ', 200000) . "\n\nHello");
+echo "1 ", Core\Arr::count($long->references()), "\n";
+
+// 2. Brackets that never close, empty brackets, and text with no brackets.
+Message $broken = Message::parse("References: <a@example.com <> <<b>> plain-text\n\nHello");
+echo "2 ", Core\Arr::count($broken->references()), "\n";
+
+// 3. The header 3,000 times. Only the first 1,000 header lines are read.
+Message $copies = Message::parse(Core\Str::repeat("References: <x@example.com>\n", 3000) . "\nHello");
+echo "3 ", Core\Arr::count($copies->references()), "\n";
+
+// 4. An id of 1 MB.
+Message $big = Message::parse('References: <' . Core\Str::repeat('a', 1048576) . "@example.com>\n\nHello");
+echo "4 ", Core\Str::length(Core\Arr::first($big->references()) ?? ''), "\n";

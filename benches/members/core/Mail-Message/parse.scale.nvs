@@ -1,0 +1,29 @@
+<?nvs
+// Measures how a message is read from its raw bytes, at growing sizes of its text in kilobytes.
+// bench: start 4
+// bench: max 512
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $line = Core\Str::repeat('x', 1022) . "\r\n";
+        string $body = Core\Str::repeat($line, $size);
+        array<string> $raws = [
+            "From: ada@example.org\r\nSubject: A\r\n\r\n" . $body,
+            "From: bo@example.org\r\nSubject: B\r\n\r\n" . $body,
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 8) {
+            Message $mail = Message::parse($raws[(($total + $i) % 2) as int]);
+            $total = $total + Core\Str::length($mail->text() ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4), "\n";

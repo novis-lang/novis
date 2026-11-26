@@ -1,0 +1,22 @@
+<?nvs
+// Shows which recipients of a delivery report failed for good and which may still get the mail.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.2.2\n"
+    . "--b--\n"
+);
+
+// `5.1.1` starts with `5`, so the result is `true`. `4.2.2` starts with `4`, so the result is `false`.
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    string $next = $recipient->isPermanent() ? 'stop sending' : 'try again later';
+    echo $recipient->address(), ' ', $recipient->status(), ': ', $next, "\n";
+}

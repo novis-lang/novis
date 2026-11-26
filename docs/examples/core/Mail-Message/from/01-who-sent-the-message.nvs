@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the sender of a received message.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: Ada Lovelace <ada@example.org>\r\n"
+    . "Subject: Table for two\r\n"
+    . "\r\n"
+    . "Do you have a table for two on Friday?"
+);
+
+// `from` returns the address and the name in front of it.
+// This prints `Ada Lovelace` and `ada@example.org`.
+?Address $sender = $mail->from();
+echo 'Name: ', $sender?->name() ?? '', "\n";
+echo 'Address: ', $sender?->address() ?? '', "\n";
+
+// A message without a `From` header gives `null`. This prints `unknown sender`.
+echo Message::parse("Subject: Hi\r\n\r\nHello")->from()?->address() ?? 'unknown sender', "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read the date of a received message, with the sender's time zone.
+
+use Core\Mail\Message;
+use Core\Time\DateTime;
+
+Message $mail = Message::parse(
+    "From: ada@example.org\r\n"
+    . "Subject: Table for Friday\r\n"
+    . "Date: Tue, 3 Nov 2026 14:05:09 +0100\r\n"
+    . "\r\n"
+    . "Is there a table for two?"
+);
+
+// `date` returns the time that the sender wrote, with its offset from UTC.
+// This prints `2026-11-03T14:05:09+01:00[+01:00]`.
+?DateTime $sent = $mail->date();
+if ($sent != null) {
+    echo $sent->toIso(), "\n";
+
+    // The same moment in UTC is one hour earlier. This prints `2026-11-03T13:05:09Z`.
+    echo $sent->toInstant()->toIso(), "\n";
+}

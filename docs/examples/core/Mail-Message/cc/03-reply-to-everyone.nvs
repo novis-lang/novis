@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a help desk collects the addresses for a reply to everyone on a message.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: Ada <ada@example.org>\r\n"
+    . "To: support@example.com, bo@example.org\r\n"
+    . "Cc: Cleo <cleo@example.org>, support@example.com\r\n"
+    . "Subject: Delivery date\r\n"
+    . "\r\n"
+    . "When does the order arrive?"
+);
+
+// The reply goes to the sender, every `To` recipient and every `Cc` recipient.
+array<Address> $everyone = Core\Arr::appendAll($mail->to(), $mail->cc());
+?Address $sender = $mail->from();
+if ($sender != null) {
+    $everyone = Core\Arr::prepend($everyone, $sender);
+}
+
+// The help desk's own address and each address that is already in the list are left out.
+array<tainted string> $reply = [];
+foreach ($everyone as Address $person) {
+    tainted string $address = Core\Str::lower($person->address());
+    if ($address != 'support@example.com' && !Core\Arr::contains($reply, $address)) {
+        $reply[] = $address;
+    }
+}
+
+// This prints `ada@example.org, bo@example.org, cleo@example.org`.
+echo Core\Str::join($reply, ', '), "\n";

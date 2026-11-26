@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `header()` decodes a value that a mail program encoded.
+
+use Core\Mail\Message;
+
+// A header with letters that are not ASCII is sent encoded, such as `=?UTF-8?B?...?=`.
+Message $ticket = Message::parse(
+    "From: shop@example.com\n"
+    . "X-Customer: =?UTF-8?B?SsO8cmdlbiBNw7xsbGVy?=\n"
+    . "\n"
+    . "A new ticket.\n"
+);
+
+// `header()` returns the decoded text. This prints `Jürgen Müller`.
+// The sender wrote this header, so the value is a tainted string.
+echo $ticket->header('X-Customer')[0], "\n";

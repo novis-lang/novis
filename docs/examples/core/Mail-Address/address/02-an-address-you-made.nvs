@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `address()` returns for an address that your program made with `Address::of`.
+
+use Core\Mail\Address;
+
+Address $ada = Address::of('ada@example.org', 'Ada Lovelace');
+
+// `address()` returns the first argument of `of`. This prints `ada@example.org`.
+echo $ada->address(), "\n";
+
+// The name is not part of it. `name()` returns the name.
+echo $ada->name(), "\n";

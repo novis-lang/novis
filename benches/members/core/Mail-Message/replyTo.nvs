@@ -1,0 +1,30 @@
+<?nvs
+// Measures how the `Reply-To` addresses of a received message are read, as a shop does to answer a contact form.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $mails = [
+            Message::parse("Reply-To: cleo@example.org\r\n\r\nx"),
+            Message::parse("Reply-To: cleo@example.org, bo@example.org\r\n\r\nx"),
+            Message::parse("Reply-To: a@example.org, b@example.org, c@example.org\r\n\r\nx"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The count is 1, 2 or 3. Three times the count is added, so the messages are picked in turn.
+            uint $count = Core\Arr::count($mails[(($total + $i) % 3) as int]->replyTo());
+            $total = $total + $count * 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

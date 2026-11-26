@@ -1,0 +1,32 @@
+<?nvs
+// Measures how a short reply is read from its raw bytes, as a webhook does for each message it receives.
+// bench: iterations 256
+// bench: complexity linear
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $head = "From: Ada <ada@example.org>\r\nTo: shop@example.com\r\n"
+            . "Date: Tue, 3 Nov 2026 14:05:09 +0100\r\nMessage-ID: <r1@example.org>\r\n"
+            . "In-Reply-To: <order-42@example.com>\r\n";
+        array<string> $raws = [
+            $head . "Subject: Re: Order 42\r\n\r\nWhere is my parcel?",
+            $head . "Subject: Re: Order 43\r\n\r\nPlease change the address.",
+            $head . "Subject: Re: Order 44\r\n\r\nThank you!",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            Message $mail = Message::parse($raws[(($total + $i) % 3) as int]);
+            $total = $total + Core\Str::length($mail->subject());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Measures how the sender of a received message is read, as a help desk does for each new message.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Message> $mails = [
+            Message::parse("From: a12@example.org\r\n\r\nx"),
+            Message::parse("From: Bo <b12345@example.org>\r\n\r\nx"),
+            Message::parse("From: Cleo <c12345678@example.org>\r\n\r\nx"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            $total = $total + Core\Str::length($mails[(($total + $i) % 3) as int]->from()?->address() ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// Shows which address gives the tag, and when the result is `null`.
+
+use Core\Mail\Message;
+
+array<string> $headers = [
+    // `Delivered-To` is read first. This prints `order-7`.
+    'Delivered-To' => "Delivered-To: bounces+order-7@example.com\nTo: bounces+order-8@example.com\n",
+    // Without `Delivered-To`, `X-Original-To` is read. This prints `order-9`.
+    'X-Original-To' => "X-Original-To: bounces+order-9@example.com\nTo: bounces@example.com\n",
+    // Then the `To` address. This prints `order-10`.
+    'To' => "To: Shop Bounces <bounces+order-10@example.com>\n",
+    // A space and `!` are not allowed in a tag, so the result is `null`.
+    'invalid tag' => "To: \"bounces+drop table!\"@example.com\n",
+    // An address without `+` has no tag, so the result is `null`.
+    'no tag' => "To: bounces@example.com\n",
+];
+
+foreach ($headers as string $what => string $lines) {
+    Message $message = Message::parse($lines . "Subject: Test\n\nBody.\n");
+    echo $what, ': ', $message->bounceTag() ?? 'null', "\n";
+}

@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a stranger sends a forged delivery report. It has far too many recipients, very long
+// groups, or report lines in a message that is not a report. Each report should be read within
+// its limits, quickly, and a message that is not a report should have no recipients.
+// proof: test
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+use Core\Str;
+use Core\Test;
+
+class Forged
+{
+    public static function report(string $groups): Message
+    {
+        return Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . $groups
+            . "--b--\n"
+        );
+    }
+
+    public static function count(Message $message): uint
+    {
+        array<ReportRecipient> $recipients = $message->report()?->recipients() ?? [];
+        return Core\Arr::count($recipients);
+    }
+}
+
+class RecipientsAttackTest
+{
+    #[Test]
+    public function aMessageThatIsNotAReportHasNoRecipients(): void
+    {
+        string $lines = "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n";
+        // 1. The report lines are in the text of a normal message.
+        Message $plain = Message::parse("From: mailer-daemon@example.net\nSubject: Undelivered\n\n" . $lines);
+        Test::assertNull($plain->report());
+        // 2. The report part is in a message that does not say it is a delivery report.
+        Message $mixed = Message::parse(
+            "From: mailer-daemon@example.net\n"
+            . "Content-Type: multipart/mixed; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n" . $lines . "--b--\n"
+        );
+        Test::assertNull($mixed->report());
+        Test::assertTrue($mixed->kind() == Message::Kind::Other);
+    }
+
+    #[Test]
+    public function atMostOneThousandRecipientsAreRead(): void
+    {
+        // 3. A report with 5,000 recipients. Only the first 1,000 are read.
+        string $one = "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\n";
+        Test::assertSame(Forged::count(Forged::report(Str::repeat($one, 5000))), 1000);
+    }
+
+    #[Test]
+    public function emptyGroupsCountTowardsTheLimit(): void
+    {
+        // 4. 2,000 groups without a recipient, then a real one. The real one is past the limit.
+        string $groups = Str::repeat("X-Padding: 1\n\n", 2000) . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n";
+        Test::assertSame(Forged::count(Forged::report($groups)), 0);
+    }
+
+    #[Test]
+    public function aLongGroupIsCut(): void
+    {
+        // 5. One recipient with 5,000 lines before its `Action`. Only 1,000 lines of a group are read.
+        string $group = "Final-Recipient: rfc822; ada@example.org\n" . Str::repeat("X-Padding: 1\n", 5000) . "Action: failed\n";
+        Test::assertSame(Forged::count(Forged::report($group)), 0);
+        // 6. One address continued over 200,000 lines. It is read once, as one recipient.
+        string $long = "Final-Recipient: rfc822; ada@example.org\n" . Str::repeat(" more\n", 200000) . "Action: failed\n";
+        Test::assertSame(Forged::count(Forged::report($long)), 1);
+    }
+}

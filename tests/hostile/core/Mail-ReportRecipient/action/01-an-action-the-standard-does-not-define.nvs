@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a forged report gives each recipient an action that is not a real one, or two actions.
+// A recipient with an unknown action should not be in the list. Such a recipient should never
+// make the message a bounce.
+// proof: test
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+use Core\Test;
+
+class Forged
+{
+    public static function report(string $groups): Message
+    {
+        return Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . $groups
+            . "--b--\n"
+        );
+    }
+
+    public static function failed(Message $message): uint
+    {
+        uint $count = 0;
+        foreach ($message->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+            if ($recipient->action() == ReportRecipient::Action::Failed) {
+                $count = $count + 1;
+            }
+        }
+        return $count;
+    }
+}
+
+class ActionAttackTest
+{
+    #[Test]
+    public function anUnknownActionIsNotAFailure(): void
+    {
+        // 1. Words that look like a failure, an empty action, and no action at all.
+        string $groups = "Final-Recipient: rfc822; ada@example.org\nAction: bounced\n\n"
+            . "Final-Recipient: rfc822; bo@example.org\nAction: failed2\n\n"
+            . "Final-Recipient: rfc822; cy@example.org\nAction:\n\n"
+            . "Final-Recipient: rfc822; dee@example.org\nStatus: 5.1.1\n";
+        Message $message = Forged::report($groups);
+        Test::assertSame(Forged::failed($message), 0);
+        Test::assertTrue($message->kind() == Message::Kind::Other);
+    }
+
+    #[Test]
+    public function upperCaseAndCommentsAreStillTheSameAction(): void
+    {
+        // 2. The same action in capitals, and with a comment after it.
+        string $groups = "Final-Recipient: rfc822; ada@example.org\nAction: FAILED\n\n"
+            . "Final-Recipient: rfc822; bo@example.org\nAction: failed (no such user)\n\n"
+            . "Final-Recipient: rfc822; cy@example.org\nAction: failed; extra\n";
+        Test::assertSame(Forged::failed(Forged::report($groups)), 3);
+    }
+
+    #[Test]
+    public function theFirstOfTwoActionsCounts(): void
+    {
+        // 3. One recipient with `delivered` first and `failed` second. Only the first is read.
+        string $groups = "Final-Recipient: rfc822; ada@example.org\nAction: delivered\nAction: failed\n";
+        Message $message = Forged::report($groups);
+        Test::assertSame(Forged::failed($message), 0);
+        Test::assertTrue($message->kind() != Message::Kind::Bounce);
+    }
+
+    #[Test]
+    public function aFailedLineInASpamReportIsNotABounce(): void
+    {
+        // 4. A spam report that also has a delivery-status part with a failed recipient.
+        Message $message = Message::parse(
+            "From: abuse@example.net\n"
+            . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+            . "--b--\n"
+        );
+        Test::assertNull($message->report());
+        Test::assertTrue($message->kind() == Message::Kind::Complaint);
+    }
+}

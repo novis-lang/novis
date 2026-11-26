@@ -1,0 +1,19 @@
+<?nvs
+// Shows the address of each recipient in a bounce.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.1.1\n"
+    . "--b--\n"
+);
+
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo 'Could not deliver to ', $recipient->address(), "\n";
+}

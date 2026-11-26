@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to save the attached file of a received message.
+
+use Core\IO;
+use Core\Mail\Attachment;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "Subject: The photo\n"
+    . "MIME-Version: 1.0\n"
+    . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
+    . "\n"
+    . "--b1\n"
+    . "Content-Type: text/plain\n"
+    . "\n"
+    . "The photo of the broken mug.\n"
+    . "--b1\n"
+    . "Content-Type: image/png\n"
+    . "Content-Disposition: attachment; filename=\"mug.png\"\n"
+    . "Content-Transfer-Encoding: base64\n"
+    . "\n"
+    . "iVBORw0KGgo=\n"
+    . "--b1--\n"
+);
+
+// The sender chose the file name, so `name()` is a tainted string. A tainted string cannot be part
+// of a path. The program chooses its own file name, and only shows the name of the sender.
+string $folder = IO::createTemporaryDirectory();
+int $number = 1;
+foreach ($mail->attachments() as Attachment $file) {
+    string $path = Core\Path::join($folder, 'upload-' . $number . '.bin');
+    IO::write($path, $file->bytes());
+    echo 'saved ', $file->name() ?? 'a file with no name', ' as upload-', $number, '.bin, ', IO::size($path), " bytes\n";
+    $number = $number + 1;
+
+    // This example deletes the file again, so it leaves nothing behind.
+    IO::remove($path);
+}
+IO::removeDirectory($folder);

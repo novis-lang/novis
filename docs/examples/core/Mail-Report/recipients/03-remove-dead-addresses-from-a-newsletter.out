@@ -1,0 +1,5 @@
+remove ada@example.org
+keep cy@example.org: the server tries again
+ada@example.org: removed
+bo@example.org: subscribed
+cy@example.org: subscribed

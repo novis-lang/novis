@@ -1,0 +1,48 @@
+--TEST--
+`Core\Mail\Message`'s address readers read the first header of each name, decode an encoded display name, give each member of a group, and skip an empty address — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: =?UTF-8?B?w4lsaXNl?= <elise@example.org>, bo@example.org\r\n"
+    . "From: Mallory <mallory@example.net>\r\n"
+    . "To: Team: a@example.com, b@example.com;, \"Doe, Jane\" <jane@example.com>\r\n"
+    . "Cc: <>, Bo <bo@example.org>\r\n"
+    . "Reply-To: one@example.org, Two <two@example.org>\r\n"
+    . "\r\n"
+    . "x"
+);
+
+// `from()` is the first address of the first `From` header, and its name is decoded.
+echo $mail->from()?->name() ?? 'null', ' <', $mail->from()?->address() ?? 'null', ">\n";
+
+// A group gives each of its members, and a quoted name keeps its comma.
+foreach ($mail->to() as Address $to) {
+    echo 'to ', $to->address(), ' [', $to->name(), "]\n";
+}
+
+// The empty address `<>` is skipped.
+foreach ($mail->cc() as Address $cc) {
+    echo 'cc ', $cc->address(), ' [', $cc->name(), "]\n";
+}
+foreach ($mail->replyTo() as Address $reply) {
+    echo 'reply ', $reply->address(), ' [', $reply->name(), "]\n";
+}
+
+// An empty header and a missing one are an empty array or `null`.
+Message $bare = Message::parse("Reply-To: \r\nCc: \r\n\r\nx");
+echo Core\Arr::count($bare->replyTo()), ' ', Core\Arr::count($bare->cc()), ' ', Core\Arr::count($bare->to()), "\n";
+echo $bare->from() == null ? 'no sender' : 'a sender', "\n";
+// covers: Core\Mail\Message::from, Core\Mail\Message::to, Core\Mail\Message::cc, Core\Mail\Message::replyTo
+--EXPECT--
+Élise <elise@example.org>
+to a@example.com []
+to b@example.com []
+to jane@example.com [Doe, Jane]
+cc bo@example.org [Bo]
+reply one@example.org []
+reply two@example.org [Two]
+0 0 0
+no sender

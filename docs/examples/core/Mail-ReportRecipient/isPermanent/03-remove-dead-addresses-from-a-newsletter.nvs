@@ -1,0 +1,39 @@
+<?nvs
+// Removes each address that failed for good from a newsletter list, and keeps the others.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+array<string> $subscribers = ['ada@example.org', 'bo@example.org', 'cy@example.org', 'dee@example.org'];
+
+// The bounces that arrived after the last newsletter.
+array<string> $bounces = [
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.1\n"
+    . "--b--\n",
+    "From: postmaster@mx.example.com\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"c\"\n\n"
+    . "--c\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.com\n\n"
+    . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.2.1\n"
+    . "--c--\n",
+];
+
+// The addresses that failed for good.
+array<tainted string> $dead = [];
+foreach ($bounces as string $raw) {
+    foreach (Message::parse($raw)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+        if ($recipient->isPermanent()) {
+            $dead[] = $recipient->address();
+        }
+    }
+}
+
+// A temporary problem keeps the address on the list.
+foreach ($subscribers as string $address) {
+    echo $address, Core\Arr::contains($dead, $address) ? ' removed' : ' kept', "\n";
+}

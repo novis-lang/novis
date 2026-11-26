@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `header()` treats upper and lower case, and a header that the message does not have.
+
+use Core\Mail\Message;
+
+Message $order = Message::parse(
+    "From: Ada <ada@example.org>\n"
+    . "X-Order: 1042\n"
+    . "\n"
+    . "Please send the invoice again.\n"
+);
+
+// Upper and lower case in the name are the same. This prints `1042` two times.
+echo $order->header('X-Order')[0], "\n";
+echo $order->header('x-order')[0], "\n";
+
+// The message has no `X-Priority` header, so the array is empty. This prints `0`.
+echo Core\Arr::count($order->header('X-Priority')), "\n";

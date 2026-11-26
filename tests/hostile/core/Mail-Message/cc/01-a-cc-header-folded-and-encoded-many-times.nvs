@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a sender writes a `Cc` header that is folded over many lines, or encoded many times.
+// `cc` should return an array each time, and the program should run to its end.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+// 1. One `Cc` header folded over 100,000 lines, with one address on each line.
+Message $folded = Message::parse('Cc: ' . Core\Str::repeat("a@example.org,\r\n ", 100000) . "b@example.org\r\n\r\nx");
+echo '1 ', Core\Arr::count($folded->cc()), "\n";
+
+// 2. A name made of 100,000 encoded words, half of them broken.
+Message $encoded = Message::parse('Cc: ' . Core\Str::repeat('=?UTF-8?B?QQ==?= =?UTF-8?Q?=ZZ?= ', 50000) . "<c@example.org>\r\n\r\nx");
+echo '2 ', Core\Arr::count($encoded->cc()), "\n";
+
+// 3. A quoted name with 100,000 backslashes, and a quote that never closes.
+Message $quoted = Message::parse('Cc: "' . Core\Str::repeat('\\', 100000) . "<d@example.org>\r\n\r\nx");
+echo '3 ', Core\Arr::count($quoted->cc()), "\n";
+
+// 4. Addresses with a NUL character and a tab inside them.
+Message $control = Message::parse("Cc: <e\x00@example.org>, \"Bo\tChen\" <f@example.org>\r\n\r\nx");
+foreach ($control->cc() as Address $copy) {
+    echo '4 ', Core\Str::length($copy->address()), ' ', Core\Str::length($copy->name()), "\n";
+}
+echo "4 done\n";

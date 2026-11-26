@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a shop answers a message from its contact form, which comes from the website itself.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+// The website sends each form as a mail from `form@example.com`, with the visitor in `Reply-To`.
+Message $form = Message::parse(
+    "From: Contact form <form@example.com>\r\n"
+    . "Reply-To: Cleo Martin <cleo@example.org>\r\n"
+    . "To: support@example.com\r\n"
+    . "Subject: Question about delivery\r\n"
+    . "\r\n"
+    . "Do you deliver to Austria?"
+);
+
+// The answer goes to the visitor, and not to the website.
+// The name is tainted, because the visitor typed it into the form.
+foreach ($form->replyTo() as Address $visitor) {
+    echo 'To: ', $visitor->address(), "\n";
+    echo 'Hello ', $visitor->name(), ", yes, we deliver to Austria.\n";
+}

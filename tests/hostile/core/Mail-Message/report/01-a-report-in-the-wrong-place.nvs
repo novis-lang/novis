@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a stranger hides recipient lines where a report is not, or sends a huge report.
+// `report()` should be `null` for a message that is not a delivery report, and a report should have at most 1,000 recipients.
+
+use Core\Mail\Message;
+use Core\Str;
+
+class Show
+{
+    public static function report(string $step, string $raw): void
+    {
+        ?Core\Mail\Report $report = Message::parse($raw)->report();
+        echo $step, ' ', $report == null ? 'no report' : Core\Arr::count($report->recipients()) . ' recipients', "\n";
+    }
+
+    public static function message(string $type, string $part): string
+    {
+        return "Content-Type: " . $type . "; boundary=\"b\"\n\n--b\n" . $part . "--b--\n";
+    }
+}
+
+string $one = "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n";
+string $status = "Content-Type: message/delivery-status\n\nReporting-MTA: dns; x\n\n";
+
+// 1. A delivery status part inside a normal mail.
+Show::report('1', Show::message('multipart/mixed', $status . $one));
+
+// 2. A spam complaint that carries recipient lines.
+Show::report('2', Show::message('multipart/report; report-type=feedback-report', $status . $one));
+
+// 3. A `report-type` with a value that only starts like the real one.
+Show::report('3', Show::message('multipart/report; report-type=delivery-status-x', $status . $one));
+
+// 4. 100,000 recipients in one report.
+Show::report('4', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat($one, 100000)));
+
+// 5. A report of 10 MB of blank lines, then one recipient.
+Show::report('5', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat("\n", 10000000) . $one));
+
+// 6. A report part that is all one line of 10 MB.
+Show::report('6', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat('Action: failed; ', 600000) . "\n"));
+
+// 7. A report part in base64 that is not valid base64.
+Show::report('7', Show::message('multipart/report; report-type=delivery-status',
+    "Content-Type: message/delivery-status\nContent-Transfer-Encoding: base64\n\n!!!not base64!!!\n"));

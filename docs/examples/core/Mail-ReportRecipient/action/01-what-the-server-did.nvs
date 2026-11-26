@@ -1,0 +1,34 @@
+<?nvs
+// Shows the action of each recipient in one delivery report.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Said
+{
+    public static function of(ReportRecipient::Action $action): string
+    {
+        return match ($action) {
+            ReportRecipient::Action::Failed => 'failed',
+            ReportRecipient::Action::Delayed => 'is late',
+            ReportRecipient::Action::Delivered => 'was delivered',
+            ReportRecipient::Action::Relayed => 'was passed on',
+            ReportRecipient::Action::Expanded => 'went to a mailing list',
+        };
+    }
+}
+
+Message $report = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n\n"
+    . "Final-Recipient: rfc822; cy@example.org\nAction: delivered\nStatus: 2.0.0\n"
+    . "--b--\n"
+);
+
+foreach ($report->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo 'The mail to ', $recipient->address(), ' ', Said::of($recipient->action()), "\n";
+}

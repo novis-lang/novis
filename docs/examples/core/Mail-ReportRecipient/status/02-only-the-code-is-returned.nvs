@@ -1,0 +1,22 @@
+<?nvs
+// Shows that `status()` returns only the code, and an empty string when there is no `Status` field.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+Message $delay = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Delayed Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: delayed\nStatus: 4.4.1 (connection timed out)\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\n"
+    . "--b--\n"
+);
+
+// The first recipient has a comment after its code. The result is `4.4.1`.
+// The second recipient has no `Status` field. The result is an empty string.
+foreach ($delay->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ': [', $recipient->status(), "]\n";
+}

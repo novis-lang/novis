@@ -1,0 +1,40 @@
+<?nvs
+// Measures how the server message of a bounced recipient is read, as a program does to write it to a log.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Message $bounce = Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+            . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
+            . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n\n"
+            . "Final-Recipient: rfc822; cy@example.org\nAction: failed\nStatus: 5.2.2\n"
+            . "Diagnostic-Code: smtp; 552 5.2.2 Mailbox full\n"
+            . "--b--\n"
+        );
+        array<ReportRecipient> $recipients = $bounce->report()?->recipients() ?? [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three recipients.
+            ?tainted string $text = $recipients[(($total + $i) % 3) as int]->diagnostic();
+            // Each round adds a multiple of 3, so the rounds visit the recipients in turn.
+            uint $length = $text == null ? 1 as uint : Core\Str::length($text);
+            $total = $total + 3 * $length;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

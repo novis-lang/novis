@@ -1,0 +1,36 @@
+<?nvs
+// A support inbox puts each message in a folder by its kind, so the team reads only real questions.
+
+use Core\Mail\Message;
+
+class Folder
+{
+    public static function for(Message $message): string
+    {
+        return match ($message->kind()) {
+            Message::Kind::Bounce, Message::Kind::Delay => 'Delivery reports',
+            Message::Kind::Complaint => 'Spam complaints',
+            Message::Kind::AutoReply => 'Ignored',
+            Message::Kind::Reply => 'Open tickets',
+            Message::Kind::Other => 'New tickets',
+        };
+    }
+}
+
+array<string> $inbox = [
+    // A mail provider reports that a customer marked a mail as spam.
+    "From: abuse@mail.example.net\nSubject: Complaint\n"
+    . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
+    . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\n--f--\n",
+    // An out-of-office program that writes `X-Autoreply`.
+    "From: bo@example.org\nX-Autoreply: yes\nSubject: Re: Ticket 7\nIn-Reply-To: <ticket-7@example.com>\n\nI am away.\n",
+    // The customer answers the support team.
+    "From: cy@example.org\nSubject: Re: Ticket 7\nIn-Reply-To: <ticket-7@example.com>\n\nIt works now.\n",
+    // A new customer writes for the first time.
+    "From: dee@example.org\nSubject: The app does not start\n\nHello, I need help.\n",
+];
+
+foreach ($inbox as string $raw) {
+    Message $message = Message::parse($raw);
+    echo Folder::for($message), ': ', $message->subject(), "\n";
+}

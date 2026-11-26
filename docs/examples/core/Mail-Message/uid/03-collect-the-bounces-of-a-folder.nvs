@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to keep the UIDs of some messages, to pass them to the methods of the folder later.
+
+use Core\Imap\Folder;
+use Core\Mail\Message;
+
+class Bounces
+{
+    // Returns every bounce in the folder.
+    public static function in(Folder $folder): array<Message>
+    {
+        array<Message> $found = [];
+        foreach ($folder->search() as int $uid) {
+            Message $message = $folder->fetch($uid);
+            if ($message->kind() == Message::Kind::Bounce) {
+                $found[] = $message;
+            }
+        }
+        return $found;
+    }
+}
+
+// Each message still has its UID. A program can pass it to `move`, `markSeen` or `delete`.
+foreach (Bounces::in(Core\Imap::open('inbox')->folder('INBOX')) as Message $bounce) {
+    echo 'bounce ', $bounce->uid() ?? 0, ' for ', $bounce->answers() ?? 'an unknown message', "\n";
+}

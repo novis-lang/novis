@@ -1,0 +1,23 @@
+<?nvs
+// Shows which header `answers()` reads for a reply.
+
+use Core\Mail\Message;
+
+// `In-Reply-To` names the mail that the person answers. This prints `ticket-7@example.com`.
+Message $reply = Message::parse(
+    "From: cy@example.org\nSubject: Re: Ticket 7\n"
+    . "In-Reply-To: <ticket-7@example.com>\n"
+    . "References: <ticket-1@example.com> <ticket-7@example.com>\n\nThanks.\n"
+);
+echo $reply->answers() ?? 'none', "\n";
+
+// Some programs write only `References`. The last entry is the newest mail, so this prints `ticket-9@example.com`.
+Message $forwarded = Message::parse(
+    "From: dee@example.org\nSubject: Fw: Ticket 9\n"
+    . "References: <ticket-8@example.com> <ticket-9@example.com>\n\nSee below.\n"
+);
+echo $forwarded->answers() ?? 'none', "\n";
+
+// A new message names no other mail, so the result is `null`.
+Message $new = Message::parse("From: eve@example.org\nSubject: Hello\n\nA question.\n");
+echo $new->answers() ?? 'none', "\n";

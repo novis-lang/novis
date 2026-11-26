@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read a message that was saved as an `.eml` file.
+
+use Core\Mail\Attachment;
+use Core\Mail\Message;
+
+// An `.eml` file is the raw message. The path starts at the folder of this program.
+Message $reply = Message::parse(Core\IO::readBytes('files/reply-1042.eml'));
+
+// This prints `Re: Your order 1042` and the id of the message it answers.
+echo $reply->subject(), "\n";
+echo 'Answers: ', $reply->inReplyTo() ?? 'nothing', "\n";
+
+// The text and the attached photo are separate parts of the message.
+echo 'Text: ', Core\Str::trim($reply->text() ?? ''), "\n";
+foreach ($reply->attachments() as Attachment $file) {
+    echo 'File: ', $file->name() ?? 'no name', ', ', $file->type(), "\n";
+}

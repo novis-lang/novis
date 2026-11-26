@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to list the people who got a copy of a received message.
+
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $mail = Message::parse(
+    "From: ada@example.org\r\n"
+    . "To: support@example.com\r\n"
+    . "Cc: Bo Chen <bo@example.org>, accounts@example.org\r\n"
+    . "Subject: Invoice 1042\r\n"
+    . "\r\n"
+    . "The invoice has the wrong address."
+);
+
+// `cc` returns one address for each person in the `Cc` header, in order.
+// This prints `bo@example.org` and `accounts@example.org`.
+foreach ($mail->cc() as Address $copy) {
+    echo $copy->address(), "\n";
+}

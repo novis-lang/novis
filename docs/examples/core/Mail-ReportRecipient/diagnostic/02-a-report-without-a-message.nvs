@@ -1,0 +1,25 @@
+<?nvs
+// Shows that `diagnostic()` returns `null` when the report has no `Diagnostic-Code` field.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+// The second recipient has a long message that continues on the next line.
+// The two lines are joined with a space.
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.7.1\n"
+    . "Diagnostic-Code: smtp; 550 5.7.1 Message rejected\n    because of the sender policy\n"
+    . "--b--\n"
+);
+
+// The first recipient has no message, so the result is `null`.
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    ?tainted string $text = $recipient->diagnostic();
+    echo $recipient->address(), ': ', $text == null ? 'null' : $text, "\n";
+}

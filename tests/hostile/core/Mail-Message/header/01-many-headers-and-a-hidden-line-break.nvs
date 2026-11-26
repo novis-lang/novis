@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a stranger sends thousands of header lines, a value that decodes to a second header, and odd names.
+// `header()` should return only what the message really has, and the program should keep running.
+
+use Core\Mail\Message;
+
+// 1. 5,000 `X-Spam` lines. Only the first 1,000 header lines are read.
+Message $many = Message::parse(Core\Str::repeat("X-Spam: yes\n", 5000) . "\nHello");
+echo "1 ", Core\Arr::count($many->header('X-Spam')), "\n";
+
+// 2. An encoded value that decodes to a line break and `Bcc: x@example.net`. It should not become a `Bcc` header.
+Message $hidden = Message::parse("X-Note: =?UTF-8?B?aGkNCkJjYzogeEBleGFtcGxlLm5ldA==?=\n\nHello");
+echo "2 ", Core\Arr::count($hidden->header('Bcc')), " ", Core\Arr::count($hidden->header('X-Note')), "\n";
+
+// 3. An empty name, a name with a colon and a name with a line break.
+Message $plain = Message::parse("Subject: Hi\n\nHello");
+echo "3 ", Core\Arr::count($plain->header('')), Core\Arr::count($plain->header('Subject:')), Core\Arr::count($plain->header("Subject\n")), "\n";
+
+// 4. One header value of 1 MB.
+Message $long = Message::parse('X-Long: ' . Core\Str::repeat('A', 1048576) . "\n\nHello");
+echo "4 ", Core\Str::length($long->header('X-Long')[0] ?? ''), "\n";

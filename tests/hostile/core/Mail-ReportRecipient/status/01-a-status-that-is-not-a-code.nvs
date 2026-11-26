@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a stranger sends a report whose `Status` fields are not real status codes.
+// Each one should be read without a crash, and `status()` should give only the first word.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Forged
+{
+    // A delivery report with one failed recipient for each status line in `$statuses`.
+    public static function report(array<string> $statuses): Message
+    {
+        string $groups = '';
+        int $n = 0;
+        foreach ($statuses as string $status) {
+            $groups = $groups . "\nFinal-Recipient: rfc822; r" . $n . "@example.org\nAction: failed\n" . $status . "\n";
+            $n = $n + 1;
+        }
+        return Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n" . $groups
+            . "--b--\n"
+        );
+    }
+}
+
+array<string> $statuses = [
+    // 1. A class alone, a class and a dot, a class of two digits, words, and an empty value.
+    'Status: 5',
+    'Status: 5.',
+    'Status: 55.1.1',
+    'Status: permanent failure',
+    'Status:',
+    // 2. A code of one million characters with no space in it.
+    'Status: ' . Core\Str::repeat('5', 1000000),
+    // 3. A code with a NUL byte, a tab, and a status field written twice.
+    "Status: 5.1\x001",
+    "Status:\t4.2.2\t5.1.1",
+    "Status: 4.4.1\nStatus: 5.1.1",
+];
+
+foreach (Forged::report($statuses)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ' ', Core\Str::length($recipient->status()), ' ';
+    echo $recipient->isPermanent() ? 'permanent' : 'temporary', "\n";
+}

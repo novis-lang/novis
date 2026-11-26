@@ -1,0 +1,11 @@
+# The shop sends its mail from noreply@example.com. Bounces and answers arrive in
+# that mailbox. Here the mailbox is a folder on disk, with one `.eml` file per message.
+[imap.noreply]
+directory = "mailbox"
+
+# The program may read the `noreply` mailbox, and the files of its folder.
+[capabilities.imap]
+connect = ["noreply"]
+
+[capabilities.fs]
+read = ["mailbox"]

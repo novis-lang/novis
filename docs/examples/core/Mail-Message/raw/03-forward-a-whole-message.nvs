@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to forward a whole received message, as an attached file, to the person who checks complaints.
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Mail\Message;
+
+Message $complaint = Message::parse(
+    "From: Ada <ada@example.org>\n"
+    . "Subject: The mug arrived broken\n"
+    . "\n"
+    . "Please send a new one.\n"
+);
+
+// `message/rfc822` is the media type of a whole mail message. The mail program of
+// the recipient opens the attached file as a mail.
+Attachment $copy = Attachment::fromBytes('complaint.eml', $complaint->raw(), { type: 'message/rfc822' });
+Mail::send('shop', ['support@example.com'], 'A complaint to check', 'The message is attached.', {
+    attachments: [$copy],
+});
+echo 'forwarded ', $copy->name() ?? '', ', ', Core\Bytes::length($copy->bytes()), " bytes\n";

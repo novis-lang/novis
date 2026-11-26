@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a forged report tries to make a program delete good addresses from its list.
+// Only a status code that starts with `5` should count as permanent, and every other recipient should be temporary.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Forged
+{
+    // A delivery report with the recipient groups in `$groups`, each separated by an empty line.
+    public static function report(string $groups): Message
+    {
+        return Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\nStatus: 5.1.1\n\n"
+            . $groups
+            . "--b--\n"
+        );
+    }
+}
+
+string $groups =
+    // 1. A temporary code with `5.1.1` in a comment, and with `5.1.1` in the server message.
+    "Final-Recipient: rfc822; a@example.org\nAction: failed\nStatus: 4.2.2 (5.1.1 permanent)\n\n"
+    . "Final-Recipient: rfc822; b@example.org\nAction: failed\nStatus: 4.4.1\nDiagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
+    // 2. A code with spaces in front of the `5`, and a field name in lower case.
+    . "Final-Recipient: rfc822; c@example.org\nAction: failed\nStatus:      5.1.1\n\n"
+    . "Final-Recipient: rfc822; d@example.org\nAction: failed\nstatus: 5.1.1\n\n"
+    // 3. A delivered recipient with a permanent code, and a recipient with no status at all.
+    . "Final-Recipient: rfc822; e@example.org\nAction: delivered\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; f@example.org\nAction: failed\n\n";
+foreach (Forged::report($groups)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ' ', $recipient->isPermanent() ? 'permanent' : 'temporary', "\n";
+}
+
+// 4. Five thousand permanent recipients in one report. At most 1,000 should be read.
+string $many = Core\Str::repeat("Final-Recipient: rfc822; x@example.org\nAction: failed\nStatus: 5.1.1\n\n", 5000);
+int $permanent = 0;
+foreach (Forged::report($many)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    if ($recipient->isPermanent()) {
+        $permanent = $permanent + 1;
+    }
+}
+echo $permanent, " permanent\n";

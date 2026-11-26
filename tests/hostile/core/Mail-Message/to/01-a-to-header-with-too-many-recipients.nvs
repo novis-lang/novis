@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a sender writes a `To` header with a huge number of recipients, or with groups that never end.
+// `to` should return an array each time, and the program should run to its end.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Message;
+
+// 1. One `To` header with 200,000 addresses.
+Message $crowd = Message::parse('To: ' . Core\Str::join(Core\Arr::fill(200000, 'a@example.org'), ', ') . "\r\n\r\nx");
+echo '1 ', Core\Arr::count($crowd->to()), "\n";
+
+// 2. 5,000 `To` headers. Only the first one is read.
+Message $headers = Message::parse(Core\Str::repeat("To: b@example.org\r\n", 5000) . "\r\nx");
+echo '2 ', Core\Arr::count($headers->to()), "\n";
+
+// 3. A group inside a group, 100,000 times, and none of them ends.
+Message $groups = Message::parse('To: ' . Core\Str::repeat('Team: ', 100000) . "c@example.org\r\n\r\nx");
+echo '3 ', Core\Arr::count($groups->to()), "\n";
+
+// 4. 100,000 empty addresses and commas, and no real address.
+Message $empty = Message::parse('To: ' . Core\Str::repeat('<>, , ', 100000) . "\r\n\r\nx");
+echo '4 ', Core\Arr::count($empty->to()), "\n";

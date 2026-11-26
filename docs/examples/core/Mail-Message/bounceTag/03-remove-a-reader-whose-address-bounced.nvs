@@ -1,0 +1,35 @@
+<?nvs
+// A newsletter sends each reader's mail with the tag `reader-<id>`. A bounce then removes that reader.
+
+use Core\Mail\Message;
+
+// The readers of the newsletter, by their id.
+array<string> $readers = [
+    'reader-1' => 'ada@example.org',
+    'reader-2' => 'bo@example.org',
+    'reader-3' => 'cy@example.org',
+];
+
+array<string> $bounces = [
+    "Delivered-To: news+reader-2@example.com\nFrom: mailer-daemon@mx.example.org\nSubject: Undeliverable\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.org\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.1.1\n--b--\n",
+    // A tag the newsletter never sent. Somebody wrote this address by hand.
+    "Delivered-To: news+reader-99@example.com\nFrom: someone@example.net\nSubject: Hello\n\nHi.\n",
+];
+
+foreach ($bounces as string $raw) {
+    Message $message = Message::parse($raw);
+    ?tainted string $tag = $message->bounceTag();
+    // Only a real bounce, with a tag of a known reader, removes the reader.
+    if ($message->kind() != Message::Kind::Bounce || $tag == null || !isset($readers[$tag])) {
+        echo 'ignored: ', $tag ?? 'no tag', "\n";
+        continue;
+    }
+    foreach ($readers as string $id => string $address) {
+        if ($id == $tag) {
+            echo 'removed ', $address, "\n";
+        }
+    }
+}

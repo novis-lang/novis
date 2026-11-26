@@ -1,0 +1,19 @@
+From: Bo Chen <bo@example.org>
+To: Example Shop <shop@example.com>
+Subject: Re: Your order 1042
+Date: Wed, 4 Nov 2026 09:12:40 +0000
+Message-ID: <c81e@example.org>
+In-Reply-To: <order-1042@example.com>
+Content-Type: multipart/mixed; boundary="part"
+
+--part
+Content-Type: text/plain; charset=utf-8
+
+Thank you. The photo of the parcel is attached.
+--part
+Content-Type: image/png
+Content-Disposition: attachment; filename="parcel.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--part--

@@ -1,0 +1,32 @@
+--TEST--
+`Core\Mail\Message::raw` returns the bytes `parse` read, unchanged: an encoded header stays encoded, every `\r\n` and a byte that is not UTF-8 stay, and a `string` and `bytes` give the same raw value — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\Message::raw
+// This program parses one message from a string and from bytes, and compares what `raw()` returns.
+use Core\Bytes;
+use Core\Mail\Message;
+
+string $text = "Subject: =?UTF-8?B?R3LDvMOfZQ==?=\r\n\r\nHello\r\n";
+Message $fromText = Message::parse($text);
+echo $fromText->subject(), "\n";
+echo Bytes::length($fromText->raw()), "\n";
+echo $fromText->raw() == $text as bytes ? "same" : "changed", "\n";
+
+// A body with the byte 255, which is not valid text, is kept as it was.
+bytes $binary = Bytes::join(["Subject: x\n\n" as bytes, Bytes::fill(3, 255)]);
+Message $fromBytes = Message::parse($binary);
+echo Bytes::length($fromBytes->raw()), "\n";
+echo $fromBytes->raw() == $binary ? "same" : "changed", "\n";
+
+// A message the parser cannot read at all still keeps its bytes.
+echo Bytes::length(Message::parse("not a message")->raw()), "\n";
+echo Bytes::length(Message::parse("")->raw()), "\n";
+--EXPECT--
+Grüße
+44
+same
+15
+same
+13
+0

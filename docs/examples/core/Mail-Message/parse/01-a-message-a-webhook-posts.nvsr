@@ -1,0 +1,14 @@
+--METHOD--
+POST
+--PATH--
+/mail/inbound
+--HEADERS--
+content-type: message/rfc822
+--BODY_CRLF--
+From: Ada Lovelace <ada@example.org>
+To: support@example.com
+Subject: My order has not arrived
+Date: Tue, 3 Nov 2026 14:05:09 +0100
+Message-ID: <7f3a@example.org>
+
+Hello, I ordered a lamp last week. Where is it?

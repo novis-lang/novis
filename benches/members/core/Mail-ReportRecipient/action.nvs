@@ -1,0 +1,37 @@
+<?nvs
+// Measures how the action of a report recipient is read, as a bounce handler does before it changes anything.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Message $message = Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\n"
+            . "Final-Recipient: rfc822; bob@example.org\nAction: delayed\n\n"
+            . "Final-Recipient: rfc822; carol@example.org\nAction: delivered\n"
+            . "--b--\n"
+        );
+        array<ReportRecipient> $recipients = $message->report()?->recipients() ?? [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three recipients.
+            // Each action adds a multiple of 3, so each recipient is picked in turn.
+            uint $step = $recipients[(($total + $i) % 3) as int]->action() == ReportRecipient::Action::Failed ? 3 : 6;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

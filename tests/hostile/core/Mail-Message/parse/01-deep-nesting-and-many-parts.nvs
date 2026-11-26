@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a sender writes a message that is nested far too deep, or that has far too many parts.
+// `parse` should read the message up to its limits, skip the rest, and stop quickly.
+// hostile: timeout-ms 30000
+
+use Core\Mail\Message;
+
+// 1. Parts inside parts, 5,000 levels deep. Only 16 levels are read.
+uint $levels = 5000;
+array<string> $open = [];
+array<string> $close = [];
+uint $i = 0;
+while ($i < $levels) {
+    $open[] = "Content-Type: multipart/mixed; boundary=\"b{$i}\"\r\n\r\n--b{$i}\r\n";
+    $close[] = "\r\n--b{$i}--\r\n";
+    $i = $i + 1;
+}
+string $deep = "From: a@example.org\r\nSubject: deep\r\n" . Core\Str::join($open, '')
+    . "Content-Type: text/plain\r\n\r\nthe bottom" . Core\Str::join(Core\Arr::reverse($close), '');
+Message $parts = Message::parse($deep);
+echo '1 ', $parts->subject(), ' ', $parts->text() ?? 'no text', "\n";
+
+// 2. A message inside a message, 5,000 times.
+array<string> $wrappers = [];
+$i = 0;
+while ($i < $levels) {
+    $wrappers[] = "Subject: level {$i}\r\nContent-Type: message/rfc822\r\n\r\n";
+    $i = $i + 1;
+}
+Message $messages = Message::parse(Core\Str::join($wrappers, '') . "Subject: bottom\r\n\r\nhello");
+echo '2 ', $messages->subject(), ' ', Core\Arr::count($messages->attachments()), "\n";
+
+// 3. One message with 100,000 attached files. Only the first 1,000 parts are read.
+array<string> $files = [];
+$i = 0;
+while ($i < 100000) {
+    $files[] = "--x\r\nContent-Type: application/octet-stream\r\n"
+        . "Content-Disposition: attachment; filename=\"f{$i}.bin\"\r\n\r\nx\r\n";
+    $i = $i + 1;
+}
+Message $many = Message::parse("Subject: many\r\nContent-Type: multipart/mixed; boundary=\"x\"\r\n\r\n"
+    . Core\Str::join($files, '') . "--x--\r\n");
+echo '3 ', $many->subject(), ' ', Core\Arr::count($many->attachments()), "\n";
+
+// 4. 100,000 header lines, then a subject. Only the first 1,000 lines are read, so the subject is empty.
+array<string> $lines = [];
+$i = 0;
+while ($i < 100000) {
+    $lines[] = "X-Filler-{$i}: x\r\n";
+    $i = $i + 1;
+}
+Message $headers = Message::parse(Core\Str::join($lines, '') . "Subject: after the filler\r\n\r\nbody");
+echo '4 [', $headers->subject(), '] ', Core\Arr::count($headers->header('X-Filler-5')), "\n";
+
+// 5. Bytes that are not text, and bytes that end in the middle of a header.
+bytes $raw = Core\Bytes::join([
+    'Subject: ' as bytes,
+    Core\Bytes::pack('C', 255),
+    Core\Bytes::pack('C', 254),
+    Core\Bytes::pack('C', 0),
+    "\r\nFrom: =?UTF-8?B?////?= <a@" as bytes,
+]);
+Message $broken = Message::parse($raw);
+echo '5 ', Core\Str::length($broken->subject()), "\n";

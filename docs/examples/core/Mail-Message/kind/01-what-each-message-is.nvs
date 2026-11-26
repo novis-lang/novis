@@ -1,0 +1,41 @@
+<?nvs
+// Shows the kind of four messages that arrive at a shop's address.
+
+use Core\Mail\Message;
+
+class Label
+{
+    public static function of(Message::Kind $kind): string
+    {
+        return match ($kind) {
+            Message::Kind::Bounce => 'bounce',
+            Message::Kind::Delay => 'delay',
+            Message::Kind::Complaint => 'complaint',
+            Message::Kind::AutoReply => 'auto-reply',
+            Message::Kind::Reply => 'reply',
+            Message::Kind::Other => 'other',
+        };
+    }
+}
+
+array<string> $raw = [
+    // A delivery report. The address ada@example.org does not exist.
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+    . "--b--\n",
+    // An out-of-office message. `Auto-Submitted` says a program wrote it.
+    "From: bo@example.org\nAuto-Submitted: auto-replied\nSubject: Away until Monday\n\nI am away.\n",
+    // A person answers the order confirmation.
+    "From: cy@example.org\nIn-Reply-To: <order-42@example.com>\nSubject: Re: Your order\n\nThank you!\n",
+    // A new question.
+    "From: dee@example.org\nSubject: Do you ship to Norway?\n\nHello.\n",
+];
+
+foreach ($raw as string $text) {
+    Message $message = Message::parse($text);
+    echo Label::of($message->kind()), ': ', $message->subject(), "\n";
+}

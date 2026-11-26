@@ -1,0 +1,43 @@
+--TEST--
+`Core\Mail\Message::uid` is the UID a message was fetched under from a `directory` folder, not a header the sender wrote, and `null` for the same bytes read with `parse` — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\Message::uid
+// This program fetches each message of a folder and prints its UID, then parses the same file.
+use Core\Mail\Message;
+
+var $inbox = Core\Imap::open("inbox")->folder("INBOX");
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    echo $uid, " ", $message->uid() ?? "null", " ", $message->subject(), "\n";
+}
+
+// The message has an `X-Uid: 99` header. `uid()` is still the UID of the file.
+echo Core\Str::join($inbox->fetch(12)->header("X-Uid"), ","), "\n";
+
+// The same bytes, read with `parse`, have no UID.
+Message $parsed = Message::parse(Core\IO::readBytes("mailbox/INBOX/12.eml"));
+echo $parsed->uid() ?? "null", " ", $parsed->subject(), "\n";
+--FILE mailbox/INBOX/3.eml--
+Subject: Third
+
+Hello.
+--FILE mailbox/INBOX/12.eml--
+Subject: Twelfth
+X-Uid: 99
+
+Hello.
+--FILE nvs.toml--
+[imap.inbox]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+[capabilities.fs]
+read = ["mailbox"]
+--EXPECT--
+3 3 Third
+12 12 Twelfth
+99
+null Twelfth

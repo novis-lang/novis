@@ -1,0 +1,18 @@
+<?nvs
+// Shows that a sender's name in another alphabet is decoded.
+
+use Core\Mail\Message;
+
+// A mail program writes a name with letters outside ASCII in an encoded form, such as `=?UTF-8?B?...?=`.
+Message $mail = Message::parse(
+    "From: =?UTF-8?B?0JDQvdC90LAg0J/QsNCy0LvQvtCy0LA=?= <anna@example.org>\r\n"
+    . "Subject: Order 1042\r\n"
+    . "\r\n"
+    . "Hello."
+);
+
+// `name()` returns the decoded name. This prints `Анна Павлова`.
+echo $mail->from()?->name() ?? '', "\n";
+
+// The address is not encoded. This prints `anna@example.org`.
+echo $mail->from()?->address() ?? '', "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows a delivery report where every recipient got the message. It is not a bounce.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+// Some servers send a report when the message arrives, if the sender asked for one.
+Message $notice = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Delivery Status Notification (Success)\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: delivered\nStatus: 2.0.0\n"
+    . "--b--\n"
+);
+
+// No recipient failed or is late, so the kind is `Other`.
+echo 'bounce: ', $notice->kind() == Message::Kind::Bounce ? 'yes' : 'no', "\n";
+
+// The report is still there, and the action of the recipient is `Delivered`.
+foreach ($notice->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    bool $delivered = $recipient->action() == ReportRecipient::Action::Delivered;
+    echo $recipient->address(), ' delivered: ', $delivered ? 'yes' : 'no', "\n";
+}

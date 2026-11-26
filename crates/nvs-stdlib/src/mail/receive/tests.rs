@@ -12,6 +12,7 @@ fn crlf(lines: &[&str]) -> Vec<u8> {
 // covers: Core\Mail\Message::to, Core\Mail\Message::cc, Core\Mail\Message::replyTo
 // covers: Core\Mail\Message::subject, Core\Mail\Message::date, Core\Mail\Message::header
 // covers: Core\Mail\Message::inReplyTo, Core\Mail\Message::references
+// covers: Core\Mail\Address::address, Core\Mail\Address::name
 #[test]
 fn parse_reads_the_headers_and_decodes_encoded_words() {
     let raw = crlf(&[
@@ -253,6 +254,7 @@ fn parse_stops_at_the_part_count_bound() {
 }
 
 /// Bytes with no header block are an empty message, and so is no input at all.
+// covers: Core\Mail\Message::raw
 #[test]
 fn a_message_with_no_headers_is_an_empty_message() {
     for raw in [&b""[..], b"no header here", b"\x00\xff\xfe"] {

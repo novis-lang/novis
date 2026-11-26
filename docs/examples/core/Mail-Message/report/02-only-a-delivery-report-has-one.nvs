@@ -1,0 +1,22 @@
+<?nvs
+// Shows that `report()` is `null` for a message that is not a delivery report.
+
+use Core\Mail\Message;
+
+array<string> $messages = [
+    'a reply' => "From: cy@example.org\nIn-Reply-To: <order-42@example.com>\nSubject: Re: Your order\n\nThanks.\n",
+    'a bounce written as text' => "From: postmaster@example.org\nSubject: Undeliverable\n\nThe address does not exist.\n",
+    'a delivery report' => "From: mailer-daemon@mx.example.net\nSubject: Delivered\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: delivered\nStatus: 2.0.0\n"
+        . "--b--\n",
+];
+
+// The second message says the mail was not delivered, but it is plain text and not a report.
+// So it has no report. The third is a report where the mail arrived.
+foreach ($messages as string $what => string $raw) {
+    ?Core\Mail\Report $report = Message::parse($raw)->report();
+    echo $what, ': ', $report == null ? 'no report' : 'a report', "\n";
+}

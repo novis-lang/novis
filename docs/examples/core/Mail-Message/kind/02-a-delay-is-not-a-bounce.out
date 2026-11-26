@@ -1,0 +1,3 @@
+delay: wait, the mail may still arrive
+bounce: the mail did not arrive
+other: nothing to do

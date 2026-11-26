@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a forged report gives addresses with hidden control characters, a second header after
+// a carriage return, or only brackets. No address with a control character should be returned,
+// and an empty address should not be in the list.
+// proof: test
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+use Core\Str;
+use Core\Test;
+
+class Forged
+{
+    public static function addresses(string $groups): array<tainted string>
+    {
+        Message $message = Message::parse(
+            "From: mailer-daemon@mx.example.net\n"
+            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+            . "--b\nContent-Type: message/delivery-status\n\n"
+            . "Reporting-MTA: dns; mx.example.net\n\n"
+            . $groups
+            . "--b--\n"
+        );
+        array<tainted string> $addresses = [];
+        foreach ($message->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+            $addresses[] = $recipient->address();
+        }
+        return $addresses;
+    }
+}
+
+class AddressAttackTest
+{
+    #[Test]
+    public function aControlCharacterIsNeverReturned(): void
+    {
+        // 1. A carriage return, then a `Bcc` header, inside the address.
+        // 2. A NUL byte, a bell and an escape character inside the address.
+        string $groups = "Final-Recipient: rfc822; ada@example.org\rBcc: all@example.com\nAction: failed\n\n"
+            . "Final-Recipient: rfc822; a\x00b@example.org\nAction: failed\n\n"
+            . "Final-Recipient: rfc822; bo\x07@example.org\nAction: failed\n\n"
+            . "Final-Recipient: rfc822; cy" . Str::fromCodePoint(27) . "[31m@example.org\nAction: failed\n\n"
+            . "Final-Recipient: rfc822; dee@example.org\nAction: failed\n";
+        Test::assertSame(Forged::addresses($groups), ['dee@example.org']);
+    }
+
+    #[Test]
+    public function aLineAfterTheAddressIsNotPartOfIt(): void
+    {
+        // 3. A new line that starts a `Bcc` field. It is a field of the group, not part of the address.
+        string $groups = "Final-Recipient: rfc822; ada@example.org\nBcc: all@example.com\nAction: failed\n";
+        Test::assertSame(Forged::addresses($groups), ['ada@example.org']);
+    }
+
+    #[Test]
+    public function anEmptyAddressIsNotInTheList(): void
+    {
+        // 4. Only brackets, only the type, and nothing at all.
+        string $groups = "Final-Recipient: rfc822; <<<>>>\nAction: failed\n\n"
+            . "Final-Recipient: rfc822;\nAction: failed\n\n"
+            . "Final-Recipient:\nAction: failed\n";
+        Test::assertSame(Forged::addresses($groups), []);
+    }
+
+    #[Test]
+    public function aHugeAddressIsReadOnce(): void
+    {
+        // 5. An address of 4 MB. It is returned whole, and the program keeps running.
+        string $local = Str::repeat('a', 4194304);
+        array<tainted string> $addresses = Forged::addresses("Final-Recipient: rfc822; " . $local . "@example.org\nAction: failed\n");
+        Test::assertCount($addresses, 1);
+        Test::assertSame(Str::length($addresses[0]), 4194316);
+    }
+}

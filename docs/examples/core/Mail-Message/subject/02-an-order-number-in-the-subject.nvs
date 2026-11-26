@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a shop finds the order number in the subject of a customer's reply.
+
+use Core\Mail\Message;
+
+array<string> $subjects = ['Re: Your order #1042', 'RE: Re: Your order #977', 'Question about returns'];
+
+foreach ($subjects as string $line) {
+    Message $mail = Message::parse("From: ada@example.org\r\nSubject: {$line}\r\n\r\nHello");
+
+    // `Core\Str::after` returns the text after `#`, or `null` when the subject has no `#`.
+    // `as ?int` converts it to a whole number. If that is not possible, the result is `null`.
+    ?int $order = Core\Str::after($mail->subject(), '#') as ?int;
+    echo $mail->subject(), ' -> ', $order ?? 'no order', "\n";
+}

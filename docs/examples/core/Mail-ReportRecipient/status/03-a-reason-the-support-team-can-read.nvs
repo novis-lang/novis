@@ -1,0 +1,46 @@
+<?nvs
+// Turns each status code of a bounce into a reason that the support team can read.
+
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+class Reason
+{
+    // The codes this shop sees most often. Any other code gets a general reason from its first number.
+    public static function of(tainted string $status): string
+    {
+        if ($status == '5.1.1') {
+            return 'the address does not exist';
+        }
+        if ($status == '5.2.2' || $status == '4.2.2') {
+            return 'the mailbox is full';
+        }
+        if ($status == '5.7.1') {
+            return 'the receiving server does not accept mail from the shop';
+        }
+        if (Core\Str::startsWith($status, '4.')) {
+            return 'a temporary problem, the server tries again';
+        }
+        if (Core\Str::startsWith($status, '5.')) {
+            return 'a permanent problem';
+        }
+        return 'unknown';
+    }
+}
+
+Message $bounce = Message::parse(
+    "From: mailer-daemon@mx.example.net\n"
+    . "Subject: Undelivered Mail\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+    . "--b\nContent-Type: message/delivery-status\n\n"
+    . "Reporting-MTA: dns; mx.example.net\n\n"
+    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.7.1\n\n"
+    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.7\n\n"
+    . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.3.0\n"
+    . "--b--\n"
+);
+
+foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+    echo $recipient->address(), ' (', $recipient->status(), '): ', Reason::of($recipient->status()), "\n";
+}

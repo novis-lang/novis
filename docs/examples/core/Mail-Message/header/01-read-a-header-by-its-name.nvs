@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read a header that has no method of its own, such as `List-Id`.
+
+use Core\Mail\Message;
+
+Message $post = Message::parse(
+    "From: Forum <forum@example.com>\n"
+    . "Subject: New answer in your topic\n"
+    . "List-Id: Shop forum <forum.example.com>\n"
+    . "Received: from mx1.example.net\n"
+    . "Received: from mx2.example.net\n"
+    . "\n"
+    . "Someone answered your question.\n"
+);
+
+// `header()` returns an array with one value for each line of the header.
+// This prints `Shop forum <forum.example.com>`.
+echo $post->header('List-Id')[0], "\n";
+
+// The message passed two mail servers, so it has two `Received` lines.
+foreach ($post->header('Received') as var $server) {
+    echo $server, "\n";
+}

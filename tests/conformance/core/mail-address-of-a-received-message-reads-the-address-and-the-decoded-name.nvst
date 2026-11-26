@@ -1,0 +1,37 @@
+--TEST--
+`Core\Mail\Address::address` and `::name` read each address of a received message: the address as written, the decoded display name, an empty name for a bare address, and the arguments of `Address::of` unchanged — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// covers: Core\Mail\Address::address, Core\Mail\Address::name
+// This program prints the address and the name of each recipient of a message.
+use Core\Mail\Address;
+use Core\Mail\Message;
+
+Message $message = Message::parse(
+    "From: =?UTF-8?Q?J=C3=BCrgen_M=C3=BCller?= <Juergen@Example.org>\r\n"
+    . "To: \"Shop, Orders\" <orders@example.com>, bo@example.org, Cy <cy@example.org>\r\n"
+    . "\r\n"
+    . "Hello"
+);
+
+// The name is decoded, and the case of the address is kept.
+?Address $from = $message->from();
+echo $from?->address() ?? "null", " [", $from?->name() ?? "null", "]\n";
+
+// A comma inside quotes is part of the name. A bare address has an empty name.
+foreach ($message->to() as Address $to) {
+    echo $to->address(), " [", $to->name(), "]\n";
+}
+
+// An address made with `of` returns its two arguments.
+Address $made = Address::of("ada@example.org", "Ada Lovelace");
+echo $made->address(), " [", $made->name(), "]\n";
+Address $bare = Address::of("ada@example.org", "");
+echo $bare->address(), " [", $bare->name(), "]\n";
+--EXPECT--
+Juergen@Example.org [Jürgen Müller]
+orders@example.com [Shop, Orders]
+bo@example.org []
+cy@example.org [Cy]
+ada@example.org [Ada Lovelace]
+ada@example.org []

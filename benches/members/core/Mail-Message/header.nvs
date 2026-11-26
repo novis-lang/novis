@@ -1,0 +1,31 @@
+<?nvs
+// Measures how one header of a received message is read by its name, as a program does to find the mailing list of a message.
+// bench: iterations 2048
+// bench: complexity constant
+
+use Core\Mail\Message;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        string $head = "From: forum@example.com\nSubject: New answer\nReceived: from mx1.example.net\n";
+        array<Message> $messages = [
+            Message::parse($head . "List-Id: <a.example.com>\n\nHello"),
+            Message::parse($head . "List-Id: Shop forum <forum.example.com>\n\nHello"),
+            Message::parse($head . "List-Id: Shop news for customers <news.example.com>\n\nHello"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The length is multiplied by 3, so the next round picks the next message.
+            array<tainted string> $values = $messages[(($total + $i) % 3) as int]->header('List-Id');
+            $total = $total + 3 * Core\Str::length($values[0]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";
