@@ -315,31 +315,37 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 and 2 are done, and the checks `parse`, `parse-taint` and `classify` are green. The
-classifier is `crates/nvs-stdlib/src/mail/receive/classify.rs`, with its eleven tests in
-`classify/tests.rs` over six hand-written samples in `crates/nvs-stdlib/src/mail/samples/`. It
-adds `Core\Mail\Message::kind`, `answers`, `report` and `bounceTag`, the classes
-`Core\Mail\Report` and `Core\Mail\ReportRecipient`, and the enums `Core\Mail\Message::Kind` and
-`Core\Mail\ReportRecipient::Action`. § *Classifying* marks what stage 2 built, including the two
-enum names that the enum rule changed.
+Stages 1 and 2 are done, and the checks `parse`, `parse-taint` and `classify` are green.
+§ *Classifying* marks what stage 2 built (`crates/nvs-stdlib/src/mail/receive/classify.rs`).
 
-The failures of CI run 45829711007 in mail code are fixed and green locally (`4ede711347`,
-`e953ca07db`, `edabc4106f`): roster rows, `send` as an owning entry, Miri ignores, test fixtures,
-formatting and ten conformance cases. The nightly's zone and uuid failures were already fixed.
+Stage 3's first item is done (`2f32e146ec`): `[imap.<name>]` (`ImapMailbox` in `tree.rs`), the
+grant `[capabilities.imap] connect` (`Cap::ImapConnect`), `crates/nvs-config/src/imap.rs` with
+its three tests, the three secret pairs, the defaults rows, `default.toml`'s `[imap.inbox]` and
+its grant blocks. § *`Core\Imap`* marks what it built. Build, clippy, the new tests, the
+`directives` and `secret` suites and `directives --check-template` are green.
+
+The nightly 45813627231 was read again this session. Its four Miri failures (zone database) were
+fixed by `c115a735a1`, and its uuid conformance case by `28a4d7a6bf`. Only the serve stack test
+in the backlog below is still open.
 
 Expected red until stage 5: the proof checks over every new member (`Core\Mail\Message::*`,
 `Core\Mail\Report::recipients`, `Core\Mail\ReportRecipient::*`, `Core\Mail\Address::address` and
 `::name`) and the changed `Core\Mail\Attachment::name` and `::bytes`, which have no `about.md`,
 help, examples, bench or attack yet. `bun nv rules --check` may name
-`rule:core-classes/mail-receive`, which `receive.rs` and the new conformance cases cite and stage
-5 writes. `site --check stale` and `changes` will name the attachment members. `site --check
+`rule:core-classes/mail-receive`, which `receive.rs` and the new conformance cases cite, and
+`rule:core-classes/imap`, which `tree.rs` and `capability.rs` cite. Stage 5 writes both. `site --check stale` and `changes` will name the attachment members. `site --check
 shots` may name the debug-viewer shots: the viewer has a new "Mail" tab, and only `run.shot` and
 `runs.shot` were shot again.
 
 ### Next
 
-Stage 3 from its first item: `[imap.<name>]` in `crates/nvs-config/src/tree.rs` (beside `mail`)
-and `Core\Imap` under `crates/nvs-stdlib/src/imap/`, per § *`Core\Imap`*. Drive `imap-codec` over
+Stage 3 from its second item: `imap-codec = "1"` in the workspace `Cargo.toml` and
+`crates/nvs-stdlib/Cargo.toml` (with the workspace row naming its license and dependencies), then
+`Core\Imap` under `crates/nvs-stdlib/src/imap/`, per § *`Core\Imap`*. The grant to ask is
+`nvs_config::Cap::ImapConnect` at `Scope::Name`, as `mail/mod.rs:751` `endpoint_of` asks
+`MailSend`. Read the block with `ctx.config()` under `imap.<name>.<key>` (`mail/mod.rs:712`), and
+`nvs_config::imap::tls_from` for `tls`. `mail/oauth.rs` `grant_of` reads `mail.<name>.oauth_*`
+keys, so give it the family as a parameter rather than copying it. Drive `imap-codec` over
 `NvsTcp` and `NvsTls` as `crates/nvs-stdlib/src/mail/smtp.rs` drives SMTP, and reuse
 `mail/oauth.rs` for XOAUTH2. A fetched message is `receive::message_of(raw)`. Each new class
 needs the roster rows this session added for the mail classes (capability or NEEDS_NONE,
@@ -369,7 +375,10 @@ again.
 
 - `serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
   (`crates/nvs-cli/src/serve.rs:5555`) failed on Linux x86_64 and aarch64 with `(333, 0) idle and
-  (686, 96) waiting` pages for 32 connections. Read whether the bound or the stack size changed.
+  (686, 96) waiting` pages for 32 connections. That is 11.03 host pages per waiting request,
+  against `REQUEST_HOST_STACK_PAGES = 11` (`serve.rs:5604`), whose doc records 9.1 on aarch64.
+  It passes in WSL on x86_64 (`bun nv linux-test --bin nvs <name>`), and `serve.rs` has not
+  changed since the run. Find which frame on the request path grew before touching the bound.
 - `tests/conformance/core/a-channel-send-waits-only-once-its-bound-is-reached.nvst` printed `---`
   for `--w` once on macOS aarch64. It looks like a scheduling race in the case.
 - `proofs`: `site shots` named `website/snippets/guides/how-to-use/sending-mail/files/logo.png`,
