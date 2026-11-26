@@ -890,8 +890,20 @@
 # A PEM file of the certificates that sign the relay's, for a private CA. It replaces the built-in
 # set for this block. A relative path is read from the folder of the file that names it.
 #tls_ca_file = "certs/mail-ca.pem"    # default: the built-in Mozilla set
-# How the credential is sent: `plain` or `login`. Both need TLS.
+# How the credential is sent: `plain`, `login` or `xoauth2`. All three need TLS. `xoauth2` signs
+# `user` in with an OAuth token and takes no password.
 #auth = "login"                       # default: `plain` when the relay offers it, else `login`
+# The OAuth token an `auth = "xoauth2"` block signs in with. Novis fetches it from this `https://`
+# URL and reuses it until a minute before it expires. Without a refresh token, it asks with the
+# client's own id and secret, as Microsoft 365 needs. With one, it sends the refresh token, as
+# Google needs. Every key below needs `auth = "xoauth2"`.
+#oauth_token_url = "https://login.microsoftonline.com/TENANT/oauth2/v2.0/token"  # example
+#oauth_client_id = "app-id"           # example
+#oauth_client_secret = "s3cret"       # example
+#oauth_client_secret_file = "/run/secrets/mail-oauth"  # example
+#oauth_scope = "https://outlook.office365.com/.default"  # default: no scope is sent
+#oauth_refresh_token = "1//refresh"   # default: the client-credentials grant
+#oauth_refresh_token_file = "/run/secrets/mail-refresh"  # default: the client-credentials grant
 # A send keeps its connection open for the next send to this block, on the same core. `false`
 # opens a new connection for every message. A table of bounds is the other shape, below.
 #pool = false                         # default: on

@@ -64,7 +64,9 @@
 //! whose certificate does not verify, is refused with nothing sent. `EHLO` is re-issued over the
 //! secured stream because the extension list is the *session's*, and an endpoint offering `AUTH`
 //! only to a secured client is the ordinary case. The credential goes with `AUTH PLAIN`, or
-//! `AUTH LOGIN` where only that is offered or the block's `auth` names it.
+//! `AUTH LOGIN` where only that is offered or the block's `auth` names it. A block with
+//! `auth = "xoauth2"` has no password: it signs `user` in with a token [`oauth`] fetches from the
+//! block's `oauth_token_url`, and that token asks for TLS as a password does.
 //!
 //! **Declined: opportunistic TLS.** It is one of two things. Verified, an internal relay with a
 //! certificate the block did not plan for stops working on a setting nobody wrote. Unverified,
@@ -102,11 +104,12 @@
 //!
 //! This file has the class row, the reading of `[mail.<name>]` and `send`. [`compose`](mod@compose) writes the
 //! message, [`parts`] the attachments and the plain text, [`css`] the inlining and `preview`'s
-//! value, [`smtp`] is the session that delivers it, and [`pool`] keeps that session open for the
-//! block's next send.
+//! value, [`smtp`] is the session that delivers it, [`pool`] keeps that session open for the
+//! block's next send, and [`oauth`] fetches and keeps an `xoauth2` block's token.
 
 mod compose;
 mod css;
+mod oauth;
 mod parts;
 mod pool;
 mod smtp;
@@ -609,6 +612,9 @@ struct Endpoint {
     /// `user` and `password`, both or neither — the credential `AUTH` sends,
     /// and the thing whose presence asks for TLS when `tls` is unset.
     credential: Option<(String, String)>,
+    /// An `auth = "xoauth2"` block's `user` and `oauth_*` keys. It asks for TLS as a
+    /// `credential` does, and a block has at most one of the two.
+    oauth: Option<oauth::Grant>,
     /// `tls`, or its default for the port and the credential.
     tls: Tls,
     /// `tls_ca_file`, already made absolute and trust-checked by
@@ -686,14 +692,27 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
     };
     let from = address_of(&from, "the configured `from`", member)?;
 
+    let Ok(auth) = nvs_config::mail::auth_from(configured(ctx, endpoint, "auth").as_deref()) else {
+        return Err(Fault::thrown(format!(
+            "{member}: `[mail.{endpoint}] auth` is not `plain`, `login` or `xoauth2`"
+        )));
+    };
+    let oauth = if auth == Some(Auth::XOAuth2) {
+        Some(oauth::grant_of(ctx, endpoint, member)?)
+    } else {
+        None
+    };
+
     // Both or neither. Half a credential is a block half-written, and reading
     // one as anonymous would submit as nobody to an endpoint the operator
     // plainly meant to log in to — which fails later, further away, and with the
-    // endpoint's sentence rather than this one.
+    // endpoint's sentence rather than this one. An `xoauth2` block's `user` is
+    // in its grant, and it has no password.
     let credential = match (
         configured(ctx, endpoint, "user"),
         configured(ctx, endpoint, "password"),
     ) {
+        _ if oauth.is_some() => None,
         (Some(user), Some(password)) => Some((user, password)),
         (None, None) => None,
         (user, _) => {
@@ -719,9 +738,10 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         .filter(|bound| !bound.is_zero())
         .unwrap_or(DEFAULT_TIMEOUT);
 
+    let signs_in = credential.is_some() || oauth.is_some();
     let written_tls = configured(ctx, endpoint, "tls");
-    let tls = match nvs_config::mail::tls_from(written_tls.as_deref(), port, credential.is_some()) {
-        Some(Tls::None) if credential.is_some() => {
+    let tls = match nvs_config::mail::tls_from(written_tls.as_deref(), port, signs_in) {
+        Some(Tls::None) if signs_in => {
             return Err(Fault::thrown(format!(
                 "{member}: `[mail.{endpoint}]` sets `tls = \"none\"` and a credential, and a \
                  password is never sent without TLS"
@@ -733,11 +753,6 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
                 "{member}: `[mail.{endpoint}] tls` is not `implicit`, `starttls` or `none`"
             )));
         }
-    };
-    let Ok(auth) = nvs_config::mail::auth_from(configured(ctx, endpoint, "auth").as_deref()) else {
-        return Err(Fault::thrown(format!(
-            "{member}: `[mail.{endpoint}] auth` is not `plain` or `login`"
-        )));
     };
     let return_path = match configured(ctx, endpoint, "return_path") {
         Some(written) => address_of(&written, "the configured `return_path`", member)?,
@@ -752,6 +767,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         from_name: configured(ctx, endpoint, "from_name"),
         timeout,
         credential,
+        oauth,
         tls,
         ca_file: configured(ctx, endpoint, "tls_ca_file").map(PathBuf::from),
         auth,

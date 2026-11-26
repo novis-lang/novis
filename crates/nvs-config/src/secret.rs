@@ -246,6 +246,50 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
+    // An `auth = "xoauth2"` mail block's client secret: what the host sends to the token server
+    // the block names, and nothing else ever sees it.
+    SecretPair {
+        block: "mail.*",
+        value: "oauth_client_secret",
+        sites: |config| {
+            config
+                .mail
+                .iter()
+                .map(|(name, mail)| Site {
+                    name,
+                    file: mail.oauth_client_secret_file.as_deref(),
+                    inline: mail.oauth_client_secret.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(mail) = config.mail.get_mut(name) {
+                mail.oauth_client_secret = Some(value.to_owned());
+            }
+        },
+    },
+    // The same block's refresh token, a credential that lasts until it is revoked, so it is
+    // delivered as one.
+    SecretPair {
+        block: "mail.*",
+        value: "oauth_refresh_token",
+        sites: |config| {
+            config
+                .mail
+                .iter()
+                .map(|(name, mail)| Site {
+                    name,
+                    file: mail.oauth_refresh_token_file.as_deref(),
+                    inline: mail.oauth_refresh_token.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(mail) = config.mail.get_mut(name) {
+                mail.oauth_refresh_token = Some(value.to_owned());
+            }
+        },
+    },
     // `rule:http-server/an-outbound-proxy-is-operator-configured`'s proxy credential, which is the
     // same value in a block that is not a map: it becomes `Proxy-Authorization: Basic` on the
     // `CONNECT` request and nothing else ever sees it. The block names no `*`, so its one site is

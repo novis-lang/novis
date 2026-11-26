@@ -1,5 +1,5 @@
-//! One SMTP session: the connection, implicit TLS or `STARTTLS`, `AUTH PLAIN` or `AUTH LOGIN`, and
-//! the envelope, over [`nvs_host`]'s parking stream.
+//! One SMTP session: the connection, implicit TLS or `STARTTLS`, `AUTH PLAIN`, `AUTH LOGIN` or
+//! `AUTH XOAUTH2`, and the envelope, over [`nvs_host`]'s parking stream.
 //!
 //! A session has two halves. [`open`] connects, secures and signs in, and [`transact`] sends one
 //! message over the result. [`deliver`] is both, for a block with `pool = false`, and
@@ -495,11 +495,7 @@ fn authenticate(
         Some(Auth::Plain) if offers(extensions, "PLAIN") => Auth::Plain,
         Some(Auth::Login) if offers(extensions, "LOGIN") => Auth::Login,
         Some(named) => {
-            let word = if named == Auth::Plain {
-                "PLAIN"
-            } else {
-                "LOGIN"
-            };
+            let word = named.word();
             return Err(Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
@@ -529,13 +525,52 @@ fn authenticate(
                 member,
             )?;
         }
-        Auth::Login => {
+        Auth::Login | Auth::XOAuth2 => {
             session.command("AUTH LOGIN", 334, "the login", member)?;
             session.command(&STANDARD.encode(user), 334, "the user", member)?;
             session.command(&STANDARD.encode(password), 235, "the credential", member)?;
         }
     }
     Ok(())
+}
+
+/// The `XOAUTH2` message, base64'd: the user and the bearer token, each ended by a `\x01`, and one
+/// more `\x01` at the end.
+fn xoauth2(user: &str, token: &str) -> String {
+    STANDARD.encode(format!("user={user}\x01auth=Bearer {token}\x01\x01"))
+}
+
+/// Signs `user` in with `AUTH XOAUTH2` and the block's `token`.
+///
+/// A token the server refuses is dropped from [`super::oauth`]'s cache, so the next send fetches
+/// a new one. The session that failed is closed, never kept.
+///
+/// # Errors
+///
+/// A catchable `IOError` when the server does not offer `XOAUTH2` or refuses the token. The token
+/// never reaches the message.
+fn bearer(
+    session: &mut Session,
+    endpoint: &Endpoint,
+    extensions: &[String],
+    (user, token): (&str, &str),
+    member: &str,
+) -> Result<(), Fault> {
+    if !offers(extensions, "XOAUTH2") {
+        return Err(Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member}: `[mail.{}]` signs in with `AUTH XOAUTH2`, and {} does not offer it. \
+                 Nothing was sent.",
+                endpoint.name, endpoint.host
+            ),
+        ));
+    }
+    let line = format!("AUTH XOAUTH2 {}", xoauth2(user, token));
+    session
+        .command(&line, 235, "the token", member)
+        .map(drop)
+        .inspect_err(|_| super::oauth::forget(&endpoint.name))
 }
 
 /// The `SIZE` limit in `extensions`, when the server advertises one that is not zero.
@@ -616,6 +651,12 @@ pub(super) fn open(
     until: Instant,
     member: &str,
 ) -> Result<Session, Fault> {
+    // The token is fetched before the relay is reached, so a refused token leaves the relay
+    // untouched.
+    let token = match &endpoint.oauth {
+        Some(grant) => Some(super::oauth::token(grant, &endpoint.name, until, member)?),
+        None => None,
+    };
     let mut session = Session::open(address, endpoint, until, member)?;
     // The domain the operator's own `from` names, so nothing about the host
     // serving the request is announced to the relay.
@@ -644,7 +685,7 @@ pub(super) fn open(
         extensions = session.command(&greeting, 250, "the greeting", member)?;
     }
 
-    if let Some((user, password)) = &endpoint.credential {
+    if endpoint.credential.is_some() || token.is_some() {
         // `endpoint_of` refuses a credential with `tls = "none"`. This is the
         // second lock on the same door, at the place the password is written.
         if !session.secured() {
@@ -657,11 +698,22 @@ pub(super) fn open(
                 ),
             ));
         }
+    }
+    if let Some((user, password)) = &endpoint.credential {
         authenticate(
             &mut session,
             endpoint,
             &extensions,
             (user, password),
+            member,
+        )?;
+    }
+    if let (Some(grant), Some(token)) = (&endpoint.oauth, &token) {
+        bearer(
+            &mut session,
+            endpoint,
+            &extensions,
+            (&grant.user, token),
             member,
         )?;
     }
@@ -924,6 +976,7 @@ pub(super) mod tests {
             from_name: None,
             timeout: Duration::from_secs(10),
             credential: None,
+            oauth: None,
             tls,
             ca_file: None,
             auth: None,
@@ -950,7 +1003,7 @@ pub(super) mod tests {
 
     /// A self-signed certificate for `localhost`, the server's configuration that presents it, and
     /// a scratch PEM file holding it for a `tls_ca_file`.
-    fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
+    pub(in crate::mail) fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
         let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
             .expect("a loopback certificate");
         let config = rustls::ServerConfig::builder_with_provider(Arc::new(
@@ -995,7 +1048,7 @@ pub(super) mod tests {
 
     /// One SMTP session on a loopback port, served as `fake` says. The thread returns every line
     /// the client sent, with a message body written as `<body>`.
-    fn serve(fake: Fake) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+    pub(in crate::mail) fn serve(fake: Fake) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
         let address = listener.local_addr().expect("its address");
         let thread = std::thread::spawn(move || match listener.accept() {
@@ -1156,7 +1209,7 @@ pub(super) mod tests {
     }
 
     /// [`deliver`] of a short message to `ada@example.com` from `sender`.
-    fn send_to(
+    pub(in crate::mail) fn send_to(
         address: SocketAddr,
         endpoint: &Endpoint,
         sender: &str,

@@ -995,9 +995,28 @@ pub struct MailEndpoint {
     /// [`Database::tls_ca_file`]'s footing: it replaces the compiled-in set and is trust-checked at
     /// boot.
     pub tls_ca_file: Option<String>,
-    /// `"plain"` or `"login"`, the mechanism the credential is sent with. Unset: `PLAIN` when the
-    /// relay offers it, else `LOGIN`.
+    /// `"plain"`, `"login"` or `"xoauth2"`, the mechanism the credential is sent with. Unset:
+    /// `PLAIN` when the relay offers it, else `LOGIN`. `xoauth2` signs `user` in with a token the
+    /// `oauth_*` keys fetch, and takes no password.
     pub auth: Option<String>,
+    /// The `https://` URL an `auth = "xoauth2"` block fetches its token from. The host fetches it
+    /// itself, against the compiled-in anchors. [`mod@crate::mail`] owns the refusals of every
+    /// `oauth_*` key.
+    pub oauth_token_url: Option<String>,
+    /// The client id the token request sends.
+    pub oauth_client_id: Option<String>,
+    /// The client secret the token request sends, a
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value` value.
+    pub oauth_client_secret: Option<String>,
+    /// The file whose whole content is `oauth_client_secret`, under [`mod@crate::secret`]'s rules.
+    pub oauth_client_secret_file: Option<String>,
+    /// The scope the token request names, sent only when written.
+    pub oauth_scope: Option<String>,
+    /// The refresh token, a secret. Set, the block uses the refresh-token grant; unset, the
+    /// client-credentials grant.
+    pub oauth_refresh_token: Option<String>,
+    /// The file whose whole content is `oauth_refresh_token`, under [`mod@crate::secret`]'s rules.
+    pub oauth_refresh_token_file: Option<String>,
     /// The envelope sender, `MAIL FROM`, where bounces go. Unset: `from`. The `From:` header stays
     /// `from` either way.
     pub return_path: Option<String>,
