@@ -535,12 +535,13 @@ Use `editor.semanticTokenColorCustomizations` and `workbench.colorCustomizations
 | `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
 | `nvs.highlighting.distinctNames` | `false` | gives class names and methods two different colours in `.nvs` files, and keeps your colour theme. On adds colour rules for the current theme to `editor.semanticTokenColorCustomizations` in your user settings. Off removes the rules you did not change |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
+| `nvs.debugViewer.openIn` | `"editor"` | where the debug viewer button opens the viewer. `editor` opens it in a panel of the editor, and `browser` opens it in your web browser |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`,
-`nvs.template.format`, `nvs.ast.enable` and `nvs.highlighting.distinctNames` are the client's own and take effect on the next redraw, request or save,
+`nvs.template.format`, `nvs.ast.enable`, `nvs.highlighting.distinctNames` and `nvs.debugViewer.openIn` are the client's own and take effect on the next redraw, request, save or click,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
 `nvs.check.scope`, `nvs.codeLens.enable`, `nvs.inlayHints.parameterNames` and `nvs.lsp.debounce` are
@@ -567,6 +568,8 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.useNovisTheme` | Use Novis Colour Theme | switches to **Novis Dark** or **Novis Light**, the one that matches your current theme's light or dark kind |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
+| `nvs.openDebugViewer` | Open Debug Viewer | opens the debug viewer of `nvs debug` where `nvs.debugViewer.openIn` says. It is the pulse button in the title bar of a `.nvs` file, a `.nvst` file and `nvs.toml` |
+| `nvs.openDebugViewerInBrowser` | Open Debug Viewer in Browser | opens the debug viewer in your web browser |
 
 ## Which binary answered, and which it refuses
 

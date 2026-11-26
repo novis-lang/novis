@@ -564,6 +564,11 @@ fn sources() -> Vec<Source> {
 ///
 /// A declared class's inherited members are its ancestors' own bodies, read
 /// through `declared_type` for each type `nvs_hir::ClassGraph` puts above it.
+/// The members an `extend` block adds are that block's own body, read the same
+/// way for each block the class graph lists above the class.
+///
+/// The cases a position expects are the enum `crate::expected::enum_at` reads
+/// off the checker's types at the cursor, and their rows are that enum's own.
 ///
 /// The deprecation tag adds no item. It shapes a declared member's item from
 /// `Analysed::deprecated`, the walk the checker raises `W1003` from.
@@ -578,7 +583,7 @@ fn sources() -> Vec<Source> {
 /// A method offered to override is read from the bodies of the classes
 /// `nvs_hir::ClassGraph` puts above the class, through
 /// `generate::overridable_at`, and its text is checked by analysing it.
-const SOURCED: [(&str, &str); 54] = [
+const SOURCED: [(&str, &str); 56] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -623,6 +628,8 @@ const SOURCED: [(&str, &str); 54] = [
     ("words", "CompletionItemKind::KEYWORD"),
     ("declared_members", "declared_type("),
     ("own_members", "declared_type("),
+    ("added_members", ".blocks()"),
+    ("expected_cases", "expected::enum_at("),
     ("declared_member", "Modifier::Static"),
     ("enum_case", "case.value"),
     ("enum_cases", "Member::Case("),

@@ -1,5 +1,6 @@
 ---
 source: crates/nvs-syntax/src/parser/tests/stmt.rs
+assertion_line: 324
 expression: s
 ---
 Stmt {
@@ -25,6 +26,7 @@ Stmt {
                                             span: 0:28..31,
                                         },
                                     ),
+                                    None,
                                 ),
                             ),
                             span: 0:22..32,

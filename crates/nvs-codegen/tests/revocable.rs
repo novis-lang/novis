@@ -869,6 +869,7 @@ const NO_OBJECT: &[(&str, &str)] = &[
     ("StmtKind::ClassDecl", "a declaration"),
     ("StmtKind::InterfaceDecl", "a declaration"),
     ("StmtKind::EnumDecl", "a declaration"),
+    ("StmtKind::ExtendDecl", "a declaration"),
     ("StmtKind::NamespaceDecl", "a declaration"),
     ("StmtKind::UseDecl", "a declaration"),
     ("StmtKind::AutoloadDecl", "a declaration"),

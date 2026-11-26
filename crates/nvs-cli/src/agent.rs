@@ -3020,8 +3020,7 @@ mod tests {
     /// run. A private added member has no line.
     #[test]
     fn agent_find_names_an_added_member() {
-        let entry =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/meta/extend-block.nvs");
+        let entry = nvs_repo::path("crates/nvs-cli/tests/fixtures/meta/extend-block.nvs");
         let document = crate::meta::program_document(&entry)
             .unwrap_or_else(|_| panic!("the fixture checks: {}", entry.display()));
         let entries = super::entries(&document);

@@ -803,7 +803,7 @@ mod tests {
     }
 
     fn root() -> PathBuf {
-        std::env::current_dir().expect("a working directory")
+        nvs_repo::path("crates/nvs-lsp")
     }
 
     #[test]

@@ -10099,7 +10099,7 @@ pub(crate) mod tests {
             Asked {
                 member: r"Core\Uri::buildQuery",
                 function: crate::uri::nvs_core_uri_build_query,
-                refusal: "neither a scalar nor a nested array",
+                refusal: "does not implement `Parses`",
                 args: |object| {
                     let mut parameters = NvsArray::new();
                     parameters.set(NvsStr::new(b"a"), object);
