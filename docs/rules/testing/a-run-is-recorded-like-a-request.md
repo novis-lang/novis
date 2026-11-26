@@ -19,7 +19,11 @@ outcome, so no new branch runs while `store` is off:
   (`crates/nvs-cli/src/worker.rs`), one line per attempt;
 - a command run, where the program's task ends, after its exit hooks and its session's
   write-back, so every event it filed is in (`crates/nvs-cli/src/main.rs`, `run_run`). A run
-  whose task was cancelled is `cancelled`, and an `exit` with code `0` is `ok`.
+  whose task was cancelled is `cancelled`, and an `exit` with code `0` is `ok`;
+- `nvs test` of a program's `#[Test]` methods, once per invocation, where the suite returns
+  (`crates/nvs-cli/src/runner.rs`), named `test` and the entry file, and `failed` when a test
+  failed. A `.nvst` tree writes no line of its own, because each case runs in an `nvs` process
+  of its own, which writes its own line.
 
 **The Runs view.** The viewer has a Runs view beside Requests: the same list, filters and paging,
 and the same page with its tabs, without the Request and Response tabs, because a run has neither.

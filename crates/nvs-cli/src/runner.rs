@@ -1159,7 +1159,10 @@ pub(crate) fn run(
         nvs_runtime::spool::RunOf::Command,
         || {
             let entry = checked.map.files().next().and_then(|file| file.path());
-            format!("test {}", entry.map_or_else(String::new, |path| path.display().to_string()))
+            format!(
+                "test {}",
+                entry.map_or_else(String::new, |path| path.display().to_string())
+            )
         },
         began,
         ran,
