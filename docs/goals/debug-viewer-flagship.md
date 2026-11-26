@@ -42,7 +42,7 @@ stages:
     context: [editors/vscode/package.json, editors/vscode/src/extension.ts, editors/vscode/src/profile.ts, editors/vscode/src/viewer.ts, editors/vscode/DEVELOPING.md, crates/nvs-lsp/src/server.rs, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, docs/rules/ide/the-request-set-is-closed.md]
   - id: 10
     title: a lens shows what a route, a dump and a throw site recorded, and opens it in the viewer
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/recorded.rs, crates/nvs-lsp/src/lens_rows.rs]
   - id: 11
     title: the feature proofs, the screenshots, the help and the website show the new viewer
@@ -732,11 +732,11 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 **Split:** one writing subagent writes the `.lspt` cases under `tests/lsp/` once the session has
 landed the three lenses.
 
-- [ ] `crates/nvs-lsp/src/recorded.rs`: three bounded reads: a route's count, p50 and newest failing
+- [x] `crates/nvs-lsp/src/recorded.rs`: three bounded reads: a route's count, p50 and newest failing
   status, the newest dump at a file and line, and the exception group at a file and line.
-- [ ] `crates/nvs-lsp/src/server.rs:2141`: the three lenses beside `query_lenses` (`:2376`), the
+- [x] `crates/nvs-lsp/src/server.rs:2141`: the three lenses beside `query_lenses` (`:2376`), the
   newer-file rule, and their rows in `crates/nvs-lsp/src/lens_rows.rs`.
-- [ ] Rust tests beside the query lens's: each lens against a fixture index, no lens with no index,
+- [x] Rust tests beside the query lens's: each lens against a fixture index, no lens with no index,
   and no dump lens for a file newer than its record.
 
 ### 11. the feature proofs, the screenshots, the help and the website show the new viewer
@@ -770,46 +770,39 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 9 are done. Two rules are `designed` and owned by this goal:
-`ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded` (stage 10) and
+Stages 1 to 10 are done. One rule is `designed` and owned by this goal:
 `testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`. The stage that ships a rule
 sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills
 `guardedBy`, then runs `bun nv rules --render`. The `path:line` anchors in later stages come from
 surveys, so a stage checks an anchor before it edits. The names stages 3 to 9 gave are under
 Standing decisions.
 
-Stage 9's second session landed `--data` on every spawn from a copy (`shadow.ts` `dataBeside` and
-`withData`, `Runnable.data`, the six spawn sites), the host test
-`editors/vscode/test/host/debugviewer.test.ts`, and shipped
-`ide/the-debug-viewer-opens-from-one-button` and
-`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`. Green: `npm run lint`, the
-check `extension` (`test:headless`, 411 passing) and `test:host` once (17 passing). The panel
-opens against a running service, so the stop rule does not apply. The host test starts
-`nvs debug` in the data folder beside the binary `scripts/host.mjs` names, so it fails if a
-developer's own `nvs debug` holds that folder's lock.
+Stage 10 landed the three lenses and shipped
+`ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`. `crates/nvs-lsp/src/recorded.rs` has
+`route`, `dumps_in` and `throws_in`, each bounded by rows (`ROUTE_ROWS`, `ROUTE_DURATIONS`,
+`SITE_ROWS`), their titles and viewer paths (`route_page`, `dump_page`, `throw_page`), `one_line`
+(a dumped tree in at most 80 characters) and `page_url`, which replaced `viewer_url`.
+`server.rs` `recorded_lenses` adds them after the copy lenses, and `open_page` is the command any
+viewer path gets (`open_request` calls it). `saved_at` gives a dump or throw lens only while the
+editor's text is the file on disk and the record is not older than the file. `lens_rows.rs` needed
+nothing: it holds every lens of an answer alike. Green: clippy, the six unit tests in
+`recorded::tests`, and the four new cases under `tests/lsp/lens/` (route, dump, throw, and a
+record older than the file), each run once by name.
 
-The nightly CI failures of run 45609291264 (Miri zone tests, the quotient attack, the macOS
-json-api allocation count) tested `53e94a9181` and are fixed on disk by `1c3196b0e8`.
+The nightly CI failures of run 45609291264 tested `53e94a9181` and are fixed on disk by
+`1c3196b0e8`, which this session checked.
 
 ### Next
 
-Stage 10, from its first item:
-
-1. `crates/nvs-lsp/src/recorded.rs`: three bounded reads beside the query lens's: a route's count,
-   p50 and newest failing status with its age (by method and route pattern), the newest dump at a
-   file and line, and the exception group at a file and line.
-2. `crates/nvs-lsp/src/server.rs:2150` `code_lens`: the three lenses beside `query_lenses`
-   (`:2374`), each under `nvs.codeLens.enable`. A dump or throw lens shows only while the file is
-   not newer than its record. Each click builds a `Command` as `open_request` (`:2422`) does:
-   the route lens opens `/requests?method=…&route=…`, the dump lens the request's
-   `?tab=dumps#dump-<id>`, the throw lens the exception group. Their rows go in
-   `crates/nvs-lsp/src/lens_rows.rs`.
-3. Rust tests beside the query lens's: each lens against a fixture index, no lens with no index,
-   and no dump lens for a file newer than its record. Then the `.lspt` cases under `tests/lsp/`
-   (the stage's split), and ship `ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`.
-
-`bun nv site --check shots` stays red until stage 11, and `bun nv proofs --owed` names
-`tools:cli/nvs-debug-link`, which stage 11 pays. No test is expected to go red.
+Stage 11, from its first item. Its split: the session lists what each page must say, then one
+writing subagent reshoots and describes the screenshots under
+`website/snippets/tools/debug-viewer/`, and one rewrites
+`website/src/content/docs/tools/debug-viewer/index.mdx` and
+`website/src/content/docs/tools/editor/index.mdx`. The editor page names the three lenses with the
+titles the `.lspt` cases pin (`3 requests, p50 2.0 ms, last 503 2 min ago`, `Dumped: …`,
+`Shop\OutOfStock thrown 3 times, last 3 h ago`). `bun nv site --check shots` stays red until the
+reshoot, and `bun nv proofs --owed` names `tools:cli/nvs-debug-link`, which stage 11 pays. No test
+is expected to go red.
 
 ### Backlog
 
