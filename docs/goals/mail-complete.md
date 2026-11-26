@@ -430,6 +430,19 @@ and the CSS report. `Core\Test\SentMail` gains `messageId()`, `fromName()`, `att
 `references()`, `unsubscribe()`, `autoSubmitted()` and `bounceTag()`; `html()` and `text()` return
 what was sent.
 
+- Built in stage 8 (session's choices):
+  - **A capture block refuses every key only a connection reads**, not only `host`, as
+    `tls_ca_file` beside `tls = "none"` is refused: each would be read and never used.
+    `from_name` and `return_path` stay, because a kept message carries them.
+  - **The spool line's headers are its own fields**, not a composed header block: the viewer
+    draws From, To, Cc, Reply-To, Subject and the thread headers from them, and nothing is
+    composed or signed for a capture block. Bcc is a field, shown apart.
+  - **The HTML as written is read again from `$body` in `capture.rs`**, never kept in `Body`, so a
+    send that is not captured pays no copy.
+  - **`Core\Mail\Attachment`'s `name`, `type` and `bytes` return `tainted` text**
+    (`TextOrigin::Source`): a name can come from a request, and a reader never removes a
+    qualifier.
+
 **Background sending is not a new member.** `Core\Task::runAfterResponse` already sends after the
 page is out (`website/src/content/docs/guides/walkthroughs/after-response.mdx`), and `Core\Queue`
 retries. The about.md and the how-to page show both.
@@ -572,12 +585,20 @@ Gate: `docs/goals/deeper-debug-records.md` does not exist.
 **Split:** the viewer page and its browser test go to one writing subagent once the spool carries a
 kept message; its files (`viewer/`) are disjoint from the Rust items.
 
-- [ ] `crates/nvs-config/src/tree.rs:957`: `capture`; `crates/nvs-stdlib/src/mail.rs:1203` (`send`)
+- [x] `crates/nvs-config/src/tree.rs:957`: `capture`; `crates/nvs-stdlib/src/mail.rs:1203` (`send`)
   keeps the message for a capture block as `nvs test` does.
+  - [x] `MailEndpoint::capture`, `default.toml`, `judge`'s `capture` refusals and their test
+  - [x] `endpoint_of` takes a capture block with no `host`; `send` keeps it
 - [ ] `crates/nvs-runtime/src/spool.rs:2173`: a kept message is spooled with its parts and its CSS
   report; a real send stays an event.
+  - [x] `spool::Mail` and `MailPart`, `Record::Mail`, its `elide`; `mail/capture.rs` writes it
+  - [x] the ingester's `mails` table, schema 15, in `BY_TRACE` and `BY_TIME`
+  - [ ] the viewer API: a list of `mails` rows and one row's `message` JSON
+  - [ ] the line in `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` and its test
 - [ ] `crates/nvs-stdlib/src/test/records.rs:438`: the new `SentMail` readers;
   `tests/conformance/core/test-sent-mail-reads-attachments-names-and-the-sent-html.nvst:1` (new).
+  - [x] the eight readers, the slot types in `instance.rs`, the four `Attachment` readers
+  - [ ] the conformance case
 - [ ] `viewer/src/views/mail.tsx:1` (new) and `viewer/src/router.ts:1`: the Mail page per § *Capture
   and the viewer*; `viewer/test/mail.browser.test.ts:1` (new).
 - [ ] The three tests of the check `capture`, then `cargo test --lib mail::` and
@@ -619,32 +640,59 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
-`return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
+Stages 1 to 7 are done, and stage 8's Rust half is mostly in (commit `e73c7ce6ce`):
 
-Stages 1 to 7 are done. `cargo test --lib mail::` runs 67 green in `nvs-stdlib` and 3 in
-`nvs-config`. Stage 7: `tree.rs` `MailEndpoint` and `default.toml` have `dkim_selector`,
-`dkim_key_file` and `dkim_domain`; `nvs_config::mail` has `DkimAlgorithm`, `DkimKey`, `dkim_key`
-(the PEM and DER reader and the 2048-to-4096-bit refusal), the `dkim` pair checks in `judge`, and
-the key file's trust check and read in `canonicalize`. `mail/dkim.rs` has `SIGNED`, `Key`,
-`Signer`, `signer_of`, the `KEYS` cache, `sign` and the relaxed canonicalization; `mod.rs` `send`
-signs the composed message after the capture branch. Both RFC 8463 vectors verify. The stage's
-choices are under § *DKIM*'s "Built in stage 7".
+- `MailEndpoint::capture` and `default.toml`'s `#capture`. `nvs_config::mail::capture` refuses a
+  capture block with no `from`, or with any key only a connection reads (`host`, `port`, the
+  credential, `timeout`, `tls`, `tls_ca_file`, `auth`, `dkim_*`, `pool`, `oauth_*`). The test
+  `a_capture_block_needs_from_and_no_host` is green.
+- `mod.rs` `endpoint_of` takes a capture block with no `host` (`Endpoint::capture`, `host` empty).
+  `send` builds one `KeptMail` for a test or a capture block. A test keeps it in its records;
+  outside a test, `mail/capture.rs` `spool` writes it as a `spool::Record::Mail` line when
+  `[debug] store` is on. That line has the HTML as written (read again from `$body`) and as sent,
+  the CSS report (`css::report`) and the attachments as base64. `Record::elide` drops the bodies
+  and the bytes. The headers are the line's own fields; no raw header block is spooled.
+- The ingester writes `Record::Mail` into the new `mails` table (`index.rs` schema 15), with
+  `endpoint`, `subject`, `recipients` and the whole line as JSON in `message`. The table is in
+  `BY_TRACE` and `BY_TIME`.
+- `KeptMail` has the new parts and `KeptPart`. `Core\Test\SentMail` has the eight new readers, and
+  their slot types are in `instance.rs` `SLOT_TYPES`. `Core\Mail\Attachment` has `name`, `type`,
+  `bytes` (each `TextOrigin::Source`, because a name can come from a request) and `isInline`.
+  `sent_mail_members_read_each_parameter_and_an_absent_part_is_empty_or_null` fills the new
+  fields and is green, but it does not assert them yet.
 
-CI: the nightly failures of run 45609291264 that the sweep listed came before `1c3196b0e8` and
-`c115a735a1`, which fixed them (checked again this session: the run's head `53e94a9181` is an
-ancestor of both). The stack-page test of run 45749655184 is in § *Backlog*.
+CI: run 45609291264's failures predate their fixes `1c3196b0e8` and `c115a735a1`.
 
 ### Next
 
-Stage 8, capture and the viewer. Its gate is open: `docs/goals/deeper-debug-records.md` is gone.
-Start with `capture` in `MailEndpoint` (`crates/nvs-config/src/tree.rs`, `struct MailEndpoint`)
-and `default.toml` `[mail.default]`, with its refusals in `crates/nvs-config/src/mail.rs` `judge`
-(a capture block needs `from` and no `host`). Then `crates/nvs-stdlib/src/mail/mod.rs` `send`:
-its capture branch (`ctx.test_records()`) is where a capture block keeps its message too, and
-`nvs_runtime::test_records::KeptMail` (`crates/nvs-runtime/src/test_records.rs`) gains the new
-parts. The spool is `crates/nvs-runtime/src/spool.rs`; the viewer page goes to one writing
-subagent, as the stage's **Split:** says.
+The rest of stage 8, in this order:
+
+1. The three tests of the check `capture`, in `crates/nvs-stdlib/src/mail/mod.rs` `mod tests`
+   (its config helper is near `fn send_args`): `a_capture_block_opens_no_connection` (a capture
+   block with no test records returns a message id and opens nothing),
+   `a_captured_message_reaches_the_spool` (with `[debug] store` on, read the spool line back;
+   see how `crates/nvs-stdlib/src/debug.rs` tests a spooled record) and
+   `a_real_send_spools_only_its_event` (over `smtp::tests::send_to`'s fake relay). Add asserts for
+   the eight new readers to the records test (`crates/nvs-stdlib/src/test/records.rs`, the
+   `sent_mail_members_…` test) and for the four attachment readers.
+2. A `mail` line in `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`, which
+   `spool.rs`'s test writes and `crates/nvs-cli/tests/debug_ingest.rs` reads; expect both red
+   until it is added.
+3. The viewer API in `crates/nvs-cli/src/debug/api.rs`: `GET /api/mail` (rows of `mails`, newest
+   first, id, `at_us`, `endpoint`, `subject`, `recipients`, `trace`) and `GET /api/mail/<id>` (the
+   `message` JSON). Look at how the `profiles` or `logs` routes page.
+4. The conformance case
+   `tests/conformance/core/test-sent-mail-reads-attachments-names-and-the-sent-html.nvst`, with
+   `// covers: Core\Test\SentMail` lines, over the `Test-SentMail` examples' shape.
+5. The viewer page, to one writing subagent per the **Split:** line, with the API's shapes in its
+   brief: `viewer/src/views/mail.tsx`, a route in `viewer/src/router.ts`, a nav link, and
+   `viewer/test/mail.browser.test.ts`. The HTML goes in `<iframe sandbox>` with `srcdoc`, and
+   `cid:` images are shown from the attachments' base64. Grep `viewer/src/styles/` before a new
+   class name (playbook).
+
+Expected red now: `crates/nvs-cli/tests/debug_ingest.rs` or the spool fixture test only if they
+check that every `Record` kind has a line (step 2). `bun nv site --check stale` for
+`Core\Test\SentMail` and `Core\Mail\Attachment`, whose cards are new or changed.
 
 Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
 `Core\Mail::preview`, `Core\Mail\Address::of`, the five `Core\Mail\Attachment` members and the four
