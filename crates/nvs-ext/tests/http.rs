@@ -618,7 +618,8 @@ fn a_guest_https_call_to_an_untrusted_certificate_fails() {
     assert_eq!(budget.sent(), 1);
     assert_eq!(accepted.load(Ordering::Relaxed), 1);
     assert!(
-        budget.logged().contains("invalid peer certificate"),
+        budget.logged().contains("does not trust")
+            && budget.logged().contains("`[tls.client] roots`"),
         "{}",
         budget.logged()
     );

@@ -163,16 +163,12 @@ fn handshake(stream: NvsTcp, endpoint: &Endpoint, member: &str) -> Result<NvsTls
         None => NvsTls::over(stream, name),
     }
     .map_err(|why| {
-        let message = if nvs_host::tls::unknown_issuer(&why) {
-            format!(
-                "{member}: the TLS handshake with `{name}` did not complete. Its certificate is \
-                 signed by a CA this host does not trust. If the server uses a private or company \
-                 CA, set `[mail.{}] tls_ca_file` to a PEM file of that CA.",
-                endpoint.name
-            )
-        } else {
-            format!("{member}: the TLS handshake with `{name}` did not complete — {why}")
+        let block = format!("mail.{}", endpoint.name);
+        let fix = crate::tls_fix::Settings::Block {
+            block: &block,
+            address: "host",
         };
+        let message = crate::tls_fix::handshake_failed(member, name, &why, fix);
         Fault::thrown_as(ThrownClass::Io, message)
     })
 }
@@ -1234,7 +1230,8 @@ pub(super) mod tests {
     pub(in crate::mail) const MESSAGE: &str = "Subject: hi\r\n\r\nhello";
 
     /// A certificate from an issuer the block does not trust gives an `IOError` that names
-    /// `[mail.<name>] tls_ca_file` as the fix, and no `MAIL FROM` is sent.
+    /// `[mail.<name>] tls_ca_file` and `[tls.client] roots` as the fix, and no `MAIL FROM` is
+    /// sent.
     // covers: Core\Mail::send
     #[test]
     fn an_unknown_issuer_names_the_tls_ca_file() {
@@ -1250,7 +1247,9 @@ pub(super) mod tests {
         };
         let said = format!("{fault:?}");
         assert!(
-            said.contains("`[mail.relay] tls_ca_file`") && said.contains("does not trust"),
+            said.contains("`[mail.relay] tls_ca_file`")
+                && said.contains("`[tls.client] roots`")
+                && said.contains("does not trust"),
             "{said}"
         );
         let seen = server.join().expect("the server");

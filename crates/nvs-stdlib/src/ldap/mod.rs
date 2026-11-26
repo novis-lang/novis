@@ -315,6 +315,26 @@ fn login_fault(member: &str, error: &nvs_ldap::Error) -> Fault {
     fault_of(member, error)
 }
 
+/// [`fault_of`] for a dial to `host` that failed, with the setting that fixes a certificate the
+/// handshake refused (`crate::tls_fix`).
+fn dial_fault(
+    member: &str,
+    error: &nvs_ldap::Error,
+    host: &str,
+    fix: crate::tls_fix::Settings<'_>,
+) -> Fault {
+    let Some(refusal) = error.refusal() else {
+        return fault_of(member, error);
+    };
+    let message = format!(
+        "{member}: {}: {}. {}",
+        error.kind().name(),
+        error.message(),
+        crate::tls_fix::fix_for(refusal, host, fix)
+    );
+    ldap_error(message, error)
+}
+
 /// An `Ldap\LdapError` with `message`, carrying `error`'s kind and, where a
 /// server sent one, its result code. A code the client found itself leaves
 /// `$code` unwritten, and an unwritten slot reads `null`.
@@ -490,6 +510,7 @@ fn walk(
     refused: fn(&str, &nvs_ldap::Error) -> Fault,
 ) -> Result<Held, Fault> {
     let mut last = None;
+    let mut last_host = String::new();
     for written in nvs_config::ldap::urls_of(block) {
         let Some(url) = nvs_ldap::Url::parse(written) else {
             return Err(Fault::thrown(format!(
@@ -519,17 +540,31 @@ fn walk(
             match dial(&url, address, settings, cleartext) {
                 Ok(held) => return Ok(held),
                 Err(error) if refused_the_bind(&error) => return Err(refused(member, &error)),
-                Err(error) => last = Some(error),
+                Err(error) => {
+                    last = Some(error);
+                    last_host.clone_from(&url.host);
+                }
             }
         }
     }
     let error = last.unwrap_or_else(|| {
         nvs_ldap::Error::new(nvs_ldap::Kind::Unavailable, "the block names no URL")
     });
-    let message = format!(
+    let mut message = format!(
         "{member}: no URL in `[ldap.{name}]` answered, and the last one said: {}",
         error.message()
     );
+    if let Some(refusal) = error.refusal() {
+        let block = format!("ldap.{name}");
+        let fix = crate::tls_fix::Settings::Block {
+            block: &block,
+            address: "url",
+        };
+        message = format!(
+            "{message}. {}",
+            crate::tls_fix::fix_for(refusal, &last_host, fix)
+        );
+    }
     Err(ldap_error(message, &error))
 }
 
@@ -555,8 +590,9 @@ pub fn open(ctx: &mut Ctx, settings: &Settings<'_>) -> Result<u64, Fault> {
     let pinned = nvs_runtime::capability::pinned_address(ctx, &url.host, OPEN)?;
     let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
     let address = SocketAddr::new(pinned, url.port);
-    let mut held =
-        dial(&url, address, settings, cleartext).map_err(|error| fault_of(OPEN, &error))?;
+    let mut held = dial(&url, address, settings, cleartext).map_err(|error| {
+        dial_fault(OPEN, &error, &url.host, crate::tls_fix::Settings::Program)
+    })?;
     held.base = settings.base.map(str::to_owned);
     held.redial = Some(Redial {
         url,

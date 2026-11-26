@@ -194,6 +194,24 @@ fn connect_failed(ctx: &mut nvs_runtime::Ctx, said: String, err: &std::io::Error
     Fault::thrown_as(ThrownClass::Io, format!("{said}: {err}"))
 }
 
+/// [`connect_failed`] for a server reached over TCP at `host`, which names the setting that fixes
+/// a certificate the TLS handshake refused (`crate::tls_fix`).
+fn dial_failed(
+    ctx: &mut nvs_runtime::Ctx,
+    said: String,
+    err: &std::io::Error,
+    host: &str,
+    fix: crate::tls_fix::Settings<'_>,
+) -> Fault {
+    match crate::tls_fix::advice(err, host, fix) {
+        Some(advice) => Fault::thrown_as(
+            ThrownClass::Io,
+            format!("{said}: the TLS handshake with `{host}` did not complete. {advice}"),
+        ),
+        None => connect_failed(ctx, said, err),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db::connect(string $name, { shared?: bool, timeout?: Duration }): Db\Connection`
     /// — `rule:core-classes/db-connection-is-named`'s named connection, memoized for the request.
@@ -371,11 +389,18 @@ pub(crate) fn open_named(
     // One wording for both handshakes: which driver could not reach its server
     // is the block's business, and what a program can do about either is the
     // same thing. The server's own sentence goes to the log alone.
+    let dotted = format!("db.{name}");
+    let host = block.host.as_deref().unwrap_or_default();
     let opening = |ctx: &mut nvs_runtime::Ctx, at: &dyn std::fmt::Display, err: &std::io::Error| {
-        connect_failed(
+        dial_failed(
             ctx,
             format!("{named}: `[db.{name}]` at {at} did not open"),
             err,
+            host,
+            crate::tls_fix::Settings::Block {
+                block: &dotted,
+                address: "host",
+            },
         )
     };
     // `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s overload,
@@ -902,7 +927,13 @@ nvs_runtime::nvs_helper! {
                     Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
                 };
                 let opening = |ctx: &mut nvs_runtime::Ctx, address: SocketAddr, err: &std::io::Error| {
-                    connect_failed(ctx, format!("{OPEN}: {address} did not open"), err)
+                    dial_failed(
+                        ctx,
+                        format!("{OPEN}: {address} did not open"),
+                        err,
+                        host,
+                        crate::tls_fix::Settings::Program,
+                    )
                 };
                 match driver {
                     nvs_db::Driver::MySql => {

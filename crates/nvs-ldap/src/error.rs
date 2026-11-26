@@ -159,6 +159,7 @@ pub struct Error {
     kind: Kind,
     code: Option<u32>,
     message: String,
+    refusal: Option<nvs_host::tls::Refusal>,
 }
 
 impl Error {
@@ -169,6 +170,7 @@ impl Error {
             kind,
             code: None,
             message: message.into(),
+            refusal: None,
         }
     }
 
@@ -186,17 +188,22 @@ impl Error {
             kind,
             code: Some(code),
             message,
+            refusal: None,
         }
     }
 
-    /// An error the socket or the TLS session reported during `operation`.
+    /// An error the socket or the TLS session reported during `operation`. A certificate the
+    /// handshake refused keeps its [`nvs_host::tls::Refusal`], for [`Error::refusal`].
     #[must_use]
     pub fn from_io(operation: &str, error: &io::Error) -> Self {
         let kind = match error.kind() {
             io::ErrorKind::TimedOut => Kind::Timeout,
             _ => Kind::Unavailable,
         };
-        Self::new(kind, format!("{operation}: {error}"))
+        Self {
+            refusal: nvs_host::tls::refusal(error),
+            ..Self::new(kind, format!("{operation}: {error}"))
+        }
     }
 
     /// What went wrong.
@@ -215,6 +222,13 @@ impl Error {
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    /// Why the server's certificate was refused, where a setting fixes it, so the caller that
+    /// knows the block's name can name that setting.
+    #[must_use]
+    pub fn refusal(&self) -> Option<&nvs_host::tls::Refusal> {
+        self.refusal.as_ref()
     }
 }
 

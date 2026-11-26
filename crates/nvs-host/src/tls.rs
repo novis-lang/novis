@@ -472,6 +472,59 @@ pub fn unknown_issuer(why: &io::Error) -> bool {
     )
 }
 
+/// The names the server's certificate is for, where a handshake failed because none of them is
+/// the name the caller connected to. `None` is any other failure. The fix for this one is the
+/// address the caller connects to, never a CA setting, so a caller names the setting that holds
+/// the address.
+///
+/// Each name is a DNS name or an IP address as text. The list is empty where `rustls` reported
+/// the failure without the certificate's names.
+#[must_use]
+pub fn names_presented(why: &io::Error) -> Option<Vec<String>> {
+    match why
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>())?
+    {
+        rustls::Error::InvalidCertificate(CertificateError::NotValidForNameContext {
+            presented,
+            ..
+        }) => Some(presented.iter().filter_map(|name| unwrapped(name)).collect()),
+        rustls::Error::InvalidCertificate(CertificateError::NotValidForName) => Some(Vec::new()),
+        _ => None,
+    }
+}
+
+/// Why a server's certificate was refused, for the two refusals a setting fixes. A driver whose
+/// error type is a plain value keeps this beside its message, so the layer that knows the
+/// block's name can say which setting fixes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Refusal {
+    /// [`unknown_issuer`]: no trust anchor knows the certificate's issuer.
+    UnknownIssuer,
+    /// [`names_presented`]: the certificate is for these names, and not for the one connected to.
+    OtherName(Vec<String>),
+}
+
+/// The [`Refusal`] a failed handshake's error is, or `None` for every other failure.
+#[must_use]
+pub fn refusal(why: &io::Error) -> Option<Refusal> {
+    if unknown_issuer(why) {
+        return Some(Refusal::UnknownIssuer);
+    }
+    names_presented(why).map(Refusal::OtherName)
+}
+
+/// The name inside one entry of `rustls`'s presented list, which writes a DNS name as
+/// `DnsName("a.example")` and an address as `IpAddress(192.0.2.1)`. `None` for every other kind
+/// of name, because a caller cannot connect to it.
+fn unwrapped(presented: &str) -> Option<String> {
+    let inner = presented
+        .strip_prefix("DnsName(")
+        .or_else(|| presented.strip_prefix("IpAddress("))?
+        .strip_suffix(')')?;
+    Some(inner.trim_matches('"').to_owned())
+}
+
 /// What `der` says, or `None` where it is not a certificate this can read.
 ///
 /// An `Option` and not an error: the one caller is a member reporting on a peer
@@ -2462,6 +2515,35 @@ mod tests {
             io::ErrorKind::InvalidData,
             "a certificate from another CA came back as {refused}"
         );
+    }
+
+    /// A trusted certificate for `localhost`, reached as `other.example`, fails with the names it
+    /// is for, and `names_presented` returns them as plain text. A certificate from an unknown CA
+    /// is another failure, so it returns `None` there.
+    #[test]
+    fn names_presented_lists_the_names_of_a_certificate_for_another_name() {
+        let (cert, key, pem, _) = named();
+        let policy = CallPolicy {
+            anchors: Some(pem),
+            ..CallPolicy::default()
+        };
+        let (addr, joined) = peer(cert, key);
+        let refused = relaxed(addr, "other.example", &policy)
+            .expect_err("a certificate for another name was accepted");
+        drop(joined.join());
+        assert_eq!(
+            names_presented(&refused),
+            Some(vec!["localhost".to_owned()]),
+            "the refusal was {refused}"
+        );
+        assert!(!unknown_issuer(&refused), "the refusal was {refused}");
+
+        let (other, other_key, _, _) = named();
+        let (elsewhere, hung_up) = peer(other, other_key);
+        let unknown = relaxed(elsewhere, "localhost", &policy)
+            .expect_err("a CA the call did not name was trusted");
+        drop(hung_up.join());
+        assert_eq!(names_presented(&unknown), None, "the refusal was {unknown}");
     }
 
     /// `tlsPin` is `--pinnedpubkey`: a peer no chain vouches for is accepted on

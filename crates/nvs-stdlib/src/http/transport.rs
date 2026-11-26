@@ -1913,11 +1913,31 @@ fn dialled(
             // A name or a certificate this build will not accept is settled:
             // the module doc's paragraph on `https` is why only one of these
             // two shapes is handed back for another attempt.
+            // A refusal a setting fixes names that setting. A call that named its own CAs
+            // with `tlsCa` is not fixed by `[tls.client] roots`, so an unknown issuer there
+            // keeps the error alone.
             Err(err) if matches!(err.kind(), ErrorKind::InvalidData | ErrorKind::InvalidInput) => {
-                return Err(Fault::thrown(format!(
-                    "{}: the TLS handshake with `{}` was refused and nothing was sent — {err}",
-                    call.member, parts.host
-                )));
+                let fix = match nvs_host::tls::refusal(&err) {
+                    Some(nvs_host::tls::Refusal::UnknownIssuer) if call.policy.anchors.is_some() => {
+                        None
+                    }
+                    Some(refusal) => Some(crate::tls_fix::fix_for(
+                        &refusal,
+                        &parts.host,
+                        crate::tls_fix::Settings::Program,
+                    )),
+                    None => None,
+                };
+                return Err(Fault::thrown(match fix {
+                    Some(fix) => format!(
+                        "{}: the TLS handshake with `{}` was refused and nothing was sent. {fix}",
+                        call.member, parts.host
+                    ),
+                    None => format!(
+                        "{}: the TLS handshake with `{}` was refused and nothing was sent — {err}",
+                        call.member, parts.host
+                    ),
+                }));
             }
             Err(err) => {
                 return Ok(Dialled::Failed(format!(

@@ -207,8 +207,26 @@ impl Connection {
             return Ok(());
         }
         let budget = self.until().saturating_duration_since(Instant::now());
-        let stream = Transport::dial(&self.dial.target, budget)
-            .map_err(|err| format!("connecting to {} failed: {err}", self.dial.target))?;
+        let stream = Transport::dial(&self.dial.target, budget).map_err(|err| {
+            let fix = match &self.dial.target {
+                Target::Tls { name, .. } => crate::tls_fix::advice(
+                    &err,
+                    name,
+                    crate::tls_fix::Settings::BlockWithoutCaFile {
+                        block: "cache.shared",
+                        address: "url",
+                    },
+                ),
+                _ => None,
+            };
+            match fix {
+                Some(fix) => format!(
+                    "connecting to {} failed: the TLS handshake did not complete. {fix}",
+                    self.dial.target
+                ),
+                None => format!("connecting to {} failed: {err}", self.dial.target),
+            }
+        })?;
         self.stream = Some(stream);
         if let Err(refused) = self.handshake() {
             self.stream = None;
