@@ -782,6 +782,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **A `Core` reader that returns `CoreTy::Blob(Qual::…)` compiles to plain `bytes`, even with
+  `TextOrigin::Source`.** `Blob` and `Text` are parameter types, and `has_plain_text` reads only
+  `Str` and `Bytes`. In `mail-receive` stage 1, `Core\Mail\Attachment::bytes()` was untainted this
+  way. A return type is `CoreTy::Str` or `CoreTy::Bytes`, and a conformance case that binds it to a
+  plain variable pins the taint. See `crates/nvs-stdlib/src/registry.rs` `has_plain_text`.
 - **A new `Core\Str` member needs its symbol in `str.rs`'s `address` match as well as its
   `CoreMethod` row.** The unit test calls the helper directly and passes, but every program then
   panics at registry build ("registers `…` with no implementation address"), so a suite run shows
