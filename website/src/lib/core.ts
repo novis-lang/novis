@@ -198,8 +198,11 @@ const LANGUAGE_TYPES = new Map([
 
 /** Every linkable name, fully qualified (`Core\Str`, `Core\Arr::Order`, `Throwable`), to its page. */
 const pageOf = new Map<string, string>()
+/** The names that have a page of their own under Types, such as the flat enum `Core\Unit`. */
+const typePage = new Map<string, string>()
 for (const cls of classes) pageOf.set(cls.name, cls.url)
-for (const page of refPages) if (page.area === 'types' && page.intro) pageOf.set(page.intro.id, page.url)
+for (const page of refPages) if (page.area === 'types' && page.intro) typePage.set(page.intro.id, page.url)
+for (const [id, url] of typePage) pageOf.set(id, url)
 for (const cls of classes) for (const t of cls.types) pageOf.set(`${cls.name}::${t.name}`, `${cls.url}#${shapeAnchor(t.name)}`)
 
 /** The fully qualified names `name` may mean inside `owner`, most specific first. */
@@ -272,6 +275,10 @@ export function typeLink(name: string, owner?: string): string | null {
   // An enum case, `Core\Hash::Digest::Sha256`, links to its enum's page.
   const enumCase = /^(.+::[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*$/.exec(name)
   if (enumCase) return typeLink(enumCase[1]!, owner)
+  // A case of an enum with a Types page of its own, `Core\Unit::Day`, links to that page.
+  const typeCase = /^([^:]+)::[A-Za-z_][A-Za-z0-9_]*$/.exec(name)
+  const ownPage = typeCase && candidates(typeCase[1]!, owner).map((full) => typePage.get(full)).find((url) => url !== undefined)
+  if (ownPage) return ownPage
   const language = LANGUAGE_TYPES.get(name)
   if (language) return withBase(language)
   const only = byLastSegment.get(name)
