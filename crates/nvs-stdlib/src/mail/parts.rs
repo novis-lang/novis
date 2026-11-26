@@ -145,7 +145,7 @@ pub(crate) const ATTACHMENT: CoreClass = CoreClass {
         // `tainted`: a reader never removes a qualifier.
         reader(
             "name",
-            CoreTy::Str,
+            CoreTy::Nullable(&CoreTy::Str),
             "nvs_core_mail_attachment_name",
             &NAME_DOC,
         ),
@@ -157,7 +157,7 @@ pub(crate) const ATTACHMENT: CoreClass = CoreClass {
         ),
         reader(
             "bytes",
-            CoreTy::Blob(Qual::Neutral),
+            CoreTy::Bytes,
             "nvs_core_mail_attachment_bytes",
             &BYTES_DOC,
         ),
@@ -350,7 +350,8 @@ const fn reader(
 const NAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the file name of the attachment, such as `invoice.pdf`.",
     params: &[],
-    ret: "The file name the recipient sees.",
+    ret: "The file name the recipient sees. An attachment of a received message has `null` when \
+          the sender gave it no file name.",
     errors: &[],
 };
 
@@ -561,6 +562,25 @@ pub(crate) fn built(name: &str, media_type: &str, data: &[u8], content_id: Optio
     )
 }
 
+/// An attachment of a received message, which `Core\Mail\Message::parse` builds: its name is
+/// `null` where nothing was left of the name the sender wrote.
+pub(super) fn received(
+    name: Option<&str>,
+    media_type: &str,
+    data: &[u8],
+    content_id: Option<&str>,
+) -> Value {
+    crate::instance::build(
+        &ATTACHMENT,
+        [
+            name.map_or_else(Value::null, Value::text),
+            Value::text(media_type),
+            Value::bytes(NvsStr::new(data)),
+            content_id.map_or_else(Value::null, Value::text),
+        ],
+    )
+}
+
 /// The attachment a `fromFile` or `inlineFile` call builds: the file read under `fs.read`, its
 /// name the call's or the path's last part.
 fn from_file(
@@ -656,6 +676,13 @@ pub(super) fn part_of(value: Value, member: &str) -> Result<Part, Fault> {
     let name = crate::instance::slot(object, NAME_SLOT);
     let media_type = crate::instance::slot(object, TYPE_SLOT);
     let data = crate::instance::slot(object, DATA_SLOT);
+    // The slot's type is `?string`, so a name that is not text is `null`.
+    if name.as_text().is_none() {
+        return Err(Fault::thrown(format!(
+            "{member}: an attachment of a received message has no file name. Send it with \
+             `{ATTACHMENT_NAME}::fromBytes`, which gives it one."
+        )));
+    }
     let (Some(name), Some(media_type), Some(data)) =
         (name.as_text(), media_type.as_text(), data.as_bytes())
     else {

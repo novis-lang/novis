@@ -88,6 +88,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "mail_parse"
+path = "fuzz_targets/mail_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "markdown"
 path = "fuzz_targets/markdown.rs"
 test = false

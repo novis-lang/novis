@@ -1,0 +1,19 @@
+From: =?UTF-8?Q?J=C3=B6rg?= <blog@example.com>
+To: "Bo B" <bo@example.com>, desk@example.com
+Subject: =?UTF-8?B?UmU6IEdyw7zDn2U=?=
+In-Reply-To: <1a@example.com>
+References: <09@example.com> <1a@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Gr=C3=BC=C3=9Fe
+--b1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PHA+SGk8L3A+
+--b1--

@@ -1,0 +1,66 @@
+--TEST--
+Every value `Core\Mail\Message::parse` returns is `tainted`, the addresses and the attachments included, so a plain binding does not compile, and the HTML reaches a page only through `Core\Html::sanitize` — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// The sender wrote every byte of a received message, so each reader returns tainted text.
+// Each plain variable below does not compile.
+Core\Mail\Message $message = Core\Mail\Message::parse("Subject: Hi\r\n\r\nHello");
+?string $id = $message->messageId();
+string $subject = $message->subject();
+array<string> $lines = $message->header('Subject');
+?string $answered = $message->inReplyTo();
+array<string> $thread = $message->references();
+?string $text = $message->text();
+?string $html = $message->html();
+bytes $raw = $message->raw();
+foreach ($message->to() as Core\Mail\Address $to) {
+    string $address = $to->address();
+    string $name = $to->name();
+}
+foreach ($message->attachments() as Core\Mail\Attachment $part) {
+    ?string $file = $part->name();
+    string $type = $part->type();
+    bytes $content = $part->bytes();
+}
+// The HTML is not markup. It reaches a page only through the sanitizer.
+Core\Html\Markup $page = $message->html() ?? '';
+Core\Html\Markup $clean = Core\Html::sanitize($message->html() ?? '');
+// covers: Core\Mail\Message::parse, Core\Mail\Message::messageId, Core\Mail\Message::subject
+// covers: Core\Mail\Message::header, Core\Mail\Message::inReplyTo, Core\Mail\Message::references
+// covers: Core\Mail\Message::text, Core\Mail\Message::html, Core\Mail\Message::raw
+// covers: Core\Mail\Message::to, Core\Mail\Message::attachments
+// covers: Core\Mail\Address::address, Core\Mail\Address::name
+// covers: Core\Mail\Attachment::name, Core\Mail\Attachment::type, Core\Mail\Attachment::bytes
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string|null`, found `null|tainted string`
+%Acase.nvs:5:15
+%Aerror[E0401]: expected `string`, found `tainted string`
+%Acase.nvs:6:19
+%Aerror[E0401]: expected `array<string>`, found `array<tainted string>`
+%Acase.nvs:7:24
+%Aerror[E0401]: expected `string|null`, found `null|tainted string`
+%Acase.nvs:8:21
+%Aerror[E0401]: expected `array<string>`, found `array<tainted string>`
+%Acase.nvs:9:25
+%Aerror[E0401]: expected `string|null`, found `null|tainted string`
+%Acase.nvs:10:17
+%Aerror[E0401]: expected `string|null`, found `null|tainted string`
+%Acase.nvs:11:17
+%Aerror[E0401]: expected `bytes`, found `tainted bytes`
+%Acase.nvs:12:14
+%Aerror[E0401]: expected `string`, found `tainted string`
+%Acase.nvs:14:23
+%Aerror[E0401]: expected `string`, found `tainted string`
+%Acase.nvs:15:20
+%Aerror[E0401]: expected `string|null`, found `null|tainted string`
+%Acase.nvs:18:21
+%Aerror[E0401]: expected `string`, found `tainted string`
+%Acase.nvs:19:20
+%Aerror[E0401]: expected `bytes`, found `tainted bytes`
+%Acase.nvs:20:22
+%Aerror[E0401]: expected `Core\Html\Markup`, found `string|tainted string`
+%Acase.nvs:23:26
+%Aerror: aborting due to 14 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

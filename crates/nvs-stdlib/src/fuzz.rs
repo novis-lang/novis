@@ -239,6 +239,20 @@ pub fn decompress(codec: u8, data: &[u8], bytes: u64, ratio: u64) -> Option<Vec<
     decompress_within(codec, data, Bound { bytes, ratio }, "fuzz").ok()
 }
 
+/// `raw` read as `Core\Mail\Message::parse` reads it. The result is the new instance, owned.
+#[must_use]
+pub fn mail_parse(raw: &[u8]) -> Owned {
+    Owned(crate::mail::receive::message_of(raw))
+}
+
+/// The bounds `Core\Mail\Message::parse` reads within: nesting, parts, and header lines per
+/// part.
+pub const MAIL_PARSE_BOUNDS: (usize, usize, usize) = (
+    crate::mail::receive::MAX_DEPTH,
+    crate::mail::receive::MAX_PARTS,
+    crate::mail::receive::MAX_HEADERS,
+);
+
 /// `text` rendered to HTML as `Core\Markdown::toHtml` renders it.
 ///
 /// # Panics

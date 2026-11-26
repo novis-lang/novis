@@ -1,0 +1,33 @@
+From: shop@example.com
+Subject: Files
+Content-Type: multipart/mixed; boundary="m"
+
+--m
+Content-Type: multipart/related; boundary="r"
+
+--r
+Content-Type: text/html
+
+<img src="cid:logo@example.com">
+--r
+Content-Type: image/png
+Content-ID: <logo@example.com>
+Content-Disposition: inline; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+iVBORw==
+--r--
+--m
+Content-Type: application/pdf; name="=?UTF-8?Q?Rechnung_M=C3=A4rz.pdf?="
+Content-Disposition: attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd
+Content-Transfer-Encoding: base64
+
+JVBERg==
+--m
+Content-Type: message/rfc822
+
+From: inner@example.com
+Subject: inner
+
+inner body
+--m--

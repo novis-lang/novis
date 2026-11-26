@@ -1069,6 +1069,18 @@ idna_adapter = "~1.1"
 # specificity mistake would be silent.
 css-inline = { version = "0.25", default-features = false }
 
+# --- Reading a received message (`Core\Mail\Message`) ---
+# `mail-parser`, Apache-2.0 OR MIT, pure Rust and fuzzed by its authors: reads
+# an RFC 5322 message, its MIME parts, RFC 2047 encoded words and RFC 2231
+# parameters. It adds two crates by the same authors, both Apache-2.0 OR MIT:
+# `encodify`, its base64 and quoted-printable decoders over `memchr` and
+# `simdutf8`, and `hashify`, a macro that runs at build time over the `syn`
+# already in the tree. It has no network, file or async code. Its default features are off, so the
+# multi-byte charsets of `encoding_rs` are not built, and a part in one of them
+# is read as its bytes. It never fails on malformed input, and its own depth and
+# part limits are the two bounds `crate::mail::receive` sets.
+mail-parser = { version = "1", default-features = false }
+
 # --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
 # `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty
 # `main` unless the `gen-tests` feature is on, which this row never turns on.

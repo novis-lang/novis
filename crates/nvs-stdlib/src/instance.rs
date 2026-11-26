@@ -453,11 +453,16 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
     (
         &crate::mail::parts::ATTACHMENT,
         Slots::Typed(&[
-            CoreTy::Str,
+            CoreTy::Nullable(&CoreTy::Str),
             CoreTy::Str,
             CoreTy::Bytes,
             CoreTy::Nullable(&CoreTy::Str),
         ]),
+    ),
+    // `parse` builds it from what `mail-parser` read, and each slot is read back as it is.
+    (
+        &crate::mail::receive::MESSAGE,
+        Slots::Typed(crate::mail::receive::SLOT_TYPES),
     ),
     // `preview` builds it, and each slot is read back as it is.
     (

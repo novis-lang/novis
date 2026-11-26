@@ -6,7 +6,7 @@ context: [docs/rules/core-classes/mail-message.md, docs/rules/core-classes/mail-
 stages:
   - id: 1
     title: "Core\\Mail\\Message::parse reads a raw message into tainted headers, parts and attachments, within bounds"
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-stdlib/Cargo.toml, crates/nvs-stdlib/src/mail/parts.rs, crates/nvs-stdlib/src/zip.rs]
   - id: 2
     title: "a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status"
@@ -105,9 +105,22 @@ policy must not be optional. The roster gains both lines in stage 5.
 polls on a `[[schedule]]`; a held connection needs a socket isolate), a provider's own webhook JSON,
 and guessing a bounce from a message that is not a delivery report.
 
-**The parser (stage 1).** `mail-parser` 1.x (Apache-2.0 OR MIT, no dependencies, fuzzed by its
-authors), wrapped so the program sees Novis types only. Fallback, if it cannot honour the bounds
-below: wrap its output and count before descending, never patch the crate.
+**The parser (stage 1).** `mail-parser` 1.0.2 (Apache-2.0 OR MIT, fuzzed by its authors), wrapped
+so the program sees Novis types only. It is not dependency-free: it adds `encodify` and `hashify`
+(a build-time macro), both by its authors and Apache-2.0 OR MIT, over `memchr`, `simdutf8` and the
+tree's `syn` 3. The workspace row says so. Its own `max_depth(16)` and `max_parts(1000)` are two of
+the bounds, a part it flags `LIMIT_REACHED` is skipped, and the header bound is the wrapper's: it
+reads only the first 1,000 root header lines (`receive.rs` `parse`).
+- **Built in stage 1:** the parse runs once, and every reader is a slot read (`receive.rs`
+  `SLOTS`). `parse` takes `string|bytes`, not only `bytes`, as `Attachment::fromBytes` does,
+  because a program may read an `.eml` file as a string.
+- **Built in stage 1:** received attachments are `Core\Mail\Attachment` values, so one can be
+  forwarded. Its `name()` is now `?string` for every attachment (the bench `Mail-Attachment/name`
+  writes `?? ''`), and `send` throws a catchable error for an attachment with no name. Its
+  `bytes()` now returns `tainted bytes`: it was `Blob(Neutral)`, which compiled to plain `bytes`.
+  That closes the backlog item about it.
+- **Built in stage 1:** `Core\Mail\Address` gained `address()` and `name()`, both `tainted`, so
+  `from()` and `to()` are readable.
 - `Core\Mail\Message::parse(bytes $raw): Core\Mail\Message`. It never throws on a malformed
   message: a missing header is `null` or an empty array, and a broken part is skipped. A program
   reading a mailbox must be able to read every message in it.
@@ -206,14 +219,14 @@ a worktree.
 
 Gate: `docs/goals/mail-complete.md` does not exist.
 
-- [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `mail-parser = "1"`.
-- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1` (new): `Core\Mail\Message` and `parse`, the readers,
+- [x] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `mail-parser = "1"`.
+- [x] `crates/nvs-stdlib/src/mail/receive.rs:1` (new): `Core\Mail\Message` and `parse`, the readers,
   taint on every text, per § *The parser*.
-- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: attachment names, after the traversal check of
+- [x] `crates/nvs-stdlib/src/mail/receive.rs:1`: attachment names, after the traversal check of
   `crates/nvs-stdlib/src/zip.rs:2160`; the three bounds.
-- [ ] `crates/nvs-fuzz-checks/`: a `mail_parse` target and a seed corpus of neutral messages.
-- [ ] `tests/conformance/core/mail-message-parse-returns-tainted-values.nvst:1` (new).
-- [ ] The nine tests of the check `parse`, then `cargo test --lib mail::` once.
+- [x] `crates/nvs-fuzz-checks/`: a `mail_parse` target and a seed corpus of neutral messages.
+- [x] `tests/conformance/core/mail-message-parse-returns-tainted-values.nvst:1` (new).
+- [x] The nine tests of the check `parse`, then `cargo test --lib mail::` once.
 
 ### 2. a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status
 
@@ -278,15 +291,28 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Written by an interactive session on 2026-11-26 from a user report. The user chose all three pieces:
-the parser, the classification and `Core\Imap`, and left out a port-25 server, POP3, JMAP and
-provider JSON. Every other choice under § *Standing decisions* is the session's: the two crates, the
-bounds, repairing a received file name, the kinds and their order, the directory block, no `IDLE`
-and no pool. Nothing is built. The `mail/` anchors name files `mail-complete` creates.
+Stage 1 is done, and its checks `parse` and `parse-taint` are green. `Core\Mail\Message` is in
+`crates/nvs-stdlib/src/mail/receive.rs`, with its tests in `receive/tests.rs`: the nine of the
+check and `parse_stops_at_the_header_line_bound`. The fuzz target is `mail_parse`
+(`crates/nvs-fuzz-checks/src/mail_parse.rs`, `fuzz/fuzz_targets/mail_parse.rs`, five seeds under
+`fuzz/seeds/mail_parse/`, one of them a delivery report for stage 2). The decisions stage 1 made
+are under § *Standing decisions*, § *The parser*, each marked "Built in stage 1". The session also
+reverted session 1569's WIP commit, a debug `eprintln!` in `crates/nvs-cli/src/serve.rs`.
+
+Expected red until stage 5: the proof checks over the new members (`Core\Mail\Message::*`,
+`Core\Mail\Address::address` and `::name`) and the changed `Core\Mail\Attachment::name` and
+`::bytes`, which have no `about.md`, help, examples, bench or attack yet. `bun nv rules --check`
+may name `rule:core-classes/mail-receive`, which `receive.rs` cites and stage 5 writes. `site
+--check stale` and `changes` will name the attachment members whose return types changed.
 
 ### Next
 
-Stage 1 from its first item, once `mail-complete` is reached.
+Stage 2 from its first item, in `crates/nvs-stdlib/src/mail/receive.rs`. `parse` keeps only the
+root message's headers, bodies and attachments. `kind()` and `report()` need the
+`message/delivery-status` and `text/rfc822-headers` parts, so read them in `parse` from
+`root.parts()` by `content_type`, and add slots for what they give. The seed
+`fuzz/seeds/mail_parse/d256f231b5af88184e1c94155c6237102b982c56` is a delivery report to start
+the samples from. Stage 3 may run beside it in a worktree.
 
 ### Backlog
 
@@ -301,8 +327,7 @@ Left by `mail-complete`, about sending. A session of this goal that touches the 
   with one Content-ID, which RFC 2045 forbids. `check_cids` in `crates/nvs-stdlib/src/mail/parts.rs`
   should throw. `tests/hostile/core/Mail-Attachment/inlineBytes/` step 4 records it as sent now.
 - The unused-image error in `parts.rs` (near line 700) says "attach it with `fromFile` or
-  `fromBytes`" for an image made with `inlineFile` too. The `Attachment` doc near `parts.rs:133`
-  says `bytes()` returns tainted bytes; it compiles into plain `bytes`. Check which is right.
+  `fromBytes`" for an image made with `inlineFile` too.
 - `css-inline` rewrites a CSS value's double quotes as single quotes when it copies it into a
   `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Inlining cost grows with
   rules times elements, and only depth is capped; the author of the markup alone can trigger it.

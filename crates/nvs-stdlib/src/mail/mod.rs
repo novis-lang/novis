@@ -116,6 +116,7 @@ mod dkim;
 mod oauth;
 pub(crate) mod parts;
 mod pool;
+pub(crate) mod receive;
 mod smtp;
 
 pub(crate) use parts::{ATTACHMENT_NAME, built as attachment};
@@ -409,10 +410,63 @@ pub(crate) const ADDRESS: CoreClass = CoreClass {
         symbol: "nvs_core_mail_address_of",
         doc: Some(&ADDRESS_OF_DOC),
     }],
-    instance: &[],
+    // A received message's addresses are read back with these, so each is `tainted`: a reader
+    // never removes a qualifier.
+    instance: &[
+        CoreMethod {
+            name: "address",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Source,
+            symbol: "nvs_core_mail_address_address",
+            doc: Some(&ADDRESS_ADDRESS_DOC),
+        },
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Source,
+            symbol: "nvs_core_mail_address_name",
+            doc: Some(&ADDRESS_NAME_DOC),
+        },
+    ],
     slots: &["address", "name"],
     constants: &[],
 };
+
+/// `Core\Mail\Address::address`'s reference card.
+const ADDRESS_ADDRESS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the email address, such as `ada@example.com`.",
+    params: &[],
+    ret: "The address, without the name.",
+    errors: &[],
+};
+
+/// `Core\Mail\Address::name`'s reference card.
+const ADDRESS_NAME_DOC: MethodDoc = MethodDoc {
+    short: "Returns the name that is shown for the address, such as `Ada Lovelace`.",
+    params: &[],
+    ret: "The name, or an empty string when the address has no name.",
+    errors: &[],
+};
+
+nvs_runtime::nvs_helper! {
+    /// `$address->address(): string`.
+    fn nvs_core_mail_address_address(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ADDRESS, ADDRESS_TEXT, "address")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$address->name(): string`.
+    fn nvs_core_mail_address_name(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ADDRESS, ADDRESS_DISPLAY, "name")
+    }
+}
 
 /// `Core\Mail\Address`'s class card — `rule:core-api/reference-card`.
 const ADDRESS_CARD: ClassDoc = ClassDoc {
@@ -606,7 +660,13 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_mail_send" => (nvs_core_mail_send as *const ()).cast(),
         "nvs_core_mail_address_of" => (nvs_core_mail_address_of as *const ()).cast(),
         "nvs_core_mail_preview" => (nvs_core_mail_preview as *const ()).cast(),
-        _ => return parts::address(symbol).or_else(|| css::address(symbol)),
+        "nvs_core_mail_address_address" => (nvs_core_mail_address_address as *const ()).cast(),
+        "nvs_core_mail_address_name" => (nvs_core_mail_address_name as *const ()).cast(),
+        _ => {
+            return parts::address(symbol)
+                .or_else(|| css::address(symbol))
+                .or_else(|| receive::address(symbol));
+        }
     }))
 }
 

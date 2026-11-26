@@ -1,0 +1,13 @@
+Subject: broken
+Content-Type: multipart/mixed; boundary="x"
+
+--x
+Content-Type: multipart/mixed; boundary="y"
+
+--y
+Content-Type: text/plain; charset=unknown-8bit
+Content-Transfer-Encoding: base64
+
+!!!not base64===
+--y
+Content-Disposition: attachment; filename="\\server\share\..\a.txt"
