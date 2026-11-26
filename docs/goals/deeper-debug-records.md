@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/host.rs, crates/nvs-runtime/src/throwable.rs, crates/nvs-cli/src/debug/exceptions.rs, viewer/src/views/exceptions.tsx]
   - id: 4
     title: a cache, HTTP, file and process event carries its outcome
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-stdlib/src/site.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-stdlib/src/http.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/process.rs]
   - id: 5
     title: sending mail and pushing a job are events
@@ -285,10 +285,10 @@ handler, as `file.rs:NN` and one line.
   a call, the bytes, the exit code. A cache tab lists hits and misses by key.
   - [x] the timeline's detail and `Hit` chip, and the Cache tab
   - [x] `viewer/test/outcome.test.ts`, and `bun nv viewer --verify` is green
-- [ ] Tests per kind in `debug_ingest.rs`, and one end-to-end test that reads a recorded `get` as a
+- [x] Tests per kind in `debug_ingest.rs`, and one end-to-end test that reads a recorded `get` as a
   miss and then a hit (the conformance case it replaces is a standing decision).
   - [x] `each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none`
-  - [ ] a test in `crates/nvs-cli/tests/request.rs` that runs `get`, `put`, `get` with `store`
+  - [x] a test in `crates/nvs-cli/tests/request.rs` that runs `get`, `put`, `get` with `store`
     on and reads the two `get` lines' `hit` as `false` and then `true`, with `tier` `memory`
 
 ### 5. sending mail and pushing a job are events

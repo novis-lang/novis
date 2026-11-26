@@ -776,3 +776,44 @@ fn a_served_query_event_names_the_line_of_its_call() {
         ]
     );
 }
+
+/// `rule:observability/trace-events-carry-a-kind`: a recorded `cache` event carries its outcome.
+/// A plain `get` before the key is written is a miss, the same `get` after a `put` is a hit, and
+/// all three calls name the memory tier.
+#[test]
+fn a_served_cache_get_is_recorded_as_a_miss_and_then_a_hit() {
+    let served = Served::serving(
+        "spool-cache-outcome",
+        "<?nvs\nvar $cache = Core\\Cache::memory();\n\
+         echo $cache->get('k') ?? 'none';\n\
+         $cache->put('k', 'one');\n\
+         echo $cache->get('k') ?? 'none';\n",
+        Some("[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n"),
+    );
+    let answer =
+        served.answer_to(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    assert!(answer.ends_with("noneone"), "{answer}");
+
+    let (_, mut calls) = served.spooled_as(3, "cache", |record| match record {
+        nvs_runtime::spool::Record::Event(event)
+            if event.event == nvs_runtime::spool::EventKind::Cache =>
+        {
+            Some(*event)
+        }
+        _ => None,
+    });
+    calls.sort_by_key(|event| event.start_us);
+    let seen: Vec<(&str, Option<bool>, Option<nvs_runtime::spool::CacheTier>)> = calls
+        .iter()
+        .map(|event| (event.label.as_str(), event.outcome.hit, event.outcome.tier))
+        .collect();
+    let memory = Some(nvs_runtime::spool::CacheTier::Memory);
+    assert_eq!(
+        seen,
+        [
+            ("Core\\Cache\\Store::get", Some(false), memory),
+            ("Core\\Cache\\Store::put", None, memory),
+            ("Core\\Cache\\Store::get", Some(true), memory),
+        ]
+    );
+}
