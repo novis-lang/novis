@@ -178,7 +178,7 @@ describe.skipIf(!EXE)("the run list and a run's page in Chromium", () => {
 
     const thrown = await open(`/runs/${QUEUE.trace}?tab=exception`, `document.querySelector(".exception .exc-head") !== null`);
     expect(await thrown.eval(`document.querySelector(".exception .exc-head").textContent`)).toBe("Shop\\MailDown: the mail server did not answer");
-    expect(await thrown.eval(`[...document.querySelectorAll(".exception > .stack > .frames .frame")].map((f) => f.textContent)`)).toEqual([
+    expect(await thrown.eval(`[...document.querySelectorAll(".exception > .stack > .frames .stack-frame")].map((f) => f.textContent)`)).toEqual([
       "{main}jobs/receipt.nvs:9",
     ]);
     await thrown.close();
