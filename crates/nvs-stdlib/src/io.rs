@@ -3529,7 +3529,11 @@ nvs_runtime::nvs_helper! {
 ///
 /// The door's catchable `RuntimeError` when `fs.read` does not cover `path`,
 /// and every error [`read_bounded`] names.
-fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8>, Fault> {
+pub(crate) fn slurp(
+    ctx: &mut nvs_runtime::Ctx,
+    path: &Path,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
     let mut file = nvs_runtime::capability::open_read(ctx, path, member)?;
     read_bounded(ctx, &mut file, member, path)
 }

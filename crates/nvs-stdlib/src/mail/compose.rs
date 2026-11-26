@@ -10,6 +10,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use nvs_runtime::Fault;
 
+use super::parts::{Part, parameter};
+
 /// The printable bytes [`address_of`] refuses, beside every control byte.
 ///
 /// Each one changes how a mail reader or a relay reads an address list or a
@@ -424,7 +426,7 @@ pub(super) struct Headers<'a> {
 ///
 /// `Auto-Submitted: auto-generated` (RFC 3834) tells an out-of-office responder not to answer.
 /// It is on unless the program turns it off for mail a person wrote.
-pub(super) fn compose(headers: &Headers<'_>, text: &str, html: Option<&str>) -> String {
+pub(super) fn compose(headers: &Headers<'_>, body: &Body<'_>) -> String {
     let mut out = String::new();
     out.push_str(&format!("Date: {}\r\n", rfc5322_date(headers.now)));
     out.push_str(&format!("Message-ID: <{}>\r\n", headers.message_id));
@@ -464,32 +466,111 @@ pub(super) fn compose(headers: &Headers<'_>, text: &str, html: Option<&str>) -> 
         out.push_str("Auto-Submitted: auto-generated\r\n");
     }
     out.push_str("MIME-Version: 1.0\r\n");
+    out.push_str(&entity(body));
+    out
+}
 
-    match html {
-        None => {
-            out.push_str("Content-Type: text/plain; charset=UTF-8\r\n");
-            out.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-            out.push_str(&body_encoded(text.as_bytes()));
-        }
-        Some(html) => {
-            // A fixed boundary is safe because neither part is ever transmitted
-            // raw: both are base64, whose alphabet cannot contain it.
-            const BOUNDARY: &str = "nvs-alternative-boundary";
-            out.push_str(&format!(
-                "Content-Type: multipart/alternative; boundary=\"{BOUNDARY}\"\r\n\r\n"
-            ));
-            out.push_str(&format!("--{BOUNDARY}\r\n"));
-            out.push_str("Content-Type: text/plain; charset=UTF-8\r\n");
-            out.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-            out.push_str(&body_encoded(text.as_bytes()));
-            out.push_str(&format!("\r\n--{BOUNDARY}\r\n"));
-            out.push_str("Content-Type: text/html; charset=UTF-8\r\n");
-            out.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-            out.push_str(&body_encoded(html.as_bytes()));
-            out.push_str(&format!("\r\n--{BOUNDARY}--\r\n"));
+/// What a message says after its headers: the text, the HTML, and the attachments.
+pub(super) struct Body<'a> {
+    /// The plain text, which every message has.
+    pub text: &'a str,
+    /// The HTML, for a `Core\Html\Markup` body.
+    pub html: Option<&'a str>,
+    /// The attachments, inline ones and others, in the order the call gave them.
+    pub attachments: &'a [Part],
+}
+
+impl<'a> Body<'a> {
+    /// A body of plain text alone.
+    #[cfg(test)]
+    pub(super) fn plain(text: &'a str) -> Self {
+        Self {
+            text,
+            html: None,
+            attachments: &[],
         }
     }
+}
+
+/// The boundary of each level. A fixed boundary is safe because no part is ever sent raw: each
+/// is base64, whose alphabet has no `-`, and a part's header line starts with its name. Each
+/// level has its own name, so a nested delimiter never ends its parent.
+const MIXED: &str = "nvs-mixed-boundary";
+/// See [`MIXED`].
+const RELATED: &str = "nvs-related-boundary";
+/// See [`MIXED`].
+const ALTERNATIVE: &str = "nvs-alternative-boundary";
+
+/// The body as nested MIME entities, starting with its `Content-Type` header.
+///
+/// `multipart/mixed` holds the attachments, `multipart/related` the inline images beside the
+/// HTML they appear in, and `multipart/alternative` the text and the HTML. Each level is
+/// written only when it has more than one part, so a plain-text mail is one `text/plain` part.
+fn entity(body: &Body<'_>) -> String {
+    let (inline, attached): (Vec<&Part>, Vec<&Part>) = body
+        .attachments
+        .iter()
+        .partition(|part| part.content_id.is_some());
+    let text = leaf("text/plain; charset=UTF-8", "", body.text.as_bytes());
+    let alternative = match body.html {
+        None => text,
+        Some(html) => multipart(
+            "alternative",
+            ALTERNATIVE,
+            vec![text, leaf("text/html; charset=UTF-8", "", html.as_bytes())],
+        ),
+    };
+    let related = if inline.is_empty() {
+        alternative
+    } else {
+        let mut children = vec![alternative];
+        children.extend(inline.into_iter().map(attachment));
+        multipart("related", RELATED, children)
+    };
+    if attached.is_empty() {
+        related
+    } else {
+        let mut children = vec![related];
+        children.extend(attached.into_iter().map(attachment));
+        multipart("mixed", MIXED, children)
+    }
+}
+
+/// One part with `content_type`, the header lines in `extra`, and `data` as base64.
+fn leaf(content_type: &str, extra: &str, data: &[u8]) -> String {
+    format!(
+        "Content-Type: {content_type}\r\nContent-Transfer-Encoding: base64\r\n{extra}\r\n{}",
+        body_encoded(data)
+    )
+}
+
+/// A `multipart/<subtype>` entity of `children`, each delimited by `boundary`.
+fn multipart(subtype: &str, boundary: &str, children: Vec<String>) -> String {
+    let mut out = format!("Content-Type: multipart/{subtype}; boundary=\"{boundary}\"\r\n\r\n");
+    for (index, child) in children.iter().enumerate() {
+        if index > 0 {
+            out.push_str("\r\n");
+        }
+        out.push_str(&format!("--{boundary}\r\n"));
+        out.push_str(child);
+    }
+    out.push_str(&format!("\r\n--{boundary}--\r\n"));
     out
+}
+
+/// One attachment as a part: its type and name, its Content-ID when it is inline, and how a mail
+/// program shows it. [`parameter`] quotes or encodes the name, so it cannot add a header.
+fn attachment(part: &Part) -> String {
+    let content_type = format!("{}{}", part.media_type, parameter("name", &part.name));
+    let (disposition, id) = match &part.content_id {
+        Some(id) => ("inline", format!("Content-ID: <{id}>\r\n")),
+        None => ("attachment", String::new()),
+    };
+    let extra = format!(
+        "{id}Content-Disposition: {disposition}{}\r\n",
+        parameter("filename", &part.name)
+    );
+    leaf(&content_type, &extra, &part.data)
 }
 
 #[cfg(test)]
@@ -645,8 +726,7 @@ mod tests {
                 cc: &cc,
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         assert!(message.contains("To: <to@example.com>\r\n"));
         assert!(message.contains("Cc: <cc@example.com>\r\n"));
@@ -680,8 +760,7 @@ mod tests {
                     reply_to: (header == "Reply-To").then(|| &one[0]),
                     ..headers()
                 },
-                "body",
-                None,
+                &Body::plain("body"),
             );
             assert!(
                 header_lines(&message).iter().all(|each| each
@@ -764,8 +843,7 @@ mod tests {
                 )],
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         assert!(message.is_ascii(), "{message}");
         assert!(message.contains("To: <info@xn--bcher-kva.example>\r\n"));
@@ -814,8 +892,7 @@ mod tests {
                 message_id: &id,
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         assert!(
             header_lines(&message).contains(&format!("Message-ID: <{id}>")),
@@ -834,8 +911,7 @@ mod tests {
                     from_name: Some(name),
                     ..headers()
                 },
-                "body",
-                None,
+                &Body::plain("body"),
             );
             header_lines(&message)
                 .into_iter()
@@ -900,8 +976,7 @@ mod tests {
                 references: &references,
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         let lines = header_lines(&message);
         assert!(lines.contains(&"In-Reply-To: <two@example.com>".to_owned()));
@@ -936,13 +1011,12 @@ mod tests {
                 unsubscribe: Some(url),
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         let lines = header_lines(&message);
         assert!(lines.contains(&format!("List-Unsubscribe: <{url}>")));
         assert!(lines.contains(&"List-Unsubscribe-Post: List-Unsubscribe=One-Click".to_owned()));
-        let plain = compose(&headers(), "body", None);
+        let plain = compose(&headers(), &Body::plain("body"));
         assert!(!plain.contains("List-Unsubscribe"));
     }
 
@@ -950,16 +1024,87 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn auto_submitted_is_written_unless_turned_off() {
-        let on = compose(&headers(), "body", None);
+        let on = compose(&headers(), &Body::plain("body"));
         assert!(header_lines(&on).contains(&"Auto-Submitted: auto-generated".to_owned()));
         let off = compose(
             &Headers {
                 auto_submitted: false,
                 ..headers()
             },
-            "body",
-            None,
+            &Body::plain("body"),
         );
         assert!(!off.contains("Auto-Submitted"));
+    }
+
+    /// The `Content-Type` lines of `message`, in order, each up to its first `;`.
+    fn content_types(message: &str) -> Vec<&str> {
+        message
+            .split("\r\n")
+            .filter_map(|line| line.strip_prefix("Content-Type: "))
+            .map(|value| value.split(';').next().unwrap_or_default())
+            .collect()
+    }
+
+    /// The parts nest `multipart/mixed` > `multipart/related` > `multipart/alternative`, and a
+    /// level is written only when it is needed. An inline image has its Content-ID and an
+    /// attachment its file name.
+    // covers: Core\Mail::send, Core\Mail\Attachment::fromBytes, Core\Mail\Attachment::inlineBytes
+    #[test]
+    fn the_parts_nest_mixed_related_alternative() {
+        let logo = Part {
+            name: "logo.png".to_owned(),
+            media_type: "image/png".to_owned(),
+            data: b"png".to_vec(),
+            content_id: Some("0a@inline".to_owned()),
+        };
+        let report = Part {
+            name: "report.pdf".to_owned(),
+            media_type: "application/pdf".to_owned(),
+            data: b"pdf".to_vec(),
+            content_id: None,
+        };
+        let parts = [report, logo];
+        let html = Body {
+            text: "text",
+            html: Some("<img src=\"cid:0a@inline\">"),
+            attachments: &parts,
+        };
+        let message = compose(&headers(), &html);
+        assert_eq!(
+            content_types(&message),
+            [
+                "multipart/mixed",
+                "multipart/related",
+                "multipart/alternative",
+                "text/plain",
+                "text/html",
+                "image/png",
+                "application/pdf",
+            ]
+        );
+        assert!(message.contains("Content-ID: <0a@inline>\r\nContent-Disposition: inline; filename=\"logo.png\"\r\n"));
+        assert!(message.contains("Content-Disposition: attachment; filename=\"report.pdf\"\r\n"));
+        for boundary in [MIXED, RELATED, ALTERNATIVE] {
+            assert!(message.contains(&format!("\r\n--{boundary}--\r\n")), "{boundary}");
+        }
+
+        let no_inline = Body {
+            attachments: &parts[..1],
+            ..html
+        };
+        assert_eq!(
+            content_types(&compose(&headers(), &no_inline)),
+            [
+                "multipart/mixed",
+                "multipart/alternative",
+                "text/plain",
+                "text/html",
+                "application/pdf",
+            ]
+        );
+        assert_eq!(
+            content_types(&compose(&headers(), &Body::plain("text"))),
+            ["text/plain"]
+        );
     }
 }

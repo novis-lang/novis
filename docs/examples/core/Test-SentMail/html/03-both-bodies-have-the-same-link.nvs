@@ -2,6 +2,8 @@
 // Shows how to test that a request sends a mail with the same link in the HTML body and the text body.
 // proof: test
 
+use Core\Html;
+use Core\Html\Markup;
 use Core\Http\Method;
 use Core\Str;
 use Core\Test;
@@ -24,11 +26,11 @@ class InvoiceTest
 }
 
 // `Core\Test::request` runs this file again for the request. This part sends
-// the invoice link in a plain-text body and in an HTML body.
+// the invoice link in an HTML body. The plain-text body is made from the HTML.
 if (Core\Env::context() == Core\Env::Context::Request) {
     string $link = 'https://example.com/invoices/77.pdf';
-    Core\Mail::send('site', ['billing@example.com'], 'Invoice 77', 'Download your invoice: ' . $link, {
-        html: '<p><a href="' . $link . '">Download your invoice</a></p>',
-    });
+    Markup $body = ('<p><a href="' as Markup) + Html::escape($link)
+        + ('">Download your invoice</a></p>' as Markup);
+    Core\Mail::send('site', ['billing@example.com'], 'Invoice 77', $body);
     Core\Response::setStatus(202);
 }

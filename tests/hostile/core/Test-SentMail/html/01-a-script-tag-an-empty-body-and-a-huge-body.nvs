@@ -3,6 +3,8 @@
 // megabytes of text. Each body should be kept exactly as given, and nothing may crash.
 // proof: test
 
+use Core\Html;
+use Core\Html\Markup;
 use Core\Mail;
 use Core\Str;
 use Core\Test;
@@ -13,18 +15,19 @@ class HtmlAttackTest
     public function theHtmlBodyHolds(): void
     {
         // 1. An HTML body with a script tag. `html()` returns it exactly, so a test can find it.
-        string $script = '<p>Hi</p><script>fetch("https://evil.example.com")</script>';
+        Markup $script = '<p>Hi</p><script>fetch("https://evil.example.com")</script>' as Markup;
+        string $source = Html::toSource($script, 'the test compares the HTML that was sent');
         try {
-            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: $script });
+            Mail::send('site', ['ada@example.com'], 'Hi', $script);
         } catch (RuntimeError $error) {
             echo 'refused: ', $error->message, "\n";
         }
-        Test::assertSame(Test::sentMail()[0]->html(), $script);
+        Test::assertSame(Test::sentMail()[0]->html(), $source);
         Test::assertTrue(Str::contains(Test::sentMail()[0]->html() ?? '', '<script>'));
 
         // 2. An empty HTML body. `html()` returns an empty string, not `null`.
         try {
-            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: '' });
+            Mail::send('site', ['ada@example.com'], 'Hi', '' as Markup);
         } catch (RuntimeError $error) {
             echo 'refused: ', $error->message, "\n";
         }
@@ -32,7 +35,7 @@ class HtmlAttackTest
 
         // 3. An HTML body with a NUL byte and a line that is only a dot.
         try {
-            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: "<p>a\0b</p>\r\n.\r\nQUIT" });
+            Mail::send('site', ['ada@example.com'], 'Hi', "<p>a\0b</p>\r\n.\r\nQUIT" as Markup);
         } catch (RuntimeError $error) {
             echo 'refused: ', $error->message, "\n";
         }
@@ -40,7 +43,7 @@ class HtmlAttackTest
 
         // 4. An HTML body of 8 MB. It is kept whole.
         try {
-            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: Str::repeat('<p>a</p>', 1000000) });
+            Mail::send('site', ['ada@example.com'], 'Hi', Html::escape(Str::repeat('a', 8000000)));
         } catch (RuntimeError $error) {
             echo 'refused: ', $error->message, "\n";
         }
@@ -49,13 +52,13 @@ class HtmlAttackTest
         // 5. Changes the HTML that `html()` returned. A second read returns the first HTML.
         string $copy = Test::sentMail()[0]->html() ?? '';
         $copy = $copy . '<img src=x>';
-        Test::assertSame(Test::sentMail()[0]->html(), $script);
+        Test::assertSame(Test::sentMail()[0]->html(), $source);
 
         // 6. Sends 2000 messages, and every second one has an HTML body. The others return `null`.
         int $i = 0;
         while ($i < 2000) {
             if ($i % 2 == 0) {
-                Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: '<p>' . $i . '</p>' });
+                Mail::send('site', ['ada@example.com'], 'Hi', Html::escape('message ' . $i));
             } else {
                 Mail::send('site', ['ada@example.com'], 'Hi', 'Hi');
             }

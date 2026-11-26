@@ -1,0 +1,42 @@
+--TEST--
+A `tainted` string body of `Core\Mail::send` is sent as plain text and never as HTML; only a `Core\Html\Markup` body sends HTML — `rule:core-classes/html-auto-escape`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Mail::send
+// A user typed this text, and it contains HTML tags.
+use Core\Test;
+
+final class TaintedBodyTest {
+    #[Test]
+    public function aTaintedStringIsSentAsText(): void {
+        tainted string $typed = "<b>Hi</b><script>alert(1)</script>";
+        Core\Mail::send("site", ["ada@example.com"], "Message", $typed);
+        Core\Mail::send("site", ["ada@example.com"], "Message", Core\Html::escape($typed));
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        // The first message is plain text. It has no HTML body.
+        Test::assertSame($sent[0]->text(), "<b>Hi</b><script>alert(1)</script>");
+        Test::assertNull($sent[0]->html());
+
+        // `Core\Html::escape` makes HTML that shows the tags as text.
+        // The plain text is made from that HTML, so it has the text as it was typed.
+        Test::assertSame($sent[1]->html(), "&lt;b&gt;Hi&lt;/b&gt;&lt;script&gt;alert(1)&lt;/script&gt;");
+        Test::assertSame($sent[1]->text(), "<b>Hi</b><script>alert(1)</script>\n");
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  TaintedBodyTest
+    ✓ aTaintedStringIsSentAsText       %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

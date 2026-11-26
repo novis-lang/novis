@@ -4,14 +4,13 @@
 // where this example runs, so the call throws an `IOError`.
 
 // `Core\Mail::send` sends the message through the `[mail.shop]` block.
-// `html` adds a formatted version of the same text.
+// The body is HTML, so the message also gets a plain-text version of it.
 try {
     Core\Mail::send(
         'shop',
         ['anna@example.com'],
         'Your receipt for order 1042',
-        'Thank you for your order. The total is 59.90 EUR.',
-        { html: '<p>Thank you for your order. The total is <b>59.90 EUR</b>.</p>' },
+        '<p>Thank you for your order. The total is <b>59.90 EUR</b>.</p>' as Core\Html\Markup,
     );
     echo "The receipt is sent.\n";
 } catch (IOError $error) {

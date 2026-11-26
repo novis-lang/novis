@@ -441,6 +441,16 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
         &crate::mail::ADDRESS,
         Slots::Typed(&[CoreTy::Str, CoreTy::Str]),
     ),
+    // `send` checks the name and the type again, and the Content-ID is any text.
+    (
+        &crate::mail::ATTACHMENT,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Bytes,
+            CoreTy::Nullable(&CoreTy::Str),
+        ]),
+    ),
     // `echo` writes `text` to the terminal as it is.
     (&crate::cli::TEXT, Slots::NotReadBack(TRUSTED_TEXT)),
     // An unknown kind reads as an index, and each channel is masked.

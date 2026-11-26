@@ -10,13 +10,10 @@ use Core\Test;
 class Invite
 {
     // Sends an invitation. The name goes into the HTML body through `Html::escape`.
-    // `Html::toSource` gives the finished HTML as the `string` that the `html` option needs.
     public static function send(string $email, string $name): void
     {
         Markup $body = ('<p>Hello ' as Markup) + Html::escape($name) + ('</p>' as Markup);
-        Mail::send('site', [$email], 'You are invited', 'Hello ' . $name, {
-            html: Html::toSource($body, 'the html option of a mail needs a string'),
-        });
+        Mail::send('site', [$email], 'You are invited', $body);
     }
 }
 
@@ -30,7 +27,7 @@ class InviteTest
         // `<` and `>` are written as `&lt;` and `&gt;`, so the name is not a tag.
         Test::assertSame(Test::sentMail()[0]->html(), '<p>Hello Bo &lt;b&gt;Admin&lt;/b&gt;</p>');
 
-        // The plain-text body has the name as it was given.
-        Test::assertSame(Test::sentMail()[0]->text(), 'Hello Bo <b>Admin</b>');
+        // The plain-text body is made from the HTML. It has the name as it was given.
+        Test::assertSame(Test::sentMail()[0]->text(), "Hello Bo <b>Admin</b>\n");
     }
 }

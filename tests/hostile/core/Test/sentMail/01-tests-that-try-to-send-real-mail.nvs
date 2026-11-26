@@ -86,7 +86,7 @@ class RealMailAttack
     {
         string $big = Core\Str::repeat('x', 16777216);
         try {
-            Mail::send('relay', ['a@example.com'], 'Big', $big, { html: $big });
+            Mail::send('relay', ['a@example.com'], 'Big', Core\Html::escape($big), { text: $big });
             Test::assertEquals(Core\Str::length(Test::sentMail()[0]->text()), 16777216);
         } catch (Throwable $error) {
             echo '4 ', $error::class, "\n";

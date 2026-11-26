@@ -57,7 +57,7 @@ try {
 // 6. A subject of 4 million characters full of line breaks. It is encoded, then the call throws.
 string $long = Core\Str::repeat("é\r\nBcc: x@example.com\r\n", 200000);
 try {
-    Core\Mail::send('shop', ['anna@example.com'], $long, $long, { html: $long });
+    Core\Mail::send('shop', ['anna@example.com'], $long, Core\Html::escape($long), { text: $long });
     echo "6 sent\n";
 } catch (RuntimeError $e) {
     echo '6 ', $e::class, "\n";

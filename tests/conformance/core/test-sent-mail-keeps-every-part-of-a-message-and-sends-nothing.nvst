@@ -17,12 +17,12 @@ final class NewsletterTest {
             "site",
             ["ada@example.com", "bo@example.com"],
             "News",
-            "The news in text.",
+            "<p>The news in HTML.</p>" as Core\Html\Markup,
             {
                 cc: ["editor@example.com"],
                 bcc: ["archive@example.com"],
                 replyTo: "desk@example.com",
-                html: "<p>The news in HTML.</p>"
+                text: "The news in text."
             }
         );
         Core\Mail::send("site", ["cy@example.com"], "Second", "A second message.");

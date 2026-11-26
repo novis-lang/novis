@@ -412,7 +412,7 @@ impl Media {
     /// Every answer is a literal in this file, which is what makes
     /// [`nvs_core_mime_media_type`]'s `string` unable to carry anything from a
     /// caller's octets: there is no input it could be built out of.
-    fn media_type(self) -> &'static str {
+    pub(crate) fn media_type(self) -> &'static str {
         match self {
             Self::Unknown => "application/octet-stream",
             Self::Png => "image/png",
