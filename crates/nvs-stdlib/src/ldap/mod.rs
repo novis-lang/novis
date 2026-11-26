@@ -590,9 +590,8 @@ pub fn open(ctx: &mut Ctx, settings: &Settings<'_>) -> Result<u64, Fault> {
     let pinned = nvs_runtime::capability::pinned_address(ctx, &url.host, OPEN)?;
     let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
     let address = SocketAddr::new(pinned, url.port);
-    let mut held = dial(&url, address, settings, cleartext).map_err(|error| {
-        dial_fault(OPEN, &error, &url.host, crate::tls_fix::Settings::Program)
-    })?;
+    let mut held = dial(&url, address, settings, cleartext)
+        .map_err(|error| dial_fault(OPEN, &error, &url.host, crate::tls_fix::Settings::Program))?;
     held.base = settings.base.map(str::to_owned);
     held.redial = Some(Redial {
         url,

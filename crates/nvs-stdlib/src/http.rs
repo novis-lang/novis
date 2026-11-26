@@ -2677,10 +2677,10 @@ macro_rules! verb_check {
 }
 
 /// What every member with a fixed verb throws — see [`request_errors`].
-const REQUEST_ERRORS: &[ErrorDoc] = request_errors!([] [request_timeout!()]);
+const REQUEST_ERRORS: &[ErrorDoc] = request_errors!([][request_timeout!()]);
 
 /// What `request` throws: [`REQUEST_ERRORS`] and the run-time verb check.
-const DYNAMIC_ERRORS: &[ErrorDoc] = request_errors!([verb_check!()] [request_timeout!()]);
+const DYNAMIC_ERRORS: &[ErrorDoc] = request_errors!([verb_check!()][request_timeout!()]);
 
 /// What `openStream` throws: its own bounds, the verb check, and a deadline that
 /// ends when the headers arrive.
@@ -2688,12 +2688,9 @@ const STREAM_ERRORS: &[ErrorDoc] = request_errors!(
     [
         " An `idle` or `maxDuration` is not a positive duration.",
         verb_check!()
-    ]
-    [
-        "The `deadline` passed before the status and headers arrived. It covers the connection, \
+    ]["The `deadline` passed before the status and headers arrived. It covers the connection, \
          every redirect, every retry and every wait between retries. If a wait would end after \
-         the deadline, the error is thrown at once, without waiting."
-    ]
+         the deadline, the error is thrown at once, without waiting."]
 );
 
 /// `Core\Http\Client::get`'s reference card — `rule:core-api/reference-card`.

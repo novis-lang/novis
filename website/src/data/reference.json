@@ -344,15 +344,6 @@
           "apply": "Reload"
         },
         {
-          "id": "directive:http.client.tls",
-          "title": "http.client.tls",
-          "examples": "config/http-client-tls",
-          "key": "http.client.tls",
-          "how": "",
-          "settable": [],
-          "apply": "Reload"
-        },
-        {
           "id": "directive:http.client.proxy",
           "title": "http.client.proxy",
           "examples": "config/http-client-proxy",
@@ -870,6 +861,25 @@
           "title": "session",
           "examples": "config/session",
           "key": "session",
+          "how": "",
+          "settable": [],
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "tls",
+      "url": "/reference/config/tls/",
+      "title": "[tls]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:tls.client",
+          "title": "tls.client",
+          "examples": "config/tls-client",
+          "key": "tls.client",
           "how": "",
           "settable": [],
           "apply": "Reload"

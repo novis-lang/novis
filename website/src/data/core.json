@@ -13675,7 +13675,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -13711,7 +13711,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -13727,7 +13727,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -13738,19 +13738,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -13883,7 +13883,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -13919,7 +13919,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -13935,7 +13935,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -13946,19 +13946,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -14091,7 +14091,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -14127,7 +14127,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -14143,7 +14143,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -14154,19 +14154,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -14299,7 +14299,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -14335,7 +14335,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -14351,7 +14351,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -14362,19 +14362,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -14507,7 +14507,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -14543,7 +14543,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -14559,7 +14559,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -14570,19 +14570,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -14715,7 +14715,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -14751,7 +14751,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -14767,7 +14767,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -14778,19 +14778,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the headers of the reply. Its body is empty. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -14935,7 +14935,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -14971,7 +14971,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -14987,7 +14987,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -14998,19 +14998,19 @@
                 "descHtml": "If it is <code>true</code>, a redirect from <code>https</code> to plain <code>http</code> may be followed. The redirect's host must also be in the <code>net.downgrade</code> grant. If it is not given, such a redirect throws an error. Otherwise one <code>Location</code> header would be enough for a server to remove a call's TLS. This option does not affect a plain <code>http</code> URL that you request directly."
               }
             ],
-            "returnHtml": "A <code>Core\\Http\\Response</code> with the status and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities that Novis includes.",
+            "returnHtml": "A <code>Core\\Http\\Response</code> with the status, the headers and the body of the reply. A <code>404</code> or a <code>500</code> is a normal reply and is returned here. Only a request that gets no reply at all throws an error. An <code>https</code> URL is fetched over TLS. The certificate is checked against the certificate authorities in <code>[tls.client] roots</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request. Before the first attempt, this method checks two mistakes that the other methods find at compile time. A body option on a <code>Get</code> or a <code>Head</code> throws an error. Retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code> also throw an error."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -15147,7 +15147,7 @@
               },
               {
                 "name": "deadline",
-                "descHtml": "The time limit for the whole call. It covers the connection, every redirect, every retry and every wait between retries. If it is not given, the runtime's <code>[http.client] deadline</code> is used. There is no way to write a call with no deadline."
+                "descHtml": "The time limit until the status and headers arrive. It covers the connection, every redirect, every retry and every wait between retries. It does not cover the body. <code>idle</code> and <code>maxDuration</code> limit the body. If it is not given, the runtime's <code>[http.client] deadline</code> is used. There is no way to write a call with no deadline."
               },
               {
                 "name": "connectTimeout",
@@ -15163,7 +15163,7 @@
               },
               {
                 "name": "retryAttempts",
-                "descHtml": "The total number of attempts, including the first. <code>1</code> is the same as the default, and <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
+                "descHtml": "The total number of attempts, including the first. The default is <code>1</code>, which means no retry. <code>0</code> throws an error. Retries wait a random delay (jitter), and all attempts share one deadline."
               },
               {
                 "name": "retryBackoff",
@@ -15199,7 +15199,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -15215,7 +15215,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",
@@ -15231,22 +15231,22 @@
               },
               {
                 "name": "maxDuration",
-                "descHtml": "The longest time the whole body may take. This limit stops a server that sends one byte at a time, just often enough to pass the <code>idle</code> check. If it is not given, the runtime's <code>[http.client] max_duration</code> is used. <code>deadline</code> covers only the connection, the status and the headers."
+                "descHtml": "The longest time the whole body may take. This limit stops a server that sends one byte at a time, just often enough to pass the <code>idle</code> check. If it is not given, the runtime's <code>[http.client] max_duration</code> is used."
               }
             ],
             "returnHtml": "A <code>Core\\Http\\Stream</code>. Its <code>status()</code>, <code>header()</code> and <code>headers()</code> methods return the status and headers. Read the body with exactly one of <code>events()</code>, <code>lines()</code>, <code>chunks()</code> and <code>saveTo()</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. On <code>openStream</code>, the same is true for <code>idle</code> and <code>maxDuration</code>. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against the certificate authorities Novis includes. Or the certificate is not valid for that name. Or the reply is not HTTP, or it is larger than the limit for one request. A body that is not text does not cause this error. <code>Core\\Http\\Response::text</code> throws for it. <code>request</code> gets the method as a value, so it checks two things before the first attempt. The other methods check them at compile time. The first is a body option on a <code>Get</code> or a <code>Head</code>. The second is retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code>."
+                "descHtml": "The URL is not allowed. It is not a URL, its scheme is not <code>http</code> or <code>https</code>, or it has no host. Or <code>net.connect</code> does not grant the host. Or the host resolves to a loopback, private, link-local or unspecified address that <code>net.internal</code> does not list. An option is out of range. A <code>deadline</code>, <code>connectTimeout</code> or <code>retryBackoff</code> is not a positive duration. Or <code>retryAttempts</code> is zero. A header name or value contains a control byte, which would end the line early. An <code>https</code> server sent a certificate that does not verify against <code>[tls.client] roots</code>, or against <code>tlsCa</code> when it is given. Or the certificate is not valid for that name. For these two cases, the message says which setting fixes it. Or the reply is not HTTP, or it is larger than the limit for one request. An <code>idle</code> or <code>maxDuration</code> is not a positive duration. Before the first attempt, this method checks two mistakes that the other methods find at compile time. A body option on a <code>Get</code> or a <code>Head</code> throws an error. Retries on a <code>Post</code> or a <code>Patch</code> without <code>retryIdempotencyKey</code> also throw an error."
               },
               {
                 "error": "TimeoutError",
-                "descHtml": "The <code>deadline</code> passed before a reply arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
+                "descHtml": "The <code>deadline</code> passed before the status and headers arrived. It covers the connection, every redirect, every retry and every wait between retries. If a wait would end after the deadline, the error is thrown at once, without waiting."
               },
               {
                 "error": "IOError",
-                "descHtml": "The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read."
+                "descHtml": "The last attempt could not connect to the approved address. Or the connection failed while the request was sent or the reply was read."
               }
             ]
           },
@@ -15363,7 +15363,7 @@
               },
               {
                 "name": "tlsCa",
-                "descHtml": "The PEM certificates to trust for this call. They replace the runtime's own root certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
+                "descHtml": "The PEM certificates to trust for this call. They replace <code>[tls.client] roots</code> certificates. The URL's host must be in the <code>anchors</code> grant of <code>capabilities.tls</code>. If it is not, the call throws an error before it connects."
               },
               {
                 "name": "tlsPin",
@@ -15379,7 +15379,7 @@
               },
               {
                 "name": "tlsMinVersion",
-                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[http.client.tls] min_version</code> throws an error."
+                "descHtml": "The lowest TLS version this call allows, <code>&quot;1.2&quot;</code> or <code>&quot;1.3&quot;</code>. It needs no grant, because it can only make the call stricter. A value below the runtime's <code>[tls.client] min_version</code> throws an error."
               },
               {
                 "name": "connectTo",

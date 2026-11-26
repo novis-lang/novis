@@ -180,7 +180,10 @@ fn scratch(case: &str) -> nvs_repo::Scratch {
 /// the grants every case needs to reach loopback.
 fn settings(dir: &Path, roots: bool, rest: &str) -> String {
     let block = if roots {
-        format!("[tls.client]\nroots = ['{}']\n\n", dir.join("ca.pem").display())
+        format!(
+            "[tls.client]\nroots = ['{}']\n\n",
+            dir.join("ca.pem").display()
+        )
     } else {
         String::new()
     };
@@ -346,7 +349,11 @@ fn a_block_ca_file_replaces_tls_client_roots() {
         "the block trusted a CA its `tls_ca_file` does not name: {}",
         ran.out
     );
-    assert!(ran.out.contains("failed: "), "the call did not throw: {}", ran.out);
+    assert!(
+        ran.out.contains("failed: "),
+        "the call did not throw: {}",
+        ran.out
+    );
 }
 
 /// `Core\Ldap::open` against a CA nobody trusts names `[tls.client] roots`, and no block setting,
@@ -362,7 +369,11 @@ fn an_unknown_issuer_from_ldap_open_names_tls_client_roots() {
         &program(&ldap_open(&peer)),
         &[],
     );
-    assert!(peer.first().is_err(), "the handshake completed: {}", ran.out);
+    assert!(
+        peer.first().is_err(),
+        "the handshake completed: {}",
+        ran.out
+    );
     assert!(
         ran.out.contains("`[tls.client] roots`"),
         "the error does not name `[tls.client] roots`: {}",
@@ -388,7 +399,11 @@ fn an_unknown_issuer_from_a_block_names_both_settings() {
         &program(LDAP_CONNECT),
         &[],
     );
-    assert!(peer.first().is_err(), "the handshake completed: {}", ran.out);
+    assert!(
+        peer.first().is_err(),
+        "the handshake completed: {}",
+        ran.out
+    );
     for setting in ["`[ldap.corp] tls_ca_file`", "`[tls.client] roots`"] {
         assert!(
             ran.out.contains(setting),
@@ -414,7 +429,11 @@ fn a_certificate_for_another_name_lists_its_names() {
         &program(LDAP_CONNECT),
         &[("ca.pem", &ca.pem)],
     );
-    assert!(peer.first().is_err(), "the handshake completed: {}", ran.out);
+    assert!(
+        peer.first().is_err(),
+        "the handshake completed: {}",
+        ran.out
+    );
     for name in [
         "`ldap.example.com`",
         "`directory.example.com`",

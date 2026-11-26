@@ -488,7 +488,12 @@ pub fn names_presented(why: &io::Error) -> Option<Vec<String>> {
         rustls::Error::InvalidCertificate(CertificateError::NotValidForNameContext {
             presented,
             ..
-        }) => Some(presented.iter().filter_map(|name| unwrapped(name)).collect()),
+        }) => Some(
+            presented
+                .iter()
+                .filter_map(|name| unwrapped(name))
+                .collect(),
+        ),
         rustls::Error::InvalidCertificate(CertificateError::NotValidForName) => Some(Vec::new()),
         _ => None,
     }

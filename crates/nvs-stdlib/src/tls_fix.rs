@@ -140,7 +140,10 @@ mod tests {
             said.contains("not for `10.0.0.5`") && said.contains("`[db.main] host`"),
             "{said}"
         );
-        assert!(!said.contains("roots") && !said.contains("tls_ca_file"), "{said}");
+        assert!(
+            !said.contains("roots") && !said.contains("tls_ca_file"),
+            "{said}"
+        );
     }
 
     /// Any other failure has no advice, and the message keeps the error.

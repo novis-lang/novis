@@ -1918,7 +1918,9 @@ fn dialled(
             // keeps the error alone.
             Err(err) if matches!(err.kind(), ErrorKind::InvalidData | ErrorKind::InvalidInput) => {
                 let fix = match nvs_host::tls::refusal(&err) {
-                    Some(nvs_host::tls::Refusal::UnknownIssuer) if call.policy.anchors.is_some() => {
+                    Some(nvs_host::tls::Refusal::UnknownIssuer)
+                        if call.policy.anchors.is_some() =>
+                    {
                         None
                     }
                     Some(refusal) => Some(crate::tls_fix::fix_for(

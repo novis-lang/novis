@@ -344,7 +344,7 @@
   },
   "/guides/how-to-use/sending-mail/": {
     "feature": "guides/how-to-use/sending-mail.mdx",
-    "hash": "de7d8b61b21b0133",
+    "hash": "a4c8491f6e2f84f0",
     "questions": [
       "Step by step guide to sending email from my app",
       "Set up an SMTP server and its password in nvs.toml",
@@ -1727,13 +1727,12 @@
   },
   "/reference/config/http/": {
     "feature": "directive:http",
-    "hash": "c569c7bb3d7c70cf",
+    "hash": "5af23e5afa200fa9",
     "questions": [
       "How do I set security headers on every response?",
       "Allow cross-origin requests from another website",
       "Protect API requests against cross-site request forgery",
       "Use a proxy server for outgoing HTTP calls",
-      "Trust my own certificate authority for outbound HTTPS",
       "Change the CORS or cookie settings for one request only"
     ]
   },
@@ -1942,6 +1941,17 @@
       "What happens if there is no configuration file?",
       "Combine several configuration files",
       "Are relative paths in the config resolved from my working directory?"
+    ]
+  },
+  "/reference/config/tls/": {
+    "feature": "directive:tls.client",
+    "hash": "8a36cb18f31612a0",
+    "questions": [
+      "Trust my company's own certificate authority for every outgoing connection",
+      "Connect to an internal LDAP or database server with a private certificate",
+      "Require TLS 1.3 for all outgoing connections",
+      "Decrypt my own HTTPS traffic in Wireshark",
+      "Fix an unknown issuer error when connecting to a server"
     ]
   },
   "/reference/config/trace/": {
@@ -5627,7 +5637,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "f0b1303ae80a7e4e",
+    "hash": "ed9aba8dc248d605",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5637,7 +5647,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "a9561c863cc68fef",
+    "hash": "a778d620554b2144",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5649,7 +5659,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "8bd8c13de3ce14c6",
+    "hash": "426735b7d5d5e7cf",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5660,7 +5670,7 @@
   },
   "/reference/core/http-client/opensocket/": {
     "feature": "Core\\Http\\Client::openSocket",
-    "hash": "cdae82b7497f5b25",
+    "hash": "d8bb04adf3f54a59",
     "questions": [
       "How do I connect to a WebSocket server?",
       "Receive live messages from another server",
@@ -5671,7 +5681,7 @@
   },
   "/reference/core/http-client/openstream/": {
     "feature": "Core\\Http\\Client::openStream",
-    "hash": "837a9e9f8c960838",
+    "hash": "685d08e6c7f15741",
     "questions": [
       "Read a large response while it is still downloading",
       "How do I receive server-sent events?",
@@ -5682,7 +5692,7 @@
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "d53b573833281693",
+    "hash": "b64e716d1b7e8cf3",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5692,7 +5702,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "8e6178ce3499d4b1",
+    "hash": "e2ab285899e18392",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5704,7 +5714,7 @@
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "ca68e5f4943949bb",
+    "hash": "f723e7b4fd2dc792",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5714,7 +5724,7 @@
   },
   "/reference/core/http-client/request/": {
     "feature": "Core\\Http\\Client::request",
-    "hash": "b08179592c11a037",
+    "hash": "45b8d5cabea24d9f",
     "questions": [
       "Send a request with a method chosen at runtime",
       "How do I send an OPTIONS request?",
