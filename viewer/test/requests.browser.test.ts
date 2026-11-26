@@ -72,7 +72,7 @@ function json(body: unknown, status = 200): Response {
 
 /** `GET /api/requests` over `rows`, the way the service answers it. */
 function page(url: URL): Response {
-  const filters = ["method", "status", "route", "min_us", "threw"];
+  const filters = ["method", "status", "route", "min_us", "min_memory", "threw"];
   for (const key of url.searchParams.keys()) {
     if (![...filters, "before", "since", "trace", "span", "limit"].includes(key)) return json({ error: `unknown key ${key}` }, 400);
   }
@@ -85,6 +85,7 @@ function page(url: URL): Response {
   const method = url.searchParams.get("method");
   const status = url.searchParams.get("status");
   const minUs = num("min_us");
+  const minMemory = num("min_memory");
   const threw = url.searchParams.get("threw");
   const scans = filters.some((key) => url.searchParams.has(key));
   const top = before ?? Math.max(0, ...rows.map((row) => row.id)) + 1;
@@ -99,6 +100,7 @@ function page(url: URL): Response {
       (method === null || row.method === method) &&
       statusOk(row.status) &&
       (minUs === undefined || row.duration_us >= minUs) &&
+      (minMemory === undefined || (row.memory_peak ?? -1) >= minMemory) &&
       (threw === null || (row.exception !== null) === (threw === "true")) &&
       (floor === null || row.id >= floor),
   );
@@ -226,8 +228,8 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     const cells = (id: number) =>
       tab.eval(`[...document.querySelectorAll("#request-${id} > span:not(.age)")].map((s) => s.textContent)`);
     const part = (id: number, cls: string) => tab.eval(`document.querySelector("#request-${id} .${cls}")?.textContent ?? null`);
-    // Method, path, status, duration, queries and dumps. The age depends on the clock.
-    expect(await cells(6)).toEqual(["DELETE", "/items/9/items/{id}", "403", "610 µs", "0", "0"]);
+    // Method, path, status, duration, memory, queries and dumps. The age depends on the clock.
+    expect(await cells(6)).toEqual(["DELETE", "/items/9/items/{id}", "403", "610 µs", "–", "0", "0"]);
     expect(await part(6, "route")).toBe("/items/{id}");
     expect(await tab.eval(`/^\\d+ (s|min|h|d)$/.test(document.querySelector("#request-6 .age").textContent)`)).toBe(true);
     // A request that threw shows its exception's class and site after the path.
@@ -439,6 +441,29 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     await tab.eval(`[...document.querySelectorAll(".filter-chips .chip")].find((c) => c.textContent == "Clear").click()`);
     await tab.until(`location.pathname + location.search == "/" && ${LIST}.getAttribute("aria-label") == "Requests, newest first"`);
     await tab.close();
+  }, 30_000);
+
+  test("the memory column shows each peak, and the memory filter keeps the requests at or over it", async () => {
+    const MIB = 1024 * 1024;
+    const [heavy, light, ...rest] = FIXTURE;
+    const shown = [{ ...heavy!, memory_peak: 12 * MIB, memory_limit: 64 * MIB }, { ...light!, memory_peak: 512 * 1024, memory_limit: null }, ...rest];
+    reset(shown);
+    const tab = await open("/");
+    await tab.until(`document.querySelectorAll("[role=option]").length == ${FIXTURE.length}`);
+    const memory = (id: number) => tab.eval(`document.querySelector("#request-${id} .memory").textContent`);
+    expect(await memory(heavy!.id)).toBe("12.0 MiB");
+    expect(await tab.eval(`document.querySelector("#request-${heavy!.id} .memory").title`)).toBe("Peak 12.0 MiB of a 64.0 MiB limit");
+    expect(await memory(light!.id)).toBe("512 KiB");
+    const none = shown.find((row) => row.memory_peak === null)!;
+    expect(await memory(none.id)).toBe("–");
+    await tab.close();
+    // The filter keeps a peak equal to the bound, as the service does.
+    const over = shown.filter((row) => row.memory_peak !== null && row.memory_peak >= 8 * MIB).map((row) => `request-${row.id}`);
+    const filtered = await open(`/?min_memory=${8 * MIB}`);
+    await filtered.until(`Number(${LIST}.dataset.rows) == ${over.length}`);
+    expect(await filtered.eval(OPTION_IDS)).toEqual(over);
+    expect(await filtered.eval(`document.querySelector(".filter-chips .chip.set").textContent`)).toBe("Memory over: 8.00 MiB▾");
+    await filtered.close();
   }, 30_000);
 
   test("a repeated query shows its gold count, and the pane beside a wide list shows the selected request", async () => {

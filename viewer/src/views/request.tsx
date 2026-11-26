@@ -42,7 +42,7 @@ import { isMarked, marked, setMarked } from "./compare.tsx";
 import { ReplayAction } from "./replay.tsx";
 import { ToTestAction } from "./to-test.tsx";
 import { saved } from "./saved.tsx";
-import { age, createNow, duration, listLink, split, statusClass } from "./requests.tsx";
+import { age, createNow, duration, listLink, MemoryTile, size, split, statusClass } from "./requests.tsx";
 import { Coverage } from "./coverage.tsx";
 import { curl } from "./request/curl.ts";
 import { RequestInput } from "./request/input.tsx";
@@ -253,6 +253,13 @@ function Header(props: { row: RequestRow; actions: JSX.Element }) {
             </>
           )}
         </Show>
+        <Show when={row().handler}>
+          {(handler) => (
+            <>
+              Handler <code class="req-handler">{handler()}</code> ·{" "}
+            </>
+          )}
+        </Show>
         <time datetime={new Date(row().start_us / 1000).toISOString()} title={new Date(row().start_us / 1000).toLocaleString()}>
           {age(row().start_us, now())} ago
         </time>
@@ -280,6 +287,16 @@ function Header(props: { row: RequestRow; actions: JSX.Element }) {
         <Tile label="Queries" value={String(row().queries)} unit={row().repeats >= 2 ? `· ${row().repeats}× at one site` : undefined} />
         <Tile label="Dumps" value={String(row().dumps)} />
         <Tile label="Log lines" value={String(row().logs)} />
+        <Show when={row().memory_peak !== null}>
+          <MemoryTile row={row()} />
+        </Show>
+        <Show when={row().bytes_out !== null || row().bytes_in !== null}>
+          <Tile
+            label="Response size"
+            value={row().bytes_out === null ? "–" : size(row().bytes_out!)}
+            unit={row().bytes_in === null ? undefined : `· ${size(row().bytes_in!)} read`}
+          />
+        </Show>
       </div>
       <Show when={split(row()).length > 0}>
         <Meter parts={split(row())} total={Math.max(1, row().duration_us)} label="Time by kind" />

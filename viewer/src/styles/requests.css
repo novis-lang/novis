@@ -45,7 +45,7 @@
 }
 
 .request-grid {
-  grid-template-columns: 4rem minmax(10rem, 1fr) 3.5rem 10rem 5rem 4rem 4rem;
+  grid-template-columns: 4rem minmax(10rem, 1fr) 3.5rem 10rem 5.5rem 5rem 4rem 4rem;
 }
 
 .request-grid .method {
@@ -109,6 +109,7 @@
   min-width: 0;
 }
 
+.request-grid .memory,
 .request-grid .queries,
 .request-grid .dumps {
   font-family: var(--mono);

@@ -24,6 +24,8 @@
       "more": 0,
       "request": {
         "batch": 1,
+        "bytes_in": 23,
+        "bytes_out": 13,
         "dumps": 2,
         "duration_us": 15400,
         "exception": {
@@ -31,8 +33,11 @@
           "file": "src/Shop/Orders.nvs",
           "line": 42
         },
+        "handler": "Shop\\Orders::create",
         "id": 3,
         "logs": 1,
+        "memory_limit": 134217728,
+        "memory_peak": 8388608,
         "method": "POST",
         "path": "/orders",
         "queries": 1,

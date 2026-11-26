@@ -54,6 +54,19 @@ export function duration(us: number): string {
   return `${(us / 1_000_000).toFixed(2)} s`;
 }
 
+/** A number of bytes the way a person reads it: `512 B`, `1.50 KiB`, `12.3 MiB` or `256 MiB`. */
+export function size(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KiB", "MiB", "GiB", "TiB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(value < 10 ? 2 : value < 100 ? 1 : 0)} ${units[unit]}`;
+}
+
 /** The class that colours a status: `s4` for a client error, `s5` for a server error. */
 export function statusClass(status: number): string {
   return status >= 500 ? "s5" : status >= 400 ? "s4" : "";
@@ -83,6 +96,7 @@ export interface ListFilter {
   status?: string;
   route?: string;
   min_us?: number;
+  min_memory?: number;
   threw?: boolean;
 }
 
@@ -99,6 +113,8 @@ export function listFilter(query: string): ListFilter {
   if (route) filter.route = route;
   const min = params.get("min_us");
   if (min && /^\d{1,12}$/.test(min)) filter.min_us = Number(min);
+  const memory = params.get("min_memory");
+  if (memory && /^\d{1,15}$/.test(memory)) filter.min_memory = Number(memory);
   const threw = params.get("threw");
   if (threw === "true" || threw === "false") filter.threw = threw === "true";
   return filter;
@@ -111,6 +127,7 @@ export function listQuery(filter: ListFilter): string {
   if (filter.status) params.set("status", filter.status);
   if (filter.route) params.set("route", filter.route);
   if (filter.min_us !== undefined) params.set("min_us", String(filter.min_us));
+  if (filter.min_memory !== undefined) params.set("min_memory", String(filter.min_memory));
   if (filter.threw !== undefined) params.set("threw", String(filter.threw));
   return params.toString();
 }
@@ -122,6 +139,7 @@ function apiFilter(filter: ListFilter): RequestFilter {
   if (filter.status) out.status = /^\d+$/.test(filter.status) ? Number(filter.status) : (filter.status as `${1 | 2 | 3 | 4 | 5}xx`);
   if (filter.route) out.route = filter.route;
   if (filter.min_us !== undefined) out.min_us = filter.min_us;
+  if (filter.min_memory !== undefined) out.min_memory = filter.min_memory;
   if (filter.threw !== undefined) out.threw = filter.threw;
   return out;
 }
@@ -168,6 +186,7 @@ export function RequestColumns() {
       <span>Path</span>
       <span>Status</span>
       <span>Duration</span>
+      <span class="num">Memory</span>
       <span class="num">Queries</span>
       <span class="num">Dumps</span>
       <span class="num">Age</span>
@@ -210,6 +229,9 @@ export function RequestCells(props: { row: RequestRow; now?: number; scale?: num
         <span class="num">{duration(row().duration_us)}</span>
         <Meter parts={split(row())} total={Math.max(1, props.scale ?? row().duration_us)} label="Time by kind" />
       </span>
+      <span class="num memory" title={memoryTitle(row())}>
+        {row().memory_peak === null ? "–" : size(row().memory_peak!)}
+      </span>
       <span class="num queries">
         {row().queries}
         <Show when={row().repeats >= 2}>
@@ -219,6 +241,32 @@ export function RequestCells(props: { row: RequestRow; now?: number; scale?: num
       <span class="num dumps">{row().dumps}</span>
       <span class="num age">{age(row().start_us, props.now ?? Date.now())}</span>
     </>
+  );
+}
+
+/** The memory peak against its limit, as a tooltip. */
+export function memoryTitle(row: RequestRow): string {
+  if (row.memory_peak === null) return "No memory peak was recorded.";
+  if (row.memory_limit === null) return `Peak ${size(row.memory_peak)}, no limit`;
+  return `Peak ${size(row.memory_peak)} of a ${size(row.memory_limit)} limit`;
+}
+
+/** A tile with the memory peak, and a meter against the limit when there is one. */
+export function MemoryTile(props: { row: RequestRow }) {
+  const peak = () => props.row.memory_peak ?? 0;
+  const limit = () => props.row.memory_limit;
+  const kind = () => {
+    const l = limit();
+    if (l === null || l === 0) return "memory";
+    const share = peak() / l;
+    return share >= 0.9 ? "memory-full" : share >= 0.75 ? "memory-high" : "memory";
+  };
+  return (
+    <Tile label="Memory peak" value={size(peak())} unit={limit() === null ? "no limit" : `of ${size(limit()!)}`}>
+      <Show when={limit() !== null}>
+        <Meter parts={[{ kind: kind(), value: Math.min(peak(), limit()!), label: memoryTitle(props.row) }]} total={Math.max(1, limit()!)} label="Memory peak against the limit" />
+      </Show>
+    </Tile>
   );
 }
 
@@ -281,6 +329,7 @@ function SummaryTiles(props: { summary: Summary }) {
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const STATUSES: Choice[] = ["2xx", "3xx", "4xx", "5xx"].map((value) => ({ label: value, value }));
+const HEAVIER: Choice[] = [1, 8, 32, 128].map((mib) => ({ label: size(mib * 1024 * 1024), value: String(mib * 1024 * 1024) }));
 const SLOWER: Choice[] = [10, 50, 100, 500, 1000].map((ms) => ({ label: duration(ms * 1000), value: String(ms * 1000) }));
 const THREW: Choice[] = [
   { label: "Threw", value: "true" },
@@ -334,6 +383,13 @@ function Filters(props: { filter: ListFilter }) {
         shown={props.filter.min_us === undefined ? undefined : duration(props.filter.min_us)}
         choices={SLOWER}
         onPick={(value) => set("min_us", value === null ? undefined : Number(value))}
+      />
+      <ChipMenu
+        label="Memory over"
+        value={props.filter.min_memory === undefined ? null : String(props.filter.min_memory)}
+        shown={props.filter.min_memory === undefined ? undefined : size(props.filter.min_memory)}
+        choices={HEAVIER}
+        onPick={(value) => set("min_memory", value === null ? undefined : Number(value))}
       />
       <ChipMenu
         label="Exception"
@@ -410,6 +466,9 @@ function Peek(props: { row: RequestRow }) {
         <Tile label="Queries" value={String(row().queries)} unit={row().repeats >= 2 ? `· ${row().repeats}× at one site` : undefined} />
         <Tile label="Dumps" value={String(row().dumps)} />
         <Tile label="Logs" value={String(row().logs)} />
+        <Show when={row().memory_peak !== null}>
+          <MemoryTile row={row()} />
+        </Show>
       </div>
       <Meter parts={split(row())} total={span()} label="Time by kind" />
       <ul class="peek-legend">

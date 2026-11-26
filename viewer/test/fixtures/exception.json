@@ -44,6 +44,8 @@
   "requests": [
     {
       "batch": 1,
+      "bytes_in": null,
+      "bytes_out": null,
       "dumps": 0,
       "duration_us": 500,
       "exception": {
@@ -51,8 +53,11 @@
         "file": "src/Shop/Orders.nvs",
         "line": 42
       },
+      "handler": null,
       "id": 5,
       "logs": 0,
+      "memory_limit": null,
+      "memory_peak": null,
       "method": "POST",
       "path": "/orders",
       "queries": 0,
@@ -74,6 +79,8 @@
     },
     {
       "batch": 1,
+      "bytes_in": null,
+      "bytes_out": null,
       "dumps": 0,
       "duration_us": 500,
       "exception": {
@@ -81,8 +88,11 @@
         "file": "src/Shop/Orders.nvs",
         "line": 42
       },
+      "handler": null,
       "id": 3,
       "logs": 0,
+      "memory_limit": null,
+      "memory_peak": null,
       "method": "POST",
       "path": "/cart",
       "queries": 0,
@@ -104,6 +114,8 @@
     },
     {
       "batch": 1,
+      "bytes_in": null,
+      "bytes_out": null,
       "dumps": 0,
       "duration_us": 500,
       "exception": {
@@ -111,8 +123,11 @@
         "file": "src/Shop/Orders.nvs",
         "line": 42
       },
+      "handler": null,
       "id": 1,
       "logs": 0,
+      "memory_limit": null,
+      "memory_peak": null,
       "method": "POST",
       "path": "/orders",
       "queries": 0,

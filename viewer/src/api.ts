@@ -37,6 +37,16 @@ export interface RequestRow {
   time_us: TimeByKind;
   /** The most times one statement text ran at one call site in it. A value above 1 is a repeated query. */
   repeats: number;
+  /** The most memory its program held, in bytes. `null` when no program ran or an older build wrote the record. */
+  memory_peak: number | null;
+  /** The memory limit its program ran under, in bytes. `null` with no limit. */
+  memory_limit: number | null;
+  /** The name of the handler that ran it, such as `Shop::show`. `null` when no route matched. */
+  handler: string | null;
+  /** The request body bytes the server read. */
+  bytes_in: number | null;
+  /** The response body bytes, when the length was known before it was sent. A streamed response has none. */
+  bytes_out: number | null;
 }
 
 /** A request's summed event durations by kind, in microseconds. The time in its own code is the rest. */
@@ -79,9 +89,11 @@ export interface RequestFilter {
   route?: string;
   /** Only requests that took at least this many microseconds. */
   min_us?: number;
+  /** Only requests whose program held at least this many bytes of memory. */
+  min_memory?: number;
   /**
    * Only requests that threw, or only those that did not. A page filtered by `method`, `status`,
-   * `route`, `min_us` or `threw` reads at most 20,000 request ids below its cursor, so it can hold
+   * `route`, `min_us`, `min_memory` or `threw` reads at most 20,000 request ids below its cursor, so it can hold
    * fewer rows than `limit` and still have an `older` page.
    */
   threw?: boolean;

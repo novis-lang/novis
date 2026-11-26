@@ -989,6 +989,19 @@ button.chip:hover {
   background: var(--k-own);
 }
 
+/* The fill of a memory meter: the peak against the limit, in warning colours past 75 and 90 per cent. */
+.k-memory {
+  background: var(--accent);
+}
+
+.k-memory-high {
+  background: var(--warn);
+}
+
+.k-memory-full {
+  background: var(--bad);
+}
+
 /* ---------------------------------------------------------------- site */
 .site-link {
   font-family: var(--mono);
