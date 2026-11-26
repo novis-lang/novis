@@ -3,8 +3,6 @@
 
 # Testing
 
-*1 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -3738,7 +3736,7 @@ view is paused.
 
 <a id="testing-a-request-page-shows-what-was-recorded-and-runs-none-of-it"></a>
 
-## A request's page in the viewer has a tab for each kind of record it carries, draws every body as text or a value tree, and runs none of it  *(designed — owned by goal debug-viewer-flagship)*
+## A request's page in the viewer has a tab for each kind of record it carries, draws every body as text or a value tree, and runs none of it
 
 `rule:testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`
 
