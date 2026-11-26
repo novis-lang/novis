@@ -344,6 +344,10 @@ names AGENTS.md § *Text an end user reads*.
   - [x] The four `new` entries, and `site --check changes` green.
   - [ ] The newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) of every text
     `site --review` lists, and each stamped; then `site --check stale`, `questions` and `review`.
+    - [x] The key list saved and split into 21 batches.
+    - [x] Batches 01 to 14 read, fixed and stamped.
+    - [ ] Batches 15 to 21 read, fixed and stamped.
+    - [ ] `site --check stale`, `questions` and `review` green.
 - [ ] `bun nv proofs --owed --goal mail-receive` names nothing.
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -355,35 +359,37 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 4 are done, and stage 5 is done but for the newcomer review. Landed in stage 5:
-- The rules `rule:core-classes/mail-receive` and `rule:core-classes/imap` (fragments under
-  `docs/rules/core-classes/`, records under `data/rules/core-classes/`), the two roster placements,
-  and the directory-block sentence in `rule:testing/a-test-reads-its-logs-and-mail`. `rules --check`
-  is green.
-- The feature proofs of all 46 features the goal reached: about.md, examples, attacks, benches and
-  new `mail-message-*`, `mail-classify-*`, `mail-report-*` and `mail-address-*` cases. Three Rust
-  tests gained `// covers:` lines. Every perf figure is recorded (`78a4ce9274`).
-  `bun nv proofs --owed --goal mail-receive` now names only `reviewed`, 46 times.
-- The website page `website/src/content/docs/guides/how-to-use/receiving-mail.mdx` (its own page:
-  the sending page was 193 lines), with snippets under
-  `website/snippets/guides/how-to-use/receiving-mail/`, linked from `sending-mail.mdx`, the guide
-  index and `website/astro.config.ts`. `site --check snippets` is green.
-- `docs/reference/tools/20-config.md`: the `[imap.<name>]` row, the `imap.connect` grant, the three
-  secret keys. `changes.json`: four `new` entries, and `site --check changes` is green.
+Stages 1 to 4 are done, and stage 5 is done but for the second part of the newcomer review.
 
-Expected red until the review: `site --check stale` (the new page's ids are never stamped),
-`review` and `questions`, and the proofs gate's `reviewed` column. Not run: any test suite.
+**The newcomer review.** 302 texts, all this goal's. The key list is `.agent-tmp/review/keys.txt`,
+split into `batch-01.txt` to `batch-21.txt`. Batches 01 to 14 (`Core\Imap`, `Core\Mail\Address`,
+`Attachment::name`, `Core\Mail\Message` through `references`) are read, fixed and stamped
+(`e384be1a2e`). Batches 15 to 21 (99 texts) are not read; `site --review` lists exactly them.
 
-Without `--nvs target/debug/nvs.exe`, `bun nv proofs --bless` and `--run` build `--profile proof`
-first, and two sessions building at once is a HANG on the build lock.
+**CI run 45813627231's nine jobs** are fixed on disk but one: the Miri zone tests skip Miri
+(`c115a735a1`), and the uuid case passes since `28a4d7a6bf`. linux-aarch64 `tests` is the serve
+stack-page test in § *Backlog*.
+
+Stage 5's rules, proofs, page, reference and `changes.json` entries are in; `proofs --owed` names
+only `reviewed`. Expected red until the review ends: `site --check stale`, `review` and
+`questions`, and the proofs gate's `reviewed` column. Not run: any test suite.
 
 ### Next
 
 Finish stage 5's last item, then stage 6:
-1. The newcomer review, per `docs/agent/prose.md` § *A newcomer reads it*: `bun nv site --review`,
-   save the key list once to `.agent-tmp/`, batches of 20 to `reader` subagents, fix every finding,
-   then stamp only the saved keys. Then `site --check stale`, `questions` (stamp each page with
-   `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`) and `review` green, and tick the item.
+1. The rest of the newcomer review, per `docs/agent/prose.md` § *A newcomer reads it*: batches 15
+   to 21 to `reader` subagents, all at once. Each reader's prompt runs
+   `tr '\n' '\0' < .agent-tmp/review/batch-NN.txt | xargs -0 bun nv site --review --brief` and
+   answers from it alone. Write the accepted findings to one file per writing subagent (the
+   `Report`/`ReportRecipient` texts and their help in `mail/receive/classify.rs` to one, the pages,
+   `changes.json` and the `tools:config/*` texts to another), build, then stamp only those saved
+   keys. Then `site --check stale`, `questions` (stamp each page with
+   `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`) and `review` green, tick the item,
+   and delete `.agent-tmp/review/`. Reuse the words batches 01 to 14 settled: a UID is "the number
+   the server gives each message in a folder", a tainted value "comes from outside your program,
+   so you must check or escape it", a part is "one piece of a message, such as the text, the HTML
+   or a file". A bench comment says which message each pass of the loop reads.
+   Without `--nvs target/debug/nvs.exe`, `proofs --bless` and `--run` build `--profile proof`.
 2. Stage 6 fixes the goal's own bugs the proof agents found (the first list under § *Backlog*),
    each with a test, before the gate's run.
 
