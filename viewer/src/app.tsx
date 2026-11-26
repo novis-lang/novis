@@ -12,6 +12,8 @@
 
 import { createEffect, createMemo, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { traceKey } from "./api.ts";
+import { embedded, under } from "./base.ts";
+import { listenToEditor } from "./embed.ts";
 import { bind, bindings, dispatch, label } from "./keys.ts";
 import { navigate, path, query, route, version } from "./router.ts";
 import { nextTheme, setTheme, theme, type Theme } from "./theme.ts";
@@ -93,11 +95,14 @@ export function App() {
     } else find(text);
   };
 
+  // A view's link has no base path, so under an editor's frame a click with a modifier moves inside
+  // the viewer too: a new window would open the path without the prefix.
   const onClick = (e: MouseEvent) => {
-    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (!embedded && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) return;
     const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
     const href = link?.getAttribute("href");
-    if (!href?.startsWith("/") || href.startsWith("//") || href.startsWith("/api/")) return;
+    if (!href?.startsWith("/") || href.startsWith("//") || href.startsWith(under("/api/"))) return;
     e.preventDefault();
     navigate(href);
   };
@@ -116,6 +121,7 @@ export function App() {
     );
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
+    onCleanup(listenToEditor());
     loadSettings();
   });
   onCleanup(() => {

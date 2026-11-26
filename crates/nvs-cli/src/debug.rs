@@ -5,7 +5,8 @@
 //! the SQLite file and its deletion window, and [`ingest`] is what moves spool files into it.
 //! [`listen`] serves the viewer on `[debug] listen` from its own threads, and the loop publishes
 //! the index's watermark to it after every pass that read something. `nvs debug to-test` is
-//! [`to_test`], which reads the index and runs no service.
+//! [`to_test`], which reads the index and runs no service, and `nvs debug link` is [`link`], which
+//! prints the viewer's link and starts nothing.
 //!
 //! **It lives in `nvs-cli`, and grows as files under `debug/`, never as a crate.** The
 //! application server's crate never links a line of the service or the viewer, so the request
@@ -59,6 +60,7 @@ pub(crate) mod api;
 pub(crate) mod exceptions;
 pub(crate) mod index;
 pub(crate) mod ingest;
+pub(crate) mod link;
 pub(crate) mod listen;
 pub(crate) mod replay;
 pub(crate) mod search;
@@ -113,7 +115,8 @@ pub(crate) enum Signal {
 /// In development, `nvs serve` starts `nvs debug` and stops it when the server stops. If one is
 /// already running for the data folder, the server uses that one. In production, run it yourself.
 ///
-/// `nvs debug to-test <TRACE_ID>` prints a test made from one recorded request.
+/// `nvs debug to-test <TRACE_ID>` prints a test made from one recorded request. `nvs debug link`
+/// prints the link to the viewer and starts nothing.
 #[derive(clap::Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct Args {
@@ -141,15 +144,18 @@ pub(crate) struct Args {
 #[derive(clap::Subcommand)]
 enum Command {
     ToTest(to_test::Args),
+    Link(link::Args),
 }
 
 impl Args {
     /// Runs `nvs debug` with the arguments clap parsed, over the run's `--config` list.
     pub(crate) fn run(mut self, config: &[PathBuf]) -> ExitCode {
-        if let Some(Command::ToTest(args)) = self.command.take() {
-            return args.run();
+        match self.command.take() {
+            Some(Command::ToTest(args)) => return args.run(),
+            Some(Command::Link(args)) => return args.run(config),
+            None => {}
         }
-        let (window, mut listen) = match settings(config) {
+        let (window, mut listen, _) = match settings(config) {
             Ok(settings) => settings,
             Err(code) => return code,
         };
@@ -563,13 +569,22 @@ fn quarantined(index: &Index, now: Instant) -> rusqlite::Result<HashMap<PathBuf,
     rows.collect()
 }
 
-/// The lock on `path`, or `None` when another process holds it.
+/// The lock on `path`, or `None` when another process holds it. A taken lock is tried
+/// [`LOCK_TRIES`] times, [`LOCK_PAUSE`] apart, because `nvs debug link` and the language server
+/// take it for an instant to learn whether a service runs ([`probe`]).
 fn lock(path: &Path) -> std::io::Result<Option<File>> {
     let file = OpenOptions::new()
         .create(true)
         .truncate(false)
         .write(true)
         .open(path)?;
+    for _ in 1..LOCK_TRIES {
+        match file.try_lock() {
+            Ok(()) => return Ok(Some(file)),
+            Err(TryLockError::WouldBlock) => std::thread::sleep(LOCK_PAUSE),
+            Err(TryLockError::Error(err)) => return Err(err),
+        }
+    }
     match file.try_lock() {
         Ok(()) => Ok(Some(file)),
         Err(TryLockError::WouldBlock) => Ok(None),
@@ -577,9 +592,30 @@ fn lock(path: &Path) -> std::io::Result<Option<File>> {
     }
 }
 
+/// How often [`lock`] tries a taken lock.
+const LOCK_TRIES: u32 = 5;
+
+/// The pause between two of [`lock`]'s tries, far longer than a [`probe`] holds the lock.
+const LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// Whether a service holds the lock at `path`. The probe takes the lock and lets it go at once.
+/// No lock file means no service ever ran there.
+pub(crate) fn probe(path: &Path) -> std::io::Result<bool> {
+    let file = match OpenOptions::new().write(true).open(path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(false),
+        Err(TryLockError::WouldBlock) => Ok(true),
+        Err(TryLockError::Error(err)) => Err(err),
+    }
+}
+
 /// `[debug] index_age` and `index_max`, then `listen` and the three files it serves with off
-/// loopback, from the working directory's configuration.
-fn settings(config: &[PathBuf]) -> Result<(Window, Listen), ExitCode> {
+/// loopback, and `[debug] store`, from the working directory's configuration.
+fn settings(config: &[PathBuf]) -> Result<(Window, Listen, bool), ExitCode> {
     let mut sources = SourceMap::new();
     let snapshot = match crate::config::boot_origins(config, None, &mut sources, Init::Never) {
         Ok((snapshot, _)) => snapshot,
@@ -612,7 +648,8 @@ fn settings(config: &[PathBuf]) -> Result<(Window, Listen), ExitCode> {
         key: path("debug.tls_key_file"),
         token: path("debug.token_file"),
     };
-    Ok((Window { age_us, max_bytes }, listen))
+    let store = request.debug_store();
+    Ok((Window { age_us, max_bytes }, listen, store))
 }
 
 fn duration_us(duration: std::time::Duration) -> u64 {

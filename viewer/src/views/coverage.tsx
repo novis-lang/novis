@@ -6,8 +6,10 @@
 
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { coverage, source, type CoverageRef } from "../api.ts";
+import { embedded } from "../base.ts";
 import { editorLink } from "../editor-link.ts";
 import { heat } from "../heat.ts";
+import { siteClick } from "../ui/site.tsx";
 import { saved } from "./saved.tsx";
 
 /** A line's height in pixels. `.source-line` in `styles/coverage.css` has the same. */
@@ -131,9 +133,14 @@ function Source(props: { file: string; lines: string[]; hits: Record<string, num
             return (
               <div class={`source-line${step() ? ` heat-${step()}` : ""}`} style={{ top: `${i * LINE_HEIGHT}px` }}>
                 <span class="number">
-                  <Show when={editorLink({ file: props.file, line: i + 1 }, saved())} fallback={i + 1}>
+                  <Show when={editorLink({ file: props.file, line: i + 1 }, saved()) ?? (embedded ? "#" : null)} fallback={i + 1}>
                     {(to) => (
-                      <a href={to()} class="site-link" title={`Open ${props.file}:${i + 1} in your editor`}>
+                      <a
+                        href={to()}
+                        class="site-link"
+                        title={`Open ${props.file}:${i + 1} in your editor`}
+                        onClick={(e) => siteClick({ file: props.file, line: i + 1 })(e)}
+                      >
                         {i + 1}
                       </a>
                     )}

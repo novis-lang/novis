@@ -8,7 +8,10 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/src/debug/listen.rs",
-    "crates/nvs-cli/tests/debug_viewer.rs"
+    "crates/nvs-cli/src/debug/link.rs",
+    "crates/nvs-cli/tests/debug_viewer.rs",
+    "viewer/src/embed.ts",
+    "viewer/test/embed.browser.test.ts"
   ],
   "goal": "debug-viewer-flagship"
 }

@@ -438,6 +438,165 @@ fn on_loopback_every_path_needs_the_token() {
 }
 
 #[test]
+fn an_editor_frames_the_page_under_the_token_path_and_nothing_else() {
+    let service = Service::start("127.0.0.1:0");
+    let host = service.addr.to_string();
+    let token = &service.token;
+    let framed = "content-security-policy: default-src 'none'; script-src 'self'; style-src 'self'; \
+                  img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; \
+                  form-action 'none'; frame-ancestors vscode-webview:";
+    let unframed = "form-action 'none'; frame-ancestors 'none'";
+
+    // A wrong token, a missing one, and the right one with a character changed or added.
+    let mut changed = token.clone().into_bytes();
+    changed[0] = if changed[0] == b'0' { b'1' } else { b'0' };
+    let changed = String::from_utf8(changed).expect("the token is text");
+    for path in [
+        "/embed/".to_owned(),
+        "/embed/0123456789abcdef0123456789abcdef/".to_owned(),
+        format!("/embed/{changed}/"),
+        format!("/embed/{changed}/api/requests"),
+        format!("/embed/{token}x/api/requests"),
+        format!("/embed/{token}x/?token={token}"),
+    ] {
+        // The cookie of the printed link does not open the prefix either.
+        for extra in ["", service.cookie().as_str()] {
+            let answer = service.plain(&get(&path, &host, extra));
+            assert_eq!(answer.status, 401, "{path} {extra}");
+            assert!(!answer.body.contains("<div id=\"app\">"), "{path}");
+            assert!(answer.has(unframed), "{path}: {}", answer.head);
+            assert!(!answer.has("set-cookie"), "{path}");
+        }
+    }
+
+    for path in [
+        format!("/embed/{token}"),
+        format!("/embed/{token}/"),
+        format!("/embed/{token}/requests/4bf92f3577b34da6a3ce929d0e0e4736/00f067aa0ba902b7"),
+        format!("/embed/{token}/?token={token}"),
+    ] {
+        let page = service.plain(&get(&path, &host, ""));
+        assert_eq!(page.status, 200, "{path}: {}", page.head);
+        assert!(
+            page.body
+                .contains(&format!("src=\"/embed/{token}/viewer.js\""))
+                && page
+                    .body
+                    .contains(&format!("href=\"/embed/{token}/viewer.css\"")),
+            "the page names its files under the prefix: {}",
+            page.body
+        );
+        assert!(page.has(framed), "{path}: {}", page.head);
+        assert!(
+            !page.has("set-cookie"),
+            "{path}: no cookie is set under the prefix"
+        );
+    }
+    let script = service.plain(&get(&format!("/embed/{token}/viewer.js"), &host, ""));
+    assert_eq!(script.status, 200);
+    assert!(script.has("content-type: text/javascript"));
+    let own = format!("Origin: http://{host}\r\n");
+    let requests = service.plain(&get(&format!("/embed/{token}/api/requests"), &host, &own));
+    assert_eq!(requests.status, 200, "{}", requests.body);
+    assert!(requests.has("content-type: application/json"));
+    assert!(requests.has(framed));
+    assert!(!requests.has("set-cookie"));
+    let missing = service.plain(&get(&format!("/embed/{token}/api/no-such-path"), &host, ""));
+    assert_eq!(missing.status, 404);
+    let foreign = service.plain(&get(
+        &format!("/embed/{token}/api/requests"),
+        &host,
+        "Origin: vscode-webview://attacker\r\n",
+    ));
+    assert_eq!(
+        foreign.status, 403,
+        "an `Origin` under the prefix is still the page's own"
+    );
+
+    // Outside the prefix every response keeps `frame-ancestors 'none'`.
+    let page = service.plain(&get("/", &host, &service.cookie()));
+    assert_eq!(page.status, 200);
+    assert!(page.has(unframed), "{}", page.head);
+    assert!(page.body.contains("src=\"/viewer.js\""));
+}
+
+/// `nvs debug link` in `data`, with `args` after it, and its standard output and error.
+fn link_command(data: &std::path::Path, args: &[&str]) -> (String, String) {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(data)
+        .arg("--data")
+        .arg(data)
+        .arg("--no-init")
+        .args(["debug", "link"])
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .expect("the `nvs` binary this test was built beside starts");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn nvs_debug_link_prints_the_link_a_running_service_admits() {
+    let service = Service::start("127.0.0.1:0");
+    let addr = service.addr.to_string();
+    let (out, err) = link_command(&service.data, &["--json", "--listen", &addr]);
+    let json: serde_json::Value = serde_json::from_str(out.trim()).expect("one JSON object");
+    assert_eq!(json["url"], service.link.as_str());
+    assert_eq!(
+        json["embed"],
+        format!("http://{addr}/embed/{}/", service.token).as_str()
+    );
+    assert_eq!(json["running"], true, "{err}");
+    assert_eq!(json["recording"], false, "no `nvs.toml` turns recording on");
+    assert!(err.contains("`[debug] store` is off"), "{err}");
+    assert!(!err.contains("no `nvs debug` is running"), "{err}");
+    let (plain, _) = link_command(&service.data, &["--listen", &addr]);
+    assert_eq!(plain.trim(), service.link);
+}
+
+#[test]
+fn nvs_debug_link_with_no_service_creates_the_token_the_service_will_use() {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let (out, err) = link_command(&data, &["--json", "--listen", "127.0.0.1:8137"]);
+    let json: serde_json::Value = serde_json::from_str(out.trim()).expect("one JSON object");
+    assert_eq!(json["running"], false);
+    assert!(err.contains("no `nvs debug` is running"), "{err}");
+    let token = std::fs::read_to_string(data.join("debug").join("viewer.token"))
+        .expect("the token file is created");
+    assert_eq!(
+        json["url"],
+        format!("http://127.0.0.1:8137/?token={}", token.trim()).as_str()
+    );
+    let (again, _) = link_command(&data, &["--listen", "127.0.0.1:8137"]);
+    assert_eq!(
+        again.trim(),
+        json["url"].as_str().expect("a string"),
+        "the token is kept"
+    );
+    let dir: &std::path::Path = &data;
+    let zero = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(dir)
+        .arg("--data")
+        .arg(dir)
+        .arg("--no-init")
+        .args(["debug", "link", "--listen", "127.0.0.1:0"])
+        .output()
+        .expect("`nvs` starts");
+    assert!(
+        !zero.status.success(),
+        "port 0 has no link before the service picks one"
+    );
+}
+
+#[test]
 fn the_printed_loopback_link_opens_the_viewer() {
     let service = Service::start("127.0.0.1:0");
     let link = service

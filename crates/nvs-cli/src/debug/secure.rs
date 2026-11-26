@@ -56,33 +56,7 @@ impl Secure {
             };
             Some(Arc::new(config(&cert, &key)?))
         };
-        let token = match given(listen.token.as_deref()) {
-            Some(token) => token,
-            None => {
-                if !own_token.exists() {
-                    let bytes: [u8; 32] = rand::rng().random();
-                    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-                    write_private(&own_token, hex.as_bytes())?;
-                }
-                own_token
-            }
-        };
-        let token = std::fs::read_to_string(&token)
-            .map_err(|err| format!("cannot read `{}`: {err}", token.display()))?
-            .trim()
-            .to_owned();
-        // These characters go into a link and a cookie as they are.
-        if token.len() < 16
-            || !token
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~'))
-        {
-            return Err(
-                "the debug viewer's token must be at least 16 characters, each a letter, \
-                 a digit, `-`, `_`, `.` or `~`"
-                    .to_owned(),
-            );
-        }
+        let token = token(listen, &own_token)?;
         // `__Host-` makes the browser keep the cookie only when it is `Secure`, so it needs TLS.
         // A browser sends a loopback cookie to every port of the address, so the port is in its
         // name, and two services on one address do not replace each other's cookie.
@@ -121,6 +95,39 @@ impl Secure {
         let (a, b) = (self.token.as_bytes(), presented.as_bytes());
         a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
     }
+}
+
+/// The token `[debug] token_file` names, or the generated file `own`, created here the first time.
+/// `nvs debug link` reads it the same way, so the link it prints is the one the service admits.
+pub(crate) fn token(listen: &Listen, own: &Path) -> Result<String, String> {
+    let path = match given(listen.token.as_deref()) {
+        Some(path) => path,
+        None => {
+            if !own.exists() {
+                let bytes: [u8; 32] = rand::rng().random();
+                let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+                write_private(own, hex.as_bytes())?;
+            }
+            own.to_owned()
+        }
+    };
+    let token = std::fs::read_to_string(&path)
+        .map_err(|err| format!("cannot read `{}`: {err}", path.display()))?
+        .trim()
+        .to_owned();
+    // These characters go into a link, a cookie and a path segment as they are.
+    if token.len() < 16
+        || !token
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~'))
+    {
+        return Err(
+            "the debug viewer's token must be at least 16 characters, each a letter, \
+             a digit, `-`, `_`, `.` or `~`"
+                .to_owned(),
+        );
+    }
+    Ok(token)
 }
 
 /// `path` when it is set and its file exists. A set path whose file does not exist is a warning,

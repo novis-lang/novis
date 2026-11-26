@@ -2,11 +2,15 @@
 // link that survives a reload. `nvs debug` serves the page for every path outside `/api/`, so the
 // browser can open any of them directly. A move inside the viewer is `history.pushState` and the
 // location signal below.
+//
+// Under an editor's frame the page has a base path (`base.ts`). The paths here never carry it: it is
+// added to what goes into the address bar and taken off what is read from it.
 
 import { createSignal } from "solid-js";
 import type { RecordOwner, RequestRow, SavedView } from "./api.ts";
+import { under, within } from "./base.ts";
 
-const here = () => location.pathname + location.search;
+const here = () => (within(location.pathname) ?? "/") + location.search;
 const [at, setAt] = createSignal(here());
 /** Rises each time the view on screen is asked to load again. */
 const [version, setVersion] = createSignal(0);
@@ -28,8 +32,8 @@ export { version };
  *  instead of adding one. */
 export function navigate(to: string, replace = false): void {
   if (to === here()) return;
-  if (replace) history.replaceState(null, "", to);
-  else history.pushState(null, "", to);
+  if (replace) history.replaceState(null, "", under(to));
+  else history.pushState(null, "", under(to));
   setAt(here());
 }
 

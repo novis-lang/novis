@@ -62907,6 +62907,28 @@ not complete, the test checks the status and the headers only.
 The request needs its input in the index, so it must come from a development server with
 `[debug] store = true`. The viewer's `t` key shows the same test, with a button that copies it.
 
+### nvs debug link
+
+    nvs debug link [--json] [--listen <address>]
+
+`nvs debug link` prints the link to the debug viewer. The link contains the token, so it opens the
+viewer. The command starts nothing. It reads the same settings and the same token file as
+`nvs debug`, so the link works while `nvs debug` runs. If the token file does not exist yet, the
+command creates it, as `nvs debug` would.
+
+| Option | What it does |
+|---|---|
+| `--json` | print one JSON object with `url`, `embed`, `running` and `recording` |
+| `--listen <address>` | use this address, the one `nvs debug --listen` was given, in place of `[debug] listen` |
+
+`embed` is the link an editor uses to show the viewer inside its own window. `running` is `true`
+when `nvs debug` runs for the data folder. `recording` is the value of `[debug] store`. The
+command prints a note on standard error when no `nvs debug` runs. It also prints a
+note when `[debug] store` is off, because then no request is recorded.
+
+If `[debug] listen` has the port `0`, `nvs debug` picks the port when it starts. Then the command
+prints an error, and you use the link that `nvs debug` printed.
+
 ### Profiling
 
     nvs run <file> --profile callgrind|speedscope [--profile-out <file>]

@@ -21,6 +21,16 @@
 //! request that changes something needs that `Origin` and a JSON body, and every response carries
 //! [`CSP`], `nosniff`, `no-referrer` and `no-store`.
 //!
+//! **An editor frames the page under `/embed/<token>/`.** A framed page is cross-site to its frame,
+//! so its browser neither keeps nor sends the `SameSite=Strict` cookie. Under that prefix the token
+//! is the path's next segment, compared in constant time before any route, and no cookie is read or
+//! set. The page, its two files and every `/api/` route are served there, the page naming its files
+//! under the prefix. Only an admitted response under the prefix carries [`CSP_EMBED`], whose
+//! `frame-ancestors` is `vscode-webview:`; every other one, a wrong token's `401` included, keeps
+//! `'none'`. The token in the path spends nothing new: `no-referrer` keeps it out of every request
+//! the page makes, nothing here logs a path, and the page's own script can already read all the
+//! token opens.
+//!
 //! **The watermark is pushed, never the records**
 //! (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). The ingest loop publishes the last committed batch into a [`Watermark`],
 //! and each `/api/events` stream sends the newest number it has not sent yet. A tab that does not
@@ -86,6 +96,37 @@ pub(crate) const CSP: &str = "default-src 'none'; script-src 'self'; style-src '
 img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; \
 frame-ancestors 'none'";
 
+/// [`CSP`] for a response under the embed prefix whose token was admitted: the same policy, and
+/// only an editor's webview may frame it.
+pub(crate) const CSP_EMBED: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
+img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; \
+frame-ancestors vscode-webview:";
+
+/// The start of every path an editor frames: `/embed/<token>/` and then the path the viewer would
+/// have without it.
+const EMBED: &str = "/embed/";
+
+/// [`PAGE`] with `base` in front of the paths of its two files.
+fn page(base: &str) -> String {
+    PAGE.replace("\"/viewer.", &format!("\"{base}/viewer."))
+}
+
+/// The link `nvs debug` prints for `addr` and `token`, and the link an editor frames. Off loopback
+/// the scheme is `https`, and an unspecified address is named `localhost`.
+pub(crate) fn links(addr: SocketAddr, token: &str) -> (String, String) {
+    let origin = if addr.ip().is_loopback() {
+        format!("http://{addr}")
+    } else if addr.ip().is_unspecified() {
+        format!("https://localhost:{}", addr.port())
+    } else {
+        format!("https://{addr}")
+    };
+    (
+        format!("{origin}/?token={token}"),
+        format!("{origin}{EMBED}{token}/"),
+    )
+}
+
 /// The address and files `[debug]` names, with `--listen` already applied.
 pub(crate) struct Listen {
     /// `[debug] listen`, as written.
@@ -126,20 +167,12 @@ pub(crate) fn start(
     let api = Api::open(&index, signal)
         .map_err(|err| format!("the debug viewer cannot read `{}`: {err}", index.display()))?;
     let secure = Secure::load(listen, folder, addr)?;
-    let link = match secure.tls() {
-        None => format!("http://{addr}/?token={}", secure.token()),
-        Some(_) => {
-            let host = if addr.ip().is_unspecified() {
-                format!("localhost:{}", addr.port())
-            } else {
-                addr.to_string()
-            };
-            format!("https://{host}/?token={}", secure.token())
-        }
-    };
+    let (link, _) = links(addr, secure.token());
+    let embed_page = Bytes::from(page(&format!("{EMBED}{}", secure.token())));
     let site = Arc::new(Site {
         addr,
         secure,
+        embed_page,
         watermark,
         api,
         settings: Store::new(folder.viewer_settings()),
@@ -222,6 +255,8 @@ fn connection(stream: TcpStream, site: &Site) {
 struct Site {
     addr: SocketAddr,
     secure: Secure,
+    /// The page served under the embed prefix, its two files under the prefix too.
+    embed_page: Bytes,
     watermark: Arc<Watermark>,
     api: Api,
     settings: Store,
@@ -233,22 +268,28 @@ impl Site {
     async fn answer(&self, request: Request<Incoming>) -> Response<Body> {
         let (parts, incoming) = request.into_parts();
         let request = Request::from_parts(parts, ());
-        let mut response = match self.refused(&request) {
-            Some(refused) => refused,
-            None if matches!(*request.method(), Method::PUT | Method::POST) => {
-                match read_body(incoming, settings::BODY_MAX).await {
-                    Some(body) => self.route(&request, &body),
-                    None => text(
-                        StatusCode::PAYLOAD_TOO_LARGE,
-                        "The body is too large, or it ended early.",
-                    ),
+        let mut embedded = false;
+        let mut response = match self.admit(&request) {
+            Admission::Refused(refused) => refused,
+            Admission::Route(admitted) => {
+                embedded = admitted.embedded;
+                if matches!(*request.method(), Method::PUT | Method::POST) {
+                    match read_body(incoming, settings::BODY_MAX).await {
+                        Some(body) => self.route(&request, admitted, &body),
+                        None => text(
+                            StatusCode::PAYLOAD_TOO_LARGE,
+                            "The body is too large, or it ended early.",
+                        ),
+                    }
+                } else {
+                    self.route(&request, admitted, &[])
                 }
             }
-            None => self.route(&request, &[]),
         };
         let headers = response.headers_mut();
+        let csp = if embedded { CSP_EMBED } else { CSP };
         for (name, value) in [
-            (header::CONTENT_SECURITY_POLICY, CSP),
+            (header::CONTENT_SECURITY_POLICY, csp),
             (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
             (header::REFERRER_POLICY, "no-referrer"),
             (header::CACHE_CONTROL, "no-store"),
@@ -262,18 +303,19 @@ impl Site {
         response
     }
 
-    /// The checks in the module doc's order: the response that turns `request` away, or `None`
-    /// when it may be routed.
-    fn refused(&self, request: &Request<()>) -> Option<Response<Body>> {
+    /// The checks in the module doc's order: the path to route `request` on, or the response that
+    /// turns it away. Under the embed prefix the token is the path's segment after it, and no
+    /// cookie is read or set, because a framed page is cross-site and its browser sends none.
+    fn admit<'r>(&self, request: &'r Request<()>) -> Admission<'r> {
         let headers = request.headers();
         let Some(host) = single(headers, &header::HOST) else {
-            return Some(text(
+            return Admission::Refused(text(
                 StatusCode::BAD_REQUEST,
                 "The request needs one `Host` header.",
             ));
         };
         if !self.admits_host(host) {
-            return Some(text(
+            return Admission::Refused(text(
                 StatusCode::MISDIRECTED_REQUEST,
                 "This host name is not allowed. Open the address that `nvs debug` printed.",
             ));
@@ -281,10 +323,13 @@ impl Site {
         let changing = !matches!(*request.method(), Method::GET | Method::HEAD);
         match single(headers, &header::ORIGIN) {
             Some(origin) if !self.is_own_origin(origin, host) => {
-                return Some(text(StatusCode::FORBIDDEN, "This origin is not allowed."));
+                return Admission::Refused(text(
+                    StatusCode::FORBIDDEN,
+                    "This origin is not allowed.",
+                ));
             }
             None if changing || headers.contains_key(header::ORIGIN) => {
-                return Some(text(
+                return Admission::Refused(text(
                     StatusCode::FORBIDDEN,
                     "A request that changes something needs one `Origin` header.",
                 ));
@@ -292,31 +337,45 @@ impl Site {
             _ => {}
         }
         if changing && !is_json(headers) {
-            return Some(text(
+            return Admission::Refused(text(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "A request that changes something needs a JSON body.",
             ));
         }
         let secure = &self.secure;
+        let path = request.uri().path();
+        if let Some((token, rest)) = embedded(path) {
+            return if secure.admits(token) {
+                Admission::Route(Admitted {
+                    path: rest,
+                    embedded: true,
+                })
+            } else {
+                Admission::Refused(text(StatusCode::UNAUTHORIZED, "This token is not valid."))
+            };
+        }
         if let Some(token) = query_token(request.uri().query()) {
-            return Some(if secure.admits(token) {
-                admitted(request.uri().path(), &secure.set_cookie(token))
+            return Admission::Refused(if secure.admits(token) {
+                admitted(path, &secure.set_cookie(token))
             } else {
                 text(StatusCode::UNAUTHORIZED, "This token is not valid.")
             });
         }
         if !cookie_token(headers, secure.cookie()).is_some_and(|token| secure.admits(token)) {
-            return Some(text(
+            return Admission::Refused(text(
                 StatusCode::UNAUTHORIZED,
                 "Open the link that `nvs debug` printed. It contains the token.",
             ));
         }
-        None
+        Admission::Route(Admitted {
+            path,
+            embedded: false,
+        })
     }
 
     /// The route of an admitted `request`, with its `body`.
-    fn route(&self, request: &Request<()>, body: &[u8]) -> Response<Body> {
-        let path = request.uri().path();
+    fn route(&self, request: &Request<()>, admitted: Admitted<'_>, body: &[u8]) -> Response<Body> {
+        let path = admitted.path;
         let query = request.uri().query();
         let reads = matches!(*request.method(), Method::GET | Method::HEAD);
         let method = request.method();
@@ -355,6 +414,11 @@ impl Site {
             _ if path.starts_with("/api/") => json(
                 StatusCode::NOT_FOUND,
                 "{\"error\":\"There is no such API path.\"}",
+            ),
+            _ if reads && admitted.embedded => with(
+                StatusCode::OK,
+                "text/html; charset=utf-8",
+                Body::Bytes(Some(self.embed_page.clone())),
             ),
             _ if reads => file(PAGE.as_bytes(), "text/html; charset=utf-8"),
             _ => {
@@ -396,6 +460,29 @@ impl Site {
             .strip_prefix(scheme)
             .is_some_and(|rest| rest.eq_ignore_ascii_case(host))
     }
+}
+
+/// What [`Site::admit`] decides: the route, or the response that turns the request away.
+enum Admission<'r> {
+    Route(Admitted<'r>),
+    Refused(Response<Body>),
+}
+
+/// What an admitted request is routed on: its path, without the embed prefix when it had one.
+#[derive(Clone, Copy)]
+struct Admitted<'r> {
+    path: &'r str,
+    embedded: bool,
+}
+
+/// The token segment of a path under [`EMBED`] and the path after it, which is `/` when nothing
+/// follows the token. `None` for a path outside the prefix.
+fn embedded(path: &str) -> Option<(&str, &str)> {
+    let after = path.strip_prefix(EMBED)?;
+    Some(match after.find('/') {
+        Some(end) => (&after[..end], &after[end..]),
+        None => (after, "/"),
+    })
 }
 
 /// The one value of `name` as text, or `None` when it is absent, repeated or not text.
@@ -768,5 +855,20 @@ mod tests {
         );
         assert_eq!(cookie_token(&headers, "__Host-nvs-debug"), Some("abc"));
         assert_eq!(cookie_token(&headers, "nvs-debug-8137"), None);
+    }
+
+    #[test]
+    fn an_embed_path_splits_into_its_token_and_the_viewer_path() {
+        assert_eq!(
+            embedded("/embed/abc/api/requests"),
+            Some(("abc", "/api/requests"))
+        );
+        assert_eq!(embedded("/embed/abc/"), Some(("abc", "/")));
+        assert_eq!(embedded("/embed/abc"), Some(("abc", "/")));
+        assert_eq!(embedded("/embed/"), Some(("", "/")));
+        assert_eq!(embedded("/embed"), None);
+        assert_eq!(embedded("/requests/x"), None);
+        assert!(page("/embed/abc").contains("href=\"/embed/abc/viewer.css\""));
+        assert!(page("/embed/abc").contains("src=\"/embed/abc/viewer.js\""));
     }
 }

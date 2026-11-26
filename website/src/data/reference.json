@@ -1131,6 +1131,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-debug-link",
+      "url": "/reference/cli/nvs-debug-link/",
+      "title": "nvs debug link",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-debug-link",
+        "title": "nvs debug link",
+        "examples": "tools/cli/nvs-debug-link"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "profiling",
       "url": "/reference/cli/profiling/",
       "title": "Profiling",

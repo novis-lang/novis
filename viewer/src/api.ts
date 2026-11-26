@@ -3,6 +3,11 @@
 // `settings.rs`):
 // `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
+//
+// Every path is put under the page's base path (`base.ts`), so a page an editor frames reaches the
+// API under the same prefix.
+
+import { under } from "./base.ts";
 
 /** The exception a request did not catch: its class and the site of its `throw`. */
 export interface Threw {
@@ -640,7 +645,7 @@ export function request(key: TraceKey, signal?: AbortSignal): Promise<RequestDet
 
 /** Where the browser downloads the profile `id` names. */
 export function profileDownload(id: number): string {
-  return `/api/profile?id=${id}`;
+  return under(`/api/profile?id=${id}`);
 }
 
 /** The lines the coverage record `id` names. */
@@ -690,12 +695,12 @@ export function health(signal?: AbortSignal): Promise<Health> {
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */
 function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return answer<T>(fetch(path, signal ? { signal } : {}));
+  return answer<T>(fetch(under(path), signal ? { signal } : {}));
 }
 
 /** `method path` with `body` as JSON, or an `ApiError` with the service's message. */
 function send<T>(method: "PUT" | "POST", path: string, body: unknown): Promise<T> {
-  return answer<T>(fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+  return answer<T>(fetch(under(path), { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
 }
 
 /** The JSON body of `response`, or an `ApiError` when it is not `200`. */
@@ -711,7 +716,7 @@ async function answer<T>(response: Promise<Response>): Promise<T> {
 
 /** Calls `onBatch` with each watermark `/api/events` pushes, until `signal` aborts. */
 export function watermarks(onBatch: (batch: number) => void, signal: AbortSignal): void {
-  const source = new EventSource("/api/events");
+  const source = new EventSource(under("/api/events"));
   source.onmessage = (event) => {
     const batch = Number(event.data);
     if (Number.isInteger(batch)) onBatch(batch);

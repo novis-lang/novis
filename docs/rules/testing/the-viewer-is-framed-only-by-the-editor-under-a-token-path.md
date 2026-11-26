@@ -16,7 +16,11 @@ at the root.
 **The page finds its base path itself.** It reads the prefix from `location.pathname`, and the
 router, every fetch and the event stream put it in front of each path, so one bundle serves both.
 `Referrer-Policy: no-referrer` keeps the path out of every request the page makes, and the listener
-writes no path to a log.
+writes no path to a log. The service's page names its two files under the prefix. A link a view
+builds has no prefix: the router adds it to what enters the address bar and removes it from what
+it reads. So, embedded, a click on a viewer link moves inside the page even with a modifier held,
+because a new window would open the path without the prefix. Declined: the prefix in every link a
+view builds, which is one more thing for every future view to remember.
 
 **Embedded, the page and its frame exchange three messages and nothing else.**
 
@@ -26,13 +30,21 @@ writes no path to a log.
 | `{type: "theme", value}` | the panel, when the editor's theme changes | the page takes it only from `window.parent` with a `vscode-webview:` origin |
 | `{type: "go", path}` | the panel, when a command opens a path in an open panel | the page takes it only from `window.parent` with a `vscode-webview:` origin, and only for a path its router reads |
 
-The panel takes a message only from the frame's origin.
+The panel takes a message only from the frame's origin. The page sends `open` only to a
+`vscode-webview:` origin: the one the panel's first accepted message came from, or else the frame's
+ancestor in `location.ancestorOrigins`. With neither, a click sends nothing. So the panel sends its
+theme once the frame has loaded. Embedded, every source site is a link, because the editor is there
+to open it whatever the editor settings say.
 
 **`nvs debug link` prints the link and starts nothing.** It reads `[debug] listen` and the token
 file as the service does, prints the link with `?token=`, and says on standard error when no service
 holds `debug/service.lock` or when `[debug] store` is off. `--json` prints `url`, `embed`,
 `running` and `recording`. A missing token file is created exactly as the service creates it, so the
-link is the one the next service accepts.
+link is the one the next service accepts. `--listen` names the address a service was started with,
+as `nvs debug --listen` does, and a port of `0` is an error, because no link exists before the
+service picks its port. Whether a service runs is learned by taking the lock and letting it go at
+once. A service starting in that instant would find it taken, so the service tries its lock five
+times, 20 ms apart, before it says another one runs.
 
 - **Spends:** the token is in the frame's URL, where the page's own script can read it. That script
   can already read everything the token opens. One prefix test per viewer request.
