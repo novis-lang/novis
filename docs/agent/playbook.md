@@ -582,6 +582,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `--RUN-- test` case's result line pads the test name to a column, and `%f` does not take
+  the spaces.** In `mail-complete` stage 8, a new case copied `name     %f ms` from another case
+  with a longer name and failed on the spacing alone. `bun nv suite` names only the failing case:
+  run `target/debug/nvs.exe test <case>` to see the diff, and copy its spacing. `Core\Test` has
+  no `assertFalse` either: write `Test::assertTrue(!$x)`. See `tools/nv/cmd/suite.ts`.
 - **A `.nvst` case with `--GET--` never sees what the server adds to a body.** It runs through
   `nvs run`'s request emulation, which writes to standard output and never runs the isolate's
   finish path. In `deeper-debug-records` stage 7, three cases for the `[debug] inline` block got
