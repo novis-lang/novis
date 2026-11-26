@@ -1,14 +1,16 @@
 Decides whether a debugging dump also appears in the page, or only in the log.
 
-`Core\Debug::dump` always writes what you hand it to the log. With this switched on, a dump made
-while an HTML page is being built is appended to that page as well, where it is right in front of you
-on your own machine — and in front of everyone else on a public one. A JSON response is never
-modified either way, so an API answers the same shape in both.
+`Core\Debug::dump` always writes its value to the log. With this key on, a dump made while an HTML
+page is built is also added to the end of that page. A JSON response is never changed, so an API
+returns the same data in both cases.
 
-Which way it goes is chosen by the mode a deployment runs in: development appends, production does
-not. A program can never turn it on for itself, which is what makes a dump forgotten in shipped code
-a line in the log rather than a page full of your own data. A program can turn it off for its own
-request with `Core\Config::set('debug.inline', 'false')`.
+The default follows the mode the server runs in. Development adds the dumps to the page, and
+production does not. A program cannot turn the key on for itself. So a dump that you forgot in
+production code is only a line in the log. A program can turn it off for its own request with
+`Core\Config::set('debug.inline', 'false')`.
 
-**Good to know:** on the command line a dump always goes to the error stream instead, so this key
-has nothing to decide there and your program's own output stays clean.
+When `[debug] store` is also on, the block in the page starts with the number of queries the
+request ran. It also has a link that opens this request in the debug viewer.
+
+**Good to know:** on the command line, a dump always goes to the error stream. This key has no
+effect there, and the output of your program stays clean.

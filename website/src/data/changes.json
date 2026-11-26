@@ -6,6 +6,28 @@
       "features": [
         "tools:cli/the-debug-viewer"
       ],
+      "text": "A request's page in the debug viewer shows its handler, its memory peak against its memory limit, and the size of its response. An exception shows its stack and its `previous` exceptions. Each cache, HTTP, file and process event shows its result, and sent mail and pushed jobs are events too."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:cli/the-debug-viewer"
+      ],
+      "text": "The debug viewer has a Runs page. It lists scheduled jobs, queue jobs and runs of `nvs run` and `nvs test`, each with its outcome, memory, queries and dumps. A run's page has the same tabs as a request's page."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "directive:debug.inline"
+      ],
+      "text": "With `[debug] store` on, the debug block that `[debug] inline` adds to an HTML page shows how many queries the request ran. It also has a link that opens the request in the debug viewer."
+    },
+    {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "tools:cli/the-debug-viewer"
+      ],
       "text": "The debug viewer has a new design, with a dark and a light theme. The request list has filters, summary tiles and the time split of each request, and a request page has tabs. Two new pages show totals for each route and for each query."
     },
     {
@@ -1867,13 +1889,21 @@
       "hash": "5d45698ec23cce7f",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
+    "Core\\Test\\Response::body": {
+      "hash": "e0bdd5724da5b844",
+      "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
+    },
     "Core\\Test\\Response::bytes": {
-      "hash": "ad7cbfcbe12758b6",
-      "why": "the tests only gained a covers marker for the renamed member"
+      "hash": "19f9df748831eedd",
+      "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\Response::cookies": {
       "hash": "cc3c54f422b4475d",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Test\\Response::error": {
+      "hash": "b2d6b2d63bf0172e",
+      "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\Response::header": {
       "hash": "cc3c54f422b4475d",
@@ -1884,12 +1914,16 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Test\\Response::json": {
-      "hash": "9efbf8a76d030fe4",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "6529d8b0cb74df2f",
+      "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\Response::jsonAs": {
       "hash": "76f775a8d8ec9812",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Test\\Response::status": {
+      "hash": "3ff47969e7923d6a",
+      "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\Summary::class": {
       "hash": "be4a1a67af502674",

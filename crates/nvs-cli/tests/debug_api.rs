@@ -742,6 +742,7 @@ fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_in
     );
 }
 
+// covers: tools:cli/the-debug-viewer
 #[test]
 fn an_exception_is_one_row_per_class_and_site_and_opens_to_its_requests() {
     let service = Service::ingested_from(&throwing_spool());
@@ -940,6 +941,7 @@ fn coverage_reads_only_the_files_it_names_under_the_project_root() {
     );
 }
 
+// covers: tools:cli/the-debug-viewer
 #[test]
 fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     let service = Service::ingested();
@@ -1381,6 +1383,7 @@ fn runs_spool() -> String {
     lines.join("\n") + "\n"
 }
 
+// covers: tools:cli/the-debug-viewer
 #[test]
 fn the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_exception() {
     let service = Service::ingested_from(&runs_spool());

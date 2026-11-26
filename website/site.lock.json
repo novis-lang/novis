@@ -18,7 +18,7 @@
     "directive:debug.index_max": "b18422a34d6dab10"
   },
   "docs/examples/config/debug-inline/about.md": {
-    "directive:debug.inline": "629f3ffecee4c206"
+    "directive:debug.inline": "7be03fe937580b70"
   },
   "docs/examples/config/debug-keep_temporary/about.md": {
     "directive:debug.keep_temporary": "030009004f2a08b9"
@@ -2901,7 +2901,7 @@
     "Core\\Test::partial": "dd2d67ae57910e51"
   },
   "docs/examples/core/Test/request/about.md": {
-    "Core\\Test::request": "611795dc015d1f11"
+    "Core\\Test::request": "177b0dd7b96f297f"
   },
   "docs/examples/core/Test/run/about.md": {
     "Core\\Test::run": "cd8c83c44ecc09e1"
@@ -2946,16 +2946,16 @@
     "Core\\Test\\Outcome::name": "e9d73bab54da1a5e"
   },
   "docs/examples/core/Test-Response/body/about.md": {
-    "Core\\Test\\Response::body": "832ef13f10dc1577"
+    "Core\\Test\\Response::body": "2b8003e92aecd33f"
   },
   "docs/examples/core/Test-Response/bytes/about.md": {
-    "Core\\Test\\Response::bytes": "ba0f1b8df6253f1b"
+    "Core\\Test\\Response::bytes": "b0aca1636b3cc145"
   },
   "docs/examples/core/Test-Response/cookies/about.md": {
     "Core\\Test\\Response::cookies": "724f49228f9b4fff"
   },
   "docs/examples/core/Test-Response/error/about.md": {
-    "Core\\Test\\Response::error": "df34db11ff817bd8"
+    "Core\\Test\\Response::error": "23c10fb19dca0268"
   },
   "docs/examples/core/Test-Response/header/about.md": {
     "Core\\Test\\Response::header": "7753e63165711c98"
@@ -2964,13 +2964,13 @@
     "Core\\Test\\Response::headers": "3a38e5bb3877cc63"
   },
   "docs/examples/core/Test-Response/json/about.md": {
-    "Core\\Test\\Response::json": "6bfcc23ccec9232d"
+    "Core\\Test\\Response::json": "435f922f42a4c164"
   },
   "docs/examples/core/Test-Response/jsonAs/about.md": {
     "Core\\Test\\Response::jsonAs": "295c424c4aae012b"
   },
   "docs/examples/core/Test-Response/status/about.md": {
-    "Core\\Test\\Response::status": "4d34566e5cdf2439"
+    "Core\\Test\\Response::status": "315b18176ed13f19"
   },
   "docs/examples/core/Test-RunResult/bytes/about.md": {
     "Core\\Test\\RunResult::bytes": "d8e5e3cdfe2de219"
@@ -4557,7 +4557,7 @@
     "tools:cli/the-compile-cache": "376e91459698612a"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
-    "tools:cli/the-debug-viewer": "09e54eb845eb7ed7"
+    "tools:cli/the-debug-viewer": "48747ecccb58a212"
   },
   "docs/examples/tools/config/app-per-application-blocks/about.md": {
     "tools:config/app-per-application-blocks": "3b6a996a5eec7017"
@@ -7905,7 +7905,7 @@
     "Core\\Test::partial": "aad184cf17e5368b"
   },
   "help:Core\\Test::request": {
-    "Core\\Test::request": "0edcc46f54c4abaf"
+    "Core\\Test::request": "6cb524b30c3a5163"
   },
   "help:Core\\Test::run": {
     "Core\\Test::run": "0d96274e79359703"
@@ -7953,16 +7953,16 @@
     "Core\\Test\\Outcome::name": "56648538f7b678cb"
   },
   "help:Core\\Test\\Response::body": {
-    "Core\\Test\\Response::body": "b74b5b24aae418b3"
+    "Core\\Test\\Response::body": "4a70190e38005d77"
   },
   "help:Core\\Test\\Response::bytes": {
-    "Core\\Test\\Response::bytes": "e0e46edf3ae40413"
+    "Core\\Test\\Response::bytes": "c00105b68103732e"
   },
   "help:Core\\Test\\Response::cookies": {
     "Core\\Test\\Response::cookies": "ca60132fc97d5c92"
   },
   "help:Core\\Test\\Response::error": {
-    "Core\\Test\\Response::error": "023515e08ab69ac7"
+    "Core\\Test\\Response::error": "16978c791915aaf8"
   },
   "help:Core\\Test\\Response::header": {
     "Core\\Test\\Response::header": "e60ad3fe93e6d754"
@@ -7971,13 +7971,13 @@
     "Core\\Test\\Response::headers": "dd1b2efb87143b2e"
   },
   "help:Core\\Test\\Response::json": {
-    "Core\\Test\\Response::json": "b2cf3f2865abc032"
+    "Core\\Test\\Response::json": "193e6693e22228e1"
   },
   "help:Core\\Test\\Response::jsonAs": {
     "Core\\Test\\Response::jsonAs": "db3ee5cffcdce3a1"
   },
   "help:Core\\Test\\Response::status": {
-    "Core\\Test\\Response::status": "6caa91e501de1ffc"
+    "Core\\Test\\Response::status": "9a6f944a6b302599"
   },
   "help:Core\\Test\\RunResult::bytes": {
     "Core\\Test\\RunResult::bytes": "4c72bd70d6ae074b"
@@ -8619,7 +8619,7 @@
     "directive:debug.index_max": "9b32c48c8a0b315e"
   },
   "help:directive:debug.inline": {
-    "directive:debug.inline": "45ee257a27c3d60f"
+    "directive:debug.inline": "2aa5b5b0f02bdda2"
   },
   "help:directive:debug.keep_temporary": {
     "directive:debug.keep_temporary": "c6c7ceb9bea449c4"
@@ -9501,7 +9501,7 @@
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
   },
   "help:tools:cli/the-debug-viewer": {
-    "tools:cli/the-debug-viewer": "c9a118f01530b85d"
+    "tools:cli/the-debug-viewer": "87d8c534dc159051"
   },
   "help:tools:config/app-per-application-blocks": {
     "tools:config/app-per-application-blocks": "dfd1d768aa58cf4e"
@@ -10059,7 +10059,7 @@
     "tools:cli/nvs-debug": "9f1b457b2e767683",
     "tools:cli/nvs-debug-link": "029beb0ef1a5782a",
     "tools:cli/nvs-debug-to-test": "580aa3b406024784",
-    "tools:cli/the-debug-viewer": "b85557bb8a3619fb"
+    "tools:cli/the-debug-viewer": "3d1017ff8eeb7df2"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "e7529dc767e5836e"

@@ -51,8 +51,8 @@ Then it shows the requests that the production server recorded.
 
 ## The viewer's window
 
-A rail on the left lists the pages: **Requests**, **Routes**, **Queries**, **Errors**, **Logs** and
-**Stream**. **Settings** is at the bottom of the rail. The number on **Errors** counts the new
+A rail on the left lists the pages: **Requests**, **Runs**, **Routes**, **Queries**, **Errors**,
+**Logs** and **Stream**. **Settings** is at the bottom of the rail. The number on **Errors** counts the new
 exceptions since you opened the viewer. In a narrow window, the rail shows only its icons.
 
 The bar at the top has the search box, the live state and the theme button. The live state shows
@@ -95,8 +95,12 @@ events. Press `Enter` to open the request.
 ## A request's page
 
 When you open a request, you see its method, path, status, duration, route, trace id and span id.
-Tiles show the duration and the number of queries, dumps and log lines. Below them, a bar shows how
-the time was split.
+You also see its handler: the name of the method that the route ran. Tiles show the duration and
+the number of queries, dumps and log lines. Below them, a bar shows how the time was split.
+
+Two more tiles show the memory and the sizes. **Memory peak** is the most memory the request used,
+with its memory limit. The bar under it turns orange at 75% of the limit, and red at 90%. **Response size** is the number of bytes in the response body. It also shows how many
+bytes of the request body your program read. A streamed response has no size.
 
 The tabs below show one part of the request each. The tab is part of the page's link, such as
 `?tab=queries`.
@@ -107,10 +111,25 @@ The tabs below show one part of the request each. The tab is part of the page's 
 | **Request** | the method, the path, the query, the headers and the body that your server received |
 | **Response** | the status, the headers and the body that your server sent |
 | **Queries** | each query, grouped by the line that ran it, with how often it ran there |
+| **Cache** | each cache key, with its calls, hits and misses |
 | **Dumps** | each value that `Core\Debug::dump` wrote |
 | **Logs** | the request's log lines |
 | **Coverage** | which lines ran, when the server ran with `[debug] mode = ["coverage"]` |
-| **Exception** | the exception, when the request threw one |
+| **Exception** | the exception and its stack, when the request threw one |
+
+Each event on the timeline shows its result after its name:
+
+- A cache read shows **Hit** or **Miss**, and the store: `memory` or `redis`.
+- An HTTP call shows its status code and the bytes it sent and received.
+- A file read or write shows its number of bytes.
+- A process shows the name of its program and its exit code.
+- Sent mail shows the number of recipients. The viewer never shows an address or the text.
+- A job pushed to the queue shows its script, its queue and its delay.
+
+The **Exception** tab shows the stack: every function that was running when the exception was
+thrown, the innermost first. The functions of your own code are bold, and the functions of `Core`
+are gray. An exception that was created with a `previous` exception shows that one below it, with
+its own stack. The stack never contains the values of arguments, because a value can be a secret.
 
 <Shot src="tools/debug-viewer/timeline.shot" alt="The page of a GET request to / with status 200. Its timeline shows two queries, and the bar splits the time between the database and your code." />
 
@@ -122,6 +141,28 @@ and any other body as text. An HTML body is shown as text too, so it never runs 
 **Copy as curl** copies a `curl` command that sends the same request. Some headers, such as
 `Authorization`, are removed when a request is recorded. In the command, such a header has the
 value `[redacted]`.
+
+## From your page to the viewer
+
+In development, `[debug] inline` adds the output of `Core\Debug::dump` to the end of an HTML page.
+When `[debug] store` is also on, that block starts with one more line. It shows how many queries
+the request ran, and it has a link. The link opens this request in the viewer.
+
+## Runs
+
+The **Runs** page lists work that is not a request, newest first:
+
+- a job of a `[[schedule]]` block in `nvs.toml`,
+- a job that a worker took from the queue,
+- a run of `nvs run` or `nvs test`.
+
+Each row shows the kind, the name, the outcome, the duration, the memory peak, and the number of
+queries and dumps. The outcome is **OK**, **Failed** or **Cancelled**. A run that threw an exception
+shows its class and the line that threw it. The filters above the list choose the kind, the
+outcome, a minimum duration and a minimum memory peak.
+
+Press `Enter` to open a run. A run's page has the same tiles and tabs as a request's page. It has no
+**Request**, **Response** and **Coverage** tabs, because a run has no HTTP request.
 
 ## Routes
 

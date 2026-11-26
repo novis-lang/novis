@@ -414,6 +414,8 @@
 # With `true`, a `Core\Debug::dump` call adds its output to the HTML body of the request.
 # The output is a block that you can open and close. The dump is also written as a log record.
 # This setting does not change a JSON body.
+# When `[debug] store` is also on, the block shows how many queries the request ran.
+# It also has a link that opens the request in the debug viewer.
 # A request may set this to `false` for itself. It can never set it to `true`.
 # It is `true` only when `[mode] default` is `development`.
 #inline = false                       # default: false in production, true in development

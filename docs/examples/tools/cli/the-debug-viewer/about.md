@@ -1,12 +1,11 @@
-`nvs debug` serves the debug viewer, a page in your browser that shows the requests your server
-recorded.
+`nvs debug` serves the debug viewer, a page in your browser that shows what your server recorded.
 
 Turn on `[debug] store = true` in `nvs.toml` first. Then open the link that `nvs debug` prints, or
 that `nvs debug link` prints again. The link contains a token, and the viewer opens only in a
-browser that has it. The first page lists the newest requests, with filters. Each row shows the
-status, the duration, and how much of that time the queries took. Open a request to see its
-timeline, its request and response, its queries, its `Core\Debug::dump` values and its log lines,
-each on its own tab. Other pages show totals for each route and each query.
+browser that has it. The first page lists the newest requests, with filters. Open a request to see
+its handler, its memory peak, its timeline, its queries, its dumps and its log lines. An exception
+shows its stack. The Runs page lists scheduled jobs, queue jobs and runs of `nvs run`. Other pages
+show totals for each route and each query.
 
 A `file:line` in the viewer opens the file in your editor. Press `?` to see every key.
 

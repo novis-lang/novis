@@ -633,8 +633,10 @@ could not be saved or read.
 
 | Page | What it shows |
 |---|---|
-| `/` | the requests, newest first: method, route, status, duration, queries, dumps and exceptions |
-| `/requests/<trace id>/<span id>` | one request, with a tab for its timeline, request, response, queries, dumps, log lines and coverage |
+| `/` | the requests, newest first: method, route, status, duration, memory, queries, dumps and exceptions |
+| `/requests/<trace id>/<span id>` | one request, with its handler, memory peak and response size, and a tab for its timeline, request, response, queries, cache, dumps, log lines, coverage and exception stack |
+| `/runs` | the scheduled jobs, queue jobs and runs of `nvs run` and `nvs test`, newest first: kind, name, outcome, duration, memory, queries and dumps |
+| `/runs/<trace id>` | one run, with the tabs of a request less request, response and coverage |
 | `/routes` | one row for each route: requests, errors, the p50 and p95 duration, queries and the last request |
 | `/queries` | one row for each line that ran a query: how often it ran, its total and longest time |
 | `/stream` | every record of every request, as one list you can filter |
