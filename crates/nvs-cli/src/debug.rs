@@ -100,7 +100,7 @@ pub(crate) enum Signal {
     Discard(mpsc::Sender<Result<i64, String>>),
 }
 
-/// Run the debug service: read recorded requests into the debug index, and serve the debug viewer.
+/// Run the debug service: read recorded requests into one SQLite database, and serve the debug viewer.
 ///
 /// A program records its requests when `[debug] store = true` is set in `nvs.toml`. The records
 /// are written to files in the data folder. This command reads those files into one database,

@@ -12,10 +12,10 @@
     "directive:capabilities": "cc900670d6c8c44b"
   },
   "docs/examples/config/debug-index_age/about.md": {
-    "directive:debug.index_age": "245fe3dfebfc073b"
+    "directive:debug.index_age": "364d7b8b78c3a0fe"
   },
   "docs/examples/config/debug-index_max/about.md": {
-    "directive:debug.index_max": "53206fd6ab1ec403"
+    "directive:debug.index_max": "94099319cf2277b3"
   },
   "docs/examples/config/debug-inline/about.md": {
     "directive:debug.inline": "02433dc5e658a22c"
@@ -30,7 +30,7 @@
     "directive:debug.spool_max": "ddf2c18872ce62d6"
   },
   "docs/examples/config/debug-store/about.md": {
-    "directive:debug.store": "900c7b86be4732ee"
+    "directive:debug.store": "58bf39407e549924"
   },
   "docs/examples/config/debug-tls_cert_file/about.md": {
     "directive:debug.tls_cert_file": "d4afe49b588752fe"
@@ -2940,7 +2940,7 @@
     "Core\\Test::expectFailure": "b059417897ae703a"
   },
   "docs/examples/core/Test/logs/about.md": {
-    "Core\\Test::logs": "9d2b1198d3fd5935"
+    "Core\\Test::logs": "e27c9c3094f95ff2"
   },
   "docs/examples/core/Test/partial/about.md": {
     "Core\\Test::partial": "dd2d67ae57910e51"
@@ -2955,7 +2955,7 @@
     "Core\\Test::sentHttp": "0a898ac22924a193"
   },
   "docs/examples/core/Test/sentMail/about.md": {
-    "Core\\Test::sentMail": "468f629a3e8bcd45"
+    "Core\\Test::sentMail": "92e5b564c486f2f8"
   },
   "docs/examples/core/Test/sentSocket/about.md": {
     "Core\\Test::sentSocket": "0cb390403262bd27"
@@ -2967,13 +2967,13 @@
     "Core\\Test::tlsSession": "6daf9baf2673b8ca"
   },
   "docs/examples/core/Test-LogRecord/fields/about.md": {
-    "Core\\Test\\LogRecord::fields": "ee754370375dbc61"
+    "Core\\Test\\LogRecord::fields": "e03cae76cf919d81"
   },
   "docs/examples/core/Test-LogRecord/level/about.md": {
-    "Core\\Test\\LogRecord::level": "10eb9a8848b148e6"
+    "Core\\Test\\LogRecord::level": "54e61c37243ab098"
   },
   "docs/examples/core/Test-LogRecord/message/about.md": {
-    "Core\\Test\\LogRecord::message": "6567f16327a3cc96"
+    "Core\\Test\\LogRecord::message": "060353b6681dea4d"
   },
   "docs/examples/core/Test-Outcome/attempt/about.md": {
     "Core\\Test\\Outcome::attempt": "afe1069616b2d87d"
@@ -3036,22 +3036,22 @@
     "Core\\Test\\SentMail::autoSubmitted": "fe35d1ebf531b322"
   },
   "docs/examples/core/Test-SentMail/bcc/about.md": {
-    "Core\\Test\\SentMail::bcc": "43e402905f113089"
+    "Core\\Test\\SentMail::bcc": "a087d27bb642b9db"
   },
   "docs/examples/core/Test-SentMail/bounceTag/about.md": {
     "Core\\Test\\SentMail::bounceTag": "100cb638fc450e5c"
   },
   "docs/examples/core/Test-SentMail/cc/about.md": {
-    "Core\\Test\\SentMail::cc": "31ab94672165fcb5"
+    "Core\\Test\\SentMail::cc": "ab43f74bc99645ac"
   },
   "docs/examples/core/Test-SentMail/endpoint/about.md": {
-    "Core\\Test\\SentMail::endpoint": "2942c238a91dfa7e"
+    "Core\\Test\\SentMail::endpoint": "7e47911081345292"
   },
   "docs/examples/core/Test-SentMail/fromName/about.md": {
     "Core\\Test\\SentMail::fromName": "03a44e6d7996b700"
   },
   "docs/examples/core/Test-SentMail/html/about.md": {
-    "Core\\Test\\SentMail::html": "a4d389f1b7e31be2"
+    "Core\\Test\\SentMail::html": "dca5ba05945ab882"
   },
   "docs/examples/core/Test-SentMail/inReplyTo/about.md": {
     "Core\\Test\\SentMail::inReplyTo": "d45cb6ddddee610a"
@@ -3063,16 +3063,16 @@
     "Core\\Test\\SentMail::references": "e6ca93efd97adc20"
   },
   "docs/examples/core/Test-SentMail/replyTo/about.md": {
-    "Core\\Test\\SentMail::replyTo": "435acb508d8648f5"
+    "Core\\Test\\SentMail::replyTo": "ffb5974da65397d7"
   },
   "docs/examples/core/Test-SentMail/subject/about.md": {
-    "Core\\Test\\SentMail::subject": "57452ee2d1ea12a7"
+    "Core\\Test\\SentMail::subject": "171d314d8c989b1c"
   },
   "docs/examples/core/Test-SentMail/text/about.md": {
-    "Core\\Test\\SentMail::text": "dd0b0cb5d82f9835"
+    "Core\\Test\\SentMail::text": "dc28e5e68904a3a2"
   },
   "docs/examples/core/Test-SentMail/to/about.md": {
-    "Core\\Test\\SentMail::to": "a44dbc30610e7953"
+    "Core\\Test\\SentMail::to": "afd6ea687183a6b0"
   },
   "docs/examples/core/Test-SentMail/unsubscribe/about.md": {
     "Core\\Test\\SentMail::unsubscribe": "15eb4d2842790424"
@@ -4575,7 +4575,7 @@
     "tools:cli/nvs-config-check-and-nvs-config-dump": "f45a5ca1d4120bee"
   },
   "docs/examples/tools/cli/nvs-debug/about.md": {
-    "tools:cli/nvs-debug": "9d76953768111e64"
+    "tools:cli/nvs-debug": "1d7a15a2dc62de37"
   },
   "docs/examples/tools/cli/nvs-debug-link/about.md": {
     "tools:cli/nvs-debug-link": "e68a7fbcfe1059d6"
@@ -4626,7 +4626,7 @@
     "tools:cli/the-compile-cache": "376e91459698612a"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
-    "tools:cli/the-debug-viewer": "970dcd61447d179f"
+    "tools:cli/the-debug-viewer": "6265e2e768cf025e"
   },
   "docs/examples/tools/config/app-per-application-blocks/about.md": {
     "tools:config/app-per-application-blocks": "3b6a996a5eec7017"
@@ -4656,10 +4656,10 @@
     "tools:config/reading-and-changing-it-from-a-program-core-config": "f0be12b38c7004da"
   },
   "docs/examples/tools/config/secrets-from-files/about.md": {
-    "tools:config/secrets-from-files": "3641adb356df4950"
+    "tools:config/secrets-from-files": "67d98a80a680d711"
   },
   "docs/examples/tools/config/the-blocks-the-binary-accepts/about.md": {
-    "tools:config/the-blocks-the-binary-accepts": "cff09bb5a1f24ddb"
+    "tools:config/the-blocks-the-binary-accepts": "415b29dc57694d64"
   },
   "docs/examples/tools/config/the-file-and-where-it-is-read-from/about.md": {
     "tools:config/the-file-and-where-it-is-read-from": "2838332d8fda1e13"
@@ -5122,7 +5122,7 @@
     "Core\\Mail\\Preview::html": "a17869c74a9e9840",
     "Core\\Mail\\Preview::keptCss": "6a68f1def945eb75",
     "Core\\Mail\\Preview::unusedCss": "a35afd0ef44cd1f8",
-    "Core\\Test::sentMail": "d4129ae8225442bd"
+    "Core\\Test::sentMail": "aa0753226043c48d"
   },
   "guides/why-novis/secret-values.mdx": {
     "lang:types/qualifiers-tainted-and-secret": "14f5cadffab584f1"
@@ -8026,7 +8026,7 @@
     "Core\\Test::expectFailure": "2a2afb0213084a18"
   },
   "help:Core\\Test::logs": {
-    "Core\\Test::logs": "a5dd0cb3284373a2"
+    "Core\\Test::logs": "6512790e81ccb59f"
   },
   "help:Core\\Test::partial": {
     "Core\\Test::partial": "aad184cf17e5368b"
@@ -8041,7 +8041,7 @@
     "Core\\Test::sentHttp": "d257fdacac90e995"
   },
   "help:Core\\Test::sentMail": {
-    "Core\\Test::sentMail": "648be21178094b19"
+    "Core\\Test::sentMail": "7ae2357cddf3a812"
   },
   "help:Core\\Test::sentSocket": {
     "Core\\Test::sentSocket": "8a79effb4b12eb99"
@@ -8056,13 +8056,13 @@
     "Core\\Test\\Failure": "2ec50c5b87f7f8f6"
   },
   "help:Core\\Test\\LogRecord::fields": {
-    "Core\\Test\\LogRecord::fields": "0e2a0ed9d535a4ca"
+    "Core\\Test\\LogRecord::fields": "3d03f9317f201910"
   },
   "help:Core\\Test\\LogRecord::level": {
-    "Core\\Test\\LogRecord::level": "91b15a9b9bf76cc7"
+    "Core\\Test\\LogRecord::level": "f3b127f90fde0a5f"
   },
   "help:Core\\Test\\LogRecord::message": {
-    "Core\\Test\\LogRecord::message": "69452881ada52b27"
+    "Core\\Test\\LogRecord::message": "0b15f4da4ecb7c6c"
   },
   "help:Core\\Test\\Outcome::attempt": {
     "Core\\Test\\Outcome::attempt": "047eae9bb0f466b3"
@@ -8125,22 +8125,22 @@
     "Core\\Test\\SentMail::autoSubmitted": "cbedd33ffa1a8337"
   },
   "help:Core\\Test\\SentMail::bcc": {
-    "Core\\Test\\SentMail::bcc": "12787bacb19dbdab"
+    "Core\\Test\\SentMail::bcc": "1f9a6616d3bf0996"
   },
   "help:Core\\Test\\SentMail::bounceTag": {
     "Core\\Test\\SentMail::bounceTag": "6c49af0c75d827e7"
   },
   "help:Core\\Test\\SentMail::cc": {
-    "Core\\Test\\SentMail::cc": "2f40980479596889"
+    "Core\\Test\\SentMail::cc": "31f55782bf195d30"
   },
   "help:Core\\Test\\SentMail::endpoint": {
-    "Core\\Test\\SentMail::endpoint": "8f5cb9496d0d94af"
+    "Core\\Test\\SentMail::endpoint": "3ff01bdbc5453efe"
   },
   "help:Core\\Test\\SentMail::fromName": {
     "Core\\Test\\SentMail::fromName": "ae43bb420a0c612f"
   },
   "help:Core\\Test\\SentMail::html": {
-    "Core\\Test\\SentMail::html": "5f6685c7914714e5"
+    "Core\\Test\\SentMail::html": "c9e42fd1bf1605d4"
   },
   "help:Core\\Test\\SentMail::inReplyTo": {
     "Core\\Test\\SentMail::inReplyTo": "d827cb09e48bbe21"
@@ -8152,16 +8152,16 @@
     "Core\\Test\\SentMail::references": "e8114f90d7b0798a"
   },
   "help:Core\\Test\\SentMail::replyTo": {
-    "Core\\Test\\SentMail::replyTo": "4f6f75993561841f"
+    "Core\\Test\\SentMail::replyTo": "c06c34093fa76efb"
   },
   "help:Core\\Test\\SentMail::subject": {
-    "Core\\Test\\SentMail::subject": "61fb4f0cf9670f4b"
+    "Core\\Test\\SentMail::subject": "61acd17d6912750b"
   },
   "help:Core\\Test\\SentMail::text": {
-    "Core\\Test\\SentMail::text": "7df22a1c798e3444"
+    "Core\\Test\\SentMail::text": "e03feba607178cd9"
   },
   "help:Core\\Test\\SentMail::to": {
-    "Core\\Test\\SentMail::to": "7558c7b232fdb69d"
+    "Core\\Test\\SentMail::to": "33c642f21e31d39c"
   },
   "help:Core\\Test\\SentMail::unsubscribe": {
     "Core\\Test\\SentMail::unsubscribe": "1296cb7807aa5eec"
@@ -8764,10 +8764,10 @@
     "directive:capabilities": "e61749c7583627e4"
   },
   "help:directive:debug.index_age": {
-    "directive:debug.index_age": "1d61a8a897688f71"
+    "directive:debug.index_age": "c559f6482af239e4"
   },
   "help:directive:debug.index_max": {
-    "directive:debug.index_max": "e40b9b867eac26be"
+    "directive:debug.index_max": "0fc8e4bd523e9f10"
   },
   "help:directive:debug.inline": {
     "directive:debug.inline": "7476c32a408c2acd"
@@ -8785,7 +8785,7 @@
     "directive:debug.spool_max": "e050a1da50823430"
   },
   "help:directive:debug.store": {
-    "directive:debug.store": "f11183dc44379da1"
+    "directive:debug.store": "0e108c59b8798b9e"
   },
   "help:directive:debug.tls_cert_file": {
     "directive:debug.tls_cert_file": "5bdd929d97fe71be"
@@ -9601,7 +9601,7 @@
     "tools:cli/nvs-config-check-and-nvs-config-dump": "7ce1cdebb2da6e80"
   },
   "help:tools:cli/nvs-debug": {
-    "tools:cli/nvs-debug": "137db41a67fa8e10"
+    "tools:cli/nvs-debug": "b44bcea58143e1f9"
   },
   "help:tools:cli/nvs-debug-link": {
     "tools:cli/nvs-debug-link": "01ce8f4795802d2b"
@@ -9652,7 +9652,7 @@
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
   },
   "help:tools:cli/the-debug-viewer": {
-    "tools:cli/the-debug-viewer": "41c388533dca6e3a"
+    "tools:cli/the-debug-viewer": "fdc90909e367fc90"
   },
   "help:tools:config/app-per-application-blocks": {
     "tools:config/app-per-application-blocks": "dfd1d768aa58cf4e"
@@ -9682,7 +9682,7 @@
     "tools:config/reading-and-changing-it-from-a-program-core-config": "c30c4928ffd46f1e"
   },
   "help:tools:config/secrets-from-files": {
-    "tools:config/secrets-from-files": "5dd10e012d051f74"
+    "tools:config/secrets-from-files": "12802bd64beef7c6"
   },
   "help:tools:config/the-blocks-the-binary-accepts": {
     "tools:config/the-blocks-the-binary-accepts": "bc22c9cba4deffd3"
@@ -10207,10 +10207,10 @@
     "tools:cli/the-compile-cache": "884750663dbb5933"
   },
   "tools/debug-viewer/index.mdx": {
-    "tools:cli/nvs-debug": "9f1b457b2e767683",
+    "tools:cli/nvs-debug": "df2a3261de9b6623",
     "tools:cli/nvs-debug-link": "029beb0ef1a5782a",
     "tools:cli/nvs-debug-to-test": "580aa3b406024784",
-    "tools:cli/the-debug-viewer": "622c351feaa79e5e"
+    "tools:cli/the-debug-viewer": "16753991bb700b28"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "e7529dc767e5836e"

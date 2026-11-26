@@ -2046,28 +2046,28 @@
       "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\SentMail::bcc": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\SentMail::cc": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\SentMail::endpoint": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\SentMail::replyTo": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\SentMail::subject": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\SentMail::to": {
-      "hash": "faa6ab8c59412435",
-      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+      "hash": "179a5d7278af6113",
+      "why": "A new test reads these with the new parts. What each one returns is the same."
     },
     "Core\\Test\\Summary::class": {
       "hash": "be4a1a67af502674",

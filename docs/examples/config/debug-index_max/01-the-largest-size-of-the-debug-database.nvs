@@ -5,9 +5,9 @@
 echo 'index_max: ', Core\Config::get('debug.index_max') ?? '(no value)', "\n";
 
 // A program may not change `debug.index_max`.
-// A call to `Core\Config::set` with the name `'debug.index_max'` in the code does not compile.
+// When the name is written in the call, the program does not compile.
 
-// Here the name is in a variable, so the call compiles and runs.
-// It returns `false`, and this prints `no`.
+// When the name is in a variable, the compiler cannot check it.
+// The call runs, returns `false`, and this prints `no`.
 string $name = 'debug.index_max';
 echo 'raise it:  ', Core\Config::set($name, '100G') ? 'yes' : 'no', "\n";

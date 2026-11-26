@@ -52,7 +52,7 @@ Then it shows the requests that the production server recorded.
 ## The viewer's window
 
 A list on the left names the pages: **Requests**, **Runs**, **Routes**, **Queries**, **Errors**,
-**Logs** and **Stream**. **Settings** is at the bottom of this list. **Errors** shows a number. It
+**Logs**, **Mail** and **Stream**. **Settings** is at the bottom of this list. **Errors** shows a number. It
 is the number of exceptions that were thrown after you opened the viewer. In a narrow window, the
 list shows only its icons.
 
@@ -105,8 +105,8 @@ the route called. Boxes show the duration and the number of queries, dumps and l
 them, a bar shows how the time was split.
 
 Two more boxes show the memory and the sizes. **Memory peak** is the most memory the request used.
-Beside it is the memory limit, which `[limits] memory` in `nvs.toml` sets. The bar under it turns
-orange at 75% of the limit, and red at 90%.
+Beside it is the memory limit, which `[limits] memory` in `nvs.toml` sets. The bar under the
+memory peak turns orange at 75% of the limit, and red at 90%.
 
 **Response size** is the number of bytes in the response body. It also shows how many bytes of the
 request body your program read. A streamed response is sent in parts while your program runs. The
@@ -133,7 +133,7 @@ Each event on the timeline shows its result after its name:
 - An HTTP call shows its status code and the bytes it sent and received.
 - A file read or write shows its number of bytes.
 - A process shows the name of its program and its exit code.
-- Sent mail shows the number of recipients. The viewer never shows an address or the text.
+- Sent mail shows the number of recipients. The timeline shows no address and no text.
 - A job pushed to the queue shows its script, its queue and its delay.
 
 The **Exception** tab shows the stack: every function that was running when the exception was
@@ -178,6 +178,19 @@ Press `Enter` to open a run. A run's page has the same boxes and tabs as a reque
 **Request**, **Response** and **Coverage** tabs, because a run has no HTTP request.
 
 <Shot src="tools/debug-viewer/run.shot" alt="The page of the failed job send-receipts at its Exception tab. The RuntimeError says The mail server did not answer, and the stack lists three functions with their file and line." />
+
+## Mail
+
+The **Mail** page lists the mail of each `[mail.<name>]` block with `capture = true`. Such a block
+keeps each message and sends nothing. The page needs `[debug] store = true`. A block that really
+sends mail is not on this page.
+
+Open a message to see its headers, its text and its attachments. The HTML is shown in two forms.
+**As written** is the HTML your program wrote. **As sent** is the HTML after its CSS is copied into
+the elements. Scripts do not run in this preview, and nothing loads from the network.
+
+The page also lists the CSS rules that stay in a `<style>` element, and the rules that match no
+element. A note appears when the HTML is larger than 102 KB, because Gmail cuts such a message.
 
 ## Routes
 
@@ -266,8 +279,8 @@ header has the value `'redacted'`. Replace it with a credential that your tests 
 ## Settings and lost records
 
 The **Settings** page has the theme, the editor that a `file:line` opens, and your saved filters.
-Your program can run in a container, where its files have other paths than on your computer. Then a
-`file:line` link does not open. A path mapping fixes this. It replaces the start of each recorded
+Your program can run in a container. There, its files can have other paths than on your
+computer, and a `file:line` link does not open. A path mapping fixes this. It replaces the start of each recorded
 path, such as `/app`, with the folder on your computer. A button at the bottom deletes every
 recorded request.
 

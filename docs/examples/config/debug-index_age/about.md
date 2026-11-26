@@ -4,10 +4,11 @@ How long `nvs debug` keeps the record of a request. The default is `7d`, which i
 This file is in the data folder. The data folder is `.nvsdata` next to the `nvs` program, unless
 `--data` names another folder.
 
-Each record belongs to one request or one run. Each time `nvs debug` has read new files, it deletes
-every request and run that started more than `index_age` ago. All of their records are deleted
-with them. A command such as `nvs run` can still be running after that time. Then `nvs debug`
-deletes each of its records that was written more than `index_age` ago.
+Each record belongs to one request or one run. After `nvs debug` reads new files, it deletes
+every request and run that started more than `index_age` ago, with all of their records.
+
+A command such as `nvs run` can run for longer than `index_age`. For a run that has not ended,
+`nvs debug` deletes only the records that are older than `index_age`.
 
 When `nvs serve` starts `nvs debug`, `nvs debug` uses the same configuration files as the server.
 When you start `nvs debug` yourself, it reads its configuration the same way as every other `nvs`
