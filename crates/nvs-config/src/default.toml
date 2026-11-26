@@ -876,6 +876,10 @@
 # The envelope sender, where bounces go. The `From:` header stays `from`. A call's `bounceTag`
 # writes `local+tag@domain` of this address.
 #return_path = "bounces@example.com"  # default: `from`
+# `true` keeps every message and sends nothing, for development. With `[debug] store` on, the debug
+# viewer shows each message on its Mail page. A capture block needs `from` and has no `host`, and
+# every key below that only a connection reads is an error beside it.
+#capture = true                       # default: off, the block sends
 #timeout = "30s"                      # default
 # `user` and `password` are the pair that asks for TLS: a block naming them is never sent in the
 # clear. Half a credential is refused. `password_file` is `[db.<name>]`'s, under the same rule and

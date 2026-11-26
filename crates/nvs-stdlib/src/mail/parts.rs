@@ -130,16 +130,48 @@ pub(crate) const ATTACHMENT: CoreClass = CoreClass {
             doc: Some(&INLINE_BYTES_DOC),
         },
     ],
-    instance: &[CoreMethod {
-        name: "src",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        text: TextOrigin::Clean("A `cid:` URL with random hex digits."),
-        symbol: "nvs_core_mail_attachment_src",
-        doc: Some(&SRC_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "src",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A `cid:` URL with random hex digits."),
+            symbol: "nvs_core_mail_attachment_src",
+            doc: Some(&SRC_DOC),
+        },
+        // The name, the type and the bytes can come from a request, so each is read back as
+        // `tainted`: a reader never removes a qualifier.
+        reader(
+            "name",
+            CoreTy::Str,
+            "nvs_core_mail_attachment_name",
+            &NAME_DOC,
+        ),
+        reader(
+            "type",
+            CoreTy::Str,
+            "nvs_core_mail_attachment_type",
+            &TYPE_DOC,
+        ),
+        reader(
+            "bytes",
+            CoreTy::Blob(Qual::Neutral),
+            "nvs_core_mail_attachment_bytes",
+            &BYTES_DOC,
+        ),
+        CoreMethod {
+            name: "isInline",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_mail_attachment_is_inline",
+            doc: Some(&IS_INLINE_DOC),
+        },
+    ],
     slots: &["name", "type", "data", "contentId"],
     constants: &[],
 };
@@ -284,9 +316,97 @@ const SRC_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// One reader of an attachment: no parameter, and text read back as `tainted`.
+const fn reader(
+    name: &'static str,
+    return_ty: CoreTy,
+    symbol: &'static str,
+    doc: &'static MethodDoc,
+) -> CoreMethod {
+    CoreMethod {
+        name,
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty,
+        text: TextOrigin::Source,
+        symbol,
+        doc: Some(doc),
+    }
+}
+
+/// `name`'s card.
+const NAME_DOC: MethodDoc = MethodDoc {
+    short: "Returns the file name of the attachment, such as `invoice.pdf`.",
+    params: &[],
+    ret: "The file name the recipient sees.",
+    errors: &[],
+};
+
+/// `type`'s card.
+const TYPE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the media type of the attachment, such as `application/pdf`.",
+    params: &[],
+    ret: "The `type` given when the attachment was made, or the detected type.",
+    errors: &[],
+};
+
+/// `bytes`' card.
+const BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the content of the attachment.",
+    params: &[],
+    ret: "The bytes that are sent.",
+    errors: &[],
+};
+
+/// `isInline`'s card.
+const IS_INLINE_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the attachment is shown inside the HTML body.",
+    params: &[],
+    ret: "`true` for an attachment made with `inlineFile` or `inlineBytes`. `false` for one made \
+          with `fromFile` or `fromBytes`.",
+    errors: &[],
+};
+
+nvs_runtime::nvs_helper! {
+    /// `$attachment->name(): string`.
+    fn nvs_core_mail_attachment_name(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ATTACHMENT, NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$attachment->type(): string`.
+    fn nvs_core_mail_attachment_type(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ATTACHMENT, TYPE_SLOT, "type")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$attachment->bytes(): bytes`.
+    fn nvs_core_mail_attachment_bytes(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ATTACHMENT, DATA_SLOT, "bytes")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$attachment->isInline(): bool` — whether the attachment has a Content-ID.
+    fn nvs_core_mail_attachment_is_inline(_ctx, args: [1]) {
+        let member = format!("{ATTACHMENT_NAME}::isInline");
+        let object = crate::instance::receiver(args[0], &ATTACHMENT, &member)?;
+        Ok(Value::bool(crate::instance::slot(object, CONTENT_ID_SLOT).as_text().is_some()))
+    }
+}
+
 /// This module's arm of the `Core` symbol table — see [`crate::address`].
 pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
+        "nvs_core_mail_attachment_name" => (nvs_core_mail_attachment_name as *const ()).cast(),
+        "nvs_core_mail_attachment_type" => (nvs_core_mail_attachment_type as *const ()).cast(),
+        "nvs_core_mail_attachment_bytes" => (nvs_core_mail_attachment_bytes as *const ()).cast(),
+        "nvs_core_mail_attachment_is_inline" => {
+            (nvs_core_mail_attachment_is_inline as *const ()).cast()
+        }
         "nvs_core_mail_attachment_from_file" => {
             (nvs_core_mail_attachment_from_file as *const ()).cast()
         }
@@ -416,8 +536,9 @@ fn content_id(ctx: &mut Ctx) -> String {
     format!("{hex}@inline")
 }
 
-/// The attachment value: four slots, the bytes under `Tag::Bytes`.
-fn built(name: &str, media_type: &str, data: &[u8], content_id: Option<&str>) -> Value {
+/// The attachment value: four slots, the bytes under `Tag::Bytes`. `Core\Test\SentMail` builds
+/// its attachments with it too.
+pub(crate) fn built(name: &str, media_type: &str, data: &[u8], content_id: Option<&str>) -> Value {
     crate::instance::build(
         &ATTACHMENT,
         [

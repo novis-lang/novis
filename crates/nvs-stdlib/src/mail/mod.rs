@@ -108,6 +108,7 @@
 //! value, [`smtp`] is the session that delivers it, [`pool`] keeps that session open for the
 //! block's next send, and [`oauth`] fetches and keeps an `xoauth2` block's token.
 
+mod capture;
 mod compose;
 mod css;
 mod dkim;
@@ -117,7 +118,7 @@ mod pool;
 mod smtp;
 
 pub(crate) use css::PREVIEW;
-pub(crate) use parts::ATTACHMENT;
+pub(crate) use parts::{ATTACHMENT, ATTACHMENT_NAME, built as attachment};
 
 use std::cell::Cell;
 use std::net::SocketAddr;
@@ -626,6 +627,8 @@ struct Endpoint {
     auth: Option<Auth>,
     /// `return_path`, or `from` — the envelope sender, where bounces go.
     return_path: String,
+    /// `capture = true`: the block keeps its mail and opens no connection, and `host` is empty.
+    capture: bool,
 }
 
 /// The directive `[mail.<name>] key`, with an empty value read as absent.
@@ -680,11 +683,17 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         member,
     )?;
 
-    let Some(host) = configured(ctx, endpoint, "host") else {
-        return Err(Fault::thrown(format!(
-            "{member}: no `[mail.{endpoint}]` block sets `host`, so there is no endpoint of that \
-             name to send through"
-        )));
+    // A capture block has no `host`, and the boot refused every key only a connection reads.
+    let capture = capture_of(ctx, endpoint);
+    let host = match configured(ctx, endpoint, "host") {
+        Some(host) => host,
+        None if capture => String::new(),
+        None => {
+            return Err(Fault::thrown(format!(
+                "{member}: no `[mail.{endpoint}]` block sets `host`, so there is no endpoint of \
+                 that name to send through"
+            )));
+        }
     };
     let Some(from) = configured(ctx, endpoint, "from") else {
         return Err(Fault::thrown(format!(
@@ -774,7 +783,16 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         ca_file: configured(ctx, endpoint, "tls_ca_file").map(PathBuf::from),
         auth,
         return_path,
+        capture,
     })
+}
+
+/// Whether `[mail.<endpoint>] capture = true`, read from the typed tree.
+fn capture_of(ctx: &Ctx, endpoint: &str) -> bool {
+    ctx.config()
+        .and_then(|config| config.snapshot().config.mail.get(endpoint))
+        .and_then(|block| block.capture)
+        == Some(true)
 }
 
 /// Where the operator's `host` resolves to.
@@ -1127,26 +1145,47 @@ fn send(
     crate::random::draw(ctx, |rng| rand::Rng::fill_bytes(rng, &mut random));
     let message_id = compose::message_id(random, &configured.from);
 
-    // Under `nvs test`, the message is kept for `Core\Test::sentMail` and no connection is
-    // opened, so a test never reaches a real person
+    // Under `nvs test`, and for a `capture = true` block, the message is kept and no connection
+    // is opened, so a test never reaches a real person
     // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
     // were checked above, as they are in production.
-    if let Some(records) = ctx.test_records() {
-        let addresses = |list: Vec<Mailbox>| {
-            list.into_iter()
-                .map(|each| each.address)
+    let test_records = ctx.test_records().cloned();
+    if test_records.is_some() || configured.capture {
+        let addresses = |list: &[Mailbox]| {
+            list.iter()
+                .map(|each| each.address.clone())
                 .collect::<Vec<_>>()
         };
-        records.mail(nvs_runtime::test_records::KeptMail {
+        let kept = nvs_runtime::test_records::KeptMail {
             endpoint: endpoint.to_owned(),
-            to: addresses(to),
+            to: addresses(&to),
             subject: subject.to_owned(),
             text: body.text,
-            cc: addresses(cc),
-            bcc: addresses(bcc),
+            cc: addresses(&cc),
+            bcc: addresses(&bcc),
             reply_to: reply_to.map(|each| each.address),
             html: body.html,
-        });
+            message_id: message_id.clone(),
+            from_name: from_name.map(str::to_owned),
+            attachments: attachments
+                .into_iter()
+                .map(|part| nvs_runtime::test_records::KeptPart {
+                    name: part.name,
+                    media_type: part.media_type,
+                    data: part.data,
+                    content_id: part.content_id,
+                })
+                .collect(),
+            in_reply_to,
+            references,
+            unsubscribe,
+            auto_submitted,
+            bounce_tag: bounce_tag.map(str::to_owned),
+        };
+        match test_records {
+            Some(records) => records.mail(kept),
+            None => capture::spool(ctx, &configured.from, args[BODY], &kept),
+        }
         return Ok(Value::text(&message_id));
     }
 

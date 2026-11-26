@@ -82,7 +82,22 @@ pub(crate) const LOG_RECORD: CoreClass = CoreClass {
 
 /// [`SENT_MAIL`]'s slots, in the order of its readers.
 const SENT_MAIL_SLOTS: &[&str] = &[
-    "endpoint", "to", "subject", "text", "cc", "bcc", "replyTo", "html",
+    "endpoint",
+    "to",
+    "subject",
+    "text",
+    "cc",
+    "bcc",
+    "replyTo",
+    "html",
+    "messageId",
+    "fromName",
+    "attachments",
+    "inReplyTo",
+    "references",
+    "unsubscribe",
+    "autoSubmitted",
+    "bounceTag",
 ];
 
 /// One message `Core\Mail::send` was given in a test. Its readers are the
@@ -140,6 +155,54 @@ pub(crate) const SENT_MAIL: CoreClass = CoreClass {
             CoreTy::Nullable(&CoreTy::Str),
             "nvs_core_test_sent_mail_html",
             &HTML_DOC,
+        ),
+        reader(
+            "messageId",
+            CoreTy::Str,
+            "nvs_core_test_sent_mail_message_id",
+            &MESSAGE_ID_DOC,
+        ),
+        reader(
+            "fromName",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_test_sent_mail_from_name",
+            &FROM_NAME_DOC,
+        ),
+        reader(
+            "attachments",
+            CoreTy::Array(&CoreTy::Instance(crate::mail::ATTACHMENT_NAME)),
+            "nvs_core_test_sent_mail_attachments",
+            &ATTACHMENTS_DOC,
+        ),
+        reader(
+            "inReplyTo",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_test_sent_mail_in_reply_to",
+            &IN_REPLY_TO_DOC,
+        ),
+        reader(
+            "references",
+            CoreTy::Array(&CoreTy::Str),
+            "nvs_core_test_sent_mail_references",
+            &REFERENCES_DOC,
+        ),
+        reader(
+            "unsubscribe",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_test_sent_mail_unsubscribe",
+            &UNSUBSCRIBE_DOC,
+        ),
+        reader(
+            "autoSubmitted",
+            CoreTy::Bool,
+            "nvs_core_test_sent_mail_auto_submitted",
+            &AUTO_SUBMITTED_DOC,
+        ),
+        reader(
+            "bounceTag",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_test_sent_mail_bounce_tag",
+            &BOUNCE_TAG_DOC,
         ),
     ],
     slots: SENT_MAIL_SLOTS,
@@ -271,9 +334,76 @@ const REPLY_TO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test\SentMail::html`'s reference card.
 const HTML_DOC: MethodDoc = MethodDoc {
-    short: "Returns the HTML body of the message.",
+    short: "Returns the HTML body of the message, as it is sent. The CSS of its `<style>` \
+            elements is already copied into the elements.",
     params: &[],
-    ret: "The `html` body, or `null` when none was given.",
+    ret: "The HTML that is sent, or `null` when the body was a `string`.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::messageId`'s reference card.
+const MESSAGE_ID_DOC: MethodDoc = MethodDoc {
+    short: "Returns the `Message-ID` of the message, without angle brackets.",
+    params: &[],
+    ret: "The same string `Core\\Mail::send` returned for this message.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::fromName`'s reference card.
+const FROM_NAME_DOC: MethodDoc = MethodDoc {
+    short: "Returns the sender name in the `From:` header.",
+    params: &[],
+    ret: "The `fromName` option, or else the `from_name` of the `[mail.<name>]` block. `null` \
+          when neither is set.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::attachments`' reference card.
+const ATTACHMENTS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the attachments of the message, including inline images.",
+    params: &[],
+    ret: "One `Core\\Mail\\Attachment` for each attachment, in the order given. The list is \
+          empty when there were none.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::inReplyTo`'s reference card.
+const IN_REPLY_TO_DOC: MethodDoc = MethodDoc {
+    short: "Returns the message id in the `In-Reply-To` header.",
+    params: &[],
+    ret: "The `inReplyTo` option, or `null` when none was given.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::references`' reference card.
+const REFERENCES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the message ids in the `References` header.",
+    params: &[],
+    ret: "The `references` option, in the order given. The list is empty when none were given.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::unsubscribe`'s reference card.
+const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the URL in the `List-Unsubscribe` header.",
+    params: &[],
+    ret: "The `unsubscribe` option, or `null` when none was given.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::autoSubmitted`'s reference card.
+const AUTO_SUBMITTED_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the message has the header `Auto-Submitted: auto-generated`.",
+    params: &[],
+    ret: "The `autoSubmitted` option. It is `true` when the option was not given.",
+    errors: &[],
+};
+
+/// `Core\Test\SentMail::bounceTag`'s reference card.
+const BOUNCE_TAG_DOC: MethodDoc = MethodDoc {
+    short: "Returns the bounce tag of the message.",
+    params: &[],
+    ret: "The `bounceTag` option, or `null` when none was given.",
     errors: &[],
 };
 
@@ -282,6 +412,20 @@ fn list_of(addresses: &[String]) -> Value {
     let mut out = NvsArray::new();
     for address in addresses {
         out.append(Value::text(address));
+    }
+    Value::array(out)
+}
+
+/// `parts` as an `array<Core\Mail\Attachment>` list, each a new instance.
+fn attachments_of(parts: &[nvs_runtime::test_records::KeptPart]) -> Value {
+    let mut out = NvsArray::new();
+    for part in parts {
+        out.append(crate::mail::attachment(
+            &part.name,
+            &part.media_type,
+            &part.data,
+            part.content_id.as_deref(),
+        ));
     }
     Value::array(out)
 }
@@ -332,6 +476,14 @@ nvs_runtime::nvs_helper! {
                         list_of(&mail.bcc),
                         optional(mail.reply_to.as_deref()),
                         optional(mail.html.as_deref()),
+                        Value::text(&mail.message_id),
+                        optional(mail.from_name.as_deref()),
+                        attachments_of(&mail.attachments),
+                        optional(mail.in_reply_to.as_deref()),
+                        list_of(&mail.references),
+                        optional(mail.unsubscribe.as_deref()),
+                        Value::bool(mail.auto_submitted),
+                        optional(mail.bounce_tag.as_deref()),
                     ],
                 ));
             }
@@ -440,9 +592,89 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::messageId(): string`.
+    fn nvs_core_test_sent_mail_message_id(_ctx, args: [1]) {
+        sent_mail_slot(args, "messageId")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::fromName(): ?string`.
+    fn nvs_core_test_sent_mail_from_name(_ctx, args: [1]) {
+        sent_mail_slot(args, "fromName")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::attachments(): array<Core\Mail\Attachment>`.
+    fn nvs_core_test_sent_mail_attachments(_ctx, args: [1]) {
+        sent_mail_slot(args, "attachments")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::inReplyTo(): ?string`.
+    fn nvs_core_test_sent_mail_in_reply_to(_ctx, args: [1]) {
+        sent_mail_slot(args, "inReplyTo")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::references(): array<string>`.
+    fn nvs_core_test_sent_mail_references(_ctx, args: [1]) {
+        sent_mail_slot(args, "references")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::unsubscribe(): ?string`.
+    fn nvs_core_test_sent_mail_unsubscribe(_ctx, args: [1]) {
+        sent_mail_slot(args, "unsubscribe")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::autoSubmitted(): bool`.
+    fn nvs_core_test_sent_mail_auto_submitted(_ctx, args: [1]) {
+        sent_mail_slot(args, "autoSubmitted")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentMail::bounceTag(): ?string`.
+    fn nvs_core_test_sent_mail_bounce_tag(_ctx, args: [1]) {
+        sent_mail_slot(args, "bounceTag")
+    }
+}
+
 /// Where each member's helper lives.
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
+        "nvs_core_test_sent_mail_message_id" => {
+            (nvs_core_test_sent_mail_message_id as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_from_name" => {
+            (nvs_core_test_sent_mail_from_name as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_attachments" => {
+            (nvs_core_test_sent_mail_attachments as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_in_reply_to" => {
+            (nvs_core_test_sent_mail_in_reply_to as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_references" => {
+            (nvs_core_test_sent_mail_references as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_unsubscribe" => {
+            (nvs_core_test_sent_mail_unsubscribe as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_auto_submitted" => {
+            (nvs_core_test_sent_mail_auto_submitted as *const ()).cast()
+        }
+        "nvs_core_test_sent_mail_bounce_tag" => {
+            (nvs_core_test_sent_mail_bounce_tag as *const ()).cast()
+        }
         "nvs_core_test_logs" => (nvs_core_test_logs as *const ()).cast(),
         "nvs_core_test_sent_mail" => (nvs_core_test_sent_mail as *const ()).cast(),
         "nvs_core_test_log_record_level" => (nvs_core_test_log_record_level as *const ()).cast(),
@@ -630,16 +862,26 @@ mod tests {
             ],
             reply_to: Some("desk@example.com".to_owned()),
             html: Some("<p>The news.</p>".to_owned()),
+            message_id: "1f2e@example.com".to_owned(),
+            from_name: Some("Shop".to_owned()),
+            attachments: vec![nvs_runtime::test_records::KeptPart {
+                name: "logo.png".to_owned(),
+                media_type: "image/png".to_owned(),
+                data: vec![1, 2, 3],
+                content_id: Some("ab@inline".to_owned()),
+            }],
+            in_reply_to: Some("0a@example.com".to_owned()),
+            references: vec!["09@example.com".to_owned(), "0a@example.com".to_owned()],
+            unsubscribe: Some("https://example.com/unsubscribe".to_owned()),
+            auto_submitted: true,
+            bounce_tag: Some("order-7".to_owned()),
         });
         records.mail(KeptMail {
             endpoint: "alerts".to_owned(),
             to: vec!["ops@example.com".to_owned()],
             subject: "Disk full".to_owned(),
-            text: String::new(),
-            cc: Vec::new(),
-            bcc: Vec::new(),
-            reply_to: None,
-            html: None,
+            message_id: "2a@example.com".to_owned(),
+            ..KeptMail::default()
         });
         ctx.set_test_records(records);
 

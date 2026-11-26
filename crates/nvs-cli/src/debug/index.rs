@@ -84,7 +84,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 14;
+pub(crate) const SCHEMA: i64 = 15;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -258,6 +258,22 @@ CREATE TABLE profiles (
     at_us INTEGER NOT NULL,
     path TEXT NOT NULL
 );
+CREATE TABLE mails (
+    id INTEGER PRIMARY KEY,
+    writer TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    batch INTEGER NOT NULL,
+    trace TEXT NOT NULL,
+    at_us INTEGER NOT NULL,
+    endpoint TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    recipients TEXT NOT NULL,
+    message TEXT NOT NULL
+);
+CREATE UNIQUE INDEX mails_key ON mails (writer, seq);
+CREATE INDEX mails_trace ON mails (trace);
+CREATE INDEX mails_at ON mails (at_us);
+
 CREATE UNIQUE INDEX profiles_key ON profiles (writer, seq);
 CREATE INDEX profiles_trace ON profiles (trace);
 CREATE INDEX profiles_at ON profiles (at_us);
@@ -504,11 +520,12 @@ END;
 const OWNERS: [&str; 2] = ["requests", "runs"];
 
 /// The tables whose rows name a trace id, deleted with their request or run.
-const BY_TRACE: [&str; 9] = [
+const BY_TRACE: [&str; 10] = [
     "inputs",
     "body_parts",
     "events",
     "dumps",
+    "mails",
     "profiles",
     "coverage",
     "copies",
@@ -519,10 +536,11 @@ const BY_TRACE: [&str; 9] = [
 /// The tables whose rows carry their own time, deleted past `index_age` when no request names them.
 /// A `quarantine` row is not one: it stays while its file fails, and goes once the file is read or
 /// is gone.
-const BY_TIME: [&str; 9] = [
+const BY_TIME: [&str; 10] = [
     "body_parts",
     "events",
     "dumps",
+    "mails",
     "profiles",
     "coverage",
     "copies",

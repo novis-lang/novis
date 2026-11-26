@@ -439,6 +439,9 @@ fn judge(
     block: &MailEndpoint,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<(), Diagnostic> {
+    if block.capture == Some(true) {
+        return capture(name, block, origins);
+    }
     let credential =
         block.user.is_some() || block.password.is_some() || block.password_file.is_some();
     let port = block.port.unwrap_or(crate::defaults::MAIL_PORT);
@@ -505,6 +508,55 @@ fn judge(
             origins,
         )),
         Ok(_) => Ok(()),
+    }
+}
+
+/// A `capture = true` block: a `from`, and none of the keys only a connection reads. Each of those
+/// would be read and never used, and a `host` beside `capture` reads as a block that sends.
+fn capture(
+    name: &str,
+    block: &MailEndpoint,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if block.from.is_none() {
+        return Err(refusal(
+            &format!("mail.{name}.capture"),
+            format!("`[mail.{name}]` has `capture = true` and no `from`"),
+            "A kept message has the `From:` header a sent one has.",
+            "write `from`, the address the mail is sent from",
+            origins,
+        ));
+    }
+    let connection = [
+        ("host", block.host.is_some()),
+        ("port", block.port.is_some()),
+        ("user", block.user.is_some()),
+        ("password", block.password.is_some()),
+        ("password_file", block.password_file.is_some()),
+        ("timeout", block.timeout.is_some()),
+        ("tls", block.tls.is_some()),
+        ("tls_ca_file", block.tls_ca_file.is_some()),
+        ("auth", block.auth.is_some()),
+        ("dkim_selector", block.dkim_selector.is_some()),
+        ("dkim_key_file", block.dkim_key_file.is_some()),
+        ("dkim_domain", block.dkim_domain.is_some()),
+        ("pool", block.pool.is_some()),
+    ];
+    let written = connection
+        .iter()
+        .find(|(_, set)| *set)
+        .map(|(key, _)| *key)
+        .or_else(|| oauth_written(block));
+    match written {
+        Some(key) => Err(refusal(
+            &format!("mail.{name}.{key}"),
+            format!("`[mail.{name}]` has `capture = true` and sets `{key}`"),
+            "A capture block keeps its mail and opens no connection, so the key would never be \
+             read.",
+            &format!("remove `{key}`, or remove `capture` to send the mail"),
+            origins,
+        )),
+        None => Ok(()),
     }
 }
 
@@ -665,6 +717,45 @@ mod tests {
         assert!(judge("relay", &block(None, true, Some("cram-md5")), &origins).is_err());
         assert!(judge("relay", &block(None, true, Some("login")), &origins).is_ok());
         assert!(judge("relay", &block(Some("starttls"), false, None), &origins).is_ok());
+    }
+
+    /// A capture block boots with a `from` alone. With no `from`, or with a key only a connection
+    /// reads, it does not, and the error names the key.
+    #[test]
+    fn a_capture_block_needs_from_and_no_host() {
+        let origins = BTreeMap::new();
+        let capture = MailEndpoint {
+            capture: Some(true),
+            from: Some("noreply@example.com".to_owned()),
+            from_name: Some("Shop".to_owned()),
+            return_path: Some("bounces@example.com".to_owned()),
+            ..MailEndpoint::default()
+        };
+        assert!(judge("dev", &capture, &origins).is_ok());
+
+        let without_from = MailEndpoint {
+            from: None,
+            ..capture.clone()
+        };
+        let refused = judge("dev", &without_from, &origins).unwrap_err();
+        assert!(format!("{refused:?}").contains("no `from`"), "{refused:?}");
+
+        let with_host = MailEndpoint {
+            host: Some("smtp.example.com".to_owned()),
+            ..capture.clone()
+        };
+        let refused = judge("dev", &with_host, &origins).unwrap_err();
+        assert!(format!("{refused:?}").contains("`host`"), "{refused:?}");
+
+        let with_oauth = MailEndpoint {
+            oauth_client_id: Some("app".to_owned()),
+            ..capture
+        };
+        let refused = judge("dev", &with_oauth, &origins).unwrap_err();
+        assert!(
+            format!("{refused:?}").contains("oauth_client_id"),
+            "{refused:?}"
+        );
     }
 
     /// An `xoauth2` block whose `oauth_token_url` is not `https://` does not boot, and the error

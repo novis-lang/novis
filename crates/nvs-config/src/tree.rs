@@ -1029,6 +1029,10 @@ pub struct MailEndpoint {
     /// The envelope sender, `MAIL FROM`, where bounces go. Unset: `from`. The `From:` header stays
     /// `from` either way.
     pub return_path: Option<String>,
+    /// `true` keeps every message and opens no connection, as `nvs test` does, and writes it to
+    /// the debug spool where `[debug] store` is on. A capture block needs `from` and refuses every
+    /// key only a connection reads; [`mod@crate::mail`] owns the refusals.
+    pub capture: Option<bool>,
     /// `[mail.<name>.pool]`'s bounds or `pool = false`, read as a `[db]` block's [`Pool`] is, over
     /// [`crate::mail::POOL_DEFAULTS`].
     pub pool: Option<Pool>,

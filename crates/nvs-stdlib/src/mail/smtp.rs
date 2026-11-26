@@ -981,6 +981,7 @@ pub(super) mod tests {
             ca_file: None,
             auth: None,
             return_path: "noreply@example.com".to_owned(),
+            capture: false,
         }
     }
 

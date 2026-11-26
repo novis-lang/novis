@@ -652,6 +652,29 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
+        Record::Mail(mail) => {
+            let trace = trace.ok_or(Insert::Bad("a mail line has no trace id"))?;
+            // The list reads the block, the subject and the recipients; the page reads the
+            // whole line, kept as the JSON it arrived as.
+            let message = serde_json::to_string(&**mail)
+                .map_err(|_| Insert::Bad("a mail line does not serialize"))?;
+            tx.execute(
+                "INSERT OR IGNORE INTO mails \
+                 (writer, seq, batch, trace, at_us, endpoint, subject, recipients, message) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    key.0,
+                    key.1,
+                    batch,
+                    trace,
+                    at,
+                    mail.endpoint,
+                    mail.subject,
+                    mail.to.join(", "),
+                    message,
+                ],
+            )?;
+        }
         Record::Dropped(dropped) => {
             tx.execute(
                 "INSERT OR IGNORE INTO dropped (writer, seq, batch, at_us, records, files) \

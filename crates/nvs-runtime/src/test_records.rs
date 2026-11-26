@@ -26,7 +26,7 @@ pub struct KeptLog {
 }
 
 /// One message `Core\Mail::send` was given, as the test reads it back.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct KeptMail {
     /// The `[mail.<name>]` block named.
     pub endpoint: String,
@@ -42,8 +42,37 @@ pub struct KeptMail {
     pub bcc: Vec<String>,
     /// The `replyTo` address, if one was given.
     pub reply_to: Option<String>,
-    /// The HTML body, if one was given.
+    /// The HTML body as sent, its CSS inlined, if the body was HTML.
     pub html: Option<String>,
+    /// The `Message-ID` the send returned, without angle brackets.
+    pub message_id: String,
+    /// The display name `From:` carries: the call's `fromName`, else the block's `from_name`.
+    pub from_name: Option<String>,
+    /// The attachments, in the order given.
+    pub attachments: Vec<KeptPart>,
+    /// The `inReplyTo` message id, if one was given.
+    pub in_reply_to: Option<String>,
+    /// The `references` message ids, in order.
+    pub references: Vec<String>,
+    /// The `unsubscribe` URL, if one was given.
+    pub unsubscribe: Option<String>,
+    /// Whether the message carries `Auto-Submitted: auto-generated`.
+    pub auto_submitted: bool,
+    /// The `bounceTag`, if one was given.
+    pub bounce_tag: Option<String>,
+}
+
+/// One attachment of a [`KeptMail`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptPart {
+    /// The file name.
+    pub name: String,
+    /// The media type.
+    pub media_type: String,
+    /// The bytes.
+    pub data: Vec<u8>,
+    /// The Content-ID, without angle brackets, for an inline attachment.
+    pub content_id: Option<String>,
 }
 
 /// The log records and mail of one test, in the order each was written.

@@ -153,6 +153,8 @@ pub enum Record {
     /// (`rule:testing/a-run-is-recorded-like-a-request`). Boxed, because its exception makes it
     /// several times the size of a dump or a log line.
     Run(Box<Run>),
+    /// A message a `capture = true` block kept. Boxed, because it carries the message's bodies.
+    Mail(Box<Mail>),
 }
 
 impl Record {
@@ -217,6 +219,15 @@ impl Record {
             Self::Copies(copies) => {
                 copies.sites = Vec::new();
                 copies.elided = true;
+            }
+            Self::Mail(mail) => {
+                mail.text = String::new();
+                mail.html_written = None;
+                mail.html = None;
+                for part in &mut mail.attachments {
+                    part.base64 = String::new();
+                }
+                mail.elided = true;
             }
             // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
             Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) | Self::Run(_) => {
@@ -1040,6 +1051,91 @@ fn line_counts<'de, D: serde::Deserializer<'de>>(
             Ok((file, lines))
         })
         .collect()
+}
+
+/// `kind: "mail"`: one message a `[mail.<name>] capture = true` block kept, whole, for the
+/// viewer's Mail page. A block that sends writes only its `mail` event, never this: a sent
+/// message can carry a password-reset link, and its content must not land on disk.
+///
+/// **What it spends:** per kept message, its text, its HTML twice (as written and as sent) and
+/// its attachments as base64, up to [`LINE_MAX`]. A longer one is written with its bodies and
+/// attachment bytes elided ([`Record::elide`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Mail {
+    /// The `[mail.<name>]` block named.
+    pub endpoint: String,
+    /// The `Message-ID`, without angle brackets.
+    pub message_id: String,
+    /// The block's `from`.
+    pub from: String,
+    /// The display name `From:` carries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_name: Option<String>,
+    /// The `to` addresses, in order.
+    pub to: Vec<String>,
+    /// The `cc` addresses, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cc: Vec<String>,
+    /// The `bcc` addresses, in order. No header names them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bcc: Vec<String>,
+    /// The `Reply-To` address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<String>,
+    /// The subject.
+    pub subject: String,
+    /// The plain-text part.
+    pub text: String,
+    /// The HTML as the program wrote it, for an HTML body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html_written: Option<String>,
+    /// The HTML as sent, its CSS inlined, for an HTML body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    /// The CSS rules left in a `<style>` element after inlining.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept_css: Vec<String>,
+    /// The kept rules that matched no element.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unused_css: Vec<String>,
+    /// The attachments, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<MailPart>,
+    /// The `In-Reply-To` message id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_reply_to: Option<String>,
+    /// The `References` message ids, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
+    /// The `List-Unsubscribe` URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsubscribe: Option<String>,
+    /// Whether the message carries `Auto-Submitted: auto-generated`.
+    pub auto_submitted: bool,
+    /// The `bounceTag` the envelope sender carries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounce_tag: Option<String>,
+    /// Whether the bodies and the attachment bytes were removed to fit [`LINE_MAX`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elided: bool,
+}
+
+/// One attachment of a [`Mail`] line.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailPart {
+    /// The file name.
+    pub name: String,
+    /// The media type.
+    #[serde(rename = "type")]
+    pub media_type: String,
+    /// The Content-ID, without angle brackets, for an inline attachment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_id: Option<String>,
+    /// The size in bytes.
+    pub size: u64,
+    /// The bytes as standard base64, empty when the line was elided.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub base64: String,
 }
 
 /// `kind: "dropped"`: what a writer's share of the cap deleted.
