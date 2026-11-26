@@ -1,8 +1,13 @@
-//! One SMTP session: the connection, `STARTTLS`, `AUTH PLAIN` and the envelope, over
-//! [`nvs_host`]'s parking stream.
+//! One SMTP session: the connection, implicit TLS or `STARTTLS`, `AUTH PLAIN` or `AUTH LOGIN`, and
+//! the envelope, over [`nvs_host`]'s parking stream.
 //!
 //! [`deliver`] is the whole exchange for one message. The module doc of [`super`] says why a
-//! credential needs TLS, and why a block with no credential stays in the clear.
+//! credential needs TLS, and why a block with no credential and no `tls` stays in the clear.
+//!
+//! **Nothing is sent that the server will refuse part of.** A message over the `SIZE` the server
+//! advertised gets no `MAIL FROM`, and a rejected recipient ends the transaction with `RSET`
+//! before `DATA`, naming every address the server rejected. Sending to the rest is declined: a
+//! program that wants that sends one message per recipient.
 
 use std::io::{Read, Write};
 use std::net::SocketAddr;
@@ -10,11 +15,56 @@ use std::time::Instant;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use nvs_config::mail::{Auth, Tls};
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Fault, ThrownClass};
 
 use super::Endpoint;
+
+/// Who the message is from and to, as the server sees it: `MAIL FROM` and every `RCPT TO`.
+pub(super) struct Envelope<'a> {
+    /// The envelope sender — the block's `return_path`, with the call's bounce tag when it has one.
+    pub(super) sender: &'a str,
+    /// Every `to`, `cc` and `bcc` address, in that order.
+    pub(super) recipients: &'a [String],
+}
+
+/// The longest bounce tag, which keeps the tagged local part inside RFC 5321's 64 octets for an
+/// ordinary `return_path`.
+const BOUNCE_TAG_CEILING: usize = 64;
+
+/// The envelope sender for `return_path` and the call's `tag`: `return_path` itself without one,
+/// and `local+tag@domain` with one.
+///
+/// The program chooses only the tag. The local part and the domain stay the operator's, so the
+/// envelope identity cannot be moved to another domain.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` for a tag that is empty, longer than [`BOUNCE_TAG_CEILING`], or holds
+/// anything but `A-Z a-z 0-9 . _ -`.
+pub(super) fn bounce_sender(
+    return_path: &str,
+    tag: Option<&str>,
+    member: &str,
+) -> Result<String, Fault> {
+    let Some(tag) = tag else {
+        return Ok(return_path.to_owned());
+    };
+    let allowed = |byte: &u8| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
+    if tag.is_empty() || tag.len() > BOUNCE_TAG_CEILING || !tag.bytes().all(|byte| allowed(&byte))
+    {
+        return Err(Fault::thrown(format!(
+            "{member}: `bounceTag` is `{}`. A bounce tag has 1 to {BOUNCE_TAG_CEILING} letters, \
+             digits, dots, underscores or hyphens.",
+            tag.escape_debug()
+        )));
+    }
+    // `return_path` came through `address_of`, so it has exactly one `@`.
+    let (local, domain) = return_path.rsplit_once('@').unwrap_or((return_path, ""));
+    Ok(format!("{local}+{tag}@{domain}"))
+}
 
 /// One SMTP conversation over [`nvs_host`]'s parking stream.
 ///
@@ -45,7 +95,7 @@ struct Session {
 /// of memory footprint, which the ordering says not to chase.
 #[allow(clippy::large_enum_variant)]
 enum Wire {
-    /// Before `STARTTLS`, and for the whole of a session with no credential.
+    /// Before `STARTTLS`, and for the whole of a session with `tls = "none"`.
     Plain(NvsTcp),
     /// After it. Every wait inside is still [`nvs_host::net`]'s park, which
     /// [`nvs_host::tls`]'s module doc is the home of.
@@ -77,18 +127,50 @@ impl Write for Wire {
     }
 }
 
+/// A TLS session over `stream`, verified against the name the operator wrote
+/// as `host` and against the block's `tls_ca_file` when it names one.
+///
+/// The certificate is checked against that name, the same rule
+/// `crate::http::transport` states: the address was derived from it and
+/// answers for nothing on its own. A `tls_ca_file` replaces the compiled-in
+/// anchors for this block alone ([`nvs_host::tls`]'s module doc is why it
+/// replaces rather than adds).
+///
+/// # Errors
+///
+/// A catchable `IOError` when the handshake does not complete, including a
+/// certificate that does not verify.
+fn handshake(stream: NvsTcp, endpoint: &Endpoint, member: &str) -> Result<NvsTls, Fault> {
+    let name = endpoint.host.as_str();
+    match &endpoint.ca_file {
+        Some(bundle) => NvsTls::over_bundle(stream, name, bundle),
+        None => NvsTls::over(stream, name),
+    }
+    .map_err(|why| {
+        Fault::thrown_as(
+            ThrownClass::Io,
+            format!("{member}: the TLS handshake with `{name}` did not complete — {why}"),
+        )
+    })
+}
+
 impl Session {
-    /// The connected session, with the server's banner already accepted.
+    /// The connected session, with the server's banner already accepted, and
+    /// over TLS from the first byte when the block's `tls` is `implicit`.
     ///
-    /// Every wait of the exchange ends at `until`: the connect, the banner,
-    /// each command and the `DATA` body, and the TLS session over the same
-    /// socket after `STARTTLS`.
+    /// Every wait of the exchange ends at `until`: the connect, the handshake,
+    /// the banner, each command and the `DATA` body.
     ///
     /// # Errors
     ///
-    /// A catchable `IOError` for a socket that will not open and for a banner
-    /// that is not a 220.
-    fn open(address: SocketAddr, until: Instant, member: &str) -> Result<Self, Fault> {
+    /// A catchable `IOError` for a socket that will not open, a handshake that
+    /// does not complete, and a banner that is not a 220.
+    fn open(
+        address: SocketAddr,
+        endpoint: &Endpoint,
+        until: Instant,
+        member: &str,
+    ) -> Result<Self, Fault> {
         let budget = until.saturating_duration_since(Instant::now());
         let mut stream = NvsTcp::connect_timeout(address, budget).map_err(|why| {
             Fault::thrown_as(
@@ -97,16 +179,26 @@ impl Session {
             )
         })?;
         stream.set_deadline(Some(until));
+        let stream = if endpoint.tls == Tls::Implicit {
+            Wire::Secured(handshake(stream, endpoint, member)?)
+        } else {
+            Wire::Plain(stream)
+        };
         let mut session = Self {
-            stream: Wire::Plain(stream),
+            stream,
             held: Vec::new(),
         };
         session.expect(220, "the greeting", member)?;
         Ok(session)
     }
 
-    /// The same conversation over TLS: `STARTTLS`, a handshake verified against
-    /// `name`, and the session that answers on the other side of it.
+    /// Whether the session runs over TLS, from the first byte or after `STARTTLS`.
+    fn secured(&self) -> bool {
+        matches!(self.stream, Wire::Secured(_))
+    }
+
+    /// The same conversation over TLS: `STARTTLS`, a handshake verified by
+    /// [`handshake`], and the session that answers on the other side of it.
     ///
     /// Taken by value, which is the property rather than a style choice — the
     /// plaintext session is gone by the time this returns, so no later step can
@@ -116,9 +208,8 @@ impl Session {
     ///
     /// A catchable `IOError` when the endpoint refuses `STARTTLS`, when it sends
     /// anything between agreeing to it and the handshake, and when the handshake
-    /// does not complete — including a certificate that does not verify against
-    /// [`nvs_host::tls`]'s compiled-in anchors.
-    fn secure(mut self, name: &str, member: &str) -> Result<Self, Fault> {
+    /// does not complete — including a certificate that does not verify.
+    fn secure(mut self, endpoint: &Endpoint, member: &str) -> Result<Self, Fault> {
         self.command("STARTTLS", 220, "the upgrade", member)?;
         // The whole reason `held` is inspected anywhere. A man in the middle
         // who writes commands *after* the endpoint's 220 and before the
@@ -143,14 +234,8 @@ impl Session {
                 format!("{member}: the session is already secured"),
             ));
         };
-        let secured = NvsTls::over(stream, name).map_err(|why| {
-            Fault::thrown_as(
-                ThrownClass::Io,
-                format!("{member}: the TLS handshake with `{name}` did not complete — {why}"),
-            )
-        })?;
         Ok(Self {
-            stream: Wire::Secured(secured),
+            stream: Wire::Secured(handshake(stream, endpoint, member)?),
             held: Vec::new(),
         })
     }
@@ -158,7 +243,7 @@ impl Session {
     /// One command, and the lines of the reply it was answered with.
     ///
     /// `line` never reaches a diagnostic — `what` names the step instead —
-    /// because one of the commands this sends is `AUTH PLAIN`.
+    /// because some of the commands this sends carry the credential.
     ///
     /// # Errors
     ///
@@ -171,6 +256,26 @@ impl Session {
         what: &str,
         member: &str,
     ) -> Result<Vec<String>, Fault> {
+        self.send(line, what, member)?;
+        self.expect(want, what, member)
+    }
+
+    /// One command, and the code and lines of whatever the server replied.
+    ///
+    /// # Errors
+    ///
+    /// [`command`](Self::command)'s, except that no code is an error.
+    fn ask(&mut self, line: &str, what: &str, member: &str) -> Result<(i64, Vec<String>), Fault> {
+        self.send(line, what, member)?;
+        self.reply(what, member)
+    }
+
+    /// Writes `line` and its terminator.
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` when the write fails.
+    fn send(&mut self, line: &str, what: &str, member: &str) -> Result<(), Fault> {
         self.stream
             .write_all(format!("{line}\r\n").as_bytes())
             .and_then(|()| self.stream.flush())
@@ -179,8 +284,7 @@ impl Session {
                     ThrownClass::Io,
                     format!("{member} could not send {what}: {why}"),
                 )
-            })?;
-        self.expect(want, what, member)
+            })
     }
 
     /// Reads one whole reply, holds it to `want`, and answers with its lines —
@@ -193,6 +297,24 @@ impl Session {
     /// server's own sentence, because that is the only part of the failure the
     /// operator did not already write.
     fn expect(&mut self, want: i64, what: &str, member: &str) -> Result<Vec<String>, Fault> {
+        let (code, reply) = self.reply(what, member)?;
+        if code != want {
+            let line = reply.last().map_or("", String::as_str);
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{member}: the endpoint refused {what} — {line}"),
+            ));
+        }
+        Ok(reply)
+    }
+
+    /// Reads one whole reply, and answers with its code and its lines.
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` for a closed connection, a reply that is not
+    /// three digits, and a reply past [`REPLY_LINES`].
+    fn reply(&mut self, what: &str, member: &str) -> Result<(i64, Vec<String>), Fault> {
         let mut reply = Vec::new();
         loop {
             if reply.len() == REPLY_LINES {
@@ -219,14 +341,8 @@ impl Session {
                 })?;
             // A continuation line writes `250-`; the last one writes `250 `.
             if line.as_bytes().get(3) != Some(&b'-') {
-                if code != want {
-                    return Err(Fault::thrown_as(
-                        ThrownClass::Io,
-                        format!("{member}: the endpoint refused {what} — {line}"),
-                    ));
-                }
                 reply.push(line);
-                return Ok(reply);
+                return Ok((code, reply));
             }
             reply.push(line);
         }
@@ -312,6 +428,82 @@ fn plain(user: &str, password: &str) -> String {
     STANDARD.encode(format!("\0{user}\0{password}"))
 }
 
+/// Whether `mechanism` is among those the `AUTH` line of `extensions` offers.
+fn offers(extensions: &[String], mechanism: &str) -> bool {
+    advertised(extensions, "AUTH").is_some_and(|mechanisms| {
+        mechanisms
+            .split_ascii_whitespace()
+            .any(|offered| offered.eq_ignore_ascii_case(mechanism))
+    })
+}
+
+/// Sends the credential with the block's `auth`, or with `PLAIN` when the server offers it and
+/// `LOGIN` when it offers only that.
+///
+/// # Errors
+///
+/// A catchable `IOError` when the server does not offer the mechanism the block names, offers
+/// neither, or refuses the credential. The credential never reaches the message.
+fn authenticate(
+    session: &mut Session,
+    endpoint: &Endpoint,
+    extensions: &[String],
+    (user, password): (&str, &str),
+    member: &str,
+) -> Result<(), Fault> {
+    let host = &endpoint.host;
+    let mechanism = match endpoint.auth {
+        Some(Auth::Plain) if offers(extensions, "PLAIN") => Auth::Plain,
+        Some(Auth::Login) if offers(extensions, "LOGIN") => Auth::Login,
+        Some(named) => {
+            let word = if named == Auth::Plain { "PLAIN" } else { "LOGIN" };
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{member}: `[mail]` sends the credential with `AUTH {word}`, and {host} does \
+                     not offer it. Nothing was sent."
+                ),
+            ));
+        }
+        None if offers(extensions, "PLAIN") => Auth::Plain,
+        None if offers(extensions, "LOGIN") => Auth::Login,
+        None => {
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{member}: {host} offers neither `AUTH PLAIN` nor `AUTH LOGIN` over TLS. \
+                     Nothing was sent."
+                ),
+            ));
+        }
+    };
+    match mechanism {
+        Auth::Plain => {
+            session.command(
+                &format!("AUTH PLAIN {}", plain(user, password)),
+                235,
+                "the credential",
+                member,
+            )?;
+        }
+        Auth::Login => {
+            session.command("AUTH LOGIN", 334, "the login", member)?;
+            session.command(&STANDARD.encode(user), 334, "the user", member)?;
+            session.command(&STANDARD.encode(password), 235, "the credential", member)?;
+        }
+    }
+    Ok(())
+}
+
+/// The `SIZE` limit in `extensions`, when the server advertises one that is not zero.
+///
+/// RFC 1870 makes `SIZE 0` and a bare `SIZE` mean "no fixed limit".
+fn size_limit(extensions: &[String]) -> Option<u64> {
+    advertised(extensions, "SIZE")
+        .and_then(|limit| limit.trim().parse::<u64>().ok())
+        .filter(|limit| *limit > 0)
+}
+
 /// The `MAIL FROM` command for `from` and `recipients`, given the `extensions` the session's
 /// last `EHLO` advertised.
 ///
@@ -354,18 +546,18 @@ fn envelope_sender(
 /// # Errors
 ///
 /// A catchable `IOError` for anything the endpoint said or did — see
-/// [`Session`] — and for an endpoint that cannot carry a configured credential:
-/// the module doc's § *A credential asks for TLS* is why that is a refusal here
-/// rather than a send in the clear.
+/// [`Session`] — for an endpoint that cannot carry the TLS the block asks for,
+/// for a message over the advertised `SIZE`, and for a rejected recipient,
+/// naming every one. In each of these cases no `DATA` is sent.
 pub(super) fn deliver(
     address: SocketAddr,
     endpoint: &Endpoint,
     until: Instant,
-    envelope: &[String],
+    envelope: &Envelope<'_>,
     message: &str,
     member: &str,
 ) -> Result<(), Fault> {
-    let mut session = Session::open(address, until, member)?;
+    let mut session = Session::open(address, endpoint, until, member)?;
     // The domain the operator's own `from` names, so nothing about the host
     // serving the request is announced to the relay.
     let domain = endpoint
@@ -375,58 +567,85 @@ pub(super) fn deliver(
     let greeting = format!("EHLO {domain}");
     let mut extensions = session.command(&greeting, 250, "the greeting", member)?;
 
-    if let Some((user, password)) = &endpoint.credential {
+    if endpoint.tls == Tls::StartTls {
         if advertised(&extensions, "STARTTLS").is_none() {
             return Err(Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
-                    "{member}: `[mail]` configures a credential for {} and that endpoint offers \
-                     no `STARTTLS`, so there is nothing to send one under — nothing was sent",
+                    "{member}: `[mail]` needs TLS for {} and that endpoint offers no \
+                     `STARTTLS`. Nothing was sent.",
                     endpoint.host
                 ),
             ));
         }
-        // The certificate is checked against the name the *operator* wrote, the
-        // same rule `crate::http::transport` states: the address was derived
-        // from that name and answers for nothing on its own.
-        session = session.secure(&endpoint.host, member)?;
+        session = session.secure(endpoint, member)?;
         // A second `EHLO`, because the extension list belongs to the session and
         // this is a new one — an endpoint that offers `AUTH` only once the
         // stream is secured is the ordinary case, not an unusual one.
-        let secured = session.command(&greeting, 250, "the greeting", member)?;
-        let offers_plain = advertised(&secured, "AUTH").is_some_and(|mechanisms| {
-            mechanisms
-                .split_ascii_whitespace()
-                .any(|mechanism| mechanism.eq_ignore_ascii_case("PLAIN"))
-        });
-        if !offers_plain {
+        extensions = session.command(&greeting, 250, "the greeting", member)?;
+    }
+
+    if let Some((user, password)) = &endpoint.credential {
+        // `endpoint_of` refuses a credential with `tls = "none"`. This is the
+        // second lock on the same door, at the place the password is written.
+        if !session.secured() {
             return Err(Fault::thrown_as(
                 ThrownClass::Io,
                 format!(
-                    "{member}: {} offers no `AUTH PLAIN` over TLS, and this transport has no \
-                     second mechanism — nothing was sent",
+                    "{member}: the session with {} is not secured, and a password is never sent \
+                     without TLS. Nothing was sent.",
                     endpoint.host
                 ),
             ));
         }
-        session.command(
-            &format!("AUTH PLAIN {}", plain(user, password)),
-            235,
-            "the credential",
-            member,
-        )?;
-        extensions = secured;
+        authenticate(&mut session, endpoint, &extensions, (user, password), member)?;
     }
 
-    let mail_from = envelope_sender(&endpoint.from, envelope, &extensions, &endpoint.host, member)?;
+    // `DATA` sends the message and the five bytes that end it.
+    let size = u64::try_from(message.len() + 5).unwrap_or(u64::MAX);
+    if let Some(limit) = size_limit(&extensions).filter(|limit| size > *limit) {
+        let _ = session.stream.write_all(b"QUIT\r\n");
+        return Err(Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member}: the message is {size} bytes, and {} accepts at most {limit}. Nothing \
+                 was sent.",
+                endpoint.host
+            ),
+        ));
+    }
+
+    let mail_from = envelope_sender(
+        envelope.sender,
+        envelope.recipients,
+        &extensions,
+        &endpoint.host,
+        member,
+    )?;
     session.command(&mail_from, 250, "the envelope sender", member)?;
-    for recipient in envelope {
-        session.command(
-            &format!("RCPT TO:<{recipient}>"),
-            250,
-            "a recipient",
-            member,
-        )?;
+    let mut rejected = Vec::new();
+    for recipient in envelope.recipients {
+        let (code, reply) = session.ask(&format!("RCPT TO:<{recipient}>"), "a recipient", member)?;
+        // 251 is "not local, will forward", which is an acceptance.
+        if code != 250 && code != 251 {
+            let said = reply.last().map_or("", String::as_str);
+            rejected.push(format!("{recipient} ({said})"));
+        }
+    }
+    if !rejected.is_empty() {
+        // The transaction ends here, so the server forgets the recipients it
+        // did accept and nobody gets part of a message.
+        let _ = session.command("RSET", 250, "the reset", member);
+        let _ = session.stream.write_all(b"QUIT\r\n");
+        return Err(Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member}: {} rejected {} recipient(s): {}. Nothing was sent.",
+                endpoint.host,
+                rejected.len(),
+                rejected.join(", ")
+            ),
+        ));
     }
     session.command("DATA", 354, "the body", member)?;
     session
@@ -449,6 +668,8 @@ pub(super) fn deliver(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
     use std::time::Duration;
 
     use super::*;
@@ -508,7 +729,8 @@ mod tests {
                 drop(stream.read_to_end(&mut rest));
             });
             let until = Instant::now() + Duration::from_secs(10);
-            let Err(fault) = Session::open(address, until, "Core\\Mail::send") else {
+            let Err(fault) = Session::open(address, &block(Tls::None), until, "Core\\Mail::send")
+            else {
                 panic!("a greeting past its cap was read");
             };
             assert!(format!("{fault:?}").contains(refused), "{fault:?}");
@@ -577,5 +799,436 @@ mod tests {
             said.contains("josé@xn--bcher-kva.example") && said.contains("SMTPUTF8"),
             "{said}"
         );
+    }
+
+    /// A `[mail.<name>]` block that reaches `localhost` with `tls`, and nothing else set.
+    fn block(tls: Tls) -> Endpoint {
+        Endpoint {
+            host: "localhost".to_owned(),
+            port: 0,
+            from: "noreply@example.com".to_owned(),
+            from_name: None,
+            timeout: Duration::from_secs(10),
+            credential: None,
+            tls,
+            ca_file: None,
+            auth: None,
+            return_path: "noreply@example.com".to_owned(),
+        }
+    }
+
+    /// A stream the fake server reads and writes, plain or TLS.
+    trait Duplex: Read + Write {}
+    impl<T: Read + Write> Duplex for T {}
+
+    /// What the fake server does: TLS from the first byte or after `STARTTLS`, the extensions its
+    /// `EHLO` reply lists, and the recipients it rejects.
+    #[derive(Default)]
+    struct Fake {
+        implicit: bool,
+        starttls: bool,
+        extensions: &'static [&'static str],
+        reject: &'static [&'static str],
+        certificate: Option<Arc<rustls::ServerConfig>>,
+    }
+
+    /// A self-signed certificate for `localhost`, the server's configuration that presents it, and
+    /// a scratch PEM file holding it for a `tls_ca_file`.
+    fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("a loopback certificate");
+        let config = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .expect("the shipped versions")
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![issued.cert.der().clone()],
+            rustls::pki_types::PrivateKeyDer::Pkcs8(rustls::pki_types::PrivatePkcs8KeyDer::from(
+                issued.signing_key.serialize_der(),
+            )),
+        )
+        .expect("the certificate and its key");
+        let dir = nvs_repo::scratch("mail-smtp");
+        let path = dir.join("ca.pem");
+        std::fs::write(&path, issued.cert.pem()).expect("the bundle");
+        (Arc::new(config), dir, path)
+    }
+
+    fn say(wire: &mut dyn Duplex, line: &str) -> std::io::Result<()> {
+        wire.write_all(format!("{line}\r\n").as_bytes())?;
+        wire.flush()
+    }
+
+    fn hear(wire: &mut dyn Duplex) -> Option<String> {
+        let mut line = Vec::new();
+        let mut byte = [0_u8; 1];
+        loop {
+            match wire.read(&mut byte) {
+                Ok(1) if byte[0] == b'\n' => break,
+                Ok(1) => line.push(byte[0]),
+                _ => return None,
+            }
+        }
+        if line.last() == Some(&b'\r') {
+            line.pop();
+        }
+        Some(String::from_utf8_lossy(&line).into_owned())
+    }
+
+    /// One SMTP session on a loopback port, served as `fake` says. The thread returns every line
+    /// the client sent, with a message body written as `<body>`.
+    fn serve(fake: Fake) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let address = listener.local_addr().expect("its address");
+        let thread = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            let Ok((socket, _)) = listener.accept() else {
+                return seen;
+            };
+            drop(socket.set_nonblocking(false));
+            drop(socket.set_read_timeout(Some(Duration::from_secs(10))));
+            let secure = |socket: &std::net::TcpStream| -> Option<Box<dyn Duplex>> {
+                let config = Arc::clone(fake.certificate.as_ref()?);
+                let session = rustls::ServerConnection::new(config).ok()?;
+                Some(Box::new(rustls::StreamOwned::new(
+                    session,
+                    socket.try_clone().ok()?,
+                )))
+            };
+            let mut wire: Box<dyn Duplex> = if fake.implicit {
+                match secure(&socket) {
+                    Some(wire) => wire,
+                    None => return seen,
+                }
+            } else {
+                Box::new(socket.try_clone().expect("a second handle"))
+            };
+            let mut secured = fake.implicit;
+            if say(&mut *wire, "220 fake.example ready").is_err() {
+                return seen;
+            }
+            while let Some(line) = hear(&mut *wire) {
+                seen.push(line.clone());
+                let upper = line.to_ascii_uppercase();
+                let reply = if upper.starts_with("EHLO") {
+                    let mut words = vec!["fake.example"];
+                    if fake.starttls && !secured {
+                        words.push("STARTTLS");
+                    }
+                    words.extend(fake.extensions);
+                    let last = words.len() - 1;
+                    words
+                        .iter()
+                        .enumerate()
+                        .map(|(at, word)| format!("250{}{word}", if at == last { ' ' } else { '-' }))
+                        .collect::<Vec<_>>()
+                        .join("\r\n")
+                } else if upper == "STARTTLS" {
+                    if say(&mut *wire, "220 go ahead").is_err() {
+                        break;
+                    }
+                    match secure(&socket) {
+                        Some(upgraded) => {
+                            wire = upgraded;
+                            secured = true;
+                            continue;
+                        }
+                        None => break,
+                    }
+                } else if upper == "AUTH LOGIN" {
+                    let mut answers = Vec::new();
+                    for prompt in ["334 VXNlcm5hbWU6", "334 UGFzc3dvcmQ6"] {
+                        if say(&mut *wire, prompt).is_err() {
+                            break;
+                        }
+                        let Some(answer) = hear(&mut *wire) else {
+                            break;
+                        };
+                        answers.push(answer);
+                    }
+                    seen.extend(answers);
+                    "235 accepted".to_owned()
+                } else if upper.starts_with("AUTH ") {
+                    "235 accepted".to_owned()
+                } else if upper.starts_with("RCPT TO:") {
+                    let address = line[8..].trim_matches(|c| c == '<' || c == '>');
+                    if fake.reject.contains(&address) {
+                        "550 no such user".to_owned()
+                    } else {
+                        "250 ok".to_owned()
+                    }
+                } else if upper == "DATA" {
+                    if say(&mut *wire, "354 go ahead").is_err() {
+                        break;
+                    }
+                    while hear(&mut *wire).is_some_and(|body| body != ".") {}
+                    seen.push("<body>".to_owned());
+                    "250 queued".to_owned()
+                } else if upper == "QUIT" {
+                    drop(say(&mut *wire, "221 bye"));
+                    break;
+                } else {
+                    "250 ok".to_owned()
+                };
+                if say(&mut *wire, &reply).is_err() {
+                    break;
+                }
+            }
+            seen
+        });
+        (address, thread)
+    }
+
+    /// [`deliver`] of a short message to `ada@example.com` from `sender`.
+    fn send_to(
+        address: SocketAddr,
+        endpoint: &Endpoint,
+        sender: &str,
+        recipients: &[String],
+        message: &str,
+    ) -> Result<(), Fault> {
+        deliver(
+            address,
+            endpoint,
+            Instant::now() + Duration::from_secs(10),
+            &Envelope { sender, recipients },
+            message,
+            "Core\\Mail::send",
+        )
+    }
+
+    fn ada() -> Vec<String> {
+        vec!["ada@example.com".to_owned()]
+    }
+
+    const MESSAGE: &str = "Subject: hi\r\n\r\nhello";
+
+    /// `tls = "implicit"`, the default on port 465, starts the handshake before the server's
+    /// greeting. A server that answers in plain text gets no `EHLO`.
+    // covers: Core\Mail::send
+    #[test]
+    fn port_465_speaks_tls_from_the_first_byte() {
+        let (certificate, _dir, ca) = localhost();
+        let mut endpoint = block(Tls::Implicit);
+        endpoint.ca_file = Some(ca);
+        let (address, server) = serve(Fake {
+            implicit: true,
+            certificate: Some(certificate),
+            ..Fake::default()
+        });
+        send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE)
+            .expect("the message is sent over TLS");
+        let seen = server.join().expect("the server");
+        assert_eq!(seen.first().map(String::as_str), Some("EHLO example.com"));
+        assert!(seen.contains(&"<body>".to_owned()), "{seen:?}");
+
+        assert_eq!(
+            nvs_config::mail::tls_from(None, 465, false),
+            Some(Tls::Implicit)
+        );
+        let (address, server) = serve(Fake::default());
+        let sent = send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE);
+        assert!(sent.is_err(), "a plain server was read as TLS");
+        let seen = server.join().expect("the server");
+        assert!(!seen.iter().any(|line| line.starts_with("EHLO")), "{seen:?}");
+    }
+
+    /// `tls = "starttls"` with no credential still needs TLS: a server without `STARTTLS` gets no
+    /// `MAIL FROM`, and a certificate the built-in anchors do not sign stops the send.
+    // covers: Core\Mail::send
+    #[test]
+    fn starttls_without_a_credential_is_required_and_verified() {
+        let endpoint = block(Tls::StartTls);
+        let (address, server) = serve(Fake::default());
+        let Err(fault) = send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE) else {
+            panic!("a server with no STARTTLS was sent the message");
+        };
+        assert!(format!("{fault:?}").contains("STARTTLS"), "{fault:?}");
+        let seen = server.join().expect("the server");
+        assert!(!seen.iter().any(|line| line.starts_with("MAIL")), "{seen:?}");
+
+        let (certificate, _dir, _ca) = localhost();
+        let (address, server) = serve(Fake {
+            starttls: true,
+            certificate: Some(certificate),
+            ..Fake::default()
+        });
+        let Err(fault) = send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE) else {
+            panic!("a certificate nobody signed was accepted");
+        };
+        assert!(format!("{fault:?}").contains("TLS handshake"), "{fault:?}");
+        let seen = server.join().expect("the server");
+        assert!(!seen.iter().any(|line| line.starts_with("MAIL")), "{seen:?}");
+    }
+
+    /// A `tls_ca_file` makes the block trust the certificate it names. It replaces the built-in
+    /// anchors, so a file that names another certificate fails.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_tls_ca_file_replaces_the_anchors_for_one_block() {
+        let (certificate, _dir, ca) = localhost();
+        let (_other, _other_dir, other_ca) = localhost();
+        let mut endpoint = block(Tls::StartTls);
+        endpoint.ca_file = Some(ca);
+        let (address, server) = serve(Fake {
+            starttls: true,
+            certificate: Some(Arc::clone(&certificate)),
+            ..Fake::default()
+        });
+        send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE)
+            .expect("the private CA signs the certificate");
+        let seen = server.join().expect("the server");
+        assert!(seen.contains(&"<body>".to_owned()), "{seen:?}");
+
+        endpoint.ca_file = Some(other_ca);
+        let (address, server) = serve(Fake {
+            starttls: true,
+            certificate: Some(certificate),
+            ..Fake::default()
+        });
+        assert!(
+            send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE).is_err(),
+            "a CA file of another certificate was accepted"
+        );
+        drop(server.join());
+    }
+
+    /// A server that offers only `LOGIN` gets the user and the password, each base64 on its own
+    /// line.
+    // covers: Core\Mail::send
+    #[test]
+    fn auth_login_is_used_when_plain_is_not_offered() {
+        let (certificate, _dir, ca) = localhost();
+        let mut endpoint = block(Tls::Implicit);
+        endpoint.ca_file = Some(ca);
+        endpoint.credential = Some(("app".to_owned(), "hunter2".to_owned()));
+        let (address, server) = serve(Fake {
+            implicit: true,
+            extensions: &["AUTH LOGIN"],
+            certificate: Some(certificate),
+            ..Fake::default()
+        });
+        send_to(address, &endpoint, "noreply@example.com", &ada(), MESSAGE)
+            .expect("the credential is sent with LOGIN");
+        let seen = server.join().expect("the server");
+        let login = seen
+            .iter()
+            .position(|line| line == "AUTH LOGIN")
+            .expect("AUTH LOGIN was sent");
+        assert_eq!(seen[login + 1], STANDARD.encode("app"));
+        assert_eq!(seen[login + 2], STANDARD.encode("hunter2"));
+        assert!(!seen.iter().any(|line| line.starts_with("AUTH PLAIN")));
+    }
+
+    /// A message larger than the advertised `SIZE` throws an `IOError` with both sizes, and the
+    /// server gets no `MAIL FROM` and no `DATA`.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_message_over_the_advertised_size_sends_no_data() {
+        let (address, server) = serve(Fake {
+            extensions: &["SIZE 100"],
+            ..Fake::default()
+        });
+        let message = "x".repeat(495);
+        let Err(fault) = send_to(
+            address,
+            &block(Tls::None),
+            "noreply@example.com",
+            &ada(),
+            &message,
+        ) else {
+            panic!("a message over SIZE was sent");
+        };
+        let said = format!("{fault:?}");
+        assert!(said.contains("500 bytes") && said.contains("at most 100"), "{said}");
+        let seen = server.join().expect("the server");
+        assert!(
+            !seen.iter().any(|line| line.starts_with("MAIL") || line == "DATA"),
+            "{seen:?}"
+        );
+    }
+
+    /// Two rejected recipients out of three: the error names both, the server gets `RSET`, and no
+    /// `DATA` is sent, so the accepted one gets nothing either.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_rejected_recipient_is_named_and_nothing_is_sent() {
+        let (address, server) = serve(Fake {
+            reject: &["bob@example.com", "eve@example.com"],
+            ..Fake::default()
+        });
+        let recipients = [
+            "bob@example.com".to_owned(),
+            "ada@example.com".to_owned(),
+            "eve@example.com".to_owned(),
+        ];
+        let Err(fault) = send_to(
+            address,
+            &block(Tls::None),
+            "noreply@example.com",
+            &recipients,
+            MESSAGE,
+        ) else {
+            panic!("a message with rejected recipients was sent");
+        };
+        let said = format!("{fault:?}");
+        assert!(
+            said.contains("bob@example.com") && said.contains("eve@example.com"),
+            "{said}"
+        );
+        assert!(!said.contains("ada@example.com"), "{said}");
+        let seen = server.join().expect("the server");
+        assert!(seen.contains(&"RSET".to_owned()), "{seen:?}");
+        assert!(!seen.contains(&"DATA".to_owned()), "{seen:?}");
+    }
+
+    /// `MAIL FROM` is the block's `return_path`, and the message's `From:` header is not touched.
+    // covers: Core\Mail::send
+    #[test]
+    fn the_return_path_is_the_envelope_sender() {
+        let mut endpoint = block(Tls::None);
+        endpoint.return_path = "bounces@example.com".to_owned();
+        let sender = bounce_sender(&endpoint.return_path, None, "Core\\Mail::send")
+            .expect("no tag is the return path");
+        assert_eq!(sender, "bounces@example.com");
+        let (address, server) = serve(Fake::default());
+        send_to(address, &endpoint, &sender, &ada(), MESSAGE).expect("the message is sent");
+        let seen = server.join().expect("the server");
+        assert!(
+            seen.contains(&"MAIL FROM:<bounces@example.com>".to_owned()),
+            "{seen:?}"
+        );
+    }
+
+    /// A bounce tag goes after a `+` in the local part of `return_path`.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_bounce_tag_goes_after_a_plus_in_the_return_path() {
+        let member = "Core\\Mail::send";
+        assert_eq!(
+            bounce_sender("bounces@example.com", Some("order-42"), member).ok(),
+            Some("bounces+order-42@example.com".to_owned())
+        );
+        assert_eq!(
+            bounce_sender("b@mail.example.com", Some("A.b_C-9"), member).ok(),
+            Some("b+A.b_C-9@mail.example.com".to_owned())
+        );
+    }
+
+    /// A tag that is empty, too long, or has a character outside `A-Z a-z 0-9 . _ -` throws, so a
+    /// tag can never change the domain or add a second address.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_bounce_tag_with_another_character_throws() {
+        let long = "a".repeat(BOUNCE_TAG_CEILING + 1);
+        for tag in ["", "a b", "x@evil.example", "a+b", "é", "a\r\nRCPT", "a>b", long.as_str()] {
+            let Err(fault) = bounce_sender("bounces@example.com", Some(tag), "Core\\Mail::send")
+            else {
+                panic!("the bounce tag {tag:?} was accepted");
+            };
+            assert!(format!("{fault:?}").contains("bounceTag"), "{fault:?}");
+        }
     }
 }

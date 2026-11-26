@@ -87,6 +87,7 @@ pub mod image;
 pub mod ldap;
 pub mod limits;
 pub mod log;
+pub mod mail;
 pub mod mode;
 pub mod mount;
 pub mod package;

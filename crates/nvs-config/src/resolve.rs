@@ -622,6 +622,8 @@ pub fn resolve(
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // An `[ldap]` block's `tls_ca_file`, by the same check and for the same reason.
     crate::ldap::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // A `[mail]` block's `tls_ca_file`, by the same check and for the same reason.
+    crate::mail::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // `[storage.<name>] root`, by the same rule and for the same reason as a `[db]` path.
     crate::db::canonicalize_storage(&mut resolved.config, &mut resolved.table, &origins);
     // `[http.client.tls] roots`, immediately after the `[db]` bundles and through the same check:
@@ -650,6 +652,9 @@ pub fn resolve(
     // empty password is refused here whichever spelling wrote it
     // (`rule:security/ldap-empty-password-is-refused`).
     crate::ldap::validate(&resolved.config, &origins)?;
+    // The `[mail]` blocks, after the secrets for the same reason: a credential written as
+    // `password_file` is still a credential `tls = "none"` would send in the clear.
+    crate::mail::validate(&resolved.config, &origins)?;
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;

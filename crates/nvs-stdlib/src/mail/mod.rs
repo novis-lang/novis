@@ -48,28 +48,29 @@
 //! covers the real need — answer to the user — and it changes where a reply goes without claiming
 //! who sent it.
 //!
-//! # A credential asks for TLS, and asking for it is what makes it required
+//! # TLS is asked for, and where it is asked for it is required and verified
 //!
-//! A `[mail.<name>]` block that sets `user` and `password` — or `password_file`, the same half of
-//! the credential arriving as an injected file (`rule:config/a-secret-is-a-file-whose-content-is-the-value`) — is sent through `STARTTLS` and
-//! authenticated with `AUTH PLAIN`, and there is no path on which the credential reaches a
-//! plaintext socket: the upgrade is issued after the first `EHLO`, `EHLO` is re-issued over the
-//! secured stream because the extension list is the *session's* and an endpoint offering `AUTH`
-//! only to a secured client is the ordinary case, and an endpoint that advertises neither — or
-//! whose certificate does not verify against [`nvs_host::tls`]'s compiled-in anchors — is refused
-//! with nothing sent.
+//! `[mail.<name>] tls` is `implicit` (TLS from the first byte, RFC 8314's port 465), `starttls`
+//! (the upgrade after the first `EHLO`) or `none`. Unset, it is `implicit` on port 465,
+//! `starttls` when the block sets a credential, and `none` otherwise. A credential — `user` and
+//! `password`, or `password_file`, the same half arriving as an injected file
+//! (`rule:config/a-secret-is-a-file-whose-content-is-the-value`) — beside `tls = "none"` is refused
+//! at boot by [`nvs_config::mail::validate`], again by [`endpoint_of`], and a third time where
+//! [`smtp`] writes the password. So no path sends it to a plaintext socket.
 //!
-//! A block with **no** credential stays in the clear, and that is a decision rather than an
-//! omission. The alternative is opportunistic TLS, which is one of two things: verified, and then
-//! the sidecar relay presenting an internal certificate — the case [`nvs_host::tls`] names as the
-//! operator's and has no `nvs.toml` key for yet — stops working with no remedy in the file that
-//! would hold one; or unverified, which that module has no spelling for and will not grow one,
-//! because a handshake nobody checked is exactly the false confidence
-//! `rule:security/launderers-are-sink-named` refuses to sell.
-//! So TLS here is *asked for*, by configuring the credential that cannot travel without it, and
-//! where it is asked for it is required and verified. Encryption without authentication has no key
-//! today; it belongs beside the anchor bundle that module already names as unlanded, and the two
-//! are one configuration slice.
+//! Every TLS session is verified against the name the operator wrote as `host`, and against
+//! [`nvs_host::tls`]'s compiled-in anchors or the block's `tls_ca_file`, which replaces them for
+//! that block alone. An endpoint that does not offer `STARTTLS` where the block asks for it, or
+//! whose certificate does not verify, is refused with nothing sent. `EHLO` is re-issued over the
+//! secured stream because the extension list is the *session's*, and an endpoint offering `AUTH`
+//! only to a secured client is the ordinary case. The credential goes with `AUTH PLAIN`, or
+//! `AUTH LOGIN` where only that is offered or the block's `auth` names it.
+//!
+//! **Declined: opportunistic TLS.** It is one of two things. Verified, an internal relay with a
+//! certificate the block did not plan for stops working on a setting nobody wrote. Unverified,
+//! it is a handshake nobody checked, which [`nvs_host::tls`] has no spelling for and is the false
+//! confidence `rule:security/launderers-are-sink-named` refuses to sell. So `starttls` with no
+//! credential is the internal-relay case, written out, and verified like any other.
 //!
 //! # Attachments and inline parts are composition, and composition is the program's
 //!
@@ -91,9 +92,11 @@ mod smtp;
 
 use std::cell::Cell;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 use compose::{Mailbox, address_of, compose};
+use nvs_config::mail::{Auth, Tls};
 use nvs_runtime::spool::Outcome;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, TraceKind, Value};
 use nvs_syntax::duration;
@@ -150,6 +153,8 @@ const REFERENCES: usize = 10;
 const UNSUBSCRIBE: usize = 11;
 /// See [`ENDPOINT`].
 const AUTO_SUBMITTED: usize = 12;
+/// See [`ENDPOINT`].
+const BOUNCE_TAG: usize = 13;
 
 /// [`send`](CLASS)'s trailing shape — every header a program may set that is not
 /// required to have a message at all.
@@ -204,6 +209,11 @@ const OPTIONS: &[CoreOption] = &[
         name: "autoSubmitted",
         ty: CoreTy::Bool,
         default: Const::Bool(true),
+    },
+    CoreOption {
+        name: "bounceTag",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
     },
 ];
 
@@ -412,6 +422,14 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    are not sent back. Use `false` for a message that a person wrote.",
             shape: &[],
         },
+        ParamDoc {
+            name: "bounceTag",
+            desc: "A short tag, such as an order number, that is added to the bounce address. \
+                   With `return_path = \"bounces@example.com\"` and the tag `order-42`, a bounce \
+                   goes to `bounces+order-42@example.com`. The tag has 1 to 64 letters, digits, \
+                   dots, underscores or hyphens.",
+            shape: &[],
+        },
     ],
     ret: "The message id, such as `3f2a…@example.com`, without angle brackets. The mail server \
           accepted the message. Store the id to match a reply or a bounce to the message, or to \
@@ -423,18 +441,21 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    block with that name sets `host` or `from`. Or the block sets only one \
                    of `user` and `password`. Or an address is not a valid address. Or \
                    `inReplyTo` or `references` has a value that is not a message id. Or \
-                   `unsubscribe` is not an `https://` URL. Each of these is a mistake in the \
-                   settings or the call, not a failed send.",
+                   `unsubscribe` is not an `https://` URL. Or `bounceTag` has a character that \
+                   is not allowed. Each of these is a mistake in the settings or the call, not a \
+                   failed send.",
         },
         ErrorDoc {
             error: "IOError",
             desc: "The mail server could not be reached, closed the connection, or rejected a \
                    command. In the last case, the message contains the SMTP reply. It is also \
-                   thrown when a block sets a password and the server cannot receive it safely. \
-                   That is when the server has no `STARTTLS`, has no `AUTH PLAIN`, or has a \
-                   certificate that does not verify. In all these cases, nothing is sent \
-                   unencrypted. An address with letters that are not ASCII before the `@` needs \
-                   a server that offers `SMTPUTF8`. With another server, nothing is sent.",
+                   thrown when the block needs TLS and the server has no `STARTTLS`, or has a \
+                   certificate that does not verify. It is thrown when the server offers neither \
+                   `AUTH PLAIN` nor `AUTH LOGIN`, and when the message is larger than the server \
+                   accepts. In all these cases, nothing is sent. If the server rejects a \
+                   recipient, the message names every rejected address, and nobody gets the \
+                   message. An address with letters that are not ASCII before the `@` needs a \
+                   server that offers `SMTPUTF8`. With another server, nothing is sent.",
         },
     ],
 };
@@ -461,9 +482,18 @@ struct Endpoint {
     from_name: Option<String>,
     /// `timeout`, or [`DEFAULT_TIMEOUT`].
     timeout: Duration,
-    /// `user` and `password`, both or neither — the credential `AUTH PLAIN`
-    /// sends, and the thing whose presence asks for `STARTTLS` at all.
+    /// `user` and `password`, both or neither — the credential `AUTH` sends,
+    /// and the thing whose presence asks for TLS when `tls` is unset.
     credential: Option<(String, String)>,
+    /// `tls`, or its default for the port and the credential.
+    tls: Tls,
+    /// `tls_ca_file`, already made absolute and trust-checked by
+    /// [`nvs_config::mail::canonicalize`]. It replaces the compiled-in anchors.
+    ca_file: Option<PathBuf>,
+    /// `auth`, or `None` for `PLAIN` when offered, else `LOGIN`.
+    auth: Option<Auth>,
+    /// `return_path`, or `from` — the envelope sender, where bounces go.
+    return_path: String,
 }
 
 /// The directive `[mail.<name>] key`, with an empty value read as absent.
@@ -507,7 +537,9 @@ fn present(text: String) -> Option<String> {
 /// # Errors
 ///
 /// A catchable `RuntimeError` for an ungranted name, for a block that sets no
-/// `host` or no `from`, and for one that sets half a credential.
+/// `host` or no `from`, for one that sets half a credential, and for a `tls`
+/// or `auth` the boot would have refused, so a configuration that skipped
+/// [`nvs_config::mail::validate`] still never sends a password in the clear.
 fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Fault> {
     nvs_runtime::capability::require(
         ctx,
@@ -563,6 +595,33 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         .filter(|bound| !bound.is_zero())
         .unwrap_or(DEFAULT_TIMEOUT);
 
+    let written_tls = configured(ctx, endpoint, "tls");
+    let tls = match nvs_config::mail::tls_from(written_tls.as_deref(), port, credential.is_some())
+    {
+        Some(Tls::None) if credential.is_some() => {
+            return Err(Fault::thrown(format!(
+                "{member}: `[mail.{endpoint}]` sets `tls = \"none\"` and a credential, and a \
+                 password is never sent without TLS"
+            )));
+        }
+        Some(tls) => tls,
+        None => {
+            return Err(Fault::thrown(format!(
+                "{member}: `[mail.{endpoint}] tls` is not `implicit`, `starttls` or `none`"
+            )));
+        }
+    };
+    let Ok(auth) = nvs_config::mail::auth_from(configured(ctx, endpoint, "auth").as_deref())
+    else {
+        return Err(Fault::thrown(format!(
+            "{member}: `[mail.{endpoint}] auth` is not `plain` or `login`"
+        )));
+    };
+    let return_path = match configured(ctx, endpoint, "return_path") {
+        Some(written) => address_of(&written, "the configured `return_path`", member)?,
+        None => from.clone(),
+    };
+
     Ok(Endpoint {
         host,
         port,
@@ -570,6 +629,10 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         from_name: configured(ctx, endpoint, "from_name"),
         timeout,
         credential,
+        tls,
+        ca_file: configured(ctx, endpoint, "tls_ca_file").map(PathBuf::from),
+        auth,
+        return_path,
     })
 }
 
@@ -704,7 +767,7 @@ fn optional_of(args: &[Value], slot: usize) -> Option<&str> {
 nvs_runtime::nvs_helper! {
     /// `Core\Mail::send(string $endpoint, array<string> $to, string $subject,
     /// string $text, {cc?, bcc?, replyTo?, html?, fromName?, inReplyTo?, references?,
-    /// unsubscribe?, autoSubmitted?}): string` — `rule:programs/framework-core-half`'s transport
+    /// unsubscribe?, autoSubmitted?, bounceTag?}): string` — `rule:programs/framework-core-half`'s transport
     /// half, replacing `mail()`. It returns the `Message-ID` it wrote, without angle brackets.
     ///
     /// The order below is the whole security argument, and it is the order the
@@ -716,7 +779,7 @@ nvs_runtime::nvs_helper! {
     /// A recorded request files one `mail` event for the call
     /// (`rule:observability/trace-events-carry-a-kind`), with the number of recipients and
     /// whether the send returned, and never an address, the subject or the body.
-    fn nvs_core_mail_send(ctx, args: [13]) {
+    fn nvs_core_mail_send(ctx, args: [14]) {
         let member = format!("{NAME}::send");
         let recipients = Cell::new(None);
         crate::site::watched_with(
@@ -796,7 +859,10 @@ fn send(
         ))
     })?;
 
+    let bounce_tag = optional_of(args, BOUNCE_TAG);
+
     let configured = endpoint_of(ctx, endpoint, member)?;
+    let sender = smtp::bounce_sender(&configured.return_path, bounce_tag, member)?;
     let from_name = optional_of(args, FROM_NAME).or(configured.from_name.as_deref());
     let mut random = [0_u8; 16];
     crate::random::draw(ctx, |rng| rand::Rng::fill_bytes(rng, &mut random));
@@ -859,7 +925,17 @@ fn send(
         .off_core_deadline()
         .map_or(until, |wall| until.min(wall));
     resolve(&configured, member, lookup_until).and_then(|address| {
-        smtp::deliver(address, &configured, until, &envelope, &message, member)
+        smtp::deliver(
+            address,
+            &configured,
+            until,
+            &smtp::Envelope {
+                sender: &sender,
+                recipients: &envelope,
+            },
+            &message,
+            member,
+        )
     })?;
     Ok(Value::text(&message_id))
 }

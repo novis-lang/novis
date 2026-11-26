@@ -958,11 +958,11 @@ pub struct LdapDirectory {
 /// [`Database`]'s and for the same reason: the name is the key and the settings are the
 /// operator's alone, so nothing a program writes can reach past this struct.
 ///
-/// `user` and `password` are the pair that asks for TLS: a block naming them is sent through
-/// `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in
-/// the clear. `nvs_stdlib::mail`'s module doc is the home of that decision, including why the
-/// upgrade is not opportunistic. The password is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s kind of value, so `password_file` is
-/// beside it and [`mod@crate::secret`] owns every rule about the pair.
+/// `user` and `password` are the pair that asks for TLS when `tls` is unset, and a credential
+/// beside `tls = "none"` is refused at boot by [`mod@crate::mail`]. `nvs_stdlib::mail`'s module doc
+/// is the home of that decision, including why TLS is never opportunistic. The password is
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s kind of value, so `password_file`
+/// is beside it and [`mod@crate::secret`] owns every rule about the pair.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct MailEndpoint {
@@ -979,7 +979,7 @@ pub struct MailEndpoint {
     /// The submission user. Set with `password` or not at all — half a credential is refused, and a
     /// `password_file` is that half arriving as a file.
     pub user: Option<String>,
-    /// Its password, sent as `AUTH PLAIN` over the `STARTTLS` its presence requires.
+    /// Its password, sent with `AUTH PLAIN` or `AUTH LOGIN`, and only over TLS.
     pub password: Option<String>,
     /// The file whose whole content is the password, on [`Database::password_file`]'s footing and
     /// under every rule [`mod@crate::secret`] states: exactly one of this and `password` may be set,
@@ -988,6 +988,19 @@ pub struct MailEndpoint {
     pub password_file: Option<String>,
     /// How long the whole exchange may take, 30s where the block names none.
     pub timeout: Option<String>,
+    /// `"implicit"`, `"starttls"` or `"none"`. Unset: `implicit` on port 465, `starttls` with a
+    /// credential, `none` otherwise. [`mod@crate::mail`] owns the defaults and the refusals.
+    pub tls: Option<String>,
+    /// The PEM file of trust anchors the relay's certificate is verified against, on
+    /// [`Database::tls_ca_file`]'s footing: it replaces the compiled-in set and is trust-checked at
+    /// boot.
+    pub tls_ca_file: Option<String>,
+    /// `"plain"` or `"login"`, the mechanism the credential is sent with. Unset: `PLAIN` when the
+    /// relay offers it, else `LOGIN`.
+    pub auth: Option<String>,
+    /// The envelope sender, `MAIL FROM`, where bounces go. Unset: `from`. The `From:` header stays
+    /// `from` either way.
+    pub return_path: Option<String>,
 }
 
 /// One `[storage.<name>]` block — `rule:programs/framework-core-half`'s object-storage disk, whose shape is

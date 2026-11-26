@@ -873,14 +873,25 @@
 #from = "noreply@example.com"         # example
 # The name a mail program shows for the sender. A call's `fromName` replaces it, and never `from`.
 #from_name = "Example Shop"           # default: the address alone
+# The envelope sender, where bounces go. The `From:` header stays `from`. A call's `bounceTag`
+# writes `local+tag@domain` of this address.
+#return_path = "bounces@example.com"  # default: `from`
 #timeout = "30s"                      # default
-# `user` and `password` are the pair that asks for TLS: a block naming them is sent through
-# `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in the
+# `user` and `password` are the pair that asks for TLS: a block naming them is never sent in the
 # clear. Half a credential is refused. `password_file` is `[db.<name>]`'s, under the same rule and
 # with the same audit property.
 #user = "app"                         # example
 #password = "s3cret"                  # example
 #password_file = "/run/secrets/mail-default"  # example
+# `implicit` speaks TLS from the first byte, as port 465 does. `starttls` upgrades the connection
+# before anything else is sent, and refuses a relay that cannot. `none` is the clear, and is refused
+# beside a credential. TLS is always verified.
+#tls = "starttls"                     # default: `implicit` on port 465, `starttls` with a credential, else `none`
+# A PEM file of the certificates that sign the relay's, for a private CA. It replaces the built-in
+# set for this block. A relative path is read from the folder of the file that names it.
+#tls_ca_file = "certs/mail-ca.pem"    # default: the built-in Mozilla set
+# How the credential is sent: `plain` or `login`. Both need TLS.
+#auth = "login"                       # default: `plain` when the relay offers it, else `login`
 
 
 # ----------------------------------------------------------------------------------------------
