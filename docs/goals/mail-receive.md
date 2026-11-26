@@ -325,22 +325,25 @@ Gate: `docs/goals/mail-complete.md` does not exist.
 fragments are written, and the website section to a second; their files are disjoint. Each brief
 names AGENTS.md § *Text an end user reads*.
 
-- [ ] `docs/rules/core-classes/mail-receive.md:1` (new), `docs/rules/core-classes/imap.md:1` (new),
+- [x] `docs/rules/core-classes/mail-receive.md:1` (new), `docs/rules/core-classes/imap.md:1` (new),
   `docs/rules/core-api/tier-roster.md:20` and `docs/rules/testing/a-test-reads-its-logs-and-mail.md:7`,
   then `bun nv rules`.
-- [ ] The feature proofs `bun nv proofs --owed --goal mail-receive` names. The examples it will need
+- [x] The feature proofs `bun nv proofs --owed --goal mail-receive` names. The examples it will need
   include: a scheduled script that reads a noreply mailbox and marks each delivery bounced or
   answered by `answers()` and `bounceTag()`; parsing the raw message a webhook posts; showing a
   received HTML body through `Core\Html::sanitize`. Benches: parsing a typical message, and
   classifying a delivery report. Attacks: a message nested past the bound, a message with many
   parts, an attachment named `../../etc/passwd`, a folder name that tries to end the IMAP command, a
   tainted endpoint name.
-- [ ] `website/src/content/docs/guides/how-to-use/sending-mail.mdx`: a section "Reading bounces and
+- [x] `website/src/content/docs/guides/how-to-use/sending-mail.mdx`: a section "Reading bounces and
   replies", or a page of its own if the section passes the page's length.
-- [ ] `docs/reference/tools/20-config.md:1`: `[imap.<name>]` and the grant.
+- [x] `docs/reference/tools/20-config.md:1`: `[imap.<name>]` and the grant.
 - [ ] `website/src/data/changes.json:1`: entries `new` `Core\Mail\Message::parse`, `new`
   `Core\Mail\Kind`, `new` `Core\Mail\Report`, `new` `Core\Imap`, `new` `[imap]` settings. Then
   `bun nv site --check stale`, `changes` and `review` green.
+  - [x] The four `new` entries, and `site --check changes` green.
+  - [ ] The newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) of every text
+    `site --review` lists, and each stamped; then `site --check stale`, `questions` and `review`.
 - [ ] `bun nv proofs --owed --goal mail-receive` names nothing.
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -352,40 +355,62 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 4 are done. `Core\Imap\Folder` has `move`, `markSeen`, `markUnseen`, `flag`,
-`unflag` and `delete` (`imap/mod.rs`, over `Session::store`, `move_to`, `delete` and
-`uid_expunge` in `imap/session.rs`). `Held` is over a `Backend` enum: a server `Session` or a
-`directory::Directory` (`imap/directory.rs`). § *`Core\Imap`* records the decisions made in
-this stage. All 16 `imap::` lib tests are green, among them the six `imap-write` tests. So are
-`ext_world`, `tier_boundary`, `taint_signatures` (it gained a `KEYS_FROM` row for
-`Folder::search`) and `conformance_coverage`. The four `imap-a-directory-*.nvst` cases pass
-under `nvs test`, the `imap-novis` case among them.
+Stages 1 to 4 are done, and stage 5 is done but for the newcomer review. Landed in stage 5:
+- The rules `rule:core-classes/mail-receive` and `rule:core-classes/imap` (fragments under
+  `docs/rules/core-classes/`, records under `data/rules/core-classes/`), the two roster placements,
+  and the directory-block sentence in `rule:testing/a-test-reads-its-logs-and-mail`. `rules --check`
+  is green.
+- The feature proofs of all 46 features the goal reached: about.md, examples, attacks, benches and
+  new `mail-message-*`, `mail-classify-*`, `mail-report-*` and `mail-address-*` cases. Three Rust
+  tests gained `// covers:` lines. Every perf figure is recorded (`78a4ce9274`).
+  `bun nv proofs --owed --goal mail-receive` now names only `reviewed`, 46 times.
+- The website page `website/src/content/docs/guides/how-to-use/receiving-mail.mdx` (its own page:
+  the sending page was 193 lines), with snippets under
+  `website/snippets/guides/how-to-use/receiving-mail/`, linked from `sending-mail.mdx`, the guide
+  index and `website/astro.config.ts`. `site --check snippets` is green.
+- `docs/reference/tools/20-config.md`: the `[imap.<name>]` row, the `imap.connect` grant, the three
+  secret keys. `changes.json`: four `new` entries, and `site --check changes` is green.
 
-The sweep's CI run 45813627231 tested `4e43e1fa2e`. Its Miri failures (zoned `DateTime` in
-`json.rs`, `iso.rs` and `routes.rs`) were fixed later by `c115a735a1`. Its Uuid `Parses` case
-under `NOVIS_CHECK_TYPES` was fixed by `28a4d7a6bf`, and it passes here. What is still open from
-that run is the `serve` pages test, listed in the backlog below.
+Expected red until the review: `site --check stale` (the new page's ids are never stamped),
+`review` and `questions`, and the proofs gate's `reviewed` column. Not run: any test suite.
 
-Expected red until stage 5: the proof
-checks over every new member (`Core\Mail\Message::*`, `Core\Imap*`, `Core\Mail\Report*`,
-`Core\Mail\Address::address` and `::name`, `Core\Mail\Attachment::name` and `::bytes`),
-`rules --check` on `rule:core-classes/mail-receive` and `/imap`, and `site --check stale`,
-`changes` and `shots`.
+Without `--nvs target/debug/nvs.exe`, `bun nv proofs --bless` and `--run` build `--profile proof`
+first, and two sessions building at once is a HANG on the build lock.
 
 ### Next
 
-Stage 5, per its `**Split:**` line. First, the rule fragments
-`docs/rules/core-classes/mail-receive.md` and `docs/rules/core-classes/imap.md` (new), from §
-*Standing decisions*, including stage 4's three "Built in stage 4" bullets. Then the placements in
-`docs/rules/core-api/tier-roster.md:20`, the one sentence in
-`docs/rules/testing/a-test-reads-its-logs-and-mail.md:7` (a test uses a directory block), and
-`bun nv rules`. Then `bun nv proofs --owed --goal mail-receive` for the list. The examples, attacks
-and benches go to one writing subagent, and the website section in `sending-mail.mdx` to a second
-(each brief names AGENTS.md § *Text an end user reads* and the page's `website/snippets/` folder).
-After those: `docs/reference/tools/20-config.md` (`[imap.<name>]`, `directory`, the grant),
-`changes.json`, then `site --check stale`, `questions`, `changes` and `review`.
+Finish stage 5's last item, then stage 6:
+1. The newcomer review, per `docs/agent/prose.md` § *A newcomer reads it*: `bun nv site --review`,
+   save the key list once to `.agent-tmp/`, batches of 20 to `reader` subagents, fix every finding,
+   then stamp only the saved keys. Then `site --check stale`, `questions` (stamp each page with
+   `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`) and `review` green, and tick the item.
+2. Stage 6 fixes the goal's own bugs the proof agents found (the first list under § *Backlog*),
+   each with a test, before the gate's run.
 
 ### Backlog
+
+Found by stage 5's proof agents in this goal's own code. Stage 6 fixes each, with a test:
+- `crates/nvs-stdlib/src/mail/receive.rs:571`: `date()` never range-checks the offset from
+  `mail-parser`: `+2400` reads as UTC and `+0199` as `+01:39`. It should be `null`. A 20-digit year
+  reads as 9999-01-01.
+- `receive.rs:604`: `Message-ID: <a@b> <c@d>` gives `c@d`, the last id; the first is meant.
+- `receive.rs:550`: a received address is kept if not empty, so `<ada>` and `<ada lovelace@x>` pass.
+- `classify.rs:611`: `Final-Recipient: rfc822; <ada@example.org> extra` keeps `> extra` in the
+  address; `bare_address` (`:652`) would fix it.
+- `classify.rs:564`: the doc says groups are read "after the first", and the code never skips the
+  per-message group.
+- `classify.rs:584`: a folded continuation line has no size bound and does not count toward the
+  1,000 lines; a 1 MB `Diagnostic-Code` is read whole.
+- `classify.rs:427`: `is_permanent` is `starts_with("5.")`, so `5.` is permanent and `5` is not.
+- `imap/directory.rs:386`: a `Date` that `date()` reads as `null` still matches both `since` and
+  `before` in a directory search (`tests/hostile/core/Imap-Folder/search/mailbox/INBOX/3.eml`).
+- `imap/directory.rs:159` and `imap/mod.rs:969`: `flag` takes a keyword of any length, so one
+  1 MB keyword pushes `<uid>.flags` past `FLAGS_CEILING` and every later flag call on that message
+  throws. `flag_of` should bound a keyword.
+- `imap/directory.rs:281`: on Windows `folder('INBOX.')` and `folder('INBOX ')` open `INBOX`; on
+  Linux both are an `IOError`. `is_folder_name` should refuse a trailing dot or space.
+- Unbounded but within the memory limit: addresses in one header (`receive.rs:536`) and ids in
+  `References` (`:560`). Decide a bound or record why none.
 
 Left by `mail-complete`, about sending. A session of this goal that touches the file takes each.
 
