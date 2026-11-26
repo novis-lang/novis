@@ -48,13 +48,13 @@ checks:
     stage: 1
     name: "every message has a Message-ID on the from domain that send returns, a display name is encoded and never adds a header, thread headers take only message ids, unsubscribe writes both headers over https only, and an international domain is sent as punycode"
     run: [cargo, test, --lib, "mail::"]
-    tests: [a_message_has_a_message_id_on_the_from_domain, send_returns_the_message_id, the_from_name_is_encoded_and_the_address_is_the_blocks, a_recipient_name_is_encoded_and_cannot_add_a_header, in_reply_to_and_references_take_only_message_ids, unsubscribe_writes_both_headers_and_takes_only_https, an_international_domain_is_sent_as_punycode, a_non_ascii_local_part_needs_smtputf8]
+    tests: [a_message_has_a_message_id_on_the_from_domain, send_returns_the_message_id, the_from_name_is_encoded_and_the_address_is_the_blocks, a_recipient_name_is_encoded_and_cannot_add_a_header, in_reply_to_and_references_take_only_message_ids, unsubscribe_writes_both_headers_and_takes_only_https, auto_submitted_is_written_unless_turned_off, an_international_domain_is_sent_as_punycode, a_non_ascii_local_part_needs_smtputf8]
     timeout: 1800
   - id: transport
     stage: 2
-    name: "port 465 speaks TLS from the first byte, tls = starttls without a credential is required and verified, tls_ca_file replaces the anchors for one block, AUTH LOGIN is used where PLAIN is not offered, and a message over the advertised SIZE sends no DATA"
+    name: "port 465 speaks TLS from the first byte, tls = starttls without a credential is required and verified, tls_ca_file replaces the anchors for one block, AUTH LOGIN is used where PLAIN is not offered, a message over the advertised SIZE sends no DATA, and the envelope sender is return_path with an optional bounce tag"
     run: [cargo, test, --lib, "mail::"]
-    tests: [port_465_speaks_tls_from_the_first_byte, starttls_without_a_credential_is_required_and_verified, a_tls_ca_file_replaces_the_anchors_for_one_block, auth_login_is_used_when_plain_is_not_offered, a_message_over_the_advertised_size_sends_no_data, a_rejected_recipient_is_named_and_nothing_is_sent]
+    tests: [port_465_speaks_tls_from_the_first_byte, starttls_without_a_credential_is_required_and_verified, a_tls_ca_file_replaces_the_anchors_for_one_block, auth_login_is_used_when_plain_is_not_offered, a_message_over_the_advertised_size_sends_no_data, a_rejected_recipient_is_named_and_nothing_is_sent, the_return_path_is_the_envelope_sender, a_bounce_tag_goes_after_a_plus_in_the_return_path, a_bounce_tag_with_another_character_throws]
     timeout: 1800
   - id: pool
     stage: 3
@@ -149,6 +149,10 @@ HTML string, and nothing else:
 - **One TCP and TLS handshake per message**, so a batch of 1,000 pays 1,000 handshakes.
 - **The hard parts are left to the developer:** CSS inlining for mail clients that drop `<style>`,
   a plain-text version of the HTML, `cid:` images, RFC 2231 file names, one-click unsubscribe.
+- **A program cannot match a bounce or a reply to the mail it sent.** A user needs to mark each
+  stored delivery bounced or answered: that takes the `Message-ID` back from `send`, a bounce address
+  that names the delivery, and no out-of-office replies to a noreply sender. Reading the answers is
+  the goal `mail-receive`, behind this one.
 
 ## Standing decisions
 
@@ -163,11 +167,13 @@ $subject, string|Core\Html\Markup $body, {options}): string`.
 - `$body` a `string` sends `text/plain`. `$body` a `Core\Html\Markup` sends HTML with a plain-text
   alternative built from it. A tainted string is a string, so it is sent as text and can never be
   HTML. That is the conformance case `mail-a-tainted-string-is-sent-as-plain-text`.
-- It returns the `Message-ID` it wrote, without angle brackets, so a program can store it and pass
-  it to `inReplyTo` later.
+- It returns the `Message-ID` it wrote, without angle brackets, so a program can store it, pass it
+  to `inReplyTo` later, and match a bounce or a reply to it. A `messageId` option a program fills is
+  declined: a random id cannot collide or be guessed, and the returned one serves every use.
 - The options: `cc`, `bcc`, `replyTo` (each `string|Core\Mail\Address`), `text` (replaces the
   generated plain text; a `RuntimeError` with a string body), `fromName`, `attachments`
-  (`array<Core\Mail\Attachment>`), `inReplyTo`, `references` (`array<string>`), `unsubscribe`.
+  (`array<Core\Mail\Attachment>`), `inReplyTo`, `references` (`array<string>`), `unsubscribe`,
+  `autoSubmitted` (`bool`, default `true`), `bounceTag`.
 - `Core\Mail\Address::of(string $address, string $name)` is a named address. A plain string stays an
   address only, never parsed for a name (`rule:errors/ambiguous-input-refused`).
 - Pre-alpha: the old `text` positional and `html` option are removed, with no alias
@@ -184,6 +190,10 @@ $subject, string|Core\Html\Markup $body, {options}): string`.
 - `unsubscribe: string` takes an `https://` URL and writes `List-Unsubscribe: <url>` and
   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). Another scheme is a
   `RuntimeError`. No `mailto:` form.
+- `Auto-Submitted: auto-generated` (RFC 3834) is on every message unless `autoSubmitted: false`.
+  Most mail a web app sends is automatic, and the header stops out-of-office replies from coming back
+  to a noreply sender. `false` is for mail a person wrote, such as a helpdesk agent's answer. The
+  user chose on by default.
 - A non-ASCII domain is sent as punycode through the `idna` crate (already pulled in through
   `url` by stage 5's `css-inline`; stage 1 adds it directly). A non-ASCII local part is sent only
   when the server advertises `SMTPUTF8`, with `MAIL FROM:<…> SMTPUTF8`; otherwise an `IOError`
@@ -201,6 +211,12 @@ $subject, string|Core\Html\Markup $body, {options}): string`.
   over TLS, as today.
 - `SIZE`: when the server advertises a limit and the message is larger, an `IOError` names both
   sizes and no `DATA` is sent.
+- `return_path` (default: `from`) is the envelope sender, `MAIL FROM`; the `From:` header stays
+  `from`. The option `bounceTag: string` sends `MAIL FROM:<local+tag@domain>` of `return_path`, so a
+  bounce names the delivery in its address even when a server strips the original headers. The tag
+  is `A-Z a-z 0-9 . _ -`, 1 to 64 characters, and anything else is a `RuntimeError`. The program
+  chooses only the tag, never the local part or the domain, so the envelope identity stays the
+  operator's. The user chose this shape.
 - A rejected `RCPT` stays all-or-nothing: the session sends `RSET`, and the `IOError` names every
   rejected address. Sending to part of a list is declined: a program that wanted that sends one
   message per recipient.
@@ -304,14 +320,15 @@ a password-reset link must not land on disk. The viewer gets a Mail page (route 
 in an `<iframe sandbox>` (no scripts, no remote loads), its text, headers, attachments as downloads
 and the CSS report. `Core\Test\SentMail` gains `messageId()`, `fromName()`, `attachments()`
 (`array<Core\Mail\Attachment>`, with `name()`, `type()`, `bytes()` and `isInline()`), `inReplyTo()`,
-`references()` and `unsubscribe()`; `html()` and `text()` return what was sent.
+`references()`, `unsubscribe()`, `autoSubmitted()` and `bounceTag()`; `html()` and `text()` return
+what was sent.
 
 **Background sending is not a new member.** `Core\Task::runAfterResponse` already sends after the
 page is out (`website/src/content/docs/guides/walkthroughs/after-response.mdx`), and `Core\Queue`
 retries. The about.md and the how-to page show both.
 
-**Out of scope, declined:** receiving mail (IMAP, parsing inbound messages), S/MIME and PGP, a
-`mailto:` unsubscribe, partial sends, a free-form header map.
+**Out of scope, declined:** S/MIME and PGP, a `mailto:` unsubscribe, partial sends, a free-form
+header map. Receiving mail is the goal `mail-receive`, behind this one.
 
 **Rules.** `rule:programs/framework-core-half` changes its `Core\Mail` row. A new fragment
 `docs/rules/core-classes/mail-message.md` holds the call, the headers, the parts, CSS inlining, the
@@ -342,21 +359,22 @@ because they share `compose.rs` and `smtp.rs`.
   `send` returns the id (`mail.rs:179`, `return_ty`). `rule:programs/framework-core-half`.
 - [ ] `crates/nvs-config/src/tree.rs:957` and `crates/nvs-config/src/default.toml:864`: `from_name`.
 - [ ] `crates/nvs-stdlib/src/mail.rs:148` (`OPTIONS`): `fromName`, `inReplyTo`, `references`,
-  `unsubscribe`; `Core\Mail\Address` as a new class row; `cc`, `bcc`, `replyTo` and `$to` take
-  `string|Core\Mail\Address`.
+  `unsubscribe`, `autoSubmitted`; `Core\Mail\Address` as a new class row; `cc`, `bcc`, `replyTo`
+  and `$to` take `string|Core\Mail\Address`.
 - [ ] `crates/nvs-stdlib/src/mail.rs:474` (`address_of`): punycode for a non-ASCII domain; a
   non-ASCII local part is kept for `SMTPUTF8`, checked in `deliver` (`mail.rs:1054`).
-- [ ] The eight tests of the check `headers`, then `cargo test --lib mail::` once.
+- [ ] The nine tests of the check `headers`, then `cargo test --lib mail::` once.
 
 ### 2. a block reaches a server on port 465, with STARTTLS and no password, with its own CA, and with AUTH LOGIN, and an oversized message sends no DATA
 
-- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `tls`, `tls_ca_file`, `auth`, each
-  with its default and settings errors per § *Transport*.
+- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `tls`, `tls_ca_file`, `auth` and
+  `return_path`, each with its default and settings errors per § *Transport*; the `bounceTag` option
+  in `OPTIONS` (`mail.rs:148`).
 - [ ] `crates/nvs-stdlib/src/mail.rs:821` (`Session::open`) and `:851` (`secure`): implicit TLS, and
   `over_bundle` (`crates/nvs-host/src/tls.rs:241`) for `tls_ca_file`.
-- [ ] `crates/nvs-stdlib/src/mail.rs:1054` (`deliver`): `AUTH LOGIN`, `SIZE`, and `RSET` with every
-  rejected address named.
-- [ ] The six tests of the check `transport` over the fake server of `mail.rs:1327`, then
+- [ ] `crates/nvs-stdlib/src/mail.rs:1054` (`deliver`): `AUTH LOGIN`, `SIZE`, `RSET` with every
+  rejected address named, and `MAIL FROM` from `return_path` and the bounce tag.
+- [ ] The nine tests of the check `transport` over the fake server of `mail.rs:1327`, then
   `cargo test --lib mail::` once.
 
 ### 3. a send reuses an open connection to its block, under the bounds [db.<name>.pool] has
@@ -471,8 +489,10 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 Written by an interactive session on 2026-11-26 from the user's ask: mail must have everything a web
 app needs, with helpers for what is hard by hand, and CSS inlining that a developer knows about and
 knows how to use. The user agreed to the gap list, to `Core` composing the message and to CSS
-inlining. Every other choice under § *Standing decisions* is the session's, including XOAUTH2 in
-scope, the pool, DKIM, `preview`, and the `string|Core\Html\Markup` body. Nothing is built. The
+inlining. A user report then added: `Auto-Submitted` on by default and `return_path` with
+`bounceTag` (both the user's calls), and receiving mail as the goal `mail-receive`. Every other choice
+under § *Standing decisions* is the session's, including XOAUTH2 in scope, the pool, DKIM,
+`preview`, the returned (never given) `Message-ID`, and the `string|Core\Html\Markup` body. Nothing is built. The
 anchors were read on that day, before the module split.
 
 ### Next

@@ -1,0 +1,291 @@
+---
+looper: 1
+title: "a program reads a mailbox over IMAP, parses each message, and knows whether it is a bounce, an auto-reply or a reply to a mail it sent"
+summary: "Reached when Core\\Mail\\Message::parse reads a raw message into tainted headers, parts and attachments, classifies it as a bounce, a delay, a complaint, an auto-reply, a reply or other with the Message-ID it answers and each bounced recipient's status, Core\\Imap reads, searches, fetches, moves, flags and deletes over an operator-named [imap.<name>] block or a directory, and the rules, the feature proofs and the website say so."
+context: [docs/rules/core-classes/mail-message.md, docs/rules/core-classes/mail-transport.md, docs/rules/core-api/tier-roster.md, crates/nvs-stdlib/src/mail/mod.rs]
+stages:
+  - id: 1
+    title: "Core\\Mail\\Message::parse reads a raw message into tainted headers, parts and attachments, within bounds"
+    status: open
+    context: [Cargo.toml, crates/nvs-stdlib/Cargo.toml, crates/nvs-stdlib/src/mail/parts.rs, crates/nvs-stdlib/src/zip.rs]
+  - id: 2
+    title: "a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status"
+    status: open
+  - id: 3
+    title: "Core\\Imap opens an operator-named block, lists folders, searches and fetches a parsed message"
+    status: open
+    context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/default.toml, crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-stdlib/src/mail/oauth.rs, crates/nvs-host/src/tls.rs]
+  - id: 4
+    title: "Core\\Imap moves, flags and deletes, and a directory block serves tests and local work"
+    status: open
+    context: [crates/nvs-config/src/tree.rs]
+  - id: 5
+    title: "the rules, the reference, the examples, the feature proofs and the website say so"
+    status: open
+    context: [website/src/content/docs/guides/how-to-use/sending-mail.mdx, website/src/data/changes.json, docs/agent/prose.md]
+  - id: 6
+    title: "the goal is verified once, and every failure is fixed"
+    status: open
+    gate: true
+checks:
+  - id: parse
+    stage: 1
+    name: "parse reads headers, encoded words, the text and HTML bodies and attachments, every value is tainted, an attachment name is its last path segment, and nesting, part count and header count stop at their bounds"
+    run: [cargo, test, --lib, "mail::"]
+    tests: [parse_reads_the_headers_and_decodes_encoded_words, parse_reads_the_text_and_the_html_body, parse_reads_attachments_and_inline_parts, an_attachment_name_is_its_last_path_segment, a_name_with_nothing_left_is_null, parse_stops_at_the_nesting_bound, parse_stops_at_the_part_count_bound, a_message_with_no_headers_is_an_empty_message, parse_never_panics_on_the_fuzz_corpus]
+    timeout: 1800
+  - id: parse-taint
+    stage: 1
+    name: "every value a parsed message returns is tainted, and its HTML cannot reach a response without Core\\Html::sanitize"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/mail-message-parse-returns-tainted-values.nvst]
+    timeout: 900
+  - id: classify
+    stage: 2
+    name: "a delivery report is a bounce or a delay with each recipient's action, status and diagnostic, a feedback report is a complaint, an auto-reply is known by its headers, a reply by In-Reply-To, and answers() returns the original Message-ID"
+    run: [cargo, test, --lib, "mail::"]
+    tests: [a_failed_delivery_report_is_a_bounce, a_delayed_only_report_is_a_delay, each_recipient_has_its_action_status_and_diagnostic, a_5xx_status_is_permanent_and_a_4xx_is_not, a_bounce_answers_the_message_id_in_its_returned_headers, a_feedback_report_is_a_complaint, an_auto_submitted_message_is_an_auto_reply, each_auto_reply_header_in_the_table_is_recognized, a_message_with_in_reply_to_is_a_reply_and_answers_it, a_message_with_none_of_these_is_other, the_bounce_tag_is_read_from_delivered_to]
+    timeout: 1800
+  - id: imap-read
+    stage: 3
+    name: "Core\\Imap speaks implicit TLS and STARTTLS with PLAIN, LOGIN and XOAUTH2, lists folders in modified UTF-7, searches by its filters, fetches a parsed message, reports UIDVALIDITY, and a folder name cannot inject a command"
+    run: [cargo, test, --lib, "imap::"]
+    tests: [imap_speaks_tls_from_the_first_byte_on_993, imap_starttls_is_required_and_verified, imap_signs_in_with_plain_login_and_xoauth2, folders_are_listed_and_decoded_from_modified_utf7, search_sends_each_filter_and_returns_uids, fetch_returns_a_parsed_message_with_its_uid, uid_validity_is_returned, a_folder_name_is_sent_as_a_literal_or_quoted_string, a_message_over_the_request_ceiling_is_an_error_before_it_is_read, the_session_closes_when_the_request_ends]
+    timeout: 1800
+  - id: imap-write
+    stage: 4
+    name: "move uses MOVE or copy and expunge, a flag is set and cleared, delete expunges only its own uid, and a directory block does each on files"
+    run: [cargo, test, --lib, "imap::"]
+    tests: [move_uses_move_when_offered, move_falls_back_to_copy_and_uid_expunge, a_flag_is_set_and_cleared, delete_expunges_only_its_own_uid, a_directory_block_lists_its_subdirectories_as_folders, a_directory_block_moves_flags_and_deletes_files]
+    timeout: 1800
+  - id: imap-novis
+    stage: 4
+    name: "a Novis program reads a directory mailbox, classifies a bounce and moves it"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst]
+    timeout: 900
+  - id: proofs
+    stage: 5
+    name: "every feature the goal's work reached has its feature proofs"
+    run: [bun, nv, proofs, --gate, --goal, mail-receive]
+    timeout: 1800
+  - id: close
+    stage: 6
+    name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
+    run: [bun, nv, close, --goal, mail-receive]
+    timeout: 900
+---
+
+# a program reads a mailbox over IMAP, parses each message, and knows whether it is a bounce, an auto-reply or a reply to a mail it sent
+
+## Why
+
+A user's framework sends every mail from a noreply address and stores each delivery as a row. A relay
+accepts most mail, and the receiving server rejects it later: that bounce, every out-of-office
+answer and every reply land in the noreply mailbox. The framework wants a scheduled script that reads
+that mailbox and marks each delivery bounced or answered. Novis reads no mailbox and parses no
+message, so today it reads the mailbox through a provider's HTTP API.
+
+`mail-complete` gives the sending half: `send` returns the `Message-ID`, `Auto-Submitted` stops most
+out-of-office answers, and `bounceTag` puts the delivery into the bounce address. This goal is the
+receiving half. The user chose all three pieces below.
+
+There are many ways an app receives mail: polling a mailbox over IMAP, a provider's webhook that
+posts the raw message, a provider's HTTP API that returns it, or a mail server that pipes each
+message into a command. All of them end in the same raw message, so the parser serves every way, and
+IMAP is the one way to fetch that every provider supports.
+
+## Standing decisions
+
+**Placement.** `rule:core-api/tier-roster`: `Core\Imap` is Native by test 3, as `Core\Mail`'s
+transport is, because it waits on the outside world. `Core\Mail\Message::parse` reads hostile bytes
+(test 5), and is Core despite that for `Core\Zip`'s reason: an attachment name's `../` is policy, and
+policy must not be optional. The roster gains both lines in stage 5.
+
+**Left out, declined into the rule's Declined list:** Novis as a receiving SMTP server on port 25
+(spam, abuse and open-relay risk for a feature few apps need), POP3, JMAP, IMAP `IDLE` (a script
+polls on a `[[schedule]]`; a held connection needs a socket isolate), a provider's own webhook JSON,
+and guessing a bounce from a message that is not a delivery report.
+
+**The parser (stage 1).** `mail-parser` 1.x (Apache-2.0 OR MIT, no dependencies, fuzzed by its
+authors), wrapped so the program sees Novis types only. Fallback, if it cannot honour the bounds
+below: wrap its output and count before descending, never patch the crate.
+- `Core\Mail\Message::parse(bytes $raw): Core\Mail\Message`. It never throws on a malformed
+  message: a missing header is `null` or an empty array, and a broken part is skipped. A program
+  reading a mailbox must be able to read every message in it.
+- The readers: `messageId(): ?string`, `from(): ?Core\Mail\Address`, `to()`, `cc()` and
+  `replyTo()` (`array<Core\Mail\Address>`), `subject(): string`, `date(): ?Core\Time\DateTime`,
+  `header(string $name): array<string>` (every value, decoded), `inReplyTo(): ?string`,
+  `references(): array<string>`, `text(): ?string`, `html(): ?string`, `attachments():
+  array<Core\Mail\Attachment>`, `raw(): bytes`.
+- **Every value is tainted.** `html()` is a tainted string, never `Core\Html\Markup`: a page shows
+  it through `Core\Html::sanitize` (`crates/nvs-stdlib/src/html.rs:263`). The conformance case
+  `mail-message-parse-returns-tainted-values` pins it.
+- An attachment's `name()` is the last path segment of its decoded name, with control bytes removed,
+  and `null` when nothing is left. `Core\Zip`'s traversal rule is the model; a received name is
+  repaired, not refused, because the program reads a message it did not write and must still reach
+  the other parts.
+- **Bounds, counted before descending:** 16 levels of nesting, 1,000 parts, 1,000 header lines per
+  part. A part past a bound is skipped and the message keeps what came before. The raw bytes are
+  already within the request's memory ceiling. Memory: the parsed message, freed with its last
+  reference.
+- A fuzz target beside the existing ones (`crates/nvs-fuzz-checks/`), and the test
+  `parse_never_panics_on_the_fuzz_corpus` runs its corpus.
+
+**Classifying (stage 2).**
+- `kind(): Core\Mail\Kind`, an enum: `Bounce` (a `multipart/report; report-type=delivery-status`,
+  RFC 3464, with at least one `failed` recipient), `Delay` (a delivery report whose recipients are
+  all `delayed`), `Complaint` (`report-type=feedback-report`, RFC 5965), `AutoReply`, `Reply` (has
+  `In-Reply-To`), `Other`. Checked in that order, and the first match is the kind.
+- `AutoReply`: `Auto-Submitted` present and not `no` (RFC 3834), or one of a fixed table of headers
+  that common auto-responders write (`X-Autoreply`, `X-Autorespond`, `Precedence: auto_reply`,
+  `X-Auto-Response-Suppress` with `OOF`). Each table row is one test. A row is added only with a
+  sample message that needs it.
+- `answers(): ?string`, the `Message-ID` of the mail this one is about: for a bounce, a delay and a
+  complaint, the `Message-ID` in the returned original (`text/rfc822-headers` or `message/rfc822`
+  part); otherwise `In-Reply-To`, then the last `References` entry.
+- `report(): ?Core\Mail\Report`, for a delivery report: `recipients(): array<Core\Mail\ReportRecipient>`,
+  each with `address()` (`Final-Recipient`), `action()` (`Core\Mail\ReportAction`: `Failed`,
+  `Delayed`, `Delivered`, `Relayed`, `Expanded`), `status()` (`"5.1.1"`), `isPermanent()` (status
+  class 5) and `diagnostic(): ?string` (`Diagnostic-Code`).
+- `bounceTag(): ?string`: the `+tag` of the first `Delivered-To`, else `X-Original-To`, else `To`
+  address that has one, when the tag fits `mail-complete`'s tag rule; otherwise `null`. It is the
+  other half of `send`'s `bounceTag`.
+- A bounce that is not a delivery report is `Other`. Guessing from a subject or a sender is declined:
+  `rule:errors/ambiguous-input-refused`, and the large senders all write RFC 3464.
+
+**`Core\Imap` (stages 3 and 4).** The shape is `[mail.<name>]`'s.
+- `[imap.<name>]` in `crates/nvs-config/src/tree.rs` (beside `mail`, `:113`) and `default.toml`:
+  `host`, `port` (default 993), `tls` (`implicit` default, `starttls`; no plaintext), `tls_ca_file`,
+  `user` with `password` or `password_file`, or `mail-complete`'s `oauth_*` keys, `timeout`, and
+  `directory` (stage 4). A grant `imap` lists the block names a program may open (`tree.rs:343`
+  beside `mail`). The endpoint name is a `Qual::Sink`, as `Core\Mail`'s is.
+- `Core\Imap::open(string $endpoint): Core\Imap\Mailbox`. `Mailbox` has `folders(): array<string>`
+  and `folder(string $name): Core\Imap\Folder`. `Folder` has `uidValidity(): int`, `search({unseen,
+  since, before, from, subject, limit}): array<int>` (UIDs, oldest first), `fetch(int $uid):
+  Core\Mail\Message` (with `uid()`), and in stage 4 `move(int $uid, string $folder)`,
+  `markSeen(int $uid)`, `markUnseen(int $uid)`, `flag(int $uid, string $flag)`, `unflag(int $uid,
+  string $flag)` and `delete(int $uid)`.
+- The protocol: `imap-codec` 1.x (MIT OR Apache-2.0), which encodes and decodes without doing IO,
+  driven over `NvsTcp` and `NvsTls` as `mail/smtp.rs` drives SMTP. A folder name and every search
+  string are encoded by the codec as a quoted string or a literal, so no value can end a command.
+  Folder names are decoded from modified UTF-7.
+- One connection per `open`, closed when the request or run ends (state lives as long as its
+  request). No pool: a script polls, and a mailbox session holds a selected folder.
+- `fetch` reads `RFC822.SIZE` first; a message larger than the request's remaining memory is an
+  `IOError` before its body is read. `move` uses `MOVE` (RFC 6851) when offered, else `COPY` and
+  `UID EXPUNGE` (RFC 4315) of that one UID. `delete` sets `\Deleted` and runs `UID EXPUNGE` of that
+  one UID, never a plain `EXPUNGE`.
+- **The directory block** (stage 4): `[imap.<name>] directory = "path"` reads a folder of folders
+  instead of a server. Each subdirectory is a folder, each `<uid>.eml` file a message, flags live in
+  `<uid>.flags` beside it, and `move` and `delete` rename and remove files. Under `fs.read` and
+  `fs.write` for that path. A test and local development use it with no server, as a capture block
+  does for sending. `uidValidity()` is 1.
+- Under `nvs test`, a server block is opened like any other network door: a test uses a directory
+  block, and `rule:testing/a-test-reads-its-logs-and-mail` gains one sentence saying so.
+
+**Cost.** The parse and the classification run per message read, never on the request path of an
+app that does not receive mail; a program that never calls them pays nothing. Two dependencies,
+`mail-parser` and `imap-codec`, with no network or async code of their own.
+
+**Rules.** A new fragment `docs/rules/core-classes/mail-receive.md` holds the parser, its bounds,
+taint, the kinds, the report and § *Declined*. A new fragment `docs/rules/core-classes/imap.md`
+holds the block, the grant, the API, the directory block and its Declined list.
+`rule:core-api/tier-roster` gains the two placements.
+
+**What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
+attempt is written to `### Backlog` with what blocked it.
+
+**Lanes.** On the chain behind `mail-complete`, which it builds on: `crates/nvs-stdlib/src/mail/`,
+`Core\Mail\Address`, `Core\Mail\Attachment`, the oauth module and the bounce tag. Gate: the file
+`docs/goals/mail-complete.md` no longer exists. Stages 1 and 2 touch `mail/receive.rs`; stages 3 and
+4 touch `crates/nvs-stdlib/src/imap/` and `crates/nvs-config/`, so stage 3 may run beside stage 2 in
+a worktree.
+
+## Stages
+
+### 1. Core\Mail\Message::parse reads a raw message into tainted headers, parts and attachments, within bounds
+
+Gate: `docs/goals/mail-complete.md` does not exist.
+
+- [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `mail-parser = "1"`.
+- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1` (new): `Core\Mail\Message` and `parse`, the readers,
+  taint on every text, per § *The parser*.
+- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: attachment names, after the traversal check of
+  `crates/nvs-stdlib/src/zip.rs:2160`; the three bounds.
+- [ ] `crates/nvs-fuzz-checks/`: a `mail_parse` target and a seed corpus of neutral messages.
+- [ ] `tests/conformance/core/mail-message-parse-returns-tainted-values.nvst:1` (new).
+- [ ] The nine tests of the check `parse`, then `cargo test --lib mail::` once.
+
+### 2. a parsed message is classified, names the Message-ID it answers, and a delivery report gives each recipient's status
+
+- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: `Core\Mail\Kind` and `kind()`, the auto-reply
+  table, per § *Classifying*.
+- [ ] `crates/nvs-stdlib/src/mail/receive.rs:1`: `report()`, `Core\Mail\Report`,
+  `Core\Mail\ReportRecipient`, `Core\Mail\ReportAction`, `answers()` and `bounceTag()`.
+- [ ] Neutral sample messages for each kind under `crates/nvs-stdlib/src/mail/samples/` (written by
+  hand, never copied from a real mailbox).
+- [ ] The eleven tests of the check `classify`, then `cargo test --lib mail::` once.
+
+### 3. Core\Imap opens an operator-named block, lists folders, searches and fetches a parsed message
+
+- [ ] `crates/nvs-config/src/tree.rs:113` and `:343`, `crates/nvs-config/src/default.toml:864`:
+  `[imap.<name>]` and the grant `imap`, with their settings errors.
+- [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `imap-codec = "1"`.
+- [ ] `crates/nvs-stdlib/src/imap/mod.rs:1` and `session.rs:1` (new): the class rows, `open`, TLS,
+  sign-in over `mail/oauth.rs`, `folders`, `folder`, `uidValidity`, `search`, `fetch`.
+- [ ] The ten tests of the check `imap-read` against a fake IMAP server in the test module, then
+  `cargo test --lib imap::` once.
+
+### 4. Core\Imap moves, flags and deletes, and a directory block serves tests and local work
+
+- [ ] `crates/nvs-stdlib/src/imap/session.rs:1`: `move`, `markSeen`, `markUnseen`, `flag`, `unflag`,
+  `delete`, per § *`Core\Imap`*.
+- [ ] `crates/nvs-stdlib/src/imap/directory.rs:1` (new) and `crates/nvs-config/src/tree.rs:113`: the
+  `directory` key and every `Folder` member over files.
+- [ ] `tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst:1` (new),
+  with its mailbox of neutral `.eml` files.
+- [ ] The six tests of the check `imap-write`, then `cargo test --lib imap::` once.
+
+### 5. the rules, the reference, the examples, the feature proofs and the website say so
+
+**Split:** the examples, the attacks and the benches go to one writing subagent once the rule
+fragments are written, and the website section to a second; their files are disjoint. Each brief
+names AGENTS.md § *Text an end user reads*.
+
+- [ ] `docs/rules/core-classes/mail-receive.md:1` (new), `docs/rules/core-classes/imap.md:1` (new),
+  `docs/rules/core-api/tier-roster.md:20` and `docs/rules/testing/a-test-reads-its-logs-and-mail.md:7`,
+  then `bun nv rules`.
+- [ ] The feature proofs `bun nv proofs --owed --goal mail-receive` names. The examples it will need
+  include: a scheduled script that reads a noreply mailbox and marks each delivery bounced or
+  answered by `answers()` and `bounceTag()`; parsing the raw message a webhook posts; showing a
+  received HTML body through `Core\Html::sanitize`. Benches: parsing a typical message, and
+  classifying a delivery report. Attacks: a message nested past the bound, a message with many
+  parts, an attachment named `../../etc/passwd`, a folder name that tries to end the IMAP command, a
+  tainted endpoint name.
+- [ ] `website/src/content/docs/guides/how-to-use/sending-mail.mdx`: a section "Reading bounces and
+  replies", or a page of its own if the section passes the page's length.
+- [ ] `docs/reference/tools/20-config.md:1`: `[imap.<name>]` and the grant.
+- [ ] `website/src/data/changes.json:1`: entries `new` `Core\Mail\Message::parse`, `new`
+  `Core\Mail\Kind`, `new` `Core\Mail\Report`, `new` `Core\Imap`, `new` `[imap]` settings. Then
+  `bun nv site --check stale`, `changes` and `review` green.
+- [ ] `bun nv proofs --owed --goal mail-receive` names nothing.
+
+### 6. the goal is verified once, and every failure is fixed
+
+- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+
+## Handoff
+
+### State
+
+Written by an interactive session on 2026-11-26 from a user report. The user chose all three pieces:
+the parser, the classification and `Core\Imap`, and left out a port-25 server, POP3, JMAP and
+provider JSON. Every other choice under § *Standing decisions* is the session's: the two crates, the
+bounds, repairing a received file name, the kinds and their order, the directory block, no `IDLE`
+and no pool. Nothing is built. The `mail/` anchors name files `mail-complete` creates.
+
+### Next
+
+Stage 1 from its first item, once `mail-complete` is reached.
+
+### Backlog
