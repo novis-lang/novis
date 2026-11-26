@@ -2053,13 +2053,14 @@
   },
   "/reference/core/arr/column/": {
     "feature": "Core\\Arr::column",
-    "hash": "feed9719894e961b",
+    "hash": "2dc01438e91e7647",
     "questions": [
       "How do I get one field from every row in an array?",
       "Extract a single column from a list of records",
       "Pluck the id of every item in a list of rows",
       "Get all email values from database results",
-      "Build a lookup table of rows indexed by id"
+      "Build a lookup table of rows indexed by id",
+      "Take a column whose key is a uint"
     ]
   },
   "/reference/core/arr/contains/": {
@@ -2107,12 +2108,13 @@
   },
   "/reference/core/arr/fillkeys/": {
     "feature": "Core\\Arr::fillKeys",
-    "hash": "5ececa3c58395066",
+    "hash": "ec4a132267e0951c",
     "questions": [
       "How do I create an array from keys with the same value for each?",
       "Set one default value for every key in a list",
       "Build a map where every given key has the same value",
-      "Turn a list of names into keys with a starting value"
+      "Turn a list of names into keys with a starting value",
+      "Use a list of uint ids as keys"
     ]
   },
   "/reference/core/arr/filter/": {
@@ -2189,12 +2191,13 @@
   },
   "/reference/core/arr/flip/": {
     "feature": "Core\\Arr::flip",
-    "hash": "a156f1dc6d4be9e6",
+    "hash": "e417023d6dbcc491",
     "questions": [
       "How do I swap the keys and values of an array?",
       "Turn values into keys and keys into values",
       "Invert a map so each value points to its key",
-      "Exchange keys with values in a list"
+      "Exchange keys with values in a list",
+      "Flip an array of uint ids into keys"
     ]
   },
   "/reference/core/arr/from/": {
@@ -2210,28 +2213,30 @@
   },
   "/reference/core/arr/fromkeysandvalues/": {
     "feature": "Core\\Arr::fromKeysAndValues",
-    "hash": "1724fc31004724ae",
+    "hash": "0d9515ffc773509d",
     "questions": [
       "How do I combine a list of keys and a list of values?",
       "Pair two lists into a map",
       "Use one array as keys and another as values",
       "Make an associative array from column names and a CSV row",
-      "Zip keys and values together into one array"
+      "Zip keys and values together into one array",
+      "Combine uint ids with a list of values"
     ]
   },
   "/reference/core/arr/groupby/": {
     "feature": "Core\\Arr::groupBy",
-    "hash": "ea7b208b902cfc9b",
+    "hash": "fddcbb2712b26183",
     "questions": [
       "How do I group the items of an array by a field?",
       "Split a list of records into groups by category",
       "Collect rows that share a value into separate arrays",
-      "Group orders by customer"
+      "Group orders by customer",
+      "Group records by a uint id"
     ]
   },
   "/reference/core/arr/groupcounts/": {
     "feature": "Core\\Arr::groupCounts",
-    "hash": "296ff9fe522a3ce8",
+    "hash": "26923b2143d5887d",
     "questions": [
       "How do I count how often each value appears in an array?",
       "Count occurrences of every item in a list",
@@ -2242,13 +2247,14 @@
   },
   "/reference/core/arr/haskey/": {
     "feature": "Core\\Arr::hasKey",
-    "hash": "0d96af4cf5d51b0f",
+    "hash": "9b70a5037fd537f6",
     "questions": [
       "How do I check if a key exists in an array?",
       "Test whether an array has an entry under a given key",
       "Does my map contain this key?",
       "Check if a key is set even when its value is null",
-      "Is there an element at this index in the list?"
+      "Is there an element at this index in the list?",
+      "Check a key that is a uint"
     ]
   },
   "/reference/core/arr/intersection/": {
@@ -2338,12 +2344,13 @@
   },
   "/reference/core/arr/mapkeys/": {
     "feature": "Core\\Arr::mapKeys",
-    "hash": "2ccee2572fb91486",
+    "hash": "7692a2dcf689ed9c",
     "questions": [
       "How do I change the keys of an array with a function?",
       "Index a list of records by their id",
       "Re key an array using a field of each item",
-      "Turn a list of rows into a map keyed by name"
+      "Turn a list of rows into a map keyed by name",
+      "Can the new keys be uint values?"
     ]
   },
   "/reference/core/arr/max/": {
@@ -2506,7 +2513,7 @@
   },
   "/reference/core/arr/sortbykey/": {
     "feature": "Core\\Arr::sortByKey",
-    "hash": "8284a5565fc618a7",
+    "hash": "bd3794e43f5c9f86",
     "questions": [
       "How do I sort an array by its keys?",
       "Order a map alphabetically by key name",
