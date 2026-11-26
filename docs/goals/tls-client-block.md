@@ -2,7 +2,7 @@
 looper: 1
 title: "one [tls.client] block sets whose certificates every outbound connection believes"
 summary: "Reached when [http.client.tls] is [tls.client], every outbound TLS client that names no tls_ca_file is proven to trust its roots, a certificate from an unknown issuer names roots and tls_ca_file in its error, and the rule, the settings docs, the feature proofs and the website say so."
-context: [crates/nvs-host/src/tls.rs, docs/rules/http-server/the-client-trust-roots-are-the-operators.md, docs/rules/security/one-tls-client.md]
+context: [crates/nvs-host/src/tls.rs, docs/rules/security/the-client-trust-roots-are-the-operators.md, docs/rules/security/one-tls-client.md]
 stages:
   - id: 1
     title: "the block is [tls.client] everywhere in the tree's code, tests and settings files"
@@ -15,7 +15,7 @@ stages:
   - id: 3
     title: "the rule, the settings docs, the feature proofs and the website say so"
     status: open
-    context: [crates/nvs-config/src/default.toml, docs/examples/config/http-client-tls/about.md, website/src/data/changes.json]
+    context: [crates/nvs-config/src/default.toml, docs/examples/config/tls-client/about.md, website/src/data/changes.json]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -183,14 +183,14 @@ call per crate.
 
 ### 3. the rule, the settings docs, the feature proofs and the website say so
 
-- [ ] `docs/rules/http-server/the-client-trust-roots-are-the-operators.md:1` moves to the security
+- [x] `docs/rules/http-server/the-client-trust-roots-are-the-operators.md:1` moves to the security
   chapter per § *The rule moves*, and its table names `[tls.client]` and every client of § *Why*.
   `docs/rules/security/tls-trust-is-relaxed-only-under-a-host-grant.md:1` and every other citation
   follow. `bun nv rules --render`, then `bun nv rules --check`.
-- [ ] `crates/nvs-config/src/default.toml:579`: the block moves out of `[http.client]` to its own
+- [x] `crates/nvs-config/src/default.toml:579`: the block moves out of `[http.client]` to its own
   `[tls.client]`, and its comment says it is every outbound connection's trust. `:241`, `:792`,
   `:847`, `:892` and the `rediss://` lines at `:939` say "default: `[tls.client] roots`".
-- [ ] `docs/examples/config/http-client-tls/about.md:1` and `tests/hostile/config/http-client-tls/01-choosing-who-is-believed-from-inside-a-request.nvs:1`
+- [x] `docs/examples/config/http-client-tls/about.md:1` and `tests/hostile/config/http-client-tls/01-choosing-who-is-believed-from-inside-a-request.nvs:1`
   move to `tls-client/`, rewritten to AGENTS.md § *Text an end user reads*. `bun nv proofs --owed
   --goal tls-client-block` lists what `directive:tls.client` still owes, and each is paid. The
   example's `nvs.toml` and `.nvs` and two more attacks still name `http.client.tls`:
@@ -198,6 +198,10 @@ call per crate.
   and `tests/hostile/config/http/01-bending-the-response-policy-from-inside-a-request.nvs:36`, `:91`.
 - [ ] `website/src/data/changes.json:1`: the entry of § *Website*. Then `bun nv site --check stale`,
   `changes` and `review` are green.
+  - [x] the entry is written, and `site --check changes` is green
+  - [x] the newcomer review of the 14 texts ran, and the TLS texts' findings are fixed
+  - [ ] the remaining findings are fixed, and the 14 review keys are stamped
+  - [ ] the 20 stale texts are reread and stamped, and `site --check stale` is green
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -208,32 +212,48 @@ call per crate.
 
 ### State
 
-Stages 1 and 2 are done, and the checks `rename` and `every-client` are green (all nine
-`client_roots` tests passed in one run). `c6694a35b4` added `crates/nvs-cli/tests/client_roots.rs`:
-each case runs `nvs run` against a loopback TLS peer that reports whether its handshake completed.
-`c17a910f67` added the hints: `nvs_host::tls::names_presented`, `Refusal` and `refusal`
-(`crates/nvs-host/src/tls.rs:483`, `:501`), `nvs_ldap::Error::refusal`, and the one wording in
-`crates/nvs-stdlib/src/tls_fix.rs`, used by LDAP (`ldap/mod.rs` `walk` and `dial_fault`), mail
-(`smtp.rs:166`), the database (`db/open.rs` `dial_failed`), the shared cache (`cache/redis.rs:210`)
-and HTTP (`http/transport.rs:1916`). `crates/nvs-ext/tests/http.rs:620` now checks the new HTTP
-wording.
+Stages 1 and 2 are done. Stage 3's first three items landed, and the check `rules` is green:
 
-The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`, which is older than both
-fixes: `c115a735a1` (the Miri four) and `28a4d7a6bf` (the conformance four). The aarch64
-`serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` failure is in
-`docs/goals/release-green.md` § *Backlog*, and no goal on the chain owns it.
+- `ddf5d3e031`: the rule is `docs/rules/security/the-client-trust-roots-are-the-operators.md`,
+  naming every client, `tls_ca_file` replacing `roots`, the two hints and the Declined list. Its
+  metadata moved to `data/rules/security/`, and every citation follows.
+- `3670009ee1`: `default.toml` has its own `[tls.client]` section before `[http.*]`, and every
+  `tls_ca_file` doc (the file, `tree.rs`, the four `nvs-db` drivers) says `[tls.client] roots`.
+- `4a75c2a147`: the example and attack live under `docs/examples/config/tls-client/` and
+  `tests/hostile/config/tls-client/`; the two other attacks name `tls.client.*`. All three
+  directives' proofs run green (`proofs --run --id`).
+- `f71aa0f99f`: the breaking `changes.json` entry (`site --check changes` green), the HTTP help's
+  `tlsCa` and returns text, and the mail guide's `tls_ca_file` line name `[tls.client] roots`.
+
+The newcomer review ran over the 14 keys `bun nv site --review` listed (saved list:
+`help:Core\Http\Client::{delete,get,head,openSocket,openStream,patch,post,put,request}`, the three
+`tls-client` texts, `sending-mail.mdx` and `changes.json`). The TLS texts' findings are fixed. No key
+is stamped yet.
+
+The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`, older than both fixes:
+`c115a735a1` (Miri) and `28a4d7a6bf` (conformance). Nothing to do.
 
 ### Next
 
-Stage 3 from its first item: move `docs/rules/http-server/the-client-trust-roots-are-the-operators.md`
-to `docs/rules/security/` per § *The rule moves*, naming every client and the hints of
-§ *The hint is worded once*. Then `default.toml:582`'s comment, the example and attack moves, and the
-`changes.json` entry. The two new features (the hints) reach `directive:tls.client` and each
-client's `Core` member; `bun nv proofs --owed --goal tls-client-block` names what they owe.
+Stage 3's last item, then stage 4.
 
-Expected red until stage 3: the example `docs/examples/config/http-client-tls/` (its `nvs.toml` is
-now an unknown key) and the three attacks under `tests/hostile/config/` that stage 3's third item
-names. Their expected output may also change, because `http.client.tls.*` is now an unknown key and
-not a key a request may not set.
+1. The review's remaining findings, all in text this goal did not write: the HTTP client help cards'
+   shared params and throws blocks (`crates/nvs-stdlib/src/http.rs`, from `:2300`): the `request`
+   sentence that appears on every member, "A body that is not text does not cause this error", the
+   `openStream` sentence on other members, "`1` is the same as the default", "pinned address",
+   `head`'s returns saying "body", and `openStream`'s `deadline` text contradicting the shared one.
+   And `sending-mail.mdx`: "nothing else", "token", the `.note` and `unusedCss()` pair, and
+   `inReplyTo` not saying it takes message ids. Fix each, rebuild, then
+   `bun nv site --review --stamp <the 14 keys>`. The `help.patch`-style edit goes through
+   `bun nv splice`.
+2. `bun nv site --check stale` names 20 texts (the `Core\Http\Client` about.md files,
+   `Core\Mail::send`, `directive:http`, `http.client.proxy`, `http.client.socket`,
+   `directive:tls.client`). None mentions TLS trust; reread each and `bun nv site --stamp` it.
+3. `bun nv proofs --owed --goal tls-client-block` then owes `perf` (stale) for 28 `Core\Http*`
+   members, because `http.rs` changed. Re-measure them as `proofs --id` says, and per the playbook,
+   run `bun nv scaling --budget` before any `--write`.
+4. Stage 4: `bun nv close --goal tls-client-block`.
+
+Expected red: none in tests. `site --check stale` and `review` stay red until 1 and 2.
 
 ### Backlog
