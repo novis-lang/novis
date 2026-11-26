@@ -35,7 +35,8 @@ The `[capabilities.mail]` block allows the program to use the block. Without it,
   password or a token. Otherwise it is `none`. Novis never sends a password without TLS.
 - `tls_ca_file` is a PEM file (a text file with certificates). It contains the certificate of your
   own certificate authority, which is the service that signs your server certificates. Use it for a
-  mail server inside your company.
+  mail server inside your company. Without `tls_ca_file`, Novis uses the certificate authorities in
+  `[tls.client] roots`.
 - `auth` is `plain`, `login` or `xoauth2`. The default is `plain` when the server offers it.
 
 Novis always checks the certificate of the mail server. Read every key in

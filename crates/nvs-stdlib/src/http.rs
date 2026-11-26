@@ -2320,7 +2320,7 @@ macro_rules! connection_params {
     },
     ParamDoc {
         name: "tlsCa",
-        desc: "The PEM certificates to trust for this call. They replace the runtime's own root \
+        desc: "The PEM certificates to trust for this call. They replace `[tls.client] roots` \
                certificates. The URL's host must be in the `anchors` grant of \
                `capabilities.tls`. If it is not, the call throws an error before it connects.",
         shape: &[],
@@ -2597,7 +2597,7 @@ const REQUEST_RET: &str = "A `Core\\Http\\Response` with the status and the body
                            A `404` or a `500` is a normal reply and is returned here. Only a \
                            request that gets no reply at all throws an error. An `https` URL is \
                            fetched over TLS. The certificate is checked against the certificate \
-                           authorities that Novis includes.";
+                           authorities in `[tls.client] roots`.";
 
 /// What every request member throws, once — see [`REQUEST_PARAMS`].
 const REQUEST_ERRORS: &[ErrorDoc] = &[

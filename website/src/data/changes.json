@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "directive:tls.client",
+        "directive:http.client.tls"
+      ],
+      "text": "The `[http.client.tls]` block is now `[tls.client]`. Its keys set the trusted certificates and the lowest TLS version of every outbound connection: HTTP, mail, LDAP, databases and the shared cache. When a certificate is not trusted, the error names the setting that fixes it.",
+      "breaking": true,
+      "instead": "Rename the block: write `[tls.client]` where you wrote `[http.client.tls]`. The keys `roots`, `min_version` and `keylog` are the same."
+    },
+    {
       "kind": "fixed",
       "features": [
         "directive:debug.index_max",
