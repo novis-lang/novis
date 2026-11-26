@@ -2,7 +2,7 @@
 looper: 1
 title: "the debug viewer wears the website's design, answers per-route and per-statement questions, and opens in the editor in one click"
 summary: "Reached when the viewer has the website's palette and both themes in the system's own fonts on one set of shared components, a frame with a rail, a command palette and a live state, a request list with filters, summary tiles, a time split per row and a repeated-query badge, a request page with tabs for its timeline of all eight event kinds, its request, its response, its queries, dumps, logs and coverage, a Routes and a Queries view, a visible state for lost records, nvs debug link prints the link, the page is served under a token path that only the editor may frame, the VS Code extension opens the viewer in a panel or the browser from one button, a file:line in the panel opens in the editor, lenses show what a route, a dump and a throw site recorded, and the rules, the feature proofs, the screenshots and the website say so."
-context: [viewer/design/reference.html, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md, viewer/src/app.tsx, viewer/src/api.ts, crates/nvs-cli/src/debug/listen.rs]
+context: [docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md, viewer/src/app.tsx, viewer/src/api.ts, crates/nvs-cli/src/debug/listen.rs]
 stages:
   - id: 1
     title: the rules say how the viewer looks, what its new views answer, and how the editor opens it
@@ -46,7 +46,7 @@ stages:
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/recorded.rs, crates/nvs-lsp/src/lens_rows.rs]
   - id: 11
     title: the feature proofs, the screenshots, the help and the website show the new viewer
-    status: open
+    status: done
     context: [docs/agent/prose.md, website/src/content/docs/tools/debug-viewer/index.mdx, website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json, tools/nv/cmd/site.ts]
   - id: 12
     title: "the goal is verified once, and every failure is fixed"
@@ -133,11 +133,11 @@ one click, inside VS Code or in a real browser. The goal also looks for what the
 Novis can do better here. The viewer embeds no font and draws with the system's own, chosen to look
 good. Every other decision below is the session's that wrote this goal.
 
-**`viewer/design/reference.html` is the drawing every stage builds toward.** It shows the request
-list, one request and the editor at the size and density meant. It is not markup to copy: it uses
-inline styles, which the viewer's `Content-Security-Policy` refuses. A value that changes at run
-time, such as a bar's left edge and width, is set through the CSSOM (`el.style.setProperty`), which
-the policy allows and Solid's `style` object compiles to. Stage 11 deletes the file. The memory
+**The design drawing was the target every stage built toward.** It showed the request list, one
+request and the editor at the size and density meant. It was not markup to copy: it used inline
+styles, which the viewer's `Content-Security-Policy` refuses. A value that changes at run time, such
+as a bar's left edge and width, is set through the CSSOM (`el.style.setProperty`), which the policy
+allows and Solid's `style` object compiles to. Stage 11 deleted it. The memory
 figures, the handler link and the response size in the drawing arrive with the goal
 `deeper-debug-records`. Each view leaves their place and draws one only when its record has the
 field.
@@ -744,20 +744,21 @@ landed the three lenses.
 **Split:** one writing subagent reshoots and describes the screenshots, and one rewrites the two
 pages, after the session has listed what each page must say.
 
-- [ ] `website/snippets/tools/debug-viewer/`: every `.shot` is shot again with `bun nv site --shoot`
+- [x] `website/snippets/tools/debug-viewer/`: every `.shot` is shot again with `bun nv site --shoot`
   in the dark theme, and four are new: `routes.shot`, `queries.shot`, `request-tabs.shot` and
   `lost.shot`. Each `alt` says what the picture shows now.
-- [ ] `website/src/content/docs/tools/debug-viewer/index.mdx`: rewritten for the frame, the filters,
+- [x] `website/src/content/docs/tools/debug-viewer/index.mdx`: rewritten for the frame, the filters,
   the tabs, the two new views, the keys and `nvs debug link`, then stamped.
-- [ ] `website/src/content/docs/tools/editor/index.mdx`: the button, the two commands, the setting
+- [x] `website/src/content/docs/tools/editor/index.mdx`: the button, the two commands, the setting
   and the three lenses, then stamped.
-- [ ] The help of `nvs debug` and `nvs debug link`, and their reference pages.
-- [ ] `website/src/data/changes.json`: `changed` the debug viewer, `new` `nvs debug link`, `new`
-  the extension's *Open Debug Viewer*, `new` the route, dump and throw lenses.
-- [ ] `viewer/design/reference.html` is deleted, and no file names it.
-- [ ] `bun nv proofs --owed --goal debug-viewer-flagship` names nothing, and the checks `proofs` and
+- [x] The help of `nvs debug` and `nvs debug link`, and their reference pages.
+- [x] `website/src/data/changes.json`: `changed` the debug viewer, `new` `nvs debug link`,
+  `changed` the extension's *Open Debug Viewer*, `changed` the route, dump and throw lenses. A
+  `new` entry clears only a feature id new to the roster, so an existing feature takes `changed`.
+- [x] The design drawing under `viewer/design/` is deleted, and no file names it.
+- [x] `bun nv proofs --owed --goal debug-viewer-flagship` names nothing, and the checks `proofs` and
   `shots` are green.
-- [ ] `bun nv site --check stale` and `changes` are green.
+- [x] `bun nv site --check stale` and `changes` are green.
 
 ### 12. the goal is verified once, and every failure is fixed
 
@@ -770,41 +771,51 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 10 are done. One rule is `designed` and owned by this goal:
-`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`. The stage that ships a rule
-sets its record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills
-`guardedBy`, then runs `bun nv rules --render`. The `path:line` anchors in later stages come from
-surveys, so a stage checks an anchor before it edits. The names stages 3 to 9 gave are under
-Standing decisions.
+Stages 1 to 11 are done. One rule is `designed` and owned by this goal:
+`testing/a-request-page-shows-what-was-recorded-and-runs-none-of-it`. Stage 12 ships it: it sets
+`data/rules/testing/<slug>.json` to `shipped`, drops `goal`, fills `guardedBy` with the tests that
+pin it (the request page's browser test and the `api` test), and runs `bun nv rules --render`. The
+names stages 3 to 10 gave are under Standing decisions.
 
-Stage 10 landed the three lenses and shipped
-`ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`. `crates/nvs-lsp/src/recorded.rs` has
-`route`, `dumps_in` and `throws_in`, each bounded by rows (`ROUTE_ROWS`, `ROUTE_DURATIONS`,
-`SITE_ROWS`), their titles and viewer paths (`route_page`, `dump_page`, `throw_page`), `one_line`
-(a dumped tree in at most 80 characters) and `page_url`, which replaced `viewer_url`.
-`server.rs` `recorded_lenses` adds them after the copy lenses, and `open_page` is the command any
-viewer path gets (`open_request` calls it). `saved_at` gives a dump or throw lens only while the
-editor's text is the file on disk and the record is not older than the file. `lens_rows.rs` needed
-nothing: it holds every lens of an answer alike. Green: clippy, the six unit tests in
-`recorded::tests`, and the four new cases under `tests/lsp/lens/` (route, dump, throw, and a
-record older than the file), each run once by name.
+Stage 11 landed in three commits. `nvs debug link` has its proofs: an `about.md`, an example of its
+options, `// covers:` on the two link tests, and the attack
+`tests/hostile/tools/cli/nvs-debug-link/01-token-files-that-try-to-change-the-link.nvs`, whose lines
+`debug_viewer.rs` `nvs_debug_link_refuses_a_token_file_that_would_change_the_link` runs as forged
+token files (green by name). Every viewer shot is taken in the dark theme
+(`tools/nv/lib/shoot.ts` `takeSteps(..., dark)`, and the live pill's port is masked). The seven old
+shots are taken again, and `routes`, `queries`, `request-tabs` and `lost` are new, the last two with
+fixtures beside them. Both pages, the reference of `nvs debug` and `nvs debug link`, the help and
+both `about.md` are rewritten, stamped and reviewed by three readers, every finding fixed.
+`changes.json` has the four entries. The viewer and the extension entries are `highlight`, which
+also lets them name features whose tests did not move. The design drawing is deleted. Green:
+`site --check stale changes shots review`, `proofs --owed` and `proofs --gate` for the goal, clippy,
+and the examples and attacks of the three debug features.
 
 The nightly CI failures of run 45609291264 tested `53e94a9181` and are fixed on disk by
-`1c3196b0e8`, which this session checked.
+`1c3196b0e8`; this session checked that again.
 
 ### Next
 
-Stage 11, from its first item. Its split: the session lists what each page must say, then one
-writing subagent reshoots and describes the screenshots under
-`website/snippets/tools/debug-viewer/`, and one rewrites
-`website/src/content/docs/tools/debug-viewer/index.mdx` and
-`website/src/content/docs/tools/editor/index.mdx`. The editor page names the three lenses with the
-titles the `.lspt` cases pin (`3 requests, p50 2.0 ms, last 503 2 min ago`, `Dumped: …`,
-`Shop\OutOfStock thrown 3 times, last 3 h ago`). `bun nv site --check shots` stays red until the
-reshoot, and `bun nv proofs --owed` names `tools:cli/nvs-debug-link`, which stage 11 pays. No test
-is expected to go red.
+Stage 12, the goal's gate. Item 1: `bun nv site --check review` is already green, because stage 11
+reviewed every text it wrote; run `bun nv site --review` and review only what it lists. Then ship
+the rule above, then the check the pack names.
+
+The reshoot showed viewer flaws that no check turns red. Fix them in stage 12 if its run is red
+anyway, else they go to `deeper-debug-records`. A change to `viewer/dist` changes every shot's
+`assets` hash, so all eleven shots are taken again with `bun nv site --shoot` after it.
+
+- The lost-records line says "in 1 reports" (`viewer/src/views/settings.tsx`, the `#lost` part).
+- A request's Queries tab squeezes the Driver column when a call site is a long absolute path.
+- In `requests.png`, the peek pane pushes the Age column off screen at 1280 pixels.
+- In `to-test.png`, the generated test's `#[Test]` and `public function` lines look indented wrong;
+  check `crates/nvs-cli/src/debug/` `to_test` against its own test first.
+
+`queries.shot` orders its rows by total time, so its fixture's three queries are far apart in time;
+it was red once when they were closer. No test is expected to go red.
 
 ### Backlog
 
 - The memory figures, the handler link, the exception's stack and the response size in the drawing
   are the goal `deeper-debug-records`. This goal draws each only when a record has the field.
+- The editor page shows none of the older recorded lenses (query, HTTP call, file open, copy).
+  They have cases under `tests/lsp/lens/` but no section of their own on the page.
