@@ -1,0 +1,97 @@
+--TEST--
+In a `directory` block, `markSeen` and `markUnseen` change what `search({unseen: true})` finds, `flag` and `unflag` add and remove a flag, `delete` removes only its own message, and `move` keeps the flags of the message it moves — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// covers: Core\Imap\Folder::markSeen, Core\Imap\Folder::markUnseen, Core\Imap\Folder::flag, Core\Imap\Folder::unflag, Core\Imap\Folder::delete, Core\Imap\Folder::move, Core\Imap\Folder::search, Core\Imap\Folder::fetch, Core\Imap\Folder::uidValidity, Core\Imap\Mailbox::folders, Core\Imap\Mailbox::folder
+// This script reads each new message once, marks it as read, and deletes the spam.
+final class Show {
+    public static function uids(array<int> $uids): string {
+        string $text = "";
+        foreach ($uids as int $uid) {
+            $text = $text . " " . $uid;
+        }
+        return $text == "" ? " none" : $text;
+    }
+}
+
+var $mailbox = Core\Imap::open("inbox");
+echo Core\Str::join($mailbox->folders(), ", "), "\n";
+var $inbox = $mailbox->folder("INBOX");
+echo "validity ", $inbox->uidValidity(), "\n";
+
+// Message 2 has the flag `\Seen` already, so two messages are new.
+echo "unseen", Show::uids($inbox->search({ unseen: true })), "\n";
+
+foreach ($inbox->search({ unseen: true }) as int $uid) {
+    echo $uid, " ", $inbox->fetch($uid)->subject(), "\n";
+    $inbox->markSeen($uid);
+}
+echo "unseen", Show::uids($inbox->search({ unseen: true })), "\n";
+
+// `markUnseen` makes message 1 new again.
+$inbox->markUnseen(1);
+echo "unseen", Show::uids($inbox->search({ unseen: true })), "\n";
+
+// `flag` adds a flag, and adding it twice changes nothing. `unflag` removes it.
+$inbox->flag(1, "\\Flagged");
+$inbox->flag(1, "\\Flagged");
+$inbox->flag(3, '$Junk');
+$inbox->unflag(1, "\\Flagged");
+$inbox->unflag(1, "\\Flagged");
+
+// `delete` removes message 3 and no other message.
+$inbox->delete(3);
+echo "all", Show::uids($inbox->search()), "\n";
+
+// The moved message keeps its flag `\Seen`, so the archive has no new message.
+$inbox->move(2, "Archive");
+var $archive = $mailbox->folder("Archive");
+echo "archive", Show::uids($archive->search()), "\n";
+echo "archive unseen", Show::uids($archive->search({ unseen: true })), "\n";
+echo "all", Show::uids($inbox->search()), "\n";
+--FILE mailbox/INBOX/1.eml--
+From: Ada <ada@example.com>
+Subject: Your invoice
+
+Hello.
+--FILE mailbox/INBOX/2.eml--
+From: Bo <bo@example.org>
+Subject: Lunch on Friday?
+
+Hello.
+--FILE mailbox/INBOX/2.flags--
+\Seen
+--FILE mailbox/INBOX/3.eml--
+From: Prize Office <win@example.net>
+Subject: You won a prize
+
+Hello.
+--FILE mailbox/Archive/1.eml--
+From: Ada <ada@example.com>
+Subject: An older invoice
+
+Hello.
+--FILE mailbox/Archive/1.flags--
+\Seen
+--FILE nvs.toml--
+[imap.inbox]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+[capabilities.fs]
+read = ["mailbox"]
+write = ["mailbox"]
+--EXPECT--
+Archive, INBOX
+validity 1
+unseen 1 3
+1 Your invoice
+3 You won a prize
+unseen none
+unseen 1
+all 1 2
+archive 1 2
+archive unseen none
+all 1

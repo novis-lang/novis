@@ -41,6 +41,8 @@ struct Fake {
     validity: u32,
     /// The message every `UID FETCH` returns, with the UID it was asked for.
     message: &'static str,
+    /// The UIDs, as written, that `UID STORE`, `UID MOVE` and `UID EXPUNGE` find no message for.
+    missing: &'static [&'static str],
 }
 
 /// What the fake read: each command, with its literals written in place of their `{n}`.
@@ -225,6 +227,16 @@ fn converse(fake: &Fake, socket: &std::net::TcpStream, heard: &mut Heard) {
             } else {
                 let length = fake.message.len();
                 reply.push(format!("* 1 FETCH (UID {uid} RFC822.SIZE {length})"));
+            }
+        } else if upper.starts_with("UID STORE ") {
+            let uid = rest.split(' ').nth(2).unwrap_or("1");
+            if !fake.missing.contains(&uid) {
+                reply.push(format!("* 1 FETCH (UID {uid} FLAGS (\\Seen))"));
+            }
+        } else if upper.starts_with("UID MOVE ") || upper.starts_with("UID EXPUNGE ") {
+            let uid = rest.split(' ').nth(2).unwrap_or("1");
+            if !fake.missing.contains(&uid) {
+                reply.push("* 1 EXPUNGE".to_owned());
             }
         } else if upper == "LOGOUT" {
             drop(say(&mut *wire, "* BYE fake.example closes"));
@@ -626,7 +638,7 @@ fn a_message_over_the_request_ceiling_is_an_error_before_it_is_read() {
 /// `session` as a request holds it, with nothing selected.
 fn held(session: Session) -> crate::imap::Held {
     crate::imap::Held {
-        session,
+        mailbox: crate::imap::Backend::Server(session),
         selected: None,
         timeout: Duration::from_secs(10),
     }
@@ -653,7 +665,11 @@ fn fetch_returns_a_parsed_message_with_its_uid() {
     let message = mailbox.fetch(42, u64::MAX, MEMBER).expect("the message");
     let class = &crate::mail::receive::MESSAGE;
     let slot = |name: &str| {
-        let at = class.slots.iter().position(|each| *each == name).expect("a slot");
+        let at = class
+            .slots
+            .iter()
+            .position(|each| *each == name)
+            .expect("a slot");
         let object = crate::instance::receiver(message, class, MEMBER).expect("a message");
         crate::instance::slot(object, at)
     };
@@ -671,8 +687,15 @@ fn fetch_returns_a_parsed_message_with_its_uid() {
 
     let parsed = crate::mail::receive::message_of(MESSAGE.as_bytes());
     let object = crate::instance::receiver(parsed, class, MEMBER).expect("a message");
-    let at = class.slots.iter().position(|each| *each == "uid").expect("a slot");
-    assert_eq!(crate::instance::slot(object, at).tag(), Some(nvs_runtime::Tag::Null));
+    let at = class
+        .slots
+        .iter()
+        .position(|each| *each == "uid")
+        .expect("a slot");
+    assert_eq!(
+        crate::instance::slot(object, at).tag(),
+        Some(nvs_runtime::Tag::Null)
+    );
     #[expect(
         unsafe_code,
         reason = "the message was built here and nothing else holds it"
@@ -708,7 +731,7 @@ fn the_session_closes_when_the_request_ends() {
     let key = ctx.hold_open_connection(None, None, Box::new(held(session)));
     let open = crate::imap::held(&mut ctx, key, MEMBER).expect("the session is filed");
     open.start();
-    assert_eq!(open.session.folders(MEMBER).expect("the folders"), ["INBOX"]);
+    assert_eq!(open.folders(MEMBER).expect("the folders"), ["INBOX"]);
     drop(ctx);
     let heard = thread.join().expect("the fake server");
     assert!(
@@ -722,4 +745,186 @@ fn the_session_closes_when_the_request_ends() {
         "{:?}",
         heard.commands
     );
+}
+
+/// The verbs of every command after the sign-in and `SELECT`, without `LOGOUT`.
+fn changes(heard: &Heard) -> Vec<&str> {
+    heard
+        .commands
+        .iter()
+        .map(|each| verb_of(each))
+        .filter(|verb| verb.starts_with("UID ") || *verb == "EXPUNGE")
+        .collect()
+}
+
+/// A server that offers `MOVE` gets one `UID MOVE`, and nothing is copied or expunged. A UID
+/// the server finds no message for is an `IOError`.
+// covers: Core\Imap\Folder::move
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn move_uses_move_when_offered() {
+    let (mut session, thread, _dir) = signed_in(Fake {
+        capabilities: &["MOVE", "UIDPLUS"],
+        validity: 7,
+        missing: &["8"],
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    session
+        .move_to(7, "Archive", MEMBER)
+        .expect("the message is moved");
+    let Err(fault) = session.move_to(8, "Archive", MEMBER) else {
+        panic!("a missing message was moved");
+    };
+    let heard = close(session, thread);
+    assert!(
+        said(&fault).contains("no message with the UID 8"),
+        "{}",
+        said(&fault)
+    );
+    assert_eq!(
+        changes(&heard),
+        ["UID MOVE 7 Archive", "UID MOVE 8 Archive"]
+    );
+}
+
+/// A server without `MOVE` gets `UID COPY`, `\Deleted` and `UID EXPUNGE` of the one UID. A
+/// server with neither `MOVE` nor `UIDPLUS` gets nothing, and the move is an `IOError`.
+// covers: Core\Imap\Folder::move
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn move_falls_back_to_copy_and_uid_expunge() {
+    let (mut session, thread, _dir) = signed_in(Fake {
+        capabilities: &["UIDPLUS"],
+        validity: 7,
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    session
+        .move_to(7, "Archive", MEMBER)
+        .expect("the message is moved");
+    let heard = close(session, thread);
+    assert_eq!(
+        changes(&heard),
+        [
+            "UID COPY 7 Archive",
+            "UID STORE 7 +FLAGS (\\Deleted)",
+            "UID EXPUNGE 7",
+        ]
+    );
+
+    let (mut session, thread, _dir) = signed_in(Fake {
+        validity: 7,
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    let Err(fault) = session.move_to(7, "Archive", MEMBER) else {
+        panic!("a server without MOVE or UIDPLUS moved a message");
+    };
+    let heard = close(session, thread);
+    assert!(said(&fault).contains("UIDPLUS"), "{}", said(&fault));
+    assert!(changes(&heard).is_empty(), "{:?}", heard.commands);
+}
+
+/// `UID STORE` adds a flag with `+FLAGS` and removes one with `-FLAGS`, a keyword as written.
+/// A UID the server reports no message for is an `IOError`.
+// covers: Core\Imap\Folder::markSeen, Core\Imap\Folder::markUnseen, Core\Imap\Folder::flag, Core\Imap\Folder::unflag
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn a_flag_is_set_and_cleared() {
+    let (mut session, thread, _dir) = signed_in(Fake {
+        validity: 7,
+        missing: &["9"],
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    session
+        .store(7, "\\Seen", true, MEMBER)
+        .expect("the flag is set");
+    session
+        .store(7, "\\Seen", false, MEMBER)
+        .expect("the flag is cleared");
+    session
+        .store(7, "$Important", true, MEMBER)
+        .expect("the keyword is set");
+    let Err(fault) = session.store(9, "\\Flagged", true, MEMBER) else {
+        panic!("a missing message was flagged");
+    };
+    let heard = close(session, thread);
+    assert!(
+        said(&fault).contains("no message with the UID 9"),
+        "{}",
+        said(&fault)
+    );
+    assert_eq!(
+        changes(&heard),
+        [
+            "UID STORE 7 +FLAGS (\\Seen)",
+            "UID STORE 7 -FLAGS (\\Seen)",
+            "UID STORE 7 +FLAGS ($Important)",
+            "UID STORE 9 +FLAGS (\\Flagged)",
+        ]
+    );
+
+    for (written, kept) in [
+        ("\\seen", Some("\\Seen")),
+        ("\\Flagged", Some("\\Flagged")),
+        ("$Important", Some("$Important")),
+        ("\\Deleted", None),
+        ("\\Recent", None),
+        ("two words", None),
+        ("a)b", None),
+        ("", None),
+    ] {
+        assert_eq!(
+            super::super::flag_of(written, MEMBER).ok().as_deref(),
+            kept,
+            "{written}"
+        );
+    }
+}
+
+/// `delete` sets `\Deleted` and runs `UID EXPUNGE` of its own UID. A plain `EXPUNGE`, which
+/// removes every message marked `\Deleted`, is never sent, and a server without `UIDPLUS` gets
+/// no command at all.
+// covers: Core\Imap\Folder::delete
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn delete_expunges_only_its_own_uid() {
+    let (mut session, thread, _dir) = signed_in(Fake {
+        capabilities: &["UIDPLUS"],
+        validity: 7,
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    session.delete(9, MEMBER).expect("the message is deleted");
+    let heard = close(session, thread);
+    assert_eq!(
+        changes(&heard),
+        ["UID STORE 9 +FLAGS (\\Deleted)", "UID EXPUNGE 9"]
+    );
+
+    let (mut session, thread, _dir) = signed_in(Fake {
+        validity: 7,
+        ..Fake::default()
+    });
+    session.select("INBOX", MEMBER).expect("the folder");
+    let Err(fault) = session.delete(9, MEMBER) else {
+        panic!("a server without UIDPLUS deleted a message");
+    };
+    let heard = close(session, thread);
+    assert!(said(&fault).contains("UIDPLUS"), "{}", said(&fault));
+    assert!(changes(&heard).is_empty(), "{:?}", heard.commands);
 }

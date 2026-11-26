@@ -1,0 +1,130 @@
+--TEST--
+A program opens a `directory` block, lists its folders, searches and fetches each message of `INBOX`, finds the bounce by its kind, and moves it to `Bounces`, where it gets the next free UID — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// covers: Core\Imap::open, Core\Imap\Mailbox::folders, Core\Imap\Mailbox::folder, Core\Imap\Folder::uidValidity, Core\Imap\Folder::search, Core\Imap\Folder::fetch, Core\Imap\Folder::move
+// This script reads a mailbox from a directory and moves each bounce to the folder `Bounces`.
+use Core\Mail\Message;
+
+var $mailbox = Core\Imap::open("inbox");
+echo Core\Str::join($mailbox->folders(), ", "), "\n";
+
+var $inbox = $mailbox->folder("INBOX");
+// The `UIDVALIDITY` of a directory folder is always 1.
+echo $inbox->uidValidity(), "\n";
+
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    echo $uid, " ", $message->subject(), "\n";
+    if ($message->kind() == Message::Kind::Bounce) {
+        echo "  bounce for ", $message->answers() ?? "an unknown message", "\n";
+        $inbox->move($uid, "Bounces");
+    }
+}
+
+// `INBOX` has two messages left.
+foreach ($inbox->search() as int $uid) {
+    echo "INBOX ", $uid, "\n";
+}
+
+// `Bounces` had message 1, so the moved bounce is message 2.
+var $bounces = $mailbox->folder("Bounces");
+foreach ($bounces->search() as int $uid) {
+    echo "Bounces ", $uid, " ", $bounces->fetch($uid)->answers() ?? "no answer", "\n";
+}
+
+// UID 2 is not in `INBOX` any more, so `fetch` throws an `IOError`.
+try {
+    $inbox->fetch(2);
+} catch (IOError $gone) {
+    echo $gone->message, "\n";
+}
+--FILE mailbox/INBOX/1.eml--
+From: Ada <ada@example.com>
+To: shop@example.com
+Subject: Where is my order?
+Message-ID: <question-1@example.com>
+
+Hello, my order has not arrived yet.
+--FILE mailbox/INBOX/2.eml--
+From: Mail Delivery System <mailer-daemon@mx.example.net>
+To: bounces@example.com
+Subject: Undelivered Mail Returned to Sender
+Message-ID: <report-2@mx.example.net>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="b1"
+
+--b1
+Content-Type: text/plain
+
+The message could not be delivered.
+--b1
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.net
+
+Final-Recipient: rfc822; bo@example.org
+Action: failed
+Status: 5.1.1
+
+--b1
+Content-Type: text/rfc822-headers
+
+From: Shop <shop@example.com>
+Subject: Your order
+Message-ID: <order-42@example.com>
+
+--b1--
+--FILE mailbox/INBOX/3.eml--
+From: Bo <bo@example.org>
+To: shop@example.com
+Subject: Re: Your order
+Message-ID: <reply-3@example.org>
+In-Reply-To: <order-42@example.com>
+
+Thank you.
+--FILE mailbox/Bounces/1.eml--
+From: Mail Delivery System <mailer-daemon@mx.example.net>
+To: bounces@example.com
+Subject: Undelivered Mail Returned to Sender
+Message-ID: <report-1@mx.example.net>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="b0"
+
+--b0
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.net
+
+Final-Recipient: rfc822; cy@example.org
+Action: failed
+Status: 5.1.1
+
+--b0
+Content-Type: text/rfc822-headers
+
+Message-ID: <order-41@example.com>
+
+--b0--
+--FILE nvs.toml--
+[imap.inbox]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+[capabilities.fs]
+read = ["mailbox"]
+write = ["mailbox"]
+--EXPECT--
+Bounces, INBOX
+1
+1 Where is my order?
+2 Undelivered Mail Returned to Sender
+  bounce for order-42@example.com
+3 Re: Your order
+INBOX 1
+INBOX 3
+Bounces 1 order-41@example.com
+Bounces 2 order-42@example.com
+Core\Imap\Folder::fetch: the folder has no message with the UID 2

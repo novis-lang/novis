@@ -13,7 +13,17 @@
 //!
 //! - `Core\Imap::open(string $endpoint): Core\Imap\Mailbox` opens one signed-in session.
 //! - `Mailbox` lists the folders and selects one with `folder`.
-//! - `Folder` has its `UIDVALIDITY`, searches and fetches a parsed `Core\Mail\Message`.
+//! - `Folder` has its `UIDVALIDITY`, searches and fetches a parsed `Core\Mail\Message`, and moves,
+//!   flags and deletes a message by its UID.
+//!
+//! **A `directory` block is a mailbox on disk.** [`directory`] reads and changes it with the same
+//! members, under `fs.read` for the block's directory when it opens and `fs.write` before each
+//! change. A test and local work use it with no server.
+//!
+//! **A flag is checked before it is sent.** `flag` and `unflag` take `\Answered`, `\Flagged`,
+//! `\Draft`, `\Seen` or a keyword such as `$Important`. `\Deleted` is refused, so only `delete`
+//! sets it, and `delete` always expunges the message at once. `delete` and a `move` without `MOVE`
+//! run `UID EXPUNGE` of the one UID, and a server without `UIDPLUS` cannot do either.
 //!
 //! **One session per `open`, closed with the request.** The session is filed with
 //! [`Ctx::hold_open_connection`] under no memo and no lease, so it is never pooled, and the
@@ -44,8 +54,10 @@ use crate::registry::{
     Qual, TextOrigin,
 };
 
+mod directory;
 pub(crate) mod session;
 
+use directory::Directory;
 use session::{Filter, Server, Session, SignIn};
 
 /// The class name, as a refusal spells it.
@@ -208,6 +220,66 @@ pub(crate) const FOLDER_CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_imap_folder_fetch",
             doc: Some(&FETCH_DOC),
         },
+        CoreMethod {
+            name: "move",
+            names: &["uid", "folder"],
+            params: &[CoreTy::Int, CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_move",
+            doc: Some(&MOVE_DOC),
+        },
+        CoreMethod {
+            name: "markSeen",
+            names: &["uid"],
+            params: &[CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_mark_seen",
+            doc: Some(&MARK_SEEN_DOC),
+        },
+        CoreMethod {
+            name: "markUnseen",
+            names: &["uid"],
+            params: &[CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_mark_unseen",
+            doc: Some(&MARK_UNSEEN_DOC),
+        },
+        CoreMethod {
+            name: "flag",
+            names: &["uid", "flag"],
+            params: &[CoreTy::Int, CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_flag",
+            doc: Some(&FLAG_DOC),
+        },
+        CoreMethod {
+            name: "unflag",
+            names: &["uid", "flag"],
+            params: &[CoreTy::Int, CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_unflag",
+            doc: Some(&UNFLAG_DOC),
+        },
+        CoreMethod {
+            name: "delete",
+            names: &["uid"],
+            params: &[CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_imap_folder_delete",
+            doc: Some(&DELETE_DOC),
+        },
     ],
     slots: &["handle", "block", "name", "uidValidity"],
     constants: &[],
@@ -362,10 +434,128 @@ const FETCH_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// The `uid` parameter of the six members that change a message.
+const UID_PARAM: ParamDoc = ParamDoc {
+    name: "uid",
+    desc: "A UID that `search` returned.",
+    shape: &[],
+};
+
+/// The `RuntimeError` of a UID that is not 1 to 4294967295.
+const UID_ERROR: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "`$uid` is less than 1 or larger than 4294967295.",
+};
+
+/// The `IOError` of every member that changes a message.
+const CHANGE_ERROR: ErrorDoc = ErrorDoc {
+    error: "IOError",
+    desc: "No message has that UID, the server does not answer, or the `UIDVALIDITY` changed.",
+};
+
+/// The `flag` parameter of `flag` and `unflag`.
+const FLAG_PARAM: ParamDoc = ParamDoc {
+    name: "flag",
+    desc: "`\\Answered`, `\\Flagged`, `\\Draft`, `\\Seen`, or a keyword such as `$Important`. \
+           A keyword has no space and none of `(){%*\"\\]`.",
+    shape: &[],
+};
+
+/// The `RuntimeError` of a flag that cannot be set.
+const FLAG_ERROR: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "`$flag` is `\\Deleted`, another flag that starts with `\\`, or not a flag name. To \
+           delete a message, call `delete`.",
+};
+
+/// `move`'s card.
+const MOVE_DOC: MethodDoc = MethodDoc {
+    short: "Moves the message `$uid` to the folder `$folder`. In that folder, the message has a \
+            new UID.",
+    params: &[
+        UID_PARAM,
+        ParamDoc {
+            name: "folder",
+            desc: "The name of the folder to move it to, such as `Archive`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: &[
+        UID_ERROR,
+        ErrorDoc {
+            error: "IOError",
+            desc: "No message has that UID, the folder `$folder` does not exist, the server does \
+                   not support moving a single message, or the server does not answer.",
+        },
+    ],
+};
+
+/// `markSeen`'s card.
+const MARK_SEEN_DOC: MethodDoc = MethodDoc {
+    short: "Marks the message `$uid` as read. It sets the `\\Seen` flag.",
+    params: &[UID_PARAM],
+    ret: "Nothing.",
+    errors: &[UID_ERROR, CHANGE_ERROR],
+};
+
+/// `markUnseen`'s card.
+const MARK_UNSEEN_DOC: MethodDoc = MethodDoc {
+    short: "Marks the message `$uid` as not read. It removes the `\\Seen` flag.",
+    params: &[UID_PARAM],
+    ret: "Nothing.",
+    errors: &[UID_ERROR, CHANGE_ERROR],
+};
+
+/// `flag`'s card.
+const FLAG_DOC: MethodDoc = MethodDoc {
+    short: "Adds the flag `$flag` to the message `$uid`. If the message has it already, nothing \
+            changes.",
+    params: &[UID_PARAM, FLAG_PARAM],
+    ret: "Nothing.",
+    errors: &[UID_ERROR, FLAG_ERROR, CHANGE_ERROR],
+};
+
+/// `unflag`'s card.
+const UNFLAG_DOC: MethodDoc = MethodDoc {
+    short: "Removes the flag `$flag` from the message `$uid`. If the message does not have it, \
+            nothing changes.",
+    params: &[UID_PARAM, FLAG_PARAM],
+    ret: "Nothing.",
+    errors: &[UID_ERROR, FLAG_ERROR, CHANGE_ERROR],
+};
+
+/// `delete`'s card.
+const DELETE_DOC: MethodDoc = MethodDoc {
+    short: "Deletes the message `$uid` from the folder at once. No other message is deleted.",
+    params: &[UID_PARAM],
+    ret: "Nothing.",
+    errors: &[
+        UID_ERROR,
+        ErrorDoc {
+            error: "IOError",
+            desc: "No message has that UID, the server does not support deleting a single \
+                   message, or the server does not answer.",
+        },
+    ],
+};
+
+/// What one open mailbox talks to: a server, or the directory of a `directory` block.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "one per open mailbox, and `Held` is boxed already when it is filed"
+)]
+enum Backend {
+    /// A signed-in session.
+    Server(Session),
+    /// A `directory` block's folders on disk.
+    Directory(Directory),
+}
+
 /// One open session, as a request holds it.
 pub(crate) struct Held {
-    /// The signed-in session.
-    session: Session,
+    /// The server or the directory.
+    mailbox: Backend,
     /// The folder selected last, and its `UIDVALIDITY`.
     selected: Option<(String, u32)>,
     /// How long one call may wait: the block's `timeout`.
@@ -392,17 +582,38 @@ impl nvs_runtime::HeldConnection for Held {
 }
 
 impl Drop for Held {
-    /// Sends `LOGOUT`. The deadline is now, so a server that does not read it costs no wait.
+    /// Sends `LOGOUT` to a server. The deadline is now, so a server that does not read it costs
+    /// no wait. A directory has nothing to close.
     fn drop(&mut self) {
-        self.session.set_deadline(Instant::now());
-        self.session.logout();
+        if let Backend::Server(session) = &mut self.mailbox {
+            session.set_deadline(Instant::now());
+            session.logout();
+        }
     }
 }
 
 impl Held {
-    /// Bounds the next call by the block's `timeout`.
+    /// Bounds the next call to a server by the block's `timeout`.
     fn start(&mut self) {
-        self.session.set_deadline(Instant::now() + self.timeout);
+        if let Backend::Server(session) = &mut self.mailbox {
+            session.set_deadline(Instant::now() + self.timeout);
+        }
+    }
+
+    /// The directory of a `directory` block, which a change needs `fs.write` for.
+    fn directory_root(&self) -> Option<PathBuf> {
+        match &self.mailbox {
+            Backend::Directory(directory) => Some(directory.root().to_path_buf()),
+            Backend::Server(_) => None,
+        }
+    }
+
+    /// Every folder of the mailbox.
+    fn folders(&mut self, member: &str) -> Result<Vec<String>, Fault> {
+        match &mut self.mailbox {
+            Backend::Server(session) => session.folders(member),
+            Backend::Directory(directory) => directory.folders(member),
+        }
     }
 
     /// Selects `folder` unless it is selected already, and returns its `UIDVALIDITY`.
@@ -413,9 +624,57 @@ impl Held {
             return Ok(*validity);
         }
         self.selected = None;
-        let validity = self.session.select(folder, member)?;
+        let validity = match &mut self.mailbox {
+            Backend::Server(session) => session.select(folder, member)?,
+            Backend::Directory(directory) => directory.select(folder, member)?,
+        };
         self.selected = Some((folder.to_owned(), validity));
         Ok(validity)
+    }
+
+    /// The name of the selected folder.
+    fn current(&self, member: &str) -> Result<String, Fault> {
+        self.selected
+            .as_ref()
+            .map(|(name, _)| name.clone())
+            .ok_or_else(|| Fault::fatal(format!("{member}: no folder is selected")))
+    }
+
+    /// The UIDs of the selected folder that match `filter`. `ceiling` is how many bytes the
+    /// request can still hold.
+    fn search(&mut self, filter: &Filter, ceiling: u64, member: &str) -> Result<Vec<u32>, Fault> {
+        let folder = self.current(member)?;
+        match &mut self.mailbox {
+            Backend::Server(session) => session.search(filter, member),
+            Backend::Directory(directory) => directory.search(&folder, filter, ceiling, member),
+        }
+    }
+
+    /// Adds `flag` to message `uid` of the selected folder, or removes it when `add` is false.
+    fn store(&mut self, uid: u32, flag: &str, add: bool, member: &str) -> Result<(), Fault> {
+        let folder = self.current(member)?;
+        match &mut self.mailbox {
+            Backend::Server(session) => session.store(uid, flag, add, member),
+            Backend::Directory(directory) => directory.store(&folder, uid, flag, add, member),
+        }
+    }
+
+    /// Moves message `uid` of the selected folder to `target`.
+    fn move_to(&mut self, uid: u32, target: &str, member: &str) -> Result<(), Fault> {
+        let folder = self.current(member)?;
+        match &mut self.mailbox {
+            Backend::Server(session) => session.move_to(uid, target, member),
+            Backend::Directory(directory) => directory.move_to(&folder, uid, target, member),
+        }
+    }
+
+    /// Deletes message `uid` of the selected folder.
+    fn delete(&mut self, uid: u32, member: &str) -> Result<(), Fault> {
+        let folder = self.current(member)?;
+        match &mut self.mailbox {
+            Backend::Server(session) => session.delete(uid, member),
+            Backend::Directory(directory) => directory.delete(&folder, uid, member),
+        }
     }
 
     /// Selects `folder` and checks that its `UIDVALIDITY` is still `expected`.
@@ -433,7 +692,11 @@ impl Held {
     /// Message `uid` of the selected folder, parsed, with `uid()` set. `ceiling` is how many
     /// bytes the request can still hold.
     fn fetch(&mut self, uid: u32, ceiling: u64, member: &str) -> Result<Value, Fault> {
-        let raw = self.session.fetch(uid, ceiling, member)?;
+        let folder = self.current(member)?;
+        let raw = match &mut self.mailbox {
+            Backend::Server(session) => session.fetch(uid, ceiling, member)?,
+            Backend::Directory(directory) => directory.fetch(&folder, uid, ceiling, member)?,
+        };
         Ok(crate::mail::receive::fetched_message(&raw, uid))
     }
 }
@@ -454,14 +717,25 @@ struct Block {
     oauth: Option<oauth::Grant>,
 }
 
+/// What `[imap.<name>]` names: a server, or the directory of a `directory` block.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "made once per `open` and taken apart at once"
+)]
+enum Opened {
+    Server(Block),
+    Directory(PathBuf),
+}
+
 /// The block `endpoint` names, once `imap.connect` has been shown to grant it. The grant is
-/// asked first, so a program with no grant learns nothing about which blocks exist.
+/// asked first, so a program with no grant learns nothing about which blocks exist. A
+/// `directory` block needs `fs.read` for its directory too.
 ///
 /// # Errors
 ///
-/// A catchable `RuntimeError` for an ungranted name, a block with no `host`, a block with no
-/// sign-in or half of one, and a word the boot would have refused.
-fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Block, Fault> {
+/// A catchable `RuntimeError` for an ungranted name or directory, a block with no `host`, a
+/// block with no sign-in or half of one, and a word the boot would have refused.
+fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Opened, Fault> {
     nvs_runtime::capability::require(
         ctx,
         nvs_config::Cap::ImapConnect,
@@ -469,11 +743,10 @@ fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Block, Fault> {
         member,
     )?;
     let read = |key: &str| configured_in(ctx, "imap", endpoint, key);
-    if read("directory").is_some() {
-        return Err(Fault::thrown(format!(
-            "{member}: `[imap.{endpoint}]` reads a directory, and `Core\\Imap` opens only a \
-             server block"
-        )));
+    if let Some(directory) = read("directory") {
+        let root = PathBuf::from(directory);
+        nvs_runtime::capability::require(ctx, nvs_config::Cap::FsRead, Scope::Path(&root), member)?;
+        return Ok(Opened::Directory(root));
     }
     let Some(host) = read("host") else {
         return Err(Fault::thrown(format!(
@@ -526,7 +799,7 @@ fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Block, Fault> {
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
         .filter(|bound| !bound.is_zero())
         .unwrap_or(nvs_config::defaults::IMAP_TIMEOUT);
-    Ok(Block {
+    Ok(Opened::Server(Block {
         server: Server {
             name: endpoint.to_owned(),
             host,
@@ -538,12 +811,28 @@ fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Block, Fault> {
         timeout,
         password,
         oauth,
-    })
+    }))
 }
 
 /// `Core\Imap::open`'s body: the key the new session is held under.
 fn open(ctx: &mut Ctx, endpoint: &str) -> Result<u64, Fault> {
-    let block = block_of(ctx, endpoint, OPEN)?;
+    let block = match block_of(ctx, endpoint, OPEN)? {
+        Opened::Server(block) => block,
+        Opened::Directory(root) => {
+            if !root.is_dir() {
+                return Err(io(format!(
+                    "{OPEN}: the directory {} of `[imap.{endpoint}]` does not exist",
+                    root.display()
+                )));
+            }
+            let held = Held {
+                mailbox: Backend::Directory(Directory::new(root, endpoint.to_owned())),
+                selected: None,
+                timeout: nvs_config::defaults::IMAP_TIMEOUT,
+            };
+            return Ok(ctx.hold_open_connection(None, None, Box::new(held)));
+        }
+    };
     let now = Instant::now();
     let until = now + block.timeout;
     let lookup_until = ctx
@@ -551,14 +840,15 @@ fn open(ctx: &mut Ctx, endpoint: &str) -> Result<u64, Fault> {
         .map_or(until, |wall| until.min(wall));
     // The operator wrote this host, so it is resolved with no address policy in front of it,
     // as a `[mail.<name>]` host is.
-    let address = nvs_runtime::capability::resolve_host(&block.server.host, OPEN, Some(lookup_until))
-        .map(|address| SocketAddr::new(address, block.port))
-        .map_err(|_| {
-            io(format!(
-                "{OPEN} could not resolve {}, which `[imap.{endpoint}]` names",
-                block.server.host
-            ))
-        })?;
+    let address =
+        nvs_runtime::capability::resolve_host(&block.server.host, OPEN, Some(lookup_until))
+            .map(|address| SocketAddr::new(address, block.port))
+            .map_err(|_| {
+                io(format!(
+                    "{OPEN} could not resolve {}, which `[imap.{endpoint}]` names",
+                    block.server.host
+                ))
+            })?;
     let label = format!("imap.{endpoint}");
     let sign_in = match (&block.password, &block.oauth) {
         (_, Some(grant)) => SignIn::Token {
@@ -575,14 +865,15 @@ fn open(ctx: &mut Ctx, endpoint: &str) -> Result<u64, Fault> {
             )));
         }
     };
-    let session = Session::open(address, &block.server, &sign_in, until, OPEN).inspect_err(|_| {
-        // A token the server refused is fetched again by the next `open`.
-        if block.oauth.is_some() {
-            oauth::forget(&label);
-        }
-    })?;
+    let session =
+        Session::open(address, &block.server, &sign_in, until, OPEN).inspect_err(|_| {
+            // A token the server refused is fetched again by the next `open`.
+            if block.oauth.is_some() {
+                oauth::forget(&label);
+            }
+        })?;
     let held = Held {
-        session,
+        mailbox: Backend::Server(session),
         selected: None,
         timeout: block.timeout,
     };
@@ -615,7 +906,12 @@ struct Receiver {
 /// What `value`, a [`MAILBOX`] or a [`FOLDER_CLASS`], holds.
 fn receiver_of(value: Value, class: &'static CoreClass, member: &str) -> Result<Receiver, Fault> {
     let object = crate::instance::receiver(value, class, member)?;
-    let broken = || Fault::fatal(format!("{member} found a `{}` it did not build", class.name));
+    let broken = || {
+        Fault::fatal(format!(
+            "{member} found a `{}` it did not build",
+            class.name
+        ))
+    };
     let key = crate::instance::slot(object, HANDLE)
         .as_uint()
         .ok_or_else(broken)?;
@@ -640,11 +936,7 @@ fn receiver_of(value: Value, class: &'static CoreClass, member: &str) -> Result<
 }
 
 /// The folder a [`FOLDER_CLASS`] receiver names, selected, with its session.
-fn folder_session<'c>(
-    ctx: &'c mut Ctx,
-    value: Value,
-    member: &str,
-) -> Result<&'c mut Held, Fault> {
+fn folder_session<'c>(ctx: &'c mut Ctx, value: Value, member: &str) -> Result<&'c mut Held, Fault> {
     let Receiver { key, folder, .. } = receiver_of(value, &FOLDER_CLASS, member)?;
     let (name, validity) = folder.ok_or_else(|| Fault::fatal(format!("{member}: no folder")))?;
     let held = held(ctx, key, member)?;
@@ -653,14 +945,63 @@ fn folder_session<'c>(
     Ok(held)
 }
 
+/// [`folder_session`], once `fs.write` grants the directory of a `directory` block.
+fn writing_folder<'c>(ctx: &'c mut Ctx, value: Value, member: &str) -> Result<&'c mut Held, Fault> {
+    let key = receiver_of(value, &FOLDER_CLASS, member)?.key;
+    if let Some(root) = held(ctx, key, member)?.directory_root() {
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::FsWrite,
+            Scope::Path(&root),
+            member,
+        )?;
+    }
+    folder_session(ctx, value, member)
+}
+
+/// `$flag` as the flag a change sends: `\Answered`, `\Flagged`, `\Draft` and `\Seen` in that
+/// case, and a keyword as written.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` for `\Deleted`, which only `delete` sets, for any other name that
+/// starts with `\`, and for text that is not an IMAP atom.
+pub(super) fn flag_of(text: &str, member: &str) -> Result<String, Fault> {
+    use imap_codec::imap_types::flag::Flag;
+    let refused =
+        |why: &str| Fault::thrown(format!("{member}: `{text}` cannot be set as a flag. {why}"));
+    match Flag::try_from(text) {
+        Ok(Flag::Deleted) => Err(refused("To delete a message, call `delete`.")),
+        Ok(Flag::Keyword(_)) => Ok(text.to_owned()),
+        Ok(Flag::Extension(_)) | Err(_) if text.starts_with('\\') => Err(refused(
+            "A flag that starts with `\\` is `\\Answered`, `\\Flagged`, `\\Draft` or `\\Seen`.",
+        )),
+        Ok(flag) => Ok(flag.to_string()),
+        Err(_) => Err(refused(
+            "A keyword has no space and none of the characters `(){%*\"\\]`.",
+        )),
+    }
+}
+
 /// The text at `args[at]`, or `None` for an option the call left out.
-fn optional_text(args: &[Value], at: usize, what: &str, member: &str) -> Result<Option<String>, Fault> {
+fn optional_text(
+    args: &[Value],
+    at: usize,
+    what: &str,
+    member: &str,
+) -> Result<Option<String>, Fault> {
     if matches!(args[at].tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
     }
-    args[at].as_text().map(|text| Some(text.to_owned())).ok_or_else(|| {
-        Fault::fatal(format!("{member} expected a `string` for `{what}`, got tag {}", args[at].tag_byte()))
-    })
+    args[at]
+        .as_text()
+        .map(|text| Some(text.to_owned()))
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} expected a `string` for `{what}`, got tag {}",
+                args[at].tag_byte()
+            ))
+        })
 }
 
 /// The day of the `Core\Time\Date` at `args[at]`, or `None` for an option the call left out.
@@ -677,13 +1018,19 @@ fn optional_day(args: &[Value], at: usize, member: &str) -> Result<Option<(i32, 
 /// `search`'s options as a [`Filter`].
 fn filter_of(args: &[Value], member: &str) -> Result<Filter, Fault> {
     let unseen = args[UNSEEN].as_bool().ok_or_else(|| {
-        Fault::fatal(format!("{member} expected a `bool` for `unseen`, got tag {}", args[UNSEEN].tag_byte()))
+        Fault::fatal(format!(
+            "{member} expected a `bool` for `unseen`, got tag {}",
+            args[UNSEEN].tag_byte()
+        ))
     })?;
     let limit = if matches!(args[LIMIT].tag(), Some(Tag::Null | Tag::Unset)) {
         None
     } else {
         let written = args[LIMIT].as_int().ok_or_else(|| {
-            Fault::fatal(format!("{member} expected an `int` for `limit`, got tag {}", args[LIMIT].tag_byte()))
+            Fault::fatal(format!(
+                "{member} expected an `int` for `limit`, got tag {}",
+                args[LIMIT].tag_byte()
+            ))
         })?;
         if written < 1 {
             return Err(Fault::thrown(format!(
@@ -705,7 +1052,10 @@ fn filter_of(args: &[Value], member: &str) -> Result<Filter, Fault> {
 /// `$uid` as a UID, which is 1 to `u32::MAX`.
 fn uid_of(value: Value, member: &str) -> Result<u32, Fault> {
     let written = value.as_int().ok_or_else(|| {
-        Fault::fatal(format!("{member} expected an `int` for `$uid`, got tag {}", value.tag_byte()))
+        Fault::fatal(format!(
+            "{member} expected an `int` for `$uid`, got tag {}",
+            value.tag_byte()
+        ))
     })?;
     u32::try_from(written)
         .ok()
@@ -736,7 +1086,7 @@ nvs_runtime::nvs_helper! {
         let held = held(ctx, key, &member)?;
         held.start();
         let mut out = NvsArray::new();
-        for name in held.session.folders(&member)? {
+        for name in held.folders(&member)? {
             out.append(Value::text(&name));
         }
         Ok(Value::array(out))
@@ -780,10 +1130,95 @@ nvs_runtime::nvs_helper! {
         let filter = filter_of(args, &member)?;
         let held = folder_session(ctx, args[0], &member)?;
         let mut out = NvsArray::new();
-        for uid in held.session.search(&filter, &member)? {
+        for uid in held.search(&filter, headroom(), &member)? {
             out.append(Value::int(i64::from(uid)));
         }
         Ok(Value::array(out))
+    }
+}
+
+/// The memory the request has left, in bytes: the most one read message may take.
+fn headroom() -> u64 {
+    nvs_runtime::budget::headroom().map_or(u64::MAX, |room| u64::try_from(room).unwrap_or(u64::MAX))
+}
+
+/// The body of `markSeen`, `markUnseen`, `flag` and `unflag`: `flag` added to message `$uid`,
+/// or removed when `add` is false.
+fn change_flag(
+    ctx: &mut Ctx,
+    args: &[Value],
+    flag: &str,
+    add: bool,
+    member: &str,
+) -> Result<Value, Fault> {
+    let uid = uid_of(args[1], member)?;
+    let flag = flag_of(flag, member)?;
+    writing_folder(ctx, args[0], member)?.store(uid, &flag, add, member)?;
+    Ok(Value::null())
+}
+
+/// The text of `$flag`, the second argument of `flag` and `unflag`.
+fn flag_text(args: &[Value], member: &str) -> Result<String, Fault> {
+    args[2].as_text().map(str::to_owned).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{member} expected a `string` for `$flag`, got tag {}",
+            args[2].tag_byte()
+        ))
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->move(int $uid, string $folder): void`.
+    fn nvs_core_imap_folder_move(ctx, args: [3]) {
+        let member = format!("{FOLDER_NAME}::move");
+        let uid = uid_of(args[1], &member)?;
+        let target = args[2].as_text().ok_or_else(|| {
+            Fault::fatal(format!("{member} expected a `string` for `$folder`, got tag {}", args[2].tag_byte()))
+        })?.to_owned();
+        writing_folder(ctx, args[0], &member)?.move_to(uid, &target, &member)?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->markSeen(int $uid): void` — sets `\Seen`.
+    fn nvs_core_imap_folder_mark_seen(ctx, args: [2]) {
+        change_flag(ctx, args, "\\Seen", true, &format!("{FOLDER_NAME}::markSeen"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->markUnseen(int $uid): void` — removes `\Seen`.
+    fn nvs_core_imap_folder_mark_unseen(ctx, args: [2]) {
+        change_flag(ctx, args, "\\Seen", false, &format!("{FOLDER_NAME}::markUnseen"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->flag(int $uid, string $flag): void`.
+    fn nvs_core_imap_folder_flag(ctx, args: [3]) {
+        let member = format!("{FOLDER_NAME}::flag");
+        let flag = flag_text(args, &member)?;
+        change_flag(ctx, args, &flag, true, &member)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->unflag(int $uid, string $flag): void`.
+    fn nvs_core_imap_folder_unflag(ctx, args: [3]) {
+        let member = format!("{FOLDER_NAME}::unflag");
+        let flag = flag_text(args, &member)?;
+        change_flag(ctx, args, &flag, false, &member)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$folder->delete(int $uid): void` — `\Deleted` and `UID EXPUNGE` of that one UID.
+    fn nvs_core_imap_folder_delete(ctx, args: [2]) {
+        let member = format!("{FOLDER_NAME}::delete");
+        let uid = uid_of(args[1], &member)?;
+        writing_folder(ctx, args[0], &member)?.delete(uid, &member)?;
+        Ok(Value::null())
     }
 }
 
@@ -795,9 +1230,7 @@ nvs_runtime::nvs_helper! {
         let held = folder_session(ctx, args[0], &member)?;
         // The raw message and its parsed copy are both held, so the ceiling is the memory the
         // request has left.
-        let ceiling = nvs_runtime::budget::headroom()
-            .map_or(u64::MAX, |room| u64::try_from(room).unwrap_or(u64::MAX));
-        held.fetch(uid, ceiling, &member)
+        held.fetch(uid, headroom(), &member)
     }
 }
 
@@ -810,6 +1243,12 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_imap_folder_uid_validity" => nvs_core_imap_folder_uid_validity,
         "nvs_core_imap_folder_search" => nvs_core_imap_folder_search,
         "nvs_core_imap_folder_fetch" => nvs_core_imap_folder_fetch,
+        "nvs_core_imap_folder_move" => nvs_core_imap_folder_move,
+        "nvs_core_imap_folder_mark_seen" => nvs_core_imap_folder_mark_seen,
+        "nvs_core_imap_folder_mark_unseen" => nvs_core_imap_folder_mark_unseen,
+        "nvs_core_imap_folder_flag" => nvs_core_imap_folder_flag,
+        "nvs_core_imap_folder_unflag" => nvs_core_imap_folder_unflag,
+        "nvs_core_imap_folder_delete" => nvs_core_imap_folder_delete,
         _ => return None,
     };
     Some(nvs_runtime::Entry::borrowed((helper as *const ()).cast()))

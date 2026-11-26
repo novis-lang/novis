@@ -1,0 +1,126 @@
+--TEST--
+In a `directory` block, a folder name outside the directory and a refused flag throw `RuntimeError`, a folder or a UID that does not exist throws `IOError`, and a change without `fs.write` for the directory throws before any file changes — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// covers: Core\Imap::open, Core\Imap\Mailbox::folders, Core\Imap\Mailbox::folder, Core\Imap\Folder::uidValidity, Core\Imap\Folder::search, Core\Imap\Folder::fetch, Core\Imap\Folder::move, Core\Imap\Folder::markSeen, Core\Imap\Folder::markUnseen, Core\Imap\Folder::flag, Core\Imap\Folder::unflag, Core\Imap\Folder::delete
+// Each step below tries something a mailbox does not allow, and prints the error.
+var $mailbox = Core\Imap::open("inbox");
+echo Core\Str::join($mailbox->folders(), ", "), "\n";
+
+// A folder name is one directory name, so `..` is not allowed.
+try {
+    $mailbox->folder("../secrets");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The folder `Spam` does not exist.
+try {
+    $mailbox->folder("Spam");
+} catch (IOError $missing) {
+    echo "IOError: no folder Spam\n";
+}
+
+var $inbox = $mailbox->folder("INBOX");
+echo "validity ", $inbox->uidValidity(), "\n";
+
+// A UID is 1 or more.
+try {
+    $inbox->fetch(0);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// `limit` is 1 or more.
+try {
+    $inbox->search({ limit: 0 });
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// Only `delete` may set `\Deleted`, and a keyword has no space.
+try {
+    $inbox->flag(1, "\\Deleted");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+try {
+    $inbox->unflag(1, "two words");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// No message has the UID 9.
+try {
+    $inbox->markSeen(9);
+} catch (IOError $missing) {
+    echo $missing->message, "\n";
+}
+try {
+    $inbox->markUnseen(9);
+} catch (IOError $missing) {
+    echo $missing->message, "\n";
+}
+try {
+    $inbox->delete(9);
+} catch (IOError $missing) {
+    echo $missing->message, "\n";
+}
+
+// The target folder `Spam` does not exist, so message 1 stays in `INBOX`.
+try {
+    $inbox->move(1, "Spam");
+} catch (IOError $missing) {
+    echo "IOError: no folder Spam\n";
+}
+echo "INBOX has ", Core\Arr::count($inbox->search()), " message\n";
+
+// The block `shared` may be read but not changed, because `fs.write` does not list its directory.
+var $shared = Core\Imap::open("shared")->folder("INBOX");
+echo "shared has ", Core\Arr::count($shared->search()), " message\n";
+try {
+    $shared->delete(1);
+} catch (RuntimeError $error) {
+    echo "RuntimeError: shared is read-only\n";
+}
+echo "shared has ", Core\Arr::count($shared->search()), " message\n";
+--FILE mailbox/INBOX/1.eml--
+From: Ada <ada@example.com>
+Subject: Hello
+
+Hello.
+--FILE shared/INBOX/1.eml--
+From: Bo <bo@example.org>
+Subject: Hello
+
+Hello.
+--FILE nvs.toml--
+[imap.inbox]
+directory = "mailbox"
+
+[imap.shared]
+directory = "shared"
+
+[capabilities.imap]
+connect = ["inbox", "shared"]
+
+[capabilities.fs]
+read = ["mailbox", "shared"]
+write = ["mailbox"]
+--EXPECT--
+INBOX
+Core\Imap\Mailbox::folder: `../secrets` is not a folder of `[imap.inbox]`. A folder of a directory block is one directory name, without `/`, `\`, `:` or `..`.
+IOError: no folder Spam
+validity 1
+Core\Imap\Folder::fetch: `$uid` is 0, and a UID is 1 to 4294967295
+Core\Imap\Folder::search: `limit` is 0, and it must be 1 or more
+Core\Imap\Folder::flag: `\Deleted` cannot be set as a flag. To delete a message, call `delete`.
+Core\Imap\Folder::unflag: `two words` cannot be set as a flag. A keyword has no space and none of the characters `(){%*"\]`.
+Core\Imap\Folder::markSeen: the folder has no message with the UID 9
+Core\Imap\Folder::markUnseen: the folder has no message with the UID 9
+Core\Imap\Folder::delete: the folder has no message with the UID 9
+IOError: no folder Spam
+INBOX has 1 message
+shared has 1 message
+RuntimeError: shared is read-only
+shared has 1 message

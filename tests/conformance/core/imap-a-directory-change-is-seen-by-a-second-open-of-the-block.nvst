@@ -1,0 +1,63 @@
+--TEST--
+A `directory` block keeps every change in its files, so a second `Core\Imap::open` of the same block sees what `markSeen`, `markUnseen`, `flag`, `unflag` and `delete` changed through the first — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// covers: Core\Imap::open, Core\Imap\Folder::markSeen, Core\Imap\Folder::markUnseen, Core\Imap\Folder::flag, Core\Imap\Folder::unflag, Core\Imap\Folder::delete, Core\Imap\Folder::search
+// Two scripts often read the same mailbox. Here, two `open` calls read the same directory.
+final class Show {
+    public static function uids(array<int> $uids): string {
+        string $text = "";
+        foreach ($uids as int $uid) {
+            $text = $text . " " . $uid;
+        }
+        return $text == "" ? " none" : $text;
+    }
+}
+
+var $first = Core\Imap::open("inbox")->folder("INBOX");
+var $second = Core\Imap::open("inbox")->folder("INBOX");
+echo "unseen", Show::uids($second->search({ unseen: true })), "\n";
+
+// The first mailbox marks message 1 as read, and the second one sees it.
+$first->markSeen(1);
+echo "unseen", Show::uids($second->search({ unseen: true })), "\n";
+
+// The second mailbox marks it as new again, and the first one sees it.
+$second->markUnseen(1);
+echo "unseen", Show::uids($first->search({ unseen: true })), "\n";
+
+// A keyword does not change which messages are new.
+$first->flag(2, '$Later');
+$second->unflag(2, '$Later');
+$second->unflag(2, '$Later');
+echo "unseen", Show::uids($first->search({ unseen: true })), "\n";
+
+// The first mailbox deletes message 2, and the second one has only message 1 left.
+$first->delete(2);
+echo "all", Show::uids($second->search()), "\n";
+--FILE mailbox/INBOX/1.eml--
+From: Ada <ada@example.com>
+Subject: Hello
+
+Hello.
+--FILE mailbox/INBOX/2.eml--
+From: Bo <bo@example.org>
+Subject: Hello again
+
+Hello.
+--FILE nvs.toml--
+[imap.inbox]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+[capabilities.fs]
+read = ["mailbox"]
+write = ["mailbox"]
+--EXPECT--
+unseen 1 2
+unseen 2
+unseen 1 2
+unseen 1 2
+all 1

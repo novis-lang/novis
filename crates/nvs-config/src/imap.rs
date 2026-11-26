@@ -311,7 +311,10 @@ mod tests {
         assert!(judge("inbox", &block(None, true, true), &origins).is_ok());
         assert!(judge("inbox", &block(Some("starttls"), true, true), &origins).is_ok());
         let refused = judge("inbox", &block(Some("none"), true, true), &origins).unwrap_err();
-        assert!(format!("{refused:?}").contains("not a TLS mode"), "{refused:?}");
+        assert!(
+            format!("{refused:?}").contains("not a TLS mode"),
+            "{refused:?}"
+        );
         assert!(judge("inbox", &block(None, true, false), &origins).is_err());
         assert!(judge("inbox", &block(None, false, true), &origins).is_err());
 
@@ -321,7 +324,10 @@ mod tests {
         let mut stray = block(None, true, true);
         stray.oauth_scope = Some("mail".to_owned());
         let refused = judge("inbox", &stray, &origins).unwrap_err();
-        assert!(format!("{refused:?}").contains("oauth_scope"), "{refused:?}");
+        assert!(
+            format!("{refused:?}").contains("oauth_scope"),
+            "{refused:?}"
+        );
     }
 
     /// An `xoauth2` block needs a user, an `https://` token URL, a client id and a secret, and no

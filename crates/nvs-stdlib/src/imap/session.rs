@@ -32,7 +32,7 @@ use imap_codec::imap_types::command::{Command, CommandBody};
 use imap_codec::imap_types::core::{AString, Charset, LiteralMode, NonEmptyVec};
 use imap_codec::imap_types::datetime::NaiveDate;
 use imap_codec::imap_types::fetch::{MessageDataItem, MessageDataItemName};
-use imap_codec::imap_types::flag::FlagNameAttribute;
+use imap_codec::imap_types::flag::{Flag, FlagNameAttribute, StoreResponse, StoreType};
 use imap_codec::imap_types::mailbox::Mailbox;
 use imap_codec::imap_types::response::{Capability, Code, Data, GreetingKind, Response, Status};
 use imap_codec::imap_types::search::SearchKey;
@@ -387,7 +387,9 @@ impl Session {
     /// is over `ceiling`, before its body is read.
     pub(super) fn fetch(&mut self, uid: u32, ceiling: u64, member: &str) -> Result<Vec<u8>, Fault> {
         let Some(id) = NonZeroU32::new(uid) else {
-            return Err(io(format!("{member}: a UID is 1 or more, and this one is 0")));
+            return Err(io(format!(
+                "{member}: a UID is 1 or more, and this one is 0"
+            )));
         };
         let body = CommandBody::fetch(
             id,
@@ -442,6 +444,121 @@ impl Session {
                 "{member}: the folder has no message with the UID {uid}"
             ))
         })
+    }
+
+    /// Adds `flag` to message `uid` of the selected folder with `UID STORE`, or removes it when
+    /// `add` is false. `flag` is already checked by [`super::flag_of`].
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` when the server refuses the change, and when it reports no message
+    /// with that UID.
+    pub(super) fn store(
+        &mut self,
+        uid: u32,
+        flag: &str,
+        add: bool,
+        member: &str,
+    ) -> Result<(), Fault> {
+        let id = uid_number(uid, member)?;
+        let written = Flag::try_from(flag)
+            .map_err(|_| io(format!("{member}: `{flag}` is not a flag name")))?;
+        let kind = if add {
+            StoreType::Add
+        } else {
+            StoreType::Remove
+        };
+        // Not `.SILENT`: the `FETCH` the server answers with shows the message exists.
+        let body = CommandBody::store(id, kind, StoreResponse::Answer, vec![written], true)
+            .map_err(|_| io(member.to_owned()))?;
+        let mut found = false;
+        self.command(body, "the flag change", member, &mut |response| {
+            if let Response::Data(Data::Fetch { items, .. }) = response {
+                found |= items.as_ref().contains(&MessageDataItem::Uid(id));
+            }
+        })?;
+        if found {
+            return Ok(());
+        }
+        Err(io(format!(
+            "{member}: the folder has no message with the UID {uid}"
+        )))
+    }
+
+    /// Moves message `uid` of the selected folder to `folder`: `UID MOVE` when the server
+    /// offers `MOVE` (RFC 6851), and otherwise `UID COPY`, `\Deleted` and `UID EXPUNGE` of that
+    /// one UID (RFC 4315).
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` when the server offers neither `MOVE` nor `UIDPLUS`, before anything
+    /// is sent, when it refuses a step, and when there is no message with that UID.
+    pub(super) fn move_to(&mut self, uid: u32, folder: &str, member: &str) -> Result<(), Fault> {
+        let id = uid_number(uid, member)?;
+        let target = mailbox_of(folder, member)?;
+        if self.offers("MOVE") {
+            let body = CommandBody::Move {
+                sequence_set: id.into(),
+                mailbox: target,
+                uid: true,
+            };
+            let mut moved = false;
+            self.command(body, "the move", member, &mut |response| {
+                moved |= matches!(response, Response::Data(Data::Expunge(_)));
+            })?;
+            if moved {
+                return Ok(());
+            }
+            return Err(io(format!(
+                "{member}: the folder has no message with the UID {uid}"
+            )));
+        }
+        self.needs_uidplus("move a message", member)?;
+        let body = CommandBody::copy(id, target, true)
+            .map_err(|_| io(format!("{member}: the folder name `{folder}`")))?;
+        self.command(body, "the copy", member, &mut |_| {})?;
+        self.store(uid, "\\Deleted", true, member)?;
+        self.uid_expunge(id, member)
+    }
+
+    /// Deletes message `uid` of the selected folder: `\Deleted`, then `UID EXPUNGE` of that one
+    /// UID, so no other message marked `\Deleted` is removed.
+    ///
+    /// # Errors
+    ///
+    /// A catchable `IOError` when the server does not offer `UIDPLUS`, before anything is sent,
+    /// when it refuses a step, and when there is no message with that UID.
+    pub(super) fn delete(&mut self, uid: u32, member: &str) -> Result<(), Fault> {
+        let id = uid_number(uid, member)?;
+        self.needs_uidplus("delete a message", member)?;
+        self.store(uid, "\\Deleted", true, member)?;
+        self.uid_expunge(id, member)
+    }
+
+    /// An `IOError` unless the server offers `UIDPLUS`. A plain `EXPUNGE` removes every message
+    /// marked `\Deleted`, including ones this program did not mark, so it is never sent.
+    fn needs_uidplus(&self, what: &str, member: &str) -> Result<(), Fault> {
+        if self.offers("UIDPLUS") {
+            return Ok(());
+        }
+        Err(io(format!(
+            "{member}: {} does not offer `UIDPLUS`, so it cannot {what} without removing other \
+             messages too. Nothing was changed.",
+            self.host
+        )))
+    }
+
+    /// `UID EXPUNGE <uid>`. `imap-codec` 1.x has no such command, and the line has no text in it
+    /// but the tag and a number, so it is written here.
+    fn uid_expunge(&mut self, id: NonZeroU32, member: &str) -> Result<(), Fault> {
+        let what = "the expunge";
+        let tag = self.tag();
+        self.write(
+            format!("{tag} UID EXPUNGE {id}\r\n").as_bytes(),
+            what,
+            member,
+        )?;
+        self.finish(&tag, what, SMALL_LITERAL, member, &mut |_| {})
     }
 
     /// The server's greeting, which must be `OK`. `PREAUTH` is refused, because the session
@@ -610,11 +727,26 @@ impl Session {
         take: &mut dyn FnMut(&Response<'_>),
     ) -> Result<(), Fault> {
         let tag = self.send(body, what, member)?;
+        self.finish(&tag, what, ceiling, member, take)
+    }
+
+    /// Reads the responses of the command tagged `tag` to its tagged status.
+    fn finish(
+        &mut self,
+        tag: &str,
+        what: &str,
+        ceiling: u64,
+        member: &str,
+        take: &mut dyn FnMut(&Response<'_>),
+    ) -> Result<(), Fault> {
         loop {
-            match self.next_response(&tag, ceiling, what, member, take)? {
+            match self.next_response(tag, ceiling, what, member, take)? {
                 Seen::Done(Ok(())) => return Ok(()),
                 Seen::Done(Err(text)) => {
-                    return Err(io(format!("{member}: {} refused {what}: {text}", self.host)));
+                    return Err(io(format!(
+                        "{member}: {} refused {what}: {text}",
+                        self.host
+                    )));
                 }
                 Seen::Bye(text) => {
                     return Err(io(format!(
@@ -644,8 +776,13 @@ impl Session {
                 Fragment::Literal { data, mode } => {
                     if mode == LiteralMode::Sync {
                         loop {
-                            match self.next_response(&tag, SMALL_LITERAL, what, member, &mut |_| {})?
-                            {
+                            match self.next_response(
+                                &tag,
+                                SMALL_LITERAL,
+                                what,
+                                member,
+                                &mut |_| {},
+                            )? {
                                 Seen::More => break,
                                 Seen::Untagged => {}
                                 Seen::Done(_) | Seen::Bye(_) => {
@@ -777,6 +914,12 @@ fn seen_of(response: &Response<'_>, tag: &str, take: &mut dyn FnMut(&Response<'_
     }
 }
 
+/// `uid` as the number a command needs. [`super`] has checked it is 1 or more.
+fn uid_number(uid: u32, member: &str) -> Result<NonZeroU32, Fault> {
+    NonZeroU32::new(uid)
+        .ok_or_else(|| io(format!("{member}: a UID is 1 or more, and this one is 0")))
+}
+
 /// A capability as one upper-case word: `AUTH=PLAIN`, `STARTTLS`, `SASL-IR`.
 fn capability_word(capability: &Capability<'_>) -> String {
     capability.to_string().to_ascii_uppercase()
@@ -784,8 +927,11 @@ fn capability_word(capability: &Capability<'_>) -> String {
 
 /// A folder name the program wrote, in modified UTF-7 for the wire.
 fn mailbox_of(folder: &str, member: &str) -> Result<Mailbox<'static>, Fault> {
-    Mailbox::try_from(utf7::encode(folder))
-        .map_err(|_| io(format!("{member}: the folder name `{folder}` is not allowed")))
+    Mailbox::try_from(utf7::encode(folder)).map_err(|_| {
+        io(format!(
+            "{member}: the folder name `{folder}` is not allowed"
+        ))
+    })
 }
 
 /// A listed folder's name, decoded from modified UTF-7.
