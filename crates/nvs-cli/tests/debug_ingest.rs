@@ -878,6 +878,98 @@ fn index_max_deletes_the_oldest_requests_until_the_index_fits() {
     );
 }
 
+/// `[debug] index_max` bounds the rows that no request or run names too, such as the events of a
+/// command run that is still going. One time order covers them and the requests, so past the
+/// bound the oldest rows go first and the newer requests are kept. A bound under the empty schema
+/// deletes every row, whatever owns it.
+#[test]
+fn index_max_deletes_the_oldest_rows_whether_a_request_names_them_or_not() {
+    const UNOWNED: u64 = 20_000;
+    let folder = Folder::new();
+    let now = now_us();
+    let start = |n: u64| now - 1_000_000_000 + n * 1_000_000;
+    let mut lines = Vec::new();
+    for n in 0..500 {
+        let mut one = copy("6-1-0", &format!("{n:032x}"), start(n));
+        for line in &mut one {
+            line.seq += n * 100;
+        }
+        lines.extend(one);
+    }
+    folder.write("6-1-0.0.spool", &lines);
+    folder.ingest();
+    let requests_alone = bytes_in_use(&folder.index());
+
+    let events: Vec<Line> = sample()
+        .into_iter()
+        .filter(|line| matches!(line.record, Record::Event(_)))
+        .collect();
+    let unowned_at = |n: u64| now - 3_000_000_000 + n * 10_000;
+    let lines: Vec<Line> = (0..UNOWNED)
+        .map(|n| {
+            let mut line = events[usize::try_from(n).expect("a few") % events.len()].clone();
+            line.writer = "7-1-0".to_owned();
+            line.seq = n;
+            line.trace = Some("dd".repeat(16));
+            line.at_us = unowned_at(n);
+            if let Record::Event(event) = &mut line.record {
+                event.start_us = line.at_us;
+                event.end_us = line.at_us + 300;
+            }
+            line
+        })
+        .collect();
+    folder.write("7-1-0.0.spool", &lines);
+    folder.ingest();
+    let full = bytes_in_use(&folder.index());
+    let unowned = "SELECT count(*) FROM events WHERE trace = 'dddddddddddddddddddddddddddddddd'";
+    assert_eq!(count(&folder.index(), unowned), int(lines.len()));
+
+    let config = folder.data.join("small.toml");
+    let bound = (requests_alone + full) / 2;
+    std::fs::write(&config, format!("[debug]\nindex_max = \"{bound}\"\n"))
+        .expect("the data folder is writable");
+    folder.ingest_with(&[OsStr::new("--config"), config.as_os_str()]);
+    let db = folder.index();
+    assert!(
+        bytes_in_use(&db) <= bound,
+        "the pages in use fit under `index_max`"
+    );
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM requests"),
+        500,
+        "the requests are newer than every unowned row, so all of them are kept"
+    );
+    let left = count(&db, unowned);
+    assert!(
+        left > 0 && left < int(lines.len()),
+        "some unowned rows are deleted and some kept: {left} left"
+    );
+    assert_eq!(
+        count(
+            &db,
+            &format!(
+                "SELECT min(at_us) FROM events WHERE trace = '{}'",
+                "dd".repeat(16)
+            )
+        ),
+        i64::try_from(unowned_at(UNOWNED - u64::try_from(left).expect("a count")))
+            .expect("the time fits"),
+        "the unowned rows kept are the newest"
+    );
+    drop(db);
+
+    std::fs::write(&config, "[debug]\nindex_max = \"1K\"\n").expect("the data folder is writable");
+    folder.ingest_with(&[OsStr::new("--config"), config.as_os_str()]);
+    let db = folder.index();
+    assert_eq!(count(&db, "SELECT count(*) FROM requests"), 0);
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM events"),
+        0,
+        "a bound under the empty schema deletes the unowned rows too"
+    );
+}
+
 #[test]
 fn the_deletion_window_removes_every_row_of_a_request() {
     let folder = Folder::new();

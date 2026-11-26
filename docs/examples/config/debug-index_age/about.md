@@ -1,8 +1,9 @@
 How long `nvs debug` keeps the record of a request. The default is `7d`, which is seven days.
 
 `nvs debug` reads the records that `[debug] store` saves into one database, `debug/index.sqlite` in
-the data folder. The age of a record starts at the start of its request. Each time `nvs debug` has
-read new files, it deletes the requests that are older than `index_age`, with all of their records.
+the data folder. The age of a record starts at the start of its request or run. Each time `nvs debug`
+has read new files, it deletes the requests and runs that are older than `index_age`, with all of
+their records. A record of a command that is still running is deleted by its own age.
 
 `nvs debug` reads this setting from the configuration of the server that started it. When you start
 `nvs debug` yourself, it reads its configuration the same way as every other `nvs` command. A

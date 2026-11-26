@@ -403,6 +403,54 @@ fn a_production_server_records_and_starts_no_service() {
     assert!(!served.debug().join("service.lock").exists());
 }
 
+/// A server and a command run can share one `nvs.toml` with `store` on, and the command run still
+/// records nothing: a later `--config` with `store = false` turns recording off for that run.
+/// The run with the shared file alone records, so the second run's empty data folder is the
+/// later file's doing.
+#[test]
+fn a_later_config_with_store_off_keeps_a_command_run_from_recording() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("debug-service-command-off-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("the case directory is created");
+    std::fs::write(
+        dir.join("job.nvs"),
+        "<?nvs\nCore\\Debug::dump(['order' => 1042]);\n",
+    )
+    .expect("the program is written");
+    std::fs::write(dir.join("nvs.toml"), "[debug]\nstore = true\n").expect("the config is written");
+    std::fs::write(dir.join("off.toml"), "[debug]\nstore = false\n")
+        .expect("the config is written");
+    let run = |configs: &[&str]| {
+        let data = nvs_repo::scratch_private("nvsdata");
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        command
+            .current_dir(&dir)
+            .arg("--data")
+            .arg(&*data)
+            .arg("--no-init");
+        for config in configs {
+            command.arg("--config").arg(dir.join(config));
+        }
+        let out = command
+            .args(["run", "job.nvs"])
+            .stdin(Stdio::null())
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        data.join("debug").join("spool").is_dir()
+    };
+    assert!(run(&["nvs.toml"]), "the shared file alone records the run");
+    assert!(
+        !run(&["nvs.toml", "off.toml"]),
+        "the later file turns recording off"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A server that records and cannot use its spool says so once, in its log, as it starts: the
 /// line is there before any request, and a request adds no second one.
 #[test]

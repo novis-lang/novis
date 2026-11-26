@@ -3091,6 +3091,15 @@ the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug
 sets no probe bit: `Ctx::records_spans` is the one reader besides the spool's writer, so a run with
 `store` off has the probes of a run that writes no `[debug]` block.
 
+**Every run the configuration reaches records:** a server's requests, its scheduled runs and its
+queue jobs, and `nvs run` and `nvs test`. A command that shares the server's `nvs.toml` and should
+record nothing is given a later `--config` with `store = false`, which the key's subtract-only
+reading already honours.
+
+**Declined:**
+- **A second key that turns recording off for command runs alone.** A later `--config` with `store =
+  false` already does it, and a second switch for the same gate is one more key every reader learns.
+
 <sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level), [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced).</sub>
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
@@ -3407,7 +3416,7 @@ index are [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](t
 
 The index is one SQLite file, `debug/index.sqlite` in the data folder, whose tables hold every query
 the viewer makes, and the ingester deletes what is older than `[debug] index_age` or past `[debug]
-index_max`, the oldest request first.
+index_max`, the oldest record first, whether a request or run owns it or not.
 
 | Table | One row per | What the viewer reads it for |
 |---|---|---|
@@ -3442,14 +3451,24 @@ written ([`security/redaction-reaches-the-tools-own-renderings`](security.md#sec
 **The deletion window.** `[debug] index_age`, `7d` by default, is the oldest record kept, measured
 from a request's start, and `[debug] index_max`, 1 GiB by default, is the most bytes of pages in use;
 a page a deletion frees is reused, so the file stays near that size. Both are `System` keys. After
-each batch the ingester deletes requests past either bound with every row that names their trace id,
-in batches of a thousand so the viewer never waits on a long write. A row that names no recorded
-request is deleted by its own time past `index_age`. An exception group stays while its last seen is
-within `index_age`, and its count still counts deleted requests. A saved filter is the viewer's own
-and is not in the index, because discarding the index must lose nothing a person wrote.
+each batch the ingester deletes each request and run that started before `index_age`, with every
+row that names its trace id, and then each row that names no recorded request or run by its own
+time. An exception group stays while its last seen is within `index_age`, and its count still
+counts deleted requests. A saved filter is the viewer's own and is not in the index, because
+discarding the index must lose nothing a person wrote.
 
-**A run is forgotten as a request is,** by its start past `index_age` and oldest first past
-`index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
+**`index_max` bounds every row, in one time order.** A row no request or run names is one of a
+command run still going, whose `run` line is written when it ends, or one whose owner never
+arrived. While the pages in use are past `index_max`, each step compares the oldest request, the
+oldest run and each table's oldest such row, and deletes a batch of the oldest kind up to the next
+oldest: a thousand requests or runs with their rows, or a thousand rows of one table, so the viewer
+never waits on a long write. A table's oldest unowned row is looked up only below the oldest
+owner's start, where an owner's rows are not, so a step reads no row an owner keeps. The order
+holds to within one batch of owners. The `body_parts_at` index is the one this costs, one entry per
+body part inside the cap.
+
+**A run is forgotten as a request is,** by its start past `index_age` and in the same time order
+past `index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
 a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
 named columns would be mostly empty on every row. Each change that adds a column raises the schema
 version once, so the index is rebuilt from the spool.
@@ -3466,6 +3485,11 @@ discarded and rebuilt from what is still on disk
   id.
 - **Keeping the index until a person clears it.** Recorded bodies and dumps hold request data, and a
   debugging aid that keeps them forever is a store of personal data nobody chose to keep.
+- **Deleting only owned records past `index_max`.** A long command run's rows have no owner until it
+  ends, so they would never be deleted for size: the file would grow without a bound, and each pass
+  would delete every request because none of them brings the file under the cap.
+- **Deleting unowned rows before any request.** A busy command run newer than the server's requests
+  would still delete them all. One time order keeps the newest of every kind.
 
 <sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings).</sub>
 

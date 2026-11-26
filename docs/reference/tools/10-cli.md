@@ -578,7 +578,8 @@ tree are each an error beside it.
 
     nvs debug [--once] [--tail <file>]... [--listen <address>]
 
-With `[debug] store = true` in `nvs.toml`, every request is recorded. The records are written to
+With `[debug] store = true` in `nvs.toml`, every request is recorded, and so is every scheduled run,
+queue job, `nvs run` and `nvs test`. The records are written to
 files in `debug/spool` in the data folder. `nvs debug` reads those files into one SQLite database,
 `debug/index.sqlite`, and deletes each file once it is read. Then it waits for new files.
 
@@ -598,8 +599,9 @@ it first reads the rest of `<file>.1`.
 Only one `nvs debug` runs for a data folder. A second one prints an error and exits with status
 `1`. A server that finds one running uses it.
 
-The index deletes a request's records once they are older than `[debug] index_age` (`7d`). When it
-grows past `[debug] index_max` (`1G`), the oldest requests are deleted first. A line that cannot be
+The index deletes records once they are older than `[debug] index_age` (`7d`). When it grows past
+`[debug] index_max` (`1G`), the oldest records are deleted first. This includes the records of a
+command that is still running. A line that cannot be
 read is kept as an error record, and the lines after it are read as usual. A file that cannot be
 read is tried again later, and the other files are read in the meantime.
 

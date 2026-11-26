@@ -5,6 +5,11 @@ folder. A record has the result, the log lines, the `Core\Debug::dump` values an
 database query and HTTP call. `nvs debug` reads these files into `debug/index.sqlite` and deletes
 them. In development mode, `nvs serve` starts `nvs debug` for you.
 
+A server records each request, scheduled run and queue job. `nvs run` and `nvs test` record each
+run too. To record the server and not a command, give the command a second configuration file:
+`nvs run --config nvs.toml --config off.toml job.nvs`, where `off.toml` has `store = false` under
+`[debug]`.
+
 In development mode, a record also has the request and the response, with their headers and body.
 The values of the `Authorization`, `Cookie`, `Set-Cookie` and `Proxy-Authorization` headers are
 replaced with `[redacted]`. In production mode, a record has no headers and no body.

@@ -25,3 +25,12 @@ With the gate off nothing reaches the disk, so a debug record that survives into
 the predicted-not-taken branch `rule:testing/debug-probes` already pays and nothing further. The gate
 sets no probe bit: `Ctx::records_spans` is the one reader besides the spool's writer, so a run with
 `store` off has the probes of a run that writes no `[debug]` block.
+
+**Every run the configuration reaches records:** a server's requests, its scheduled runs and its
+queue jobs, and `nvs run` and `nvs test`. A command that shares the server's `nvs.toml` and should
+record nothing is given a later `--config` with `store = false`, which the key's subtract-only
+reading already honours.
+
+**Declined:**
+- **A second key that turns recording off for command runs alone.** A later `--config` with `store =
+  false` already does it, and a second switch for the same gate is one more key every reader learns.

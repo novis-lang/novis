@@ -1,7 +1,7 @@
-`nvs debug` reads the debug records of your requests into one database.
+`nvs debug` reads the debug records of your requests and runs into one database.
 
-With `[debug] store = true` in `nvs.toml`, Novis writes a record of each request to files in
-`debug/spool` in the data folder. `nvs debug` reads each file when it is complete. It saves the
+With `[debug] store = true` in `nvs.toml`, Novis writes a record of each request, `nvs run` and
+`nvs test` to files in `debug/spool` in the data folder. `nvs debug` reads each file when it is complete. It saves the
 records in `debug/index.sqlite` and deletes the file. Then it waits for new files. Files that were
 written while `nvs debug` did not run are read when it starts.
 
