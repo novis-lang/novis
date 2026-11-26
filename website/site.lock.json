@@ -18,7 +18,7 @@
     "directive:debug.index_max": "b18422a34d6dab10"
   },
   "docs/examples/config/debug-inline/about.md": {
-    "directive:debug.inline": "7be03fe937580b70"
+    "directive:debug.inline": "02433dc5e658a22c"
   },
   "docs/examples/config/debug-keep_temporary/about.md": {
     "directive:debug.keep_temporary": "030009004f2a08b9"
@@ -4557,7 +4557,7 @@
     "tools:cli/the-compile-cache": "376e91459698612a"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
-    "tools:cli/the-debug-viewer": "48747ecccb58a212"
+    "tools:cli/the-debug-viewer": "970dcd61447d179f"
   },
   "docs/examples/tools/config/app-per-application-blocks/about.md": {
     "tools:config/app-per-application-blocks": "3b6a996a5eec7017"
@@ -8619,7 +8619,7 @@
     "directive:debug.index_max": "9b32c48c8a0b315e"
   },
   "help:directive:debug.inline": {
-    "directive:debug.inline": "2aa5b5b0f02bdda2"
+    "directive:debug.inline": "7476c32a408c2acd"
   },
   "help:directive:debug.keep_temporary": {
     "directive:debug.keep_temporary": "c6c7ceb9bea449c4"
@@ -9501,7 +9501,7 @@
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
   },
   "help:tools:cli/the-debug-viewer": {
-    "tools:cli/the-debug-viewer": "87d8c534dc159051"
+    "tools:cli/the-debug-viewer": "41c388533dca6e3a"
   },
   "help:tools:config/app-per-application-blocks": {
     "tools:config/app-per-application-blocks": "dfd1d768aa58cf4e"
@@ -10059,7 +10059,7 @@
     "tools:cli/nvs-debug": "9f1b457b2e767683",
     "tools:cli/nvs-debug-link": "029beb0ef1a5782a",
     "tools:cli/nvs-debug-to-test": "580aa3b406024784",
-    "tools:cli/the-debug-viewer": "3d1017ff8eeb7df2"
+    "tools:cli/the-debug-viewer": "622c351feaa79e5e"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "e7529dc767e5836e"

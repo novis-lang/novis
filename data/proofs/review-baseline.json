@@ -1726,7 +1726,6 @@
   "docs/examples/config/debug-index_age/about.md": "c7370751ead7d2d0",
   "docs/examples/config/debug-index_max/about.md": "57e944eca7782e55",
   "docs/examples/config/debug-inline/01-where-a-debugging-dump-shows-up.nvs": "a14997fb7caae2df",
-  "docs/examples/config/debug-inline/about.md": "8c5ea028d187714d",
   "docs/examples/config/debug-keep_temporary/01-what-happens-to-your-scratch-files.nvs": "13b9234c0033e684",
   "docs/examples/config/debug-listen/about.md": "d5e40c9a32c6747e",
   "docs/examples/config/debug-spool_max/01-the-disk-space-for-debug-records.nvs": "b8dd6231b11e714d",

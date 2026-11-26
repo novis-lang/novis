@@ -1,6 +1,6 @@
 <?nvs
 // A scheduled job whose mail server does not answer.
-// Nothing catches the error, so the run fails and the viewer shows its stack.
+// Nothing catches the error, so the run fails. The debug viewer shows its stack: the functions it was called from.
 
 class Receipts {
     public static function sendAll(array<int> $orders): void {

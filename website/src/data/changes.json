@@ -6,21 +6,21 @@
       "features": [
         "tools:cli/the-debug-viewer"
       ],
-      "text": "A request's page in the debug viewer shows its handler, its memory peak against its memory limit, and the size of its response. An exception shows its stack and its `previous` exceptions. Each cache, HTTP, file and process event shows its result, and sent mail and pushed jobs are events too."
+      "text": "A request's page in the debug viewer shows its handler, its memory peak and limit, its response size, and the stack of an exception. Each cache, HTTP, file and process event shows its result. Sent mail and jobs pushed to a queue are events too."
     },
     {
       "kind": "new",
       "features": [
         "tools:cli/the-debug-viewer"
       ],
-      "text": "The debug viewer has a Runs page. It lists scheduled jobs, queue jobs and runs of `nvs run` and `nvs test`, each with its outcome, memory, queries and dumps. A run's page has the same tabs as a request's page."
+      "text": "The debug viewer has a Runs page. It lists scheduled jobs, queue jobs and runs of `nvs run` and `nvs test`, each with its outcome, memory, queries and dumps. A run's page has the tabs of a request's page, except Request, Response and Coverage."
     },
     {
       "kind": "changed",
       "features": [
         "directive:debug.inline"
       ],
-      "text": "With `[debug] store` on, the debug block that `[debug] inline` adds to an HTML page shows how many queries the request ran. It also has a link that opens the request in the debug viewer."
+      "text": "`[debug] inline` adds the output of `Core\\Debug::dump` to an HTML page. With `[debug] store` on, this output also shows how many queries the request ran. It has a link that opens the request in the debug viewer."
     },
     {
       "kind": "changed",

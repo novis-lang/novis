@@ -618,7 +618,7 @@ folder that only your account can open. In production, a record has no headers a
 
     nvs debug [--listen <address>]
 
-`nvs debug` also serves the debug viewer, a page that shows the recorded requests in a browser. It
+`nvs debug` serves the debug viewer, a page that shows the recorded requests in a browser. It
 prints a link to the page when it starts. Open that link, because it contains a token. The viewer
 opens only in a browser that has the token. Another account on the same computer does not have it,
 so it cannot read your requests. `nvs debug link` prints the same link again. The address is
@@ -626,7 +626,7 @@ so it cannot read your requests. `nvs debug link` prints the same link again. Th
 `nvs debug` stops with an error. It does not pick another port, so a link to the viewer still works
 after a restart.
 
-A rail on the left lists the pages. The bar at the top has the search box, the live state and the
+A list on the left names the pages. The bar at the top has the search box, the live state and the
 theme button. The live state shows *Live* when `nvs serve` started `nvs debug`. It shows *Recording
 stopped* when `nvs debug` runs without a server. It shows how many records were lost when a record
 could not be saved or read.
@@ -636,8 +636,8 @@ could not be saved or read.
 | `/` | the requests, newest first: method, route, status, duration, memory, queries, dumps and exceptions |
 | `/requests/<trace id>/<span id>` | one request, with its handler, memory peak and response size, and a tab for its timeline, request, response, queries, cache, dumps, log lines, coverage and exception stack |
 | `/runs` | the scheduled jobs, queue jobs and runs of `nvs run` and `nvs test`, newest first: kind, name, outcome, duration, memory, queries and dumps |
-| `/runs/<trace id>` | one run, with the tabs of a request less request, response and coverage |
-| `/routes` | one row for each route: requests, errors, the p50 and p95 duration, queries and the last request |
+| `/runs/<trace id>` | one run, with the tabs of a request except Request, Response and Coverage |
+| `/routes` | one row for each route: requests, errors, the p50 and p95 duration (half and 95 of 100 requests were faster), queries and the last request |
 | `/queries` | one row for each line that ran a query: how often it ran, its total and longest time |
 | `/stream` | every record of every request, as one list you can filter |
 | `/log` | the log lines |
@@ -648,10 +648,10 @@ could not be saved or read.
 
 The request list has filters for the method, the status, the route, the duration and whether the
 request threw an error. A status filter can be one code, such as `404`, or a class, such as `5xx`.
-Three tiles above the list show the requests, the durations and the errors of the last five
+Three boxes above the list show the requests, the durations and the errors of the last five
 minutes. Each row shows how its time was split between queries, HTTP calls, cache, session, files,
-garbage collection, processes and your own code. A gold badge shows that one query ran several times
-at the same line in that request.
+garbage collection, processes and your own code. A badge such as `5×` shows that one query ran five
+times at the same line in that request.
 
 New rows appear at the top while you watch. Press `p` or scroll down to pause the list. The list
 then counts the new rows and does not move. Each page, each tab and each filter has its own link,
@@ -664,11 +664,12 @@ curl* copies a `curl` command for the request.
 
 Every key is listed when you press `?`. `Ctrl+K` (`Cmd+K` on macOS) opens a list of every page and
 action. `j` and `k` move the selection, `Enter` opens it, `/` goes to the search box and `s` saves a
-filter. `m` marks a request, and the next request you open is compared with it. `c` compares a
+filter. `m` selects a request, and the next request you open is compared with it. `c` compares a
 request with the previous request to the same route.
 
 `r` replays a request: it sends the recorded request to your development server again. The handler
-runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
+runs again, so it sends its mail or writes its rows again. The viewer shows a
+question first, and you confirm it. Replay works only when `nvs serve`
 started `nvs debug`. `t` makes a test from a request, the same test `nvs debug to-test` prints.
 
 Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor on
