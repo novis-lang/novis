@@ -29,9 +29,9 @@ checks:
     timeout: 1800
   - id: every-client
     stage: 2
-    name: "Ldap::open, an [ldap] block, a [mail] block, a [db] block and a shared cache over TLS trust a CA listed only in [tls.client] roots, a block's tls_ca_file replaces roots, and an unknown issuer names the settings that fix it"
+    name: "Ldap::open, an [ldap] block, a [mail] block, a [db] block and a shared cache over TLS trust a CA listed only in [tls.client] roots, a block's tls_ca_file replaces roots, an unknown issuer names the settings that fix it, and a certificate for another name lists the names it is for"
     run: [cargo, test, --test, client_roots]
-    tests: [ldap_open_trusts_a_ca_in_tls_client_roots, an_ldap_block_without_a_ca_file_trusts_tls_client_roots, a_mail_block_without_a_ca_file_trusts_tls_client_roots, a_postgres_block_without_a_ca_file_trusts_tls_client_roots, a_shared_cache_over_tls_trusts_tls_client_roots, a_block_ca_file_replaces_tls_client_roots, an_unknown_issuer_from_ldap_open_names_tls_client_roots, an_unknown_issuer_from_a_block_names_both_settings]
+    tests: [ldap_open_trusts_a_ca_in_tls_client_roots, an_ldap_block_without_a_ca_file_trusts_tls_client_roots, a_mail_block_without_a_ca_file_trusts_tls_client_roots, a_postgres_block_without_a_ca_file_trusts_tls_client_roots, a_shared_cache_over_tls_trusts_tls_client_roots, a_block_ca_file_replaces_tls_client_roots, an_unknown_issuer_from_ldap_open_names_tls_client_roots, an_unknown_issuer_from_a_block_names_both_settings, a_certificate_for_another_name_lists_its_names]
     timeout: 1800
   - id: rules
     stage: 3
@@ -93,6 +93,16 @@ can fail a handshake names what fixes it, in its own error class:
   `[tls.client] roots`".
 Every other handshake failure keeps its message. The hint is built where the block name is known: the
 stdlib layer, never `nvs-ldap` or `nvs-db`.
+
+**A certificate for another name gets its own hint.** `rustls` reports it as
+`CertificateError::NotValidForNameContext { expected, presented }` (0.23.46; `NotValidForName`
+without the list). A new `nvs_host::tls::names_presented(&io::Error) -> Option<Vec<String>>` beside
+`unknown_issuer` returns the certificate's names, or an empty list for the variant without them.
+The message says the certificate is for those names and not for the one connected to, and that the
+fix is to set the block's `host` or `url` (or the program's URL) to one of them. It never names
+`roots` or `tls_ca_file`, because no CA setting fixes a name. A user report met this right after the
+unknown issuer. Both hints cover HTTP as well (`crates/nvs-stdlib/src/http/transport.rs:1902`), so
+every client words the two cases the same way.
 
 **No per-call CA for `Ldap::open` or `Db::open`.** HTTP's `tlsCa` under the `tls.anchors` grant
 (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`) is the shape one would take, and no
@@ -159,7 +169,10 @@ call per crate.
 - [ ] `crates/nvs-stdlib/src/mail/smtp.rs:166`: the message also names `[tls.client] roots`.
 - [ ] `crates/nvs-stdlib/src/db/open.rs:604` and the place a `[db]` handshake failure becomes a
   `Db\DbError` (not checked: find it from `crates/nvs-db/src/pg.rs:1143`); `crates/nvs-stdlib/src/cache/redis.rs:631`.
-- [ ] The two hint tests of `every-client`, then `cargo test --test client_roots` once.
+- [ ] `crates/nvs-host/src/tls.rs:465`: `names_presented` beside `unknown_issuer`, with a unit test
+  on a certificate made for another name. Every handshake site above and HTTP's
+  (`crates/nvs-stdlib/src/http/transport.rs:1902`) gives both hints of § *Standing decisions*.
+- [ ] The three hint tests of `every-client`, then `cargo test --test client_roots` once.
 
 ### 3. the rule, the settings docs, the feature proofs and the website say so
 
