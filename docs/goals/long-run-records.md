@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/debug/index.rs, crates/nvs-cli/tests/debug_ingest.r
 stages:
   - id: 1
     title: "a run's rows go by their own time, a run row by its end, and the index keeps the cut"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/runs.rs, crates/nvs-cli/tests/debug_api.rs]
   - id: 2
     title: "the run page says which records were deleted, and the rules, the docs and the website say so"
@@ -58,7 +58,10 @@ ends, and shows on the run page which records are gone.
 
 **A run's rows are loose rows.** The rows of a run's trace are deleted by their own `at_us`, in the
 same steps that delete rows no owner names. Only a request still deletes its rows with it. In
-`index.rs`, `unowned(table)` tests only `requests`, and `runs` leaves `OWNERS`.
+`index.rs`, `unowned(table)` tests only `requests`. `OWNERS` is a list of `Owner`s, each a table,
+the time it is deleted by and the tables deleted with it: a request by `start_us` with every
+`BY_TRACE` table, and a run by `start_us + duration_us` with `exceptions` alone. One
+`forget_batch` and one `oldest` loop then serve both.
 
 **A run row goes by its end.** A `runs` row is deleted when `start_us + duration_us` is before the
 `index_age` cutoff, and under `index_max` it is one more head in `Index::oldest`, timed by its end.
@@ -97,19 +100,19 @@ table.
 
 ### 1. a run's rows go by their own time, a run row by its end, and the index keeps the cut
 
-- [ ] `crates/nvs-cli/src/debug/index.rs`: `runs` leaves `OWNERS`, `unowned` tests only `requests`,
+- [x] `crates/nvs-cli/src/debug/index.rs`: `runs` leaves `OWNERS`, `unowned` tests only `requests`,
   and § *A run row goes by its end* is built: the age pass, the `Index::oldest` head, the
   `runs_end` index and the schema raised once. The module doc's *The deletion window* says so.
-- [ ] `crates/nvs-cli/src/debug/index.rs`: `forget_rows` raises `meta`'s `cut_us`, and `rebuild`
+- [x] `crates/nvs-cli/src/debug/index.rs`: `forget_rows` raises `meta`'s `cut_us`, and `rebuild`
   starts a fresh file without one.
-- [ ] `crates/nvs-cli/src/debug/runs.rs:135`: `/api/run` returns `cut_us` as § *The index keeps one
+- [x] `crates/nvs-cli/src/debug/runs.rs:135`: `/api/run` returns `cut_us` as § *The index keeps one
   cut* says.
-- [ ] `crates/nvs-cli/tests/debug_ingest.rs`: three tests beside
+- [x] `crates/nvs-cli/tests/debug_ingest.rs`: three tests beside
   `index_max_deletes_the_oldest_rows_whether_a_request_names_them_or_not`, built the same way with a
   `run` line from the sample: `index_age_deletes_a_finished_runs_old_rows_and_keeps_its_new_ones`,
   `index_max_deletes_a_long_runs_oldest_rows_before_a_newer_request` and
   `a_run_row_goes_once_its_end_is_past_index_age`.
-- [ ] `crates/nvs-cli/tests/debug_api.rs:1388`: `a_run_that_started_before_the_cut_returns_it`, and a
+- [x] `crates/nvs-cli/tests/debug_api.rs:1388`: `a_run_that_started_before_the_cut_returns_it`, and a
   run that started after it returns `null`. Then the check `rows` once.
 
 ### 2. the run page says which records were deleted, and the rules, the docs and the website say so
@@ -139,12 +142,32 @@ table.
 
 ### State
 
-Written on 2026-11-26 by the interactive session that made `[debug] index_max` bound every row in
-one time order (`50a36f29d6`). Nothing of this goal is built. Every anchor above was read on that
-day.
+Written on 2026-11-26 by the loop session that built stage 1 (`8c0a7b2f00`). Stage 1 is done
+and the check `rows` is green. `index.rs` deletes a run's rows by their own time and a run row
+by its end on `runs_end`, `forget_rows` raises `meta`'s `cut_us`, and `SCHEMA` is 17. `/api/run`
+returns `cut_us` (`runs.rs` `detail`). `viewer/src/api.ts`'s `RunDetail` already has
+`cut_us: number | null`, and `viewer/test/fixtures/run.json` has `"cut_us": null`. The page
+does not show it yet. `debug_api.rs` has `Service::start_on(data)`, which starts a service on a
+data folder that `nvs debug --once` has already ingested.
 
 ### Next
 
-Stage 1 from its first item. The check `rows` is red until its four tests exist.
+Stage 2 from its first item: the note in `viewer/src/views/run.tsx:44` reads `detail.cut_us`.
+Its browser case can set `cut_us` on a copy of `run.json` in `viewer/test/runs.browser.test.ts:20`.
+No test is expected to go red.
 
 ### Backlog
+
+- **The nightly's `serve` stack-page test on aarch64 is not this goal's, and nothing fixed it.**
+  The four Miri jobs and the four conformance jobs of nightly run 45813627231 tested `4e43e1fa2e`.
+  `c115a735a1` and `28a4d7a6bf` fixed both causes after that commit. The ninth job,
+  `test / linux-aarch64 (tests)`, failed
+  `serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+  (`crates/nvs-cli/src/serve.rs:5555`) with 11.03 host pages per waiting request against
+  `REQUEST_HOST_STACK_PAGES` 11. Measured on Windows in a debug build: (host, program) pages went
+  (75, 0) → (340, 0) idle → (691, 102) waiting at `53e94a9181`, the last green nightly, and
+  (75, 0) → (340, 0) → (691, 128) at `83eb71aaa2`. So the host part is 10.97 at both commits, not
+  the 8.0 its doc comment records: it grew between `19466dc99c` (25 October) and `53e94a9181`.
+  The program part grew from 3.2 to 4.0, exactly its bound of 4, in the commits after
+  `53e94a9181`. The next step is a bisect over each range with that test and a printed reading.
+  Do not share `CARGO_TARGET_DIR` with that worktree: see the playbook.

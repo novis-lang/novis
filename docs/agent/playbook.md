@@ -358,6 +358,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **A worktree of another commit never builds into the tree's `target/`.** In `long-run-records`
+  stage 1, a measurement at an older commit ran with `CARGO_TARGET_DIR` set to the tree's
+  `target/`. Cargo gives a workspace crate the same artifact name in both checkouts. The next
+  `cargo test` in the tree then compiled `nvs-hir` against the old `nvs-syntax` and failed with
+  fifteen errors in files nobody had changed. `touch` on every `crates/*/src/lib.rs` and `main.rs`
+  repaired it. Give the worktree a target folder of its own under `.agent-tmp/`, or measure there
+  with a release build. See `Cargo.toml`'s `[workspace]`.
 - **A process the VS Code extension starts runs from a copy, so its data folder is beside the
   copy.** In `debug-viewer-flagship` stage 9, `nvs/debugViewer` was written and tested before the
   session saw that `nvs lsp` with no `--data` reads the `.nvsdata` beside its copy in extension
