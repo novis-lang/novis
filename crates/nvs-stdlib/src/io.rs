@@ -2318,7 +2318,7 @@ nvs_runtime::nvs_helper! {
     /// Slot 2 is the call-site id that [`crate::registry::RECORDED_SITE_MEMBERS`]
     /// puts last, and a recorded request files one `file` event for the call.
     fn nvs_core_io_read(ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr, at 1 {
-        crate::site::watched(
+        crate::site::watched_with(
             ctx,
             args[2],
             nvs_runtime::TraceKind::File,
@@ -2330,9 +2330,27 @@ nvs_runtime::nvs_helper! {
                     ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::read"))?;
                 text_of(&raw, "Core\\IO::read", READ_HINT)
             },
+            read_outcome,
         )
     } apply(result, _subject) {
         result
+    }
+}
+
+/// A whole-file read's `file` event outcome: the bytes it gives, and none for a read that
+/// failed.
+fn read_outcome(read: Option<&Value>) -> nvs_runtime::spool::Outcome {
+    nvs_runtime::spool::Outcome {
+        bytes: read.and_then(crate::site::length_of),
+        ..nvs_runtime::spool::Outcome::default()
+    }
+}
+
+/// A write's `file` event outcome: the bytes of `content`, and none for a write that failed.
+fn written_outcome(done: Option<&Value>, content: Value) -> nvs_runtime::spool::Outcome {
+    nvs_runtime::spool::Outcome {
+        bytes: done.and_then(|_| crate::site::length_of(&content)),
+        ..nvs_runtime::spool::Outcome::default()
     }
 }
 
@@ -2354,7 +2372,7 @@ nvs_runtime::nvs_helper! {
     /// Slot 2 is the call-site id that [`crate::registry::RECORDED_SITE_MEMBERS`]
     /// puts last, and a recorded request files one `file` event for the call.
     fn nvs_core_io_read_bytes(ctx, args: [3]) {
-        crate::site::watched(
+        crate::site::watched_with(
             ctx,
             args[2],
             nvs_runtime::TraceKind::File,
@@ -2367,6 +2385,7 @@ nvs_runtime::nvs_helper! {
                 })?;
                 Ok(Value::bytes(nvs_runtime::NvsStr::new(&raw)))
             },
+            read_outcome,
         )
     }
 }
@@ -2384,7 +2403,7 @@ nvs_runtime::nvs_helper! {
     /// Slot 3 is the call-site id that [`crate::registry::RECORDED_SITE_MEMBERS`]
     /// puts last, and a recorded request files one `file` event for the call.
     fn nvs_core_io_read_text(ctx, args: [4]) -> Value, owns nvs_runtime::NvsStr, at 1 {
-        crate::site::watched(
+        crate::site::watched_with(
             ctx,
             args[3],
             nvs_runtime::TraceKind::File,
@@ -2398,6 +2417,7 @@ nvs_runtime::nvs_helper! {
                     crate::encoding::decode_argument(ctx, &args[1..3], "Core\\IO::readText", &raw)?;
                 Ok(Value::text(&text))
             },
+            read_outcome,
         )
     } apply(result, _subject) {
         result
@@ -3535,7 +3555,7 @@ nvs_runtime::nvs_helper! {
     /// Slot 2 is the call-site id that [`crate::registry::RECORDED_SITE_MEMBERS`]
     /// puts last, and a recorded request files one `file` event for the call.
     fn nvs_core_io_write(ctx, args: [3]) {
-        crate::site::watched(
+        crate::site::watched_with(
             ctx,
             args[2],
             nvs_runtime::TraceKind::File,
@@ -3547,6 +3567,7 @@ nvs_runtime::nvs_helper! {
                 nvs_runtime::capability::write(ctx, path, content, "Core\\IO::write")?;
                 Ok(Value::null())
             },
+            |done| written_outcome(done, args[1]),
         )
     }
 }
@@ -3574,7 +3595,7 @@ nvs_runtime::nvs_helper! {
     /// Slot 2 is the call-site id that [`crate::registry::RECORDED_SITE_MEMBERS`]
     /// puts last, and a recorded request files one `file` event for the call.
     fn nvs_core_io_append(ctx, args: [3]) {
-        crate::site::watched(
+        crate::site::watched_with(
             ctx,
             args[2],
             nvs_runtime::TraceKind::File,
@@ -3590,6 +3611,7 @@ nvs_runtime::nvs_helper! {
                 })?;
                 Ok(Value::null())
             },
+            |done| written_outcome(done, args[1]),
         )
     }
 }

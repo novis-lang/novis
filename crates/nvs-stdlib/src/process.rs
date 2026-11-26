@@ -1709,8 +1709,21 @@ nvs_runtime::nvs_helper! {
             // A child process reports no wall time of its own, so the join
             // carries the parent-observed wall and no split. It is closed
             // before the refusals below, since a wait that throws on what the
-            // child wrote, or on its timeout, has still joined it.
-            ctx.close_spawn(open, None);
+            // child wrote, or on its timeout, has still joined it. Its outcome is the
+            // program's file name, never its directory or an argument, and the exit code
+            // where the child ended.
+            let outcome = nvs_runtime::spool::Outcome {
+                command: path
+                    .as_text()
+                    .and_then(|path| std::path::Path::new(path).file_name())
+                    .map(|name| name.to_string_lossy().into_owned()),
+                exit: match &drained {
+                    Ok(Some(output)) => Some(i64::from(output.status.code().unwrap_or(SIGNALLED))),
+                    _ => None,
+                },
+                ..nvs_runtime::spool::Outcome::default()
+            };
+            ctx.close_spawn_with(open, None, outcome);
         }
 
         let Output {

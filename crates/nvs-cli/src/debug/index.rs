@@ -32,6 +32,11 @@
 //! the handler's name and the body bytes read and written, each null where the line has none.
 //! Spends: four integers and one name per request row.
 //!
+//! An `events` row keeps the event's outcome, such as a cache read's hit and tier or an outbound
+//! call's status and sizes, as one JSON text, null where the line has none. The viewer draws it
+//! and never filters or sums on it, so it is one column and not one per field. Spends: per
+//! recorded event, at most a few short fields.
+//!
 //! An `exceptions` row keeps the uncaught exception's frames and its `previous` chain as two
 //! JSON texts, each null where the line has none, and whether either was cut. The viewer draws
 //! them and never filters on them, so they are not searched. Spends: per recorded exception, at
@@ -73,7 +78,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 12;
+pub(crate) const SCHEMA: i64 = 13;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -183,7 +188,8 @@ CREATE TABLE events (
     target TEXT,
     site_file TEXT,
     site_line INTEGER,
-    site_hash TEXT
+    site_hash TEXT,
+    outcome TEXT
 );
 CREATE UNIQUE INDEX events_key ON events (writer, seq);
 CREATE INDEX events_trace ON events (trace);

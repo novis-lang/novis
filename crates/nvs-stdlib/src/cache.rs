@@ -2119,6 +2119,20 @@ enum Tier {
 /// A [`Fault::fatal`] for a slot holding neither word: the two members that
 /// build a store write one of the two and nothing else can build one, so a third
 /// value is compiled code's bug rather than anything a program can write.
+/// A `cache` event's outcome: the store the call reached, and on a `get` whether it had the
+/// entry (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). Built only when
+/// the event is filed.
+fn outcome_of(args: &[Value], hit: Option<bool>) -> nvs_runtime::spool::Outcome {
+    nvs_runtime::spool::Outcome {
+        hit,
+        tier: tier_of(args, "get").ok().map(|tier| match tier {
+            Tier::Memory => nvs_runtime::spool::CacheTier::Memory,
+            Tier::Shared => nvs_runtime::spool::CacheTier::Redis,
+        }),
+        ..nvs_runtime::spool::Outcome::default()
+    }
+}
+
 fn tier_of(args: &[Value], member: &str) -> Result<Tier, Fault> {
     let receiver = crate::instance::receiver(args[0], &STORE, member)?;
     let tier = crate::instance::slot(receiver, TIER_SLOT);
@@ -2770,7 +2784,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cache_put(ctx, args: [5]) {
         let site = args[4];
         let target = args[1].as_text();
-        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::put", target, |ctx| {
+        crate::site::watched_with(ctx, site, TraceKind::Cache, r"Core\Cache\Store::put", target, |ctx| {
             let tier = tier_of(args, "put")?;
             let key = key_of(args, 1, "put")?.as_bytes().to_vec();
             let lifetime = lifetime_of(args, 3, "put")?;
@@ -2830,7 +2844,7 @@ nvs_runtime::nvs_helper! {
                 })?,
             }
             Ok(Value::null())
-        })
+        }, |_| outcome_of(args, None))
     }
 }
 
@@ -2857,7 +2871,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cache_get(ctx, args: [3]) {
         let site = args[2];
         let target = args[1].as_text();
-        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::get", target, |ctx| {
+        crate::site::watched_with(ctx, site, TraceKind::Cache, r"Core\Cache\Store::get", target, |ctx| {
             let tier = tier_of(args, "get")?;
             let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
@@ -2873,7 +2887,7 @@ nvs_runtime::nvs_helper! {
             nvs_runtime::decode(&payload, &ctx.receiving()).map_err(|why| {
                 Fault::thrown_as(ThrownClass::Parse, format!("{STORE_NAME}::get(): {why}"))
             })
-        })
+        }, |got| outcome_of(args, got.map(|got| !matches!(got.tag(), Some(Tag::Null)))))
     }
 }
 
@@ -2903,7 +2917,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cache_forget(ctx, args: [3]) {
         let site = args[2];
         let target = args[1].as_text();
-        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::forget", target, |ctx| {
+        crate::site::watched_with(ctx, site, TraceKind::Cache, r"Core\Cache\Store::forget", target, |ctx| {
             let tier = tier_of(args, "forget")?;
             let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
 
@@ -2912,7 +2926,7 @@ nvs_runtime::nvs_helper! {
                 Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key).map(drop))?,
             }
             Ok(Value::null())
-        })
+        }, |_| outcome_of(args, None))
     }
 }
 
@@ -2944,7 +2958,7 @@ nvs_runtime::nvs_helper! {
     /// target, because the key is a secret's.
     fn nvs_core_cache_put_secret(ctx, args: [6]) {
         let site = args[5];
-        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::putSecret", None, |ctx| {
+        crate::site::watched_with(ctx, site, TraceKind::Cache, r"Core\Cache\Store::putSecret", None, |ctx| {
             let tier = tier_of(args, "putSecret")?;
             let key = key_of(args, 1, "putSecret")?.as_bytes().to_vec();
             let value = secret_of(args, 2, "putSecret")?;
@@ -2962,7 +2976,7 @@ nvs_runtime::nvs_helper! {
             };
             seal_and_store(ctx, &at, value.as_bytes(), nanos)?;
             Ok(Value::null())
-        })
+        }, |_| outcome_of(args, None))
     }
 }
 
@@ -3004,7 +3018,7 @@ nvs_runtime::nvs_helper! {
     /// id, as [`nvs_core_cache_put_secret`]'s is. Its event names no target.
     fn nvs_core_cache_get_secret(ctx, args: [6]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let site = args[5];
-        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::getSecret", None, |ctx| {
+        crate::site::watched_with(ctx, site, TraceKind::Cache, r"Core\Cache\Store::getSecret", None, |ctx| {
             let tier = tier_of(args, "getSecret")?;
             let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
 
@@ -3055,7 +3069,7 @@ nvs_runtime::nvs_helper! {
                 held.value.release();
             }
             refreshed.map(Option::unwrap_or_default)
-        })
+        }, |_| outcome_of(args, None))
     } apply(result, _subject) {
         result
     }

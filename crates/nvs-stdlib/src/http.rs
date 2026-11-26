@@ -4113,14 +4113,14 @@ fn exchanged(
         })?;
         let headers = header_map(&answer.headers);
         let body = filed(ctx, answer.body);
-        traced(ctx, &call, site);
+        traced(ctx, &call, site, None);
         return Ok((answer.status, body, headers, answer.tls));
     }
     let reply = transport::send(&call, &mut |hop, downgrade| {
         repinned(ctx, args, hop, downgrade, &named)
     })?;
     let headers = header_map(&reply.headers);
-    traced(ctx, &call, site);
+    traced(ctx, &call, site, Some(reply.body.len()));
     Ok((
         reply.status,
         Value::bytes(NvsStr::new(&reply.body)),
@@ -4480,7 +4480,7 @@ pub fn extension_send(
         }
         repinned(ctx, &args, hop, downgrade, &named)
     })?;
-    traced(ctx, &call, 0);
+    traced(ctx, &call, 0, Some(reply.body.len()));
     Ok(ExtensionReply {
         status: reply.status,
         headers: reply.headers,
@@ -4557,7 +4557,7 @@ pub(crate) fn push_send(
             "{member} asked to follow a redirect under a limit of none"
         )))
     })?;
-    traced(ctx, &call, 0);
+    traced(ctx, &call, 0, Some(reply.body.len()));
     Ok(reply.status)
 }
 
@@ -4652,23 +4652,32 @@ fn call_of<'a>(
 /// which is where the call ends and the program's own reading begins.
 ///
 /// The event names `site`, the call site's id (0 names none), and
-/// [`span::trace_target`]'s host and path of the call's URL.
-fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
+/// [`span::trace_target`]'s host and path of the call's URL. Its outcome is the reply's status,
+/// the request body's length and `read`, the reply body's length where the call read the whole
+/// body: a streamed reply passes `None`.
+fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32, read: Option<usize>) {
     if !ctx.records_spans() {
         return;
     }
-    let (line, took) = {
+    let (line, took, status) = {
         let mut span = call.span.borrow_mut();
         span.finished();
-        (span.to_string(), span.duration())
+        (span.to_string(), span.duration(), span.status())
     };
     let target = span::trace_target(&call.url);
+    let outcome = nvs_runtime::spool::Outcome {
+        http_status: status,
+        bytes_in: read.and_then(|read| u64::try_from(read).ok()),
+        bytes_out: call.body.as_ref().map(|body| body.length),
+        ..nvs_runtime::spool::Outcome::default()
+    };
     ctx.record_site_event(
         nvs_runtime::TraceKind::Http,
         &line,
         took,
         Some(target),
         site,
+        outcome,
     );
 }
 

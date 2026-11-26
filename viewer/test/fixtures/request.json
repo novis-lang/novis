@@ -101,15 +101,18 @@
       "id": 5,
       "kind": "call",
       "label": "Shop\\Orders::place",
+      "outcome": null,
       "query": null,
       "start_us": 1700000002000050,
-      "status": null
+      "status": null,
+      "target": null
     },
     {
       "end_us": 1700000002000900,
       "id": 6,
       "kind": "query",
       "label": "sqlite main SELECT * FROM items WHERE id = ?",
+      "outcome": null,
       "query": {
         "driver": "sqlite",
         "rows": 1,
@@ -121,25 +124,30 @@
         "sql": "SELECT * FROM items WHERE id = ?"
       },
       "start_us": 1700000002000100,
-      "status": null
+      "status": null,
+      "target": null
     },
     {
       "end_us": 1700000002003000,
       "id": 7,
       "kind": "gc",
       "label": "cycle collection",
+      "outcome": null,
       "query": null,
       "start_us": 1700000002002400,
-      "status": null
+      "status": null,
+      "target": null
     },
     {
       "end_us": 1700000002009000,
       "id": 8,
       "kind": "spawn",
       "label": "Shop\\Mail::notify",
+      "outcome": null,
       "query": null,
       "start_us": 1700000002004000,
-      "status": null
+      "status": null,
+      "target": null
     }
   ],
   "exception": {

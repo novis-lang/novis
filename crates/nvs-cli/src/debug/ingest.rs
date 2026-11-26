@@ -540,8 +540,9 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
             tx.execute(
                 "INSERT OR IGNORE INTO events (writer, seq, batch, trace, at_us, kind, label, \
                  start_us, end_us, status, driver, sql, rows, target, site_file, site_line, \
-                 site_hash) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                 site_hash, outcome) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, \
+                 ?17, ?18)",
                 params![
                     key.0,
                     key.1,
@@ -560,6 +561,7 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                     site.map(|site| site.file.as_str()),
                     site.map(|site| site.line),
                     site.map(|site| site.hash.as_str()),
+                    (!event.outcome.is_empty()).then(|| json(&event.outcome)),
                 ],
             )?;
         }

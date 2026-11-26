@@ -389,6 +389,102 @@ fn a_requests_memory_handler_and_sizes_reach_its_row_and_an_older_line_reads() {
     );
 }
 
+/// The sample's `cache` event line, rewritten as a `kind` event with `outcome`, as `writer`'s
+/// line `seq` under `trace`.
+fn event_with(
+    lines: &[Line],
+    seq: u64,
+    kind: nvs_runtime::spool::EventKind,
+    outcome: nvs_runtime::spool::Outcome,
+) -> Line {
+    let mut line = lines
+        .iter()
+        .find(|line| {
+            matches!(&line.record, Record::Event(event)
+                if event.event == nvs_runtime::spool::EventKind::Cache)
+        })
+        .expect("the sample has a cache event")
+        .clone();
+    line.seq = seq;
+    if let Record::Event(event) = &mut line.record {
+        event.event = kind;
+        event.label = format!("{kind:?} member");
+        event.outcome = outcome;
+    }
+    line
+}
+
+/// `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`'s event outcome: a
+/// cache, HTTP, file and process event's outcome reaches its row's `outcome` as JSON, and an
+/// event with none has a null `outcome`.
+#[test]
+fn each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none() {
+    use nvs_runtime::spool::{EventKind, Outcome};
+    let folder = Folder::new();
+    let trace = "0000000000000000000000000000000d";
+    let mut lines = copy("13-1-0", trace, now_us());
+    let next = u64::try_from(lines.len()).expect("few lines") + 100;
+    lines.extend([
+        event_with(
+            &lines,
+            next,
+            EventKind::Http,
+            Outcome {
+                http_status: Some(503),
+                bytes_in: Some(17),
+                bytes_out: Some(4),
+                ..Outcome::default()
+            },
+        ),
+        event_with(
+            &lines,
+            next + 1,
+            EventKind::File,
+            Outcome {
+                bytes: Some(2_048),
+                ..Outcome::default()
+            },
+        ),
+        event_with(
+            &lines,
+            next + 2,
+            EventKind::Spawn,
+            Outcome {
+                command: Some("convert".to_owned()),
+                exit: Some(2),
+                ..Outcome::default()
+            },
+        ),
+        event_with(&lines, next + 3, EventKind::Session, Outcome::default()),
+    ]);
+    folder.write("13-1-0.0.spool", &lines);
+    folder.ingest();
+    let db = folder.index();
+    let outcome = |kind: &str| -> Option<serde_json::Value> {
+        db.query_row(
+            "SELECT outcome FROM events WHERE trace = ?1 AND kind = ?2",
+            [trace, kind],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .expect("the event has its row")
+        .map(|text| serde_json::from_str(&text).expect("the outcome is JSON"))
+    };
+    assert_eq!(
+        outcome("cache"),
+        Some(serde_json::json!({"hit": true, "tier": "memory"}))
+    );
+    assert_eq!(
+        outcome("http"),
+        Some(serde_json::json!({"http_status": 503, "bytes_in": 17, "bytes_out": 4}))
+    );
+    assert_eq!(outcome("file"), Some(serde_json::json!({"bytes": 2048})));
+    assert_eq!(
+        outcome("spawn"),
+        Some(serde_json::json!({"command": "convert", "exit": 2}))
+    );
+    assert_eq!(outcome("session"), None, "an event without an outcome has none");
+}
+
 /// `rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`: an exception's frames
 /// and chain reach its row, a line without them reads with none, and `nvs debug to-test` prints
 /// the same test for both.

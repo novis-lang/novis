@@ -611,7 +611,7 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
     let framing = tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(usize::try_from(cap).unwrap_or(usize::MAX)));
     let upgraded = transport::upgrade(&call, &offers(args)?, framing)?;
-    super::traced(ctx, &call, 0);
+    super::traced(ctx, &call, 0, None);
     let protocol = upgraded.protocol.clone();
     let open = Open {
         framed: upgraded,

@@ -8,7 +8,7 @@ index_max`, the oldest request first.
 | `runs` | from goal `deeper-debug-records`, `run` line: trace id, `of`, name, start, duration, outcome, nullable memory peak and limit, its exception group, and its dump, log and query counts and summed event durations kept by the same triggers as a request's; indexed on start and on (`of`, `name`, `start_us`) | the Runs view (`rule:testing/a-run-is-recorded-like-a-request`) |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
-| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, the target, and its call site's file, line and file hash; from goal `deeper-debug-records`, nullable `outcome`, the event's outcome fields as one JSON object | a request's timeline, and each event's outcome |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, the target, and its call site's file, line and file hash, and nullable `outcome`, the event's outcome fields as one JSON object | a request's timeline, and each event's outcome |
 | `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
 | `profiles` | `profile` line: trace id, the profile file's path | a request's profile |
 | `coverage` | `coverage` line: trace id, span, each file's lines and counts as JSON | the lines a request ran |

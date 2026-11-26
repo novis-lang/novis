@@ -689,7 +689,7 @@ impl Ctx {
     fn spool_event(&self, event: &TraceEvent, query: Option<crate::spool::Query>) {
         let mut line = crate::spool::Event::of(event);
         line.query = query;
-        crate::spool::record(self, crate::spool::Record::Event(line));
+        crate::spool::record(self, crate::spool::Record::Event(Box::new(line)));
     }
 
     /// Records one outbound call as
@@ -715,7 +715,14 @@ impl Ctx {
     /// `took` is the call's duration as the transport's span measured it, for
     /// [`Ctx::record_query`]'s reason.
     pub fn record_http(&mut self, span: &str, took: Duration) {
-        self.record_site_event(TraceKind::Http, span, took, None, 0);
+        self.record_site_event(
+            TraceKind::Http,
+            span,
+            took,
+            None,
+            0,
+            crate::spool::Outcome::default(),
+        );
     }
 
     /// Records one `http`, `cache`, `session` or `file` event at the call site whose id the
@@ -724,8 +731,8 @@ impl Ctx {
     /// `label` is what the event is of, as its member rendered it. `target` is what the editor's
     /// lens counts repeats of: the host and path, the key or the file path, and never a value the
     /// call sent or read. `site` is the id, and the zero id, or a context given no site table,
-    /// records no site. The caller asks [`Ctx::records_spans`] first, for
-    /// [`Ctx::record_query`]'s reason.
+    /// records no site. `outcome` is what the call came to, as the member read it. The caller
+    /// asks [`Ctx::records_spans`] first, for [`Ctx::record_query`]'s reason.
     ///
     /// **What it spends:** one site row and one target string per recorded event, freed with
     /// the spool line.
@@ -736,6 +743,7 @@ impl Ctx {
         took: Duration,
         target: Option<String>,
         site: u32,
+        outcome: crate::spool::Outcome,
     ) {
         let (start, end) = Self::ended_after(took);
         self.profile_window(kind.spelling(), start, end);
@@ -748,12 +756,13 @@ impl Ctx {
         };
         let mut line = crate::spool::Event::of(&event);
         line.target = target;
+        line.outcome = outcome;
         line.site = if site == 0 {
             None
         } else {
             self.query_site(site)
         };
-        crate::spool::record(self, crate::spool::Record::Event(line));
+        crate::spool::record(self, crate::spool::Record::Event(Box::new(line)));
         self.trace.push(event);
     }
 
@@ -795,6 +804,17 @@ impl Ctx {
     /// cost — scheduling the child and copying its answer back — and one opaque
     /// total cannot be read as either.
     pub fn close_spawn(&mut self, open: OpenSpawn, child: Option<Duration>) {
+        self.close_spawn_with(open, child, crate::spool::Outcome::default());
+    }
+
+    /// [`Ctx::close_spawn`], with what the child came to: a process's program name and its exit
+    /// code, which its spool line carries.
+    pub fn close_spawn_with(
+        &mut self,
+        open: OpenSpawn,
+        child: Option<Duration>,
+        outcome: crate::spool::Outcome,
+    ) {
         let joined = trace_clock();
         self.profile_window(open.form.spelling(), open.started, joined);
         let payload = render_spawn(open.form, open.started, joined, child);
@@ -808,7 +828,9 @@ impl Ctx {
         // Written at the join, once the event is whole. A child that is never
         // joined writes no spool line.
         if let Some(event) = self.trace.get(open.index) {
-            self.spool_event(event, None);
+            let mut line = crate::spool::Event::of(event);
+            line.outcome = outcome;
+            crate::spool::record(self, crate::spool::Record::Event(Box::new(line)));
         }
     }
 

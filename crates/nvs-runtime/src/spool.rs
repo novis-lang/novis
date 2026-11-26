@@ -132,8 +132,9 @@ pub enum Record {
     /// A request's outcome, and in `development` its input and its response. Boxed, because it is
     /// many times the size of every other kind.
     Request(Box<Request>),
-    /// A trace event (`rule:observability/trace-events-carry-a-kind`).
-    Event(Event),
+    /// A trace event (`rule:observability/trace-events-carry-a-kind`). Boxed, because its
+    /// outcome fields make it several times the size of a dump or a log line.
+    Event(Box<Event>),
     /// A `Core\Debug::dump` record's bounded tree (`rule:errors/record-transformations`).
     Dump(Dump),
     /// A log record the request wrote.
@@ -636,6 +637,62 @@ pub struct Event {
     /// [`Query::site`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub site: Option<QuerySite>,
+    /// What the call came to, where its kind has an outcome: named fields, never text to parse.
+    #[serde(flatten)]
+    pub outcome: Outcome,
+}
+
+/// An event's outcome (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`'s
+/// `event` row): each field is optional, and a kind sets only its own. Never a value the call
+/// sent or read, and never a process's arguments, because a trace is a `secret` sink.
+///
+/// **What it spends:** nothing on a request nobody records. The member that filed the event
+/// builds it only once [`crate::Ctx::records_spans`] is true, and a spawn's `command` is the one
+/// string, freed with the spool line.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Outcome {
+    /// A `cache` read: whether the store had the entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hit: Option<bool>,
+    /// A `cache` event: which store the call reached.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<CacheTier>,
+    /// An `http` event: the reply's status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub http_status: Option<u16>,
+    /// An `http` event: the reply body's bytes, where the call read the whole body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_in: Option<u64>,
+    /// An `http` event: the request body's bytes, where the call sent one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_out: Option<u64>,
+    /// A `file` event: the bytes the call read or wrote.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    /// A process `spawn`: the program's file name, without its directory or its arguments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    /// A process `spawn`: the exit code the program's `wait()` read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit: Option<i64>,
+}
+
+impl Outcome {
+    /// Whether no field is set, which a line records as no outcome at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// The store a `cache` event reached, as [`Outcome::tier`] records it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CacheTier {
+    /// `Core\Cache::memory()`, this process's own store.
+    Memory,
+    /// `Core\Cache::shared()`, the Redis store `[cache.shared] url` names.
+    Redis,
 }
 
 impl Event {
@@ -652,6 +709,7 @@ impl Event {
             query: None,
             target: None,
             site: None,
+            outcome: Outcome::default(),
         }
     }
 }
@@ -1348,9 +1406,9 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Copies, CopyCount, Coverage, Dropped,
-        Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Now, Query, Record,
-        Recorder, Request, Response, SEAL_AFTER, Stack, Store, Writer,
+        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, CacheTier, Copies, CopyCount, Coverage,
+        Dropped, Dump, Event, EventKind, Exception, Frame, Input, Line, Link, Log, Now, Outcome,
+        Query, Record, Recorder, Request, Response, SEAL_AFTER, Stack, Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -1734,7 +1792,7 @@ mod tests {
             text: None,
             base64: Some("/wAB".to_owned()),
         });
-        let event = Record::Event(Event {
+        let event = Record::Event(Box::new(Event {
             event: EventKind::Query,
             label: "sqlite main SELECT * FROM items WHERE id = ?".to_owned(),
             start_us: 1_700_000_000_000_100,
@@ -1753,7 +1811,28 @@ mod tests {
             }),
             target: None,
             site: None,
-        });
+            outcome: Outcome::default(),
+        }));
+        let cache = Record::Event(Box::new(Event {
+            event: EventKind::Cache,
+            label: "Core\\Cache\\Store::get".to_owned(),
+            start_us: 1_700_000_000_000_450,
+            end_us: 1_700_000_000_000_460,
+            status: None,
+            query: None,
+            target: Some("item:7".to_owned()),
+            site: Some(super::QuerySite {
+                file: "src/Shop/Orders.nvs".to_owned(),
+                line: 14,
+                hash: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+                    .to_owned(),
+            }),
+            outcome: Outcome {
+                hit: Some(true),
+                tier: Some(CacheTier::Memory),
+                ..Outcome::default()
+            },
+        }));
         let dump = Record::Dump(Dump {
             file: "src/Shop/Orders.nvs".to_owned(),
             line: 40,
@@ -1794,7 +1873,7 @@ mod tests {
             records: 3,
             files: 1,
         });
-        vec![body, request, event, dump, log, coverage, copies, dropped]
+        vec![body, request, event, cache, dump, log, coverage, copies, dropped]
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line
@@ -2047,8 +2126,19 @@ mod tests {
             Duration::from_millis(1),
             Some("orders/7".to_owned()),
             2,
+            Outcome {
+                bytes: Some(12),
+                ..Outcome::default()
+            },
         );
-        ctx.record_site_event(kind, "Core\\Example::member", Duration::ZERO, None, 0);
+        ctx.record_site_event(
+            kind,
+            "Core\\Example::member",
+            Duration::ZERO,
+            None,
+            0,
+            Outcome::default(),
+        );
 
         let all = sealed_lines(&dir);
         let [named, unnamed] = all.as_slice() else {
@@ -2064,6 +2154,8 @@ mod tests {
         assert_eq!((site.file.as_str(), site.line), ("shop.nvs", 9));
         assert_eq!(unnamed.site, None, "the zero id names no site");
         assert_eq!(unnamed.target, None);
+        assert_eq!(named.outcome.bytes, Some(12), "the outcome reaches the line");
+        assert!(unnamed.outcome.is_empty());
         assert_eq!(ctx.trace().len(), 2, "both events are in the trace as well");
     }
 

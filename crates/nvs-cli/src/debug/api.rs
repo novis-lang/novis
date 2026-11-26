@@ -306,6 +306,12 @@ struct Event {
     /// A call's checked-return status.
     status: Option<i64>,
     query: Option<EventQuery>,
+    /// What an `http`, `cache`, `session` or `file` event was of: the host and path, the key or
+    /// the file path.
+    target: Option<String>,
+    /// The event's outcome fields, as the spool line carried them: `hit` and `tier`,
+    /// `http_status`, `bytes_in` and `bytes_out`, `bytes`, or `command` and `exit`.
+    outcome: Option<Box<RawValue>>,
 }
 
 /// A `query` event's driver, SQL, rows and call site.
@@ -923,7 +929,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     let events = {
         let mut statement = tx.prepare_cached(
             "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site_file, \
-             site_line, site_hash FROM events \
+             site_line, site_hash, target, outcome FROM events \
              WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
              ORDER BY start_us, id LIMIT ?5",
         )?;
@@ -956,6 +962,10 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
                             }),
                             None => None,
                         },
+                        target: row.get(12)?,
+                        outcome: row
+                            .get::<_, Option<String>>(13)?
+                            .and_then(|text| RawValue::from_string(text).ok()),
                     })
                 },
             )?

@@ -226,6 +226,12 @@ impl HttpSpan {
     pub(crate) fn duration(&self) -> Duration {
         self.elapsed.unwrap_or_else(|| self.opened.elapsed())
     }
+
+    /// The reply's status, which an `http` event's `http_status` records, and `None` before
+    /// there is one or for a status outside `u16`.
+    pub(crate) fn status(&self) -> Option<u16> {
+        self.status.and_then(|status| u16::try_from(status).ok())
+    }
 }
 
 impl fmt::Display for HttpSpan {
