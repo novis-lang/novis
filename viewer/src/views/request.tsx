@@ -1,7 +1,7 @@
 // One request, at `/requests/<trace id>/<span id>`: its row from `GET /api/requests?trace=&span=`, and
 // everything it recorded from `GET /api/request`.
 //
-// The header is the drawing's (`viewer/design/reference.html`): the method, the path and the status,
+// The header has the method, the path and the status,
 // the actions, a line with the route, the age and the ids, four tiles, and the request's time split by
 // kind with its legend. The header and the tab row draw from the row alone, so they show before the
 // records load.

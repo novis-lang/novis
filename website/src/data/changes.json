@@ -1,6 +1,36 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "tools:cli/the-debug-viewer"
+      ],
+      "text": "The debug viewer has a new design, with a dark and a light theme. The request list has filters, summary tiles and the time split of each request, and a request page has tabs. Two new pages show totals for each route and for each query."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:cli/nvs-debug-link"
+      ],
+      "text": "`nvs debug link` prints the link to the debug viewer and starts nothing. With `--json`, it also prints the link an editor shows and whether `nvs debug` runs."
+    },
+    {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "tools:editor/the-vs-code-extension"
+      ],
+      "text": "A button in VS Code opens the debug viewer in an editor tab or in your browser. The setting `nvs.debugViewer.openIn` chooses the tab or the browser. In the tab, a click on a `file:line` opens that file in the editor."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Three code lenses show what recorded requests did. Above a route handler, a lens shows the requests and their p50 duration, and above a `Core\\Debug::dump` call, the newest value. Above a `throw`, it shows how often it was thrown and when it was thrown last."
+    },
+    {
       "kind": "new",
       "features": [
         "lang:enums/an-enum-as-an-array-key"

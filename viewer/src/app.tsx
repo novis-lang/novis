@@ -1,4 +1,4 @@
-// The viewer's frame, as `viewer/design/reference.html` draws it: a top bar with the logo, the search
+// The viewer's frame: a top bar with the logo, the search
 // box, the live state (`views/health.tsx`), the theme button and the key list; a rail on the left
 // with the views, the count of new error groups, the saved filters and the settings; and the region
 // the view the path names renders into (`router.ts`).

@@ -4508,6 +4508,9 @@
   "docs/examples/tools/cli/nvs-debug/about.md": {
     "tools:cli/nvs-debug": "9e8caebb3b22fcab"
   },
+  "docs/examples/tools/cli/nvs-debug-link/about.md": {
+    "tools:cli/nvs-debug-link": "e68a7fbcfe1059d6"
+  },
   "docs/examples/tools/cli/nvs-debug-to-test/about.md": {
     "tools:cli/nvs-debug-to-test": "4a070caa1a51b89d"
   },
@@ -4554,7 +4557,7 @@
     "tools:cli/the-compile-cache": "376e91459698612a"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
-    "tools:cli/the-debug-viewer": "a5e2d928f1360ad3"
+    "tools:cli/the-debug-viewer": "09e54eb845eb7ed7"
   },
   "docs/examples/tools/config/app-per-application-blocks/about.md": {
     "tools:config/app-per-application-blocks": "3b6a996a5eec7017"
@@ -9449,6 +9452,9 @@
   "help:tools:cli/nvs-debug": {
     "tools:cli/nvs-debug": "137db41a67fa8e10"
   },
+  "help:tools:cli/nvs-debug-link": {
+    "tools:cli/nvs-debug-link": "01ce8f4795802d2b"
+  },
   "help:tools:cli/nvs-debug-to-test": {
     "tools:cli/nvs-debug-to-test": "eda1aa9e435b35fa"
   },
@@ -9495,7 +9501,7 @@
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
   },
   "help:tools:cli/the-debug-viewer": {
-    "tools:cli/the-debug-viewer": "3c17c340104e3dfb"
+    "tools:cli/the-debug-viewer": "c9a118f01530b85d"
   },
   "help:tools:config/app-per-application-blocks": {
     "tools:config/app-per-application-blocks": "dfd1d768aa58cf4e"
@@ -10051,8 +10057,9 @@
   },
   "tools/debug-viewer/index.mdx": {
     "tools:cli/nvs-debug": "9f1b457b2e767683",
+    "tools:cli/nvs-debug-link": "029beb0ef1a5782a",
     "tools:cli/nvs-debug-to-test": "580aa3b406024784",
-    "tools:cli/the-debug-viewer": "548403de9d160fa3"
+    "tools:cli/the-debug-viewer": "b85557bb8a3619fb"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "e7529dc767e5836e"
