@@ -1,6 +1,6 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
-// (`crates/nvs-cli/src/debug/api.rs`, `runs.rs`, `stream.rs`, `search.rs`, `exceptions.rs`,
-// `summary.rs` and `settings.rs`):
+// (`crates/nvs-cli/src/debug/api.rs`, `runs.rs`, `mails.rs`, `stream.rs`, `search.rs`,
+// `exceptions.rs`, `summary.rs` and `settings.rs`):
 // `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 //
@@ -770,6 +770,97 @@ export function settings(signal?: AbortSignal): Promise<Settings> {
 /** `PUT /api/settings` with the whole settings. Gives the settings as the service kept them. */
 export function saveSettings(next: Settings): Promise<Settings> {
   return send<Settings>("PUT", "/api/settings", next);
+}
+
+/** One message a `[mail.<name>] capture = true` block kept, in the mail list. `id` rises with every
+ *  message the index adds. */
+export interface MailRow {
+  id: number;
+  batch: number;
+  /** The trace id of the request or run that sent it. */
+  trace: string;
+  /** When it was sent, in microseconds since the epoch. */
+  at_us: number;
+  /** The name of the `[mail.<name>]` block. */
+  endpoint: string;
+  subject: string;
+  /** The `to` addresses, joined by `, `. */
+  recipients: string;
+}
+
+/** One page of `GET /api/mails`, newest first. */
+export interface MailPage {
+  watermark: number;
+  mails: MailRow[];
+  /** The `before` of the next older page, or `null` when this page has the oldest message. */
+  older: number | null;
+}
+
+/** Where `GET /api/mails` starts. Every key is optional. */
+export interface MailFilter {
+  before?: number;
+  since?: number;
+  limit?: number;
+}
+
+/** One attachment of a kept message. One with `content_id` is an image the HTML shows inline. */
+export interface MailAttachment {
+  name: string;
+  type: string;
+  content_id?: string;
+  /** Its size in bytes. */
+  size: number;
+  base64: string;
+}
+
+/** A kept message whole. An optional field is missing from the JSON when the message has none. */
+export interface MailMessage {
+  endpoint: string;
+  message_id: string;
+  from: string;
+  from_name?: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  reply_to?: string;
+  subject: string;
+  text: string;
+  /** The HTML as the program wrote it. */
+  html_written?: string;
+  /** The HTML as it was sent, with its CSS inlined. */
+  html?: string;
+  /** The CSS rules left in a `<style>` element. */
+  kept_css?: string[];
+  /** The kept rules that matched no element. */
+  unused_css?: string[];
+  attachments?: MailAttachment[];
+  in_reply_to?: string;
+  references?: string[];
+  unsubscribe?: string;
+  auto_submitted: boolean;
+  bounce_tag?: string;
+  /** True when the bodies and the attachments' bytes were removed because the record was too long. */
+  elided?: boolean;
+}
+
+/** `GET /api/mail`: one kept message. */
+export interface MailDetail {
+  watermark: number;
+  id: number;
+  trace: string;
+  at_us: number;
+  message: MailMessage;
+}
+
+/** One page of the mail list. */
+export function mails(filter: MailFilter = {}, signal?: AbortSignal): Promise<MailPage> {
+  const query = requestQuery(filter);
+  return get<MailPage>(`/api/mails${query ? `?${query}` : ""}`, signal);
+}
+
+/** The kept message `id`. An id with no message is an `ApiError` with status `404`. */
+export function mail(id: number, signal?: AbortSignal): Promise<MailDetail> {
+  return get<MailDetail>(`/api/mail?id=${id}`, signal);
 }
 
 /** `POST /api/index/discard`: deletes the index and starts an empty one. */

@@ -1,0 +1,57 @@
+/* The kept mail: the list at `/mail` and one message's page (`views/mail.tsx`). */
+
+/* Sent, block, subject and the `to` addresses. */
+.mail-grid {
+  grid-template-columns: 6rem 8rem minmax(10rem, 2fr) minmax(8rem, 1fr);
+}
+
+.mail-grid .age {
+  color: var(--faint);
+}
+
+.mail-block {
+  color: var(--text-2);
+  font: var(--fs-2) var(--mono);
+}
+
+.mail-subject {
+  color: var(--text);
+}
+
+.mail-to {
+  color: var(--text-2);
+  font-size: var(--fs-2);
+}
+
+.mail-one .filter-chips {
+  margin: 0 0 var(--space-2);
+}
+
+.mail-one .note {
+  margin: 0 0 var(--space-2);
+}
+
+/* The HTML as sent. The frame cannot report its own height, so it has a fixed one that the reader
+   can drag taller. Its background stays white, as a mail program draws a message. */
+.mail-frame {
+  display: block;
+  width: 100%;
+  height: 32rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: white;
+  resize: vertical;
+}
+
+.mail-rules {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.mail-rules li {
+  margin: var(--space-1) 0;
+}
+
+.mail-inline {
+  margin-left: var(--space-2);
+}

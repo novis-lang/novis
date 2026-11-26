@@ -25,6 +25,7 @@ import { CompareView } from "./views/compare.tsx";
 import { ExceptionsView } from "./views/exceptions.tsx";
 import { createErrorCount, LivePill } from "./views/health.tsx";
 import { LogView } from "./views/log.tsx";
+import { MailList, MailView } from "./views/mail.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
 import { RunView } from "./views/run.tsx";
@@ -44,6 +45,7 @@ const RAIL: ReadonlyArray<{ href: string; label: string; icon: IconName; views: 
   { href: "/queries", label: "Queries", icon: "queries", views: ["queries"] },
   { href: "/exceptions", label: "Errors", icon: "errors", views: ["exceptions"] },
   { href: "/log", label: "Logs", icon: "logs", views: ["log"] },
+  { href: "/mail", label: "Mail", icon: "mail", views: ["mail", "message"] },
   { href: "/stream", label: "Stream", icon: "stream", views: ["stream"] },
 ];
 
@@ -70,6 +72,10 @@ export function App() {
   const runAt = createMemo(() => {
     const now = at();
     return now.view === "run" ? now : null;
+  });
+  const messageAt = createMemo(() => {
+    const now = at();
+    return now.view === "message" ? now : null;
   });
   const compare = createMemo(() => {
     const now = at();
@@ -227,6 +233,10 @@ export function App() {
                   <For each={[query()]}>{(q) => <RunList query={q} />}</For>
                 </Match>
                 <Match when={runAt()}>{(r) => <RunView trace={r().trace} />}</Match>
+                <Match when={view() === "mail"}>
+                  <MailList />
+                </Match>
+                <Match when={messageAt()}>{(m) => <MailView id={m().id} />}</Match>
                 <Match when={view() === "stream"}>
                   <StreamView />
                 </Match>

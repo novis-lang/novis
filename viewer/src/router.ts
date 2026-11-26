@@ -54,6 +54,11 @@ export function runLink(row: { trace: string }): string {
   return `/runs/${row.trace}`;
 }
 
+/** The link to one kept message, by its id. */
+export function mailLink(row: { id: number }): string {
+  return `/mail/${row.id}`;
+}
+
 /** A request that has a span id, so a compare link can name it. */
 export interface SpanKey {
   trace: string;
@@ -78,6 +83,8 @@ export type Route =
   | { view: "compare"; left: SpanKey; right: SpanKey }
   | { view: "runs" }
   | { view: "run"; trace: string }
+  | { view: "mail" }
+  | { view: "message"; id: number }
   | { view: "stream" }
   | { view: "log" }
   | { view: "search" }
@@ -88,7 +95,7 @@ export type Route =
   | { view: "saved"; name: string };
 
 /** The views whose path is their name alone. */
-const NAMED = ["runs", "stream", "log", "search", "exceptions", "routes", "queries", "settings"] as const;
+const NAMED = ["runs", "mail", "stream", "log", "search", "exceptions", "routes", "queries", "settings"] as const;
 
 /** Reads a path into the view it names. A path the viewer does not have is the request list. */
 export function route(to: string): Route {
@@ -99,6 +106,8 @@ export function route(to: string): Route {
   if (c) return { view: "compare", left: { trace: c[1]!, span: c[2]! }, right: { trace: c[3]!, span: c[4]! } };
   const r = /^\/runs\/([0-9a-f]{32})\/?$/.exec(at);
   if (r) return { view: "run", trace: r[1]! };
+  const mail = /^\/mail\/(\d{1,15})\/?$/.exec(at);
+  if (mail) return { view: "message", id: Number(mail[1]) };
   const view = NAMED.find((name) => at === `/${name}` || at === `/${name}/`);
   if (view) return { view };
   const saved = /^\/saved\/([^/]+)\/?$/.exec(at);

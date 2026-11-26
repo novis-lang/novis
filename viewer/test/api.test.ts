@@ -14,6 +14,8 @@ import {
   type RequestDetail,
   type RequestPage,
   type Routes,
+  type MailDetail,
+  type MailPage,
   type RunDetail,
   type RunPage,
   type SearchResults,
@@ -29,6 +31,8 @@ import exceptionFixture from "./fixtures/exception.json";
 import exceptionsFixture from "./fixtures/exceptions.json";
 import healthFixture from "./fixtures/health.json";
 import routesFixture from "./fixtures/routes.json";
+import mailFixture from "./fixtures/mail.json";
+import mailsFixture from "./fixtures/mails.json";
 import runFixture from "./fixtures/run.json";
 import runsFixture from "./fixtures/runs.json";
 import statementsFixture from "./fixtures/statements.json";
@@ -87,6 +91,8 @@ const runDetail: RunDetail = {
   run: runRow(runFixture.run),
   events: runFixture.events.map((event) => ({ ...event, kind: event.kind as RunDetail["events"][number]["kind"] })),
 };
+const mailPage: MailPage = mailsFixture;
+const mailDetail: MailDetail = mailFixture;
 const counted: CoverageMap = coverageFixture;
 const text: SourceFile = sourceFixture;
 const summed: Summary = summaryFixture;
@@ -190,6 +196,13 @@ describe("the request list's API", () => {
     expect(runDetail.exception?.frames?.length).toBeGreaterThan(0);
     expect(runDetail.events.length).toBeGreaterThan(0);
     expect(group.runs).toEqual([]);
+  });
+
+  test("the mail fixtures are one page, newest first, and the message is the list's oldest", () => {
+    const ids = mailPage.mails.map((row) => row.id);
+    expect(ids).toEqual([...ids].sort((a, b) => b - a));
+    expect(mailDetail.id).toBe(ids.at(-1)!);
+    expect(mailDetail.message.attachments?.some((file) => file.content_id)).toBe(true);
   });
 
   test("a group's link names its class and site, and reads back", () => {

@@ -22,6 +22,7 @@ import "./styles/coverage.css";
 import "./styles/routes.css";
 import "./styles/statements.css";
 import "./styles/settings.css";
+import "./styles/mail.css";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("viewer: the page has no #app element");
