@@ -131,7 +131,11 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Mail that a web app needs.** *Working on it now.* `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
-2. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
+2. **Debug records that stay within their limits.** The settings `index_age` and `index_max` under `[debug]` also delete the records of a finished run, oldest first. The run's page in the debug viewer shows which of its records were deleted.
+3. **One setting for the certificates your server trusts.** A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.
+4. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
+5. **Completion that offers only what your program can load.** Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.
+6. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
 <!-- roadmap:end -->
 
 ## Contributing

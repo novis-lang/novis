@@ -11,10 +11,39 @@
       ]
     },
     {
+      "title": "Debug records that stay within their limits",
+      "text": "The settings `index_age` and `index_max` under `[debug]` also delete the records of a finished run, oldest first. The run's page in the debug viewer shows which of its records were deleted.",
+      "goals": [
+        "long-run-records"
+      ]
+    },
+    {
+      "title": "One setting for the certificates your server trusts",
+      "text": "A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.",
+      "goals": [
+        "tls-client-block"
+      ]
+    },
+    {
       "title": "One way to change your code safely",
       "text": "Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.",
       "goals": [
         "refactor-commands"
+      ]
+    },
+    {
+      "title": "Completion that offers only what your program can load",
+      "text": "Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.",
+      "goals": [
+        "loadable-completion"
+      ]
+    },
+    {
+      "title": "Test code and types that say what they mean",
+      "text": "`#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.",
+      "goals": [
+        "test-only",
+        "narrowed-static"
       ]
     }
   ]
