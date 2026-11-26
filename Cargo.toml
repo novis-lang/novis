@@ -1081,6 +1081,18 @@ css-inline = { version = "0.25", default-features = false }
 # part limits are the two bounds `crate::mail::receive` sets.
 mail-parser = { version = "1", default-features = false }
 
+# --- Reading a mailbox (`Core\Imap`) ---
+# `imap-codec`, MIT OR Apache-2.0, pure Rust and fuzzed by its authors: encodes
+# IMAP4rev1 commands and decodes responses, and does no IO, so
+# `crate::imap::session` drives it over the host's own parking stream as SMTP is
+# driven. It adds its types crate `imap-types` and `abnf-core` by the same
+# authors, `nom` 7, `chrono` without its clock or time zone features, `base64`
+# 0.21 beside the tree's newer copies, and `thiserror` 1. None of them has
+# network, file or async code. Its default features are the two quirks that
+# accept common server mistakes in a number and a missing text, and `starttls`
+# adds the one command it needs.
+imap-codec = { version = "1", features = ["starttls"] }
+
 # --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
 # `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty
 # `main` unless the `gen-tests` feature is on, which this row never turns on.
