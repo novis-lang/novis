@@ -69,6 +69,7 @@ const SLOTS: &[&str] = &[
     "answers",
     "report",
     "bounceTag",
+    "uid",
 ];
 
 /// The index of the slot `name` in [`SLOTS`].
@@ -242,6 +243,12 @@ pub(crate) const MESSAGE: CoreClass = CoreClass {
             "nvs_core_mail_message_bounce_tag",
             &BOUNCE_TAG_DOC,
         ),
+        reader(
+            "uid",
+            CoreTy::Nullable(&CoreTy::Int),
+            "nvs_core_mail_message_uid",
+            &UID_DOC,
+        ),
     ],
     slots: SLOTS,
     constants: &[],
@@ -268,6 +275,7 @@ pub(crate) const SLOT_TYPES: &[CoreTy] = &[
     CoreTy::Nullable(&CoreTy::Str),
     CoreTy::Nullable(&CoreTy::Instance(classify::REPORT_NAME)),
     CoreTy::Nullable(&CoreTy::Str),
+    CoreTy::Nullable(&CoreTy::Int),
 ];
 
 /// The class card — `rule:core-api/reference-card`.
@@ -448,6 +456,15 @@ const BOUNCE_TAG_DOC: MethodDoc = MethodDoc {
             `X-Original-To`, then `To`.",
     params: &[],
     ret: "The tag, or `null` when no address has a valid tag.",
+    errors: &[],
+};
+
+/// `uid`'s card.
+const UID_DOC: MethodDoc = MethodDoc {
+    short: "Returns the number of the message in its mailbox folder. `Core\\Imap\\Folder::fetch` \
+            sets it. Pass it to the other methods of the folder.",
+    params: &[],
+    ret: "The UID, or `null` for a message that `parse` read.",
     errors: &[],
 };
 
@@ -649,8 +666,8 @@ pub(crate) fn file_name(written: &str) -> Option<String> {
     }
 }
 
-/// `parsed` and `raw` as the instance.
-fn built(parsed: Parsed, raw: &[u8]) -> Value {
+/// `parsed` and `raw` as the instance, with the mailbox `uid` it was fetched under, if any.
+fn built(parsed: Parsed, raw: &[u8], uid: Option<u32>) -> Value {
     let text = |text: Option<String>| text.as_deref().map_or_else(Value::null, Value::text);
     let list = |items: &[String]| {
         let mut out = NvsArray::new();
@@ -725,6 +742,7 @@ fn built(parsed: Parsed, raw: &[u8]) -> Value {
                 .as_deref()
                 .map_or_else(Value::null, classify::report_value),
             text(parsed.classified.bounce_tag),
+            uid.map_or_else(Value::null, |uid| Value::int(i64::from(uid))),
         ],
     )
 }
@@ -738,7 +756,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        Ok(built(parse(raw), raw))
+        Ok(built(parse(raw), raw, None))
     }
 }
 
@@ -783,6 +801,7 @@ readers! {
     nvs_core_mail_message_answers => "answers",
     nvs_core_mail_message_report => "report",
     nvs_core_mail_message_bounce_tag => "bounceTag",
+    nvs_core_mail_message_uid => "uid",
 }
 
 nvs_runtime::nvs_helper! {
@@ -834,6 +853,7 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_mail_message_answers" => nvs_core_mail_message_answers,
         "nvs_core_mail_message_report" => nvs_core_mail_message_report,
         "nvs_core_mail_message_bounce_tag" => nvs_core_mail_message_bounce_tag,
+        "nvs_core_mail_message_uid" => nvs_core_mail_message_uid,
         _ => return classify::address(symbol),
     };
     Some(nvs_runtime::Entry::borrowed((helper as *const ()).cast()))
@@ -841,7 +861,12 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 
 /// `raw` parsed into a new instance, with one reference the caller owns: what `parse` returns.
 pub(crate) fn message_of(raw: &[u8]) -> Value {
-    built(parse(raw), raw)
+    built(parse(raw), raw, None)
+}
+
+/// [`message_of`] for a message read from a mailbox folder, whose `uid()` is `uid`.
+pub(crate) fn fetched_message(raw: &[u8], uid: u32) -> Value {
+    built(parse(raw), raw, Some(uid))
 }
 
 pub(crate) mod classify;

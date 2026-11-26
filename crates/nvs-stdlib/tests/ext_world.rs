@@ -259,6 +259,8 @@ const REFUSED: &[(&str, &str)] = &[
     ),
     ("Core\\Mail\\Report", REPORT_PARSED),
     ("Core\\Mail\\ReportRecipient", REPORT_PARSED),
+    ("Core\\Imap\\Mailbox", HANDLE),
+    ("Core\\Imap\\Folder", HANDLE),
 ];
 
 /// Every interface the `extension` world imports once resolved: its own

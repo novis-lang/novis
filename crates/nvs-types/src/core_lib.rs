@@ -2361,6 +2361,12 @@ mod tests {
                     "status",
                     "tainted string".to_owned(),
                 ),
+                // The server writes its folder names.
+                (
+                    r"Core\Imap\Mailbox",
+                    "folders",
+                    "array<tainted string>".to_owned(),
+                ),
                 // A parsed node's text is tainted, and the answer cannot follow
                 // one arm of its union parameter (`rule:core-classes/markdown-from-html`).
                 (r"Core\Markdown", "fromHtml", "tainted string".to_owned()),

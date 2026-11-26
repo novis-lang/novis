@@ -198,6 +198,9 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     &crate::ldap::ENTRIES,
     // And a sync, which reads its next answer the same way.
     &crate::ldap::CHANGES_SET,
+    // A mailbox and each of its folders hold the session's key.
+    &crate::imap::MAILBOX,
+    &crate::imap::FOLDER_CLASS,
 ];
 
 /// Every `Core` class whose instance frees its filed state when it dies — the

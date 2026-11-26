@@ -141,8 +141,7 @@ pub(super) struct Session {
     next: u32,
     /// The last `CAPABILITY` list, in upper case.
     capabilities: Vec<String>,
-    /// The block's name and host, for messages.
-    name: String,
+    /// The block's host, for messages.
     host: String,
 }
 
@@ -209,7 +208,7 @@ impl Session {
             held: Vec::new(),
             next: 1,
             capabilities: Vec::new(),
-            name: server.name.clone(),
+
             host: server.host.clone(),
         };
         session.greeting(member)?;

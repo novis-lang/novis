@@ -622,3 +622,104 @@ fn a_message_over_the_request_ceiling_is_an_error_before_it_is_read() {
         ]
     );
 }
+
+/// `session` as a request holds it, with nothing selected.
+fn held(session: Session) -> crate::imap::Held {
+    crate::imap::Held {
+        session,
+        selected: None,
+        timeout: Duration::from_secs(10),
+    }
+}
+
+/// `fetch` parses the message it read, and the message's `uid()` is the UID it was fetched
+/// with. A message that `parse` reads has no UID.
+// covers: Core\Imap\Folder::fetch, Core\Mail\Message::uid
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn fetch_returns_a_parsed_message_with_its_uid() {
+    const MESSAGE: &str = "Subject: hi\r\nMessage-ID: <1@example.com>\r\n\r\nhello\r\n";
+    let (session, thread, _dir) = signed_in(Fake {
+        message: MESSAGE,
+        validity: 7,
+        ..Fake::default()
+    });
+    let mut mailbox = held(session);
+    mailbox.start();
+    assert_eq!(mailbox.select("INBOX", MEMBER).expect("the folder"), 7);
+    let message = mailbox.fetch(42, u64::MAX, MEMBER).expect("the message");
+    let class = &crate::mail::receive::MESSAGE;
+    let slot = |name: &str| {
+        let at = class.slots.iter().position(|each| *each == name).expect("a slot");
+        let object = crate::instance::receiver(message, class, MEMBER).expect("a message");
+        crate::instance::slot(object, at)
+    };
+    assert_eq!(slot("uid").as_int(), Some(42));
+    assert_eq!(slot("subject").as_text(), Some("hi"));
+    assert_eq!(slot("messageId").as_text(), Some("1@example.com"));
+    #[expect(
+        unsafe_code,
+        reason = "the message was built here and nothing else holds it"
+    )]
+    // SAFETY: `fetch` returns one reference, owned by this test.
+    unsafe {
+        message.release();
+    }
+
+    let parsed = crate::mail::receive::message_of(MESSAGE.as_bytes());
+    let object = crate::instance::receiver(parsed, class, MEMBER).expect("a message");
+    let at = class.slots.iter().position(|each| *each == "uid").expect("a slot");
+    assert_eq!(crate::instance::slot(object, at).tag(), Some(nvs_runtime::Tag::Null));
+    #[expect(
+        unsafe_code,
+        reason = "the message was built here and nothing else holds it"
+    )]
+    // SAFETY: `message_of` returns one reference, owned by this test.
+    unsafe {
+        parsed.release();
+    }
+
+    drop(mailbox);
+    let heard = thread.join().expect("the fake server");
+    assert!(
+        heard.find("UID FETCH 42 (UID BODY.PEEK[])").is_some(),
+        "{:?}",
+        heard.commands
+    );
+}
+
+/// A session filed against a request is ended with `LOGOUT` when the request's context is
+/// dropped, with no call from the program.
+// covers: Core\Imap::open
+#[cfg_attr(
+    miri,
+    ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+)]
+#[test]
+fn the_session_closes_when_the_request_ends() {
+    let (session, thread, _dir) = signed_in(Fake {
+        folders: &[r#"() "/" INBOX"#],
+        ..Fake::default()
+    });
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    let key = ctx.hold_open_connection(None, None, Box::new(held(session)));
+    let open = crate::imap::held(&mut ctx, key, MEMBER).expect("the session is filed");
+    open.start();
+    assert_eq!(open.session.folders(MEMBER).expect("the folders"), ["INBOX"]);
+    drop(ctx);
+    let heard = thread.join().expect("the fake server");
+    assert!(
+        !heard.commands.iter().any(|each| each == UNTAGGED),
+        "{:?}",
+        heard.commands
+    );
+    assert_eq!(
+        heard.commands.last().map(|each| verb_of(each)),
+        Some("LOGOUT"),
+        "{:?}",
+        heard.commands
+    );
+}

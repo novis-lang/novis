@@ -1,0 +1,30 @@
+--TEST--
+Core\Imap::open throws `RuntimeError` for a granted name with no `[imap.<name>]` block, and for a block with no sign-in, before any connection is opened — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// `imap.connect` grants `inbox`, but `nvs.toml` has no `[imap.inbox]` block.
+try {
+    var $inbox = Core\Imap::open("inbox");
+    echo "opened inbox", "\n";
+} catch (RuntimeError $missing) {
+    echo $missing->message, "\n";
+}
+
+// `[imap.shared]` has a server and no `user` or `password`.
+// A mailbox always needs a sign-in, so `open` throws.
+try {
+    var $shared = Core\Imap::open("shared");
+    echo "opened shared", "\n";
+} catch (RuntimeError $missing) {
+    echo $missing->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.imap]
+connect = ["inbox", "shared"]
+
+[imap.shared]
+host = "127.0.0.1"
+port = 1
+--EXPECT--
+Core\Imap::open: no `[imap.inbox]` block sets `host`, so there is no mailbox of that name to open
+Core\Imap::open: `[imap.shared]` sets no `user` and `password`, and a mailbox always needs a sign-in

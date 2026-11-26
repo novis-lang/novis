@@ -2604,6 +2604,12 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::LdapConnect),
     ),
     (crate::ldap::NAME, "open", Some(nvs_config::Cap::LdapOpen)),
+    // A mailbox, by the block's name alone, as `Core\Ldap::connect` opens a directory.
+    (
+        crate::imap::NAME,
+        "open",
+        Some(nvs_config::Cap::ImapConnect),
+    ),
     // `rule:core-classes/schema-apply-capability`'s split, and the reason `Core\Db\Schema` is a
     // capability-bearing class at all: reaching a database is not permission to
     // change its shape. `db.schema` gates whether this program may issue DDL to
@@ -2938,6 +2944,14 @@ pub const NEEDS_NONE: &[(&str, &str)] = &[
     (
         r"Core\Mail\ReportRecipient",
         "reads one recipient of a received delivery report",
+    ),
+    (
+        r"Core\Imap\Mailbox",
+        "works on the mailbox `Core\\Imap::open` opened",
+    ),
+    (
+        r"Core\Imap\Folder",
+        "works on the mailbox `Core\\Imap::open` opened",
     ),
     (
         r"Core\Test\SentRequest",

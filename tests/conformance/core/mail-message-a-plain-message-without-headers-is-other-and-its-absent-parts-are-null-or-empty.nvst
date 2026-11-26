@@ -23,6 +23,10 @@ echo Core\Arr::count($note->to()), Core\Arr::count($note->cc()), Core\Arr::count
 echo Core\Arr::count($note->references()), Core\Arr::count($note->header("X-Ticket")), "\n";
 echo Core\Arr::count($note->attachments()), "\n";
 echo $note->text() ?? "null", "\n";
+
+// `parse` read this message, and it does not come from a mailbox folder.
+// So `uid()` is `null`.
+echo $note->uid() == null ? "null" : "a uid", "\n";
 --EXPECT--
 other
 null
@@ -37,3 +41,4 @@ null
 00
 0
 A short note.
+null

@@ -6313,7 +6313,7 @@ pub(crate) fn date_built(at: civil::Date) -> Value {
 /// three slots are written by a constructor that already went through
 /// [`civil::Date::new`], so a triple that does not read back is compiled code
 /// disagreeing with [`DATE`]'s layout.
-fn date_of(args: &[Value], at: usize, member: &str) -> Result<civil::Date, Fault> {
+pub(crate) fn date_of(args: &[Value], at: usize, member: &str) -> Result<civil::Date, Fault> {
     let object = crate::instance::receiver(args[at], &DATE, member)?;
     let read = |index: usize, what: &str| {
         crate::instance::slot(object, index)

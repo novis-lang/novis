@@ -75,6 +75,10 @@ foreach ($report?->recipients() ?? [] as Core\Mail\ReportRecipient $recipient) {
     echo $recipient->isPermanent() ? "permanent" : "temporary", " ";
     echo $recipient->diagnostic() ?? "no diagnostic", "\n";
 }
+
+// `parse` read this message, and it does not come from a mailbox folder.
+// So `uid()` is `null`.
+echo $bounce->uid() == null ? "no uid" : "a uid", "\n";
 --EXPECT--
 bounce
 report-1@mx.example.net
@@ -85,3 +89,4 @@ order-42@example.com
 order-42
 ada@example.org failed 5.1.1 permanent 550 5.1.1 User unknown
 bo@example.org delayed 4.4.1 temporary no diagnostic
+no uid

@@ -45,6 +45,10 @@ echo $reply->bounceTag() ?? "no tag", "\n";
 echo $reply->html() ?? "no html", "\n";
 echo Core\Arr::count($reply->attachments()), "\n";
 echo Core\Bytes::length($reply->raw()) > 0 ? "raw kept" : "raw empty", "\n";
+
+// `parse` read this message, and it does not come from a mailbox folder.
+// So `uid()` is `null`.
+echo $reply->uid() == null ? "no uid" : "a uid", "\n";
 --EXPECT--
 Ada <ada@example.org>
 shop+support@example.com
@@ -64,3 +68,4 @@ support
 no html
 0
 raw kept
+no uid

@@ -493,6 +493,7 @@ fn lookup(symbol: &str) -> Option<nvs_runtime::Entry> {
         .or_else(|| json::address(symbol))
         .or_else(|| jwe::address(symbol))
         .or_else(|| jwt::address(symbol))
+        .or_else(|| imap::address(symbol))
         .or_else(|| ldap::address(symbol))
         .or_else(|| log::address(symbol))
         .or_else(|| markdown::address(symbol))

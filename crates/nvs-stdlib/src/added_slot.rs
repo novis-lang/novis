@@ -172,6 +172,8 @@ const RESERVED: &[&str] = &[
     r"Core\Mail\Message",
     r"Core\Mail\Report",
     r"Core\Mail\ReportRecipient",
+    r"Core\Imap\Mailbox",
+    r"Core\Imap\Folder",
 ];
 
 /// The decision recorded for the `Core` class `name`, or `None` for a name

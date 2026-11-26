@@ -1,0 +1,44 @@
+--TEST--
+Core\Imap::open checks `imap.connect` for the block's name before it reads any configuration, so an ungranted name throws `RuntimeError` and does not show which blocks exist — `rule:core-classes/imap`
+--FILE--
+<?nvs
+// `imap.connect` grants `inbox` and nothing else. `archive` is a block in `nvs.toml`,
+// but it is not granted, so `open` throws.
+try {
+    var $archive = Core\Imap::open("archive");
+    echo "opened archive", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A name with no block throws the same error.
+try {
+    var $nothing = Core\Imap::open("nothing");
+    echo "opened nothing", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The error can be caught, and the program keeps running.
+echo "still running", "\n";
+--FILE nvs.toml--
+[capabilities.imap]
+connect = ["inbox"]
+
+[imap.inbox]
+host = "127.0.0.1"
+port = 1
+user = "ada@example.com"
+password = "secret"
+
+[imap.archive]
+host = "127.0.0.1"
+port = 1
+user = "ada@example.com"
+password = "secret"
+--EXPECT--
+Core\Imap::open needs the capability `imap.connect` for archive, which is not granted
+help: add `connect = ["archive"]` under `[capabilities.imap]` in nvs.toml
+Core\Imap::open needs the capability `imap.connect` for nothing, which is not granted
+help: add `connect = ["nothing"]` under `[capabilities.imap]` in nvs.toml
+still running
