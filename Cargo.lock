@@ -4805,6 +4805,7 @@ dependencies = [
  "brotli",
  "caseless",
  "chacha20poly1305",
+ "chrono",
  "ciborium",
  "coset",
  "crc32c",

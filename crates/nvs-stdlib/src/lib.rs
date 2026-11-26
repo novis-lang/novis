@@ -170,6 +170,7 @@ mod heap;
 pub mod html;
 mod http;
 mod identity_store;
+mod imap;
 mod instance;
 pub mod io;
 mod issue;

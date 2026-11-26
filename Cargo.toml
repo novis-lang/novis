@@ -1092,6 +1092,10 @@ mail-parser = { version = "1", default-features = false }
 # accept common server mistakes in a number and a missing text, and `starttls`
 # adds the one command it needs.
 imap-codec = { version = "1", features = ["starttls"] }
+# `chrono`, MIT OR Apache-2.0, is in the tree for `imap-codec`, which takes a
+# search date as its `NaiveDate`. Its default features are off, so it has no
+# clock and no time zone data.
+chrono = { version = "0.4", default-features = false }
 
 # --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
 # `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty

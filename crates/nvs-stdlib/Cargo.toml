@@ -39,6 +39,8 @@ mail-parser.workspace = true
 # `Core\Imap` encodes its commands and decodes the server's responses with it.
 # The workspace row says what it adds.
 imap-codec.workspace = true
+# `imap-codec` takes a search date as a `chrono` date.
+chrono.workspace = true
 # `rule:core-classes/markdown-to-html`: `Core\Markdown` reads its input with
 # this parser's events and writes `Core\Html`'s tree from them. The workspace
 # row is where the measurement against `comrak` is written, and the patched copy
