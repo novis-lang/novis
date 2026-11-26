@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/mail.rs, crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/site.rs]
   - id: 6
     title: a scheduled job, a queue job and a command run are recorded as runs, and the viewer lists them
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/ingest.rs, crates/nvs-server/src/metrics.rs, crates/nvs-cli/src/main.rs, viewer/src/router.ts]
   - id: 7
     title: the inline debug block links to its request in the viewer
@@ -224,6 +224,16 @@ reads are shared with the request page (`api::events`, `dumps`, `logs`, `excepti
 and the group's first page lists at most `limit` of its newest runs beside its requests, with no
 cursor of its own.
 
+**Stage 6 settled the viewer's Runs view.** A run's page is `/runs/<trace>`, because a run draws
+its own trace. Its tabs are the request page's less Request, Response and Coverage, since a run
+records no input, output or coverage. The tabs draw from one shared shape, `Records` in
+`viewer/src/api.ts`, and `ownerOf` gives the start and duration of a request or a run, so the
+Timeline, Queries, Cache, Dumps, Logs and Exception tabs are the same components on both pages. A
+run is opened as a request is, never through a request row with a made-up method. The run list
+cannot be saved as a filter yet: `SavedView` and the settings' `view` would both gain a value, and
+nothing asked for it. A group's runs are a plain list of links on its page, because the API gives
+at most `limit` of them with no cursor.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -365,18 +375,18 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
   - [x] `GET /api/runs` (paged on `id`, filters `of`, `name`, `outcome`) and `GET /api/run?trace=`.
   - [x] `crates/nvs-cli/src/debug/exceptions.rs:291` joins `requests` alone: a run's exception
     joins its run too.
-- [ ] The viewer: `/runs` and `/runs/<trace>` on the shared list and the request page's tabs, and
+- [x] The viewer: `/runs` and `/runs/<trace>` on the shared list and the request page's tabs, and
   the rail's Runs item.
-  - [ ] `viewer/src/api.ts`: `RunRow`, `RunPage`, `RunDetail` and the `runs` field of a group's
+  - [x] `viewer/src/api.ts`: `RunRow`, `RunPage`, `RunDetail` and the `runs` field of a group's
     page, and `viewer/test/api.test.ts` checks them against `runs.json`, `run.json` and
     `exception.json`.
-  - [ ] `viewer/src/router.ts`: `/runs` and `/runs/<trace>`, and the rail's Runs item.
-  - [ ] The Runs list on `viewer/src/ui/list.tsx`, with the `of`, `outcome`, duration and memory
+  - [x] `viewer/src/router.ts`: `/runs` and `/runs/<trace>`, and the rail's Runs item.
+  - [x] The Runs list on `viewer/src/ui/list.tsx`, with the `of`, `outcome`, duration and memory
     filters.
-  - [ ] The run page: the request page's tabs less Request and Response, and the group page's
+  - [x] The run page: the request page's tabs less Request and Response, and the group page's
     runs.
-  - [ ] `bun nv viewer --verify` is green, and `viewer/dist/` is rebuilt.
-- [ ] Tests: each kind of run round-trips, and a failed run carries its exception. The check `shown`
+  - [x] `bun nv viewer --verify` is green, and `viewer/dist/` is rebuilt.
+- [x] Tests: each kind of run round-trips, and a failed run carries its exception. The check `shown`
   is green.
   - [x] `each_kind_of_run_reaches_its_row_and_a_failed_run_keeps_its_exception`
     (`crates/nvs-cli/tests/debug_ingest.rs`).
@@ -413,36 +423,32 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 6's runtime, index and API are done. Only its viewer item is left. All four writers are in
-place: a scheduled fire, a queue attempt, `nvs run`, and `nvs test` of a program's tests
-(`8c27e46512`, where `runner::run` destructures its `Suite`). The API is `ab08d1409b`:
-`GET /api/runs` and `GET /api/run?trace=` in `crates/nvs-cli/src/debug/runs.rs`, routed in
-`listen.rs`. `api.rs` now shares `events`, `dumps`, `logs`, `exception`, `threw` and
-`time_by_kind` over `api::Records`. An exception group's sample joins runs too, and its first page
-has a `runs` list (`exceptions.rs`). `the-viewer-answers-per-route-and-per-statement.md` lists
-both routes, and `a-run-is-recorded-like-a-request.md` names the `nvs test` writer.
+Stage 6 is done. The viewer has a Runs view: the rail's Runs item, `/runs`
+(`viewer/src/views/runs.tsx`, on the shared `List`, filters `of`, `outcome`, `min_us`,
+`min_memory`) and `/runs/<trace>` (`viewer/src/views/run.tsx`, the request page's Timeline,
+Queries, Cache, Dumps, Logs and Exception tabs). The tabs now take `Records` or `OwnedRecords`
+from `viewer/src/api.ts`, and `ownerOf` gives the start of a request or a run. A group's page in
+`views/exceptions.tsx` lists its runs as links. `viewer/dist/` is rebuilt.
 
-Tests that ran, each green: `the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_exception`
-(new in `debug_api.rs`), the check `shown` (all of `debug_api`, 7), and
-`a_runs_filter_reads_its_keys_and_names_a_wrong_one` (`cargo test --bin nvs`). The new test wrote
-`viewer/test/fixtures/runs.json` and `run.json`, and `exception.json` gained `"runs": []`. Expected
-red: `viewer/test/api.test.ts` may fail on `exception.json`'s new field or on the two fixtures it
-does not yet type. `debug_viewer` did not run.
+Checks that ran, each green: `bun nv viewer --verify` (types, dist current, 35 unit tests,
+including the new runs fixtures test in `viewer/test/api.test.ts`) and `cargo build`. No browser
+test covers the Runs view yet, and `debug_viewer` did not run, so a browser test that counts the
+rail's items or reads `RequestDetail`'s shape may go red at stage 9.
 
 The nightly failures the sweep listed are run `45609291264` on `53e94a9181`, already fixed by
 `1c3196b0e8` and `8ca2f09e1b` on `main`.
 
 ### Next
 
-1. `viewer/src/api.ts`: `RunRow`, `RunPage` and `RunDetail` in the shapes of `runs.json` and
-   `run.json`, and `runs: RunRow[]` on a group's page. Then type both fixtures in
-   `viewer/test/api.test.ts`.
-2. `viewer/src/router.ts`: `/runs` and `/runs/<trace>`, and the rail's Runs item beside Requests.
-3. `viewer/src/views/runs.tsx` on `viewer/src/ui/list.tsx`, shaped like
-   `viewer/src/views/requests.tsx`, with the filters `of`, `outcome`, `min_us` and `min_memory`.
-4. The run page: reuse the tabs of `viewer/src/views/request.tsx` and `views/request/`, without
-   Request and Response. Show a group's `runs` on `views/exceptions.tsx`.
-5. `bun nv viewer --verify`, which rebuilds `viewer/dist/`. Then set stage 6 to done.
+Stage 7, one session, alone in its files:
+
+1. `crates/nvs-runtime/src/ctx/output.rs:568`: the inline debug block's link line, written only in
+   development with `[debug] inline` and `[debug] store` both on. The line has the query count so
+   far and a link built from `[debug] listen`, the trace id and the span id, with no token.
+2. A conformance case that pins the line in development with both on, and its absence with either
+   off and in production. Give it the `// covers:` line of the feature `[debug] inline`.
+3. Stage 8 should add a browser test of `/runs` and `/runs/<trace>` beside
+   `viewer/test/requests.browser.test.ts`, as the Runs view's feature proof.
 
 ### Backlog
 
