@@ -289,3 +289,20 @@ and no pool. Nothing is built. The `mail/` anchors name files `mail-complete` cr
 Stage 1 from its first item, once `mail-complete` is reached.
 
 ### Backlog
+
+Left by `mail-complete`, about sending. A session of this goal that touches the file takes each.
+
+- No test sends a signed message through `send` and the fake relay: the five `dkim` tests call
+  `dkim::sign` directly. A test over `smtp::tests::send_to` with a `dkim_key_file` block would pin
+  the wiring.
+- The DKIM key file is a private key, and `secret.rs`'s read advisory (another account can read
+  the file) does not cover it yet: `crates/nvs-config/src/secret.rs` and `mail.rs` `canonicalize`.
+- The same inline attachment passed twice (`attachments: [$img, $img]`) is sent as two parts
+  with one Content-ID, which RFC 2045 forbids. `check_cids` in `crates/nvs-stdlib/src/mail/parts.rs`
+  should throw. `tests/hostile/core/Mail-Attachment/inlineBytes/` step 4 records it as sent now.
+- The unused-image error in `parts.rs` (near line 700) says "attach it with `fromFile` or
+  `fromBytes`" for an image made with `inlineFile` too. The `Attachment` doc near `parts.rs:133`
+  says `bytes()` returns tainted bytes; it compiles into plain `bytes`. Check which is right.
+- `css-inline` rewrites a CSS value's double quotes as single quotes when it copies it into a
+  `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Inlining cost grows with
+  rules times elements, and only depth is capped; the author of the markup alone can trigger it.

@@ -288,6 +288,12 @@ test case*). Give it `watchdog_margin = "30s"` as `efade84c36` did.
 
 ### Backlog
 
+- **A waiting request's host stack is over its bound on Linux.**
+  `serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+  (`crates/nvs-cli/src/serve.rs:5555`) failed on `linux-x86_64` (CI run 45749655184: 358 host pages
+  for 32 waiting requests, bound 352) and on `linux-aarch64` (nightly 45813627231: 686 − 333 = 353
+  host pages, bound 352). Find what grew a waiting request's host stack with `bun nv linux-test`
+  before any change to the bound, which alone is not a fix.
 - **A log level set after the first `Core\Log::write` of a run is ignored.** After one write,
   `Core\Config::set('log.level', 'Debug')` returns `true` and `Core\Config::get` reads it back, but
   later `debug` writes in the same run are still dropped, under `nvs run` and `nvs test`. Setting it
