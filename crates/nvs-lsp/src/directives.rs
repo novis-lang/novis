@@ -20,7 +20,7 @@
 //! other direction: every key offered under a block parses under it.
 //!
 //! **A block whose name is the operator's** — `[db.<name>]`, `[mail.<name>]`,
-//! `[storage.<name>]` — is written in the default file under one example name.
+//! `[imap.<name>]`, `[storage.<name>]` — is written in the default file under one example name.
 //! [`NAMED`] maps any other name onto that example, and the same test parses
 //! each example's keys under another name.
 //!
@@ -50,7 +50,12 @@ pub const METHOD: &str = "nvs/directives";
 
 /// The blocks an operator names, as the prefix and the example name the
 /// default file writes the block under.
-pub const NAMED: &[(&str, &str)] = &[("db", "main"), ("mail", "default"), ("storage", "local")];
+pub const NAMED: &[(&str, &str)] = &[
+    ("db", "main"),
+    ("mail", "default"),
+    ("imap", "inbox"),
+    ("storage", "local"),
+];
 
 /// One block header the default file writes, live or commented out.
 #[derive(Debug, Clone, PartialEq, Eq)]

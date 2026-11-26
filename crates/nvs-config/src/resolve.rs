@@ -624,6 +624,8 @@ pub fn resolve(
     crate::ldap::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // A `[mail]` block's `tls_ca_file`, by the same check and for the same reason.
     crate::mail::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // An `[imap]` block's `tls_ca_file` and `directory`, by the same check and for the same reason.
+    crate::imap::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // `[storage.<name>] root`, by the same rule and for the same reason as a `[db]` path.
     crate::db::canonicalize_storage(&mut resolved.config, &mut resolved.table, &origins);
     // `[tls.client] roots`, immediately after the `[db]` bundles and through the same check:
@@ -655,6 +657,8 @@ pub fn resolve(
     // The `[mail]` blocks, after the secrets for the same reason: a credential written as
     // `password_file` is still a credential `tls = "none"` would send in the clear.
     crate::mail::validate(&resolved.config, &origins)?;
+    // The `[imap]` blocks, after the secrets for the same reason.
+    crate::imap::validate(&resolved.config, &origins)?;
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;

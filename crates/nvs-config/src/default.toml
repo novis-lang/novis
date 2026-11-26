@@ -292,6 +292,10 @@
 # Which `[mail.<name>]` blocks a program may send through, by name and never by host.
 #send = ["default"]                   # example
 
+[capabilities.imap]
+# Which `[imap.<name>]` blocks a program may open, by name and never by host.
+#connect = ["inbox"]                  # example
+
 [capabilities.cache]
 # Whether this program may reach the coherent tier — whichever store `[cache.shared] url` names.
 # There is nothing to scope: a deployment has one shared store.
@@ -943,6 +947,44 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [imap.<name>] — an operator-named mailbox that `Core\Imap` reads. The name is the key and a
+# `capabilities.imap` grant names it, so a program cannot choose a server of its own.
+# ----------------------------------------------------------------------------------------------
+
+[imap.inbox]
+# The server. Every session uses TLS, and the certificate is always verified.
+#host = "imap.example.com"            # example
+#port = 993                           # default
+# `implicit` speaks TLS from the first byte, as port 993 does. `starttls` upgrades the connection
+# before it signs in, and stops when the server cannot. There is no `none`.
+#tls = "implicit"                     # default
+# A PEM file of the certificates that sign the server's, for a private CA. It replaces
+# `[tls.client] roots` for this block. A relative path is read from the folder of the file that
+# names it.
+#tls_ca_file = "certs/imap-ca.pem"    # default: `[tls.client] roots`
+# The mailbox to sign in to. Write `password` or `password_file` with `user`, or use `xoauth2`.
+#user = "inbox@example.com"           # example
+#password = "s3cret"                  # example
+#password_file = "/run/secrets/imap-inbox"  # example
+# How the credential is sent: `plain`, `login` or `xoauth2`. `xoauth2` signs `user` in with an
+# OAuth token and takes no password. The `oauth_*` keys work as in `[mail.<name>]`.
+#auth = "login"                       # default: `plain` when the server offers it, else `login`
+#oauth_token_url = "https://login.microsoftonline.com/TENANT/oauth2/v2.0/token"  # example
+#oauth_client_id = "app-id"           # example
+#oauth_client_secret = "s3cret"       # example
+#oauth_client_secret_file = "/run/secrets/imap-oauth"  # example
+#oauth_scope = "https://outlook.office365.com/.default"  # default: no scope is sent
+#oauth_refresh_token = "1//refresh"   # default: the client-credentials grant
+#oauth_refresh_token_file = "/run/secrets/imap-refresh"  # default: the client-credentials grant
+# How long one command may take, including the sign-in.
+#timeout = "30s"                      # default
+# A folder on disk to read in place of a server, for tests and local work. Each subfolder is a
+# mail folder, and each `<uid>.eml` file in it is a message. A relative path is read from the
+# folder of the file that names it. A block with `directory` has no other key.
+#directory = "mail/inbox"             # default: the block reads a server
+
+
+# ----------------------------------------------------------------------------------------------
 # [storage.<name>] — an object-storage disk. The grant over it is the `fs.read` and `fs.write` an
 # operator already writes about `root`: a second grant over one door is the shape where a deployment
 # is tightened in one of them and stays open through the other.
@@ -1137,6 +1179,10 @@
 # Which `[mail.<name>]` blocks this entry may send through.
 #send = ["default"]                   # example
 
+#[schedule.grants.imap]
+# Which `[imap.<name>]` blocks this entry may open.
+#connect = ["inbox"]                  # example
+
 #[schedule.grants.cache]
 # Whether this entry may reach the coherent tier.
 #shared = true                        # example
@@ -1322,6 +1368,10 @@
 #[app.capabilities.mail]
 # Which `[mail.<name>]` blocks this application may send through.
 #send = ["default"]                   # example
+
+#[app.capabilities.imap]
+# Which `[imap.<name>]` blocks this application may open.
+#connect = ["inbox"]                  # example
 
 #[app.capabilities.cache]
 # Whether this application may reach the coherent tier.

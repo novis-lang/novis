@@ -252,6 +252,12 @@ pub const MAIL_POOL_IDLE: u32 = 2;
 pub const MAIL_POOL_LIFETIME: Duration = Duration::from_secs(5 * MINUTE);
 /// `[mail.<name>.pool] acquire`.
 pub const MAIL_POOL_ACQUIRE: Duration = Duration::from_secs(5);
+/// `[imap.<name>] port`, IMAP over TLS from the first byte (RFC 8314).
+pub const IMAP_PORT: u16 = 993;
+/// `[imap.<name>] timeout`.
+pub const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
+/// `[imap.<name>] tls`.
+pub const IMAP_TLS: &str = "implicit";
 
 /// `[cache.memory] max_size`. **What it spends:** up to this much once per serving process.
 pub const CACHE_MAX_SIZE: usize = 32 << 20;
@@ -607,6 +613,9 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("mail.<name>.pool.idle", Scope::Named, Value::Count(MAIL_POOL_IDLE as u64)),
     row!("mail.<name>.pool.lifetime", Scope::Named, Value::Time(MAIL_POOL_LIFETIME)),
     row!("mail.<name>.pool.acquire", Scope::Named, Value::Time(MAIL_POOL_ACQUIRE)),
+    row!("imap.<name>.port", Scope::Named, Value::Count(IMAP_PORT as u64)),
+    row!("imap.<name>.tls", Scope::Named, Value::Text(IMAP_TLS)),
+    row!("imap.<name>.timeout", Scope::Named, Value::Time(IMAP_TIMEOUT)),
     row!("cache.memory.max_size", Value::Size(CACHE_MAX_SIZE as u64)),
     row!("cache.memory.fill_wait", Value::Time(CACHE_MEMORY_FILL_WAIT)),
     row!("cache.shared.timeout", Scope::Written("cache.shared"), Value::Time(CACHE_SHARED_TIMEOUT)),

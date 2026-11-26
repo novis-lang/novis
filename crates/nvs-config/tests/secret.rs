@@ -655,6 +655,18 @@ fn fixture(block: &str, value: &str) -> Option<(&'static str, &'static str)> {
             "mail.relay",
             "host = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\n",
         ),
+        "imap.*" if value == "oauth_client_secret" => (
+            "imap.inbox",
+            "host = \"imap.internal\"\nuser = \"app\"\nauth = \"xoauth2\"\n\
+             oauth_token_url = \"https://login.example.test/token\"\noauth_client_id = \"app\"\n",
+        ),
+        "imap.*" if value.starts_with("oauth_") => (
+            "imap.inbox",
+            "host = \"imap.internal\"\nuser = \"app\"\nauth = \"xoauth2\"\n\
+             oauth_token_url = \"https://login.example.test/token\"\noauth_client_id = \"app\"\n\
+             oauth_client_secret = \"client-secret\"\n",
+        ),
+        "imap.*" => ("imap.inbox", "host = \"imap.internal\"\nuser = \"app\"\n"),
         "ldap.*" => (
             "ldap.corp",
             "url = \"ldaps://dc1.example.test\"\nuser = \"svc@example.test\"\n",

@@ -184,6 +184,13 @@ reads only the first 1,000 root header lines (`receive.rs` `parse`).
   `user` with `password` or `password_file`, or `mail-complete`'s `oauth_*` keys, `timeout`, and
   `directory` (stage 4). A grant `imap` lists the block names a program may open (`tree.rs:343`
   beside `mail`). The endpoint name is a `Qual::Sink`, as `Core\Mail`'s is.
+- **Built in stage 3:** the grant is `[capabilities.imap] connect`, `Cap::ImapConnect`, named
+  `connect` as `ldap.connect` is, because both open an operator-named block by name. The block is
+  `ImapMailbox`, judged in `crates/nvs-config/src/imap.rs`. It reuses `mail::Tls` and `mail::Auth`.
+  `tls = "none"` does not boot, and neither does half a credential. A block with no credential
+  boots, as a mail block does, and `open` refuses it. A `directory` block boots with no other key,
+  and its path is made absolute against the file that wrote it, as a `[storage]` root is. The
+  default file's example block is `[imap.inbox]`.
 - `Core\Imap::open(string $endpoint): Core\Imap\Mailbox`. `Mailbox` has `folders(): array<string>`
   and `folder(string $name): Core\Imap\Folder`. `Folder` has `uidValidity(): int`, `search({unseen,
   since, before, from, subject, limit}): array<int>` (UIDs, oldest first), `fetch(int $uid):
@@ -253,8 +260,12 @@ Gate: `docs/goals/mail-complete.md` does not exist.
 
 ### 3. Core\Imap opens an operator-named block, lists folders, searches and fetches a parsed message
 
-- [ ] `crates/nvs-config/src/tree.rs:113` and `:343`, `crates/nvs-config/src/default.toml:864`:
+- [x] `crates/nvs-config/src/tree.rs:113` and `:343`, `crates/nvs-config/src/default.toml:864`:
   `[imap.<name>]` and the grant `imap`, with their settings errors.
+  - [x] `ImapMailbox`, `CapImap` and `Cap::ImapConnect` (`imap.connect`).
+  - [x] `crates/nvs-config/src/imap.rs`: `canonicalize` and `validate`, with three tests.
+  - [x] The three secret pairs, the defaults rows and `default.toml`'s blocks.
+  - [x] The census tests, the secret fixture and the LSP's `NAMED`.
 - [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `imap-codec = "1"`.
 - [ ] `crates/nvs-stdlib/src/imap/mod.rs:1` and `session.rs:1` (new): the class rows, `open`, TLS,
   sign-in over `mail/oauth.rs`, `folders`, `folder`, `uidValidity`, `search`, `fetch`.

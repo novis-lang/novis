@@ -84,6 +84,7 @@ pub mod file;
 pub mod grants;
 pub mod http;
 pub mod image;
+pub mod imap;
 pub mod ldap;
 pub mod limits;
 pub mod log;

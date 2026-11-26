@@ -290,6 +290,70 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
+    // An `[imap.<name>]` block's mailbox password, a credential of the mail block's kind, read
+    // by `nvs_stdlib::imap` through `Core\Config` as that module reads its own.
+    SecretPair {
+        block: "imap.*",
+        value: "password",
+        sites: |config| {
+            config
+                .imap
+                .iter()
+                .map(|(name, imap)| Site {
+                    name,
+                    file: imap.password_file.as_deref(),
+                    inline: imap.password.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(imap) = config.imap.get_mut(name) {
+                imap.password = Some(value.to_owned());
+            }
+        },
+    },
+    // An `auth = "xoauth2"` IMAP block's client secret, as a mail block's.
+    SecretPair {
+        block: "imap.*",
+        value: "oauth_client_secret",
+        sites: |config| {
+            config
+                .imap
+                .iter()
+                .map(|(name, imap)| Site {
+                    name,
+                    file: imap.oauth_client_secret_file.as_deref(),
+                    inline: imap.oauth_client_secret.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(imap) = config.imap.get_mut(name) {
+                imap.oauth_client_secret = Some(value.to_owned());
+            }
+        },
+    },
+    // The same block's refresh token.
+    SecretPair {
+        block: "imap.*",
+        value: "oauth_refresh_token",
+        sites: |config| {
+            config
+                .imap
+                .iter()
+                .map(|(name, imap)| Site {
+                    name,
+                    file: imap.oauth_refresh_token_file.as_deref(),
+                    inline: imap.oauth_refresh_token.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(imap) = config.imap.get_mut(name) {
+                imap.oauth_refresh_token = Some(value.to_owned());
+            }
+        },
+    },
     // `rule:http-server/an-outbound-proxy-is-operator-configured`'s proxy credential, which is the
     // same value in a block that is not a map: it becomes `Proxy-Authorization: Basic` on the
     // `CONNECT` request and nothing else ever sees it. The block names no `*`, so its one site is

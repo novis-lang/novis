@@ -115,6 +115,9 @@ pub struct Config {
     pub ldap: BTreeMap<String, LdapDirectory>,
     /// `[mail.<name>]` — one named SMTP endpoint per sub-table (`rule:programs/framework-core-half`).
     pub mail: BTreeMap<String, MailEndpoint>,
+    /// `[imap.<name>]` — one named mailbox per sub-table, which `Core\Imap` reads
+    /// (`rule:core-classes/imap`).
+    pub imap: BTreeMap<String, ImapMailbox>,
     /// `[storage.<name>]` — one named object-storage disk per sub-table (`rule:programs/framework-core-half`).
     pub storage: BTreeMap<String, StorageDisk>,
     /// `[deferred]` — the after-response executor's bounds (`rule:concurrency/deferred-is-bounded-by-two-directives`).
@@ -344,6 +347,8 @@ pub struct Capabilities {
     pub ldap: Option<CapLdap>,
     /// `mail.send` (`rule:programs/framework-core-half`).
     pub mail: Option<CapMail>,
+    /// `imap.connect` (`rule:core-classes/imap`).
+    pub imap: Option<CapImap>,
     /// `cache.shared` (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
     pub cache: Option<CapCache>,
     /// `queue.purge` (`rule:concurrency/queue-deletion-is-explicit-and-bounded`).
@@ -901,6 +906,15 @@ pub struct CapMail {
     pub send: Option<Setting>,
 }
 
+/// The `imap.*` grants.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapImap {
+    /// Which `[imap.<name>]` blocks a program may open, by name — never by host, for
+    /// [`crate::Cap::ImapConnect`]'s reason.
+    pub connect: Option<Setting>,
+}
+
 /// The `cache.*` grants.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -1046,6 +1060,54 @@ pub struct MailEndpoint {
     /// `[mail.<name>.pool]`'s bounds or `pool = false`, read as a `[db]` block's [`Pool`] is, over
     /// [`crate::mail::POOL_DEFAULTS`].
     pub pool: Option<Pool>,
+}
+
+/// One `[imap.<name>]` block — an operator-named mailbox `Core\Imap` reads, whose shape is
+/// [`MailEndpoint`]'s for the same reason: the name is the key, and the server and the credential
+/// are the operator's alone.
+///
+/// Every session is TLS, so there is no `"none"`. The block is judged in [`mod@crate::imap`], and
+/// its secrets are [`mod@crate::secret`]'s, as a mail block's are.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct ImapMailbox {
+    /// The server's host. Never program-supplied and never laundered — an operator wrote it.
+    pub host: Option<String>,
+    /// The port, 993 where the block names none.
+    pub port: Option<u16>,
+    /// `"implicit"`, the default, or `"starttls"`.
+    pub tls: Option<String>,
+    /// The PEM file of trust anchors the server's certificate is verified against, on
+    /// [`Database::tls_ca_file`]'s footing.
+    pub tls_ca_file: Option<String>,
+    /// The mailbox's user. Every block that reads a server signs in.
+    pub user: Option<String>,
+    /// Its password, sent with `AUTHENTICATE PLAIN` or `LOGIN`, and only over TLS.
+    pub password: Option<String>,
+    /// The file whose whole content is the password, under [`mod@crate::secret`]'s rules.
+    pub password_file: Option<String>,
+    /// `"plain"`, `"login"` or `"xoauth2"`. Unset: `PLAIN` when the server offers it, else
+    /// `LOGIN`.
+    pub auth: Option<String>,
+    /// [`MailEndpoint::oauth_token_url`]'s key, for this block.
+    pub oauth_token_url: Option<String>,
+    /// [`MailEndpoint::oauth_client_id`]'s key, for this block.
+    pub oauth_client_id: Option<String>,
+    /// [`MailEndpoint::oauth_client_secret`]'s key, for this block.
+    pub oauth_client_secret: Option<String>,
+    /// The file whose whole content is `oauth_client_secret`.
+    pub oauth_client_secret_file: Option<String>,
+    /// [`MailEndpoint::oauth_scope`]'s key, for this block.
+    pub oauth_scope: Option<String>,
+    /// [`MailEndpoint::oauth_refresh_token`]'s key, for this block.
+    pub oauth_refresh_token: Option<String>,
+    /// The file whose whole content is `oauth_refresh_token`.
+    pub oauth_refresh_token_file: Option<String>,
+    /// How long one command may take, the sign-in included. 30s where the block names none.
+    pub timeout: Option<String>,
+    /// A directory of folders read in place of a server, for tests and local work. A directory
+    /// block refuses every key only a connection reads.
+    pub directory: Option<String>,
 }
 
 /// One `[storage.<name>]` block — `rule:programs/framework-core-half`'s object-storage disk, whose shape is

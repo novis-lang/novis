@@ -739,8 +739,8 @@ fn every_grant_is_governed_by_one_row_and_the_same_grant_under_an_app_block_is_n
     assert_eq!(
         families.iter().map(String::as_str).collect::<Vec<_>>(),
         [
-            "script", "fs", "net", "tls", "process", "debug", "db", "ldap", "mail", "cache",
-            "queue", "env"
+            "script", "fs", "net", "tls", "process", "debug", "db", "ldap", "mail", "imap",
+            "cache", "queue", "env"
         ],
         "`[capabilities]` accepts {families:?}: a family added to the block joins this census in \
          the commit that adds it, because which grants exist is not the registry's question and \

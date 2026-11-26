@@ -198,6 +198,12 @@ pub enum Cap {
     /// the authority that granted this capability, so it is pre-approved and is not additionally
     /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.
     MailSend,
+    /// `imap.connect` — which `[imap.<name>]` blocks a program may open (`rule:core-classes/imap`).
+    ///
+    /// Named by block and never by host, for [`MailSend`](Self::MailSend)'s reason: the server an
+    /// operator wrote into root-owned configuration carries the authority that granted this
+    /// capability, so it is not asked about `rule:security/net-address-policy`'s denied ranges.
+    ImapConnect,
     /// `cache.shared` — whether this program may reach the coherent cache tier
     /// (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
     ///
@@ -703,6 +709,7 @@ impl Cap {
         Self::LdapOpen,
         Self::LdapCleartext,
         Self::MailSend,
+        Self::ImapConnect,
         Self::CacheShared,
         Self::QueuePurge,
         Self::Env,
@@ -735,6 +742,7 @@ impl Cap {
             Self::LdapOpen => "ldap.open",
             Self::LdapCleartext => "ldap.cleartext",
             Self::MailSend => "mail.send",
+            Self::ImapConnect => "imap.connect",
             Self::CacheShared => "cache.shared",
             Self::QueuePurge => "queue.purge",
             Self::Env => "env",
@@ -878,6 +886,7 @@ impl Cap {
             Self::LdapOpen => caps.ldap.as_ref()?.open.as_ref(),
             Self::LdapCleartext => caps.ldap.as_ref()?.cleartext.as_ref(),
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
+            Self::ImapConnect => caps.imap.as_ref()?.connect.as_ref(),
             Self::CacheShared => caps.cache.as_ref()?.shared.as_ref(),
             Self::QueuePurge => caps.queue.as_ref()?.purge.as_ref(),
             Self::Env => caps.env.as_ref(),
@@ -913,6 +922,7 @@ impl Cap {
             Self::LdapOpen => caps.ldap.as_mut()?.open.as_mut(),
             Self::LdapCleartext => caps.ldap.as_mut()?.cleartext.as_mut(),
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
+            Self::ImapConnect => caps.imap.as_mut()?.connect.as_mut(),
             Self::CacheShared => caps.cache.as_mut()?.shared.as_mut(),
             Self::QueuePurge => caps.queue.as_mut()?.purge.as_mut(),
             Self::Env => caps.env.as_mut(),
