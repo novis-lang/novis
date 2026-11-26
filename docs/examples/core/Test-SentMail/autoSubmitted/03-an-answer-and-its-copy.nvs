@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test a request that sends an agent's answer and an automatic copy to the team.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class AnswerTest
+{
+    #[Test]
+    public function onlyTheCopyIsAutomatic(): void
+    {
+        Test::request(Method::Post, '/tickets/381/answer');
+
+        // The first message is the answer that the agent wrote.
+        Test::assertTrue(!Test::sentMail()[0]->autoSubmitted());
+
+        // The second message is the copy that the program made.
+        Test::assertTrue(Test::sentMail()[1]->autoSubmitted());
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends the answer
+// to the customer, and then a copy to the support team.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    string $answer = 'Your parcel arrives tomorrow.';
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Ticket 381', $answer, {autoSubmitted: false});
+    Core\Mail::send('shop', ['support@example.com'], 'Ticket 381 was answered', 'Carla wrote: ' . $answer);
+    Core\Response::setStatus(202);
+}

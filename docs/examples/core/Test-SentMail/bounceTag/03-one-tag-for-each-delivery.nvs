@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to test that a request gives each delivery of a newsletter its own bounce tag.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class DeliveryTest
+{
+    #[Test]
+    public function eachDeliveryHasItsOwnTag(): void
+    {
+        Test::request(Method::Post, '/newsletters/10/send');
+
+        // A bounce for `bo@example.com` goes to `bounces+news-10.reader-2@example.com`.
+        // The program reads the tag and stops the newsletter for that reader.
+        Test::assertSame(Test::sentMail()[0]->bounceTag(), 'news-10.reader-1');
+        Test::assertSame(Test::sentMail()[1]->bounceTag(), 'news-10.reader-2');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends one message
+// for each reader. The tag has the number of the newsletter and the number of the reader.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $readers = ['1' => 'anna@example.com', '2' => 'bo@example.com'];
+    foreach ($readers as string $number => string $email) {
+        Core\Mail::send('shop', [$email], 'Newsletter 10', 'Ten new books are in the shop.', {
+            bounceTag: 'news-10.reader-' . $number,
+        });
+    }
+    Core\Response::setStatus(202);
+}

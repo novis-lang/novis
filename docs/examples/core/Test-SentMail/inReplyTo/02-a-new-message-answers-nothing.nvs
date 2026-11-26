@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test that a new message does not belong to an earlier thread.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Signup
+{
+    // Sends the first mail to a new customer. It is not an answer to anything.
+    public static function welcome(string $email): void
+    {
+        Mail::send('shop', [$email], 'Welcome to Example Shop', 'Thank you for signing up.');
+    }
+}
+
+class SignupTest
+{
+    #[Test]
+    public function theWelcomeMailStartsANewThread(): void
+    {
+        Signup::welcome('bo@example.com');
+
+        // No `inReplyTo` option was given, so the result is `null`.
+        Test::assertNull(Test::sentMail()[0]->inReplyTo());
+    }
+}

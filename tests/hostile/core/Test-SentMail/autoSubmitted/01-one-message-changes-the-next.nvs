@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a test sends one message with `autoSubmitted: false` and hopes the next messages keep it.
+// Each message should have its own value, and every message without the option should be automatic.
+// proof: test
+
+use Core\Http\Method;
+use Core\Mail;
+use Core\Test;
+
+class AutoSubmittedAttackTest
+{
+    #[Test]
+    public function eachMessageHasItsOwnValue(): void
+    {
+        // 1. Every second message turns the header off. The others must still have it.
+        int $i = 0;
+        while ($i < 2000) {
+            if ($i % 2 == 0) {
+                Mail::send('shop', ['ada@example.com'], 'Hi', 'A person wrote this.', {autoSubmitted: false});
+            } else {
+                Mail::send('shop', ['ada@example.com'], 'Hi', 'A program sent this.');
+            }
+            $i = $i + 1;
+        }
+        int $automatic = 0;
+        foreach (Test::sentMail() as Core\Test\SentMail $mail) {
+            if ($mail->autoSubmitted()) {
+                $automatic = $automatic + 1;
+            }
+        }
+        Test::assertSame($automatic, 1000);
+
+        // 2. A request sends a message with the header off. A message the test sends after it
+        // is automatic again.
+        Test::request(Method::Post, '/answer');
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'A program sent this.');
+        Test::assertTrue(!Test::sentMail()[2000]->autoSubmitted());
+        Test::assertTrue(Test::sentMail()[2001]->autoSubmitted());
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends one message
+// that a person wrote.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Mail::send('shop', ['bo@example.com'], 'Re: Hi', 'A person wrote this.', {autoSubmitted: false});
+    Core\Response::setStatus(202);
+}

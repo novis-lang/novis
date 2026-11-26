@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to test a receipt that a request sends after its response.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class ReceiptTest
+{
+    #[Test]
+    public function theReceiptIdIsInTheLog(): void
+    {
+        // `Test::request` returns after the work that runs after the response has ended.
+        // So the receipt is already in `Test::sentMail()`.
+        Core\Test\Response $response = Test::request(Method::Post, '/orders/1042/pay');
+        Test::assertSame($response->body(), "Order 1042 is paid.\n");
+        Test::assertCount(Test::sentMail(), 1);
+
+        // The request wrote the message id to the log. It is the id of the sent receipt.
+        string $id = Test::sentMail()[0]->messageId();
+        Test::assertSame(Test::logs()[0]->fields()['messageId'], $id);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part answers first.
+// `Core\Task::runAfterResponse` sends the receipt after the answer, so the customer does not wait.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    echo "Order 1042 is paid.\n";
+    Core\Task::runAfterResponse(fn(): void => {
+        string $id = Core\Mail::send('shop', ['anna@example.com'], 'Receipt for order 1042', 'You paid 25.00 EUR.');
+        Core\Log::write(Core\Log::Level::Info, 'Receipt sent', ['messageId' => $id]);
+    });
+}

@@ -1,0 +1,10 @@
+# The attacks send mail through this block. `capture = true` keeps each message
+# and sends nothing, so no mail leaves the computer. A bounce goes to `return_path`.
+[mail.shop]
+capture = true
+from = "shop@example.com"
+return_path = "bounces@example.com"
+
+# The program may send mail through the `shop` block.
+[capabilities.mail]
+send = ["shop"]

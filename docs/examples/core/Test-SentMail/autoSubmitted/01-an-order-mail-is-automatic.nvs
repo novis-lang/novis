@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that an order confirmation is marked as a mail that a program sent.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Order
+{
+    // Sends the confirmation with no `autoSubmitted` option.
+    public static function confirm(string $email): void
+    {
+        Mail::send('shop', [$email], 'Order 1042 is confirmed', 'Thank you for your order.');
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function theConfirmationIsAutomatic(): void
+    {
+        Order::confirm('anna@example.com');
+
+        // The default is `true`. The message has the header `Auto-Submitted: auto-generated`,
+        // so an out-of-office reply is not sent back to the shop.
+        Test::assertTrue(Test::sentMail()[0]->autoSubmitted());
+    }
+}

@@ -1,0 +1,47 @@
+<?nvs
+// Shows how to test that each new message of a thread lists every earlier message, oldest first.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Thread
+{
+    // The message ids of the thread, oldest first.
+    public array<string> $ids = [];
+
+    // Sends the first message of the thread, and keeps its id.
+    public function start(string $email, string $text): void
+    {
+        $this->ids[] = Mail::send('shop', [$email], 'Your return', $text);
+    }
+
+    // Sends the next message. `references` lists every earlier message,
+    // and `inReplyTo` names the last one. Then the thread keeps the new id.
+    public function add(string $email, string $text): void
+    {
+        string $last = $this->ids[Core\Arr::count($this->ids) - 1];
+        $this->ids[] = Mail::send('shop', [$email], 'Re: Your return', $text, {
+            inReplyTo: $last,
+            references: $this->ids,
+        });
+    }
+}
+
+class ThreadTest
+{
+    #[Test]
+    public function eachMessageListsTheEarlierOnes(): void
+    {
+        Thread $thread = new Thread();
+        $thread->start('anna@example.com', 'We got your return.');
+        $thread->add('anna@example.com', 'We checked the item.');
+        $thread->add('anna@example.com', 'We paid back 25.00 EUR.');
+
+        // The first message has no earlier message, so the list is empty.
+        Test::assertEquals(Test::sentMail()[0]->references(), []);
+
+        // The third message lists the first two, oldest first.
+        Test::assertEquals(Test::sentMail()[2]->references(), [$thread->ids[0], $thread->ids[1]]);
+    }
+}

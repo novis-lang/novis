@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to test that an answer to a support ticket shows in the same thread as the ticket mail.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Ticket
+{
+    public string $firstId = '';
+
+    // Sends the first mail of the ticket. `Mail::send` returns its message id, and the ticket keeps it.
+    public function open(string $email): void
+    {
+        $this->firstId = Mail::send('shop', [$email], 'Ticket 381: my parcel is late', 'We got your question.');
+    }
+
+    // Sends an answer. `inReplyTo` and `references` name the first mail,
+    // so mail programs show both messages in one thread.
+    public function answer(string $email, string $text): void
+    {
+        Mail::send('shop', [$email], 'Re: Ticket 381: my parcel is late', $text, {
+            inReplyTo: $this->firstId,
+            references: [$this->firstId],
+        });
+    }
+}
+
+class TicketTest
+{
+    #[Test]
+    public function theAnswerNamesTheFirstMail(): void
+    {
+        Ticket $ticket = new Ticket();
+        $ticket->open('anna@example.com');
+        $ticket->answer('anna@example.com', 'Your parcel arrives tomorrow.');
+
+        // The answer is the second message. `inReplyTo()` returns the id of the first message.
+        Test::assertSame(Test::sentMail()[1]->inReplyTo(), Test::sentMail()[0]->messageId());
+        Test::assertEquals(Test::sentMail()[1]->references(), [Test::sentMail()[0]->messageId()]);
+    }
+}

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a test attaches a file whose name has a line break, an image the HTML never shows, and
+// many files. Then it changes the list it read. Each bad call should throw, and nothing may change.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class AttachmentsAttackTest
+{
+    #[Test]
+    public function theAttachmentsHold(): void
+    {
+        // 1. A file name with a line break tries to add a header. Building the attachment or
+        // sending it throws, and no message is kept.
+        Test::assertThrows(fn(): void => {
+            Attachment $bad = Attachment::fromBytes("a.txt\r\nBcc: spy@example.com", 'data');
+            Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {attachments: [$bad]});
+        }, RuntimeError::class);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 2. An inline image that the HTML does not show. `send` throws, and no message is kept.
+        Test::assertThrows(fn(): void => {
+            Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});
+            Mail::send('shop', ['ada@example.com'], 'Hi', html`<p>No image here.</p>`, {attachments: [$logo]});
+        }, RuntimeError::class);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 3. 500 files in one message. All 500 are kept, in the order given.
+        array<Attachment> $files = [];
+        int $i = 0;
+        while ($i < 500) {
+            $files[] = Attachment::fromBytes('file-' . $i . '.txt', 'line ' . $i);
+            $i = $i + 1;
+        }
+        Mail::send('shop', ['ada@example.com'], 'Many files', 'See the files.', {attachments: $files});
+        Test::assertCount(Test::sentMail()[0]->attachments(), 500);
+        Test::assertSame(Test::sentMail()[0]->attachments()[499]->name(), 'file-499.txt');
+
+        // 4. Changes the list that `attachments()` returned. A second read still has 500 files.
+        array<Attachment> $copy = Test::sentMail()[0]->attachments();
+        $copy[] = Attachment::fromBytes('extra.exe', 'MZ');
+        Test::assertCount(Test::sentMail()[0]->attachments(), 500);
+
+        // 5. A file with a NUL byte and binary content. Its bytes come back exactly.
+        bytes $data = Core\Bytes::join(["\0" as bytes, Core\Bytes::fill(1, 255), "\r\n.\r\n" as bytes]);
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {
+            attachments: [Attachment::fromBytes('data.bin', $data)],
+        });
+        Test::assertSame(Test::sentMail()[1]->attachments()[0]->bytes(), $data);
+    }
+}

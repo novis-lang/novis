@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to test a mail that shows a logo image inside its HTML body.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Str;
+use Core\Test;
+
+class Newsletter
+{
+    // An inline attachment is an image that the HTML shows. `src()` returns its `cid:` URL,
+    // and the `<img>` tag uses that URL.
+    public static function send(string $email): void
+    {
+        Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});
+        Mail::send('shop', [$email], 'New in October', html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Ten new books.</p>`, {
+            attachments: [$logo],
+        });
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function theLogoIsInline(): void
+    {
+        Newsletter::send('anna@example.com');
+
+        Attachment $logo = Test::sentMail()[0]->attachments()[0];
+        Test::assertSame($logo->name(), 'logo.png');
+
+        // `isInline()` returns `true` for an image inside the HTML.
+        Test::assertTrue($logo->isInline());
+
+        // The HTML that was sent contains the `cid:` URL of the image.
+        Test::assertTrue(Str::contains(Test::sentMail()[0]->html() ?? '', $logo->src()));
+    }
+}

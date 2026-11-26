@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that a request sends each reader a newsletter with their own unsubscribe link.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class SendNewsletterTest
+{
+    #[Test]
+    public function eachReaderHasTheirOwnLink(): void
+    {
+        Test::request(Method::Post, '/newsletters/10/send');
+
+        Test::assertCount(Test::sentMail(), 2);
+        Test::assertSame(Test::sentMail()[0]->unsubscribe(), 'https://example.com/unsubscribe?reader=1');
+        Test::assertSame(Test::sentMail()[1]->unsubscribe(), 'https://example.com/unsubscribe?reader=2');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends one message
+// for each reader. The link has the number of the reader.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $readers = ['1' => 'anna@example.com', '2' => 'bo@example.com'];
+    foreach ($readers as string $number => string $email) {
+        Core\Mail::send('shop', [$email], 'Newsletter 10', 'Ten new books are in the shop.', {
+            unsubscribe: 'https://example.com/unsubscribe?reader=' . $number,
+        });
+    }
+    Core\Response::setStatus(202);
+}

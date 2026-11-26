@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to test that a monthly invoice mail has a CSV file attached.
+// proof: test
+
+use Core\Mail;
+use Core\Mail\Attachment;
+use Core\Test;
+
+class Invoice
+{
+    // Sends the invoice for one month. The rows go into a CSV file that is attached to the mail.
+    public static function send(string $email, string $month, string $rows): void
+    {
+        Attachment $csv = Attachment::fromBytes('invoice-' . $month . '.csv', $rows, {type: 'text/csv'});
+        Mail::send('shop', [$email], 'Your invoice for ' . $month, 'The invoice is attached.', {
+            attachments: [$csv],
+        });
+    }
+}
+
+class InvoiceTest
+{
+    #[Test]
+    public function theCsvFileIsAttached(): void
+    {
+        Invoice::send('anna@example.com', '2026-10', "day,total\n2026-10-03,25.00\n");
+
+        array<Attachment> $files = Test::sentMail()[0]->attachments();
+        Test::assertCount($files, 1);
+        Test::assertSame($files[0]->name(), 'invoice-2026-10.csv');
+        Test::assertSame($files[0]->type(), 'text/csv');
+
+        // `bytes()` returns the content of the file, exactly as the program gave it.
+        Test::assertSame($files[0]->bytes(), "day,total\n2026-10-03,25.00\n" as bytes);
+    }
+}

@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to test that every message gets its own id, at the domain of the sender address.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class Reminder
+{
+    // Sends the same reminder to each address, as one message per address.
+    public static function sendAll(array<string> $emails): void
+    {
+        foreach ($emails as string $email) {
+            Mail::send('shop', [$email], 'Your cart is waiting', 'You left 2 items in your cart.');
+        }
+    }
+}
+
+class ReminderTest
+{
+    #[Test]
+    public function eachMessageHasItsOwnId(): void
+    {
+        Reminder::sendAll(['anna@example.com', 'bo@example.com']);
+
+        string $first = Test::sentMail()[0]->messageId();
+        string $second = Test::sentMail()[1]->messageId();
+
+        // The two messages have different ids.
+        Test::assertTrue($first != $second);
+
+        // The part after `@` is the domain of `from` in the `[mail.shop]` block.
+        Test::assertTrue(Str::endsWith($first, '@example.com'));
+    }
+}

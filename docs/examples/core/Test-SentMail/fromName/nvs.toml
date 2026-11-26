@@ -1,0 +1,15 @@
+# The examples send mail through these blocks. `capture = true` keeps each message
+# and sends nothing, so no mail leaves the computer.
+[mail.shop]
+capture = true
+from = "shop@example.com"
+from_name = "Example Shop"
+
+# This block has no `from_name`.
+[mail.alerts]
+capture = true
+from = "alerts@example.com"
+
+# The program may send mail through both blocks.
+[capabilities.mail]
+send = ["shop", "alerts"]

@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that a mail without a bounce tag has none.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Contact
+{
+    // Sends a copy of a contact form to the shop team. No bounce tag is needed here.
+    public static function forward(string $text): void
+    {
+        Mail::send('shop', ['team@example.com'], 'New contact form', $text);
+    }
+}
+
+class ContactTest
+{
+    #[Test]
+    public function theCopyHasNoTag(): void
+    {
+        Contact::forward('Do you ship to Norway?');
+
+        // No `bounceTag` option was given, so the result is `null`.
+        // A bounce then goes to `return_path` of the block, with no tag.
+        Test::assertNull(Test::sentMail()[0]->bounceTag());
+    }
+}

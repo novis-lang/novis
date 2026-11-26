@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a test hides one bad id among good ones in `references`, and sends a very long list.
+// The bad list should throw with no message kept, and the long list should be kept whole.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class ReferencesAttackTest
+{
+    #[Test]
+    public function everyIdIsChecked(): void
+    {
+        // 1. The last id of the list has a line break and a `Bcc:` header. `send` throws.
+        Test::assertThrows(fn(): void => {
+            Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {
+                references: ['a1@example.com', 'b2@example.com', "c3@example.com\r\nBcc: spy@example.com"],
+            });
+        }, RuntimeError::class);
+
+        // 2. An id in angle brackets tries to close the header value early. `send` throws.
+        Test::assertThrows(fn(): void => {
+            Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {
+                references: ['a1@example.com> <spy@example.com'],
+            });
+        }, RuntimeError::class);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 3. A thread of 2000 messages. The list is kept whole, oldest first.
+        array<string> $ids = [];
+        int $i = 0;
+        while ($i < 2000) {
+            $ids[] = 'm' . $i . '@example.com';
+            $i = $i + 1;
+        }
+        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {references: $ids});
+        Test::assertEquals(Test::sentMail()[0]->references(), $ids);
+
+        // 4. Changes the list that `references()` returned. A second read returns the first list.
+        array<string> $copy = Test::sentMail()[0]->references();
+        $copy[0] = 'spy@example.com';
+        Test::assertSame(Test::sentMail()[0]->references()[0], 'm0@example.com');
+    }
+}

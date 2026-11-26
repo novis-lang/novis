@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to test a mail that shows the name of the person who wrote it.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Support
+{
+    // Sends an answer from a support agent. `fromName` replaces the name of the block.
+    // The address is still `from` of the block.
+    public static function answer(string $email, string $agent, string $text): void
+    {
+        Mail::send('shop', [$email], 'About your order', $text, {
+            fromName: $agent . ' at Example Shop',
+        });
+    }
+}
+
+class SupportTest
+{
+    #[Test]
+    public function theAgentNameIsShown(): void
+    {
+        Support::answer('anna@example.com', 'Carla', 'Your parcel left today.');
+
+        Test::assertSame(Test::sentMail()[0]->fromName(), 'Carla at Example Shop');
+    }
+}

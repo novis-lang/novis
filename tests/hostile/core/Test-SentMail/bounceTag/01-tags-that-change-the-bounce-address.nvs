@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a test passes bounce tags that try to send bounces to another address or add an SMTP
+// command. Every such call should throw, and no message may be kept.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class BounceTagAttackTest
+{
+    #[Test]
+    public function onlyASafeTagIsTaken(): void
+    {
+        // 1. Each tag has a character that is not allowed, is empty, or is longer than 64 characters.
+        array<string> $bad = [
+            'x@evil.example.com',
+            'order+7',
+            "order-7>\r\nRCPT TO:<spy@example.com",
+            'order 7',
+            'order/7',
+            '<order-7>',
+            'bestellung-ü',
+            '',
+            Str::repeat('a', 65),
+        ];
+        foreach ($bad as string $tag) {
+            Test::assertThrows(fn(): void => {
+                Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {bounceTag: $tag});
+            }, RuntimeError::class);
+        }
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 2. A tag of exactly 64 allowed characters is kept exactly.
+        string $longest = Str::repeat('a.b_c-9', 9) . 'z';
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {bounceTag: $longest});
+        Test::assertSame(Test::sentMail()[0]->bounceTag(), $longest);
+    }
+}

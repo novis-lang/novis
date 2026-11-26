@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a test passes `inReplyTo` values that are not message ids, such as one with a line break
+// and a `Bcc:` header. Every such call should throw, and no message may be kept.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class InReplyToAttackTest
+{
+    #[Test]
+    public function onlyAMessageIdIsTaken(): void
+    {
+        // 1. Each value tries to end the header early, or is not `local@domain`.
+        array<string> $bad = [
+            "a1@example.com\r\nBcc: spy@example.com",
+            "a1@example.com\nBcc: spy@example.com",
+            '<a1@example.com>',
+            'a1@example.com> <b2@example.com',
+            'a1 @example.com',
+            'a1@b2@example.com',
+            'no-at-sign',
+            '',
+            "a1\0@example.com",
+            'jürgen@example.com',
+            Str::repeat('a', 300) . '@example.com',
+        ];
+        foreach ($bad as string $id) {
+            Test::assertThrows(fn(): void => {
+                Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {inReplyTo: $id});
+            }, RuntimeError::class);
+        }
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 2. A valid id that `send` returned is kept exactly.
+        string $first = Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello');
+        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello again', {inReplyTo: $first});
+        Test::assertSame(Test::sentMail()[1]->inReplyTo(), $first);
+    }
+}

@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test\\SentMail::messageId",
+  "perf": "A bench runs under `nvs run`, where no test keeps mail and `Core\\Mail::send` really sends, so there is no `SentMail` to read: only `Core\\Test::sentMail` under `nvs test` creates one."
+}

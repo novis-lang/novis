@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to test that an order mail has a bounce tag with the order number.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Order
+{
+    // Sends the confirmation with the bounce tag `order-1042`. If the address does not exist,
+    // the bounce goes to `bounces+order-1042@example.com`, and the program knows which order failed.
+    public static function confirm(string $email, int $number): void
+    {
+        Mail::send('shop', [$email], 'Order ' . $number . ' is confirmed', 'Thank you for your order.', {
+            bounceTag: 'order-' . $number,
+        });
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function theTagNamesTheOrder(): void
+    {
+        Order::confirm('anna@example.com', 1042);
+
+        Test::assertSame(Test::sentMail()[0]->bounceTag(), 'order-1042');
+    }
+}

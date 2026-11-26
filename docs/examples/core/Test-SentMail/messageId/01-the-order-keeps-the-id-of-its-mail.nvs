@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that an order keeps the message id of its confirmation mail.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Order
+{
+    public string $confirmationId = '';
+
+    // Sends the confirmation. `Mail::send` returns the message id, and the order keeps it.
+    // A reply from the customer has this id, so the program can find the order again.
+    public function confirm(string $email): void
+    {
+        $this->confirmationId = Mail::send('shop', [$email], 'Order 1042 is confirmed', 'Thank you for your order.');
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function theOrderKeepsTheId(): void
+    {
+        Order $order = new Order();
+        $order->confirm('anna@example.com');
+
+        // `messageId()` returns the same id that `Mail::send` returned.
+        Test::assertSame(Test::sentMail()[0]->messageId(), $order->confirmationId);
+    }
+}

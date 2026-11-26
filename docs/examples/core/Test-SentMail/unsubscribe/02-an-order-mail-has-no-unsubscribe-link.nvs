@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test that an order confirmation has no unsubscribe link.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Order
+{
+    // A customer cannot unsubscribe from the confirmation of their own order.
+    public static function confirm(string $email): void
+    {
+        Mail::send('shop', [$email], 'Order 1042 is confirmed', 'Thank you for your order.');
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function theConfirmationHasNoLink(): void
+    {
+        Order::confirm('anna@example.com');
+
+        // No `unsubscribe` option was given, so the result is `null`.
+        Test::assertNull(Test::sentMail()[0]->unsubscribe());
+    }
+}

@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to test that a request answers a customer's mail in the same thread.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class QuestionTest
+{
+    #[Test]
+    public function theAnswerIsInTheThread(): void
+    {
+        Test::request(Method::Post, '/questions/55/answer', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'text=Yes%2C+we+ship+to+Norway.',
+        });
+
+        Test::assertSame(Test::sentMail()[0]->inReplyTo(), 'q55.7f3a@mail.example.net');
+        Test::assertSame(Test::sentMail()[0]->text(), 'Yes, we ship to Norway.');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. The program saved the message id of
+// the customer's question when the question arrived. The answer passes it to `inReplyTo`.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $questionIds = ['55' => 'q55.7f3a@mail.example.net'];
+    string $id = $questionIds['55'];
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Do you ship to Norway?', Core\Request::formField('text') ?? '', {
+        inReplyTo: $id,
+    });
+    Core\Response::setStatus(202);
+}

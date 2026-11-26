@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a sender name tries to add a header, to show a second address and to be very long.
+// Each name should be kept as plain text, and no address or header may change.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class FromNameAttackTest
+{
+    #[Test]
+    public function theNameStaysText(): void
+    {
+        // 1. A name with a line break and a `Bcc:` header. The name is encoded, so it is sent.
+        // It is kept as one name, and no bcc address is added.
+        string $name = "Shop\r\nBcc: spy@example.com";
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {fromName: $name});
+        Test::assertSame(Test::sentMail()[0]->fromName(), $name);
+        Test::assertEquals(Test::sentMail()[0]->bcc(), []);
+
+        // 2. A name that looks like another address. The address of the block does not change.
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {fromName: 'Bank <security@bank.example.com>'});
+        Core\Test\SentMail $fake = Test::sentMail()[Core\Arr::count(Test::sentMail()) - 1];
+        Test::assertSame($fake->fromName(), 'Bank <security@bank.example.com>');
+        Test::assertSame($fake->to()[0], 'ada@example.com');
+
+        // 3. A name of 100000 characters. It is kept whole.
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {fromName: Str::repeat('é', 100000)});
+        Core\Test\SentMail $long = Test::sentMail()[Core\Arr::count(Test::sentMail()) - 1];
+        Test::assertSame(Str::length($long->fromName() ?? ''), 100000);
+
+        // 4. An empty name. Whether it throws or not, the next message still has the block's name.
+        try {
+            Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {fromName: ''});
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello');
+        Core\Test\SentMail $last = Test::sentMail()[Core\Arr::count(Test::sentMail()) - 1];
+        Test::assertSame($last->fromName(), 'Example Shop');
+    }
+}

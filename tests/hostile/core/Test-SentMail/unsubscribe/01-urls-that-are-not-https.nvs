@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a test passes unsubscribe URLs that are not `https://`, or that try to add a header.
+// Every such call should throw, and no message may be kept.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class UnsubscribeAttackTest
+{
+    #[Test]
+    public function onlyAnHttpsUrlIsTaken(): void
+    {
+        // 1. Each URL is not `https://`, names no host, is too long, or has a line break.
+        array<string> $bad = [
+            'http://example.com/unsubscribe/7',
+            'javascript:alert(1)',
+            'mailto:unsubscribe@example.com',
+            'HTTPS://example.com/unsubscribe/7',
+            'https://',
+            'https:///unsubscribe/7',
+            "https://example.com/u/7>\r\nBcc: spy@example.com",
+            'https://example.com/u/7 x',
+            'https://example.com/ü',
+            'https://example.com/' . Str::repeat('a', 1000),
+        ];
+        foreach ($bad as string $url) {
+            Test::assertThrows(fn(): void => {
+                Mail::send('shop', ['ada@example.com'], 'News', 'Hello', {unsubscribe: $url});
+            }, RuntimeError::class);
+        }
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 2. A valid URL with a query string is kept exactly.
+        Mail::send('shop', ['ada@example.com'], 'News', 'Hello', {unsubscribe: 'https://example.com/u?id=7&t=a%20b'});
+        Test::assertSame(Test::sentMail()[0]->unsubscribe(), 'https://example.com/u?id=7&t=a%20b');
+    }
+}

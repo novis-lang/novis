@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that a newsletter has a one-click unsubscribe link.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Newsletter
+{
+    // Sends the newsletter. Mail programs show an unsubscribe button for the `unsubscribe` URL.
+    public static function send(string $email, string $token): void
+    {
+        Mail::send('shop', [$email], 'New in October', 'Ten new books are in the shop.', {
+            unsubscribe: 'https://example.com/unsubscribe/' . $token,
+        });
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function theNewsletterHasTheLink(): void
+    {
+        Newsletter::send('anna@example.com', 'a81f');
+
+        Test::assertSame(Test::sentMail()[0]->unsubscribe(), 'https://example.com/unsubscribe/a81f');
+    }
+}

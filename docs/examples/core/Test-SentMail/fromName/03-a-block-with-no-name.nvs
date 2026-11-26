@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that an alert has only a sender address and no sender name.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class DiskAlert
+{
+    // Sends an alert through the `alerts` block. That block has no `from_name`.
+    public static function send(int $percent): void
+    {
+        Mail::send('alerts', ['ops@example.com'], 'Disk almost full', 'The disk is ' . $percent . '% full.');
+    }
+}
+
+class DiskAlertTest
+{
+    #[Test]
+    public function theAlertHasNoName(): void
+    {
+        DiskAlert::send(93);
+
+        // Neither the call nor the block sets a name, so the result is `null`.
+        Test::assertNull(Test::sentMail()[0]->fromName());
+        Test::assertSame(Test::sentMail()[0]->endpoint(), 'alerts');
+    }
+}

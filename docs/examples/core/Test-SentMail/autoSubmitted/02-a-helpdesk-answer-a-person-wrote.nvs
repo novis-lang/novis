@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that a helpdesk answer that a person wrote is not marked as automatic.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Helpdesk
+{
+    // Sends the answer that a support agent typed. `autoSubmitted: false` leaves out
+    // the `Auto-Submitted` header, so the customer's mail program treats it as a normal mail.
+    public static function answer(string $email, string $text): void
+    {
+        Mail::send('shop', [$email], 'Re: My parcel is late', $text, {
+            fromName: 'Carla at Example Shop',
+            autoSubmitted: false,
+        });
+    }
+}
+
+class HelpdeskTest
+{
+    #[Test]
+    public function theAnswerIsNotAutomatic(): void
+    {
+        Helpdesk::answer('anna@example.com', 'Your parcel arrives tomorrow.');
+
+        Test::assertTrue(!Test::sentMail()[0]->autoSubmitted());
+    }
+}

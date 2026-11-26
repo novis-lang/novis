@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a test sends thousands of messages and looks for two with the same id. Then it changes
+// an id it read. Every id should be different, and a second read should return the first id.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class MessageIdAttackTest
+{
+    #[Test]
+    public function everyIdIsNewAndKept(): void
+    {
+        // 1. Sends 3000 messages and counts the different ids.
+        array<string> $seen = [];
+        int $i = 0;
+        while ($i < 3000) {
+            string $id = Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello');
+            $seen[$id] = $id;
+            $i = $i + 1;
+        }
+        Test::assertCount($seen, 3000);
+
+        // 2. Every id that `send` returned is the id that `messageId()` returns.
+        foreach (Test::sentMail() as Core\Test\SentMail $mail) {
+            Test::assertSame($seen[$mail->messageId()] ?? '', $mail->messageId());
+        }
+
+        // 3. Every id is 32 hex digits, `@` and the domain of `from`. Nothing else is in it.
+        string $first = Test::sentMail()[0]->messageId();
+        Test::assertSame(Str::length($first), 44);
+        Test::assertTrue(Str::endsWith($first, '@example.com'));
+
+        // 4. Changes the id that `messageId()` returned. A second read returns the first id.
+        string $copy = $first;
+        $copy = $copy . "\r\nBcc: spy@example.com";
+        Test::assertSame(Test::sentMail()[0]->messageId(), $first);
+
+        // 5. A send that throws gives no id, and no message is kept.
+        try {
+            Mail::send('shop', ["ada@example.com\r\nBcc: spy@example.com"], 'Hi', 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertCount(Test::sentMail(), 3000);
+    }
+}

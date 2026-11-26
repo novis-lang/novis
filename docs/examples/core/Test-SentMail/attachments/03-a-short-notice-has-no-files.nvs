@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to test that a request sends a notice with no attached files.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class ShippingTest
+{
+    #[Test]
+    public function theNoticeHasNoFiles(): void
+    {
+        Test::request(Method::Post, '/orders/1042/ship');
+
+        // The request gave no `attachments` option, so the list is empty.
+        Test::assertCount(Test::sentMail()[0]->attachments(), 0);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends a short notice.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Mail::send('shop', ['anna@example.com'], 'Order 1042 has shipped', 'Your parcel is on its way.');
+    Core\Response::setStatus(202);
+}

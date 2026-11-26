@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test the sender name when the program gives none.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Welcome
+{
+    // Sends a welcome mail with no `fromName` option.
+    public static function send(string $email): void
+    {
+        Mail::send('shop', [$email], 'Welcome', 'Thank you for signing up.');
+    }
+}
+
+class WelcomeTest
+{
+    #[Test]
+    public function theNameIsTheShopName(): void
+    {
+        Welcome::send('anna@example.com');
+
+        // The name is `from_name` of the `[mail.shop]` block in `nvs.toml`.
+        Test::assertSame(Test::sentMail()[0]->fromName(), 'Example Shop');
+    }
+}
