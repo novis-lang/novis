@@ -576,6 +576,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `.nvst` case with `--GET--` never sees what the server adds to a body.** It runs through
+  `nvs run`'s request emulation, which writes to standard output and never runs the isolate's
+  finish path. In `deeper-debug-records` stage 7, three cases for the `[debug] inline` block got
+  only the page and had to become served tests. Pin a body the server finishes, such as the inline
+  block or a style nonce, with `Served::serving` in `crates/nvs-cli/tests/request.rs`. See
+  `crates/nvs-host/src/isolate.rs` `flush_inline_debug`.
 - **`nvs_repo::scratch()` returns a guard that deletes its folder when it is dropped.** In
   `debug-viewer-flagship` stage 5, a helper returned only the path of the index it wrote, and the
   test then failed with `CannotOpen`. Return the `Scratch` with the path and keep it bound as

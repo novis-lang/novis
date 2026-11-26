@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-cli/src/debug/ingest.rs, crates/nvs-server/src/metrics.rs, crates/nvs-cli/src/main.rs, viewer/src/router.ts]
   - id: 7
     title: the inline debug block links to its request in the viewer
-    status: open
+    status: done
     context: [docs/rules/errors/debug-dump.md, crates/nvs-server/src/debug_style.rs, crates/nvs-runtime/src/ctx/output.rs]
   - id: 8
     title: the feature proofs, the help and the website say what a record holds
@@ -234,6 +234,16 @@ cannot be saved as a filter yet: `SavedView` and the settings' `view` would both
 nothing asked for it. A group's runs are a plain list of links on its page, because the API gives
 at most `limit` of them with no cursor.
 
+**Stage 7 settled where the inline link is pinned.** A `.nvst` case with `--GET--` runs through
+`nvs run`'s request emulation, which writes its body to standard output and never appends the
+inline block, so no conformance case can see the line. Two served tests in
+`crates/nvs-cli/tests/request.rs` pin it instead, each with `// covers: directive:debug.inline`,
+where stage 4 put its served check. The link names the trace and span the response's
+`traceresponse` gives. The count is the request's `query` trace events, one pass over a vector
+already capped at the span ceiling. A `listen` with no usable address, such as the port `0`,
+leaves the count alone. The line uses the existing `nvs-record` class, so the stylesheet is
+unchanged. Spends: one short line per response with a block and `store` on.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -396,8 +406,10 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/ctx/output.rs:568`: the block's link line, under the two conditions.
-- [ ] A conformance case: the line is present in development with `inline` and `store` on, and
+- [x] `crates/nvs-runtime/src/ctx/output.rs:568`: the block's link line, under the two conditions.
+  - [x] `Ctx::inline_link` writes the count and the link ahead of the blocks.
+  - [x] `nvs_config::viewer::origin` and `linkable` give both links the viewer's origin.
+- [x] A test, served in Rust as the stage 7 decision says: the line is present in development with `inline` and `store` on, and
   absent with either off and in production.
 
 ### 8. the feature proofs, the help and the website say what a record holds
@@ -408,6 +420,8 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
   them first.
 - [ ] `website/src/data/changes.json`: `changed` the debug viewer (memory, handler, sizes, stack,
   outcomes), `new` the Runs view, `changed` `[debug] inline`.
+- [ ] A browser test of `/runs` and `/runs/<trace>` beside `viewer/test/requests.browser.test.ts`,
+  the Runs view's feature proof.
 - [ ] `bun nv proofs --owed --goal deeper-debug-records` names nothing, and the check `proofs` is
   green.
 - [ ] `bun nv site --check stale`, `changes` and `shots` are green.
@@ -423,34 +437,37 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 6 is done. The viewer has a Runs view: the rail's Runs item, `/runs`
-(`viewer/src/views/runs.tsx`, on the shared `List`, filters `of`, `outcome`, `min_us`,
-`min_memory`) and `/runs/<trace>` (`viewer/src/views/run.tsx`, the request page's Timeline,
-Queries, Cache, Dumps, Logs and Exception tabs). The tabs now take `Records` or `OwnedRecords`
-from `viewer/src/api.ts`, and `ownerOf` gives the start of a request or a run. A group's page in
-`views/exceptions.tsx` lists its runs as links. `viewer/dist/` is rebuilt.
-
-Checks that ran, each green: `bun nv viewer --verify` (types, dist current, 35 unit tests,
-including the new runs fixtures test in `viewer/test/api.test.ts`) and `cargo build`. No browser
-test covers the Runs view yet, and `debug_viewer` did not run, so a browser test that counts the
-rail's items or reads `RequestDetail`'s shape may go red at stage 9.
+Stage 7 is done (`2b25d677db`). With `[debug] inline` and `[debug] store` both on, the block
+starts with `This request ran N queries.` and a link to `/requests/<trace>/<span>` on
+`[debug] listen` (`Ctx::inline_link` in `crates/nvs-runtime/src/ctx/output.rs`), on the origin
+`nvs_config::viewer::origin` gives. `rule:errors/debug-dump` states it in the present. Two served
+tests in `crates/nvs-cli/tests/request.rs`,
+`a_stored_inline_block_links_to_its_request_in_the_viewer` and
+`an_inline_block_has_no_viewer_link_unstored_and_production_has_no_block`, ran once by name and
+are green. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
 The nightly failures the sweep listed are run `45609291264` on `53e94a9181`, already fixed by
 `1c3196b0e8` and `8ca2f09e1b` on `main`.
 
+Expected red at stage 9: a browser test that counts the rail's items or reads `RequestDetail`'s
+shape (stage 6 did not run `debug_viewer`), and `site --check stale` for `directive:debug.inline`,
+whose covering tests are new.
+
 ### Next
 
-Stage 7, one session, alone in its files:
+Stage 8, one session, with writing subagents for the pages once their list is known:
 
-1. `crates/nvs-runtime/src/ctx/output.rs:568`: the inline debug block's link line, written only in
-   development with `[debug] inline` and `[debug] store` both on. The line has the query count so
-   far and a link built from `[debug] listen`, the trace id and the span id, with no token.
-2. A conformance case that pins the line in development with both on, and its absence with either
-   off and in production. Give it the `// covers:` line of the feature `[debug] inline`.
-3. Stage 8 should add a browser test of `/runs` and `/runs/<trace>` beside
-   `viewer/test/requests.browser.test.ts`, as the Runs view's feature proof.
+1. A browser test of `/runs` and `/runs/<trace>` beside `viewer/test/requests.browser.test.ts`.
+2. `website/src/content/docs/tools/debug-viewer/index.mdx`: memory, handler, sizes, the stack,
+   event outcomes, the Runs view and the inline link, with screenshots, then stamped.
+3. An `Explore` subagent lists every page and `about.md` that documents `[debug] inline`. Each is
+   reread and stamped (`bun nv site --check stale`, then `--stamp`).
+4. `website/src/data/changes.json`: the three entries stage 8 names.
+5. `bun nv proofs --owed --goal deeper-debug-records` names nothing, then the check `proofs`.
 
 ### Backlog
 
 - Transaction begin, commit and rollback as events, and a WebSocket's frames and bytes at close.
   Both were found by the survey and left out to keep the goal to one line per request.
+- `nvs run`'s request emulation (the `--GET--` cases) never writes the inline block. If it should,
+  a conformance case could then pin the link line.
