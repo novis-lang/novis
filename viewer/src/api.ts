@@ -1,6 +1,6 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
-// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs`, `exceptions.rs`, `summary.rs` and
-// `settings.rs`):
+// (`crates/nvs-cli/src/debug/api.rs`, `runs.rs`, `stream.rs`, `search.rs`, `exceptions.rs`,
+// `summary.rs` and `settings.rs`):
 // `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 //
@@ -97,6 +97,77 @@ export interface RequestFilter {
    * fewer rows than `limit` and still have an `older` page.
    */
   threw?: boolean;
+}
+
+/** What started a run: a schedule, a queue job, or a command such as `nvs run` or `nvs test`. */
+export type RunOf = "schedule" | "queue" | "command";
+
+/** How a run ended. */
+export type RunOutcome = "ok" | "failed" | "cancelled";
+
+/** One run in the list: a scheduled job, a queue job or a command. `id` rises with every run the
+ *  index adds. A run has its own trace id, so the trace id names it. */
+export interface RunRow {
+  id: number;
+  batch: number;
+  trace: string;
+  of: RunOf;
+  /** The schedule's name, the job's script, or the command and its script. */
+  name: string;
+  start_us: number;
+  duration_us: number;
+  outcome: RunOutcome;
+  queries: number;
+  dumps: number;
+  logs: number;
+  exception: Threw | null;
+  time_us: TimeByKind;
+  repeats: number;
+  /** The most memory it held, in bytes. `null` when the record has none. */
+  memory_peak: number | null;
+  /** The memory limit it ran under, in bytes. `null` with no limit. */
+  memory_limit: number | null;
+}
+
+/** One page of `GET /api/runs`, newest first. */
+export interface RunPage {
+  watermark: number;
+  runs: RunRow[];
+  /** The `before` of the next older page, or `null` when this page has the oldest run. */
+  older: number | null;
+}
+
+/** What `GET /api/runs` filters on. Every key is optional. A filtered page reads a bounded range
+ *  of ids, as a filtered request page does. */
+export interface RunFilter {
+  before?: number;
+  since?: number;
+  limit?: number;
+  of?: RunOf;
+  /** Only runs with exactly this name. */
+  name?: string;
+  outcome?: RunOutcome;
+  /** Only runs that took at least this many microseconds. */
+  min_us?: number;
+  /** Only runs that held at least this many bytes of memory. */
+  min_memory?: number;
+}
+
+/** `GET /api/run`: one run and everything it recorded, each list in time order. */
+export interface RunDetail extends Records {
+  watermark: number;
+  run: RunRow;
+}
+
+/** One page of the run list. */
+export function runs(filter: RunFilter = {}, signal?: AbortSignal): Promise<RunPage> {
+  const query = requestQuery(filter);
+  return get<RunPage>(`/api/runs${query ? `?${query}` : ""}`, signal);
+}
+
+/** The newest run of `trace` and its records. A trace with no run is an `ApiError` with status `404`. */
+export function run(trace: string, signal?: AbortSignal): Promise<RunDetail> {
+  return get<RunDetail>(`/api/run?trace=${encodeURIComponent(trace)}`, signal);
 }
 
 /** `GET /api/summary`: the requests and errors of the five minutes before `until_us`. */
@@ -348,14 +419,28 @@ export interface SourceFile {
   changed: boolean;
 }
 
-/** `GET /api/request`: one request and everything it recorded, each list in time order. */
-export interface RequestDetail {
-  watermark: number;
-  request: RequestRow;
+/** What a request's page and a run's page both draw: the uncaught exception and the records,
+ *  each list in time order, and which lists stopped at the most rows the service sends. */
+export interface Records {
   exception: Exception | null;
   events: TraceEvent[];
   dumps: Dump[];
   logs: LogLine[];
+  cut: { events: boolean; dumps: boolean; logs: boolean };
+}
+
+/** The records of one request or one run, with the row they belong to. */
+export type OwnedRecords = Records & ({ request: RequestRow } | { run: RunRow });
+
+/** The start and the duration of the request or the run `detail` belongs to. */
+export function ownerOf(detail: OwnedRecords): { start_us: number; duration_us: number } {
+  return "request" in detail ? detail.request : detail.run;
+}
+
+/** `GET /api/request`: one request and everything it recorded, each list in time order. */
+export interface RequestDetail extends Records {
+  watermark: number;
+  request: RequestRow;
   profiles: ProfileFile[];
   /** The sites where it copied a value, the most entries or bytes first. */
   copies: CopySite[];
@@ -612,6 +697,8 @@ export interface ExceptionRequests {
   /** The frames and the chain of the group's latest throw. */
   latest: Stack;
   requests: RequestRow[];
+  /** The newest runs that threw it, at most `limit`. Only the first page has them. */
+  runs: RunRow[];
   /** The `before` of the next page, or `null` when this page has the oldest request. */
   older: number | null;
 }
@@ -701,7 +788,7 @@ export class ApiError extends Error {
 }
 
 /** The query string of `filter`, without the `?`. */
-export function requestQuery(filter: RequestFilter): string {
+export function requestQuery(filter: RequestFilter | RunFilter): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filter)) {
     if (value !== undefined) params.set(key, String(value));

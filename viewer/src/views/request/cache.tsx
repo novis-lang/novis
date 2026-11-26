@@ -4,14 +4,14 @@
 // What it spends: one group object per distinct key and store, for as long as the tab is open.
 
 import { createMemo, For, Show } from "solid-js";
-import type { RequestDetail } from "../../api.ts";
+import type { Records } from "../../api.ts";
 import { Empty } from "../../ui/empty.tsx";
 import { duration } from "../requests.tsx";
 import { cacheGroups } from "./outcome.ts";
 
 const TIER_NAMES: Record<string, string> = { memory: "Memory", redis: "Shared" };
 
-export function Cache(props: { detail: RequestDetail }) {
+export function Cache(props: { detail: Records }) {
   const groups = createMemo(() => cacheGroups(props.detail));
   return (
     <section class="rt cache" aria-label="Cache">

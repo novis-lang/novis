@@ -1,13 +1,13 @@
 // The exceptions view: `/exceptions` lists the groups of uncaught throws, one class at one site.
 // `/exceptions?class=&file=&line=` shows one group, the stack of its latest throw (`ui/stack.tsx`),
-// and its requests, newest first.
+// the newest runs that threw it, and its requests, newest first.
 // Both lists are the shared `List` (`ui/list.tsx`). They do not follow or pause: each new watermark
 // loads their first page again, through `livePages` below.
 // In one group's list, `m` or the Mark button marks a request to compare, as in the request list.
 // What it spends: the rows loaded so far, a few hundred bytes each, while the view is open, and one
 // timer that redraws the ages of one group's requests every ten seconds.
 
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
   ApiError,
   exceptionKey,
@@ -22,14 +22,15 @@ import {
   type RequestRow,
 } from "../api.ts";
 import { ignored } from "../keys.ts";
-import { navigate, requestLink } from "../router.ts";
+import { navigate, requestLink, runLink } from "../router.ts";
 import { Empty } from "../ui/empty.tsx";
 import { List, type RowKey } from "../ui/list.tsx";
 import { Site } from "../ui/site.tsx";
 import { Stack } from "../ui/stack.tsx";
 import { Spark } from "../ui/tile.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
-import { createNow, REQUEST_ROW, RequestCells, RequestColumns } from "./requests.tsx";
+import { age, createNow, duration, REQUEST_ROW, RequestCells, RequestColumns } from "./requests.tsx";
+import { OF_LABEL } from "./runs.tsx";
 import { SaveButton } from "./saved.tsx";
 import { when } from "./stream.tsx";
 
@@ -297,6 +298,23 @@ function GroupView(props: { key: ExceptionKey }) {
                 <p class="note">The chart and the routes count only the 1000 most recent throws.</p>
               </Show>
               <Show when={live.page()?.latest}>{(latest) => <Stack stack={latest()} />}</Show>
+              <Show when={(live.page()?.runs.length ?? 0) > 0}>
+                <h3 class="exc-runs-title">Runs that threw it</h3>
+                <ul class="exc-runs">
+                  <For each={live.page()!.runs}>
+                    {(run) => (
+                      <li>
+                        <a href={`${runLink(run)}#exception`}>
+                          {OF_LABEL[run.of]} <code>{run.name}</code>
+                        </a>{" "}
+                        <span class="note">
+                          {duration(run.duration_us)} · {age(run.start_us, now())} ago
+                        </span>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
             </>
           )}
         </Show>

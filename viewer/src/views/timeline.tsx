@@ -20,7 +20,7 @@
 // for lists the service already limited.
 
 import { createMemo, createSignal, For, Show } from "solid-js";
-import type { Dump, LogLine, RequestDetail, TraceEvent } from "../api.ts";
+import { ownerOf, type Dump, type LogLine, type OwnedRecords, type TraceEvent } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { Hit, Repeat } from "../ui/badges.tsx";
 import { Site } from "../ui/site.tsx";
@@ -142,18 +142,18 @@ function eventItems(events: readonly TraceEvent[]): Item[] {
   return out;
 }
 
-export function Timeline(props: { detail: RequestDetail; reveal: (kind: "dump" | "log", id: number) => void }) {
+export function Timeline(props: { detail: OwnedRecords; reveal: (kind: "dump" | "log", id: number) => void }) {
   /** Opens the tab of the dump or the log line a row names, at that record. */
   const reveal = (item: Item) => {
     if (item.dump) props.reveal("dump", item.dump.id);
     else if (item.log) props.reveal("log", item.log.id);
   };
-  const t0 = () => props.detail.request.start_us;
+  const t0 = () => ownerOf(props.detail).start_us;
   /** The axis's length in microseconds: the request's duration, or longer when an event ends later. */
   const span = createMemo(() => {
     const ends = props.detail.events.map((e) => e.end_us);
     const points = [...props.detail.dumps, ...props.detail.logs].map((p) => p.at_us);
-    return Math.max(1, props.detail.request.duration_us, ...[...ends, ...points].map((end) => end - t0()));
+    return Math.max(1, ownerOf(props.detail).duration_us, ...[...ends, ...points].map((end) => end - t0()));
   });
   const items = createMemo(() => {
     const d = props.detail;

@@ -49,6 +49,11 @@ export function requestLink(row: Pick<RequestRow | RecordOwner, "trace" | "span"
   return row.span ? `/requests/${row.trace}/${row.span}` : `/requests/${row.trace}`;
 }
 
+/** The link to one run. A run has its own trace id, so the trace id names it. */
+export function runLink(row: { trace: string }): string {
+  return `/runs/${row.trace}`;
+}
+
 /** A request that has a span id, so a compare link can name it. */
 export interface SpanKey {
   trace: string;
@@ -71,6 +76,8 @@ export type Route =
   | { view: "list" }
   | { view: "request"; trace: string; span?: string }
   | { view: "compare"; left: SpanKey; right: SpanKey }
+  | { view: "runs" }
+  | { view: "run"; trace: string }
   | { view: "stream" }
   | { view: "log" }
   | { view: "search" }
@@ -81,7 +88,7 @@ export type Route =
   | { view: "saved"; name: string };
 
 /** The views whose path is their name alone. */
-const NAMED = ["stream", "log", "search", "exceptions", "routes", "queries", "settings"] as const;
+const NAMED = ["runs", "stream", "log", "search", "exceptions", "routes", "queries", "settings"] as const;
 
 /** Reads a path into the view it names. A path the viewer does not have is the request list. */
 export function route(to: string): Route {
@@ -90,6 +97,8 @@ export function route(to: string): Route {
   if (m) return m[2] ? { view: "request", trace: m[1]!, span: m[2] } : { view: "request", trace: m[1]! };
   const c = /^\/compare\/([0-9a-f]{32})\/([0-9a-f]{16})\/([0-9a-f]{32})\/([0-9a-f]{16})\/?$/.exec(at);
   if (c) return { view: "compare", left: { trace: c[1]!, span: c[2]! }, right: { trace: c[3]!, span: c[4]! } };
+  const r = /^\/runs\/([0-9a-f]{32})\/?$/.exec(at);
+  if (r) return { view: "run", trace: r[1]! };
   const view = NAMED.find((name) => at === `/${name}` || at === `/${name}/`);
   if (view) return { view };
   const saved = /^\/saved\/([^/]+)\/?$/.exec(at);

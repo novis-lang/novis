@@ -4,7 +4,7 @@
 // What it spends: one group object per distinct site and statement, for as long as the tab is open.
 
 import { createMemo, For, Show } from "solid-js";
-import type { EventQuery, RequestDetail } from "../../api.ts";
+import type { EventQuery, Records } from "../../api.ts";
 import { Repeat } from "../../ui/badges.tsx";
 import { Empty } from "../../ui/empty.tsx";
 import { Site } from "../../ui/site.tsx";
@@ -24,7 +24,7 @@ interface Group {
 
 /** The request's query events in groups, by total time, largest first. A query with no site is
  *  grouped by its SQL text alone. */
-export function queryGroups(detail: RequestDetail): Group[] {
+export function queryGroups(detail: Pick<Records, "events">): Group[] {
   const groups = new Map<string, Group>();
   for (const event of detail.events) {
     const q = event.query;
@@ -42,7 +42,7 @@ export function queryGroups(detail: RequestDetail): Group[] {
   return [...groups.values()].sort((a, b) => b.total_us - a.total_us);
 }
 
-export function Queries(props: { detail: RequestDetail }) {
+export function Queries(props: { detail: Records }) {
   const groups = createMemo(() => queryGroups(props.detail));
   /** The group with the most repeats, when one ran two or more times. */
   const worst = () => groups().reduce<Group | null>((top, g) => (g.count >= 2 && (!top || g.count > top.count) ? g : top), null);

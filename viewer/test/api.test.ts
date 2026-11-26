@@ -14,6 +14,8 @@ import {
   type RequestDetail,
   type RequestPage,
   type Routes,
+  type RunDetail,
+  type RunPage,
   type SearchResults,
   type Settings,
   type SourceFile,
@@ -27,6 +29,8 @@ import exceptionFixture from "./fixtures/exception.json";
 import exceptionsFixture from "./fixtures/exceptions.json";
 import healthFixture from "./fixtures/health.json";
 import routesFixture from "./fixtures/routes.json";
+import runFixture from "./fixtures/run.json";
+import runsFixture from "./fixtures/runs.json";
 import statementsFixture from "./fixtures/statements.json";
 import summaryFixture from "./fixtures/summary.json";
 import detailFixture from "./fixtures/request.json";
@@ -71,6 +75,18 @@ const saved: Settings = {
 };
 const groups: ExceptionPage = exceptionsFixture;
 const group: ExceptionRequests = exceptionFixture;
+/** A JSON import types a run's `of` and `outcome` as `string`. */
+const runRow = (row: (typeof runsFixture.runs)[number]): RunPage["runs"][number] => ({
+  ...row,
+  of: row.of as RunPage["runs"][number]["of"],
+  outcome: row.outcome as RunPage["runs"][number]["outcome"],
+});
+const runPage: RunPage = { ...runsFixture, runs: runsFixture.runs.map(runRow) };
+const runDetail: RunDetail = {
+  ...runFixture,
+  run: runRow(runFixture.run),
+  events: runFixture.events.map((event) => ({ ...event, kind: event.kind as RunDetail["events"][number]["kind"] })),
+};
 const counted: CoverageMap = coverageFixture;
 const text: SourceFile = sourceFixture;
 const summed: Summary = summaryFixture;
@@ -162,6 +178,18 @@ describe("the request list's API", () => {
     }
     expect(group.requests.length).toBe(group.group.count);
     for (const row of group.requests) expect(row.exception).toEqual({ class: group.group.class, file: group.group.file, line: group.group.line });
+  });
+
+  test("the runs fixtures are one page, newest first, and a failed run has its exception", () => {
+    const ids = runPage.runs.map((row) => row.id);
+    expect(ids).toEqual([...ids].sort((a, b) => b - a));
+    expect(new Set(runPage.runs.map((row) => row.of))).toEqual(new Set(["schedule", "queue", "command"]));
+    const failed = runPage.runs.find((row) => row.outcome === "failed");
+    expect(failed?.exception).not.toBeNull();
+    expect(runDetail.run.trace).toBe(failed!.trace);
+    expect(runDetail.exception?.frames?.length).toBeGreaterThan(0);
+    expect(runDetail.events.length).toBeGreaterThan(0);
+    expect(group.runs).toEqual([]);
   });
 
   test("a group's link names its class and site, and reads back", () => {

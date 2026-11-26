@@ -27,6 +27,8 @@ import { createErrorCount, LivePill } from "./views/health.tsx";
 import { LogView } from "./views/log.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
+import { RunView } from "./views/run.tsx";
+import { RunList } from "./views/runs.tsx";
 import { loadSettings, saved, SavedList, savedLink, SavedOpen } from "./views/saved.tsx";
 import { RoutesView } from "./views/routes.tsx";
 import { SearchView } from "./views/search.tsx";
@@ -37,6 +39,7 @@ import { StreamView } from "./views/stream.tsx";
 /** The views the rail lists, in its order. `views` are the route views it is current on. */
 const RAIL: ReadonlyArray<{ href: string; label: string; icon: IconName; views: string[] }> = [
   { href: "/", label: "Requests", icon: "requests", views: ["list", "request", "compare"] },
+  { href: "/runs", label: "Runs", icon: "runs", views: ["runs", "run"] },
   { href: "/routes", label: "Routes", icon: "routes", views: ["routes"] },
   { href: "/queries", label: "Queries", icon: "queries", views: ["queries"] },
   { href: "/exceptions", label: "Errors", icon: "errors", views: ["exceptions"] },
@@ -63,6 +66,10 @@ export function App() {
   const request = createMemo(() => {
     const now = at();
     return now.view === "request" ? now : null;
+  });
+  const runAt = createMemo(() => {
+    const now = at();
+    return now.view === "run" ? now : null;
   });
   const compare = createMemo(() => {
     const now = at();
@@ -216,6 +223,10 @@ export function App() {
               <Switch fallback={<For each={[query()]}>{(q) => <RequestList query={q} />}</For>}>
                 <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
                 <Match when={compare()}>{(c) => <CompareView left={c().left} right={c().right} />}</Match>
+                <Match when={view() === "runs"}>
+                  <For each={[query()]}>{(q) => <RunList query={q} />}</For>
+                </Match>
+                <Match when={runAt()}>{(r) => <RunView trace={r().trace} />}</Match>
                 <Match when={view() === "stream"}>
                   <StreamView />
                 </Match>

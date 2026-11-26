@@ -156,7 +156,7 @@ const KINDS: readonly { kind: keyof TimeByKind; label: string }[] = [
 
 /** A request's time split by kind, with the rest as `own`, its own code. Events of one kind can
  *  overlap, so when the kinds add up to more than the request took, each is scaled down to fit. */
-export function split(row: RequestRow): Part[] {
+export function split(row: Pick<RequestRow, "time_us" | "duration_us">): Part[] {
   const sum = KINDS.reduce((total, one) => total + Math.max(0, row.time_us[one.kind]), 0);
   const fit = sum > row.duration_us && sum > 0 ? row.duration_us / sum : 1;
   const parts: Part[] = [];
@@ -236,14 +236,14 @@ export function RequestCells(props: { row: RequestRow; now?: number; scale?: num
 }
 
 /** The memory peak against its limit, as a tooltip. */
-export function memoryTitle(row: RequestRow): string {
+export function memoryTitle(row: Pick<RequestRow, "memory_peak" | "memory_limit">): string {
   if (row.memory_peak === null) return "No memory peak was recorded.";
   if (row.memory_limit === null) return `Peak ${size(row.memory_peak)}, no limit`;
   return `Peak ${size(row.memory_peak)} of a ${size(row.memory_limit)} limit`;
 }
 
 /** A tile with the memory peak, and a meter against the limit when there is one. */
-export function MemoryTile(props: { row: RequestRow }) {
+export function MemoryTile(props: { row: Pick<RequestRow, "memory_peak" | "memory_limit"> }) {
   const peak = () => props.row.memory_peak ?? 0;
   const limit = () => props.row.memory_limit;
   const kind = () => {

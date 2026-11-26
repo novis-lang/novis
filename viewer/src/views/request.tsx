@@ -27,7 +27,18 @@
 // rows while the previous request is looked up, for as long as the view is open.
 
 import { createEffect, createResource, For, type JSX, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { profileDownload, request, requests, type Json, type RequestDetail, type RequestFilter, type RequestRow, type TraceKey } from "../api.ts";
+import {
+  ownerOf,
+  profileDownload,
+  request,
+  requests,
+  type Json,
+  type OwnedRecords,
+  type RequestDetail,
+  type RequestFilter,
+  type RequestRow,
+  type TraceKey,
+} from "../api.ts";
 import { profileLink } from "../editor-link.ts";
 import { ignored } from "../keys.ts";
 import { compareLink, navigate, query, requestLink } from "../router.ts";
@@ -399,7 +410,7 @@ function TabbedRecords(props: { row: RequestRow; detail: { (): RequestDetail | u
 }
 
 /** Focuses the record the link's hash names: a dump's first tree node, a log line or the exception. */
-function focusHash() {
+export function focusHash() {
   const target = location.hash.slice(1);
   if (!target) return;
   const el = document.getElementById(target);
@@ -407,9 +418,9 @@ function focusHash() {
   node?.focus();
 }
 
-/** A request's time from its start to `us`. */
-function at(detail: RequestDetail, us: number): string {
-  return duration(Math.max(0, us - detail.request.start_us));
+/** The time from the start of the request or the run to `us`. */
+function at(detail: OwnedRecords, us: number): string {
+  return duration(Math.max(0, us - ownerOf(detail).start_us));
 }
 
 /** True when a log line's fields have something to show. */
@@ -419,10 +430,11 @@ function hasFields(fields: Json): boolean {
   return typeof fields !== "object" || Object.keys(fields).length > 0;
 }
 
-function ExceptionPanel(props: { detail: RequestDetail }) {
+/** The uncaught exception, its message, its site and its stack. `noun` is `request` or `run`. */
+export function ExceptionPanel(props: { detail: OwnedRecords; noun?: string }) {
   onMount(focusHash);
   return (
-    <Show when={props.detail.exception} fallback={<Empty title="This request threw no exception." />}>
+    <Show when={props.detail.exception} fallback={<Empty title={`This ${props.noun ?? "request"} threw no exception.`} />}>
       {(exc) => (
         <section id="exception" class="exception" aria-labelledby="exception-title" tabindex="-1">
           <h3 id="exception-title">Exception</h3>
@@ -439,12 +451,13 @@ function ExceptionPanel(props: { detail: RequestDetail }) {
   );
 }
 
-function Dumps(props: { detail: RequestDetail }) {
+/** The dumped values, each with its site and its time. */
+export function Dumps(props: { detail: OwnedRecords; noun?: string }) {
   const d = () => props.detail;
   onMount(focusHash);
   return (
     <section class="dumps" aria-label="Dumps">
-      <Show when={d().dumps.length > 0} fallback={<Empty title="This request dumped no values." />}>
+      <Show when={d().dumps.length > 0} fallback={<Empty title={`This ${props.noun ?? "request"} dumped no values.`} />}>
         <For each={d().dumps}>
           {(dump) => (
             <article id={`dump-${dump.id}`} class="dump">
@@ -465,12 +478,13 @@ function Dumps(props: { detail: RequestDetail }) {
   );
 }
 
-function Logs(props: { detail: RequestDetail }) {
+/** The log lines, each with its level, its time and its fields. */
+export function Logs(props: { detail: OwnedRecords; noun?: string }) {
   const d = () => props.detail;
   onMount(focusHash);
   return (
     <section class="logs" aria-label="Log lines">
-      <Show when={d().logs.length > 0} fallback={<Empty title="This request wrote no log lines." />}>
+      <Show when={d().logs.length > 0} fallback={<Empty title={`This ${props.noun ?? "request"} wrote no log lines.`} />}>
         <ul class="log-list">
           <For each={d().logs}>
             {(log) => (

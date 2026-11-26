@@ -4,6 +4,7 @@
 
 const PATHS = {
   requests: "M2 4h12M2 8h12M2 12h8",
+  runs: "M4.5 2.5v11l9-5.5z",
   routes: "M3 13V3M3 5h6l-1.5 2L9 9H3M11 13h2",
   queries: "M3 4c0 1.1 2.2 2 5 2s5-.9 5-2-2.2-2-5-2-5 .9-5 2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2",
   errors: "M8 2 1.5 13.5h13zM8 6.5v3.5M8 12h.01",
