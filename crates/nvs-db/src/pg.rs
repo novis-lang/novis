@@ -209,7 +209,7 @@ pub struct PgTarget<'a> {
     /// The database to attach to.
     pub database: &'a str,
     /// The PEM bundle whose anchors this server's certificate is verified
-    /// against, or the compiled-in Mozilla set where the block names none.
+    /// against, or `[tls.client] roots` where the block names none.
     ///
     /// `rule:core-classes/db-safe-connection-defaults` has no spelling for
     /// turning verification off and this is not one: what it changes is *whose*

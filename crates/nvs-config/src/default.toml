@@ -470,6 +470,33 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [tls.client] — whose certificates every outbound TLS connection trusts
+# (`rule:security/the-client-trust-roots-are-the-operators`).
+# ----------------------------------------------------------------------------------------------
+
+[tls.client]
+# These keys apply to every outbound TLS connection: `Core\Http\Client`, `Core\Mail`, `Core\Ldap`,
+# `Core\Db`, every `[mail.<name>]`, `[ldap.<name>]` and `[db.<name>]` block, and the shared cache
+# over `rediss://`. A block that sets its own `tls_ca_file` uses that file instead of `roots`.
+#
+# Each entry of `roots` is `"bundled"` — the Mozilla set carried in the binary — or a PEM file, so
+# `["bundled", "/etc/novis/corp-ca.pem"]` adds a company CA and a list without `"bundled"` trusts
+# only its files. Each file is resolved against the configuration file naming it and must be inside
+# the trust boundary (`rule:config/ownership-is-the-trust-boundary`), the same check a `[db]`
+# block's `tls_ca_file` passes. An empty list is refused: it would trust nobody, which is a
+# handshake failure per connection rather than a policy.
+#roots = ["bundled"]                  # default
+# The version floor every connection speaks over. `"1.3"` raises it for all of them; there is
+# nothing below `"1.2"` to write, because the client implements neither TLS 1.0 nor 1.1.
+#min_version = "1.2"                  # default
+# A file each session's secrets are appended to in the `SSLKEYLOGFILE` format, for reading this
+# deployment's own traffic in Wireshark. Refused at boot when `[mode] default` is `production` — the
+# file decrypts everything sent, credentials included, for whoever can read it — and announced at
+# every start in `development`.
+#keylog = "/var/log/novis/tls-secrets.log"  # default: off
+
+
+# ----------------------------------------------------------------------------------------------
 # [http.*] — the blocks that make `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 # true with nothing written: headers on, CORS closed, cookies locked down, no unbounded wait.
 # ----------------------------------------------------------------------------------------------
@@ -578,24 +605,6 @@
 #max_message = 4194304                # default
 # How long one frame may wait to be written before the send fails.
 #send_timeout = "30s"                 # default
-
-[tls.client]
-# Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
-# carried in the binary — or a PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company
-# CA and a list without `"bundled"` trusts only its files. Each file is resolved against the
-# configuration file naming it and must be inside the trust boundary
-# (`rule:config/ownership-is-the-trust-boundary`), the same check a `[db]` block's `tls_ca_file`
-# passes. An empty list is refused: it would trust nobody, which is a handshake failure per call
-# rather than a policy.
-#roots = ["bundled"]                  # default
-# The version floor every call speaks over. `"1.3"` raises it for all of them; there is nothing
-# below `"1.2"` to write, because the client implements neither TLS 1.0 nor 1.1.
-#min_version = "1.2"                  # default
-# A file each session's secrets are appended to in the `SSLKEYLOGFILE` format, for reading this
-# deployment's own traffic in Wireshark. Refused at boot when `[mode] default` is `production` — the
-# file decrypts everything sent, credentials included, for whoever can read it — and announced at
-# every start in `development`.
-#keylog = "/var/log/novis/tls-secrets.log"  # default: off
 
 [http.client.proxy]
 # The forward proxy every `Core\Http\Client` call leaves through
@@ -788,11 +797,11 @@
 #password = "s3cret"                  # example
 #password_file = "/run/secrets/db-main"  # example
 # The PEM file of trust anchors this server's certificate is verified against, resolved against the
-# directory of the file it is written in. Written, it replaces the compiled-in Mozilla set for this
+# directory of the file it is written in. Written, it replaces `[tls.client] roots` for this
 # block rather than adding to it — a server behind a private CA is exactly the case where a public CA
 # vouching for it is the attack. It is trust-checked at boot on `password_file`'s footing: whoever
 # can write it chooses which server this connection may be talking to.
-#tls_ca_file = "/etc/ssl/private-ca.pem"  # default: the bundled Mozilla set
+#tls_ca_file = "/etc/ssl/private-ca.pem"  # default: `[tls.client] roots`
 # How many server-side prepared statements one connection keeps alive. A written `0` is not a
 # broken cache: it is the unnamed statement every time.
 #statement_cache = 16                 # default
@@ -846,8 +855,8 @@
 # `[capabilities.ldap] cleartext`.
 #tls = "required"                     # default
 # The PEM file of trust anchors the server's certificate is checked against. Written, it replaces
-# the bundled Mozilla set for this block. It is trust-checked at boot like `[db.<name>]`'s.
-#tls_ca_file = "/etc/ssl/corp-ca.pem"  # default: the bundled Mozilla set
+# `[tls.client] roots` for this block. It is trust-checked at boot like `[db.<name>]`'s.
+#tls_ca_file = "/etc/ssl/corp-ca.pem"  # default: `[tls.client] roots`
 # How long one operation may take, the connect and the bind included. There is no unlimited value.
 #timeout = "30s"                      # default
 # `false` turns pooling off for this block. A table of bounds is the other shape, below.
@@ -894,9 +903,10 @@
 # before anything else is sent, and refuses a relay that cannot. `none` is the clear, and is refused
 # beside a credential. TLS is always verified.
 #tls = "starttls"                     # default: `implicit` on port 465, `starttls` with a credential, else `none`
-# A PEM file of the certificates that sign the relay's, for a private CA. It replaces the built-in
-# set for this block. A relative path is read from the folder of the file that names it.
-#tls_ca_file = "certs/mail-ca.pem"    # default: the built-in Mozilla set
+# A PEM file of the certificates that sign the relay's, for a private CA. It replaces
+# `[tls.client] roots` for this block. A relative path is read from the folder of the file that
+# names it.
+#tls_ca_file = "certs/mail-ca.pem"    # default: `[tls.client] roots`
 # How the credential is sent: `plain`, `login` or `xoauth2`. All three need TLS. `xoauth2` signs
 # `user` in with an OAuth token and takes no password.
 #auth = "login"                       # default: `plain` when the relay offers it, else `login`
@@ -967,7 +977,7 @@
 # this machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather
 # than answering a store that would behave like the local one. TLS is the scheme and never a key
 # here, because it says which transport this is rather than carrying a value over one; a private CA
-# goes in this deployment's trust anchors beside every other outbound call's.
+# goes in `[tls.client] roots`, which every outbound TLS connection trusts.
 #url = "redis://127.0.0.1:6379"       # example
 # The credential the store is behind, sent as `AUTH` before any command on every connection — and
 # again on the reconnect after a dropped socket, so a store behind a password is never reached

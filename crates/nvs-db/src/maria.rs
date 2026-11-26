@@ -228,7 +228,7 @@ pub struct MariaTarget<'a> {
     /// The schema to select on connect.
     pub database: &'a str,
     /// The PEM bundle whose anchors this server's certificate is verified
-    /// against, or the compiled-in Mozilla set where the block names none.
+    /// against, or `[tls.client] roots` where the block names none.
     ///
     /// Not a way to turn verification off — `rule:core-classes/db-capabilities` has no spelling for
     /// that.

@@ -955,8 +955,8 @@ pub struct LdapDirectory {
     /// `[capabilities.ldap] cleartext`.
     pub tls: Option<String>,
     /// The PEM file of trust anchors the server's certificate is verified against, on
-    /// [`Database::tls_ca_file`]'s footing: it replaces the compiled-in set and is trust-checked at
-    /// boot.
+    /// [`Database::tls_ca_file`]'s footing: it replaces `[tls.client] roots` and is trust-checked
+    /// at boot.
     pub tls_ca_file: Option<String>,
     /// How long one operation may take, connect and bind included. A duration, finite, with a default.
     pub timeout: Option<Setting>,
@@ -1002,8 +1002,8 @@ pub struct MailEndpoint {
     /// credential, `none` otherwise. [`mod@crate::mail`] owns the defaults and the refusals.
     pub tls: Option<String>,
     /// The PEM file of trust anchors the relay's certificate is verified against, on
-    /// [`Database::tls_ca_file`]'s footing: it replaces the compiled-in set and is trust-checked at
-    /// boot.
+    /// [`Database::tls_ca_file`]'s footing: it replaces `[tls.client] roots` and is trust-checked
+    /// at boot.
     pub tls_ca_file: Option<String>,
     /// `"plain"`, `"login"` or `"xoauth2"`, the mechanism the credential is sent with. Unset:
     /// `PLAIN` when the relay offers it, else `LOGIN`. `xoauth2` signs `user` in with a token the
@@ -1149,7 +1149,7 @@ pub struct Database {
     /// The PEM file of trust anchors this server's certificate is verified against, resolved
     /// against the directory of the file it is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     ///
-    /// **Written, it replaces the compiled-in Mozilla set for this block and does not add to it** —
+    /// **Written, it replaces `[tls.client] roots` for this block and does not add to it** —
     /// `nvs_host::tls`'s module doc owns why, and it is `sslrootcert`'s meaning on every other
     /// client an operator has used. A server behind a private CA is exactly the case where a public
     /// CA vouching for it is the attack.
