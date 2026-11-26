@@ -4,6 +4,106 @@
       "kind": "changed",
       "highlight": true,
       "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "`Core\\Mail::send` takes one body. A `string` is sent as plain text, and a `Core\\Html\\Markup` is sent as HTML with a plain text made from it. The `html` option is removed.",
+      "breaking": true,
+      "instead": "Pass the HTML as the body: write `Core\\Mail::send('shop', $to, $subject, $html)` where you wrote `Core\\Mail::send('shop', $to, $subject, $text, html: $html)`. Use the `text` option only to replace the plain text Novis makes."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "`Core\\Mail::send` returns the `Message-ID` it wrote. New options add display names, attachments, thread headers, a one-click unsubscribe link and a bounce tag."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "The CSS of an HTML mail is copied into the `style` attribute of each element it matches, because most mail programs ignore a `<style>` element. `@media` rules and rules with `:hover` stay in `<style>`. A `<link rel=\"stylesheet\">` throws an error."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "A `[mail.<name>]` block can use TLS from the first byte, a private CA, `AUTH LOGIN` and `XOAUTH2`. The `dkim_*` settings sign every message, and `capture = true` keeps each message and sends nothing."
+    },
+    {
+      "kind": "faster",
+      "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "A `[mail.<name>]` block keeps its connection open for the next message, so a second message pays no new TLS handshake or sign-in. `pool = false` opens one connection per message."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Mail::preview",
+        "Core\\Mail\\Preview::html",
+        "Core\\Mail\\Preview::text",
+        "Core\\Mail\\Preview::keptCss",
+        "Core\\Mail\\Preview::unusedCss"
+      ],
+      "text": "`Core\\Mail::preview` builds a mail body as `send` would and sends nothing. It returns the HTML with its CSS inlined, the plain text, and the CSS rules that stayed in `<style>`."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Mail\\Attachment::fromFile",
+        "Core\\Mail\\Attachment::fromBytes",
+        "Core\\Mail\\Attachment::inlineFile",
+        "Core\\Mail\\Attachment::inlineBytes",
+        "Core\\Mail\\Attachment::src",
+        "Core\\Mail\\Attachment::name",
+        "Core\\Mail\\Attachment::type",
+        "Core\\Mail\\Attachment::bytes",
+        "Core\\Mail\\Attachment::isInline"
+      ],
+      "text": "`Core\\Mail\\Attachment` adds a file to a mail, from a path or from bytes. An inline image's `src()` is the `cid:` URL to write in an `<img>` element."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Mail\\Address::of"
+      ],
+      "text": "`Core\\Mail\\Address::of` is an email address with a display name, such as `\"Ada Lovelace\" <ada@example.com>`. A plain string is always an address alone."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Test\\SentMail::messageId",
+        "Core\\Test\\SentMail::fromName",
+        "Core\\Test\\SentMail::attachments",
+        "Core\\Test\\SentMail::inReplyTo",
+        "Core\\Test\\SentMail::references",
+        "Core\\Test\\SentMail::unsubscribe",
+        "Core\\Test\\SentMail::autoSubmitted",
+        "Core\\Test\\SentMail::bounceTag"
+      ],
+      "text": "`Core\\Test\\SentMail` reads every part of a sent message: its `Message-ID`, the sender's name, the attachments, the thread headers, the unsubscribe link and the bounce tag."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Test\\SentMail::html",
+        "Core\\Test\\SentMail::text"
+      ],
+      "text": "`Core\\Test\\SentMail::html` returns the HTML as sent, with its CSS inlined. `text` returns the plain text as sent, which Novis makes from the HTML when the program gives none."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:cli/the-debug-viewer"
+      ],
+      "text": "The debug viewer has a Mail page. It lists the messages a `capture = true` block kept. A message shows its HTML in a safe frame, its plain text, its headers, its attachments and which CSS rules stayed."
+    },
+    {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
         "tools:cli/the-debug-viewer"
       ],
       "text": "A request's page in the debug viewer shows its handler, its memory peak and limit, its response size, and the stack of an exception. Each cache, HTTP, file and process event shows its result. Sent mail and jobs pushed to a queue are events too."
@@ -1869,9 +1969,29 @@
       "hash": "d64baf3e01a8b875",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
+    "Core\\Test::logs": {
+      "hash": "ee4fee70d795bc6f",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test::sentMail": {
+      "hash": "b39a3db6aad3596c",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
     "Core\\Test\\Failure": {
       "hash": "8aba6ecf77a9936a",
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Test\\Failure` does is unchanged."
+    },
+    "Core\\Test\\LogRecord::fields": {
+      "hash": "49b269bc5c4f60b4",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\LogRecord::level": {
+      "hash": "49b269bc5c4f60b4",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\LogRecord::message": {
+      "hash": "49b269bc5c4f60b4",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
     },
     "Core\\Test\\Outcome::attempt": {
       "hash": "5d45698ec23cce7f",
@@ -1924,6 +2044,30 @@
     "Core\\Test\\Response::status": {
       "hash": "3ff47969e7923d6a",
       "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
+    },
+    "Core\\Test\\SentMail::bcc": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\SentMail::cc": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\SentMail::endpoint": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\SentMail::replyTo": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\SentMail::subject": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
+    },
+    "Core\\Test\\SentMail::to": {
+      "hash": "faa6ab8c59412435",
+      "why": "The tests were rewritten for the new body parameter of Core\\Mail::send. What each reader returns did not change."
     },
     "Core\\Test\\Summary::class": {
       "hash": "be4a1a67af502674",
