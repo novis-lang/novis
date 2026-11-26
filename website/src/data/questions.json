@@ -242,12 +242,13 @@
   },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
-    "hash": "a0474e9eef9b0d2c",
+    "hash": "1d547e7b469a0c2d",
     "questions": [
       "How do the parts of a Novis application fit together?",
       "Good habits for building a Novis web application",
       "Things to do and avoid when writing a Novis app",
-      "Overview of configuration, requests, errors and limits"
+      "Overview of configuration, requests, errors and limits",
+      "Which guide explains sending email and reading the replies?"
     ]
   },
   "/guides/how-to-use/checked-property-paths/": {
@@ -331,6 +332,18 @@
       "Why does nvs test skip a folder with its own package.toml?"
     ]
   },
+  "/guides/how-to-use/receiving-mail/": {
+    "feature": "guides/how-to-use/receiving-mail.mdx",
+    "hash": "4526a5ba118771a7",
+    "questions": [
+      "Read new emails from a mailbox over IMAP in my app",
+      "Find out which of my sent emails bounced and why",
+      "Match a reply or a bounce to the email I sent",
+      "Read an email that my mail provider posts to a webhook",
+      "Test reading a mailbox with a folder of .eml files",
+      "Stop sending to an address that does not exist anymore"
+    ]
+  },
   "/guides/how-to-use/requests/": {
     "feature": "guides/how-to-use/requests.mdx",
     "hash": "c067af4296809ccd",
@@ -344,7 +357,7 @@
   },
   "/guides/how-to-use/sending-mail/": {
     "feature": "guides/how-to-use/sending-mail.mdx",
-    "hash": "a4c8491f6e2f84f0",
+    "hash": "6ffff64a49d56407",
     "questions": [
       "Step by step guide to sending email from my app",
       "Set up an SMTP server and its password in nvs.toml",
@@ -1647,14 +1660,14 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "2f4d265ceec57c62",
+    "hash": "e8933c601e74eabe",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
       "Let a script connect only to certain hosts",
       "Allow running another program or starting a subprocess",
       "Which permissions does a program have by default?",
-      "Let a package read environment variables"
+      "Allow my program to open an IMAP mailbox"
     ]
   },
   "/reference/config/debug/": {
@@ -1886,11 +1899,11 @@
   },
   "/reference/config/secrets-from-files/": {
     "feature": "tools:config/secrets-from-files",
-    "hash": "a29111354749cebf",
+    "hash": "766b794072e81c34",
     "questions": [
       "How do I keep the database password out of the config file?",
       "Read a password from a Docker or Kubernetes secret",
-      "Read the OAuth refresh token for my mail server from a file",
+      "Read the OAuth refresh token for my mail or IMAP server from a file",
       "Use SOPS or Vault to provide credentials",
       "Why does the server warn about a space in my password?",
       "Why does the server stop when other users can write my secret file?"
@@ -1922,14 +1935,14 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "79e731c018e477e8",
+    "hash": "5b72013202afd398",
     "questions": [
       "Which sections can I write in the configuration file?",
       "Which keys does a mail server section accept?",
       "Sign outgoing mail with DKIM in the configuration file",
       "Turn on TLS and OAuth login for an SMTP server",
       "What does error E0601 mean in my configuration?",
-      "Turn off the database connection pool for every connection"
+      "Which keys does an IMAP mailbox section accept?"
     ]
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
@@ -8157,19 +8170,19 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "fd47f3410006b16e",
+    "hash": "4280fa3726d21236",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
       "Add hidden copy recipients to an email",
       "Change the sender name shown in the inbox for one email",
       "Make my reply show in the same conversation as the first email",
-      "Get the message id of an email I sent"
+      "Get the message id of an email to match its replies later"
     ]
   },
   "/reference/core/mail-address/": {
     "feature": "Core\\Mail\\Address",
-    "hash": "1094e70d59e3be35",
+    "hash": "3b9e6f6156b54640",
     "questions": [
       "Show a person's name next to the email address",
       "An email address together with a display name",
@@ -8201,17 +8214,18 @@
   },
   "/reference/core/mail-attachment/bytes/": {
     "feature": "Core\\Mail\\Attachment::bytes",
-    "hash": "6e5405f02c170a54",
+    "hash": "efac57fb04718493",
     "questions": [
       "Read the content of an email attachment",
       "Get the size of an attached file before sending",
       "Test the content of a CSV file sent by mail",
-      "How much memory does a large mail attachment use?"
+      "How much memory does a large mail attachment use?",
+      "Why is the content of an attachment tainted?"
     ]
   },
   "/reference/core/mail-attachment/frombytes/": {
     "feature": "Core\\Mail\\Attachment::fromBytes",
-    "hash": "54d18cf9686ee529",
+    "hash": "b11f0cc4b4fb219c",
     "questions": [
       "Attach a CSV export made in memory to an email",
       "Send content from a string as an email file",
@@ -8233,7 +8247,7 @@
   },
   "/reference/core/mail-attachment/inlinebytes/": {
     "feature": "Core\\Mail\\Attachment::inlineBytes",
-    "hash": "fa9f3ab8602b9f34",
+    "hash": "1b24513704ef9e73",
     "questions": [
       "Show an image from the database inside an email",
       "Embed a picture from memory in an HTML mail",
@@ -8255,7 +8269,7 @@
   },
   "/reference/core/mail-attachment/isinline/": {
     "feature": "Core\\Mail\\Attachment::isInline",
-    "hash": "9e19dfeea27476a1",
+    "hash": "787e5381a508aef3",
     "questions": [
       "Is this attachment shown in the email or downloaded?",
       "Tell an embedded image from a file to download",
@@ -8265,12 +8279,14 @@
   },
   "/reference/core/mail-attachment/name/": {
     "feature": "Core\\Mail\\Attachment::name",
-    "hash": "70b97a87772ab33a",
+    "hash": "9748fd5093302b10",
     "questions": [
       "Get the file name the recipient sees for an attachment",
       "List the names of all files in an email",
       "Check the attachment file name in a mail test",
-      "Is the attachment file name safe to put into HTML?"
+      "Is the attachment file name safe to put into HTML?",
+      "Why is the file name of a received attachment null?",
+      "Forward a received attachment that has no file name"
     ]
   },
   "/reference/core/mail-attachment/src/": {
@@ -8318,7 +8334,7 @@
   },
   "/reference/core/mail-preview/keptcss/": {
     "feature": "Core\\Mail\\Preview::keptCss",
-    "hash": "12f42dbc6c50ce8e",
+    "hash": "4ab557f8565471d6",
     "questions": [
       "Which CSS rules stay in the style tag of my email?",
       "Does a @media rule work in an HTML email?",
@@ -8340,7 +8356,7 @@
   },
   "/reference/core/mail-preview/unusedcss/": {
     "feature": "Core\\Mail\\Preview::unusedCss",
-    "hash": "9877b3764ecd83b3",
+    "hash": "b34a602b3886caf4",
     "questions": [
       "Find CSS rules in an email that match no element",
       "Find a typo in a CSS class name of my email template",
@@ -15563,7 +15579,7 @@
   },
   "/reference/core/test-sentmail/attachments/": {
     "feature": "Core\\Test\\SentMail::attachments",
-    "hash": "000819dc8ba7cbd9",
+    "hash": "fd7e50c006a669c9",
     "questions": [
       "How do I check the files attached to an email in a test?",
       "Test that an invoice email has the right CSV file",
@@ -15574,7 +15590,7 @@
   },
   "/reference/core/test-sentmail/autosubmitted/": {
     "feature": "Core\\Test\\SentMail::autoSubmitted",
-    "hash": "72927eafbcce1ef4",
+    "hash": "2540a0eb2f9157f0",
     "questions": [
       "How do I check that a program sent an email automatically in a test?",
       "Test that a reply written by a person is sent as a normal mail",
@@ -15636,7 +15652,7 @@
   },
   "/reference/core/test-sentmail/html/": {
     "feature": "Core\\Test\\SentMail::html",
-    "hash": "07bfaae5b5de00cb",
+    "hash": "31ece025bcd684bf",
     "questions": [
       "How do I check the HTML body of an email in a test?",
       "Test the HTML version of a sent mail",

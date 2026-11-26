@@ -1,19 +1,18 @@
 Returns the `Message-ID` of the mail that a received message is about, without the angle brackets.
 
-For a bounce, a delay and a spam complaint, the id comes from the copy of your own mail inside the
-report. For any other message, the id is the `In-Reply-To` header. When there is none, it is the last
-id in `References`. The result is `null` when the message names no mail at all.
+A bounce is a message from a mail server that says your mail could not be delivered. A bounce, a
+delay and a spam complaint contain the headers of your mail, and the id comes from there. For any other message, the id is the `In-Reply-To` header. When there is none, it is the last
+id in `References`. Otherwise the result is `null`.
 
-`Core\Mail::send` returns the `Message-ID` of each mail it sends. Keep it with the order or the
-account. Then you can find that record again when a bounce or an answer arrives.
+`Core\Mail::send` returns the `Message-ID` of each mail it sends. Save it with your record of
+the mail, so you can find that record when a bounce or an answer arrives.
 
-The result is `tainted`, because the sender of the message wrote it. Tainted means that the value
-comes from outside your program, so you must check or escape it before you use it. Escape it with
-`Core\Html::escape` before you put it on a page. It cannot be part of a file path or an SQL query
-without a check. Using it as an array key is allowed.
+The result is `tainted`. Tainted means that the value
+comes from outside your program, so you must check or escape it before you use it. Using it as an
+array key is allowed.
 
 **Good to know:** some servers send a bounce without a copy of your mail. Then `answers()` is
-`null`. Send each mail with a `bounceTag`. Then `bounceTag()` finds the mail of such a bounce.
+`null`. Pass the `bounceTag` option to `send`. Then `bounceTag()` returns that tag from the bounce.
 
-**The examples below** show a scheduled script that reads a mailbox, a reply found by its headers,
-and a spam complaint that stops a newsletter.
+**The examples below** show a script that reads a mailbox, a reply found by its headers, and a
+spam complaint that stops a newsletter.

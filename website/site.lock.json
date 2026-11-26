@@ -5251,14 +5251,14 @@
     "Core\\Imap\\Folder::search": "6dff2d4071965193",
     "Core\\Imap\\Folder::unflag": "c77cc3617ec88027",
     "Core\\Imap\\Mailbox::folder": "f7871e1852905fea",
-    "Core\\Mail\\Message::answers": "b6cfe0ae2ba255f6",
+    "Core\\Mail\\Message::answers": "bc598a7a45d10e8e",
     "Core\\Mail\\Message::bounceTag": "31a2e44c608b0404",
     "Core\\Mail\\Message::html": "26bdb5822833e569",
     "Core\\Mail\\Message::kind": "ebfd2efa201ba26f",
     "Core\\Mail\\Message::Kind": "42d18fa744ecebe0",
-    "Core\\Mail\\Message::parse": "8ea36a799fcb9b57",
-    "Core\\Mail\\Message::report": "cc8a221d85f311b1",
-    "Core\\Mail\\Report::recipients": "9dbf297b9d0dfe7f",
+    "Core\\Mail\\Message::parse": "1ffdf893743d4045",
+    "Core\\Mail\\Message::report": "53d867b56d0ca43f",
+    "Core\\Mail\\Report::recipients": "a0ecc28c2d133116",
     "Core\\Mail\\ReportRecipient::action": "0e1c45d31634ba7d",
     "Core\\Mail\\ReportRecipient::Action": "7cfad85e99fe60f8",
     "Core\\Mail\\ReportRecipient::address": "cde51c11f8e73e05",
@@ -6951,7 +6951,7 @@
     "Core\\Mail\\Attachment::isInline": "10b5c5c6c1cb313c"
   },
   "help:Core\\Mail\\Attachment::name": {
-    "Core\\Mail\\Attachment::name": "a88208700f0bea15"
+    "Core\\Mail\\Attachment::name": "f52cb4893f962449"
   },
   "help:Core\\Mail\\Attachment::src": {
     "Core\\Mail\\Attachment::src": "f78fd6ca07d205bf"
@@ -6960,10 +6960,10 @@
     "Core\\Mail\\Attachment::type": "0534da3c9da344dc"
   },
   "help:Core\\Mail\\Message::answers": {
-    "Core\\Mail\\Message::answers": "5977be69ddf49655"
+    "Core\\Mail\\Message::answers": "a4841f8aaaf95982"
   },
   "help:Core\\Mail\\Message::attachments": {
-    "Core\\Mail\\Message::attachments": "d5406ecf9511755f"
+    "Core\\Mail\\Message::attachments": "f6fdc87f9814d888"
   },
   "help:Core\\Mail\\Message::bounceTag": {
     "Core\\Mail\\Message::bounceTag": "592cb84baa6ba825"
@@ -6984,7 +6984,7 @@
     "Core\\Mail\\Message::html": "c4f3556f04a03d6d"
   },
   "help:Core\\Mail\\Message::inReplyTo": {
-    "Core\\Mail\\Message::inReplyTo": "3e0b6893df764603"
+    "Core\\Mail\\Message::inReplyTo": "05be66dbbfbf180d"
   },
   "help:Core\\Mail\\Message::Kind": {
     "Core\\Mail\\Message::Kind": "72f01260d7df803c"
@@ -6996,7 +6996,7 @@
     "Core\\Mail\\Message::messageId": "b5b54dd582411a4d"
   },
   "help:Core\\Mail\\Message::parse": {
-    "Core\\Mail\\Message::parse": "65a2e6c475bcbc77"
+    "Core\\Mail\\Message::parse": "800442600558d159"
   },
   "help:Core\\Mail\\Message::raw": {
     "Core\\Mail\\Message::raw": "cf1d8cfe2c951cb0"
@@ -7008,7 +7008,7 @@
     "Core\\Mail\\Message::replyTo": "fd35abbcf5d2c0a8"
   },
   "help:Core\\Mail\\Message::report": {
-    "Core\\Mail\\Message::report": "c004ae193d56e962"
+    "Core\\Mail\\Message::report": "4ef78c6709dd8e2f"
   },
   "help:Core\\Mail\\Message::subject": {
     "Core\\Mail\\Message::subject": "27ab9b1312287744"
@@ -7035,7 +7035,7 @@
     "Core\\Mail\\Preview::unusedCss": "e956dc2f91045c97"
   },
   "help:Core\\Mail\\Report::recipients": {
-    "Core\\Mail\\Report::recipients": "92f1546b6e34c21d"
+    "Core\\Mail\\Report::recipients": "f1d42019cd0f56a2"
   },
   "help:Core\\Mail\\ReportRecipient::Action": {
     "Core\\Mail\\ReportRecipient::Action": "798be0dab71b4302"
