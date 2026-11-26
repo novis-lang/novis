@@ -27,6 +27,14 @@ against it — a strict validator would then pass in production and fail in deve
 direction for a bug to point. So a development-mode API response is byte-identical in shape to its
 production counterpart.
 
+**The inline block names its request.** From goal `deeper-debug-records`, the block an HTML body
+gets under `[debug] inline` has one more line: the number of queries the request ran so far, and a
+link to the request in the viewer, `/requests/<trace id>/<span id>` on the address `[debug] listen`
+names. The line is written only when `[debug] inline` is on and `[debug] store` is on for the
+request: without `store`, the viewer has no record of it. The link carries no token, so the page
+leaks none. A browser that has opened the viewer once has its cookie, and any other gets the
+viewer's own login.
+
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
 can never turn it on, so the run mode's default is the only thing that can enable it, and
 `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` bounds reaching that mode at all.
@@ -40,6 +48,10 @@ in a response does not exist outside a mode whose ceiling is closed by default.
 - **A `debug` key injected into a JSON body in development.** The served shape would contradict the
   published API document (`rule:routing/api-document-is-a-deterministic-build-artifact`), for the
   reason above.
-- **A response header carrying a dump id**, the shape some PHP frameworks use for a debug token. It
-  keeps the body intact and the dump discoverable, but it is a second mechanism: an id, a lookup, and a
-  viewer to look it up in, and no such viewer exists.
+- **A response header carrying a dump id**, the shape some PHP frameworks use for a debug token. The
+  server already sends the request's ids in `traceresponse`, and the viewer opens a request by them,
+  so a second id would name the same thing twice.
+- **A toolbar that updates after the response.** It needs a script in the program's page, which
+  changes the page under test and its content security policy. The inline link is static text.
+- **The viewer's token in the inline link.** The page is HTML a person may save, share or paste into
+  a bug report, and the token opens every recorded request.

@@ -1,0 +1,12 @@
+{
+  "title": "A recorded uncaught exception keeps at most 64 frames and 8 `previous` links of names, files and lines, and never an argument's value",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-debug-stream-reaches-the-service-through-the-disk",
+    "security/redaction-reaches-the-tools-own-renderings",
+    "security/isolate-shares-nothing",
+    "testing/an-exception-is-one-row-per-class-and-site"
+  ],
+  "guardedBy": [],
+  "goal": "deeper-debug-records"
+}

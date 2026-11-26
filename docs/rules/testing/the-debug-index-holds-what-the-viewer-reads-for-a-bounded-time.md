@@ -4,13 +4,17 @@ index_max`, the oldest request first.
 
 | Table | One row per | What the viewer reads it for |
 |---|---|---|
-| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, and the routes view (`rule:testing/the-viewer-answers-per-route-and-per-statement`) |
+| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site; from goal `deeper-debug-records`, nullable `memory_peak`, `memory_limit`, `handler`, `handler_file`, `handler_line`, `bytes_in` and `bytes_out`; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, the routes view (`rule:testing/the-viewer-answers-per-route-and-per-statement`), and a request's memory, handler and sizes |
+| `runs` | from goal `deeper-debug-records`, `run` line: trace id, `of`, name, start, duration, outcome, nullable memory peak and limit, its exception group, and its dump, log and query counts and summed event durations kept by the same triggers as a request's; indexed on start and on (`of`, `name`, `start_us`) | the Runs view (`rule:testing/a-run-is-recorded-like-a-request`) |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
-| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, and its call site's file, line and file hash | a request's timeline |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, the target, and its call site's file, line and file hash; from goal `deeper-debug-records`, nullable `outcome`, the event's outcome fields as one JSON object | a request's timeline, and each event's outcome |
 | `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
+| `profiles` | `profile` line: trace id, the profile file's path | a request's profile |
+| `coverage` | `coverage` line: trace id, span, each file's lines and counts as JSON | the lines a request ran |
+| `copies` | one copy site of a `copies` line: trace id, span, file, line, file hash, reason, copies, units; indexed on `copies_site` (file hash, line) | a request's copies, and the copies at one site |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
-| `exceptions` | uncaught exception: trace id, class, message, file, line, group | a request's error |
+| `exceptions` | uncaught exception: trace id, class, message, file, line, group; from goal `deeper-debug-records`, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`, and a nullable `run` beside the now nullable `request`, so one names its request or its run | a request's or a run's error and its stack (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`) |
 | `exception_groups` | class and throw site: count, first seen, last seen | grouped exceptions |
 | `search` | searchable text of one row above, with its table and row id | full-text search |
 | `dropped` | `dropped` line: the records and files a writer's share of the spool cap deleted | what was lost before it was read |
@@ -36,6 +40,12 @@ in batches of a thousand so the viewer never waits on a long write. A row that n
 request is deleted by its own time past `index_age`. An exception group stays while its last seen is
 within `index_age`, and its count still counts deleted requests. A saved filter is the viewer's own
 and is not in the index, because discarding the index must lose nothing a person wrote.
+
+**A run is forgotten as a request is,** by its start past `index_age` and oldest first past
+`index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
+a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
+named columns would be mostly empty on every row. Each stage of goal `deeper-debug-records` that adds
+a column raises the schema version once, so the index is rebuilt from the spool.
 
 A schema version in `meta` that the running binary does not know is a cache miss: the file is
 discarded and rebuilt from what is still on disk

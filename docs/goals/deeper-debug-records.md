@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/spool.rs, crates/nvs-server/src/spooled.rs, cra
 stages:
   - id: 1
     title: the rules name every line and field the spool has and gains
-    status: open
+    status: done
     context: [docs/agent/doc-style.md, docs/rules/observability/trace-events-carry-a-kind.md, docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md, docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md]
   - id: 2
     title: a recorded request carries its memory peak and limit, its handler and the bytes it read and wrote
@@ -158,6 +158,12 @@ viewer item builds on `viewer/src/ui/list.tsx`, which the goal in front of this 
 `debug-viewer-flagship`, lands. If that file does not exist, a stage lands its runtime, index and
 API items, and its viewer items wait in the handoff.
 
+**Stage 1 settled four names the rules now state.** An `http` event's status is `http_status`,
+because an event's `status` is already a `call` exit's checked-return status. A `queue` event's and
+a queue run's job is its script, because `Core\Queue::push` takes a script and has no job class. In
+the index an event's outcome is one nullable JSON column, `outcome`, because the viewer draws it and
+never filters or sums on it. An `exceptions` row names its `request` or its `run`, both nullable.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -166,19 +172,19 @@ place of none, and no stage adds a line per request). A stage that would add one
 
 ### 1. the rules name every line and field the spool has and gains
 
-- [ ] `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md:51`: the table
+- [x] `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md:51`: the table
   gains the `profile`, `coverage`, `copies` and `run` lines, the `cache`, `session`, `file`, `mail`
   and `queue` event kinds, and every new field with what it never holds.
-- [ ] `docs/rules/observability/trace-events-carry-a-kind.md`: ten kinds, and what `mail` and
+- [x] `docs/rules/observability/trace-events-carry-a-kind.md`: ten kinds, and what `mail` and
   `queue` record. Declined there: an address, a subject, a payload, a session id.
-- [ ] `docs/rules/testing/a-run-is-recorded-like-a-request.md:1`: the `run` line, where each kind of
+- [x] `docs/rules/testing/a-run-is-recorded-like-a-request.md:1`: the `run` line, where each kind of
   run writes it, and the Runs view. Its Declined entry is the one above.
-- [ ] `docs/rules/testing/a-recorded-exception-keeps-its-frames-and-never-a-value.md:1`: the frames,
+- [x] `docs/rules/testing/a-recorded-exception-keeps-its-frames-and-never-a-value.md:1`: the frames,
   the chain, the two bounds, when they are copied.
-- [ ] `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:5`: the
+- [x] `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:5`: the
   new columns and the `runs` table.
-- [ ] `docs/rules/errors/debug-dump.md`: the inline block's link line and its two conditions.
-- [ ] `bun nv rules --render`, then `bun nv rules --check` is green.
+- [x] `docs/rules/errors/debug-dump.md`: the inline block's link line and its two conditions.
+- [x] `bun nv rules --render`, then `bun nv rules --check` is green.
 
 ### 2. a recorded request carries its memory peak and limit, its handler and the bytes it read and wrote
 
@@ -286,13 +292,24 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Written by an interactive session on 2026-11-25, with the goal `debug-viewer-flagship`. Nothing of
-this goal is built. The `path:line` anchors come from a read-only survey of that day, so a stage
-checks an anchor before it edits there.
+Stage 1 is done: the rules name every line and field, and `bun nv rules --check` is green. The two
+new rules, `testing/a-run-is-recorded-like-a-request` and
+`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`, are `designed` with this goal as
+owner, and their `guardedBy` is empty: stage 3 and stage 6 set it and the status to `shipped`. The
+shipped rules mark each field not yet built as "from goal `deeper-debug-records`", and the stage
+that builds a field drops that phrase. No code changed, so no test is expected to go red.
+
+The nightly failures the sweep listed (Miri zone tests in `nvs-stdlib`, the `Math/quotient`
+attack, the macOS json-api allocation count) were already fixed by `1c3196b0e8` and `8ca2f09e1b`,
+after the run's commit `53e94a9181`.
 
 ### Next
 
-Stage 1 from its first item.
+Stage 2 from its first item. Its anchors come from a survey, so check each before editing:
+`crates/nvs-runtime/src/host.rs:700` (`Completion`), `crates/nvs-runtime/src/spool.rs:191`
+(`Request`), `crates/nvs-server/src/spooled.rs` (the door's `request` line), and
+`crates/nvs-cli/src/debug/index.rs:88` (`requests`). First settle with an `Explore` subagent
+whether the route table keeps a handler's file and line.
 
 ### Backlog
 

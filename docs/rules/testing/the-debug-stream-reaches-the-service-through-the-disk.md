@@ -38,8 +38,11 @@ in `development`, its input and its response,
 site where the compiler numbered one, `rule:observability/a-query-span-names-its-call-site`), `dump` (a `Core\Debug::dump` record's bounded tree,
 `rule:errors/record-transformations`), `log` (a log record of the request, because a development
 server logs to its terminal and the viewer has no file to read), `body` (a part of a recorded body too
-long to be written inside its `request` line) and `dropped` (how many records the cap evicted). Every
-line but `dropped` carries the trace id, so the viewer joins them. A line is at most
+long to be written inside its `request` line), `profile` (the file a request's
+`Core\Debug::startProfile` writes), `coverage` (the lines a request ran, where `[debug] mode` names
+`coverage`), `copies` (the copies a recorded request made, by copy site), `run` (a scheduled job, a
+queue job or a command run, `rule:testing/a-run-is-recorded-like-a-request`) and `dropped` (how many
+records the cap evicted). Every line but `dropped` carries the trace id, so the viewer joins them. A line is at most
 4 MiB; a record that would be longer is written with its tree, its fields or its bodies elided to fit,
 and the elision says so. One that is still too long is counted in the next `dropped` line.
 
@@ -50,12 +53,30 @@ missing optional field as absent, so a field added later still reads an older sp
 
 | `kind` | Fields |
 |---|---|
-| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
-| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`, whose fields are `file`, `line` and `hash`) |
+| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (an *exception*, below), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`); optional, from goal `deeper-debug-records`: `memory_peak` and `memory_limit` (bytes), `handler` (the name `Route::handler()` gives), `handler_site` (`file`, `line`, when the route table has one), `bytes_in` (the body bytes the program read) and `bytes_out` (the body bytes written) |
+| `event` | `event` (one of `rule:observability/trace-events-carry-a-kind`'s kinds), `label`, `start_us`, `end_us`; optional `status` (a `call` exit's checked-return status), `query` (`driver`, `sql`, optional `rows` and `site`), `target` (an `http` event's host and path, a `cache` or `session` event's key, a `file` event's path) and `site` (an `http`, `cache`, `session` or `file` call's site); a `site` has `file`, `line` and `hash`. Optional, from goal `deeper-debug-records`, the event's outcome: `hit` and `tier` (`memory` or `redis`) on a `cache` read, `http_status`, `bytes_in` and `bytes_out` on an `http` event, `bytes` on a `file` event, `command` (the program's name) and `exit` on a `spawn` of a process, `recipients` and `ok` on a `mail` event, and `queue`, `job` (the job's script, as `Core\Queue::push` named it) and `delay_ms` on a `queue` event |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
 | `body` | `of` (`request` or `response`), `offset` (where its bytes start in the body); optional `text` and `base64`, as in a `body` |
+| `profile` | `path` (the profile file's absolute path), written when the profile starts |
+| `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
+| `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
+| `run` | from goal `deeper-debug-records`: `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` (`rule:testing/a-run-is-recorded-like-a-request`) |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
+
+An *exception* has `class`, `message`, `file` and `line`. From goal `deeper-debug-records` it also
+has optional `frames` (each with `function`, `file` and `line`), `previous` (each link with `class`,
+`message`, `file`, `line` and `frames`), `frames_cut` and `previous_cut`
+(`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`).
+
+**What a field never holds.** Every field above is a name, a count, a size, a time or a site, so
+what the program handled stays off the disk outside `development`'s recorded input. A frame never
+holds an argument's value. A `cache`, `session` or `file` event never holds the value read or
+written, and a `*Secret` cache or session member records no `target`. An `http` event never holds a
+query string, a header value or a body. A `spawn` event's `command` is the program's name and never
+its arguments, which may carry a credential. A `mail` event never holds an address, a subject or a
+body. A `queue` event never holds the job's payload. No line holds a session id, hashed or not,
+because it links one person's requests.
 
 A `body` has `read`, `cut`, and optional `declared` (the length the request declared), `text` (the
 bytes, when they are UTF-8), `base64` (the bytes, when they are not), `chunks` and `withheld` (the

@@ -3,6 +3,8 @@
 
 # Testing
 
+*2 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -3134,8 +3136,11 @@ in `development`, its input and its response,
 site where the compiler numbered one, [`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), `dump` (a `Core\Debug::dump` record's bounded tree,
 [`errors/record-transformations`](errors.md#errors-record-transformations)), `log` (a log record of the request, because a development
 server logs to its terminal and the viewer has no file to read), `body` (a part of a recorded body too
-long to be written inside its `request` line) and `dropped` (how many records the cap evicted). Every
-line but `dropped` carries the trace id, so the viewer joins them. A line is at most
+long to be written inside its `request` line), `profile` (the file a request's
+`Core\Debug::startProfile` writes), `coverage` (the lines a request ran, where `[debug] mode` names
+`coverage`), `copies` (the copies a recorded request made, by copy site), `run` (a scheduled job, a
+queue job or a command run, [`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) and `dropped` (how many
+records the cap evicted). Every line but `dropped` carries the trace id, so the viewer joins them. A line is at most
 4 MiB; a record that would be longer is written with its tree, its fields or its bodies elided to fit,
 and the elision says so. One that is still too long is counted in the next `dropped` line.
 
@@ -3146,12 +3151,30 @@ missing optional field as absent, so a field added later still reads an older sp
 
 | `kind` | Fields |
 |---|---|
-| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
-| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`, whose fields are `file`, `line` and `hash`) |
+| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (an *exception*, below), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`); optional, from goal `deeper-debug-records`: `memory_peak` and `memory_limit` (bytes), `handler` (the name `Route::handler()` gives), `handler_site` (`file`, `line`, when the route table has one), `bytes_in` (the body bytes the program read) and `bytes_out` (the body bytes written) |
+| `event` | `event` (one of [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)'s kinds), `label`, `start_us`, `end_us`; optional `status` (a `call` exit's checked-return status), `query` (`driver`, `sql`, optional `rows` and `site`), `target` (an `http` event's host and path, a `cache` or `session` event's key, a `file` event's path) and `site` (an `http`, `cache`, `session` or `file` call's site); a `site` has `file`, `line` and `hash`. Optional, from goal `deeper-debug-records`, the event's outcome: `hit` and `tier` (`memory` or `redis`) on a `cache` read, `http_status`, `bytes_in` and `bytes_out` on an `http` event, `bytes` on a `file` event, `command` (the program's name) and `exit` on a `spawn` of a process, `recipients` and `ok` on a `mail` event, and `queue`, `job` (the job's script, as `Core\Queue::push` named it) and `delay_ms` on a `queue` event |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
 | `body` | `of` (`request` or `response`), `offset` (where its bytes start in the body); optional `text` and `base64`, as in a `body` |
+| `profile` | `path` (the profile file's absolute path), written when the profile starts |
+| `coverage` | `files` (each file path to each line that ran and its count, empty when elided), `elided`; optional `span` |
+| `copies` | `sites` (each with `file`, `line`, `hash`, `reason`, `copies` and `units`, the most units first, empty when elided), `elided`; optional `span` |
+| `run` | from goal `deeper-debug-records`: `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
+
+An *exception* has `class`, `message`, `file` and `line`. From goal `deeper-debug-records` it also
+has optional `frames` (each with `function`, `file` and `line`), `previous` (each link with `class`,
+`message`, `file`, `line` and `frames`), `frames_cut` and `previous_cut`
+([`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value)).
+
+**What a field never holds.** Every field above is a name, a count, a size, a time or a site, so
+what the program handled stays off the disk outside `development`'s recorded input. A frame never
+holds an argument's value. A `cache`, `session` or `file` event never holds the value read or
+written, and a `*Secret` cache or session member records no `target`. An `http` event never holds a
+query string, a header value or a body. A `spawn` event's `command` is the program's name and never
+its arguments, which may carry a credential. A `mail` event never holds an address, a subject or a
+body. A `queue` event never holds the job's payload. No line holds a session id, hashed or not,
+because it links one person's requests.
 
 A `body` has `read`, `cut`, and optional `declared` (the length the request declared), `text` (the
 bytes, when they are UTF-8), `base64` (the bytes, when they are not), `chunks` and `withheld` (the
@@ -3381,13 +3404,17 @@ index_max`, the oldest request first.
 
 | Table | One row per | What the viewer reads it for |
 |---|---|---|
-| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, and the routes view ([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)) |
+| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group, the summed duration of its events of each kind (`db_us`, `http_us`, `cache_us`, `session_us`, `file_us`, `gc_us`, `spawn_us`) and `repeats`, the most times one statement ran at one site; from goal `deeper-debug-records`, nullable `memory_peak`, `memory_limit`, `handler`, `handler_file`, `handler_line`, `bytes_in` and `bytes_out`; indexed on start and on `requests_route` (`method`, `route`, `start_us`) | the request list, its filters and time split, the routes view ([`testing/the-viewer-answers-per-route-and-per-statement`](testing.md#testing-the-viewer-answers-per-route-and-per-statement)), and a request's memory, handler and sizes |
+| `runs` | from goal `deeper-debug-records`, `run` line: trace id, `of`, name, start, duration, outcome, nullable memory peak and limit, its exception group, and its dump, log and query counts and summed event durations kept by the same triggers as a request's; indexed on start and on (`of`, `name`, `start_us`) | the Runs view ([`testing/a-run-is-recorded-like-a-request`](testing.md#testing-a-run-is-recorded-like-a-request)) |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
-| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, and its call site's file, line and file hash | a request's timeline |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, the target, and its call site's file, line and file hash; from goal `deeper-debug-records`, nullable `outcome`, the event's outcome fields as one JSON object | a request's timeline, and each event's outcome |
 | `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
+| `profiles` | `profile` line: trace id, the profile file's path | a request's profile |
+| `coverage` | `coverage` line: trace id, span, each file's lines and counts as JSON | the lines a request ran |
+| `copies` | one copy site of a `copies` line: trace id, span, file, line, file hash, reason, copies, units; indexed on `copies_site` (file hash, line) | a request's copies, and the copies at one site |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
-| `exceptions` | uncaught exception: trace id, class, message, file, line, group | a request's error |
+| `exceptions` | uncaught exception: trace id, class, message, file, line, group; from goal `deeper-debug-records`, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`, and a nullable `run` beside the now nullable `request`, so one names its request or its run | a request's or a run's error and its stack ([`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value)) |
 | `exception_groups` | class and throw site: count, first seen, last seen | grouped exceptions |
 | `search` | searchable text of one row above, with its table and row id | full-text search |
 | `dropped` | `dropped` line: the records and files a writer's share of the spool cap deleted | what was lost before it was read |
@@ -3414,6 +3441,12 @@ request is deleted by its own time past `index_age`. An exception group stays wh
 within `index_age`, and its count still counts deleted requests. A saved filter is the viewer's own
 and is not in the index, because discarding the index must lose nothing a person wrote.
 
+**A run is forgotten as a request is,** by its start past `index_age` and oldest first past
+`index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
+a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
+named columns would be mostly empty on every row. Each stage of goal `deeper-debug-records` that adds
+a column raises the schema version once, so the index is rebuilt from the spool.
+
 A schema version in `meta` that the running binary does not know is a cache miss: the file is
 discarded and rebuilt from what is still on disk
 ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)). So is a file SQLite cannot read.
@@ -3428,6 +3461,95 @@ discarded and rebuilt from what is still on disk
   debugging aid that keeps them forever is a store of personal data nobody chose to keep.
 
 <sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings).</sub>
+
+<a id="testing-a-recorded-exception-keeps-its-frames-and-never-a-value"></a>
+
+## A recorded uncaught exception keeps at most 64 frames and 8 `previous` links of names, files and lines, and never an argument's value  *(designed — owned by goal deeper-debug-records)*
+
+`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`
+
+An uncaught exception in a recorded request or run keeps its stack frames, each a function, a file and
+a line, and its `previous` chain, each link a class, a message, a site and its own frames, and never
+an argument's value.
+
+**The shape.** `frames` is the thrown value's backtrace, innermost first, in the shape the engine
+floor's record already renders from it (`crates/nvs-runtime/src/floor.rs`). `previous` is the chain
+of the throwable's `previous` property, the nearest cause first. The failure the isolate hands its host
+(`crates/nvs-runtime/src/host.rs`, `Failure`) carries both, so the door that writes the `request`
+line, and the point that writes a `run` line, has them without touching the exception object, which
+[`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) keeps on the child's side.
+
+**Two bounds.** At most 64 frames per exception and 8 links in the chain are kept. A longer stack
+keeps its innermost 64 frames and sets `frames_cut`, and a longer chain keeps its nearest 8 links
+and sets `previous_cut`. A deep recursion then costs a bounded line, and the frames a person reads
+first are the ones kept.
+
+**When they are copied.** Only when the exception is uncaught and `[debug] store` is on for the
+request or run. A caught exception is not recorded, so a program that throws and catches in a loop
+pays nothing. With `store` off, the failure carries no frames, and the one branch that skips the
+copy is the one that already skips the line.
+
+**Never a value.** A frame holds no argument and no local, because a trace is a `secret` sink
+([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). A message is recorded as the program
+wrote it, as the request line's message already is.
+
+- **Memory:** with `store` on, per uncaught exception, at most 64 frames and 8 links of names,
+  paths and line numbers, held until the line is written.
+
+**Declined:**
+- **A frame's argument values.** An argument is often the very credential, token or personal field
+  the program was handling, and the index keeps a record for days.
+- **Recording caught exceptions.** A program that uses an exception for control flow would write a
+  stack per iteration, and the request page would show failures that never reached the person.
+- **No bound on the stack.** A runaway recursion would write a line at the 4 MiB cap and lose the
+  rest of its record to elision.
+
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site).</sub>
+
+<a id="testing-a-run-is-recorded-like-a-request"></a>
+
+## A scheduled job, a queue job and a command run are each recorded as one `run` line with their events, dumps and logs, and the viewer lists them in a Runs view  *(designed — owned by goal deeper-debug-records)*
+
+`rule:testing/a-run-is-recorded-like-a-request`
+
+With `[debug] store` on, a scheduled job, a queue job and a command run are each recorded as one `run`
+line, and its events, dumps and logs carry its trace id, so the viewer shows a run as it shows a
+request.
+
+A `run` line has `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us` and
+`outcome` (`ok`, `failed` or `cancelled`), and optional `memory_peak`, `memory_limit` and
+`exception`, whose shape is the request's
+([`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value)). Its `name` is the
+schedule's name, the queue job's script, or the command (`run` or `test`) and its script. A run
+draws a trace id where it starts, as a request does, so every line it writes joins it. The field
+table is [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk)'s.
+
+**Where each kind of run writes it.** Each is a point where the runtime already knows the run's
+outcome, so no new branch runs while `store` is off:
+
+- a scheduled run, where its outcome already counts in `nvs_schedule_runs_total`
+  (`crates/nvs-server/src/metrics.rs`);
+- a queue job, where the worker settles an attempt as succeeded, failed or dead-lettered
+  (`crates/nvs-cli/src/worker.rs`), one line per attempt;
+- a command run, where `nvs run` and `nvs test` seal their spool at exit
+  (`crates/nvs-cli/src/main.rs`, `sealed`). A run stopped by a signal is `cancelled`.
+
+**The Runs view.** The viewer has a Runs view beside Requests: the same list, filters and paging,
+and the same page with its tabs, without the Request and Response tabs, because a run has neither.
+The index keeps runs in a `runs` table of their own
+([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)).
+
+- **Memory:** nothing while `store` is off. With it on, one `run` line built per run, where today
+  that run writes none.
+
+**Declined:**
+- **A run written as a `request` line with a made-up method.** Every list, filter, route view and
+  count would then need to know the fake method and leave it out, and a run has no status, path or
+  route to fill the request's required fields with.
+- **A `run` line for each scheduled tick that does not start a job.** It records no work, and a
+  schedule that ticks every second would fill the spool cap with nothing.
+
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`](testing.md#testing-a-recorded-exception-keeps-its-frames-and-never-a-value), [`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time).</sub>
 
 <a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
 

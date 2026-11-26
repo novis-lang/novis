@@ -69,6 +69,8 @@
     "testing/nvs-debug-is-the-service-and-a-development-server-starts-it",
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
     "testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time",
+    "testing/a-recorded-exception-keeps-its-frames-and-never-a-value",
+    "testing/a-run-is-recorded-like-a-request",
     "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/the-viewer-wears-the-websites-palette",
