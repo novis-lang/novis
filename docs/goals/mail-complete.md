@@ -29,7 +29,7 @@ stages:
     status: open
     context: [docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md]
   - id: 7
-    title: a block with a DKIM key signs every message it sends
+    title: "a block with a DKIM key signs every message it sends"
     status: open
   - id: 8
     title: "a capture block keeps its mail, Core\\Test\\SentMail reads every new part, and the debug viewer shows a mail page"
@@ -432,6 +432,10 @@ because they share `compose.rs` and `smtp.rs`.
   replacement, idle and lifetime closing. `deliver` (`smtp.rs:552`) takes a pooled session.
 - [ ] The five tests of the check `pool`, counting connections at the fake server, then
   `cargo test --lib mail::` once.
+- [ ] `handshake` (`crates/nvs-stdlib/src/mail/smtp.rs`): a certificate from an unknown issuer gives
+  an `IOError` that says the server's CA is not trusted and names `[mail.<name>] tls_ca_file` as the
+  fix. Every other handshake failure keeps its message. A user met the bare `UnknownIssuer` on a
+  server with a company CA and had no way to find the setting. Check `unknown-issuer-hint`.
 
 ### 4. the body is a string or Core\Html\Markup, the plain text is built from the HTML, and a message carries attachments and inline images
 
