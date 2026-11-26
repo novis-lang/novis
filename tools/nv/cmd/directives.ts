@@ -448,9 +448,15 @@ interface Source {
 }
 
 /**
- * Every non-test crate source file. A `#[cfg(test)]` module at column 0 and everything after it is
- * dropped: the module is last by convention, and a test that writes a key into a fixture and reads it
- * back is not what makes the key live.
+ * A `#[cfg(test)]` at column 0 whose item is a `mod`. A `#[cfg(test)]` on a `use` or a function is not
+ * the test module, and `crates/nvs-stdlib/src/mail/mod.rs` has two such `use` items near its top.
+ */
+export const TEST_MODULE = /^#\[cfg\(test\)\]\s*\n(?:#\[[^\n]*\]\s*\n)*(?:pub(?:\([^)]*\))?\s+)?mod\s/m;
+
+/**
+ * Every non-test crate source file. The `#[cfg(test)]` module at column 0 ([`TEST_MODULE`]) and
+ * everything after it is dropped: the module is last by convention, and a test that writes a key
+ * into a fixture and reads it back is not what makes the key live.
  */
 function corpus(): Source[] {
   const files: Source[] = [];
@@ -461,7 +467,7 @@ function corpus(): Source[] {
     for (const rel of paths) {
       if (rel === TREE_REL) continue;
       const text = read(rel);
-      const cut = /^#\[cfg\(test\)\]/m.exec(text);
+      const cut = TEST_MODULE.exec(text);
       const [code, literals] = strip(cut ? text.slice(0, cut.index) : text);
       files.push({
         rel,
