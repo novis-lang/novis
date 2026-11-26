@@ -658,7 +658,12 @@ This session's commits:
 - `55b71a1b31`: `Test-SentMail/html` and `text` about.md name the body `send` takes, not the
   removed `html` option. The root `nvs.toml`'s unused `[[app]]` for the send attack is deleted.
 
-Perf: `bun nv proofs --record-perf --goal mail-complete` was started, and is reported below.
+- `59b4fbcdfe`: perf records for 60 features (the mail members, `Core\IO`, `Core\Mime`), every
+  growth flat.
+
+`bun nv scaling --budget --write` was run and reverted. It rewrites the whole budget, and it would
+have raised 51 benches outside this goal that are over today (most are `novis/Spreadsheet-*`). No
+mail or `Core\Mime` bench was over.
 
 CI: run 45609291264 ran on `53e94a9181`. Its failures are fixed on main by `1c3196b0e8` and
 `c115a735a1`, which the last session checked one by one.
@@ -715,9 +720,10 @@ CI: run 45609291264 ran on `53e94a9181`. Its failures are fixed on main by `1c31
    Then `cargo build` once, `bun nv site --review --stamp <key>...` for every key (the help stamps
    read the built binary), `bun nv site --check stale` and stamp what is still right, and `changes`
    green.
-2. **Perf**, if the run above did not finish: `bun nv proofs --record-perf --goal mail-complete`
-   (the 42 `Core\IO` members and `Core\Mime` are stale since stage 4), then `bun nv scaling --budget
-   --write` for the new benches.
+2. **The budget.** Check whether the new mail benches need a budget entry (`bun nv scaling --budget`
+   and grep its log for `Mail`). If they do, add only their lines to `data/perf/bench-budget.json`;
+   never `--write` while other benches are over. The 51 over benches are another goal's work: put
+   them in `### Backlog` if this goal does not fix them.
 3. Then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), and stage 10.
 
 Expected red: `site --check stale` and `review` for the mail features, the page, its snippets,
