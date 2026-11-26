@@ -2146,7 +2146,9 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// only itself, and the test view's own run button runs it.
 ///
 /// **A `Core\Db` call a recorded request reached says what it ran there**,
-/// after the declarations' lenses ([`query_lenses`]).
+/// after the declarations' lenses ([`query_lenses`]), and a route handler, a
+/// dump and a throw site say what the recorded requests did there, last
+/// ([`recorded_lenses`]).
 fn code_lens(
     documents: &Documents,
     index: &SymbolIndex,
@@ -2226,6 +2228,7 @@ fn code_lens(
     });
     let queries = query_lenses(index, settings, &path, file, encoding);
     let copies = copy_lenses(settings, &path, file, encoding);
+    let recorded = recorded_lenses(index, settings, &path, file, encoding);
     Some(
         lenses
             .into_iter()
@@ -2270,6 +2273,7 @@ fn code_lens(
             })
             .chain(queries)
             .chain(copies)
+            .chain(recorded)
             .collect(),
     )
 }
@@ -2298,15 +2302,7 @@ fn copy_lenses(
     recorded::copies_in(&db, settings.root.as_deref(), path, &hash)
         .into_iter()
         .filter_map(|copied| {
-            let start = file.line_start(copied.line.checked_sub(1)?)?;
-            let end = match file.line_start(copied.line) {
-                Some(end) => end,
-                None => nvs_diagnostics::BytePos::try_from(text.len()).ok()?,
-            };
-            let line = text.get(start as usize..end as usize)?;
-            let lead = line.len() - line.trim_start().len();
-            let start = start + nvs_diagnostics::BytePos::try_from(lead).ok()?;
-            let end = start + nvs_diagnostics::BytePos::try_from(line.trim().len()).ok()?;
+            let range = line_range(file, copied.line, encoding)?;
             let title = recorded::copies_title(&copied);
             let command = open_request(
                 settings,
@@ -2317,12 +2313,126 @@ fn copy_lenses(
                 copied.span.as_deref(),
             );
             Some(CodeLens {
-                range: range_of(file, start, end, encoding),
+                range,
                 command: Some(command),
                 data: None,
             })
         })
         .collect()
+}
+
+/// The 1-based line `line` of `file`, from its first character that is not a
+/// space to its last, or `None` for a line the file does not have.
+fn line_range(
+    file: &nvs_diagnostics::SourceFile,
+    line: usize,
+    encoding: PositionEncoding,
+) -> Option<Range> {
+    let text = file.text();
+    let start = file.line_start(line.checked_sub(1)?)?;
+    let end = match file.line_start(line) {
+        Some(end) => end,
+        None => nvs_diagnostics::BytePos::try_from(text.len()).ok()?,
+    };
+    let written = text.get(start as usize..end as usize)?;
+    let lead = written.len() - written.trim_start().len();
+    let start = start + nvs_diagnostics::BytePos::try_from(lead).ok()?;
+    let end = start + nvs_diagnostics::BytePos::try_from(written.trim().len()).ok()?;
+    Some(range_of(file, start, end, encoding))
+}
+
+/// The lenses of what the recorded requests did at a route handler, a dump and
+/// a throw site of `path`
+/// (`rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`).
+///
+/// A route lens sits on the handler's name, one for each route it handles,
+/// and is keyed on the route's method and pattern ([`recorded::route`]). A
+/// click opens the request list filtered to the route. A dump lens and a throw
+/// lens sit on the record's line ([`recorded::dumps_in`],
+/// [`recorded::throws_in`]), and only while the file is not newer than the
+/// record ([`saved_at`]). A click opens the dump on its request's Dumps tab, or
+/// the exception group. No index, and an index that cannot answer, give none.
+fn recorded_lenses(
+    index: &SymbolIndex,
+    settings: &Settings,
+    path: &Path,
+    file: &nvs_diagnostics::SourceFile,
+    encoding: PositionEncoding,
+) -> Vec<CodeLens> {
+    let Some(db) = settings.debug_index.as_deref().and_then(recorded::open) else {
+        return Vec::new();
+    };
+    let now = now_us();
+    let mut viewer = None;
+    let mut found = Vec::new();
+    for declared in index.declarations_in(path) {
+        for written in &declared.routes {
+            let Some((method, pattern)) = written.split_once(' ') else {
+                continue;
+            };
+            let Some(ran) = recorded::route(&db, method, pattern) else {
+                continue;
+            };
+            let title = recorded::route_title(&ran, now);
+            let page = recorded::route_page(method, pattern);
+            found.push(CodeLens {
+                range: range_of(file, declared.site.start, declared.site.end, encoding),
+                command: Some(open_page(settings, path, &mut viewer, title, page)),
+                data: None,
+            });
+        }
+    }
+    // A file whose text in the editor is not the text on disk is newer than
+    // every record, so it has no dump or throw lens.
+    let Some(saved) = saved_at(path, file.text()) else {
+        return found;
+    };
+    let root = settings.root.as_deref();
+    for dumped in recorded::dumps_in(&db, root, path, saved) {
+        let Some(range) = line_range(file, dumped.line, encoding) else {
+            continue;
+        };
+        let title = recorded::dump_title(&dumped);
+        let page = recorded::dump_page(&dumped);
+        found.push(CodeLens {
+            range,
+            command: Some(open_page(settings, path, &mut viewer, title, page)),
+            data: None,
+        });
+    }
+    for thrown in recorded::throws_in(&db, root, path, saved) {
+        let Some(range) = line_range(file, thrown.line, encoding) else {
+            continue;
+        };
+        let title = recorded::throw_title(&thrown, now);
+        let page = recorded::throw_page(&thrown);
+        found.push(CodeLens {
+            range,
+            command: Some(open_page(settings, path, &mut viewer, title, page)),
+            data: None,
+        });
+    }
+    found
+}
+
+/// When `path` was last written, in microseconds since the epoch, while
+/// `text`, the text the editor holds, is the file's text on disk. `None` when
+/// it is not, and when the file cannot be read.
+///
+/// Spends one read of the file per lens answer, only when a debug index is
+/// there.
+fn saved_at(path: &Path, text: &str) -> Option<i64> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    let disk = std::fs::read(path).ok()?;
+    (disk == text.as_bytes()).then(|| i64::try_from(since.as_micros()).unwrap_or(i64::MAX))
+}
+
+/// Now, in microseconds since the epoch.
+fn now_us() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| i64::try_from(since.as_micros()).unwrap_or(i64::MAX))
 }
 
 /// `textDocument/codeLens`: [`code_lens`]'s answer, with its rows held in
@@ -2427,11 +2537,24 @@ fn open_request(
     trace: &str,
     span: Option<&str>,
 ) -> Command {
+    let page = match span {
+        Some(span) => format!("/requests/{trace}/{span}"),
+        None => format!("/requests/{trace}"),
+    };
+    open_page(settings, path, viewer, title, page)
+}
+
+/// The command a recorded lens titled `title` runs to open the viewer's path
+/// `page`, such as `/requests/<trace>/<span>?tab=dumps`, in the way
+/// [`open_request`] says.
+fn open_page(
+    settings: &Settings,
+    path: &Path,
+    viewer: &mut Option<(String, bool)>,
+    title: String,
+    page: String,
+) -> Command {
     if settings.client.open_viewer {
-        let page = match span {
-            Some(span) => format!("/requests/{trace}/{span}"),
-            None => format!("/requests/{trace}"),
-        };
         return Command {
             title,
             command: Client::OPEN_VIEWER.to_owned(),
@@ -2443,8 +2566,8 @@ fn open_request(
         return Command {
             title,
             command: Client::OPEN.to_owned(),
-            arguments: Some(vec![serde_json::json!(recorded::viewer_url(
-                listen, *tls, trace, span
+            arguments: Some(vec![serde_json::json!(recorded::page_url(
+                listen, *tls, &page
             ))]),
         };
     }

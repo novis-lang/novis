@@ -33,12 +33,22 @@
 //! the document's hash, and for each line keeps the rows of the newest request that copied there,
 //! so two sites on one line are one lens that sums them and shows the help of the larger one.
 //!
+//! **A route, a dump and a throw site have a lens of their own**
+//! (`rule:ide/a-lens-shows-what-a-route-a-dump-and-a-throw-recorded`). A route is keyed on its
+//! method and its pattern ([`route`]), so an edit to the file does not move it. A dump and an
+//! exception group are keyed on their file and line ([`dumps_in`], [`throws_in`]), and the caller
+//! passes when the file was last written, so a record older than the file's text gives no lens.
+//! No line is remapped through an edit.
+//!
 //! # What it costs
 //!
 //! In the editor process, one connection and a few numbers per query site for each lens request,
 //! freed with the answer. One lookup per site on the index's `events_site` index, then one
 //! aggregate over that request's rows at the site. One lookup per document on the `copies_site`
-//! index, and one small row per line that copied.
+//! index, and one small row per line that copied. Per route handler, three reads on the
+//! `requests_route` index bounded by [`ROUTE_ROWS`], and [`ROUTE_DURATIONS`] integers. Per
+//! document, the newest [`SITE_ROWS`] dump and exception group rows without their trees, then
+//! one tree per line kept, and one line of at most [`DUMP_WIDTH`] characters per dump lens.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -319,13 +329,587 @@ fn duration(us: u64) -> String {
     }
 }
 
-/// The viewer's page for the request with trace id `trace` and span id `span`, served at
-/// `listen`, over TLS where `tls` is set.
+/// The viewer's page at `page`, a path such as `/requests/<trace>/<span>`, served at `listen`,
+/// over TLS where `tls` is set.
 #[must_use]
-pub fn viewer_url(listen: &str, tls: bool, trace: &str, span: Option<&str>) -> String {
+pub fn page_url(listen: &str, tls: bool, page: &str) -> String {
     let scheme = if tls { "https" } else { "http" };
-    match span {
-        Some(span) => format!("{scheme}://{listen}/requests/{trace}/{span}"),
-        None => format!("{scheme}://{listen}/requests/{trace}"),
+    format!("{scheme}://{listen}{page}")
+}
+
+/// How many of a route's newest requests [`route`] counts and searches for a failure.
+pub const ROUTE_ROWS: i64 = 10_000;
+
+/// How many of a route's newest durations its median is taken over.
+pub const ROUTE_DURATIONS: i64 = 500;
+
+/// How many of the newest dumps and exception groups [`dumps_in`] and [`throws_in`] read.
+pub const SITE_ROWS: i64 = 10_000;
+
+/// What the recorded requests of one route did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RouteRan {
+    /// How many requests the index holds for the route, at most [`ROUTE_ROWS`].
+    pub count: u64,
+    /// The median duration of the newest [`ROUTE_DURATIONS`] of them, in microseconds.
+    pub p50_us: u64,
+    /// The status and the start, in microseconds since the epoch, of the newest counted request
+    /// that ended with a status of 500 or more.
+    pub failed: Option<(i64, i64)>,
+}
+
+/// What the recorded requests of the route `method` `route` did, the route as its pattern is
+/// written (`/items/{id}`). `None` when the index holds no request for it, and when it cannot
+/// answer.
+///
+/// Three reads on the `requests_route` index, each bounded by rows: the count of at most
+/// [`ROUTE_ROWS`], the newest [`ROUTE_DURATIONS`] durations, and the newest failure among the
+/// newest [`ROUTE_ROWS`]. The median is the nearest rank, as the viewer's Routes view takes it.
+#[must_use]
+pub fn route(db: &Connection, method: &str, route: &str) -> Option<RouteRan> {
+    let count: i64 = db
+        .prepare_cached(
+            "SELECT COUNT(*) FROM (SELECT 1 FROM requests WHERE method = ?1 AND route = ?2 LIMIT ?3)",
+        )
+        .ok()?
+        .query_row(params![method, route, ROUTE_ROWS], |row| row.get(0))
+        .ok()?;
+    if count == 0 {
+        return None;
+    }
+    let mut durations: Vec<i64> = db
+        .prepare_cached(
+            "SELECT duration_us FROM requests WHERE method = ?1 AND route = ?2 \
+             ORDER BY start_us DESC LIMIT ?3",
+        )
+        .ok()?
+        .query_map(params![method, route, ROUTE_DURATIONS], |row| row.get(0))
+        .ok()?
+        .collect::<Result<_, _>>()
+        .ok()?;
+    durations.sort_unstable();
+    let rank = durations.len().div_ceil(2).max(1);
+    let p50 = durations.get(rank - 1).copied().unwrap_or(0);
+    let failed = db
+        .prepare_cached(
+            "SELECT status, start_us FROM (SELECT status, start_us FROM requests \
+             WHERE method = ?1 AND route = ?2 ORDER BY start_us DESC LIMIT ?3) \
+             WHERE status >= 500 ORDER BY start_us DESC LIMIT 1",
+        )
+        .ok()?
+        .query_row(params![method, route, ROUTE_ROWS], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+        })
+        .optional()
+        .ok()?;
+    let whole = |value: i64| u64::try_from(value).unwrap_or(0);
+    Some(RouteRan {
+        count: whole(count),
+        p50_us: whole(p50),
+        failed,
+    })
+}
+
+/// A route lens's title: the count of requests, their median duration, and the newest failure
+/// with its age at `now_us`.
+#[must_use]
+pub fn route_title(ran: &RouteRan, now_us: i64) -> String {
+    let count = u64::try_from(ROUTE_ROWS).unwrap_or(u64::MAX);
+    let mut title = match ran.count {
+        1 => "1 request".to_owned(),
+        n if n >= count => format!("{n}+ requests"),
+        n => format!("{n} requests"),
+    };
+    title.push_str(&format!(", p50 {}", duration(ran.p50_us)));
+    if let Some((status, at)) = ran.failed {
+        title.push_str(&format!(", last {status} {}", age(now_us, at)));
+    }
+    title
+}
+
+/// The newest value a recorded request dumped on one line of a file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Dumped {
+    /// The 1-based line.
+    pub line: usize,
+    /// The dump's id, which names it on the request's Dumps tab.
+    pub id: i64,
+    /// The request's trace id.
+    pub trace: String,
+    /// The request's span id, where the record has one.
+    pub span: Option<String>,
+    /// The value as one line of at most [`DUMP_WIDTH`] characters.
+    pub value: String,
+}
+
+/// The most characters a dump lens shows of the value.
+pub const DUMP_WIDTH: usize = 80;
+
+/// Each line of the file `file` with the newest value a recorded request dumped there, in line
+/// order, when that dump was made at `since_us` or later. A relative file name in the index is
+/// joined to `root`. Empty when the index cannot answer.
+///
+/// `since_us` is when the file was last written, because a line number of an older record may
+/// name another line of the file now. The read is the newest [`SITE_ROWS`] dumps, then one row
+/// for each line kept. The tree is the record's, which redaction already reached.
+#[must_use]
+pub fn dumps_in(db: &Connection, root: Option<&Path>, file: &Path, since_us: i64) -> Vec<Dumped> {
+    let key = canonical_key(file);
+    let Ok(mut statement) =
+        db.prepare_cached("SELECT id, file, line, at_us, trace FROM dumps ORDER BY id DESC LIMIT ?1")
+    else {
+        return Vec::new();
+    };
+    let Ok(rows) = statement.query_map(params![SITE_ROWS], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, String>(4)?,
+        ))
+    }) else {
+        return Vec::new();
+    };
+    let mut names = Names::default();
+    let mut newest: Vec<(usize, i64, i64, String)> = Vec::new();
+    for row in rows {
+        let Ok((id, written, line, at_us, trace)) = row else {
+            return Vec::new();
+        };
+        let Ok(line) = usize::try_from(line) else {
+            continue;
+        };
+        if newest.iter().any(|kept| kept.0 == line) || !names.is(root, &written, &key) {
+            continue;
+        }
+        newest.push((line, id, at_us, trace));
+    }
+    let mut found: Vec<Dumped> = newest
+        .into_iter()
+        .filter(|&(_, _, at_us, _)| at_us >= since_us)
+        .filter_map(|(line, id, _, trace)| {
+            let tree: String = db
+                .prepare_cached("SELECT tree FROM dumps WHERE id = ?1")
+                .ok()?
+                .query_row(params![id], |row| row.get(0))
+                .ok()?;
+            let tree: serde_json::Value = serde_json::from_str(&tree).ok()?;
+            Some(Dumped {
+                line,
+                id,
+                span: span_of(db, &trace),
+                trace,
+                value: one_line(&tree, DUMP_WIDTH),
+            })
+        })
+        .collect();
+    found.sort_by_key(|dumped| dumped.line);
+    found
+}
+
+/// A dump lens's title: the value dumped.
+#[must_use]
+pub fn dump_title(dumped: &Dumped) -> String {
+    format!("Dumped: {}", dumped.value)
+}
+
+/// The viewer's path of a dump: its request's Dumps tab, at the dump.
+#[must_use]
+pub fn dump_page(dumped: &Dumped) -> String {
+    let request = match &dumped.span {
+        Some(span) => format!("/requests/{}/{span}", dumped.trace),
+        None => format!("/requests/{}", dumped.trace),
+    };
+    format!("{request}?tab=dumps#dump-{}", dumped.id)
+}
+
+/// One exception group whose site is a line of a file: one class thrown there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Thrown {
+    /// The 1-based line.
+    pub line: usize,
+    /// The class thrown.
+    pub class: String,
+    /// The file as the index has it, which names the group in the viewer.
+    pub file: String,
+    /// How often it was thrown there.
+    pub count: u64,
+    /// When last, in microseconds since the epoch.
+    pub last_us: i64,
+}
+
+/// Each exception group whose site is a line of the file `file`, last thrown at `since_us` or
+/// later, in line order and the newest first on a line. A relative file name in the index is
+/// joined to `root`. Empty when the index cannot answer.
+///
+/// `since_us` is when the file was last written, as for [`dumps_in`]. The read is the
+/// [`SITE_ROWS`] groups thrown most recently, on the `exception_groups_last` index.
+#[must_use]
+pub fn throws_in(db: &Connection, root: Option<&Path>, file: &Path, since_us: i64) -> Vec<Thrown> {
+    let key = canonical_key(file);
+    let Ok(mut statement) = db.prepare_cached(
+        "SELECT class, file, line, count, last_us FROM exception_groups \
+         ORDER BY last_us DESC LIMIT ?1",
+    ) else {
+        return Vec::new();
+    };
+    let Ok(rows) = statement.query_map(params![SITE_ROWS], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, i64>(4)?,
+        ))
+    }) else {
+        return Vec::new();
+    };
+    let mut names = Names::default();
+    let mut found = Vec::new();
+    for row in rows {
+        let Ok((class, written, line, count, last_us)) = row else {
+            return Vec::new();
+        };
+        let Ok(line) = usize::try_from(line) else {
+            continue;
+        };
+        if last_us < since_us || !names.is(root, &written, &key) {
+            continue;
+        }
+        found.push(Thrown {
+            line,
+            class,
+            file: written,
+            count: u64::try_from(count).unwrap_or(0),
+            last_us,
+        });
+    }
+    // The rows are newest first, and a stable sort keeps that order on a line.
+    found.sort_by_key(|thrown| thrown.line);
+    found
+}
+
+/// A throw lens's title: the class, how often it was thrown, and when last, at `now_us`.
+#[must_use]
+pub fn throw_title(thrown: &Thrown, now_us: i64) -> String {
+    let times = match thrown.count {
+        1 => "once".to_owned(),
+        n => format!("{n} times"),
+    };
+    format!(
+        "{} thrown {times}, last {}",
+        thrown.class,
+        age(now_us, thrown.last_us)
+    )
+}
+
+/// The viewer's path of an exception group: `/exceptions` with its class, file and line.
+#[must_use]
+pub fn throw_page(thrown: &Thrown) -> String {
+    format!(
+        "/exceptions?class={}&file={}&line={}",
+        component(&thrown.class),
+        component(&thrown.file),
+        thrown.line
+    )
+}
+
+/// The viewer's path of a route's request list, filtered to `method` and `route`.
+#[must_use]
+pub fn route_page(method: &str, route: &str) -> String {
+    format!("/?method={}&route={}", component(method), component(route))
+}
+
+/// The span id of the newest request with trace id `trace`, where it has one.
+fn span_of(db: &Connection, trace: &str) -> Option<String> {
+    db.prepare_cached("SELECT span FROM requests WHERE trace = ?1 ORDER BY id DESC LIMIT 1")
+        .ok()?
+        .query_row(params![trace], |row| row.get::<_, Option<String>>(0))
+        .optional()
+        .ok()
+        .flatten()
+        .flatten()
+}
+
+/// The file names already compared with the document, so a name the index repeats is resolved
+/// once.
+#[derive(Default)]
+struct Names(std::collections::HashMap<String, bool>);
+
+impl Names {
+    /// Whether `written`, joined to `root` when relative, is the file keyed `key`.
+    fn is(&mut self, root: Option<&Path>, written: &str, key: &Path) -> bool {
+        if let Some(&same) = self.0.get(written) {
+            return same;
+        }
+        let same = name_key(root, written) == key;
+        self.0.insert(written.to_owned(), same);
+        same
+    }
+}
+
+/// `text` as one component of a URL's query: every byte but a letter, a digit and `-._~` is
+/// percent-encoded, as the viewer's own links are.
+fn component(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+/// How long ago `at_us` was at `now_us`, in the largest unit that is at least one. A time less
+/// than five seconds ago, or after `now_us`, is "just now".
+fn age(now_us: i64, at_us: i64) -> String {
+    let seconds = now_us.saturating_sub(at_us) / 1_000_000;
+    match seconds {
+        ..5 => "just now".to_owned(),
+        5..60 => format!("{seconds} s ago"),
+        60..3_600 => format!("{} min ago", seconds / 60),
+        3_600..86_400 => format!("{} h ago", seconds / 3_600),
+        _ => format!("{} d ago", seconds / 86_400),
+    }
+}
+
+/// A dumped value's tree (`nvs_render`'s JSON rendering) as one line of at most `width`
+/// characters, cut with `…` where it is longer.
+#[must_use]
+pub fn one_line(tree: &serde_json::Value, width: usize) -> String {
+    let mut out = String::new();
+    write_node(tree, &mut out, width + 1);
+    if out.chars().count() > width {
+        let mut cut: String = out.chars().take(width.saturating_sub(1)).collect();
+        cut.push('…');
+        return cut;
+    }
+    out
+}
+
+/// Writes `node` into `out`, stopping once `out` has `budget` characters.
+fn write_node(node: &serde_json::Value, out: &mut String, budget: usize) {
+    use serde_json::Value;
+    if out.chars().count() >= budget {
+        return;
+    }
+    match node {
+        Value::Null => out.push_str("null"),
+        Value::Bool(value) => out.push_str(if *value { "true" } else { "false" }),
+        Value::Number(number) => out.push_str(&number.to_string()),
+        Value::String(text) => out.push_str(&serde_json::to_string(text).unwrap_or_default()),
+        Value::Array(items) => {
+            out.push('[');
+            for (at, item) in items.iter().enumerate() {
+                if at > 0 {
+                    out.push_str(", ");
+                }
+                write_node(item, out, budget);
+                if out.chars().count() >= budget {
+                    return;
+                }
+            }
+            out.push(']');
+        }
+        Value::Object(map) => {
+            if let Some(class) = map.get("$class").and_then(Value::as_str) {
+                out.push_str(class);
+                out.push(' ');
+                match map.get("$properties") {
+                    Some(properties) => write_node(properties, out, budget),
+                    None => out.push_str("{}"),
+                }
+                return;
+            }
+            if let (1, Some((tag, value))) = (map.len(), map.iter().next()) {
+                match tag.as_str() {
+                    "$redacted" => return out.push_str("[redacted]"),
+                    "$elided" => return out.push('…'),
+                    "$cycle" => return out.push_str(&format!("#{value}")),
+                    "$callable" => return out.push_str("callable"),
+                    "$bytes" => {
+                        let hex = value.as_str().unwrap_or_default();
+                        return out.push_str(&format!("bytes({})", hex.len() / 2));
+                    }
+                    "$decimal" | "$float" | "$enum" | "$span" => {
+                        return match value.as_str() {
+                            Some(text) => out.push_str(text),
+                            None => write_node(value, out, budget),
+                        };
+                    }
+                    _ => {}
+                }
+            }
+            out.push('{');
+            for (at, (name, value)) in map.iter().enumerate() {
+                if at > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(name);
+                out.push_str(": ");
+                write_node(value, out, budget);
+                if out.chars().count() >= budget {
+                    return;
+                }
+            }
+            out.push('}');
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One second, in microseconds.
+    const SECOND: i64 = 1_000_000;
+
+    /// When the fixture's records were made.
+    const AT: i64 = 1_700_000_000 * SECOND;
+
+    /// An index with the columns the three lenses read: two routes, two dumps on one line and one
+    /// on another, and two exception groups, one of them in another file.
+    fn fixture() -> Connection {
+        let db = Connection::open_in_memory().expect("an in-memory index");
+        db.execute_batch(&format!(
+            "CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT, \
+               start_us INTEGER NOT NULL, duration_us INTEGER NOT NULL, method TEXT NOT NULL, \
+               route TEXT, status INTEGER NOT NULL);
+             CREATE TABLE dumps (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, at_us INTEGER NOT NULL, \
+               file TEXT NOT NULL, line INTEGER NOT NULL, tree TEXT NOT NULL);
+             CREATE TABLE exception_groups (id INTEGER PRIMARY KEY, class TEXT NOT NULL, \
+               file TEXT NOT NULL, line INTEGER NOT NULL, count INTEGER NOT NULL, \
+               first_us INTEGER NOT NULL, last_us INTEGER NOT NULL);
+             INSERT INTO requests VALUES (1, 'a1', 's1', {a}, 3000, 'GET', '/items/{{id}}', 200);
+             INSERT INTO requests VALUES (2, 'a2', 's2', {b}, 1000, 'GET', '/items/{{id}}', 503);
+             INSERT INTO requests VALUES (3, 'a3', 's3', {c}, 2000, 'GET', '/items/{{id}}', 200);
+             INSERT INTO requests VALUES (4, 'a4', NULL, {c}, 9000, 'POST', '/items', 201);
+             INSERT INTO dumps VALUES (1, 'a1', {a}, 'case.nvs', 4, '{{\"old\":1}}');
+             INSERT INTO dumps VALUES (2, 'a3', {c}, 'case.nvs', 4, \
+               '{{\"$class\":\"Shop\\\\Item\",\"$id\":1,\"$properties\":{{\"name\":\"Lamp\",\"card\":{{\"$redacted\":true}}}}}}');
+             INSERT INTO dumps VALUES (3, 'a4', {a}, 'case.nvs', 2, '[1,2,3]');
+             INSERT INTO dumps VALUES (4, 'a4', {c}, 'other.nvs', 4, '7');
+             INSERT INTO exception_groups VALUES (1, 'Shop\\OutOfStock', 'case.nvs', 7, 3, {a}, {c});
+             INSERT INTO exception_groups VALUES (2, 'Shop\\Gone', 'other.nvs', 7, 1, {a}, {c});",
+            a = AT,
+            b = AT + SECOND,
+            c = AT + 2 * SECOND,
+        ))
+        .expect("the fixture");
+        db
+    }
+
+    fn root() -> PathBuf {
+        std::env::current_dir().expect("a working directory")
+    }
+
+    #[test]
+    fn a_route_lens_counts_its_requests_and_names_the_newest_failure() {
+        let db = fixture();
+        let ran = route(&db, "GET", "/items/{id}").expect("the route has requests");
+        assert_eq!(
+            ran,
+            RouteRan {
+                count: 3,
+                p50_us: 2000,
+                failed: Some((503, AT + SECOND)),
+            }
+        );
+        assert_eq!(
+            route_title(&ran, AT + 3 * 60 * SECOND),
+            "3 requests, p50 2.0 ms, last 503 2 min ago"
+        );
+        assert_eq!(route_page("GET", "/items/{id}"), "/?method=GET&route=%2Fitems%2F%7Bid%7D");
+        let one = route(&db, "POST", "/items").expect("the route has a request");
+        assert_eq!(route_title(&one, AT), "1 request, p50 9.0 ms");
+        assert_eq!(route(&db, "DELETE", "/items/{id}"), None);
+    }
+
+    #[test]
+    fn a_dump_lens_shows_the_newest_value_on_each_line_as_one_short_line() {
+        let db = fixture();
+        let root = root();
+        let found = dumps_in(&db, Some(&root), &root.join("case.nvs"), AT);
+        assert_eq!(
+            found,
+            vec![
+                Dumped {
+                    line: 2,
+                    id: 3,
+                    trace: "a4".to_owned(),
+                    span: None,
+                    value: "[1, 2, 3]".to_owned(),
+                },
+                Dumped {
+                    line: 4,
+                    id: 2,
+                    trace: "a3".to_owned(),
+                    span: Some("s3".to_owned()),
+                    value: "Shop\\Item {card: [redacted], name: \"Lamp\"}".to_owned(),
+                },
+            ]
+        );
+        assert_eq!(dump_page(&found[1]), "/requests/a3/s3?tab=dumps#dump-2");
+        assert_eq!(dump_page(&found[0]), "/requests/a4?tab=dumps#dump-3");
+    }
+
+    #[test]
+    fn no_dump_or_throw_lens_for_a_file_newer_than_its_record() {
+        let db = fixture();
+        let root = root();
+        let file = root.join("case.nvs");
+        // Written after the dump on line 2 and before the one on line 4.
+        let found = dumps_in(&db, Some(&root), &file, AT + SECOND);
+        assert_eq!(found.iter().map(|d| d.line).collect::<Vec<_>>(), vec![4]);
+        assert!(dumps_in(&db, Some(&root), &file, AT + 3 * SECOND).is_empty());
+        assert!(throws_in(&db, Some(&root), &file, AT + 3 * SECOND).is_empty());
+    }
+
+    #[test]
+    fn a_throw_lens_counts_its_group_and_opens_it() {
+        let db = fixture();
+        let root = root();
+        let found = throws_in(&db, Some(&root), &root.join("case.nvs"), AT);
+        assert_eq!(
+            found,
+            vec![Thrown {
+                line: 7,
+                class: "Shop\\OutOfStock".to_owned(),
+                file: "case.nvs".to_owned(),
+                count: 3,
+                last_us: AT + 2 * SECOND,
+            }]
+        );
+        assert_eq!(
+            throw_title(&found[0], AT + 2 * SECOND + 3 * 3_600 * SECOND),
+            "Shop\\OutOfStock thrown 3 times, last 3 h ago"
+        );
+        assert_eq!(
+            throw_page(&found[0]),
+            "/exceptions?class=Shop%5COutOfStock&file=case.nvs&line=7"
+        );
+    }
+
+    #[test]
+    fn no_lens_without_an_index() {
+        let root = root();
+        assert!(open(&root.join("no-such-index.sqlite")).is_none());
+        // An index whose schema has none of the tables gives no lens and no error.
+        let empty = Connection::open_in_memory().expect("an in-memory index");
+        assert_eq!(route(&empty, "GET", "/"), None);
+        assert!(dumps_in(&empty, Some(&root), &root.join("case.nvs"), 0).is_empty());
+        assert!(throws_in(&empty, Some(&root), &root.join("case.nvs"), 0).is_empty());
+    }
+
+    #[test]
+    fn a_long_value_is_cut_to_the_lens_width() {
+        let tree = serde_json::json!({ "text": "x".repeat(200) });
+        let line = one_line(&tree, DUMP_WIDTH);
+        assert_eq!(line.chars().count(), DUMP_WIDTH);
+        assert!(line.ends_with('…'));
+        assert_eq!(one_line(&serde_json::json!({ "$elided": {"cut": "depth"} }), 80), "…");
     }
 }
