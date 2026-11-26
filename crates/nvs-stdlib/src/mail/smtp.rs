@@ -312,6 +312,42 @@ fn plain(user: &str, password: &str) -> String {
     STANDARD.encode(format!("\0{user}\0{password}"))
 }
 
+/// The `MAIL FROM` command for `from` and `recipients`, given the `extensions` the session's
+/// last `EHLO` advertised.
+///
+/// An address whose local part is not ASCII needs RFC 6531's `SMTPUTF8`, which the command then
+/// asks for. Every address reaching here came through [`super::compose::address_of`], so its
+/// domain is already ASCII.
+///
+/// # Errors
+///
+/// A catchable `IOError` naming the first such address when `host` does not advertise
+/// `SMTPUTF8`. Nothing has been sent but the greeting.
+fn envelope_sender(
+    from: &str,
+    recipients: &[String],
+    extensions: &[String],
+    host: &str,
+    member: &str,
+) -> Result<String, Fault> {
+    let Some(international) = std::iter::once(from)
+        .chain(recipients.iter().map(String::as_str))
+        .find(|address| !address.is_ascii())
+    else {
+        return Ok(format!("MAIL FROM:<{from}>"));
+    };
+    if advertised(extensions, "SMTPUTF8").is_none() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member}: the address {international} is not ASCII, and {host} does not offer \
+                 `SMTPUTF8`, which such an address needs. Nothing was sent."
+            ),
+        ));
+    }
+    Ok(format!("MAIL FROM:<{from}> SMTPUTF8"))
+}
+
 /// The whole exchange, once every argument has been checked and every
 /// deployment question answered. Every wait in it ends at `until`.
 ///
@@ -337,7 +373,7 @@ pub(super) fn deliver(
         .split_once('@')
         .map_or("localhost", |(_, d)| d);
     let greeting = format!("EHLO {domain}");
-    let extensions = session.command(&greeting, 250, "the greeting", member)?;
+    let mut extensions = session.command(&greeting, 250, "the greeting", member)?;
 
     if let Some((user, password)) = &endpoint.credential {
         if advertised(&extensions, "STARTTLS").is_none() {
@@ -379,14 +415,11 @@ pub(super) fn deliver(
             "the credential",
             member,
         )?;
+        extensions = secured;
     }
 
-    session.command(
-        &format!("MAIL FROM:<{}>", endpoint.from),
-        250,
-        "the envelope sender",
-        member,
-    )?;
+    let mail_from = envelope_sender(&endpoint.from, envelope, &extensions, &endpoint.host, member)?;
+    session.command(&mail_from, 250, "the envelope sender", member)?;
     for recipient in envelope {
         session.command(
             &format!("RCPT TO:<{recipient}>"),
@@ -499,5 +532,50 @@ mod tests {
         // The credential is never on the wire in any other spelling, so the
         // encoded form is the only thing a reply can quote back.
         assert!(!message.contains("hunter2"));
+    }
+
+    /// An address whose local part is not ASCII is kept as written, and the send asks for
+    /// `SMTPUTF8` when the server offers it. A server that does not offer it gets no `MAIL FROM`,
+    /// and the `IOError` names the address. An ASCII envelope never asks.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_non_ascii_local_part_needs_smtputf8() {
+        let member = "Core\\Mail::send";
+        let jose = super::super::compose::address_of("josé@bücher.example", "to", member)
+            .expect("a non-ASCII local part is an address");
+        assert_eq!(jose, "josé@xn--bcher-kva.example");
+
+        let with = ["250-mail.example.com".to_owned(), "250 SMTPUTF8".to_owned()];
+        let without = ["250-mail.example.com".to_owned(), "250 8BITMIME".to_owned()];
+        let ascii = ["ada@example.com".to_owned()];
+        let international = ["ada@example.com".to_owned(), jose.clone()];
+
+        let line = |from: &str, to: &[String], offered: &[String]| {
+            envelope_sender(from, to, offered, "mail.example.com", member)
+        };
+        assert_eq!(
+            line("noreply@example.com", &ascii, &without).ok().as_deref(),
+            Some("MAIL FROM:<noreply@example.com>")
+        );
+        assert_eq!(
+            line("noreply@example.com", &ascii, &with).ok().as_deref(),
+            Some("MAIL FROM:<noreply@example.com>")
+        );
+        assert_eq!(
+            line("noreply@example.com", &international, &with).ok().as_deref(),
+            Some("MAIL FROM:<noreply@example.com> SMTPUTF8")
+        );
+        assert_eq!(
+            line("josé@xn--bcher-kva.example", &ascii, &with).ok().as_deref(),
+            Some("MAIL FROM:<josé@xn--bcher-kva.example> SMTPUTF8")
+        );
+        let Err(fault) = line("noreply@example.com", &international, &without) else {
+            panic!("a non-ASCII address was sent to a server without SMTPUTF8");
+        };
+        let said = format!("{fault:?}");
+        assert!(
+            said.contains("josé@xn--bcher-kva.example") && said.contains("SMTPUTF8"),
+            "{said}"
+        );
     }
 }

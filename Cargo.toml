@@ -1045,6 +1045,20 @@ fluent-uri = "0.4"
 # a parse.
 html5ever = "0.40"
 
+# --- International mail domains (`Core\Mail`) ---
+# `idna`, MIT or Apache-2.0, pure Rust: UTS 46 processing and punycode, so
+# `Core\Mail::send` writes a non-ASCII domain as its `xn--` form. `idna_adapter`
+# is pinned to 1.1, the release whose backend is `unicode-bidi`,
+# `unicode-joining-type` and `unicode-normalization`; the first and the last were
+# already in the lock file. Its later releases put ICU4X's normalizer and property
+# tables behind the same API, a dozen crates for the same answer. Six crates join
+# the lock file: `idna`, `idna_adapter`, `idna_mapping` (its table, under
+# Unicode-3.0 as well), `unicode-joining-type` (Apache-2.0), `utf8_iter` and
+# `utf_types`. One build script, `unicode-joining-type`'s, which writes two
+# Unicode tables from the crate into `OUT_DIR` and reads nothing else.
+idna = "1"
+idna_adapter = "~1.1"
+
 # --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
 # `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty
 # `main` unless the `gen-tests` feature is on, which this row never turns on.

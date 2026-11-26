@@ -436,6 +436,11 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
             CoreTy::Int,
         ]),
     ),
+    // `send` checks the address again, and the name is any text.
+    (
+        &crate::mail::ADDRESS,
+        Slots::Typed(&[CoreTy::Str, CoreTy::Str]),
+    ),
     // `echo` writes `text` to the terminal as it is.
     (&crate::cli::TEXT, Slots::NotReadBack(TRUSTED_TEXT)),
     // An unknown kind reads as an index, and each channel is masked.

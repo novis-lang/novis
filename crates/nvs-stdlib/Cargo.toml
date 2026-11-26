@@ -26,6 +26,10 @@ nvs-footprint.workspace = true
 # the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
 # nodes rather than through the sample DOM `markup5ever_rcdom` carries.
 html5ever.workspace = true
+# `Core\Mail::send` writes a non-ASCII domain as punycode. The adapter is named
+# only to pin its backend; the workspace row says why.
+idna.workspace = true
+idna_adapter.workspace = true
 # `rule:core-classes/markdown-to-html`: `Core\Markdown` reads its input with
 # this parser's events and writes `Core\Html`'s tree from them. The workspace
 # row is where the measurement against `comrak` is written, and the patched copy

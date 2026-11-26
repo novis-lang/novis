@@ -1,0 +1,29 @@
+--TEST--
+Core\Mail\Address::of checks the address when it is called, and a name written inside the address string is not read — `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// covers: Core\Mail\Address::of
+// A plain string is an address only. "Ada <ada@example.com>" is not an address,
+// so `of` throws. The name goes in the second argument.
+try {
+    Core\Mail\Address::of("Ada <ada@example.com>", "Ada");
+    echo "accepted", "\n";
+} catch (RuntimeError $e) {
+    echo "an address with a name in it throws", "\n";
+}
+
+// A line break in the address throws too. Nothing is sent, and no endpoint is needed.
+try {
+    Core\Mail\Address::of("ada@example.com\r\nBcc: x@example.com", "Ada");
+    echo "accepted", "\n";
+} catch (RuntimeError $e) {
+    echo "a line break throws", "\n";
+}
+
+// A line break in the name is allowed. It is encoded when the message is written.
+Core\Mail\Address $ok = Core\Mail\Address::of("ada@example.com", "Ada\r\nBcc: x@example.com");
+echo "any name is allowed", "\n";
+--EXPECT--
+an address with a name in it throws
+a line break throws
+any name is allowed

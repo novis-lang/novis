@@ -93,7 +93,7 @@ use std::cell::Cell;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
 
-use compose::{address_of, compose};
+use compose::{Mailbox, address_of, compose};
 use nvs_runtime::spool::Outcome;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, TraceKind, Value};
 use nvs_syntax::duration;
@@ -151,28 +151,28 @@ const UNSUBSCRIBE: usize = 11;
 /// See [`ENDPOINT`].
 const AUTO_SUBMITTED: usize = 12;
 
-/// [`send`](CLASS)'s trailing shape — the four headers a program may set that
-/// are not required to have a message at all.
+/// [`send`](CLASS)'s trailing shape — every header a program may set that is not
+/// required to have a message at all.
 ///
-/// `cc` and `bcc` are `array<string>` and `to` is one as well, because a
+/// `cc` and `bcc` are arrays of [`RECIPIENT`] and `to` is one as well, because a
 /// comma-separated recipient list is the parse `rule:errors/ambiguous-input-refused` refuses: `mail()` splits
 /// its `$to` on commas, which makes a comma inside a display name a second
-/// recipient. A list has no such reading. A single recipient writes `["a@b.c"]`
-/// and pays two characters for it.
+/// recipient. A list has no such reading, and a name is a [`ADDRESS`]'s own
+/// argument. A single recipient writes `["a@b.c"]` and pays two characters for it.
 const OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "cc",
-        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ty: CoreTy::Array(&RECIPIENT),
         default: Const::EmptyArray,
     },
     CoreOption {
         name: "bcc",
-        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ty: CoreTy::Array(&RECIPIENT),
         default: Const::EmptyArray,
     },
     CoreOption {
         name: "replyTo",
-        ty: CoreTy::Text(Qual::Neutral),
+        ty: RECIPIENT,
         default: Const::Null,
     },
     CoreOption {
@@ -223,7 +223,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         names: &["endpoint", "to", "subject", "text"],
         params: &[
             CoreTy::Text(Qual::Sink),
-            CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+            CoreTy::Array(&RECIPIENT),
             CoreTy::Text(Qual::Neutral),
             CoreTy::Text(Qual::Neutral),
             CoreTy::Options(OPTIONS),
@@ -239,6 +239,82 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// The name of the class a named recipient is.
+pub(crate) const ADDRESS_NAME: &str = r"Core\Mail\Address";
+
+/// One recipient of `send`: a plain address, or a [`ADDRESS`] with a display name.
+///
+/// A plain string is an address only, and never read for a name: `"Ada <ada@example.com>"` is
+/// refused as an address (`rule:errors/ambiguous-input-refused`), because two readers split such
+/// a string differently.
+const RECIPIENT: CoreTy = CoreTy::Union(&[
+    CoreTy::Text(Qual::Neutral),
+    CoreTy::Instance(ADDRESS_NAME),
+]);
+
+/// Slot 0 of an [`ADDRESS`]: the address as the program wrote it. `send` reads it through
+/// [`address_of`] again, so a value rebuilt from bytes is checked too.
+const ADDRESS_TEXT: usize = 0;
+
+/// Slot 1 of an [`ADDRESS`]: the display name, any text.
+const ADDRESS_DISPLAY: usize = 1;
+
+/// `Core\Mail\Address` — an address with the display name a mail reader shows for it.
+///
+/// A value class with one constructor and no reader: what it is for is to be passed to `send`.
+/// `of` checks the address at once, so a wrong one throws where it was written. The name is
+/// any text, `tainted` included, for the same reason a subject is: `compose` encodes it, so it
+/// is content and never a header.
+// rank: 881
+pub(crate) const ADDRESS: CoreClass = CoreClass {
+    name: ADDRESS_NAME,
+    doc: Some(&ADDRESS_CARD),
+    methods: &[CoreMethod {
+        name: "of",
+        names: &["address", "name"],
+        params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(ADDRESS_NAME),
+        text: TextOrigin::Unmarked,
+        symbol: "nvs_core_mail_address_of",
+        doc: Some(&ADDRESS_OF_DOC),
+    }],
+    instance: &[],
+    slots: &["address", "name"],
+    constants: &[],
+};
+
+/// `Core\Mail\Address`'s class card — `rule:core-api/reference-card`.
+const ADDRESS_CARD: ClassDoc = ClassDoc {
+    short: "An email address with a name. A mail program shows the name in place of the address. \
+            You can pass it to `Core\\Mail::send` as a recipient, a `cc`, a `bcc` or the `replyTo`.",
+};
+
+/// `Core\Mail\Address::of`'s reference card — `rule:core-api/reference-card`.
+const ADDRESS_OF_DOC: MethodDoc = MethodDoc {
+    short: "Returns an address with a name, such as `\"Ada Lovelace\" <ada@example.com>`.",
+    params: &[
+        ParamDoc {
+            name: "address",
+            desc: "The email address, such as `ada@example.com`. A domain with letters that are \
+                   not ASCII is sent in its `xn--` form.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "name",
+            desc: "The name to show, such as `Ada Lovelace`. It can be any text, including text \
+                   a user typed. An empty name sends the address alone.",
+            shape: &[],
+        },
+    ],
+    ret: "The address and its name, to pass to `Core\\Mail::send`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$address` is not an email address. A string such as `Ada <ada@example.com>` is \
+               not an address either: pass the name as `$name`.",
+    }],
 };
 
 /// `Core\Mail`'s class card — `rule:core-api/reference-card`.
@@ -263,8 +339,9 @@ const SEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "to",
-            desc: "The recipients, one address per array entry. It is a list because a \
-                   comma-separated string can be read in more than one way.",
+            desc: "The recipients, one per array entry. Each is an address string, or a \
+                   `Core\\Mail\\Address` to show a name with the address. A domain that is not \
+                   ASCII is sent in its `xn--` form.",
             shape: &[],
         },
         ParamDoc {
@@ -281,18 +358,21 @@ const SEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "cc",
-            desc: "More recipients. Their addresses are shown in the message.",
+            desc: "More recipients, as strings or `Core\\Mail\\Address` values. Their addresses \
+                   are shown in the message.",
             shape: &[],
         },
         ParamDoc {
             name: "bcc",
-            desc: "More recipients. Their addresses are not shown in the message. They are sent \
-                   to the server only, and no header contains them.",
+            desc: "More recipients, as strings or `Core\\Mail\\Address` values. Their addresses \
+                   are not shown in the message. They are sent to the server only, and no \
+                   header contains them.",
             shape: &[],
         },
         ParamDoc {
             name: "replyTo",
-            desc: "The address that replies go to, when it is not the sender in the settings.",
+            desc: "The address that replies go to, when it is not the sender in the settings. A \
+                   string or a `Core\\Mail\\Address`.",
             shape: &[],
         },
         ParamDoc {
@@ -353,7 +433,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    thrown when a block sets a password and the server cannot receive it safely. \
                    That is when the server has no `STARTTLS`, has no `AUTH PLAIN`, or has a \
                    certificate that does not verify. In all these cases, nothing is sent \
-                   unencrypted.",
+                   unencrypted. An address with letters that are not ASCII before the `@` needs \
+                   a server that offers `SMTPUTF8`. With another server, nothing is sent.",
         },
     ],
 };
@@ -362,6 +443,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_mail_send" => (nvs_core_mail_send as *const ()).cast(),
+        "nvs_core_mail_address_of" => (nvs_core_mail_address_of as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -446,7 +528,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
              deployment's — there is no parameter for it"
         )));
     };
-    address_of(&from, "the configured `from`", member)?;
+    let from = address_of(&from, "the configured `from`", member)?;
 
     // Both or neither. Half a credential is a block half-written, and reading
     // one as anonymous would submit as nobody to an endpoint the operator
@@ -531,11 +613,44 @@ fn addresses_of(
     slot: usize,
     what: &str,
     member: &str,
-) -> Result<Vec<String>, Fault> {
-    texts_of(args, slot, what, member)?
-        .iter()
-        .map(|text| address_of(text, what, member))
+) -> Result<Vec<Mailbox>, Fault> {
+    let Some(array) = args[slot].array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "{member} expected {:?} for `{what}`, got tag {}",
+            Tag::Array,
+            args[slot].tag_byte()
+        )));
+    };
+    crate::str::Elements::of(array)
+        .map(|value| mailbox_of(value, what, member))
         .collect()
+}
+
+/// The recipient in `value`: a `string`, which is an address only, or a [`ADDRESS`].
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for any other value, which [`RECIPIENT`] rules out from source; a catchable
+/// `RuntimeError` for an address [`address_of`] refuses.
+fn mailbox_of(value: Value, what: &str, member: &str) -> Result<Mailbox, Fault> {
+    if let Some(text) = value.as_text() {
+        return Ok(Mailbox {
+            address: address_of(text, what, member)?,
+            name: None,
+        });
+    }
+    let object = crate::instance::receiver(value, &ADDRESS, what)?;
+    let address = crate::instance::slot(object, ADDRESS_TEXT);
+    let display = crate::instance::slot(object, ADDRESS_DISPLAY);
+    let (Some(address), Some(display)) = (address.as_text(), display.as_text()) else {
+        return Err(Fault::fatal(format!(
+            "{member} expected two strings in the `{ADDRESS_NAME}` for `{what}`"
+        )));
+    };
+    Ok(Mailbox {
+        address: address_of(address, what, member)?,
+        name: Some(display.to_owned()),
+    })
 }
 
 /// Every `string` in the `array<string>` at `slot`, in order.
@@ -620,6 +735,22 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Mail\Address::of(string $address, string $name): Core\Mail\Address` — a recipient
+    /// with a display name. The address is checked here, so a wrong one throws where it was
+    /// written, and checked again by `send`.
+    fn nvs_core_mail_address_of(_ctx, args: [2]) {
+        let member = format!("{ADDRESS_NAME}::of");
+        let address = text_of(args, 0, "address", &member)?;
+        let display = text_of(args, 1, "name", &member)?;
+        address_of(address, "`$address`", &member)?;
+        Ok(crate::instance::build(
+            &ADDRESS,
+            [Value::text(address), Value::text(display)],
+        ))
+    }
+}
+
 /// `Core\Mail::send`'s body, which [`nvs_core_mail_send`] files the event around. `recipients`
 /// is set to the number of `to`, `cc` and `bcc` addresses once all of them have been parsed.
 fn send(
@@ -638,9 +769,10 @@ fn send(
     let cc = addresses_of(args, CC, "cc", member)?;
     let bcc = addresses_of(args, BCC, "bcc", member)?;
     recipients.set(u64::try_from(to.len() + cc.len() + bcc.len()).ok());
-    let reply_to = match optional_of(args, REPLY_TO) {
-        Some(text) => Some(address_of(text, "replyTo", member)?),
-        None => None,
+    let reply_to = if args[REPLY_TO].tag() == Some(Tag::Null) {
+        None
+    } else {
+        Some(mailbox_of(args[REPLY_TO], "replyTo", member)?)
     };
     let subject = text_of(args, SUBJECT, "subject", member)?;
     let text = text_of(args, TEXT, "text", member)?;
@@ -675,14 +807,16 @@ fn send(
     // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
     // were checked above, as they are in production.
     if let Some(records) = ctx.test_records() {
+        let addresses =
+            |list: Vec<Mailbox>| list.into_iter().map(|each| each.address).collect::<Vec<_>>();
         records.mail(nvs_runtime::test_records::KeptMail {
             endpoint: endpoint.to_owned(),
-            to,
+            to: addresses(to),
             subject: subject.to_owned(),
             text: text.to_owned(),
-            cc,
-            bcc,
-            reply_to,
+            cc: addresses(cc),
+            bcc: addresses(bcc),
+            reply_to: reply_to.map(|each| each.address),
             html: html.map(str::to_owned),
         });
         return Ok(Value::text(&message_id));
@@ -694,7 +828,7 @@ fn send(
             from_name,
             to: &to,
             cc: &cc,
-            reply_to: reply_to.as_deref(),
+            reply_to: reply_to.as_ref(),
             subject,
             message_id: &message_id,
             in_reply_to: in_reply_to.as_deref(),
@@ -709,7 +843,12 @@ fn send(
 
     // Bcc reaches the envelope and no header, which is the whole of what
     // makes it blind — the header set above never names it.
-    let envelope: Vec<String> = to.iter().chain(&cc).chain(&bcc).cloned().collect();
+    let envelope: Vec<String> = to
+        .iter()
+        .chain(&cc)
+        .chain(&bcc)
+        .map(|each| each.address.clone())
+        .collect();
 
     // The configured `timeout` bounds the whole exchange. The scheduler
     // bounds every park under it by the request's wall deadline, and ends
@@ -769,6 +908,80 @@ mod tests {
             .find(|(class, member, _)| *class == NAME && *member == "send")
             .expect("Core\\Mail::send has a capability row");
         assert_eq!(capability.2, Some(nvs_config::Cap::MailSend));
+    }
+
+    /// `send` returns the `Message-ID` it wrote: 32 hex digits, `@`, and the domain of the
+    /// block's `from`, as punycode. Each send has its own id, under `nvs test` too. A named
+    /// recipient is kept by its address, and a name written inside an address string throws.
+    // covers: Core\Mail::send, Core\Mail\Address::of
+    #[test]
+    fn send_returns_the_message_id() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.mail]\nsend = [\"site\"]\n\n[mail.site]\nhost = \"mail.example.com\"\n\
+             from = \"noreply@bücher.example\"\n",
+        ));
+        let records = nvs_runtime::test_records::TestRecords::new();
+        ctx.set_test_records(std::rc::Rc::clone(&records));
+
+        let named = nvs_runtime::call(
+            nvs_core_mail_address_of,
+            &mut ctx,
+            &[Value::text("ada@example.com"), Value::text("Ada Lovelace")],
+        )
+        .expect("a valid address");
+        let mut to = nvs_runtime::NvsArray::new();
+        to.append(named);
+        to.append(Value::text("bo@example.com"));
+        let empty = || Value::array(nvs_runtime::NvsArray::new());
+        let args = [
+            Value::text("site"),
+            Value::array(to),
+            Value::text("Welcome"),
+            Value::text("Hello."),
+            empty(),
+            empty(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            empty(),
+            Value::null(),
+            Value::bool(true),
+        ];
+        let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
+        let id = sent.as_text().expect("send returns a string").to_owned();
+        let (random, domain) = id.split_once('@').expect("the id is local@domain");
+        assert_eq!(domain, "xn--bcher-kva.example", "the domain of `from`, as punycode");
+        assert!(
+            random.len() == 32 && random.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "{id}"
+        );
+        assert!(compose::message_id_of(&id, "inReplyTo", "Core\\Mail::send").is_ok());
+        assert_eq!(
+            records.sent()[0].to,
+            ["ada@example.com", "bo@example.com"],
+            "a named recipient is kept by its address"
+        );
+
+        let again = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
+        assert_ne!(again.as_text(), Some(id.as_str()), "each message has its own id");
+
+        let refused = nvs_runtime::call(
+            nvs_core_mail_address_of,
+            &mut ctx,
+            &[Value::text("Ada <ada@example.com>"), Value::text("Ada")],
+        );
+        assert!(refused.is_err(), "a name inside the address string is not read");
+
+        #[expect(unsafe_code, reason = "this test owns every value it made")]
+        // SAFETY: each value carries the one reference this test made or was given, and none is
+        // read after this.
+        unsafe {
+            for value in args.into_iter().chain([sent, again]) {
+                value.release();
+            }
+        }
     }
 
     /// `rule:errors/ambiguous-input-refused` on the reader every directive comes through: a blank value is a

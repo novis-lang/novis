@@ -26,17 +26,24 @@ const NOT_IN_AN_ADDRESS: &[u8] = b"<>,;:()\"\\% ";
 /// header line can fold around under the 998-octet line limit.
 const LONGEST_ADDRESS: usize = 254;
 
-/// `text` as an addr-spec, or a refusal naming `what` it was.
+/// `text` as the addr-spec this module writes, or a refusal naming `what` it was.
 ///
 /// The check is deliberately narrower than RFC 5321's grammar and deliberately
 /// not a repair. What it establishes is the one property the rest of this module
 /// relies on — that the value can be written inside `<...>` on a command line
-/// and inside a header without changing either one's structure — so a byte that
-/// would end a line, a byte [`NOT_IN_AN_ADDRESS`] names, an address longer than
-/// [`LONGEST_ADDRESS`] and the absence of an `@` are each a refusal.
+/// and inside a header without changing either one's structure — so a character
+/// that would end a line, a byte [`NOT_IN_AN_ADDRESS`] names, an address longer
+/// than [`LONGEST_ADDRESS`] and the absence of an `@` are each a refusal.
 /// `rule:errors/ambiguous-input-refused` is why none of them is silently stripped:
 /// an address a program did not mean is a message going somewhere it did not
 /// mean, and the caller is the only one who can say which.
+///
+/// A domain that is not ASCII is written as its punycode (`xn--`) form, by UTS 46
+/// with the STD3 rules a host name follows, and one that has no such form is a
+/// refusal. Every reader resolves the two spellings to one host, so this is the
+/// one conversion that is not a repair. A local part that is not ASCII is kept
+/// as written: only the server can carry it, with `SMTPUTF8`, and
+/// [`super::smtp`] refuses the send when it is not advertised.
 ///
 /// # Errors
 ///
@@ -50,28 +57,45 @@ pub(super) fn address_of(text: &str, what: &str, member: &str) -> Result<String,
     if text.is_empty() {
         return refuse("it is empty");
     }
-    if text.len() > LONGEST_ADDRESS {
-        return refuse("it is longer than 254 bytes");
-    }
     if text
-        .bytes()
-        .any(|byte| byte < 0x20 || byte == 0x7f || NOT_IN_AN_ADDRESS.contains(&byte))
+        .chars()
+        .any(|c| c.is_control() || u8::try_from(c).is_ok_and(|b| NOT_IN_AN_ADDRESS.contains(&b)))
     {
         return refuse(
             "it contains a character an address may not contain: a control character, a \
              space, or one of `< > , ; : ( ) \" \\ %`",
         );
     }
-    if !text.is_ascii() {
-        return refuse(
-            "it is not ASCII, and internationalized addresses need the SMTPUTF8 extension this \
-             transport does not negotiate",
-        );
+    let Some((local, domain)) = text.rsplit_once('@') else {
+        return refuse("it is not `local@domain`");
+    };
+    if local.is_empty() || local.contains('@') {
+        return refuse("it is not `local@domain`");
     }
-    match text.split_once('@') {
-        Some((local, domain)) if !local.is_empty() && domain.contains('.') => Ok(text.to_owned()),
-        _ => refuse("it is not `local@domain`"),
+    let domain = if domain.is_ascii() {
+        domain.to_owned()
+    } else {
+        match idna::domain_to_ascii_strict(domain) {
+            Ok(ascii) => ascii,
+            Err(_) => return refuse("its domain is not a valid international domain name"),
+        }
+    };
+    if !domain.contains('.') {
+        return refuse("it is not `local@domain`");
     }
+    let address = format!("{local}@{domain}");
+    if address.len() > LONGEST_ADDRESS {
+        return refuse("it is longer than 254 bytes");
+    }
+    Ok(address)
+}
+
+/// One recipient: the address [`address_of`] returned, and the display name written before it.
+pub(super) struct Mailbox {
+    /// The address, through [`address_of`].
+    pub address: String,
+    /// The name, any text. [`mailbox`] quotes or encodes it. `None` and an empty name are no name.
+    pub name: Option<String>,
 }
 
 /// The column [`folded`] breaks a header line at: RFC 5322 § 2.1.1's
@@ -136,24 +160,24 @@ fn encoded_words(text: &str) -> String {
     }
 }
 
-/// `name: ` and `address` in angle brackets, with `display` before it when there is one, as
-/// header lines ending `\r\n`.
+/// `address` in angle brackets, with `display` before it when there is one, as one header value
+/// with no line break. [`address_line`] folds it at its spaces.
 ///
-/// A display name of printable ASCII with no `"` and no `\` is written as a quoted string. Any
-/// other name is written as [`encoded_words`], so a quote, a line break or a non-ASCII letter in
-/// it is content and never structure. An empty name is no name.
-fn named_line(name: &str, display: Option<&str>, address: &str) -> String {
+/// A display name of printable ASCII with no `"`, no `\` and no word longer than [`LINE`] is
+/// written as a quoted string. Any other name is written as [`encoded_words`], so a quote, a line
+/// break or a non-ASCII letter in it is content and never structure. An empty name is no name.
+fn mailbox(display: Option<&str>, address: &str) -> String {
     let Some(display) = display.filter(|display| !display.is_empty()) else {
-        return format!("{name}: <{address}>\r\n");
+        return format!("<{address}>");
     };
     let quotable = display
         .bytes()
-        .all(|byte| (0x20..0x7f).contains(&byte) && byte != b'"' && byte != b'\\');
-    if quotable && let Some(folded) = folded(name.len() + 2, &format!("\"{display}\" <{address}>"))
-    {
-        return format!("{name}: {folded}\r\n");
+        .all(|byte| (0x20..0x7f).contains(&byte) && byte != b'"' && byte != b'\\')
+        && display.split(' ').all(|word| word.len() < LINE);
+    if quotable {
+        return format!("\"{display}\" <{address}>");
     }
-    format!("{name}: {}\r\n <{address}>\r\n", encoded_words(display))
+    format!("{} <{address}>", encoded_words(display).replace("\r\n ", " "))
 }
 
 /// The bytes [`message_id_of`] refuses in a message id, beside every control byte and every byte
@@ -288,15 +312,16 @@ fn folded(start: usize, text: &str) -> Option<String> {
     Some(out)
 }
 
-/// `name: ` and every address in angle brackets, comma-separated and folded,
+/// `name: ` and every mailbox, written by [`mailbox`], comma-separated and folded,
 /// as header lines ending `\r\n`.
 ///
 /// Each address came through [`address_of`], so it has no space and is at most
-/// [`LONGEST_ADDRESS`] long, and [`folded`] always finds a place to break.
-fn address_line(name: &str, addresses: &[String]) -> String {
-    let list = addresses
+/// [`LONGEST_ADDRESS`] long. Each word of a name is shorter than [`LINE`] or an
+/// encoded word, so [`folded`] always finds a place to break.
+fn address_line(name: &str, mailboxes: &[Mailbox]) -> String {
+    let list = mailboxes
         .iter()
-        .map(|address| format!("<{address}>"))
+        .map(|each| mailbox(each.name.as_deref(), &each.address))
         .collect::<Vec<_>>()
         .join(", ");
     let folded = folded(name.len() + 2, &list).unwrap_or(list);
@@ -365,12 +390,12 @@ pub(super) struct Headers<'a> {
     pub from: &'a str,
     /// The display name for `from`: the call's `fromName`, else the block's `from_name`.
     pub from_name: Option<&'a str>,
-    /// The `to` addresses, through [`address_of`].
-    pub to: &'a [String],
-    /// The `cc` addresses, through [`address_of`].
-    pub cc: &'a [String],
-    /// The `replyTo` address, through [`address_of`].
-    pub reply_to: Option<&'a str>,
+    /// The `to` recipients.
+    pub to: &'a [Mailbox],
+    /// The `cc` recipients.
+    pub cc: &'a [Mailbox],
+    /// The `replyTo` mailbox.
+    pub reply_to: Option<&'a Mailbox>,
     /// The subject, any text. [`subject_line`] encodes it.
     pub subject: &'a str,
     /// What [`message_id`] built.
@@ -390,7 +415,7 @@ pub(super) struct Headers<'a> {
 /// The message `DATA` carries — every header this class writes, then the body.
 ///
 /// The **only** place a `\r\n` is produced. Every value reaching it has been
-/// through [`subject_line`], [`named_line`], [`address_of`], [`message_id_of`] or
+/// through [`subject_line`], [`mailbox`], [`address_of`], [`message_id_of`] or
 /// [`unsubscribe_of`], so there is no path from an argument to a line break here,
 /// which is the property the module doc's first section names.
 ///
@@ -400,13 +425,17 @@ pub(super) fn compose(headers: &Headers<'_>, text: &str, html: Option<&str>) -> 
     let mut out = String::new();
     out.push_str(&format!("Date: {}\r\n", rfc5322_date(headers.now)));
     out.push_str(&format!("Message-ID: <{}>\r\n", headers.message_id));
-    out.push_str(&named_line("From", headers.from_name, headers.from));
+    let from = Mailbox {
+        address: headers.from.to_owned(),
+        name: headers.from_name.map(str::to_owned),
+    };
+    out.push_str(&address_line("From", std::slice::from_ref(&from)));
     out.push_str(&address_line("To", headers.to));
     if !headers.cc.is_empty() {
         out.push_str(&address_line("Cc", headers.cc));
     }
     if let Some(reply_to) = headers.reply_to {
-        out.push_str(&format!("Reply-To: <{reply_to}>\r\n"));
+        out.push_str(&address_line("Reply-To", std::slice::from_ref(reply_to)));
     }
     out.push_str(&subject_line(headers.subject));
     if let Some(id) = headers.in_reply_to {
@@ -546,10 +575,12 @@ mod tests {
     fn recipients_are_in_angle_brackets_and_a_long_list_is_folded() {
         // Unfolded, this many addresses make one line past `LONGEST_LINE`.
         let count = LONGEST_LINE / "<user0@example.com>, ".len() + 1;
-        let many: Vec<String> = (0..count).map(|n| format!("user{n}@example.com")).collect();
+        let many: Vec<Mailbox> = (0..count)
+            .map(|n| unnamed(&format!("user{n}@example.com")))
+            .collect();
         let unfolded = many
             .iter()
-            .map(|address| format!("<{address}>"))
+            .map(|each| format!("<{}>", each.address))
             .collect::<Vec<_>>()
             .join(", ")
             .len();
@@ -603,8 +634,8 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn a_bcc_recipient_is_in_no_header() {
-        let to = ["to@example.com".to_owned()];
-        let cc = ["cc@example.com".to_owned()];
+        let to = [unnamed("to@example.com")];
+        let cc = [unnamed("cc@example.com")];
         let message = compose(
             &Headers {
                 to: &to,
@@ -617,6 +648,118 @@ mod tests {
         assert!(message.contains("To: <to@example.com>\r\n"));
         assert!(message.contains("Cc: <cc@example.com>\r\n"));
         assert!(!message.contains("bcc@example.com"));
+    }
+
+    /// `address` with no display name.
+    fn unnamed(address: &str) -> Mailbox {
+        Mailbox {
+            address: address.to_owned(),
+            name: None,
+        }
+    }
+
+    /// A recipient's name is quoted when it is plain and encoded when it is not, in `To:`, `Cc:`
+    /// and `Reply-To:` alike. A name with a line break, a quote or a second address in it stays
+    /// one header value, and the address after it is the one the program gave.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_recipient_name_is_encoded_and_cannot_add_a_header() {
+        let named = |name: &str| Mailbox {
+            address: "ada@example.com".to_owned(),
+            name: Some(name.to_owned()),
+        };
+        let line = |header: &str, mailbox: Mailbox| {
+            let one = [mailbox];
+            let message = compose(
+                &Headers {
+                    to: if header == "To" { &one } else { &[] },
+                    cc: if header == "Cc" { &one } else { &[] },
+                    reply_to: (header == "Reply-To").then(|| &one[0]),
+                    ..headers()
+                },
+                "body",
+                None,
+            );
+            assert!(
+                header_lines(&message)
+                    .iter()
+                    .all(|each| each.split_once(": ").is_some_and(|(key, _)| !key.contains(' '))),
+                "a name added a header: {message}"
+            );
+            header_lines(&message)
+                .into_iter()
+                .find(|each| each.starts_with(&format!("{header}: ")))
+                .unwrap_or_default()
+        };
+        for header in ["To", "Cc", "Reply-To"] {
+            assert_eq!(
+                line(header, named("Ada Lovelace")),
+                format!("{header}: \"Ada Lovelace\" <ada@example.com>")
+            );
+            assert_eq!(
+                line(header, unnamed("ada@example.com")),
+                format!("{header}: <ada@example.com>")
+            );
+            for name in [
+                "Zoë",
+                "Ada\r\nBcc: attacker@example.com",
+                "Ada\" <attacker@example.com>, \"x",
+                &"long".repeat(40),
+            ] {
+                let written = line(header, named(name));
+                assert!(
+                    written.starts_with(&format!("{header}: =?UTF-8?B?"))
+                        && written.ends_with(" <ada@example.com>"),
+                    "{name:?} gave {written:?}"
+                );
+                assert!(!written.contains("attacker"), "{written:?}");
+            }
+        }
+
+        // A long list of named recipients still folds under 78 columns.
+        let many: Vec<Mailbox> = (0..40).map(|n| named(&format!("Reader number {n}"))).collect();
+        let folded = address_line("To", &many);
+        assert!(only_folded(&folded), "{folded:?}");
+        assert!(folded.split("\r\n").all(|each| each.len() <= LINE));
+    }
+
+    /// A domain that is not ASCII is written as punycode, in the address `send` gives the server
+    /// and the headers. A domain with no punycode form throws, and an ASCII one is unchanged.
+    // covers: Core\Mail::send
+    #[test]
+    fn an_international_domain_is_sent_as_punycode() {
+        let member = "Core\\Mail::send";
+        assert_eq!(
+            address_of("info@bücher.example", "to", member).ok().as_deref(),
+            Some("info@xn--bcher-kva.example")
+        );
+        assert_eq!(
+            address_of("info@Bücher.Example", "to", member).ok().as_deref(),
+            Some("info@xn--bcher-kva.example")
+        );
+        assert_eq!(
+            address_of("Info@Example.COM", "to", member).ok().as_deref(),
+            Some("Info@Example.COM"),
+            "an ASCII address is kept as written"
+        );
+        for bad in ["info@bü_cher.example", "info@bücher", "a@b@bücher.example"] {
+            assert!(
+                address_of(bad, "to", member).is_err(),
+                "`{bad}` was accepted as an address"
+            );
+        }
+        let message = compose(
+            &Headers {
+                to: &[unnamed(
+                    &address_of("info@bücher.example", "to", member).unwrap_or_default(),
+                )],
+                ..headers()
+            },
+            "body",
+            None,
+        );
+        assert!(message.is_ascii(), "{message}");
+        assert!(message.contains("To: <info@xn--bcher-kva.example>\r\n"));
     }
 
     /// The headers of a message from `noreply@example.com`, with no recipient and nothing

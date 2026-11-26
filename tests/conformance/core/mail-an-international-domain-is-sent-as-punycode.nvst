@@ -1,0 +1,40 @@
+--TEST--
+`Core\Mail::send` writes a domain that is not ASCII in its `xn--` form, for a plain address and a `Core\Mail\Address` alike — `rule:programs/framework-core-half`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Mail\Address::of, Core\Mail::send
+use Core\Mail\Address;
+use Core\Test;
+
+final class PunycodeTest {
+    #[Test]
+    public function anInternationalDomainIsSentAsPunycode(): void {
+        Core\Mail::send(
+            "site",
+            ["info@bücher.example", Address::of("kontakt@Bücher.example", "Bücher")],
+            "Order",
+            "Your order has shipped."
+        );
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertEquals(
+            $sent[0]->to(),
+            ["info@xn--bcher-kva.example", "kontakt@xn--bcher-kva.example"]
+        );
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  PunycodeTest
+    ✓ anInternationalDomainIsSentAsPunycode %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

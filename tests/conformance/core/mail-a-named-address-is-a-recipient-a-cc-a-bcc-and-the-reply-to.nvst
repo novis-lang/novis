@@ -1,0 +1,51 @@
+--TEST--
+A `Core\Mail\Address` is accepted wherever `Core\Mail::send` takes an address, beside plain strings, and `send` returns the message id it wrote — `rule:programs/framework-core-half`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Mail\Address::of, Core\Mail::send
+use Core\Mail\Address;
+use Core\Test;
+
+final class NamedAddressTest {
+    #[Test]
+    public function aNamedAddressIsAcceptedEverywhere(): void {
+        string $id = Core\Mail::send(
+            "site",
+            [Address::of("ada@example.com", "Ada Lovelace"), "bo@example.com"],
+            "Welcome",
+            "Hello.",
+            {
+                cc: [Address::of("editor@example.com", "The Editor")],
+                bcc: [Address::of("archive@example.com", "Archive")],
+                replyTo: Address::of("desk@example.com", "Help Desk")
+            }
+        );
+
+        // The id is 32 hex digits, `@`, and the domain of `from`.
+        Test::assertSame(Core\Str::length($id), Core\Str::length("@example.com") + 32);
+        Test::assertTrue(Core\Str::endsWith($id, "@example.com"));
+
+        // A test reads back each recipient by its address.
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertEquals($sent[0]->to(), ["ada@example.com", "bo@example.com"]);
+        Test::assertEquals($sent[0]->cc(), ["editor@example.com"]);
+        Test::assertEquals($sent[0]->bcc(), ["archive@example.com"]);
+        Test::assertSame($sent[0]->replyTo(), "desk@example.com");
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  NamedAddressTest
+    ✓ aNamedAddressIsAcceptedEverywhere %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms
