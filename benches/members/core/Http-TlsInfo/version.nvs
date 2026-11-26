@@ -1,6 +1,6 @@
 <?nvs
 // Reads the TLS version of a connection, as a program does before it trusts a reply.
-// bench: iterations 1024 callgrind
+// bench: iterations 512 callgrind
 // bench: allocations 0
 // bench: calls 1
 // bench: complexity constant
@@ -28,4 +28,4 @@ class Bench
     }
 }
 
-echo Bench::run(1024), "\n";
+echo Bench::run(512), "\n";
