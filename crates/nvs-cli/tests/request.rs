@@ -818,6 +818,84 @@ fn a_served_cache_get_is_recorded_as_a_miss_and_then_a_hit() {
     );
 }
 
+/// A page that dumps one value, for the inline block's cases.
+const DUMPS_ONE: &str = "<?nvs\necho \"page\";\nCore\\Debug::dump(\"one\");\n";
+
+/// The body of `answer`, after its head.
+fn body_of(answer: &str) -> &str {
+    answer.split_once("\r\n\r\n").map_or("", |(_, body)| body)
+}
+
+/// `rule:errors/debug-dump`: in development with `[debug] store` on, the inline block of an HTML
+/// body starts with the request's query count and a link to the request in the viewer. The link
+/// names the trace id and span id the response's `traceresponse` gives, on `[debug] listen`, and
+/// carries no token.
+// covers: directive:debug.inline
+#[test]
+fn a_stored_inline_block_links_to_its_request_in_the_viewer() {
+    let served = Served::serving(
+        "inline-link-stored",
+        DUMPS_ONE,
+        Some(
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\nlisten = \"127.0.0.1:8141\"\n",
+        ),
+    );
+    let answer =
+        served.answer_to(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let traceresponse = answer
+        .lines()
+        .find_map(|line| line.strip_prefix("traceresponse: "))
+        .unwrap_or_else(|| panic!("a development answer names its trace: {answer}"));
+    let mut parts = traceresponse.trim().split('-').skip(1);
+    let (trace, span) = (
+        parts.next().unwrap_or_default(),
+        parts.next().unwrap_or_default(),
+    );
+    let link = format!(
+        "<div class=\"nvs-record\">This request ran 0 queries. \
+         <a href=\"http://127.0.0.1:8141/requests/{trace}/{span}\">Open it in the debug viewer</a></div>"
+    );
+    let body = body_of(&answer);
+    assert!(body.starts_with("page<style nonce="), "{body}");
+    let after_style = body.split_once("</style>").map_or("", |(_, rest)| rest);
+    assert!(after_style.starts_with(&link), "{body}");
+    assert!(
+        after_style.contains("nvs-nodes"),
+        "the dump follows the link: {body}"
+    );
+    assert!(!body.contains("token"), "{body}");
+}
+
+/// `rule:errors/debug-dump`: with `[debug] store` off the inline block has no line about the
+/// viewer, and in production an HTML body has no inline block at all, with `store` on or off.
+// covers: directive:debug.inline
+#[test]
+fn an_inline_block_has_no_viewer_link_unstored_and_production_has_no_block() {
+    let request = b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+    let unstored = Served::serving(
+        "inline-link-unstored",
+        DUMPS_ONE,
+        Some("[mode]\ndefault = \"development\"\n\n[debug]\nstore = false\n"),
+    );
+    let answer = unstored.answer_to(request);
+    let body = body_of(&answer);
+    assert!(
+        body.contains("nvs-nodes"),
+        "development has the block: {body}"
+    );
+    assert!(!body.contains("debug viewer"), "{body}");
+    assert!(!body.contains("/requests/"), "{body}");
+    drop(unstored);
+
+    let production = Served::serving(
+        "inline-link-production",
+        DUMPS_ONE,
+        Some("[mode]\ndefault = \"production\"\n\n[debug]\nstore = true\n"),
+    );
+    let answer = production.answer_to(request);
+    assert_eq!(body_of(&answer), "page", "{answer}");
+}
+
 /// A program that sends one mail to three addresses through an endpoint nothing listens on, and
 /// pushes one job with arguments and a due time.
 const MAIL_AND_QUEUE: &str = "<?nvs

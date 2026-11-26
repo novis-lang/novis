@@ -29,17 +29,35 @@ pub const EMBED: &str = "/embed/";
 /// the scheme is `https`, and an unspecified address is named `localhost`.
 #[must_use]
 pub fn links(addr: SocketAddr, token: &str) -> (String, String) {
-    let origin = if addr.ip().is_loopback() {
+    let origin = origin(addr);
+    (
+        format!("{origin}/?token={token}"),
+        format!("{origin}{EMBED}{token}/"),
+    )
+}
+
+/// The scheme, host and port the viewer on `addr` is reached at, with no path: `http` on loopback,
+/// `https` off it, and `localhost` for an unspecified address. [`links`] and the inline debug
+/// block's link to a request (`rule:errors/debug-dump`) both start with it.
+#[must_use]
+pub fn origin(addr: SocketAddr) -> String {
+    if addr.ip().is_loopback() {
         format!("http://{addr}")
     } else if addr.ip().is_unspecified() {
         format!("https://localhost:{}", addr.port())
     } else {
         format!("https://{addr}")
-    };
-    (
-        format!("{origin}/?token={token}"),
-        format!("{origin}{EMBED}{token}/"),
-    )
+    }
+}
+
+/// The address `[debug] listen` names in `listen`, when it is an IP address and a port other than
+/// `0`: the one a link to the viewer can name.
+#[must_use]
+pub fn linkable(listen: &str) -> Option<SocketAddr> {
+    listen
+        .parse::<SocketAddr>()
+        .ok()
+        .filter(|addr| addr.port() != 0)
 }
 
 /// The token in `named` when that file exists, or in the generated file `own`, created here the

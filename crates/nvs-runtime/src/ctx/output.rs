@@ -847,9 +847,16 @@ impl Ctx {
     /// response's policy. A block in the terminal carrier is plaintext and
     /// needs no style.
     ///
+    /// **The blocks name their request.** With `[debug] store` also in force,
+    /// one line goes ahead of the blocks: the number of queries the request
+    /// ran, and a link to the request in the viewer on `[debug] listen`
+    /// ([`Self::inline_link`]). Without `store` the viewer has no record of the
+    /// request, so the line is not written.
+    ///
     /// **What it spends:** one 16-byte random draw, one nonce string and one
-    /// copy of the stylesheet, per response that has a block. Nothing for any
-    /// other response.
+    /// copy of the stylesheet, per response that has a block, and with `store`
+    /// on one short line and one pass over the request's trace events. Nothing
+    /// for any other response.
     ///
     /// # Errors
     ///
@@ -860,12 +867,60 @@ impl Ctx {
         if blocks.is_empty() || !self.body_takes_a_block() {
             return Ok(());
         }
-        if self.carrier() == CARRIER_HTML_MARKUP && self.style_nonce.is_none() {
+        let html = self.carrier() == CARRIER_HTML_MARKUP;
+        if html && self.style_nonce.is_none() {
             let nonce = style_nonce();
             self.write_output(nvs_render::html::style_element(&nonce).as_bytes())?;
             self.style_nonce = Some(nonce.into());
         }
+        if let Some(line) = self.inline_link(html) {
+            self.write_output(line.as_bytes())?;
+        }
         self.write_output(&blocks)
+    }
+
+    /// The inline block's line that names its request
+    /// (`rule:errors/debug-dump`), or `None` where `[debug] store` is not in
+    /// force for it. The count is the request's `query` trace events. The link
+    /// is `/requests/<trace id>/<span id>` on the viewer's origin, and carries
+    /// no token. With `[debug] listen` naming no address a link can use, such
+    /// as the port `0`, the line has the count alone.
+    fn inline_link(&self, html: bool) -> Option<String> {
+        let config = self.config()?;
+        if !config.debug_store() {
+            return None;
+        }
+        let queries = self
+            .trace
+            .iter()
+            .filter(|event| event.kind == crate::TraceKind::Query)
+            .count();
+        let count = if queries == 1 {
+            "This request ran 1 query.".to_owned()
+        } else {
+            format!("This request ran {queries} queries.")
+        };
+        let listen = config
+            .get("debug.listen")
+            .unwrap_or_else(|| nvs_config::defaults::DEBUG_LISTEN.to_owned());
+        let link = nvs_config::viewer::linkable(&listen).map(|addr| {
+            let trace = self.trace_context();
+            format!(
+                "{}/requests/{}/{}",
+                nvs_config::viewer::origin(addr),
+                trace.trace_id_hex(),
+                trace.span_id_hex()
+            )
+        });
+        Some(match (html, link) {
+            (true, Some(link)) => format!(
+                "<div class=\"nvs-record\">{count} <a href=\"{}\">Open it in the debug viewer</a></div>",
+                nvs_render::html::escape(&link)
+            ),
+            (true, None) => format!("<div class=\"nvs-record\">{count}</div>"),
+            (false, Some(link)) => format!("{count} Open it in the debug viewer: {link}\n"),
+            (false, None) => format!("{count}\n"),
+        })
     }
 
     /// Takes the nonce [`Self::flush_inline_debug`] wrote the block's style
