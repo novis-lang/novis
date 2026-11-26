@@ -647,94 +647,63 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Stages 1 to 8 are done. Stage 9's writing is done, and its review is read but not yet fixed.
-This session's commits:
+Stages 1 to 8 are done. In stage 9 every mail text the review named is fixed and stamped, as
+review and as stale. This session's commits:
 
-- `0895ce3a4e`: the how-to page's ten Novis blocks are nine snippets in
-  `website/snippets/guides/how-to-use/sending-mail/` over a `capture = true` block, blessed. The
-  `Core\Queue::push` block is prose. The page is in the sidebar and in `how-to-use/index.mdx`, and
-  it and six stale reference pages have stamped questions. `site --check snippets` and `questions`
-  are green.
-- `55b71a1b31`: `Test-SentMail/html` and `text` about.md name the body `send` takes, not the
-  removed `html` option. The root `nvs.toml`'s unused `[[app]]` for the send attack is deleted.
-
-- `59b4fbcdfe`: perf records for 60 features (the mail members, `Core\IO`, `Core\Mime`), every
-  growth flat.
-
-`bun nv scaling --budget --write` was run and reverted. It rewrites the whole budget, and it would
-have raised 51 benches outside this goal that are over today (most are `novis/Spreadsheet-*`). No
-mail or `Core\Mime` bench was over.
-
-CI: run 45609291264 ran on `53e94a9181`. Its failures are fixed on main by `1c3196b0e8` and
-`c115a735a1`, which the last session checked one by one.
+- `b53a9270ec`: the review's findings in the mail examples, attacks, benches, help cards,
+  the sending-mail page, its snippets, `changes.json` and two `20-config.md` chapters. 182 stamps.
+- `192ae33e9f`: the 15 new mail benches' lines in `data/perf/bench-budget.json`, and no other.
+  `scaling --budget` still fails on other goals' benches (see the backlog).
+- `b518f9ac31`: the 49 stale mail keys stamped in `website/site.lock.json`. `SentMail::text`'s
+  card (`crates/nvs-stdlib/src/test/records.rs:307`), `Test/sentMail/about.md` and
+  `secrets-from-files/about.md` corrected. The ten debug texts `site --check review` names
+  (from `50a36f29d6`, another goal, never reviewed) are rewritten for their findings: the
+  `debug-*` config pages, `nvs-debug/about.md`, the debug-viewer page, `[debug]` in
+  `default.toml` and `# nvs debug` in `10-cli.md`. They are not stamped yet.
 
 ### Next
 
-1. **Fix the review's findings, then stamp.** Twelve `reader` subagents read all 182 texts
-   `bun nv site --review` lists (this session's batches). Each fix is to the text, and each help
-   text is in `crates/nvs-stdlib/src/mail/` or `test_records`' card rows. Split by feature folder
-   to writing subagents with disjoint files, each brief naming AGENTS.md § *Text an end user reads*
-   and the 190-word bound of an `about.md`. The findings, by kind:
-   - **Every `Mail-Attachment/*` bench** says "The round before and the counter choose the X" or
-     "The file is chosen by the round before". Readers did not understand it. Say what the loop does
-     in plain words. `src.nvs`: "the counter also chooses the image" too.
-   - **Every `Mail-Preview/*` bench and `Mail/preview.nvs`** say "Measures how `x()` returns …, as
-     a test … does". Write "Measures `x()` on …. A test of a mail template calls it the same way."
-   - **Help cards** of `fromBytes`, `fromFile`, `inlineBytes`, `inlineFile`: a sentence starting
-     "Or `type` is not a media type" is a fragment; `inlineBytes`'s and `inlineFile`'s `$type`
-     example is `application/pdf`, use `image/svg+xml`. "media type" and `cid:` need a few plain
-     words where first used. `preview`'s card: "A string from the request does not compile here"
-     needs the word `tainted` and why. `send`'s card: the RuntimeError list is one long run of "Or
-     …" clauses; split it. `$inReplyTo` says "answers" (a Not word).
-   - **`cid:` and "inline image"** are used undefined in `src/about.md`, `inlineBytes/about.md`,
-     `inlineFile/about.md`, `Test-SentMail/attachments/about.md`, the page and the attacks. Define
-     once per text: "a `cid:` URL points at an image inside the same mail".
-   - **"`Core\Test::request` runs this file again for the request"** in every `Test-SentMail/*/03`
-     example and `html/03`: readers did not understand it. Say what happens: the test sends a
-     request to this program, and the code outside the class runs for it.
-   - **Figures of speech:** `name` attack "climbs out of the folder"; `send/02` "This address hides
-     a second line"; `inReplyTo` attack "end the header early"; `references` attack "hides one bad
-     id among good ones"; `autoSubmitted` attack "hopes the next messages keep it";
-     `unusedCss/03` "goes in through `Html::escape`"; `preview/02` "a block of its own".
-   - **Over 25 words:** `send/01` attack's first sentence, `bytes` attack's first sentence,
-     `Test-SentMail/attachments` attack's first sentence.
-   - **Unclear:** `keptCss` and `unusedCss` about "returns the `Core\Mail\Preview` it is a method
-     of"; `keptCss` attack "They stay escapes in the result"; `preview` attack step 3 (`@import`
-     is kept, not thrown) contradicts its top line; `send/01` "It keeps each message and sends
-     nothing" names no subject; `send/03` "the answer for a correct address"; `messageId` hostile
-     step "Changes the id that `messageId()` returned"; `fromName` attack "so it is sent";
-     `autoSubmitted/01` "marked as" (a Not word); `send/about.md` "Text a user typed" (say
-     `tainted` text from a request).
-   - **The page:** "To answer the visitor first" (a Not word); TLS, PEM and "certificate
-     authority" undefined; "Every certificate is checked" names no certificate; the two `tls`
-     defaults read in the wrong order. Snippets: `after-response.nvs` "The response." fragment,
-     `send-html.nvs` "that `send` made" (say "that `send` makes"), `testing.nvs` "this line" (say
-     "the `echo` line below").
-   - **`changes.json`:** the mail entries' "pays no new TLS handshake" (idiom). Older entries'
-     findings (`answerCli` "answers", "members", a 30-word `Router::url` sentence, "The methods
-     this entry names", "epoch methods") are in the same text, so fix them too to stamp it.
-   - **`help:tools:config/secrets-from-files` and `help:tools:config/the-blocks-the-binary-accepts`**
-     (`docs/reference/tools/20-config.md`): dashes joining sentences, sentences of 50 words,
-     "holds", "refuses", "rather than", "lives inside a block", "the seam". They are reference
-     chapters the goal only added keys to. Rewrite each flagged sentence, not the chapter.
-   Then `cargo build` once, `bun nv site --review --stamp <key>...` for every key (the help stamps
-   read the built binary), `bun nv site --check stale` and stamp what is still right, and `changes`
-   green.
-2. **The budget.** Check whether the new mail benches need a budget entry (`bun nv scaling --budget`
-   and grep its log for `Mail`). If they do, add only their lines to `data/perf/bench-budget.json`;
-   never `--write` while other benches are over. The 51 over benches are another goal's work: put
-   them in `### Backlog` if this goal does not fix them.
-3. Then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), and stage 10.
+1. **Review the ten debug texts again, then stamp.** `bun nv site --review` lists them.
+   `bun nv site --review --brief <keys>` into one `reader`, fix what it finds, then
+   `bun nv site --review --stamp` the ten keys. Not fixed yet: the first line of the clap doc
+   in `crates/nvs-cli/src/debug.rs` says "the debug index" without defining it; a change there
+   also changes `docs/examples/tools/cli/nvs-debug/01-print-the-options-of-nvs-debug.out`.
+   Check whether `bun nv render` must run after the `10-cli.md` change.
+2. **Stale texts the reread found wrong, still to fix:**
+   - `website/src/content/docs/tools/debug-viewer/index.mdx`: the page list omits **Mail**
+     (between **Logs** and **Stream**, `viewer/src/App.tsx:47`), and "Sent mail shows the number of
+     recipients. The viewer never shows an address or the text." is true only of the timeline
+     event: a `capture = true` block's mail is on the Mail page with addresses, text and HTML. Add a
+     short Mail section.
+   - `docs/examples/tools/cli/the-debug-viewer/about.md:7`: name the Mail page. It is at 188
+     words, so cut a clause.
+   - `docs/examples/config/debug-store/about.md`: say that with `store` on, a `capture = true`
+     mail block writes the whole message (addresses, text, HTML, attachments) to the record files
+     (`crates/nvs-stdlib/src/mail/capture.rs:5`). It is at exactly 190 words: cut first.
+   - `docs/examples/core/Test-LogRecord/fields/about.md`: may say that a long or deep value is cut
+     as the log line cuts it (minor).
+   Then `bun nv site --check stale`, and `bun nv site --stamp` every key it names once the texts
+   are right. The older `Test-SentMail` readers (`endpoint`, `to`, `subject`, `text`, `cc`, `bcc`,
+   `replyTo`, `html`), `Core\Test::logs`, `Test-LogRecord/level` and `message`, `nvs-debug`,
+   `index_age`, `index_max` and `the-blocks-the-binary-accepts` were reread and are still right.
+   Every changed text is reviewed again (`site --review`), then stamped.
+3. Commit, then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), then tick stage 9
+   and take stage 10: a build, the goal's tests by name and `bun nv close --goal mail-complete`.
 
-Expected red: `site --check stale` and `review` for the mail features, the page, its snippets,
-`changes.json` and the two config help texts; `proofs --gate` for `reviewed`, and `perf` until it is
-recorded. No unit test or conformance case is expected red.
+Expected red: `site --check review` for the ten debug texts and every text Next 2 changes;
+`site --check stale` for the texts in Next 2; `scaling --budget` for other goals' benches. No unit
+test or conformance case is expected red.
 
 ### Backlog
 
+- `bun nv scaling --budget` fails on benches no mail work touched: ten over their share and about
+  80 with no share at all. `--budget --write` keeps an over bench at its old share
+  (`budgetAfter` in `tools/nv/cmd/scaling.ts:1458`), so it does not raise them, but it rewrites
+  every other share. A session that owns those benches lowers their N or writes the reason, then
+  runs `--write`.
 - No test sends a signed message through `send` and the fake relay: the five `dkim` tests call
   `dkim::sign` directly, and `signer_of` reads the block's keys as `oauth::grant_of` does. A
-  stage-9 test over `smtp::tests::send_to` with a `dkim_key_file` block would pin the wiring.
+  test over `smtp::tests::send_to` with a `dkim_key_file` block would pin the wiring.
 - The DKIM key file is a private key, and `secret.rs`'s read advisory (another account can read
   the file) does not cover it yet. Adding it to that advisory is a small change in
   `crates/nvs-config/src/secret.rs` and `mail.rs` `canonicalize`.
@@ -748,10 +717,12 @@ recorded. No unit test or conformance case is expected red.
   `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Nothing is escaped wrongly,
   but the value is not kept as written. Inlining cost grows with rules times elements, and only
   depth is capped; the author of the markup alone can trigger it.
-
 - CI run 45749655184, `test / linux-x86_64 (tests)`: `serve::tests::
   a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:5555`)
   read 691 − 333 = 358 host stack pages for 32 waiting requests, over the bound 11 × 32 = 352. It
   is a Linux debug count, and no commit since touches `serve.rs`. Find what grew a waiting
   request's host stack with `bun nv linux-test` before any change to the bound, which alone is not
   a fix. Not this goal's work; a session with room takes it.
+- Nightly CI run 45609291264 (miri `nvs-stdlib` shards, proofs on three runners, macOS tests) ran
+  on `53e94a9181`; its failures are fixed on main by `1c3196b0e8` and `c115a735a1`. The next
+  nightly confirms it.

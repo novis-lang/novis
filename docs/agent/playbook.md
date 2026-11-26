@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **Stamp the keys `site --review` printed before the build, not the list it prints after.** In
+  `mail-complete` stage 9, the list read again after a `cargo build` had ten debug texts from
+  another goal that the first list did not. Passed to `--review --stamp`, they were stamped
+  unreviewed, and their `review-baseline.json` entries were removed. Save the key list once, at the review, and
+  stamp only that list. See `tools/nv/cmd/site.ts`.
 - **A website page has no inline Novis code: every ` ```nvs ` block is a `<Snippet>`.** In
   `mail-complete` stage 9, a writing subagent briefed with the page's path alone wrote ten inline
   fences, and `site --check snippets` refused them all. It could not write the snippet files
