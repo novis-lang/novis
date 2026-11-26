@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/errors/ambiguous-input-refused.md]
   - id: 2
     title: "a block reaches a server on port 465, with STARTTLS and no password, with its own CA, and with AUTH LOGIN, and an oversized message sends no DATA"
-    status: open
+    status: done
     context: [crates/nvs-host/src/tls.rs, crates/nvs-stdlib/src/db/open.rs]
   - id: 3
     title: "a send reuses an open connection to its block, under the bounds [db.<name>.pool] has"
@@ -29,7 +29,7 @@ stages:
     status: open
     context: [docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md]
   - id: 7
-    title: "a block with a DKIM key signs every message it sends"
+    title: a block with a DKIM key signs every message it sends
     status: open
   - id: 8
     title: "a capture block keeps its mail, Core\\Test\\SentMail reads every new part, and the debug viewer shows a mail page"
@@ -228,6 +228,18 @@ $subject, string|Core\Html\Markup $body, {options}): string`.
 - A rejected `RCPT` stays all-or-nothing: the session sends `RSET`, and the `IOError` names every
   rejected address. Sending to part of a list is declined: a program that wanted that sends one
   message per recipient.
+- The settings errors are boot errors (`E0601`) in a new `crates/nvs-config/src/mail.rs`, on
+  `ldap.rs`'s shape, which also trust-checks `tls_ca_file` as `[ldap]` does. Besides `none` with a
+  credential, it refuses an `auth` with no credential and a `tls_ca_file` beside `tls = "none"`:
+  each would be read and never used. `endpoint_of` repeats the `tls` and `auth` checks as a
+  `RuntimeError`, and `deliver` refuses to write a password on an unsecured session, so a tree that
+  skipped the boot check still never sends one in the clear.
+- `auth` takes `plain` and `login` until stage 6, which adds `xoauth2` to
+  `nvs_config::mail::auth_from` and its refusal.
+- `SIZE` is checked before `MAIL FROM`, on the message plus its five-byte terminator, so the server
+  gets no transaction at all. `SIZE 0` and a bare `SIZE` mean no limit (RFC 1870). The `SIZE=`
+  parameter on `MAIL FROM` is not sent: the check before it already covers the case.
+- `251` (not local, will forward) is an accepted `RCPT`.
 
 **The connection pool (stage 3).** The module doc's declined connection reuse (`mail.rs:81`) is
 reversed: with TLS, each message pays a handshake, and one reused connection is countable less work
@@ -387,24 +399,32 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 2. a block reaches a server on port 465, with STARTTLS and no password, with its own CA, and with AUTH LOGIN, and an oversized message sends no DATA
 
-- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `tls`, `tls_ca_file`, `auth` and
+- [x] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `tls`, `tls_ca_file`, `auth` and
   `return_path`, each with its default and settings errors per § *Transport*; the `bounceTag` option
   in `OPTIONS` (`crates/nvs-stdlib/src/mail/mod.rs:162`), read by `endpoint_of` (`mod.rs:511`).
-- [ ] `crates/nvs-stdlib/src/mail/smtp.rs:91` (`Session::open`) and `:121` (`secure`): implicit
+  - [x] the four `MailEndpoint` fields and their `[mail.default]` lines
+  - [x] `crates/nvs-config/src/mail.rs`: the defaults, the boot refusals, `tls_ca_file` trust-checked
+  - [x] `Endpoint` and `endpoint_of` read them, and `bounceTag` is slot 13
+- [x] `crates/nvs-stdlib/src/mail/smtp.rs:91` (`Session::open`) and `:121` (`secure`): implicit
   TLS, and `over_bundle` (`crates/nvs-host/src/tls.rs:241`) for `tls_ca_file`.
-- [ ] `crates/nvs-stdlib/src/mail/smtp.rs:360` (`deliver`): `AUTH LOGIN`, `SIZE`, `RSET` with every
+- [x] `crates/nvs-stdlib/src/mail/smtp.rs:360` (`deliver`): `AUTH LOGIN`, `SIZE`, `RSET` with every
   rejected address named. `MAIL FROM` from `return_path` and the bounce tag goes through
   `envelope_sender` (`smtp.rs:326`), which already adds `SMTPUTF8`.
-- [ ] The nine tests of the check `transport` over a fake server on a `std::net::TcpListener`, as
+  - [x] `authenticate` picks `PLAIN` or `LOGIN`
+  - [x] `size_limit` stops the send before `MAIL FROM`
+  - [x] every `RCPT` reply is read, and a rejection sends `RSET` and names each address
+  - [x] `bounce_sender` writes `local+tag@domain`
+- [x] The nine tests of the check `transport` over a fake server on a `std::net::TcpListener`, as
   `a_reply_is_capped_per_line_and_per_reply` (`smtp.rs:495`) has, then `cargo test --lib mail::`
   once.
 
 ### 3. a send reuses an open connection to its block, under the bounds [db.<name>.pool] has
 
-- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `pool` and `[mail.<name>.pool]`,
-  shaped like `[db.<name>.pool]` (`default.toml:853`).
+- [ ] `crates/nvs-config/src/tree.rs:968` (`MailEndpoint`), `crates/nvs-config/src/mail.rs`
+  (`validate`) and `default.toml:868`: `pool` and `[mail.<name>.pool]`, shaped like
+  `[db.<name>.pool]` (`default.toml:853`) and read as `crates/nvs-config/src/ldap.rs` `pool_for` does.
 - [ ] `crates/nvs-stdlib/src/mail/pool.rs:1` (new): per block, per core; `RSET` on reuse, one
-  replacement, idle and lifetime closing. `deliver` (`mail.rs:1054`) takes a pooled session.
+  replacement, idle and lifetime closing. `deliver` (`smtp.rs:552`) takes a pooled session.
 - [ ] The five tests of the check `pool`, counting connections at the fake server, then
   `cargo test --lib mail::` once.
 
@@ -442,7 +462,7 @@ because they share `compose.rs` and `smtp.rs`.
 - [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: the `oauth_*` keys and their
   settings errors.
 - [ ] `crates/nvs-stdlib/src/mail/oauth.rs:1` (new): both grants, the per-block cache, `AUTH
-  XOAUTH2` in `deliver` (`mail.rs:1054`).
+  XOAUTH2` in `authenticate` (`smtp.rs:447`), and `xoauth2` in `nvs_config::mail::auth_from`.
 - [ ] The five tests of the check `oauth`, against a fake token server and the fake SMTP server,
   then `cargo test --lib mail::` once.
 
@@ -508,39 +528,38 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Written by an interactive session on 2026-11-26 from the user's ask: mail must have everything a web
-app needs, with helpers for what is hard by hand, and CSS inlining that a developer knows about and
-knows how to use. The user agreed to the gap list, to `Core` composing the message and to CSS
-inlining. A user report then added: `Auto-Submitted` on by default and `return_path` with
-`bounceTag` (both the user's calls), and receiving mail as the goal `mail-receive`. Every other choice
-under § *Standing decisions* is the session's, including XOAUTH2 in scope, the pool, DKIM,
-`preview`, the returned (never given) `Message-ID`, and the `string|Core\Html\Markup` body.
+The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
+`return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stage 1 is done. `send` writes a `Message-ID` and returns it, `From:` carries a display name,
-`inReplyTo`, `references`, `unsubscribe` and `autoSubmitted` are options, and
-`Core\Mail\Address::of` (`crates/nvs-stdlib/src/mail/mod.rs`, `ADDRESS`) is a named recipient in
-`$to`, `cc`, `bcc` and `replyTo`. Every name goes through `compose::mailbox`, and every address
-through `compose::address_of`, which writes a non-ASCII domain as punycode (`idna`, adapter pinned
-to 1.1). A non-ASCII local part needs `SMTPUTF8`, checked by `smtp::envelope_sender`. All nine
-`headers` tests pass under `cargo test --lib mail::`, and three conformance cases cover
-`Core\Mail\Address::of` (`tests/conformance/core/mail-a-named-address-*`,
-`mail-address-of-throws-*`, `mail-an-international-domain-*`). The nightly CI failures the sweep
-named came from `53e94a9181`, before `1c3196b0e8` fixed every one of them.
+Stages 1 and 2 are done. Stage 1: `send` returns the `Message-ID` it wrote, takes `fromName`,
+`inReplyTo`, `references`, `unsubscribe`, `autoSubmitted` and `Core\Mail\Address::of` recipients,
+and sends a non-ASCII domain as punycode; the nine `headers` tests pass. The nightly CI failures
+the sweep named (run 45609291264) ran on `53e94a9181`, which `1c3196b0e8` fixed.
 
-Stage 2's anchors name the new files. The anchors under stages 3 to 10 still name `mail.rs` lines;
-read `mod.rs`, `compose.rs` or `smtp.rs` for each.
+Stage 2: `[mail.<name>]` has `tls`, `tls_ca_file`, `auth` and `return_path`, judged at boot by
+the new `crates/nvs-config/src/mail.rs` (`validate`, `canonicalize`, `tls_from`, `auth_from`), and
+`send` has `bounceTag` (slot 13, `args: [14]`). `smtp.rs` opens implicit TLS in `Session::open`,
+verifies with `tls_ca_file` through `handshake`, sends `AUTH LOGIN` in `authenticate`, checks
+`SIZE` in `size_limit`, reads every `RCPT` reply and sends `RSET` on a rejection, and writes
+`local+tag@domain` in `bounce_sender`. `deliver` takes an `Envelope` (sender and recipients). The
+nine `transport` tests pass (`looper check --name transport`), over the fake server `serve` in
+`smtp.rs`'s tests, which speaks plain, implicit TLS or `STARTTLS` with an `rcgen` certificate.
+`a_mail_block_s_tls_defaults_and_refusals` in `nvs-config` passes too.
 
 ### Next
 
-Stage 2, in its item order. Start with the configuration keys in `MailEndpoint`
-(`crates/nvs-config/src/tree.rs:968`) and `[mail.default]` (`crates/nvs-config/src/default.toml:868`),
-then `Endpoint` and `endpoint_of` (`crates/nvs-stdlib/src/mail/mod.rs:511`), then `smtp.rs`. The
-fake-server tests open a `std::net::TcpListener` as `a_reply_is_capped_per_line_and_per_reply`
-(`smtp.rs:495`) does: `Session::open` works against one with no runtime. `tls_ca_file` needs a
-test certificate; look for one `[db]`'s TLS tests use (`crates/nvs-stdlib/src/db/open.rs`).
+Stage 3, the pool. Start with the keys in `MailEndpoint` (`crates/nvs-config/src/tree.rs:968`)
+and `crates/nvs-config/src/mail.rs` `validate`, read through `crate::db::pool_of` as
+`crates/nvs-config/src/ldap.rs` `pool_for` does. Then `crates/nvs-stdlib/src/mail/pool.rs`: the
+`ldap` pool in `crates/nvs-stdlib/src/ldap/mod.rs` is the nearest per-block, per-core pool to copy.
+`deliver` (`smtp.rs:552`) splits into opening a `Session` (greeting, TLS, `authenticate`) and one
+transaction (`SIZE`, envelope, `DATA`), so a pooled session runs only the second half after `RSET`.
+The fake server `serve` (`smtp.rs` tests) accepts one connection; the pool tests need it to accept
+several and count them.
 
-Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send` and the
-new `Core\Mail\Address::of` (no `about.md`, examples, bench, attack or website page yet). No unit
-test or conformance case is expected red.
+Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send` and
+`Core\Mail\Address::of` (no `about.md`, examples, bench, attack or website page yet), and the
+reference-card review for `send`, whose `bounceTag`, `RuntimeError` and `IOError` texts changed.
+No unit test or conformance case is expected red.
 
 ### Backlog
