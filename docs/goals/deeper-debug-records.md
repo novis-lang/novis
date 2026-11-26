@@ -414,15 +414,15 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### 8. the feature proofs, the help and the website say what a record holds
 
-- [ ] `website/src/content/docs/tools/debug-viewer/index.mdx`: memory, the handler link, the stack,
+- [x] `website/src/content/docs/tools/debug-viewer/index.mdx`: memory, the handler link, the stack,
   event outcomes, the Runs view and the inline link, with a screenshot of each new view, then stamped.
   - [x] The text: handler, memory and size tiles, the Cache tab, event results, the stack, the
     inline link and a Runs section, stamped.
-  - [ ] A scheduled or queue run's exception and frames name a path relative to the project, as a
+  - [x] A scheduled or queue run's exception and frames name a path relative to the project, as a
     request's do, and the run list's name column keeps the name when the row has an exception.
-  - [ ] `runs.shot` taken again and shown on the page, and a run page shot (`run.shot`) of the
+  - [x] `runs.shot` taken again and shown on the page, and a run page shot (`run.shot`) of the
     failed run's Exception tab with its stack.
-  - [ ] Every existing viewer shot taken again, since the rail gained **Runs**.
+  - [x] Every existing viewer shot taken again, since the rail gained **Runs**.
 - [x] Every page that documents `[debug] inline` is reread and stamped. An `Explore` subagent lists
   them first.
 - [x] `website/src/data/changes.json`: `changed` the debug viewer (memory, handler, sizes, stack,
@@ -431,12 +431,11 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
   the Runs view's feature proof.
 - [ ] `bun nv proofs --owed --goal deeper-debug-records` names nothing, and the check `proofs` is
   green.
-  - [ ] The 114 member benches that stages 4 and 5 made stale are measured again and committed
-    (113 are; `Core\IO\Metadata::modifiedAt` is not).
+  - [x] The 114 member benches that stages 4 and 5 made stale are measured again and committed.
   - [ ] `bun nv proofs --gate --limit 0` and the check `proofs` are green.
-- [ ] `bun nv site --check stale`, `changes` and `shots` are green.
+- [x] `bun nv site --check stale`, `changes` and `shots` are green.
   - [x] `stale` and `changes` are green.
-  - [ ] `shots` is green.
+  - [x] `shots` is green.
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -449,42 +448,45 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 8 is half done. `7f4bb5fc70` adds `viewer/test/runs.browser.test.ts`, green once. `777e626974`
-wrote the viewer page's text (tiles, Cache tab, event results, stack, inline link, Runs), the
-reference's `/runs` rows, both `about.md` files and the `[debug] inline` help, and three
-`changes.json` entries. Three `debug_api` tests cover `tools:cli/the-debug-viewer`, and five
-`Core\Test\Response` members are `unseen`. `site --check stale changes prose` is green.
-`22269cb53d` records 113 of the 114 stale member benches. `Core\IO\Metadata::modifiedAt` failed its
-growth check twice with unsteady slopes (1.22, 4.13): noise under WSL is likely, not shown.
+Stage 8 is done except its `proofs` item, whose only red is two reviews that stage 9's first item
+does. `bun nv proofs --gate --goal deeper-debug-records` names exactly two owed proofs:
+`reviewed` for `docs/examples/config/debug-inline/about.md` and
+`docs/examples/tools/cli/the-debug-viewer/about.md`. Nothing else is owed.
 
-**A bug the shot found.** `website/snippets/tools/debug-viewer/runs/` (two `on = "start"` schedules)
-and `runs.shot` are in the tree, uncommitted. A failed scheduled run's exception site is an
-absolute path, where a request's is relative: server work compiles its script from the resolved
-path (`crates/nvs-server/src/schedule.rs:658`), and `spool::Exception::of`
-(`crates/nvs-runtime/src/spool.rs:338`) copies it. The long site also hides the run's name
-(`viewer/src/views/runs.tsx` `RunCells`).
+- `7a825c9ec9`: `spool::record_under` calls `Record::anchor_files`
+  (`crates/nvs-runtime/src/spool.rs`). It writes each exception, frame, chain and dump file under
+  the working directory relative to it, so a scheduled or queued run's sites read as a request's.
+  The unit test `a_runs_files_are_written_relative_to_the_working_directory` pins it. A query or
+  copy site's file is left as the program named it, because the editor's lens matches on it.
+  The run list's name keeps its room (`viewer/src/styles/requests.css` `.path-text`).
+- `a02b3dad16`: `runs.shot` and `run.shot` are on the page's Runs section, and every viewer shot is
+  taken again. The stack's `.frame` rule had broken the window's grid on every page (the rail sat
+  in a row of its own), so a stack frame is `.stack-frame` now, and
+  `viewer/test/request.browser.test.ts` checks the window stays a grid. A `.shot.out` masks a size
+  as `<size>` (`tools/nv/lib/shoot.ts`), because a memory peak moves between runs.
+  `site --check stale changes shots` is green.
+- `Core\IO\Metadata::modifiedAt` is recorded again (`growth: unclear`, which the gate accepts).
 
-Expected red at stage 9: `shots` for every viewer shot (the rail gained **Runs**), a browser test
-that counts the rail's items, and `site --check review` for the rewritten texts.
+The nightly sweep's red jobs tested `53e94a9181`; HEAD already fixes all three causes.
+Expected red at stage 9: `site --check review` for the rewritten texts, and the two `reviewed`
+proofs above.
 
 ### Next
 
-Stage 8's second session:
+Stage 9 (this goal closes; the full gate runs at a later goal on the chain):
 
-1. Make a run's exception site, its frames, its dumps' and its logs' files relative to the project
-   for scheduled and queue runs, as a request's are. First find where a request's file becomes
-   relative (a request compiles `public/index.nvs` from the app root) and do the same for server
-   work's script, or strip the app root once in `spool::run`. A test in
-   `crates/nvs-cli/tests/request.rs` beside stage 6's run-line test pins it.
-2. `RunCells`: the name keeps its room when the row has an exception, as a request row's path does.
-3. `bun nv site --shoot website/snippets/tools/debug-viewer/runs.shot`, and a `run.shot` with a
-   `run/` app (a copy of `runs/`) that opens the failed run's Exception tab
-   (`click .runs .threw`, then `click .tabs a[href$='tab=exception']`, `wait .exception .frames`).
-   Add both `<Shot>`s to the Runs section, look at each picture, then take every viewer shot again.
-4. `bun nv proofs --record-perf --only 'Core\IO\Metadata::modifiedAt'` on a quiet machine. If it
-   fails again with a steady slope, read `benches/members/core/IO-Metadata/modifiedAt.nvs` for
-   work that grows with its batch.
-5. `bun nv proofs --gate --limit 0` and `looper check --name proofs`, then `site --check shots`.
+1. The newcomer review, prose.md § *A newcomer reads it*: `bun nv site --review`, batch the keys,
+   send each brief to a `reader` subagent, fix every finding, then stamp. Include both `about.md`
+   files above, the debug viewer page and the `[debug] inline` help. Run `cargo build` before
+   stamping a `help:` key.
+2. Tick stage 8's `proofs` item once `bun nv proofs --gate --goal deeper-debug-records` is green,
+   and set stage 8 done in the front matter.
+3. The close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, the tests this goal wrote,
+   by name (`cargo test --test debug_ingest`, `cargo test --test debug_api`, the spool unit test
+   above, `bun test viewer/test/runs.browser.test.ts viewer/test/request.browser.test.ts`), then
+   `bun nv close --goal deeper-debug-records`, fixing each red it names.
+4. Before the goal file is deleted, move each standing decision only its prose holds into a rule
+   or a module doc.
 
 ### Backlog
 

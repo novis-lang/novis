@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **The viewer's CSS is one global sheet, so a new class name must not reuse one in `ui.css`.**
+  In `deeper-debug-records` stage 3, the stack's `.frame` rule took the name of the window's grid,
+  and every viewer page put the rail in a row of its own. Only a re-shot picture showed it, five
+  stages later. Grep `viewer/src/styles/` for a class before you add it, and rebuild with
+  `bun nv viewer` before any shot, since the binary embeds `viewer/dist/`.
 - **A `changes.json` entry for a changed feature needs a test with a `// covers:` line for it.**
   A feature's behaviour hash reads only the tests that cover it. In `static-in-callables`, three new
   conformance cases had no `// covers:` line, so `site --check changes` said the feature "has not
