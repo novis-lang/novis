@@ -1349,6 +1349,7 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Result<Value, Fa
         coverage: _,
         trace_sink: _,
         store: _,
+        recorded: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

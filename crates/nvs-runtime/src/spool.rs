@@ -207,6 +207,22 @@ pub struct Request {
     pub path: String,
     /// The response status.
     pub status: u16,
+    /// The highest the request's memory was, in bytes, where a program ran.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_peak: Option<u64>,
+    /// The request's memory ceiling, `[limits] memory` in bytes, where it had one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_limit: Option<u64>,
+    /// The matched route's handler, `Class::method`, where a route matched and a program ran.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handler: Option<String>,
+    /// The request body bytes the server read, where a program ran.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_in: Option<u64>,
+    /// The response body bytes, where their length was known as the head went out: every
+    /// answer but a streamed one, which the access line counts the same way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes_out: Option<u64>,
     /// The exception the request did not catch, when there was one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exception: Option<Exception>,
@@ -1090,6 +1106,19 @@ impl Store {
     }
 }
 
+/// What a finished request's context knows that its `request` line records, read where it
+/// finished and carried to the door that writes the line on a
+/// [`Completion`](crate::host::Completion), only while [`Store`] is on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Finished {
+    /// The highest the request's memory was, in bytes (`Ctx::memory_peak`).
+    pub memory_peak: u64,
+    /// The ceiling the operator wrote, `[limits] memory` in bytes, or `None` where it had none.
+    pub memory_limit: Option<u64>,
+    /// The matched route's handler, `Class::method`, or `None` where no route matched.
+    pub handler: Option<String>,
+}
+
 /// One header as a record writes it: its value replaced with [`REDACTED`] when its name is one of
 /// the [`CREDENTIALS`], and read as UTF-8 with each invalid byte replaced.
 #[must_use]
@@ -1567,6 +1596,11 @@ mod tests {
             route: Some("/orders/{id}".to_owned()),
             path: "/orders/7".to_owned(),
             status: 500,
+            memory_peak: Some(1_048_576),
+            memory_limit: Some(134_217_728),
+            handler: Some("Shop\\Orders::create".to_owned()),
+            bytes_in: Some(34),
+            bytes_out: Some(3),
             exception: Some(Exception {
                 class: "Shop\\OutOfStock".to_owned(),
                 message: "item 7 is out of stock".to_owned(),

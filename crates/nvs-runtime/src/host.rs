@@ -722,6 +722,11 @@ pub struct Completion {
     /// [`Self::content_type`]'s reason: the door that writes the request's `request` line never
     /// holds its context (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
     pub store: Option<crate::spool::Store>,
+    /// The child's memory peak and limit and its route's handler, read where it finished, and
+    /// `None` unless [`Self::store`] is on: the `request` line's facts, carried for that field's
+    /// reason. Spends two integers and the handler's name per completion while `[debug] store`
+    /// is on.
+    pub recorded: Option<crate::spool::Finished>,
 }
 
 impl Completion {
@@ -1167,6 +1172,7 @@ mod tests {
             coverage: None,
             trace_sink: None,
             store: None,
+            recorded: None,
         };
 
         let read = {
@@ -1212,6 +1218,7 @@ mod tests {
                 coverage: None,
                 trace_sink: None,
                 store: None,
+                recorded: None,
             }
         }
 

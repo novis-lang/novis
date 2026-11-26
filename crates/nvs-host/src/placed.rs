@@ -383,6 +383,7 @@ fn received(crossed: Crossed, receiving: &Receiving<'_>) -> Completion {
         // A `spawn worker` child answers no request, so no door writes a
         // `request` line from it.
         store: None,
+        recorded: None,
     }
 }
 

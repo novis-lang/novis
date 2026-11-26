@@ -310,6 +310,12 @@ impl Supply {
         self.wire.borrow().ended
     }
 
+    /// The body bytes read off the wire so far: the count `upload_total` is held to.
+    #[must_use]
+    pub fn carried(&self) -> u64 {
+        self.wire.borrow().carried
+    }
+
     /// Records each chunk the program pulls from here on into `recorder`.
     pub fn record(&self, recorder: nvs_runtime::spool::Recorder) {
         self.wire.borrow_mut().recording = Some(recorder);

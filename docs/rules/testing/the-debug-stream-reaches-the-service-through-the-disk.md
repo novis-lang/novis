@@ -53,7 +53,7 @@ missing optional field as absent, so a field added later still reads an older sp
 
 | `kind` | Fields |
 |---|---|
-| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (an *exception*, below), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`); optional, from goal `deeper-debug-records`: `memory_peak` and `memory_limit` (bytes), `handler` (the name `Route::handler()` gives), `handler_site` (`file`, `line`, when the route table has one), `bytes_in` (the body bytes the program read) and `bytes_out` (the body bytes written) |
+| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (an *exception*, below), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`), and, where a program ran, `memory_peak` and `memory_limit` (bytes, read as its context ends), `handler` (the name `Route::handler()` gives, where a route matched) and `bytes_in` (the request body bytes the server read); optional `bytes_out` (the response body bytes, where the head knew the length, as the access line counts them: every answer but a streamed one) |
 | `event` | `event` (one of `rule:observability/trace-events-carry-a-kind`'s kinds), `label`, `start_us`, `end_us`; optional `status` (a `call` exit's checked-return status), `query` (`driver`, `sql`, optional `rows` and `site`), `target` (an `http` event's host and path, a `cache` or `session` event's key, a `file` event's path) and `site` (an `http`, `cache`, `session` or `file` call's site); a `site` has `file`, `line` and `hash`. Optional, from goal `deeper-debug-records`, the event's outcome: `hit` and `tier` (`memory` or `redis`) on a `cache` read, `http_status`, `bytes_in` and `bytes_out` on an `http` event, `bytes` on a `file` event, `command` (the program's name) and `exit` on a `spawn` of a process, `recipients` and `ok` on a `mail` event, and `queue`, `job` (the job's script, as `Core\Queue::push` named it) and `delay_ms` on a `queue` event |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
@@ -119,3 +119,6 @@ Under `nvs serve` each core runs one task that seals its file at the deadline
   takes seconds to enumerate.
 - **A cap enforced across every writer's files.** Each seal would scan the directory, and the writers
   would need to agree on which file is oldest.
+- **A handler's file and line on its `request` line.** Neither route table keeps the handler's
+  declaration site, and adding one puts a string per route in every compiled table for a link the
+  viewer can make from the handler's name.

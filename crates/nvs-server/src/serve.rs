@@ -1624,8 +1624,12 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
     };
     let done = streamed.peer.collect(ctx);
     if let Some(line) = streamed.line.take() {
-        let recorded = streamed.peer.supply.as_ref().and_then(Supply::recorded);
-        line.written(done.as_ref(), recorded);
+        let supply = streamed.peer.supply.as_ref();
+        line.written(
+            done.as_ref(),
+            supply.and_then(Supply::recorded),
+            supply.map(Supply::carried),
+        );
     }
     if let Some(mut done) = done {
         // The spans first, because the discharge below is the end of this
@@ -1999,6 +2003,9 @@ where
             if ctx.borrow().config().is_none() {
                 ctx.borrow_mut().set_config(Arc::clone(under));
             }
+            // The body's length where the head knows it: the access line's `bytes` and the
+            // `request` line's `bytes_out`.
+            let bytes = response.body().size_hint().exact();
             crate::trace::access(
                 &mut ctx.borrow_mut(),
                 on,
@@ -2008,7 +2015,7 @@ where
                     path: &target,
                     status,
                     took,
-                    bytes: response.body().size_hint().exact(),
+                    bytes,
                     client_ip: client,
                     client_ip_logged: under.client_ip_logged(),
                     route,
@@ -2022,15 +2029,8 @@ where
                 return;
             }
             let later = matches!(ending, crate::spooled::Ending::Later);
-            let (store, exception) = match ending {
-                crate::spooled::Ending::Ran(store, exception, coverage) => {
-                    crate::spooled::covered(store, &trace, coverage);
-                    (store, exception.map(|exception| *exception))
-                }
-                crate::spooled::Ending::Door | crate::spooled::Ending::Later => {
-                    (crate::spooled::door_store(under), None)
-                }
-            };
+            let (store, outcome) =
+                ending.settled(|| crate::spooled::door_store(under), &trace);
             // In `development`, the response as it goes out: its headers and
             // the bytes of a whole body. A streamed body is recorded as it is
             // sent, and its line waits for it.
@@ -2052,7 +2052,8 @@ where
                 route,
                 status,
                 took,
-                exception,
+                outcome,
+                bytes_out: bytes,
                 input: input.map(|input| *input),
                 response: recorded,
             };
@@ -2668,6 +2669,7 @@ where
                                         input.as_deref_mut(),
                                         peer.supply.as_ref().and_then(Supply::recorded),
                                     );
+                                    ending.read(peer.supply.as_ref().map(Supply::carried));
                                     // `rule:errors/http-message-defects`: a body
                                     // whose framing the client wrote wrong is a
                                     // `400` that closes, whatever the program
@@ -4040,6 +4042,7 @@ pub(crate) mod tests {
             coverage: None,
             trace_sink: None,
             store: None,
+            recorded: None,
         }
     }
 
@@ -7332,6 +7335,7 @@ pub(crate) mod tests {
                 coverage: None,
                 trace_sink: None,
                 store: None,
+                recorded: None,
             }
         }
 

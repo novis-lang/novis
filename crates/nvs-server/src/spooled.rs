@@ -26,7 +26,8 @@
 //!
 //! **What it spends:** with `[debug] store` off, one read of the resolved configuration per request
 //! where the door copies the head, and one more per answer the door wrote alone. With it on, one `request` line built
-//! and written per answer, and per streamed answer its method, path and route held until its body
+//! and written per answer, one boxed [`Ran`] per answer a program ran (its memory peak and limit,
+//! its handler's name and the body bytes read, carried from the isolate's end to the line), and per streamed answer its method, path and route held until its body
 //! ends. In `development`, per request, a copy of its head and the recorded body bytes, at most
 //! `spool::BODY_CHUNK` of them held at once for each of the request and the response.
 
@@ -48,29 +49,82 @@ pub enum Ending {
     /// The door wrote the answer alone, or the program's completion never came back, so the gate
     /// is read off the snapshot the answer was written under.
     Door,
-    /// The program ended under this gate, with this uncaught exception and the lines it ran. Both
-    /// are boxed because an `Ending` is held across the handler's wait, on the connection's stack.
-    Ran(
-        Option<Store>,
-        Option<Box<spool::Exception>>,
-        Option<Box<spool::Coverage>>,
-    ),
+    /// The program ended, with what its line records, or `None` where it ended with the store
+    /// off. Boxed because an `Ending` is held across the handler's wait, on the connection's
+    /// stack, and only a recorded request pays for the box.
+    Ran(Option<Box<Ran>>),
     /// The head went out while the program still writes the body, so the line waits for the join.
     Later,
 }
 
 impl Ending {
-    /// How `done` ended: its gate, its failure and its coverage.
+    /// How `done` ended: its gate, and under it its failure, its coverage and what its context
+    /// knew as it finished.
     #[must_use]
     pub fn of(done: &Completion) -> Self {
-        Self::Ran(
-            done.store,
-            done.error
-                .as_ref()
-                .map(|failure| Box::new(exception(failure))),
-            done.store.and_then(|_| coverage(done)).map(Box::new),
-        )
+        Self::Ran(done.store.map(|store| {
+            Box::new(Ran {
+                store,
+                coverage: coverage(done),
+                outcome: Outcome {
+                    exception: done.error.as_ref().map(exception),
+                    finished: done.recorded.clone(),
+                    bytes_in: None,
+                },
+            })
+        }))
     }
+
+    /// Records `bytes`, the request body bytes the server read, on a recorded run.
+    pub fn read(&mut self, bytes: Option<u64>) {
+        if let Self::Ran(Some(ran)) = self {
+            ran.outcome.bytes_in = bytes;
+        }
+    }
+
+    /// The gate the line is written under and what it records, with the coverage line written
+    /// under that gate first. `under` is the gate of an answer the door wrote alone.
+    pub fn settled(
+        self,
+        under: impl FnOnce() -> Option<Store>,
+        trace: &nvs_runtime::TraceContext,
+    ) -> (Option<Store>, Outcome) {
+        match self {
+            Self::Ran(Some(ran)) => {
+                let Ran {
+                    store,
+                    coverage,
+                    outcome,
+                } = *ran;
+                covered(Some(store), trace, coverage);
+                (Some(store), outcome)
+            }
+            Self::Ran(None) => (None, Outcome::default()),
+            Self::Door | Self::Later => (under(), Outcome::default()),
+        }
+    }
+}
+
+/// A recorded program's ending: its gate, the lines it ran, and what its line records.
+#[derive(Debug)]
+pub struct Ran {
+    /// The gate it ended under.
+    pub store: Store,
+    /// The lines it ran, where its host counted them.
+    pub coverage: Option<spool::Coverage>,
+    /// What its `request` line records of it.
+    pub outcome: Outcome,
+}
+
+/// What a `request` line records of the program that ran, beside what the door knows.
+#[derive(Debug, Default)]
+pub struct Outcome {
+    /// The exception the request did not catch.
+    pub exception: Option<spool::Exception>,
+    /// Its memory peak and limit and its handler.
+    pub finished: Option<spool::Finished>,
+    /// The request body bytes the server read.
+    pub bytes_in: Option<u64>,
 }
 
 /// The lines `done` ran, where its host located its table: a development server whose `[debug]
@@ -95,13 +149,13 @@ pub fn coverage(done: &Completion) -> Option<spool::Coverage> {
 pub fn covered(
     store: Option<Store>,
     trace: &nvs_runtime::TraceContext,
-    coverage: Option<Box<spool::Coverage>>,
+    coverage: Option<spool::Coverage>,
 ) {
     let (Some(store), Some(mut coverage)) = (store, coverage) else {
         return;
     };
     coverage.span = Some(trace.span_id_hex());
-    spool::record_under(store, trace, spool::Record::Coverage(*coverage));
+    spool::record_under(store, trace, spool::Record::Coverage(coverage));
 }
 
 /// The uncaught exception `failure` names, as a `request` line records it. A failure that names no
@@ -130,8 +184,10 @@ pub struct Answered<'a> {
     pub status: u16,
     /// How long the request ran.
     pub took: Duration,
-    /// The exception the request did not catch.
-    pub exception: Option<spool::Exception>,
+    /// What the line records of the program that ran.
+    pub outcome: Outcome,
+    /// The response body bytes, where their length is known as the head goes out.
+    pub bytes_out: Option<u64>,
     /// The request's input, copied where the store is on in `development`.
     pub input: Option<spool::Input>,
     /// The response's headers and body, recorded where the store is on in `development`.
@@ -215,6 +271,18 @@ pub fn request(store: Option<Store>, trace: &nvs_runtime::TraceContext, answered
     let now_us = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, micros);
+    let Outcome {
+        exception,
+        finished,
+        bytes_in,
+    } = answered.outcome;
+    let (memory_peak, memory_limit, handler) = finished.map_or((None, None, None), |finished| {
+        (
+            Some(finished.memory_peak),
+            finished.memory_limit,
+            finished.handler,
+        )
+    });
     let line = spool::Request {
         span: Some(trace.span_id_hex()),
         start_us: now_us.saturating_sub(duration_us),
@@ -223,7 +291,12 @@ pub fn request(store: Option<Store>, trace: &nvs_runtime::TraceContext, answered
         route: answered.route.map(str::to_owned),
         path: answered.path.to_owned(),
         status: answered.status,
-        exception: answered.exception,
+        memory_peak,
+        memory_limit,
+        handler,
+        bytes_in,
+        bytes_out: answered.bytes_out,
+        exception,
         input: answered.input.filter(|_| store.development),
         response: answered.response.filter(|_| store.development),
     };
@@ -238,6 +311,7 @@ pub struct Pending {
     path: Box<str>,
     route: Option<Box<str>>,
     status: u16,
+    bytes_out: Option<u64>,
     began: Instant,
     trace: nvs_runtime::TraceContext,
     under: Store,
@@ -262,6 +336,7 @@ impl Pending {
             path: answered.path.into(),
             route: answered.route.map(Box::from),
             status: answered.status,
+            bytes_out: answered.bytes_out,
             began,
             trace,
             under: under?,
@@ -272,46 +347,44 @@ impl Pending {
     }
 
     /// Writes the line under the gate `done` ended with, or the snapshot's where the completion
-    /// never came back, with the request body `recorded` holds. Where `hyper` has not taken the
-    /// whole response body yet, its [`Tail`] writes the line when the body ends.
-    pub fn written(mut self, done: Option<&Completion>, recorded: Option<Recorder>) {
+    /// never came back, with the request body `recorded` holds and the `read` bytes the server
+    /// read of it. Where `hyper` has not taken the whole response body yet, its [`Tail`] writes
+    /// the line when the body ends.
+    pub fn written(
+        mut self,
+        done: Option<&Completion>,
+        recorded: Option<Recorder>,
+        read: Option<u64>,
+    ) {
         read_into(self.input.as_mut(), recorded);
-        let (store, exception) = match done.map(Ending::of) {
-            Some(Ending::Ran(store, exception, coverage)) => {
-                covered(store, &self.trace, coverage);
-                (store, exception.map(|exception| *exception))
-            }
-            _ => (Some(self.under), None),
-        };
+        let mut ending = done.map_or(Ending::Door, Ending::of);
+        ending.read(read);
+        let under = self.under;
+        let (store, outcome) = ending.settled(|| Some(under), &self.trace);
         let Some(tail) = self.tail.take() else {
-            self.write(store, exception);
+            self.write(store, outcome);
             return;
         };
         let mut tailing = tail.borrow_mut();
         match tailing.body.take() {
             Some(body) => {
                 drop(tailing);
-                self.write_with(body, store, exception);
+                self.write_with(body, store, outcome);
             }
-            None => tailing.line = Some((self, store, exception)),
+            None => tailing.line = Some((self, store, outcome)),
         }
     }
 
     /// Writes the line with `body` as the response body.
-    fn write_with(
-        mut self,
-        body: spool::Body,
-        store: Option<Store>,
-        exception: Option<spool::Exception>,
-    ) {
+    fn write_with(mut self, body: spool::Body, store: Option<Store>, outcome: Outcome) {
         if let Some(response) = self.response.as_mut() {
             response.body = body;
         }
-        self.write(store, exception);
+        self.write(store, outcome);
     }
 
-    /// Writes the line under `store`, with `exception`. The duration runs to now.
-    fn write(self, store: Option<Store>, exception: Option<spool::Exception>) {
+    /// Writes the line under `store`, with `outcome`. The duration runs to now.
+    fn write(self, store: Option<Store>, outcome: Outcome) {
         request(
             store,
             &self.trace,
@@ -321,7 +394,8 @@ impl Pending {
                 route: self.route.as_deref(),
                 status: self.status,
                 took: self.began.elapsed(),
-                exception,
+                outcome,
+                bytes_out: self.bytes_out,
                 input: self.input,
                 response: self.response,
             },
@@ -342,7 +416,7 @@ struct Tailing {
     /// The body as the line records it, from its end until the join.
     body: Option<spool::Body>,
     /// The line and the gate it is written under, from the join until the body ends.
-    line: Option<(Pending, Option<Store>, Option<spool::Exception>)>,
+    line: Option<(Pending, Option<Store>, Outcome)>,
 }
 
 impl Tail {
@@ -372,9 +446,9 @@ impl Tail {
         };
         let body = recorder.finish(None);
         match tailing.line.take() {
-            Some((line, store, exception)) => {
+            Some((line, store, outcome)) => {
                 drop(tailing);
-                line.write_with(body, store, exception);
+                line.write_with(body, store, outcome);
             }
             None => tailing.body = Some(body),
         }
