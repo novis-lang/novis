@@ -1665,7 +1665,7 @@ tainted, the rule every other key position follows. `column` with `indexBy` over
 `array<tainted string>` does not, since it gives `array<uint>`, and the program checks its values first
 or writes `Core\Taint::assertTrusted`. `mapKeys`' and `groupBy`'s callback types already refuse a
 `tainted` result. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain
-`int|string` element type. `column` without `indexBy` keys by
+`int|uint|string` element type. `column` without `indexBy` keys by
 position and takes `secret` cells. `crates/nvs-stdlib/tests/taint_signatures.rs` reads every member
 that returns an array, and fails naming one with no mark and no answer in its `KEYS_FROM` list:
 positions, an array argument's own keys, or keys read out of text the member parses. A bare

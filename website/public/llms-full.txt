@@ -34423,15 +34423,15 @@ ada 92 no note
 | [`Core\Arr::count`](#core-core-arr-count) | `count(array<T> $a): uint` |
 | [`Core\Arr::filter`](#core-core-arr-filter) | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` |
 | [`Core\Arr::map`](#core-core-arr-map) | `map(array<T> $a, callable(T, string): U $fn): array<U>` |
-| [`Core\Arr::mapKeys`](#core-core-arr-mapkeys) | `mapKeys(array<T> $a, callable(T, string): int\|string $fn): array<T>` |
-| [`Core\Arr::groupBy`](#core-core-arr-groupby) | `groupBy(array<T> $a, callable(T, string): int\|string $key): array<array<T>>` |
+| [`Core\Arr::mapKeys`](#core-core-arr-mapkeys) | `mapKeys(array<T> $a, callable(T, string): int\|uint\|string $fn): array<T>` |
+| [`Core\Arr::groupBy`](#core-core-arr-groupby) | `groupBy(array<T> $a, callable(T, string): int\|uint\|string $key): array<array<T>>` |
 | [`Core\Arr::reduce`](#core-core-arr-reduce) | `reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U` |
 | [`Core\Arr::find`](#core-core-arr-find) | `find(array<T> $a, callable(T, string): bool $predicate): ?T` |
 | [`Core\Arr::findKey`](#core-core-arr-findkey) | `findKey(array<T> $a, callable(T, string): bool $predicate): ?string` |
 | [`Core\Arr::any`](#core-core-arr-any) | `any(array<T> $a, callable(T, string): bool $predicate): bool` |
 | [`Core\Arr::all`](#core-core-arr-all) | `all(array<T> $a, callable(T, string): bool $predicate): bool` |
 | [`Core\Arr::isEmpty`](#core-core-arr-isempty) | `isEmpty(array<T> $a): bool` |
-| [`Core\Arr::hasKey`](#core-core-arr-haskey) | `hasKey(array<T> $a, int\|string $key): bool` |
+| [`Core\Arr::hasKey`](#core-core-arr-haskey) | `hasKey(array<T> $a, int\|uint\|string $key): bool` |
 | [`Core\Arr::contains`](#core-core-arr-contains) | `contains(array<T> $haystack, T $needle): bool` |
 | [`Core\Arr::keyOf`](#core-core-arr-keyof) | `keyOf(array<T> $haystack, T $needle): ?string` |
 | [`Core\Arr::isList`](#core-core-arr-islist) | `isList(array<T> $a): bool` |
@@ -34452,16 +34452,16 @@ ada 92 no note
 | [`Core\Arr::padStart`](#core-core-arr-padstart) | `padStart(array<T> $a, uint $size, T $value): array<T>` |
 | [`Core\Arr::padEnd`](#core-core-arr-padend) | `padEnd(array<T> $a, uint $size, T $value): array<T>` |
 | [`Core\Arr::reverse`](#core-core-arr-reverse) | `reverse(array<T> $a, { preserveKeys?: bool }): array<T>` |
-| [`Core\Arr::flip`](#core-core-arr-flip) | `flip(array<int\|string> $a): array<string>` |
+| [`Core\Arr::flip`](#core-core-arr-flip) | `flip(array<int\|uint\|string> $a): array<string>` |
 | [`Core\Arr::flatten`](#core-core-arr-flatten) | `flatten(array<array<T>> $a): array<T>` |
 | [`Core\Arr::flattenDeep`](#core-core-arr-flattendeep) | `flattenDeep(array<mixed> $a): array<mixed>` |
-| [`Core\Arr::column`](#core-core-arr-column) | `column(array<array<T>> $a, int\|string $column, { indexBy?: int\|string }): array<T>` |
+| [`Core\Arr::column`](#core-core-arr-column) | `column(array<array<T>> $a, int\|uint\|string $column, { indexBy?: int\|uint\|string }): array<T>` |
 | [`Core\Arr::sort`](#core-core-arr-sort) | `sort(array<T> $a, { by?: callable, order?: Core\Arr::Order, comparator?: callable, preserveKeys?: bool }): array<T>` |
-| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int\|string> }): array<T>` |
+| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int\|uint\|string> }): array<T>` |
 | [`Core\Arr::fill`](#core-core-arr-fill) | `fill(uint $count, T $value): array<T>` |
-| [`Core\Arr::fillKeys`](#core-core-arr-fillkeys) | `fillKeys(array<int\|string> $keys, T $value): array<T>` |
+| [`Core\Arr::fillKeys`](#core-core-arr-fillkeys) | `fillKeys(array<int\|uint\|string> $keys, T $value): array<T>` |
 | [`Core\Arr::range`](#core-core-arr-range) | `range(int $start, int $end, { step?: int }): array<int>` |
-| [`Core\Arr::fromKeysAndValues`](#core-core-arr-fromkeysandvalues) | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` |
+| [`Core\Arr::fromKeysAndValues`](#core-core-arr-fromkeysandvalues) | `fromKeysAndValues(array<int\|uint\|string> $keys, array<T> $values): array<T>` |
 | [`Core\Arr::from`](#core-core-arr-from) | `from(array<T>\|Iterable<T>\|Iterator<T> $items, { limit?: uint }): array<T>` |
 | [`Core\Arr::overlay`](#core-core-arr-overlay) | `overlay(array<T> $base, array<U> ...$layers): array<T\|U>` |
 | [`Core\Arr::overlayDeep`](#core-core-arr-overlaydeep) | `overlayDeep(array<T> $base, array<U> ...$layers): array<T\|U>` |
@@ -34529,33 +34529,33 @@ Replaces every value with the result of `$fn` for it. The keys stay the same.
 #### `Core\Arr::mapKeys`
 
 ```nvs skip
-Core\Arr::mapKeys(array<T> $a, callable(T, string): int|string $fn): array<T>
+Core\Arr::mapKeys(array<T> $a, callable(T, string): int|uint|string $fn): array<T>
 ```
 
 Stores every value under the key that `$fn` returns for it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<T>` | The array to re-key. |
-| `$fn` | `callable(T, string): int\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters. It returns the entry's new key, an `int` or a `string`. |
+| `$a` | `array<T>` | The array whose keys change. |
+| `$fn` | `callable(T, string): int\|uint\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters. It returns the entry's new key, an `int`, a `uint` or a `string`. |
 
-**Returns** `array<T>` — The values under their new keys, in first-occurrence order. When two entries get the same key, the last one is kept. `1` and `"1"` are the same key.
+**Returns** `array<T>` — The values under their new keys, in the order each key first appears. When two entries get the same key, the last one is kept. `1` and `"1"` are the same key.
 
 <a id="core-core-arr-groupby"></a>
 #### `Core\Arr::groupBy`
 
 ```nvs skip
-Core\Arr::groupBy(array<T> $a, callable(T, string): int|string $key): array<array<T>>
+Core\Arr::groupBy(array<T> $a, callable(T, string): int|uint|string $key): array<array<T>>
 ```
 
 Puts the entries into groups. `$key` is called for each entry, and its result is the name of the group the entry goes into.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<T>` | The array to partition. |
-| `$key` | `callable(T, string): int\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters. It returns the group's name, an `int` or a `string`. |
+| `$a` | `array<T>` | The array to put into groups. |
+| `$key` | `callable(T, string): int\|uint\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters. It returns the group's name, an `int`, a `uint` or a `string`. |
 
-**Returns** `array<array<T>>` — One inner array per distinct result, in first-occurrence order. Each inner array keeps its entries under their own keys. `1` and `"1"` name the same group.
+**Returns** `array<array<T>>` — One inner array per distinct result, in the order each result first appears. Each inner array keeps its entries under their own keys. `1` and `"1"` name the same group.
 
 <a id="core-core-arr-reduce"></a>
 #### `Core\Arr::reduce`
@@ -34657,7 +34657,7 @@ Checks whether `$a` has no entries.
 #### `Core\Arr::hasKey`
 
 ```nvs skip
-Core\Arr::hasKey(array<T> $a, int|string $key): bool
+Core\Arr::hasKey(array<T> $a, int|uint|string $key): bool
 ```
 
 Checks whether `$a` has an entry under `$key`. An entry whose value is `null` still counts.
@@ -34665,7 +34665,7 @@ Checks whether `$a` has an entry under `$key`. An entry whose value is `null` st
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to look in. |
-| `$key` | `int\|string` (neutral) | The key, an `int` or a `string`; `1` and `"1"` name one entry. |
+| `$key` | `int\|uint\|string` (neutral) | The key, an `int`, a `uint` or a `string`. `1` and `"1"` name one entry. |
 
 **Returns** `bool` — `true` when the key is present, whatever its value is.
 
@@ -34996,16 +34996,16 @@ Returns the entries in the opposite order.
 #### `Core\Arr::flip`
 
 ```nvs skip
-Core\Arr::flip(array<int|string> $a): array<string>
+Core\Arr::flip(array<int|uint|string> $a): array<string>
 ```
 
 Makes every value a key, and every key its value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<int\|string>` | The array to flip. Every value must be an `int` or a `string`. `1` and `"1"` become the same key. |
+| `$a` | `array<int\|uint\|string>` | The array to flip. Every value must be an `int`, a `uint` or a `string`. `1` and `"1"` become the same key. |
 
-**Returns** `array<string>` — The old keys as `string` values, stored under the old values as keys, in first-occurrence order. A repeated value keeps its first position and takes its last key.
+**Returns** `array<string>` — The old keys as `string` values, stored under the old values as keys, in the order each value first appears. When a value repeats, its entry stays where the value first appeared, and it holds the last key that had the value.
 
 <a id="core-core-arr-flatten"></a>
 #### `Core\Arr::flatten`
@@ -35041,16 +35041,16 @@ Removes every level of nesting. There is no depth argument. Use `flatten` to rem
 #### `Core\Arr::column`
 
 ```nvs skip
-Core\Arr::column(array<array<T>> $a, int|string $column, { indexBy?: int|string }): array<T>
+Core\Arr::column(array<array<T>> $a, int|uint|string $column, { indexBy?: int|uint|string }): array<T>
 ```
 
 Takes the cell with one key out of every row.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<array<T>>` | The rows, each an array. |
-| `$column` | `int\|string` | The key of the cell to take; `0` and `"0"` name one cell, as `$row[0]` and `$row["0"]` do. |
-| `{ indexBy: … }` | `int\|string` (default `null`) | The key of the cell to use as the result's key. By default the result gets new integer keys. |
+| `$a` | `array<array<T>>` | The rows. Each row is an array, and each entry of a row is a cell. |
+| `$column` | `int\|uint\|string` | The key of the cell to take; `0` and `"0"` name one cell, as `$row[0]` and `$row["0"]` do. |
+| `{ indexBy: … }` | `int\|uint\|string` (default `null`) | The key of the cell to use as the result's key. By default the result gets new integer keys. |
 
 **Returns** `array<T>` — The cells in row order. A row without the column is skipped. A row without the `indexBy` cell goes under the next free integer key. When two rows have the same `indexBy` value, the last one is kept.
 
@@ -35079,7 +35079,7 @@ Returns the entries in order. The sort is stable, so equal entries keep their or
 #### `Core\Arr::sortByKey`
 
 ```nvs skip
-Core\Arr::sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int|string> }): array<T>
+Core\Arr::sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int|uint|string> }): array<T>
 ```
 
 Returns the entries in key order. The sort is stable, and every key is kept.
@@ -35087,11 +35087,11 @@ Returns the entries in key order. The sort is stable, and every key is kept.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to sort. |
-| `{ order: … }` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal keys keep their insertion order. |
+| `{ order: … }` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison. Equal keys still keep the order they were added in. |
 | `{ comparator: … }` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s. It returns a negative number, zero or a positive number. It replaces the natural order. |
-| `{ keys: … }` | `array<int\|string>` (default `null`) | The keys to put first, in this order. The other keys follow in their current order. A listed key that `$a` does not have is skipped. With `Desc`, the other keys come first, then the listed keys from last to first. |
+| `{ keys: … }` | `array<int\|uint\|string>` (default `null`) | The keys to put first, in this order. The other keys follow in their current order. A listed key that `$a` does not have is skipped. With `Desc`, the other keys come first, then the listed keys from last to first. |
 
-**Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`. For an `array<E, T>`, the result is an `array<E, T>` too.
+**Returns** `array<T>` — The same entries under the same keys, ordered by key. Without a comparator, keys are compared byte by byte, so `"10"` comes before `"9"`. An array keyed by an enum (`array<E, T>`) gives an `array<E, T>` too.
 
 **Throws** `RuntimeError` — The comparator returned `NaN`.; `LogicError` — The call gives both `keys` and `comparator`.
 
@@ -35117,17 +35117,17 @@ Returns `$count` copies of `$value` under the keys `"0", "1", …`. There is no 
 #### `Core\Arr::fillKeys`
 
 ```nvs skip
-Core\Arr::fillKeys(array<int|string> $keys, T $value): array<T>
+Core\Arr::fillKeys(array<int|uint|string> $keys, T $value): array<T>
 ```
 
 Stores `$value` under every key in `$keys`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$keys` | `array<int\|string>` | The keys to store under, given as the array's *values*. Each is an `int` or a `string`. The array's own keys are ignored. |
+| `$keys` | `array<int\|uint\|string>` | The keys to store under, given as the array's *values*. Each is an `int`, a `uint` or a `string`. The array's own keys are ignored. |
 | `$value` | `T` | The value of every entry. |
 
-**Returns** `array<T>` — One entry per distinct key, in first-occurrence order; `1` and `"1"` are one key.
+**Returns** `array<T>` — One entry per distinct key, in the order each key first appears. `1` and `"1"` are one key.
 
 <a id="core-core-arr-range"></a>
 #### `Core\Arr::range`
@@ -35152,14 +35152,14 @@ Returns the integers from `$start` to `$end`, both included. When `$start` is gr
 #### `Core\Arr::fromKeysAndValues`
 
 ```nvs skip
-Core\Arr::fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>
+Core\Arr::fromKeysAndValues(array<int|uint|string> $keys, array<T> $values): array<T>
 ```
 
 Pairs the entries of `$keys` and `$values` in order. Each value is stored under its key.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$keys` | `array<int\|string>` | The keys, given as the array's *values*. Each is an `int` or a `string`. The array's own keys are ignored. |
+| `$keys` | `array<int\|uint\|string>` | The keys, given as the array's *values*. Each is an `int`, a `uint` or a `string`. The array's own keys are ignored. |
 | `$values` | `array<T>` | The values, in the same order. The array's own keys are ignored. |
 
 **Returns** `array<T>` — One entry per pair, in the order of `$keys`. A repeated key keeps its first position and takes its last value. `1` and `"1"` are the same key.
@@ -35300,7 +35300,7 @@ Counts how many entries have each distinct value. With `by`, it counts how many 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to count over. |
-| `{ by: … }` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. It returns the group's name, an `int` or a `string`. Without it, the value itself is the group. |
+| `{ by: … }` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. It returns the group's name, an `int`, a `uint` or a `string`. Without it, the value itself is the group. |
 
 **Returns** `array<uint>` — One `uint` per distinct group, keyed by the group, in the order each group first appears. `1` and `"1"` are the same group.
 

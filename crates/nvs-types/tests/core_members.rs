@@ -135,7 +135,7 @@ fn an_options_bag_may_be_written_or_omitted() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// `Core\Arr::hasKey(array<T> $a, int|string $key)` — the first `Core`
+/// `Core\Arr::hasKey(array<T> $a, int|uint|string $key)` — the first `Core`
 /// signature with a union parameter, checked by `rule:types/unions-and-mixed`'s ordinary
 /// union rule with nothing added for `Core`.
 #[test]

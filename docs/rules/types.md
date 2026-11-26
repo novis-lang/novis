@@ -934,8 +934,8 @@ between two kinds.
   ([`types/array-combination`](types.md#types-array-combination)).
 - What comes back from an array keyed by strings is a `string` everywhere: `Core\Arr::keys()` returns `array<string>`, so do
   `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
-  on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
-  subscript normalisation above is what makes those one key. A key binding declaring any other type is
+  on a packed list exactly as on a map. A key **parameter** still takes `int|uint|string`, the
+  types a subscript takes, because the subscript normalisation above is what makes those one key. A key binding declaring any other type is
   refused where it is written (`E0723`), because there is no array that could fill it. A callback
   that declares `int $k` throws `LogicError` at the call, on a list exactly as on a map.
 - **Memory:** a packed list keeps a key as a position, so a `Core\Arr` member renders one decimal

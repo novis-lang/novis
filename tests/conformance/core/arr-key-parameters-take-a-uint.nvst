@@ -1,0 +1,40 @@
+--TEST--
+Every Core\Arr parameter that takes a key takes a uint, as a subscript does, and the key is its decimal string
+--FILE--
+<?nvs
+final class Render {
+    public static function keys(array<mixed> $a): tainted string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+}
+
+// The largest uint does not fit an int, so it shows the key is the uint's own decimal.
+array<uint> $ids = [7 as uint, 18446744073709551615];
+
+echo Render::keys(Core\Arr::fillKeys($ids, true)), "\n";
+echo Render::keys(Core\Arr::fromKeysAndValues($ids, ["a", "b"])), "\n";
+echo Core\Json::encode(Core\Arr::flip($ids)), "\n";
+
+// `hasKey` finds the entry a uint subscript wrote.
+array<bool> $seen = [];
+$seen[$ids[1]] = true;
+echo Core\Arr::hasKey($seen, $ids[1]) as string, Core\Arr::hasKey($seen, $ids[0]) as string, "|\n";
+
+// A uint names a column, and a uint from a callback names a key.
+array<array<string>> $rows = [["x", "y"], ["p", "q"]];
+echo Core\Json::encode(Core\Arr::column($rows, 1 as uint, { indexBy: 0 as uint })), "\n";
+echo Render::keys(Core\Arr::mapKeys(["a", "b"], fn(string $v, string $k): uint => 10 as uint)), "\n";
+echo Render::keys(Core\Arr::groupBy(["a", "b"], fn(string $v, string $k): uint => 3 as uint)), "\n";
+
+// `sortByKey` puts the keys it is given first, in that order.
+array<string> $byId = ["7" => "seven", "1" => "one", "18446744073709551615" => "max"];
+echo Render::keys(Core\Arr::sortByKey($byId, { keys: $ids })), "\n";
+--EXPECT--
+7,18446744073709551615
+7,18446744073709551615
+{"7":"0","18446744073709551615":"1"}
+1|
+{"x":"y","p":"q"}
+10
+3
+7,18446744073709551615,1

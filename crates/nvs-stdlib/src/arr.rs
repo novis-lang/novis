@@ -239,7 +239,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "fn"],
             // The callback answers a *key*, and `rule:types/arrays` normalises
             // an integer one to its decimal at the subscript rather than
-            // refusing it, so the return type is the same `int|string` an
+            // refusing it, so the return type is the same `int|uint|string` an
             // `indexBy` option accepts — [`ARRAY_KEY_CONTAGIOUS`].
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -945,17 +945,17 @@ const MAP_KEYS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The array to re-key.",
+            desc: "The array whose keys change.",
             shape: &[],
         },
         ParamDoc {
             name: "fn",
             desc: "Called as `($value, $key)` per entry, and may declare fewer parameters. It \
-                   returns the entry's new key, an `int` or a `string`.",
+                   returns the entry's new key, an `int`, a `uint` or a `string`.",
             shape: &[],
         },
     ],
-    ret: "The values under their new keys, in first-occurrence order. When two entries get the \
+    ret: "The values under their new keys, in the order each key first appears. When two entries get the \
           same key, the last one is kept. `1` and `\"1\"` are the same key.",
     errors: &[],
 };
@@ -967,17 +967,17 @@ const GROUP_BY_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The array to partition.",
+            desc: "The array to put into groups.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
             desc: "Called as `($value, $key)` per entry, and may declare fewer parameters. It \
-                   returns the group's name, an `int` or a `string`.",
+                   returns the group's name, an `int`, a `uint` or a `string`.",
             shape: &[],
         },
     ],
-    ret: "One inner array per distinct result, in first-occurrence order. Each inner array keeps \
+    ret: "One inner array per distinct result, in the order each result first appears. Each inner array keeps \
           its entries under their own keys. `1` and `\"1\"` name the same group.",
     errors: &[],
 };
@@ -1112,7 +1112,7 @@ const HAS_KEY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "key",
-            desc: "The key, an `int` or a `string`; `1` and `\"1\"` name one entry.",
+            desc: "The key, an `int`, a `uint` or a `string`. `1` and `\"1\"` name one entry.",
             shape: &[],
         },
     ],
@@ -1503,13 +1503,13 @@ const FLIP_DOC: MethodDoc = MethodDoc {
     short: "Makes every value a key, and every key its value.",
     params: &[ParamDoc {
         name: "a",
-        desc: "The array to flip. Every value must be an `int` or a `string`. `1` and `\"1\"` \
+        desc: "The array to flip. Every value must be an `int`, a `uint` or a `string`. `1` and `\"1\"` \
                become the same key.",
         shape: &[],
     }],
-    ret: "The old keys as `string` values, stored under the old values as keys, in \
-          first-occurrence order. A repeated value keeps its first position and takes its last \
-          key.",
+    ret: "The old keys as `string` values, stored under the old values as keys, in the order \
+          each value first appears. When a value repeats, its entry stays where the value first \
+          appeared, and it holds the last key that had the value.",
     errors: &[],
 };
 
@@ -1547,7 +1547,7 @@ const COLUMN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "a",
-            desc: "The rows, each an array.",
+            desc: "The rows. Each row is an array, and each entry of a row is a cell.",
             shape: &[],
         },
         ParamDoc {
@@ -1625,7 +1625,7 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "order",
             desc: "`Core\\Arr::Order::Asc` (the default) or `Core\\Arr::Order::Desc`. `Desc` \
-                   reverses the comparison, so equal keys keep their insertion order.",
+                   reverses the comparison. Equal keys still keep the order they were added in.",
             shape: &[],
         },
         ParamDoc {
@@ -1642,9 +1642,9 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The same entries under the same keys, ordered by key; the natural order is bytewise, \
-          so `\"10\"` precedes `\"9\"`. For an `array<E, T>`, the result is an `array<E, T>` \
-          too.",
+    ret: "The same entries under the same keys, ordered by key. Without a comparator, keys are \
+          compared byte by byte, so `\"10\"` comes before `\"9\"`. An array keyed by an enum \
+          (`array<E, T>`) gives an `array<E, T>` too.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1686,8 +1686,8 @@ const FILL_KEYS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "keys",
-            desc: "The keys to store under, given as the array's *values*. Each is an `int` or \
-                   a `string`. The array's own keys are ignored.",
+            desc: "The keys to store under, given as the array's *values*. Each is an `int`, a \
+                   `uint` or a `string`. The array's own keys are ignored.",
             shape: &[],
         },
         ParamDoc {
@@ -1696,7 +1696,8 @@ const FILL_KEYS_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "One entry per distinct key, in first-occurrence order; `1` and `\"1\"` are one key.",
+    ret: "One entry per distinct key, in the order each key first appears. `1` and `\"1\"` are \
+          one key.",
     errors: &[],
 };
 
@@ -1737,8 +1738,8 @@ const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "keys",
-            desc: "The keys, given as the array's *values*. Each is an `int` or a `string`. The \
-                   array's own keys are ignored.",
+            desc: "The keys, given as the array's *values*. Each is an `int`, a `uint` or a \
+                   `string`. The array's own keys are ignored.",
             shape: &[],
         },
         ParamDoc {
@@ -1965,7 +1966,7 @@ const COUNT_BY_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "by",
             desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
-                   It returns the group's name, an `int` or a `string`. Without it, the value \
+                   It returns the group's name, an `int`, a `uint` or a `string`. Without it, the value \
                    itself is the group.",
             shape: &[],
         },
@@ -2192,8 +2193,10 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `int|string` — `rule:types/arrays`'s two array-key types, which `Core\Arr`
-/// writes at every member taking or producing a key.
+/// `int|uint|string` — the types `rule:types/arrays` normalises to a key at a
+/// subscript, which `Core\Arr` writes at every member taking a key. A member
+/// takes every type a subscript takes, so `$a[$id]` and `hasKey($a, $id)`
+/// accept the same `$id`, and [`key_bytes`] renders each one.
 ///
 /// **Element positions only**, which is why its `string` arm stays the
 /// unclassified [`CoreTy::Str`]: `rule:security/unclassified-parameter-refuses-tainted` classifies a *parameter*, and
@@ -2202,13 +2205,13 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
 /// written at a parameter position takes [`ARRAY_KEY_NEUTRAL`] or
 /// [`ARRAY_KEY_CONTAGIOUS`] instead — one union per classification, because the
 /// mark belongs to the member and a shared const can only hold one answer.
-const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Uint, CoreTy::Str];
 
 /// [`ARRAY_KEY`] at a parameter position whose member answers a `bool`.
 ///
 /// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
 /// that rule is written: `hasKey`'s answer carries no byte of either argument.
-const ARRAY_KEY_NEUTRAL: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Neutral)];
+const ARRAY_KEY_NEUTRAL: &[CoreTy] = &[CoreTy::Int, CoreTy::Uint, CoreTy::Text(Qual::Neutral)];
 
 /// [`ARRAY_KEY`] at a parameter position whose member answers part of its
 /// subject.
@@ -2218,7 +2221,8 @@ const ARRAY_KEY_NEUTRAL: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Neutral)]
 /// result by, so neither one's own bytes reach the answer — and that is
 /// precisely the case the bullet calls laundering by influence and refuses to
 /// let a member do silently.
-const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contagious)];
+const ARRAY_KEY_CONTAGIOUS: &[CoreTy] =
+    &[CoreTy::Int, CoreTy::Uint, CoreTy::Text(Qual::Contagious)];
 
 /// `T|U` — the element type `rule:types/array-combination`'s four combination members answer, and
 /// the spelling this module's own docs record as the one the registry can
@@ -2279,7 +2283,7 @@ const COUNT_BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// An `int|string` whose values become keys of the answer: `flip`'s,
+/// An `int|uint|string` whose values become keys of the answer: `flip`'s,
 /// `fillKeys`' and `fromKeysAndValues`' elements. [`CoreTy::Keys`] owns the
 /// rule.
 const KEY_VALUES: CoreTy = CoreTy::Keys(KeyOrigin::Values, &CoreTy::Union(ARRAY_KEY));
@@ -2314,12 +2318,12 @@ const SET_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `{ indexBy?: int|string }` — [`nvs_core_arr_column`]'s only option, and the
+/// `{ indexBy?: int|uint|string }` — [`nvs_core_arr_column`]'s only option, and the
 /// first union option whose members are not single-value types.
 ///
 /// [`CoreTy::Union`]'s docs own the rule this widened: what an option's
 /// default has to be is a value **outside** the declared type, so that "not
-/// given" cannot be confused with something a call site wrote. `int|string`
+/// given" cannot be confused with something a call site wrote. `int|uint|string`
 /// admits no `null`, so [`Const::Null`] is that sentinel here exactly as it
 /// already is for `{ by?: callable }` — the set-of-allowed-values shape
 /// `Core\Validate::isIp`'s `{ version?: 4|6 }` needed was one instance of that
@@ -2378,7 +2382,7 @@ const SORT_OPTIONS: &[CoreOption] = &[
 ];
 
 /// `Core\Arr::sortByKey`'s `{ order?: Order, comparator?: callable, keys?:
-/// array<int|string> }` — [`SORT_OPTIONS`] without the two options a key sort
+/// array<int|uint|string> }` — [`SORT_OPTIONS`] without the two options a key sort
 /// has no use for, and with `keys`, the one order a key sort has that a value
 /// sort does not.
 ///
@@ -2954,7 +2958,7 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
     })
 }
 
-/// One `int|string` key argument, normalized to the bytes an array actually
+/// One `int|uint|string` key argument, normalized to the bytes an array actually
 /// stores it under.
 ///
 /// `rule:types/arrays` makes every stored key a `string`, and `nvs-ir` already
@@ -2982,7 +2986,7 @@ fn key_bytes<'a>(value: &'a Value, member: &str) -> Result<KeyBytes<'a>, Fault> 
         return Ok(KeyBytes::rendered(uint));
     }
     Err(Fault::fatal(format!(
-        "Core\\Arr::{member} expected an `int|string` key, got a `{}`",
+        "Core\\Arr::{member} expected an `int|uint|string` key, got a `{}`",
         value.tag().map_or("value", nvs_runtime::Tag::describe)
     )))
 }
@@ -3281,7 +3285,7 @@ fn copy_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray) {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::hasKey(array<T> $a, int|string $key): bool` — replacing
+    /// `Core\Arr::hasKey(array<T> $a, int|uint|string $key): bool` — replacing
     /// PHP's `array_key_exists` **and** `isset($a[$k])`, which differ in PHP
     /// only over a stored `null` and therefore cannot both survive `rule:core-api/shape-rules`
     /// R20.
@@ -4275,7 +4279,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::flip(array<int|string> $a): array<string>` — each value
+    /// `Core\Arr::flip(array<int|uint|string> $a): array<string>` — each value
     /// becomes a key and each key becomes a value, replacing PHP's
     /// `array_flip`.
     ///
@@ -4289,13 +4293,13 @@ nvs_runtime::nvs_helper! {
     /// The values become keys through [`key_bytes`], the same normalization
     /// `hasKey` uses, so an `int` value and its decimal spelling flip to the
     /// same key. A value of any other type is the checker having let an
-    /// `array<int|string>` position take something else, and is reported as
+    /// `array<int|uint|string>` position take something else, and is reported as
     /// such rather than skipped the way PHP's warning-and-continue does.
     ///
     /// A sole subject takes its old keys as values and the new keys in its
     /// own storage, and its index is rebuilt in the same table.
     fn nvs_core_arr_flip(_ctx, args: [1])-> Vec<NvsStr>, owns NvsArray {
-        // Unreachable from source: an `array<int|string>` parameter, refused
+        // Unreachable from source: an `array<int|uint|string>` parameter, refused
         // at the checker — [`nvs_core_arr_count`]'s guard states the
         // judgement. The *element* rule is a different question and the guard
         // below this one answers it.
@@ -4435,7 +4439,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::column(array<array<T>> $a, int|string $column, { indexBy?: int|string }): array<T>`
+    /// `Core\Arr::column(array<array<T>> $a, int|uint|string $column, { indexBy?: int|uint|string }): array<T>`
     /// — one named cell out of every row, replacing PHP's `array_column`.
     ///
     /// The parameter is [`nvs_core_arr_flatten`]'s `array<array<T>>`, for that
@@ -4463,7 +4467,7 @@ nvs_runtime::nvs_helper! {
     ///   moves it past 5. So a partially keyed subject loses nothing, unless
     ///   the integer appended under is itself a later row's `indexBy` cell,
     ///   where the collapse rule below applies like any other duplicate.
-    /// - An `indexBy` cell that is **not an `int|string`** is a fault, which
+    /// - An `indexBy` cell that is **not an `int|uint|string`** is a fault, which
     ///   is where PHP renumbers instead. The bullet above already spends the
     ///   "append it" answer on an *absent* key, so reusing it here would make
     ///   a mistyped `indexBy` indistinguishable from a ragged subject — and
@@ -4579,7 +4583,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::fillKeys(array<int|string> $keys, T $value): array<T>` — one
+    /// `Core\Arr::fillKeys(array<int|uint|string> $keys, T $value): array<T>` — one
     /// value stored under every key named, replacing PHP's `array_fill_keys`.
     ///
     /// The `$keys` array contributes its *values* and nothing else, exactly as
@@ -4591,8 +4595,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_fill_keys(_ctx, args: [2])-> Value, owns NvsArray {
         // Unreachable from source: parameter 0 is
         // `CoreTy::Array(CoreTy::Union(ARRAY_KEY))` in `CLASS` above, so a
-        // non-container argument is `E0401: expected 'array<string|int>',
-        // found 'mixed'` at the checker. This is `nvs_core_arr_count`'s
+        // non-container argument is `E0401` at the checker. This is `nvs_core_arr_count`'s
         // judgement, which states it in full.
         let keys = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -4750,7 +4753,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>`
+    /// `Core\Arr::fromKeysAndValues(array<int|uint|string> $keys, array<T> $values): array<T>`
     /// — one array's values used as the keys of another's, replacing PHP's
     /// `array_combine`.
     ///
@@ -4828,7 +4831,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A bucket is named through [`key_bytes`], so `1` and `"1"` count as one
     /// bucket — the same normalization every other key position uses. A value
-    /// that is neither an `int` nor a `string` and has no `by` to name it is a
+    /// that is not an `int`, `uint` or `string` and has no `by` to name it is a
     /// throw rather than PHP's warn-and-skip, which is `flip`'s treatment of
     /// the identical situation.
     fn nvs_core_arr_group_counts(ctx, args: [2])-> Value, owns NvsArray {
@@ -5264,7 +5267,7 @@ fn apply_permutation(plan: &[usize], renumber: bool, subject: NvsArray) -> Value
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::sortByKey(array<T> $a, { order?: Order, comparator?: callable,
-    /// keys?: array<int|string> }): array<T>` — the second ordering member,
+    /// keys?: array<int|uint|string> }): array<T>` — the second ordering member,
     /// replacing `ksort`, `krsort` and `uksort`.
     ///
     /// A second entry point into [`nvs_core_arr_sort`]'s machinery rather than
@@ -5335,7 +5338,7 @@ nvs_runtime::nvs_helper! {
         let comparator = optional_callback(&args[2], "sortByKey", "comparator")?;
         let listed = match args[3].tag() {
             Some(Tag::Null) => None,
-            // Unreachable from source: `keys` is `array<int|string>` in
+            // Unreachable from source: `keys` is `array<int|uint|string>` in
             // `SORT_BY_KEY_OPTIONS`, so anything else is `E0401` at the
             // checker — [`nvs_core_arr_count`]'s guard states the judgement.
             _ => Some(borrowed(args[3].array_ptr().ok_or_else(|| {
@@ -7714,7 +7717,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(super::nvs_core_arr_flip, &mut ctx, &[Value::array(array)])
-            .expect("an int|string value never fails");
+            .expect("an int|uint|string value never fails");
         assert_eq!(
             entries_of(result),
             vec![
@@ -7724,8 +7727,8 @@ mod tests {
         );
     }
 
-    /// A value that is neither an `int` nor a `string` is the checker having
-    /// let an `array<int|string>` position take something else — a contained
+    /// A value that is not an `int`, `uint` or `string` is the checker having
+    /// let an `array<int|uint|string>` position take something else — a contained
     /// `FATAL`, not a skipped entry the way PHP's warning-and-continue leaves.
     #[test]
     fn flipping_a_value_that_is_not_a_key_is_a_contained_fault() {
@@ -9589,7 +9592,7 @@ mod tests {
         );
     }
 
-    /// A key that is neither an `int` nor a `string` is a throw rather than
+    /// A key that is not an `int`, `uint` or `string` is a throw rather than
     /// PHP's warn-and-skip — `flip`'s and `groupCounts`'s treatment of the
     /// identical situation.
     // covers: Core\Arr::fillKeys

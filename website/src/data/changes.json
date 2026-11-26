@@ -1469,6 +1469,21 @@
       ],
       "text": "A `ParseError` from `Core\\Json::decodeAs` lists at most 64 issues. When there are more, the last issue says that more follow.",
       "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Arr::fillKeys",
+        "Core\\Arr::flip",
+        "Core\\Arr::fromKeysAndValues",
+        "Core\\Arr::hasKey",
+        "Core\\Arr::column",
+        "Core\\Arr::mapKeys",
+        "Core\\Arr::groupBy",
+        "Core\\Arr::groupCounts",
+        "Core\\Arr::sortByKey"
+      ],
+      "text": "Every `Core\\Arr` function that takes a key also takes a `uint`, as `$a[$key]` does. `Core\\Arr::fillKeys($ids, true)` now compiles when `$ids` is an `array<uint>`."
     }
   ],
   "unseen": {

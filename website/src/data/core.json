@@ -157,7 +157,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "mapKeys(array<T> $a, callable(T, string): int|string $fn): array<T>",
+          "signature": "mapKeys(array<T> $a, callable(T, string): int|uint|string $fn): array<T>",
           "params": [
             {
               "kind": "param",
@@ -170,7 +170,7 @@
             {
               "kind": "param",
               "name": "fn",
-              "type": "callable(T, string): int|string",
+              "type": "callable(T, string): int|uint|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -183,14 +183,14 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The array to re-key."
+                "descHtml": "The array whose keys change."
               },
               {
                 "name": "fn",
-                "descHtml": "Called as <code>($value, $key)</code> per entry, and may declare fewer parameters. It returns the entry's new key, an <code>int</code> or a <code>string</code>."
+                "descHtml": "Called as <code>($value, $key)</code> per entry, and may declare fewer parameters. It returns the entry's new key, an <code>int</code>, a <code>uint</code> or a <code>string</code>."
               }
             ],
-            "returnHtml": "The values under their new keys, in first-occurrence order. When two entries get the same key, the last one is kept. <code>1</code> and <code>&quot;1&quot;</code> are the same key."
+            "returnHtml": "The values under their new keys, in the order each key first appears. When two entries get the same key, the last one is kept. <code>1</code> and <code>&quot;1&quot;</code> are the same key."
           },
           "slug": "mapkeys",
           "url": "/reference/core/arr/mapkeys/",
@@ -202,7 +202,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "groupBy(array<T> $a, callable(T, string): int|string $key): array<array<T>>",
+          "signature": "groupBy(array<T> $a, callable(T, string): int|uint|string $key): array<array<T>>",
           "params": [
             {
               "kind": "param",
@@ -215,7 +215,7 @@
             {
               "kind": "param",
               "name": "key",
-              "type": "callable(T, string): int|string",
+              "type": "callable(T, string): int|uint|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -228,14 +228,14 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The array to partition."
+                "descHtml": "The array to put into groups."
               },
               {
                 "name": "key",
-                "descHtml": "Called as <code>($value, $key)</code> per entry, and may declare fewer parameters. It returns the group's name, an <code>int</code> or a <code>string</code>."
+                "descHtml": "Called as <code>($value, $key)</code> per entry, and may declare fewer parameters. It returns the group's name, an <code>int</code>, a <code>uint</code> or a <code>string</code>."
               }
             ],
-            "returnHtml": "One inner array per distinct result, in first-occurrence order. Each inner array keeps its entries under their own keys. <code>1</code> and <code>&quot;1&quot;</code> name the same group."
+            "returnHtml": "One inner array per distinct result, in the order each result first appears. Each inner array keeps its entries under their own keys. <code>1</code> and <code>&quot;1&quot;</code> name the same group."
           },
           "slug": "groupby",
           "url": "/reference/core/arr/groupby/",
@@ -517,7 +517,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "hasKey(array<T> $a, int|string $key): bool",
+          "signature": "hasKey(array<T> $a, int|uint|string $key): bool",
           "params": [
             {
               "kind": "param",
@@ -530,7 +530,7 @@
             {
               "kind": "param",
               "name": "key",
-              "type": "int|string",
+              "type": "int|uint|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -547,7 +547,7 @@
               },
               {
                 "name": "key",
-                "descHtml": "The key, an <code>int</code> or a <code>string</code>; <code>1</code> and <code>&quot;1&quot;</code> name one entry."
+                "descHtml": "The key, an <code>int</code>, a <code>uint</code> or a <code>string</code>. <code>1</code> and <code>&quot;1&quot;</code> name one entry."
               }
             ],
             "returnHtml": "<code>true</code> when the key is present, whatever its value is."
@@ -1435,12 +1435,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "flip(array<int|string> $a): array<string>",
+          "signature": "flip(array<int|uint|string> $a): array<string>",
           "params": [
             {
               "kind": "param",
               "name": "a",
-              "type": "array<int|string>",
+              "type": "array<int|uint|string>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -1453,10 +1453,10 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The array to flip. Every value must be an <code>int</code> or a <code>string</code>. <code>1</code> and <code>&quot;1&quot;</code> become the same key."
+                "descHtml": "The array to flip. Every value must be an <code>int</code>, a <code>uint</code> or a <code>string</code>. <code>1</code> and <code>&quot;1&quot;</code> become the same key."
               }
             ],
-            "returnHtml": "The old keys as <code>string</code> values, stored under the old values as keys, in first-occurrence order. A repeated value keeps its first position and takes its last key."
+            "returnHtml": "The old keys as <code>string</code> values, stored under the old values as keys, in the order each value first appears. When a value repeats, its entry stays where the value first appeared, and it holds the last key that had the value."
           },
           "slug": "flip",
           "url": "/reference/core/arr/flip/",
@@ -1534,7 +1534,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "column(array<array<T>> $a, int|string $column, { indexBy?: int|string }): array<T>",
+          "signature": "column(array<array<T>> $a, int|uint|string $column, { indexBy?: int|uint|string }): array<T>",
           "params": [
             {
               "kind": "param",
@@ -1547,7 +1547,7 @@
             {
               "kind": "param",
               "name": "column",
-              "type": "int|string",
+              "type": "int|uint|string",
               "default": null,
               "optional": false,
               "variadic": false
@@ -1556,7 +1556,7 @@
           "options": [
             {
               "name": "indexBy",
-              "type": "int|string"
+              "type": "int|uint|string"
             }
           ],
           "returnType": "array<T>",
@@ -1565,7 +1565,7 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The rows, each an array."
+                "descHtml": "The rows. Each row is an array, and each entry of a row is a cell."
               },
               {
                 "name": "column",
@@ -1660,7 +1660,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "sortByKey(array<T> $a, { order?: Core\\Arr::Order, comparator?: callable, keys?: array<int|string> }): array<T>",
+          "signature": "sortByKey(array<T> $a, { order?: Core\\Arr::Order, comparator?: callable, keys?: array<int|uint|string> }): array<T>",
           "params": [
             {
               "kind": "param",
@@ -1682,7 +1682,7 @@
             },
             {
               "name": "keys",
-              "type": "array<int|string>"
+              "type": "array<int|uint|string>"
             }
           ],
           "returnType": "array<T>",
@@ -1695,7 +1695,7 @@
               },
               {
                 "name": "order",
-                "descHtml": "<code>Core\\Arr::Order::Asc</code> (the default) or <code>Core\\Arr::Order::Desc</code>. <code>Desc</code> reverses the comparison, so equal keys keep their insertion order."
+                "descHtml": "<code>Core\\Arr::Order::Asc</code> (the default) or <code>Core\\Arr::Order::Desc</code>. <code>Desc</code> reverses the comparison. Equal keys still keep the order they were added in."
               },
               {
                 "name": "comparator",
@@ -1706,7 +1706,7 @@
                 "descHtml": "The keys to put first, in this order. The other keys follow in their current order. A listed key that <code>$a</code> does not have is skipped. With <code>Desc</code>, the other keys come first, then the listed keys from last to first."
               }
             ],
-            "returnHtml": "The same entries under the same keys, ordered by key; the natural order is bytewise, so <code>&quot;10&quot;</code> precedes <code>&quot;9&quot;</code>. For an <code>array&lt;E, T&gt;</code>, the result is an <code>array&lt;E, T&gt;</code> too.",
+            "returnHtml": "The same entries under the same keys, ordered by key. Without a comparator, keys are compared byte by byte, so <code>&quot;10&quot;</code> comes before <code>&quot;9&quot;</code>. An array keyed by an enum (<code>array&lt;E, T&gt;</code>) gives an <code>array&lt;E, T&gt;</code> too.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -1779,12 +1779,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "fillKeys(array<int|string> $keys, T $value): array<T>",
+          "signature": "fillKeys(array<int|uint|string> $keys, T $value): array<T>",
           "params": [
             {
               "kind": "param",
               "name": "keys",
-              "type": "array<int|string>",
+              "type": "array<int|uint|string>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -1805,14 +1805,14 @@
             "params": [
               {
                 "name": "keys",
-                "descHtml": "The keys to store under, given as the array's <em>values</em>. Each is an <code>int</code> or a <code>string</code>. The array's own keys are ignored."
+                "descHtml": "The keys to store under, given as the array's <em>values</em>. Each is an <code>int</code>, a <code>uint</code> or a <code>string</code>. The array's own keys are ignored."
               },
               {
                 "name": "value",
                 "descHtml": "The value of every entry."
               }
             ],
-            "returnHtml": "One entry per distinct key, in first-occurrence order; <code>1</code> and <code>&quot;1&quot;</code> are one key."
+            "returnHtml": "One entry per distinct key, in the order each key first appears. <code>1</code> and <code>&quot;1&quot;</code> are one key."
           },
           "slug": "fillkeys",
           "url": "/reference/core/arr/fillkeys/",
@@ -1884,12 +1884,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>",
+          "signature": "fromKeysAndValues(array<int|uint|string> $keys, array<T> $values): array<T>",
           "params": [
             {
               "kind": "param",
               "name": "keys",
-              "type": "array<int|string>",
+              "type": "array<int|uint|string>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -1910,7 +1910,7 @@
             "params": [
               {
                 "name": "keys",
-                "descHtml": "The keys, given as the array's <em>values</em>. Each is an <code>int</code> or a <code>string</code>. The array's own keys are ignored."
+                "descHtml": "The keys, given as the array's <em>values</em>. Each is an <code>int</code>, a <code>uint</code> or a <code>string</code>. The array's own keys are ignored."
               },
               {
                 "name": "values",
@@ -2336,7 +2336,7 @@
               },
               {
                 "name": "by",
-                "descHtml": "Called once per entry as <code>($value, $key)</code>, and may declare fewer parameters. It returns the group's name, an <code>int</code> or a <code>string</code>. Without it, the value itself is the group."
+                "descHtml": "Called once per entry as <code>($value, $key)</code>, and may declare fewer parameters. It returns the group's name, an <code>int</code>, a <code>uint</code> or a <code>string</code>. Without it, the value itself is the group."
               }
             ],
             "returnHtml": "One <code>uint</code> per distinct group, keyed by the group, in the order each group first appears. <code>1</code> and <code>&quot;1&quot;</code> are the same group."

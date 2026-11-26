@@ -394,7 +394,7 @@ fn a_fatal_releases_the_frames_locals() {
     let pending = ctx.take_pending();
     assert_eq!(
         pending.as_deref(),
-        Some("Core\\Arr::groupCounts expected an `int|string` key, got a `float`")
+        Some("Core\\Arr::groupCounts expected an `int|uint|string` key, got a `float`")
     );
     drop(pending);
     drop(ctx.take_buffered_output());
