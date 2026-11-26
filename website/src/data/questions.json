@@ -1659,11 +1659,11 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "919fdbc94a56d7bd",
+    "hash": "e59cf3135d7fca67",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show my debug dumps at the bottom of the HTML page",
-      "How long are saved request records kept before they are deleted?",
+      "How long are saved records of requests and jobs kept before they are deleted?",
       "Set the largest size of the database of recorded requests",
       "Use my own certificate and token for the debug viewer",
       "Limit the size of the folder where request records wait"
@@ -19923,13 +19923,13 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "2f5c643acd0140cc",
+    "hash": "8a6d10eaefdf05c8",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",
       "See the emails my program sent during development without sending them",
       "Preview the HTML of an email and find CSS rules that match nothing",
-      "Why did my scheduled job fail, and which functions did it call?",
+      "Why did my scheduled job fail, and which of its records were deleted?",
       "Send a recorded request to my server again, or make a test from it"
     ]
   },
