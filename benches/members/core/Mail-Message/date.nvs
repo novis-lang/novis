@@ -18,8 +18,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // The seconds are 3, 6 and 9, so the messages are picked in turn.
+            // The seconds of the dates are 3, 6 and 9. So `$total` grows by a multiple of 3.
+            // `($total + $i) % 3` is the same as `$i % 3`, so the loop reads message 1, 2, 3, then message 1 again.
             ?DateTime $date = $mails[(($total + $i) % 3) as int]->date();
             $total = $total + ($date == null ? 0 : $date->second()) as uint;
             $i = $i + 1;

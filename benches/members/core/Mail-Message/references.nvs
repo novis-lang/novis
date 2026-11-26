@@ -17,8 +17,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // The count is multiplied by 3, so the next round picks the next message.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads message 1, 2, 3, then message 1 again, and so on.
             $total = $total + 3 * Core\Arr::count($messages[(($total + $i) % 3) as int]->references());
             $i = $i + 1;
         }

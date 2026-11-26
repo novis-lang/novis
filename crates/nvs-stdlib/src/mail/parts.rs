@@ -350,8 +350,8 @@ const fn reader(
 const NAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the file name of the attachment, such as `invoice.pdf`.",
     params: &[],
-    ret: "The file name the recipient sees. An attachment of a received message has `null` when \
-          the sender gave it no file name.",
+    ret: "The file name the recipient sees. `name()` returns `null` for a received file with \
+          no name.",
     errors: &[],
 };
 

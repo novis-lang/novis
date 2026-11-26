@@ -49,7 +49,7 @@ foreach (["INBOX\0", "IN\tBOX", '', '"INBOX"', '{5}'] as var $name) {
 }
 
 // 5. Names that are devices on Windows, and names with a dot or a space at the end.
-//    Each one opens `INBOX` or nothing, and never a device.
+//    Each name should open the folder `INBOX` or throw an `IOError`. No name should open a device.
 foreach (['NUL', 'CON', 'COM1', 'INBOX.', 'INBOX '] as var $name) {
     try {
         $mailbox->folder($name);

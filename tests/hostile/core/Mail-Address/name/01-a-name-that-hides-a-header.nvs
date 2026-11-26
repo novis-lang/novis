@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a stranger sends a name that decodes to a line break and `Bcc: x@example.net`, and the program replies to that name.
-// The name should stay a name, so the reply should have one recipient and no `Bcc`.
+// Attack: a stranger sends a name that decodes to a line break and `Bcc: x@example.net`. `Bcc` is a hidden copy.
+// The program replies to that name. The reply should have one recipient and no `Bcc`.
 // proof: test
 
 use Core\Mail;
@@ -10,7 +10,7 @@ use Core\Test;
 
 class NameAttackTest
 {
-    // Replies to the sender of `$raw`, with the name and the address the sender wrote.
+    // `reply` reads the message and sends a reply to its sender, with the name and the address the sender wrote.
     private static function reply(string $raw): void
     {
         ?Address $sender = Message::parse($raw)->from();

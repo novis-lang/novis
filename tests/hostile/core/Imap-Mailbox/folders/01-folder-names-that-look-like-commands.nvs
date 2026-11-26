@@ -11,7 +11,8 @@ var $mailbox = Imap::open('inbox');
 var $names = $mailbox->folders();
 echo '1 ', Arr::count($names), ' folders, Notes listed: ', Arr::contains($names, 'Notes') ? 'yes' : 'no', "\n";
 
-// 2. Opens each listed folder and reads its messages. The names come from the disk, so they are tainted.
+// 2. Opens each listed folder and reads its messages. This test uses a `directory` block,
+//    so the names come from the disk. They are tainted, like the names a server sends.
 foreach ($names as tainted string $name) {
     var $folder = $mailbox->folder($name);
     foreach ($folder->search() as int $uid) {
@@ -27,7 +28,7 @@ try {
     echo "3 IOError\n";
 }
 
-// 4. Lists the folders 5000 times. Each list is freed when the next one replaces it.
+// 4. Lists the folders 5000 times. The memory used should not grow.
 uint $i = 0;
 uint $total = 0;
 while ($i < 5000) {

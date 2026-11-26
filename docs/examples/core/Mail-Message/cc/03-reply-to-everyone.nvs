@@ -20,7 +20,7 @@ if ($sender != null) {
     $everyone = Core\Arr::prepend($everyone, $sender);
 }
 
-// The help desk's own address and each address that is already in the list are left out.
+// This loop skips the help desk's own address. It also skips each address that is already in the list.
 array<tainted string> $reply = [];
 foreach ($everyone as Address $person) {
     tainted string $address = Core\Str::lower($person->address());

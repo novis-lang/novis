@@ -3,7 +3,8 @@
 
 use Core\Mail\Message;
 
-// A header with letters that are not ASCII is sent encoded, such as `=?UTF-8?B?...?=`.
+// A header with letters that are not ASCII is sent as an encoded word, such as `=?UTF-8?B?...?=`.
+// An encoded word is the way a header writes non-ASCII text.
 Message $ticket = Message::parse(
     "From: shop@example.com\n"
     . "X-Customer: =?UTF-8?B?SsO8cmdlbiBNw7xsbGVy?=\n"
@@ -12,5 +13,5 @@ Message $ticket = Message::parse(
 );
 
 // `header()` returns the decoded text. This prints `Jürgen Müller`.
-// The sender wrote this header, so the value is a tainted string.
+// The value is a tainted string (text from outside your program), because the sender wrote it.
 echo $ticket->header('X-Customer')[0], "\n";

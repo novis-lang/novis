@@ -15,7 +15,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The message goes to `Archive` as UID 2, and in the next round back to `INBOX` as UID 1.
+            // Each time the loop runs, it moves the message to the other folder.
+            // The message has the UID 2 in `Archive` and the UID 1 in `INBOX`.
             if ($total % 2 == 0) {
                 $inbox->move(1, 'Archive');
             } else {
@@ -24,7 +25,8 @@ class Bench
             $total = $total + 1;
             $i = $i + 1;
         }
-        // After an odd number of rounds, this moves the message back to `INBOX` for the next run.
+        // The message may still be in `Archive` after the loop.
+        // If it is, this moves it to `INBOX` for the next run.
         if ($total % 2 == 1) {
             $archive->move(2, 'INBOX');
         }

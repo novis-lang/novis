@@ -1,5 +1,5 @@
 <?nvs
-// Shows how to mark a message as read, and how `search` then finds one new message less.
+// Shows how to mark a message as read, and how the number of new messages that `search` finds changes.
 
 use Core\Arr;
 use Core\Imap;

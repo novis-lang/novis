@@ -13,7 +13,7 @@ Message $mail = Message::parse(
 );
 
 // `date` returns the time that the sender wrote, with its offset from UTC.
-// This prints `2026-11-03T14:05:09+01:00[+01:00]`.
+// This prints `2026-11-03T14:05:09+01:00[+01:00]`. `[+01:00]` is the time zone of the value.
 ?DateTime $sent = $mail->date();
 if ($sent != null) {
     echo $sent->toIso(), "\n";

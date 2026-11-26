@@ -1,5 +1,5 @@
 <?nvs
-// Measures how the id that a reply answers is read, as a program does to find the order a customer wrote about.
+// Measures how the `In-Reply-To` id of a reply is read, as a program does to find the order a customer wrote about.
 // bench: iterations 2048
 // bench: complexity constant
 
@@ -17,8 +17,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // The length is multiplied by 3, so the next round picks the next message.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads message 1, 2, 3, then message 1 again, and so on.
             $total = $total + 3 * Core\Str::length($messages[(($total + $i) % 3) as int]->inReplyTo() ?? '');
             $i = $i + 1;
         }

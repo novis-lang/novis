@@ -5,5 +5,6 @@ use Core\Imap;
 
 var $inbox = Imap::open('inbox')->folder('INBOX');
 
-// A `directory` block always returns 1. A mail server returns its own number.
+// A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
+// Such a block always returns 1. A mail server returns its own number.
 echo 'UIDVALIDITY of INBOX: ', $inbox->uidValidity(), "\n";

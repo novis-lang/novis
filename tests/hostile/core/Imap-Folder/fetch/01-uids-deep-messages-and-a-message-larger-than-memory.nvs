@@ -1,7 +1,7 @@
 <?nvs
 // Attack: `fetch` gets bad UIDs, a message with 5000 nested parts, bytes that are not text,
 // and a message larger than the memory limit. Each step returns a message or throws an error.
-// Each error is caught, so the next step still runs. The program deletes the messages it wrote.
+// Each error is caught, so the next step still runs. At the end, the program deletes the messages it wrote.
 
 use Core\Arr;
 use Core\Encoding;

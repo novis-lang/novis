@@ -5,9 +5,10 @@
 use Core\Bytes;
 use Core\Mail\Message;
 
+// `Received::page` puts the body in a message and passes its HTML to `Core\Html::sanitize`.
+// It returns the result as text, so the program can search it.
 class Received
 {
-    // Returns the sanitized HTML body of a message, as text the program can search.
     public static function page(bytes $body): string
     {
         bytes $head = "From: x@example.net\nMIME-Version: 1.0\nContent-Type: text/html\n\n" as bytes;
@@ -15,7 +16,7 @@ class Received
         return Core\Html::toSource(Core\Html::sanitize($message->html() ?? ''), 'searching the result');
     }
 
-    // Prints whether the word `steal` is still in the page.
+    // `check` prints whether the word `steal` is still in the page.
     public static function check(int $step, string $page): void
     {
         echo $step, Core\Str::contains($page, 'steal') ? ' script kept' : ' script removed', "\n";

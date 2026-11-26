@@ -4,15 +4,15 @@
 use Core\Mail\Message;
 
 array<string> $headers = [
-    // `Delivered-To` is read first. This prints `order-7`.
+    // `Delivered-To` is read first. This prints `Delivered-To: order-7`.
     'Delivered-To' => "Delivered-To: bounces+order-7@example.com\nTo: bounces+order-8@example.com\n",
-    // Without `Delivered-To`, `X-Original-To` is read. This prints `order-9`.
+    // Without `Delivered-To`, `X-Original-To` is read. This prints `X-Original-To: order-9`.
     'X-Original-To' => "X-Original-To: bounces+order-9@example.com\nTo: bounces@example.com\n",
-    // Then the `To` address. This prints `order-10`.
+    // Without both, the `To` address is read. This prints `To: order-10`.
     'To' => "To: Shop Bounces <bounces+order-10@example.com>\n",
-    // A space and `!` are not allowed in a tag, so the result is `null`.
+    // A space and `!` are not allowed in a tag. This prints `invalid tag: null`.
     'invalid tag' => "To: \"bounces+drop table!\"@example.com\n",
-    // An address without `+` has no tag, so the result is `null`.
+    // An address without `+` has no tag. This prints `no tag: null`.
     'no tag' => "To: bounces@example.com\n",
 ];
 

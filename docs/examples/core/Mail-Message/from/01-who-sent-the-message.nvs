@@ -11,7 +11,7 @@ Message $mail = Message::parse(
     . "Do you have a table for two on Friday?"
 );
 
-// `from` returns the address and the name in front of it.
+// `from` returns the address and the name before the address.
 // This prints `Ada Lovelace` and `ada@example.org`.
 ?Address $sender = $mail->from();
 echo 'Name: ', $sender?->name() ?? '', "\n";

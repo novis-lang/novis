@@ -23,8 +23,8 @@ Message $mail = Message::parse(
     . "--b1--\n"
 );
 
-// The sender chose the file name, so `name()` is a tainted string. A tainted string cannot be part
-// of a path. The program chooses its own file name, and only shows the name of the sender.
+// `name()` is a tainted string (text from outside your program), because the sender chose it.
+// A tainted string cannot be part of a file path, so the program chooses its own file name.
 string $folder = IO::createTemporaryDirectory();
 int $number = 1;
 foreach ($mail->attachments() as Attachment $file) {

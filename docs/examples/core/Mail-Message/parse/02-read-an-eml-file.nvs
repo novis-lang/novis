@@ -4,7 +4,7 @@
 use Core\Mail\Attachment;
 use Core\Mail\Message;
 
-// An `.eml` file is the raw message. The path starts at the folder of this program.
+// An `.eml` file is the raw message. The path is relative to the folder of this program.
 Message $reply = Message::parse(Core\IO::readBytes('files/reply-1042.eml'));
 
 // This prints `Re: Your order 1042` and the id of the message it answers.

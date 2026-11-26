@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a request tries to choose which mailbox the program opens.
-// The name of the block must come from the program, so every step does not compile.
+// A tainted variable cannot be the block name. So each step below does not compile.
 // hostile: expect-refusal
 
 use Core\Imap;

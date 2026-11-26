@@ -4,7 +4,8 @@
 use Core\Arr;
 use Core\Imap;
 
-// `open` takes the name of the block `[imap.inbox]` in `nvs.toml`.
+// `nvs.toml` is the settings file of the program.
+// `open` takes the name of its block `[imap.inbox]`.
 var $mailbox = Imap::open('inbox');
 var $inbox = $mailbox->folder('INBOX');
 

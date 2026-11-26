@@ -9,7 +9,7 @@ Message $mail = Message::parse("From: printer@example.org\r\nSubject: Scan done\
 echo $mail->messageId() ?? 'no id', "\n";
 
 // A message without an id can still get a key: the SHA-256 digest of its raw bytes.
-// The same bytes always give the same key. This prints its first 16 digits.
+// The same bytes always give the same key. This prints the first 16 hex digits of the digest.
 tainted string $key = $mail->messageId()
     ?? Core\Encoding::toHex(Core\Hash::of($mail->raw(), Core\Hash::Digest::Sha256));
 echo Core\Str::slice($key, 0, 16), "\n";

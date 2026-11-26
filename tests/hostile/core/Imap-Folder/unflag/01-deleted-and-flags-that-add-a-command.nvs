@@ -1,7 +1,7 @@
 <?nvs
-// Attack: another mail program marked a message `\Deleted`, and this program tries to remove that
-// flag and to add an IMAP command inside a flag. Each such flag should throw a `RuntimeError`, and the
-// message should stay. Each error is caught, so the next step still runs.
+// Attack: another mail program marked a message `\Deleted`. This program tries to remove that flag.
+// It also tries to add an IMAP command inside a flag. Each such flag should throw a `RuntimeError`,
+// and the message should not be deleted. Each error is caught, so the next step still runs.
 
 use Core\Arr;
 use Core\IO;
@@ -12,7 +12,7 @@ var $inbox = Imap::open('inbox')->folder('INBOX');
 try {
     IO::write('mailbox/INBOX/1.flags', "\\Deleted\n\$Label\n");
 
-    // 1. Removes `\Deleted` in three ways of writing it.
+    // 1. Tries to remove `\Deleted` written in three ways: `\Deleted`, `\deleted` and `\DELETED`.
     foreach (['\Deleted', '\deleted', '\DELETED'] as var $flag) {
         try {
             $inbox->unflag(1, $flag);
@@ -22,7 +22,8 @@ try {
         }
     }
 
-    // 2. Flags with a line break and a second command, a space, brackets, quotes and a NUL byte.
+    // 2. Tries flags that could add a second command, and the flag `\Recent`.
+    //    The others have a line break, a space, brackets, quotes, a NUL byte, or nothing at all.
     foreach (["x\r\nA1 UID EXPUNGE 1", '\Recent', 'a b', '(x)', '{5}', '"x"', "x\0", ''] as var $flag) {
         try {
             $inbox->unflag(1, $flag);
@@ -32,11 +33,12 @@ try {
         }
     }
 
-    // 3. Removes `$label` in small letters. Keywords ignore case, so `$Label` should go.
+    // 3. Removes `$label` in small letters. Upper and lower case do not matter in a keyword,
+    //    so `$Label` should be removed.
     $inbox->unflag(1, '$label');
     echo '3 ', IO::readText('mailbox/INBOX/1.flags');
 
-    // 4. The message is still there.
+    // 4. Counts the messages. The message should not be deleted.
     echo '4 ', Arr::count($inbox->search()), "\n";
 } finally {
     // 5. Removes the flag file, so the next run finds the folder as it was.

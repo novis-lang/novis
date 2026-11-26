@@ -17,7 +17,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
+            // The loop uses `$total` to choose one of the three messages, so it does not always read the same message.
             $total = $total + Core\Str::length($mails[(($total + $i) % 3) as int]->messageId() ?? '');
             $i = $i + 1;
         }

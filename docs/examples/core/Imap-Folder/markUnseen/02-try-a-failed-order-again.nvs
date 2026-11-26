@@ -7,7 +7,7 @@ use Core\Str;
 var $inbox = Imap::open('orders')->folder('INBOX');
 
 foreach ($inbox->search({ unseen: true }) as int $uid) {
-    // The script marks the order as read first, so a second script does not take it too.
+    // The script marks the order as read first, so a second script does not handle the same order.
     $inbox->markSeen($uid);
     var $subject = $inbox->fetch($uid)->subject();
     if (Str::contains($subject, 'sofa')) {

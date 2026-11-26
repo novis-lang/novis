@@ -3,7 +3,7 @@
 
 use Core\Mail\Message;
 
-// The readers of the newsletter, by their id.
+// This array has the address of each reader of the newsletter. The key is the tag of the reader.
 array<string> $readers = [
     'reader-1' => 'ada@example.org',
     'reader-2' => 'bo@example.org',
@@ -15,7 +15,7 @@ array<string> $bounces = [
     . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
     . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.org\n\n"
     . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.1.1\n--b--\n",
-    // A tag the newsletter never sent. Somebody wrote this address by hand.
+    // This message has a tag that the newsletter never sent. Somebody wrote this address by hand.
     "Delivered-To: news+reader-99@example.com\nFrom: someone@example.net\nSubject: Hello\n\nHi.\n",
 ];
 

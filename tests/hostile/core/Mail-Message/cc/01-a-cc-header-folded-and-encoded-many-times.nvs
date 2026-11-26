@@ -1,5 +1,6 @@
 <?nvs
 // Attack: a sender writes a `Cc` header that is folded over many lines, or encoded many times.
+// A folded header continues on the next line, which starts with a space.
 // `cc` should return an array each time, and the program should run to its end.
 // hostile: timeout-ms 30000
 
@@ -10,7 +11,8 @@ use Core\Mail\Message;
 Message $folded = Message::parse('Cc: ' . Core\Str::repeat("a@example.org,\r\n ", 100000) . "b@example.org\r\n\r\nx");
 echo '1 ', Core\Arr::count($folded->cc()), "\n";
 
-// 2. A name made of 100,000 encoded words, half of them broken.
+// 2. The name has 100,000 encoded words, and half of them are broken.
+// An encoded word is the way a header writes non-ASCII text, such as `=?UTF-8?B?QQ==?=`.
 Message $encoded = Message::parse('Cc: ' . Core\Str::repeat('=?UTF-8?B?QQ==?= =?UTF-8?Q?=ZZ?= ', 50000) . "<c@example.org>\r\n\r\nx");
 echo '2 ', Core\Arr::count($encoded->cc()), "\n";
 

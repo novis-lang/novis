@@ -14,7 +14,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // In a `directory` block, a message is a file. This adds message 2, so each round has one to delete.
+            // In a `directory` block, a message is a file. This adds message 2.
+            // So the loop has a message to delete each time it runs.
             IO::write('mailboxes/delete/INBOX/2.eml', "From: a@example.com\nSubject: Old\n\nHello.\n");
             $inbox->delete(2);
             $total = $total + 1;

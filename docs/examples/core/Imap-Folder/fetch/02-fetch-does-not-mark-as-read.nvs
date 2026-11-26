@@ -6,7 +6,8 @@ use Core\Imap;
 
 var $inbox = Imap::open('inbox')->folder('INBOX');
 
-// Messages 2 and 3 are not read yet. This prints "not read: 2" before and after `fetch`.
+// The messages with the UIDs 2 and 3 are not read yet. So there are 2 unread messages.
+// This prints "not read: 2" before and after `fetch(2)` reads message 2.
 echo 'not read: ', Arr::count($inbox->search({ unseen: true })), "\n";
 $inbox->fetch(2);
 echo 'not read: ', Arr::count($inbox->search({ unseen: true })), "\n";

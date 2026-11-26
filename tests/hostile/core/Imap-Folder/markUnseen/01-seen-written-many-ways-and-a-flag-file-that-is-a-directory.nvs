@@ -22,8 +22,8 @@ foreach ([0, -1, 4294967296, 9] as var $uid) {
 }
 
 try {
-    // 2. A flag file has `\Seen` three times in different case, and `\Deleted`.
-    //    Every `\Seen` should go, and the message should still be there.
+    // 2. A flag file has `\seen`, `\SEEN`, `\Seen` and `\Deleted`.
+    //    All three forms of `\Seen` should be removed, and the message should not be deleted.
     IO::write('mailbox/INBOX/1.flags', "\\seen\n\\SEEN\n\\Seen\n\\Deleted\n\$Label\n");
     $inbox->markUnseen(1);
     echo '2 ', Arr::count($inbox->search({ unseen: true })), ' ', $inbox->fetch(1)->subject(), "\n";

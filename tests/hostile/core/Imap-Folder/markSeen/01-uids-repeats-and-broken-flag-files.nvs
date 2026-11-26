@@ -31,7 +31,7 @@ try {
     }
     echo '2 ', Arr::count(Str::split(Str::trim(IO::readText('mailbox/INBOX/1.flags')), "\n")), "\n";
 
-    // 3. A flag file of 70 KB, larger than a flag file may be. `markSeen` should throw an `IOError`.
+    // 3. A flag file of 70 KB. The limit for a flag file is 64 KB, so `markSeen` should throw an `IOError`.
     IO::write('mailbox/INBOX/2.flags', Str::repeat("\\Flagged\n", 8000));
     try {
         $inbox->markSeen(2);

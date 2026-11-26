@@ -12,7 +12,7 @@ echo "1 ", Core\Arr::count($long->references()), "\n";
 Message $broken = Message::parse("References: <a@example.com <> <<b>> plain-text\n\nHello");
 echo "2 ", Core\Arr::count($broken->references()), "\n";
 
-// 3. The header 3,000 times. Only the first 1,000 header lines are read.
+// 3. The message has the header 3,000 times. `parse` reads only the first 1,000 header lines.
 Message $copies = Message::parse(Core\Str::repeat("References: <x@example.com>\n", 3000) . "\nHello");
 echo "3 ", Core\Arr::count($copies->references()), "\n";
 

@@ -12,6 +12,6 @@ Message $reply = Message::parse(
     . "It works now.\n"
 );
 
-// A long `References` header goes on in the next lines. Each of these lines starts with a space.
+// A long `References` header continues on the next lines. Each of these lines starts with a space.
 // `references()` reads all of them. This prints `3 messages came before this reply`.
 echo Core\Arr::count($reply->references()), " messages came before this reply\n";

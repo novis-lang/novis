@@ -12,6 +12,7 @@ Message $complaint = Message::parse(
 );
 
 // `raw()` returns the whole message as tainted bytes: the headers and the body.
+// Tainted means that the value comes from outside your program.
 string $folder = IO::createTemporaryDirectory();
 string $path = Core\Path::join($folder, 'complaint-1.eml');
 IO::write($path, $complaint->raw());

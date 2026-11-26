@@ -11,6 +11,6 @@ Message $question = Message::parse(
     . "Are you open on Sunday?\n"
 );
 
-// `name()` returns the name in front of the address. This prints `Hello Ada Lovelace,`.
+// `name()` returns the name before the address. This prints `Hello Ada Lovelace,`.
 ?Address $sender = $question->from();
 echo 'Hello ', $sender?->name() ?? '', ",\n";

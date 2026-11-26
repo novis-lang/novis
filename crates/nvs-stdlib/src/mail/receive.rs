@@ -288,15 +288,16 @@ const CARD: ClassDoc = ClassDoc {
 /// `parse`'s card.
 const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a raw message, such as the content of an `.eml` file. A broken message is \
-            not an error. A header that is missing is `null` or an empty array, and a part \
-            that cannot be read is skipped.",
+            not an error. A header that is missing is `null` or an empty array. A part (one \
+            piece of a message, such as the text, the HTML or a file) that cannot be read is \
+            skipped.",
     params: &[ParamDoc {
         name: "raw",
         desc: "The whole message, headers and body, as `bytes` or a `string`.",
         shape: &[],
     }],
-    ret: "The message. A message with more than 16 levels of nesting or more than 1,000 parts \
-          is read up to that limit. Only the first 1,000 header lines of a part are read.",
+    ret: "The message. Novis reads the first 16 levels of nesting and the first 1,000 parts, \
+          and skips the rest. Only the first 1,000 header lines of a part are read.",
     errors: &[],
 };
 
@@ -400,7 +401,7 @@ const HTML_DOC: MethodDoc = MethodDoc {
     short: "Returns the HTML body of the message, as a `tainted` string. To show it on a page, \
             pass it to `Core\\Html::sanitize` first.",
     params: &[],
-    ret: "The HTML, or `null` when the message has no `text/html` part.",
+    ret: "The HTML, or `null` when the message has no HTML part.",
     errors: &[],
 };
 
@@ -408,7 +409,8 @@ const HTML_DOC: MethodDoc = MethodDoc {
 const ATTACHMENTS_DOC: MethodDoc = MethodDoc {
     short: "Returns the files of the message and the images shown inside its HTML.",
     params: &[],
-    ret: "One attachment for each part, in order. The array is empty when there is none.",
+    ret: "One attachment for each file part, in order. A part is one piece of a message, such \
+          as the text, the HTML or a file. The array is empty when there is none.",
     errors: &[],
 };
 
@@ -416,7 +418,7 @@ const ATTACHMENTS_DOC: MethodDoc = MethodDoc {
 const RAW_DOC: MethodDoc = MethodDoc {
     short: "Returns the message exactly as `parse` read it.",
     params: &[],
-    ret: "The raw bytes.",
+    ret: "The raw bytes, as `tainted bytes`, because the sender wrote them.",
     errors: &[],
 };
 
@@ -432,10 +434,10 @@ const KIND_DOC: MethodDoc = MethodDoc {
 /// `answers`' card.
 const ANSWERS_DOC: MethodDoc = MethodDoc {
     short: "Returns the `Message-ID` of the mail this message is about, without angle brackets. \
-            For a bounce, a delay or a complaint, it is the ID of the returned message. \
-            Otherwise it is `In-Reply-To`, then the last `References` ID.",
+            For a bounce, a delay or a complaint, it is the id of the returned message. \
+            Otherwise it is `In-Reply-To`, then the last id in `References`.",
     params: &[],
-    ret: "The ID, or `null` when the message names none.",
+    ret: "The id, or `null` when the message names none.",
     errors: &[],
 };
 

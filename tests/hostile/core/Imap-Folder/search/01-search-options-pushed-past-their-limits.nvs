@@ -48,7 +48,7 @@ foreach (["x\r\nA1 DELETE INBOX", '"', '{5}', '*', "\0", Str::repeat('a', 100000
     }
 }
 
-// 5. Runs a search that reads every message 3000 times. Each result is freed when the next replaces it.
+// 5. Runs a search that reads every message 3000 times. The memory used should not grow.
 uint $i = 0;
 uint $found = 0;
 while ($i < 3000) {

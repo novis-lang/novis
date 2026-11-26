@@ -12,8 +12,8 @@ Message $mail = Message::parse(
     . "I would like a refund."
 );
 
-// The name and the address are tainted. An html`...` template escapes every value in it,
-// so the name shows as text and not as tags.
+// The name and the address are tainted. Tainted means that the value comes from outside your program.
+// An html`...` template escapes every value in it, so the name shows as text and not as tags.
 tainted string $name = $mail->from()?->name() ?? '';
 tainted string $address = $mail->from()?->address() ?? '';
 Markup $row = html`<li>{$name} &lt;{$address}&gt;</li>`;

@@ -10,8 +10,8 @@ array<string> $deliveries = [
     "Message-ID: <a1@example.org>\r\nSubject: Broken lamp\r\n\r\nThe lamp arrived broken.",
 ];
 
-// `$seen` is the list of ids that were already handled.
-// The ids are tainted, because the sender wrote them. So the list is `array<tainted string>`.
+// `$seen` is the list of ids that were already handled. It is `array<tainted string>`.
+// The sender wrote the ids, so they are tainted (text from outside your program).
 array<tainted string> $seen = [];
 foreach ($deliveries as string $raw) {
     Message $mail = Message::parse($raw);

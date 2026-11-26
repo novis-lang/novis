@@ -14,6 +14,6 @@ Message $reply = Message::parse(
     . "Can I change the address?\n"
 );
 
-// `inReplyTo()` returns the id without its angle brackets, as a tainted string.
-// A tainted string can be used to look up a key. This prints `order 42`.
+// `inReplyTo()` returns the id as a tainted string (text from outside your program).
+// Using a tainted string as an array key is allowed. This prints `order 42`.
 echo 'order ', $sent[$reply->inReplyTo() ?? ''] ?? 0, "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a stranger sends messages that look like bounces but are not delivery reports.
-// Only the real report in step 7 should be a `Bounce`, and every message should be read without a crash.
+// Only the report in step 7 should be a `Bounce`, and every message should be read without a crash.
 
 use Core\Mail\Message;
 use Core\Str;
@@ -25,7 +25,7 @@ Kind::show('2', "Content-Type: multipart/report; boundary=\"b\"\n\n--b\nContent-
 // 3. A normal mail with a delivery status part inside.
 Kind::show('3', "Content-Type: multipart/mixed; boundary=\"b\"\n\n--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n");
 
-// 4. A real bounce, attached inside a normal mail.
+// 4. A normal mail with a bounce attached inside it. The outer message is not a report, so it is not a bounce.
 Kind::show('4', "Content-Type: multipart/mixed; boundary=\"o\"\n\n--o\nContent-Type: message/rfc822\n\n"
     . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
     . "--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n--o--\n");

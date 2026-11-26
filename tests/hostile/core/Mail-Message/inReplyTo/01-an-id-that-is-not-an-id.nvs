@@ -22,7 +22,7 @@ Show::id(1, '<>');
 Show::id(2, '<<<<order-42@example.com');
 Show::id(2, '<a<b<c>>>');
 
-// 3. An encoded value that decodes to a line break and a second header.
+// 3. An encoded value that tries to add a header. It decodes to a line break and a second header.
 Show::id(3, '=?UTF-8?B?PGFAZXhhbXBsZS5jb20+DQpCY2M6IHhAZXhhbXBsZS5uZXQ=?=');
 
 // 4. 100,000 ids on one line, and one id of 1 MB.

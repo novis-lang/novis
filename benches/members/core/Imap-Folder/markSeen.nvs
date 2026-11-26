@@ -14,7 +14,8 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             $inbox->markSeen(1);
-            // This marks the message as new again, so each round marks a new message.
+            // This marks the message as new again.
+            // So each time the loop runs, `markSeen` marks a new message.
             $inbox->markUnseen(1);
             $total = $total + 1;
             $i = $i + 1;

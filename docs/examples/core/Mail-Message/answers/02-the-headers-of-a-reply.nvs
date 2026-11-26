@@ -11,7 +11,7 @@ Message $reply = Message::parse(
 );
 echo $reply->answers() ?? 'none', "\n";
 
-// Some programs write only `References`. The last entry is the newest mail, so this prints `ticket-9@example.com`.
+// Some programs write only `References`. `answers()` returns the last id in `References`. This prints `ticket-9@example.com`.
 Message $forwarded = Message::parse(
     "From: dee@example.org\nSubject: Fw: Ticket 9\n"
     . "References: <ticket-8@example.com> <ticket-9@example.com>\n\nSee below.\n"

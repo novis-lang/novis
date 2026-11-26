@@ -4,7 +4,7 @@
 use Core\Mail\Message;
 
 // Many mail programs send HTML in the quoted-printable encoding. In it, `=3D` is `=`
-// and a line that ends with `=` goes on in the next line.
+// and a line that ends with `=` continues on the next line.
 Message $newsletter = Message::parse(
     "From: News <news@example.com>\n"
     . "Subject: Spring sale\n"

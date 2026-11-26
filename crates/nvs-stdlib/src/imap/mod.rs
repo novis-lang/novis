@@ -305,8 +305,8 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The name is not granted, no block has that name, or the block has no \
-                   sign-in.",
+            desc: "The name is not listed in `[capabilities.imap] connect`, no block has that \
+                   name, or the block has no sign-in.",
         },
         ErrorDoc {
             error: "IOError",
@@ -325,8 +325,9 @@ const MAILBOX_CARD: ClassDoc = ClassDoc {
 const FOLDERS_DOC: MethodDoc = MethodDoc {
     short: "Returns the name of every folder you can open, such as `INBOX` and `Sent`.",
     params: &[],
-    ret: "The names, in the order the server sends them. The server writes them, so they are \
-          `tainted`.",
+    ret: "The names, in the order the server sends them. A `directory` block returns them in \
+          alphabetical order. The server writes the names, so they are `tainted` (text from \
+          outside your program).",
     errors: &[ErrorDoc {
         error: "IOError",
         desc: "The server does not answer.",
@@ -342,21 +343,31 @@ const FOLDER_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "The folder.",
-    errors: &[ErrorDoc {
-        error: "IOError",
-        desc: "The folder does not exist, or the server does not answer.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A `directory` block is a folder on disk that works like a mailbox. For such a \
+                   block, the name is empty, `.` or `..`, or has a `/`, `\\`, `:` or control \
+                   character.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The folder does not exist, or the server does not answer.",
+        },
+    ],
 };
 
 /// `Folder`'s card.
 const FOLDER_CARD: ClassDoc = ClassDoc {
-    short: "One folder of an open mailbox. Each message in it has a number, its UID.",
+    short: "One folder of an open mailbox. Each message in it has a UID (the number the server \
+            gives each message in a folder).",
 };
 
 /// `uidValidity`'s card.
 const UID_VALIDITY_DOC: MethodDoc = MethodDoc {
-    short: "Returns the `UIDVALIDITY` of the folder. When this number changes, every UID you \
-            saved for the folder names another message.",
+    short: "Returns the folder's `UIDVALIDITY` (a number that changes when the server numbers \
+            the messages again). A UID is the number the server gives each message in a folder. \
+            When the `UIDVALIDITY` changes, a UID you saved may now belong to another message.",
     params: &[],
     ret: "A number of 1 or more.",
     errors: &[],
@@ -364,8 +375,8 @@ const UID_VALIDITY_DOC: MethodDoc = MethodDoc {
 
 /// `search`'s card.
 const SEARCH_DOC: MethodDoc = MethodDoc {
-    short: "Returns the UID of each message that matches every option you set. With no option, \
-            it returns every message.",
+    short: "Returns the UID (the number the server gives each message in a folder) of each \
+            message that matches every option you set. With no option, it returns every message.",
     params: &[
         ParamDoc {
             name: "unseen",
@@ -407,7 +418,8 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The server does not answer, or the `UIDVALIDITY` of the folder changed.",
+            desc: "The server does not answer, or the folder's `UIDVALIDITY` changed. That is a \
+                   number that changes when the server numbers the messages again.",
         },
     ],
 };
@@ -417,7 +429,8 @@ const FETCH_DOC: MethodDoc = MethodDoc {
     short: "Reads the message `$uid` and parses it. The message is not marked as read.",
     params: &[ParamDoc {
         name: "uid",
-        desc: "A UID that `search` returned.",
+        desc: "A UID (the number the server gives each message in a folder) that `search` \
+               returned.",
         shape: &[],
     }],
     ret: "The parsed message. Its `uid()` is `$uid`.",
@@ -428,8 +441,10 @@ const FETCH_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "No message has that UID, the message is larger than the memory the request \
-                   has left, the server does not answer, or the `UIDVALIDITY` changed.",
+            desc: "No message has that UID, or the server does not answer. It is also thrown \
+                   when the message is larger than the memory the request has left. It is also \
+                   thrown when the folder's `UIDVALIDITY` changed. That is a number that changes \
+                   when the server numbers the messages again.",
         },
     ],
 };
@@ -437,7 +452,7 @@ const FETCH_DOC: MethodDoc = MethodDoc {
 /// The `uid` parameter of the six members that change a message.
 const UID_PARAM: ParamDoc = ParamDoc {
     name: "uid",
-    desc: "A UID that `search` returned.",
+    desc: "A UID (the number the server gives each message in a folder) that `search` returned.",
     shape: &[],
 };
 
@@ -450,14 +465,16 @@ const UID_ERROR: ErrorDoc = ErrorDoc {
 /// The `IOError` of every member that changes a message.
 const CHANGE_ERROR: ErrorDoc = ErrorDoc {
     error: "IOError",
-    desc: "No message has that UID, the server does not answer, or the `UIDVALIDITY` changed.",
+    desc: "No message has that UID, or the server does not answer. It is also thrown when the \
+           folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers \
+           the messages again.",
 };
 
 /// The `flag` parameter of `flag` and `unflag`.
 const FLAG_PARAM: ParamDoc = ParamDoc {
     name: "flag",
     desc: "`\\Answered`, `\\Flagged`, `\\Draft`, `\\Seen`, or a keyword such as `$Important`. \
-           A keyword has no space and none of `(){%*\"\\]`.",
+           A keyword cannot have a space or any of these characters: `(){%*\"\\]`.",
     shape: &[],
 };
 

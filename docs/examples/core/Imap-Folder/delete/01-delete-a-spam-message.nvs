@@ -4,7 +4,8 @@
 use Core\Imap;
 use Core\IO;
 
-// In a `directory` block, each message is a file. This line adds a spam message with the UID 2.
+// A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
+// In such a block, each message is a file. This line adds a spam message with the UID 2.
 IO::write('junk/Junk/2.eml', "From: Prize Office <win@example.net>\nSubject: You won a prize\n\nClick here.\n");
 
 var $junk = Imap::open('junk')->folder('Junk');

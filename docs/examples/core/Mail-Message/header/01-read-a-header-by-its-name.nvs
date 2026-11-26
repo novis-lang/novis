@@ -13,11 +13,12 @@ Message $post = Message::parse(
     . "Someone answered your question.\n"
 );
 
-// `header()` returns an array with one value for each line of the header.
+// `List-Id` names the mailing list that a message came from. `header()` returns one value for each line.
 // This prints `Shop forum <forum.example.com>`.
 echo $post->header('List-Id')[0], "\n";
 
-// The message passed two mail servers, so it has two `Received` lines.
+// A `Received` header has one line for each server that the message passed.
+// This message passed two mail servers, so it has two `Received` lines.
 foreach ($post->header('Received') as var $server) {
     echo $server, "\n";
 }

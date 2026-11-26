@@ -9,8 +9,8 @@ int $lastUid = 2;
 
 var $inbox = Imap::open('inbox')->folder('INBOX');
 
-// The folder now has the `UIDVALIDITY` 1. The saved UID 2 may be another message now,
-// so the script forgets it and reads every message again.
+// The folder now has the `UIDVALIDITY` 1. So the saved UID 2 may now belong to another message.
+// The script forgets the saved UID and reads every message again.
 if ($inbox->uidValidity() != $savedValidity) {
     echo 'UIDVALIDITY changed from ', $savedValidity, ' to ', $inbox->uidValidity(), "\n";
     $lastUid = 0;

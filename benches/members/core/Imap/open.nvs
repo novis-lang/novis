@@ -14,7 +14,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round uses the total so far to pick one of the two blocks.
+            // The loop opens a different block each time it runs: `inbox`, then `archive`.
             Mailbox $mailbox = Imap::open($blocks[($total % 2) as int]);
             $total = $total + 1;
             $i = $i + 1;

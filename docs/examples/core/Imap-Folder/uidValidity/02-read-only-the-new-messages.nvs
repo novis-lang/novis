@@ -3,7 +3,8 @@
 
 use Core\Imap;
 
-// The last run saved the `UIDVALIDITY` 1 and the highest UID it read, 1.
+// The last run saved two numbers. The `UIDVALIDITY` was 1.
+// The highest UID it read was also 1.
 int $savedValidity = 1;
 int $lastUid = 1;
 

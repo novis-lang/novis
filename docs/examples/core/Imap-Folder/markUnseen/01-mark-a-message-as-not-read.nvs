@@ -5,7 +5,7 @@ use Core\Imap;
 
 var $inbox = Imap::open('shop')->folder('INBOX');
 
-// Both messages are read. Message 2 still needs an answer, so it is marked as new.
+// Both messages are read. Nobody has answered message 2 yet, so the script marks it as new.
 $inbox->markUnseen(2);
 
 // This prints "new: 2 Can I change my address?".

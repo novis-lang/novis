@@ -1,13 +1,15 @@
 <?nvs
-// Shows that `delete` deletes only the message you name, also when another message is marked for deletion.
+// Shows that `delete` deletes only the message you name, even when another message is marked for deletion.
 
 use Core\Imap;
 use Core\IO;
 
-// In a `directory` block, each message is a file. This line adds a message with the UID 3.
+// A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
+// In such a block, each message is a file. This line adds a message with the UID 3.
 IO::write('shop/INBOX/3.eml', "From: Cy Okafor <cy@example.net>\nSubject: Test\n\nThis is a test.\n");
 
-// Another mail program marked message 2 with the flag `\Deleted`. `delete(3)` does not remove it.
+// `\Deleted` is the flag that marks a message for deletion.
+// Another mail program gave message 2 this flag. `delete(3)` does not remove message 2.
 var $inbox = Imap::open('shop')->folder('INBOX');
 $inbox->delete(3);
 
@@ -16,7 +18,7 @@ foreach ($inbox->search() as int $uid) {
     echo $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
 }
 
-// Message 3 is gone, so a second `delete` throws an `IOError`.
+// Message 3 is deleted, so a second `delete` throws an `IOError`.
 try {
     $inbox->delete(3);
 } catch (IOError $gone) {

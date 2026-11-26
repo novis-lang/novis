@@ -6,12 +6,12 @@ use Core\Imap;
 
 var $inbox = Imap::open('support')->folder('INBOX');
 
-// Message 1 is read already. Message 2 is marked twice. Neither call throws an error.
+// Message 1 is read already, and message 2 is marked twice. These three calls do not throw an error.
 $inbox->markSeen(1);
 $inbox->markSeen(2);
 $inbox->markSeen(2);
 
-// This prints "new: 0".
+// Messages 1 and 2 are both read now, so this prints "new: 0".
 echo 'new: ', Arr::count($inbox->search({ unseen: true })), "\n";
 
 // A message that does not exist throws an `IOError`.

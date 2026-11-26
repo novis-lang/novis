@@ -3,14 +3,14 @@
 
 use Core\Mail\Message;
 
-// The newsletters the shop sent, by the `Message-ID` that `Core\Mail::send` returned.
+// This array lists the newsletters the shop sent. The key is the `Message-ID` that `Core\Mail::send` returned.
 array<string> $sentTo = [
     'news-0611-ada@example.com' => 'ada@example.org',
     'news-0611-bo@example.com' => 'bo@example.org',
 ];
 
 // A mail provider sends this report when a reader marks the newsletter as spam.
-// The last part is a copy of the newsletter.
+// The last part of the report is a copy of the newsletter.
 Message $complaint = Message::parse(
     "From: feedback@mail.example.net\nSubject: Complaint about message\n"
     . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"

@@ -19,7 +19,7 @@ try {
     echo $space->message, "\n";
 }
 
-// This works. A keyword can have a `-`.
+// A keyword can have a `-`, so this line works.
 $inbox->flag(1, 'Not-Spam');
 echo "Not-Spam is set\n";
 

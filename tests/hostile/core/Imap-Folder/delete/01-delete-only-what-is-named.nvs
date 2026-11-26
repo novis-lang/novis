@@ -1,6 +1,6 @@
 <?nvs
 // Attack: another mail program marked a message `\Deleted`, and this program deletes a different one.
-// Only the named message may go. A bad UID, a second delete and a message that is a directory
+// Only the named message should be deleted. A bad UID, a second delete and a message that is a directory
 // each throw an error. Each error is caught, so the next step still runs.
 
 use Core\Arr;
@@ -22,7 +22,7 @@ foreach ([0, -1, 4294967296, 9] as var $uid) {
 }
 
 try {
-    // 2. Message 1 has the flag `\Deleted`. Deleting message 2 should leave message 1 where it is.
+    // 2. Message 1 has the flag `\Deleted`. Deleting message 2 should not delete message 1.
     IO::write('mailbox/INBOX/1.flags', "\\Deleted\n");
     IO::write('mailbox/INBOX/2.eml', "From: a@example.com\nSubject: Delete me\n\nHello.\n");
     $inbox->delete(2);
@@ -58,7 +58,7 @@ try {
     }
 }
 
-// 6. Writes and deletes a new message 2000 times. Message 1 should stay the only one.
+// 6. Writes and deletes a new message 2000 times. At the end, message 1 should be the only message.
 uint $i = 0;
 while ($i < 2000) {
     IO::write('mailbox/INBOX/2.eml', "From: a@example.com\nSubject: Delete me\n\nHello.\n");

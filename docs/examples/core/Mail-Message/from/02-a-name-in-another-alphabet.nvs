@@ -3,7 +3,8 @@
 
 use Core\Mail\Message;
 
-// A mail program writes a name with letters outside ASCII in an encoded form, such as `=?UTF-8?B?...?=`.
+// A mail program writes a name with letters outside ASCII as an encoded word, such as `=?UTF-8?B?...?=`.
+// An encoded word is the way a header writes non-ASCII text.
 Message $mail = Message::parse(
     "From: =?UTF-8?B?0JDQvdC90LAg0J/QsNCy0LvQvtCy0LA=?= <anna@example.org>\r\n"
     . "Subject: Order 1042\r\n"

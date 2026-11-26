@@ -1,5 +1,5 @@
 <?nvs
-// Measures how the `Message-ID` a received message is about is read, as a script does to find the mail that bounced.
+// Measures how `answers()` reads the id of the mail a message replies to, as a script does to find the mail that bounced.
 // bench: iterations 2048
 // bench: complexity constant
 
@@ -23,8 +23,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // The length is multiplied by 3, so each message is picked in turn.
+            // `$total` grows by a multiple of 3, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads message 1, 2, 3, then message 1 again, and so on.
             ?tainted string $id = $messages[(($total + $i) % 3) as int]->answers();
             $total = $total + 3 * Core\Str::length($id ?? '');
             $i = $i + 1;

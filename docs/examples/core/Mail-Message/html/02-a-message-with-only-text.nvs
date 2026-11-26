@@ -14,5 +14,5 @@ Message $note = Message::parse(
 echo $note->html() ?? 'no HTML', "\n";
 
 // `text()` returns the plain text body. `Core\Html::escape` makes it safe for a page.
-// The body ends with a line break, so `echo` needs none.
+// The body already ends with a line break, so this `echo` does not add `"\n"`.
 echo Core\Html::escape($note->text() ?? '');

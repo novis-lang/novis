@@ -27,11 +27,11 @@ class Mailed
     }
 }
 
-// 1. A name that climbs two folders up.
+// 1. A name that starts with `../../`, so it points two folders above the folder of the file.
 Mailed::show(1, Mailed::with('../../etc/passwd'));
 
-// 2. The same with `\`, as on Windows, and a full Windows path. Both names are encoded,
-// so the `\` characters are still there after the header is read.
+// 2. The same with `\`, as on Windows, and a full Windows path. Both are encoded words.
+// An encoded word is the way a header writes non-ASCII text. Each `\` in it stays a `\`.
 Mailed::show(2, Mailed::with('=?UTF-8?B?Li5cLi5cV2luZG93c1x3aW4uaW5p?='));
 Mailed::show(2, Mailed::with('=?UTF-8?B?QzpcVXNlcnNcUHVibGljXHJ1bi5iYXQ=?='));
 

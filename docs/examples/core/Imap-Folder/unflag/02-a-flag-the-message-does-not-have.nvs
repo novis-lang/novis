@@ -6,7 +6,8 @@ use Core\IO;
 
 var $inbox = Imap::open('support')->folder('INBOX');
 
-// Message 1 has no flags. Neither call throws an error.
+// Message 1 has no flags. The two calls below remove `\Answered` and `$Urgent`.
+// They change nothing, and they do not throw an error.
 $inbox->unflag(1, '\Answered');
 $inbox->unflag(1, '$Urgent');
 

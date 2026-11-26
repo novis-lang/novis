@@ -444,9 +444,10 @@ pub(crate) const ADDRESS: CoreClass = CoreClass {
 
 /// `Core\Mail\Address::address`'s reference card.
 const ADDRESS_ADDRESS_DOC: MethodDoc = MethodDoc {
-    short: "Returns the email address, such as `ada@example.com`.",
+    short: "Returns the email address, such as `ada@example.org`.",
     params: &[],
-    ret: "The address, without the name.",
+    ret: "The address, without the name. For a received message, the address is `tainted`, \
+          because the sender wrote it.",
     errors: &[],
 };
 

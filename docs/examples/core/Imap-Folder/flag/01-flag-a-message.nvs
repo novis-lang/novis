@@ -8,8 +8,8 @@ var $inbox = Imap::open('shop')->folder('INBOX');
 
 $inbox->flag(1, '\Flagged');
 
-// In a `directory` block, the flags of message 1 are the lines of the file `1.flags`.
-// This prints "\Flagged".
+// A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
+// Its file `1.flags` has the flags of message 1, one per line. This prints "\Flagged".
 echo IO::readText('shop/INBOX/1.flags');
 
 // This removes the flag again, so the example prints the same each time it runs.

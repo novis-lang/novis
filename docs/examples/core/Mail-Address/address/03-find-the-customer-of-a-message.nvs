@@ -3,12 +3,12 @@
 
 use Core\Mail\Message;
 
-// The customer numbers of the shop, by email address in lower case.
+// This array has the customer number for each email address of the shop. The addresses are in lower case.
 array<int> $customers = ['ada@example.org' => 1042, 'bo@example.org' => 1043];
 
 Message $mail = Message::parse("From: Ada <Ada@Example.org>\nSubject: My order\n\nWhere is it?");
 
 // The sender may write the address in any case, so the program changes it to lower case first.
-// The sender writes the `From` header, so the address is tainted. It does not prove who sent the message.
+// The address is tainted (text from outside your program). Using it as an array key is allowed.
 tainted string $key = Core\Str::lower($mail->from()?->address() ?? '');
 echo 'customer ', $customers[$key] ?? 0, "\n";

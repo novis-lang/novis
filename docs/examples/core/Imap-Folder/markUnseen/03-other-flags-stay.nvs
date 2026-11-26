@@ -6,7 +6,8 @@ use Core\IO;
 
 var $inbox = Imap::open('support')->folder('INBOX');
 
-// In a `directory` block, the flags of message 1 are the lines of the file `1.flags`.
+// A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
+// In such a block, the file `1.flags` has the flags of message 1, one per line.
 echo "before:\n", IO::readText('support/INBOX/1.flags');
 
 $inbox->markUnseen(1);

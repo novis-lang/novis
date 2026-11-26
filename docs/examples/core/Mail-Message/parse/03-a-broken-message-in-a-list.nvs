@@ -10,10 +10,11 @@ array<string> $inbox = [
     "From: bo@example.org\r\nSubject: Opening hours\r\nDate: someday\r\n\r\nHi.",
 ];
 
-// `parse` does not throw an error. A missing subject is an empty string,
-// and a missing sender or date is `null`. The subject is tainted, because the sender wrote it.
+// `parse` does not throw an error. For a missing subject, `subject()` returns an empty string.
+// For a missing sender or date, `from()` and `date()` return `null`.
 foreach ($inbox as string $raw) {
     Message $mail = Message::parse($raw);
+    // The sender wrote the subject, so it is tainted (text from outside your program).
     tainted string $subject = $mail->subject() == '' ? '(no subject)' : $mail->subject();
     echo $mail->from()?->address() ?? '(no sender)', ': ', $subject;
     echo $mail->date() == null ? ', no date' : ', dated', "\n";

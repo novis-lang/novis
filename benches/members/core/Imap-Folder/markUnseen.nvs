@@ -14,7 +14,8 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             $inbox->markUnseen(1);
-            // This marks the message as read again, so each round starts with a read message.
+            // This marks the message as read again.
+            // So each time the loop runs, `markUnseen` starts with a read message.
             $inbox->markSeen(1);
             $total = $total + 1;
             $i = $i + 1;

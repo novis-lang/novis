@@ -1,6 +1,7 @@
 <?nvs
 // Attack: a stranger writes the address headers to send a fake or dangerous bounce tag.
-// A tag that breaks the tag rule should be `null`, and a valid tag on a normal mail should not make it a bounce.
+// A valid tag has 1 to 64 characters, and each is a letter, a digit, `.`, `_` or `-`.
+// Any other tag should give `null`. A valid tag on a normal mail should not make it a bounce.
 
 use Core\Mail\Message;
 use Core\Str;
@@ -19,7 +20,7 @@ class Show
 // 1. A valid tag on a message that is not a delivery report.
 Show::tag('1', "Delivered-To: bounces+order-42@example.com\n");
 
-// 2. A tag of 65 characters, one more than the rule allows.
+// 2. A tag of 65 characters, one more than a valid tag can have.
 Show::tag('2', "To: bounces+" . Str::repeat('a', 65) . "@example.com\n");
 
 // 3. A tag with a quote and a semicolon, written to reach a database query.

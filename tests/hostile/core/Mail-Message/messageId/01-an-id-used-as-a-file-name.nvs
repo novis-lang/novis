@@ -1,6 +1,6 @@
 <?nvs
 // Attack: a program saves each message in a file named after its id, and the id is `../../.profile`.
-// The sender wrote the id, so it is tainted. A tainted path does not compile, so this program should not compile.
+// The sender wrote the id, so it is tainted. A tainted string cannot be part of a file path, so this program does not compile.
 // hostile: expect-refusal
 
 use Core\IO;

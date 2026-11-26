@@ -1,5 +1,6 @@
 <?nvs
-// Attack: a stranger writes `From` and `To` headers with empty, broken or very many addresses, and the program replies to them.
+// Attack: a stranger writes `From` and `To` headers with empty, broken or very many addresses.
+// The program then replies to these addresses.
 // Each address should be read or skipped, and a reply to an address that is not valid should throw an error.
 
 use Core\Mail;

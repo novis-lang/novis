@@ -6,8 +6,8 @@ use Core\Mail\Message;
 
 class Sent
 {
-    // The bounce tag is read from a received message, so the program uses its own copy of the tag.
-    // The result is `null` when the shop never sent a mail with this tag.
+    // `tag` finds the tag of a received message in the shop's own list, and returns the shop's copy.
+    // It returns `null` when the shop never sent a mail with this tag.
     public static function tag(array<string> $status, ?tainted string $written): ?string
     {
         foreach ($status as string $tag => string $state) {
@@ -19,8 +19,8 @@ class Sent
     }
 }
 
-// The mails the shop sent. The key is the `Message-ID` that `Core\Mail::send` returned.
-// Each mail was sent with the bounce tag in its value.
+// This array lists the mails the shop sent. The key is the `Message-ID` that `Core\Mail::send` returned.
+// The shop sent each mail with a `bounceTag`. The value is that tag.
 array<string> $tagOf = [
     'order-41@example.com' => 'order-41',
     'order-42@example.com' => 'order-42',
@@ -43,8 +43,8 @@ foreach ($inbox->search() as int $uid) {
         continue;
     }
 
-    // `answers()` gives the `Message-ID` of the shop's mail. Some bounces do not
-    // contain it, so the bounce tag is the second way to find the mail.
+    // `answers()` gives the `Message-ID` of the shop's mail. Some bounces have no copy of the mail.
+    // For such a bounce, the program finds the mail by `bounceTag()`.
     ?tainted string $id = $message->answers();
     ?string $tag = $id != null ? ($tagOf[$id] ?? null) : null;
     $tag = $tag ?? Sent::tag($status, $message->bounceTag());

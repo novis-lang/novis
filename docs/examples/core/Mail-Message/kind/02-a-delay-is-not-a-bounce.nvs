@@ -19,7 +19,7 @@ class Report
     }
 }
 
-// The server could not reach ada's mail server yet. It tries again later.
+// The mail has not reached ada's mail server yet. The server tries again later.
 Message $late = Message::parse(Report::with('delayed', '4.4.1'));
 echo $late->kind() == Message::Kind::Delay ? 'delay: wait, the mail may still arrive' : 'not a delay', "\n";
 

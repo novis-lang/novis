@@ -8,7 +8,8 @@ use Core\Mail\Message;
 Message $many = Message::parse(Core\Str::repeat("X-Spam: yes\n", 5000) . "\nHello");
 echo "1 ", Core\Arr::count($many->header('X-Spam')), "\n";
 
-// 2. An encoded value that decodes to a line break and `Bcc: x@example.net`. It should not become a `Bcc` header.
+// 2. An encoded value that decodes to a line break and `Bcc: x@example.net`, to add a hidden copy.
+// It should not become a `Bcc` header.
 Message $hidden = Message::parse("X-Note: =?UTF-8?B?aGkNCkJjYzogeEBleGFtcGxlLm5ldA==?=\n\nHello");
 echo "2 ", Core\Arr::count($hidden->header('Bcc')), " ", Core\Arr::count($hidden->header('X-Note')), "\n";
 

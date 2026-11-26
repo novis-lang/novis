@@ -8,6 +8,7 @@ var $mailbox = Imap::open('inbox');
 var $inbox = $mailbox->folder('INBOX');
 var $sent = $mailbox->folder('Sent');
 
+// A `tainted string` is text from outside your program.
 // A subject comes from the sender of the mail, so it is a `tainted string`.
 array<tainted string> $replied = [];
 foreach ($sent->search() as int $uid) {

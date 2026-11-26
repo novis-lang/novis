@@ -10,7 +10,7 @@ use Core\Str;
 
 var $inbox = Imap::open('inbox')->folder('INBOX');
 
-// 1. `\Deleted` in three ways of writing it.
+// 1. Tries `\Deleted` written in three ways: `\Deleted`, `\deleted` and `\DELETED`.
 foreach (['\Deleted', '\deleted', '\DELETED'] as var $flag) {
     try {
         $inbox->flag(1, $flag);
@@ -20,7 +20,7 @@ foreach (['\Deleted', '\deleted', '\DELETED'] as var $flag) {
     }
 }
 
-// 2. Other names that start with `\`, and a flag that is only `\`.
+// 2. Tries other names that start with `\`, and a flag that is only `\`.
 foreach (['\Recent', '\Foo', '\\', '\Seen\Deleted', '\*'] as var $flag) {
     try {
         $inbox->flag(1, $flag);
@@ -30,7 +30,8 @@ foreach (['\Recent', '\Foo', '\\', '\Seen\Deleted', '\*'] as var $flag) {
     }
 }
 
-// 3. Flags with a line break and a second command, a space, brackets, quotes and a NUL byte.
+// 3. Tries flags that could add a second command. Each one has a line break, a space,
+//    brackets, quotes, `%`, `*`, a NUL byte, or nothing at all.
 foreach (["x\r\nA1 UID EXPUNGE 1", 'a b', '(x)', '{5}', '"x"', 'x]', '%', '*', "x\0", ''] as var $flag) {
     try {
         $inbox->flag(1, $flag);
@@ -40,7 +41,7 @@ foreach (["x\r\nA1 UID EXPUNGE 1", 'a b', '(x)', '{5}', '"x"', 'x]', '%', '*', "
     }
 }
 
-// 4. A keyword of one million letters, and then the same keyword removed again.
+// 4. Adds a keyword of one million letters, and then removes the same keyword again.
 //    The flag file is removed at the end, so the next run finds the folder as it was.
 try {
     $inbox->flag(1, Str::repeat('a', 1000000));

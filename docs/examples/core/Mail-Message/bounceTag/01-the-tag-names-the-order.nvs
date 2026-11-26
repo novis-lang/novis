@@ -16,6 +16,7 @@ Message $bounce = Message::parse(
     . "--b--\n"
 );
 
-// This bounce has no copy of the confirmation, so `answers()` is `null`. The tag still names the order.
+// `answers()` returns the id of the mail that bounced, from the copy inside the bounce.
+// This bounce has no copy, so `answers()` is `null`. The tag still names the order.
 echo 'answers: ', $bounce->answers() ?? 'null', "\n";
 echo 'tag: ', $bounce->bounceTag() ?? 'null', "\n";

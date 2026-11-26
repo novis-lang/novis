@@ -13,8 +13,8 @@ array<string> $inbox = [
 
 class Inbox
 {
-    // Returns the moment a message was sent, in seconds since 1970 in UTC.
-    // A message without a date gets 0, so it comes first.
+    // `sentAt` returns the moment a message was sent, in seconds since 1970 in UTC.
+    // For a message without a date, it returns 0, so that message comes first.
     public static function sentAt(Message $mail): int
     {
         ?DateTime $date = $mail->date();

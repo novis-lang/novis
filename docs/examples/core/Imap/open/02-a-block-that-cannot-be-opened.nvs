@@ -3,7 +3,8 @@
 
 use Core\Imap;
 
-// `[imap.archive]` exists, but `[capabilities.imap] connect` does not list it.
+// `[capabilities.imap] connect` is the list of blocks the program may open.
+// `[imap.archive]` exists, but that list does not have it.
 try {
     Imap::open('archive');
 } catch (RuntimeError $notGranted) {

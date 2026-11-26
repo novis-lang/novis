@@ -21,6 +21,6 @@ Message $reply = Message::parse(
     . "--b1--\n"
 );
 
-// `html()` returns a tainted string, because the sender wrote it.
+// `html()` returns a tainted string (text from outside your program). It cannot be put on a page as HTML.
 // `Core\Html::sanitize` keeps the `p` and `b` tags and removes the script.
 echo Core\Html::sanitize($reply->html() ?? '');

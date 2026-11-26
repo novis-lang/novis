@@ -8,6 +8,5 @@ Message $mail = Message::parse("From: ada@example.org\r\nTo: support@example.com
 // The header is missing, so the result is an empty array. This prints `0`.
 echo Core\Arr::count($mail->cc()), "\n";
 
-// A loop over an empty array runs zero times, so the message needs no extra check.
-// This prints `no copies`.
+// `Core\Arr::isEmpty` checks whether the array is empty. This prints `no copies`.
 echo Core\Arr::isEmpty($mail->cc()) ? 'no copies' : 'copies', "\n";

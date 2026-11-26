@@ -6,8 +6,9 @@ calls `markSeen` after it handles the message. On its next run, `search` no long
 message.
 
 `fetch` does not mark a message as read, so your program decides when a message counts as read.
-If the message is read already, `markSeen` changes nothing. If no message has that UID, it throws
-an `IOError`.
+If the message is read already, `markSeen` changes nothing. You name the message by its UID (the
+number the server gives each message in a folder). If no message has that UID, `markSeen` throws an
+`IOError`.
 
 **Good to know:** call `markSeen` after the work is done. If the work fails first, the message is
 still new, and the next run tries it again.

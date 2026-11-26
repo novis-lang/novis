@@ -6,6 +6,7 @@ use Core\Imap;
 
 var $mailbox = Imap::open('inbox');
 
+// A `tainted string` is text from outside your program.
 // The server writes the folder names, so each name is a `tainted string`.
 foreach ($mailbox->folders() as tainted string $name) {
     var $folder = $mailbox->folder($name);

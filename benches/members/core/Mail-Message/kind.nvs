@@ -23,8 +23,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three messages.
-            // Each kind adds a multiple of 3, so each message is picked in turn.
+            // Each kind adds a multiple of 3 to `$total`, so `($total + $i) % 3` is the same as `$i % 3`.
+            // The loop reads message 1, 2, 3, then message 1 again, and so on.
             Message $message = Message::parse($messages[(($total + $i) % 3) as int]);
             int $step = match ($message->kind()) {
                 Message::Kind::Bounce => 3,

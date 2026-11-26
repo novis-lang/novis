@@ -17,8 +17,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Each round adds the counter to the total so far. The result picks one of the three files.
-            // `name()` is `null` only for a received file with no name, so `?? ''` never applies here.
+            // The loop uses `$total` to choose one of the three files, so it does not always read the same file.
+            // `?? ''` gives `''` when the name is `null`. These files all have a name, so it is never `null` here.
             $total = $total + Core\Str::length($files[(($total + $i) % 3) as int]->name() ?? '');
             $i = $i + 1;
         }

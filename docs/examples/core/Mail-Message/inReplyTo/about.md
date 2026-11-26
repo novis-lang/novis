@@ -7,7 +7,11 @@ tells you which one the reply is about. A new message has no `In-Reply-To` heade
 is `null`. When the header has several ids, the result is the first one.
 
 The sender wrote this header, so `inReplyTo()` returns a `tainted string`. Tainted means that the
-value comes from outside your program. Do not use it as a proof of who sent the message.
+value comes from outside your program, so you must check or escape it before you use it. Escape it
+with `Core\Html::escape` before you put it on a page. Using it as an array key is allowed.
+
+Anybody can write any id in this header. So the id does not prove who sent the message, and it
+does not prove that the message answers your mail.
 
 `references()` returns the ids of the whole conversation, and `answers()` combines both headers.
 
