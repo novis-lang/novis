@@ -202,6 +202,16 @@ them parsed, so a send that fails later still has it, and under `nvs test` a kep
 `job` are cloned only when the request is recorded. The index keeps both kinds' outcomes in the
 existing `outcome` column, so the schema does not rise, and no `*_us` sum is added for them.
 
+**Stage 6 settled where each run line is written.** A scheduled fire and a queue attempt each
+write theirs from the isolate's `Completion`, which already carries the gate, the memory figures
+and the stack copied under it, and now the child's trace, so the line joins the run's events. A
+fire's run and a job's attempt are `cancelled` when their task's context says so. `nvs run`
+writes its line inside the program task, after the exit hooks and the session's write-back, and
+not in `sealed`, because only the task still holds the context and the uncaught throw. An `exit`
+with code `0` is `ok`. `nvs_schedule_runs_total` is declared but never counted in the tree, so
+the scheduled writer sits beside `Fires::ran` instead. A run is forgotten by its start, as a
+request is, with every row of its trace.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -324,15 +334,32 @@ handler, as `file.rs:NN` and one line.
 **Split:** an `Explore` subagent first reports how `crates/nvs-cli/src/debug/ingest.rs` treats
 records whose trace id has no `request` line, and where a queue worker ends a job.
 
-- [ ] `crates/nvs-runtime/src/spool.rs`: the `run` line and its writer.
+- [x] `crates/nvs-runtime/src/spool.rs`: the `run` line and its writer.
+  - [x] `Record::Run`, `Run`, `RunOf`, `RunOutcome`, and `Exception::of` and `Exception::thrown`.
+  - [x] `spool::run` over a `Completion` and `spool::run_in` over a `Ctx`.
+  - [x] The sample spool has a mail, a queue and a run line.
 - [ ] The three writers: the scheduler beside `crates/nvs-server/src/metrics.rs:272`, the queue
   worker where a job ends, and `crates/nvs-cli/src/main.rs:822` for `nvs run` and `nvs test`.
+  - [x] A scheduled fire, in `fire()` (`crates/nvs-server/src/schedule.rs`).
+  - [x] A queue attempt, in `run()` (`crates/nvs-cli/src/worker.rs`).
+  - [x] `nvs run`, where its program task ends (`crates/nvs-cli/src/main.rs`, `run_run`).
+  - [ ] `nvs test`, one run line per invocation, named `test <path>`
+    (`crates/nvs-cli/src/runner.rs`).
 - [ ] `crates/nvs-cli/src/debug/index.rs`: the `runs` table, under the deletion window, and
   `GET /api/runs` and `GET /api/run`.
+  - [x] The `runs` table, its triggers, `exceptions.run`, schema 14, the deletion window and the
+    rebuild's sequence.
+  - [x] The ingester's `run` arm and the shared `exception_row`.
+  - [ ] `GET /api/runs` (paged on `id`, filters `of`, `name`, `outcome`) and `GET /api/run?trace=`.
+  - [ ] `crates/nvs-cli/src/debug/exceptions.rs:291` joins `requests` alone: a run's exception
+    joins its run too.
 - [ ] The viewer: `/runs` and `/runs/<trace>` on the shared list and the request page's tabs, and
   the rail's Runs item.
 - [ ] Tests: each kind of run round-trips, and a failed run carries its exception. The check `shown`
   is green.
+  - [x] `each_kind_of_run_reaches_its_row_and_a_failed_run_keeps_its_exception`
+    (`crates/nvs-cli/tests/debug_ingest.rs`).
+  - [ ] A `debug_api` test of `GET /api/runs` and `GET /api/run`, then the check `shown`.
 
 ### 7. the inline debug block links to its request in the viewer
 
@@ -365,35 +392,41 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stages 4 and 5 are done. Stage 4's last test is `a_served_cache_get_is_recorded_as_a_miss_and_then_a_hit`
-in `crates/nvs-cli/tests/request.rs` (`4a8dd4bf8a`). Stage 5 adds the `mail` and `queue` kinds:
-`TraceKind` (`crates/nvs-runtime/src/ctx/trace.rs`), `spool::EventKind` and five new `Outcome`
-fields (`crates/nvs-runtime/src/spool.rs`), `Core\Mail::send`'s body moved to `send` and
-`Core\Queue::push`'s to `push`, each filed through `site::watched_with` with no site
-(`crates/nvs-stdlib/src/mail.rs`, `queue.rs`). The span exporter skips both
-(`crates/nvs-server/src/trace.rs`), the ingester and the stream API know both, and the viewer
-gives both a tone and an outcome text. Both rule fragments are present tense for stage 5. One
-`chore` commit put five files from earlier stages into rustfmt's layout.
+Stage 6 is half done (`c50ed78b2d`). The spool has a `run` line (`spool::Run`, `RunOf`,
+`RunOutcome` in `crates/nvs-runtime/src/spool.rs`) and two writers: `spool::run` over a finished
+isolate's `Completion`, and `spool::run_in` over a context that ran in the caller's frame. A
+scheduled fire writes it in `fire()` (`crates/nvs-server/src/schedule.rs`), a queue attempt in
+`run()` (`crates/nvs-cli/src/worker.rs`), and `nvs run` where its program task ends
+(`crates/nvs-cli/src/main.rs`, `run_run`). `spool::Finished` now carries the child's trace and
+has `Finished::read(ctx)`, which the isolate uses. `spooled::exception` moved to
+`spool::Exception::of`. The index is schema 14: a `runs` table with the request triggers' counts,
+`exceptions.request` and `exceptions.run` both nullable, `OWNERS` forgotten by start, and the
+rebuild carries the `runs` sequence. The ingester's `run` arm shares `exception_row` with the
+request arm. Three rule fragments are present tense for the line and the table.
 
-Tests that ran, each green: the two new `request.rs` tests by name,
-`viewer/test/outcome.test.ts`, and `bun nv viewer --verify` (which rebuilt `viewer/dist/`). No test
-is expected to go red. The `one-of-each.spool` sample has no mail or queue line yet.
+Tests that ran, each green: `the_sample_spool_is_what_the_writer_writes` (the fixture was
+rewritten with a mail, a queue and a run line) and `cargo test --test debug_ingest` (16, two
+assertions updated for the run's own exception, one new test). Expected red: none known. The
+`debug_api` and `debug_viewer` suites read the same fixture and did not run, so a count of
+exceptions or groups there may move by one.
 
 The nightly failures the sweep listed are run `45609291264` on `53e94a9181`, already fixed by
 `1c3196b0e8` and `8ca2f09e1b` on `main`.
 
 ### Next
 
-1. Stage 6, runs. A `run` line kind in `crates/nvs-runtime/src/spool.rs` (`of`, `name`,
-   `start_us`, `duration_us`, `outcome`, memory peak and limit, exception with `Stack`), as
-   `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md` row `run` names.
-   Written for a scheduled run where `nvs_schedule_runs_total` is counted
-   (`crates/nvs-server/src/metrics.rs:272`), for a queue job where the worker ends it, and for a
-   command run where `nvs run` and `nvs test` seal their spool (`crates/nvs-cli/src/main.rs:822`).
-   The index gains a `runs` table and `exceptions.run` (schema 14), the API a runs list, and the
-   viewer a Runs view on `viewer/src/ui/list.tsx`.
-2. Optional, in stage 6's spool slice: a `mail` and a `queue` line in the sample spool test that
-   writes `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`.
+1. `nvs test`'s run line: one per invocation, `RunOf::Command`, named `test <path>`, with
+   `spool::run_in` where `crates/nvs-cli/src/runner.rs` `Args::run` ends (`runner.rs:469`), and
+   for a `.nvst` tree where `nvs_test` returns. Outcome `failed` when any case failed.
+2. `GET /api/runs` and `GET /api/run?trace=` in `crates/nvs-cli/src/debug/api.rs`, shaped like
+   `/api/requests` and `/api/request` (the request list's cursor on `id`, filters `of`, `name`,
+   `outcome`, `min_us`, `min_memory`), the run's events, dumps, logs and exception with its stack.
+   `crates/nvs-cli/src/debug/exceptions.rs:291` and `:188` join `requests` alone; a run's
+   exception joins its run with a `LEFT JOIN`.
+3. A `debug_api` test of both routes, then `looper check --name shown`.
+4. The viewer: `/runs` and `/runs/<trace>` in `viewer/src/router.ts`, the list on
+   `viewer/src/ui/list.tsx`, the page with the request page's tabs less Request and Response, and
+   the rail's Runs item. `bun nv viewer --verify` rebuilds `viewer/dist/`.
 
 ### Backlog
 
