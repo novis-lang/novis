@@ -98,7 +98,10 @@ fn a_bounce_answers_the_message_id_in_its_returned_headers() {
 fn a_feedback_report_is_a_complaint() {
     let complaint = classified(sample("complaint"));
     assert_eq!(complaint.kind, Kind::Complaint);
-    assert_eq!(complaint.answers.as_deref(), Some("news-9@shop.example.com"));
+    assert_eq!(
+        complaint.answers.as_deref(),
+        Some("news-9@shop.example.com")
+    );
     assert_eq!(complaint.report, None);
 }
 
@@ -112,7 +115,10 @@ fn an_auto_submitted_message_is_an_auto_reply() {
         classified(&with_header("Auto-Submitted: auto-generated")).kind,
         Kind::AutoReply
     );
-    assert_eq!(classified(&with_header("Auto-Submitted: no")).kind, Kind::Other);
+    assert_eq!(
+        classified(&with_header("Auto-Submitted: no")).kind,
+        Kind::Other
+    );
 }
 
 // covers: Core\Mail\Message::kind
@@ -120,10 +126,18 @@ fn an_auto_submitted_message_is_an_auto_reply() {
 fn each_auto_reply_header_in_the_table_is_recognized() {
     for (name, needs) in AUTO_REPLY {
         let header = format!("{name}: {}", needs.unwrap_or("yes"));
-        assert_eq!(classified(&with_header(&header)).kind, Kind::AutoReply, "{header}");
+        assert_eq!(
+            classified(&with_header(&header)).kind,
+            Kind::AutoReply,
+            "{header}"
+        );
         if needs.is_some() {
             let other = format!("{name}: bulk");
-            assert_eq!(classified(&with_header(&other)).kind, Kind::Other, "{other}");
+            assert_eq!(
+                classified(&with_header(&other)).kind,
+                Kind::Other,
+                "{other}"
+            );
         }
     }
     assert_eq!(
@@ -156,9 +170,15 @@ fn a_message_with_none_of_these_is_other() {
 // covers: Core\Mail\Message::bounceTag
 #[test]
 fn the_bounce_tag_is_read_from_delivered_to() {
-    assert_eq!(classified(sample("bounce")).bounce_tag.as_deref(), Some("order-42"));
+    assert_eq!(
+        classified(sample("bounce")).bounce_tag.as_deref(),
+        Some("order-42")
+    );
     // With no `Delivered-To` or `X-Original-To`, the `To` address is read.
-    assert_eq!(classified(sample("reply")).bounce_tag.as_deref(), Some("support"));
+    assert_eq!(
+        classified(sample("reply")).bounce_tag.as_deref(),
+        Some("support")
+    );
     // `X-Original-To` comes before `To`.
     let original = classified(
         b"X-Original-To: b+first@example.com\r\nTo: b+second@example.com\r\n\r\nHi.\r\n",

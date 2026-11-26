@@ -2557,6 +2557,30 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // no host a program can name. [`crate::mail`]'s module doc is the home of
     // why the address is not additionally pinned.
     (crate::mail::NAME, "send", Some(nvs_config::Cap::MailSend)),
+    // `preview` builds the message `send` would send and returns it. It opens no
+    // connection and reads no file: an attachment's file was read when the
+    // `Core\Mail\Attachment` was made, under that member's own row.
+    (crate::mail::NAME, "preview", None),
+    // `Core\Mail\Attachment` is a door because two of its constructors read a
+    // file, and a file is `fs.read`'s, for `Core\IO::open`'s reason. The two
+    // that take bytes and the readers compute over what the instance holds.
+    (
+        crate::mail::ATTACHMENT_NAME,
+        "fromFile",
+        Some(nvs_config::Cap::FsRead),
+    ),
+    (crate::mail::ATTACHMENT_NAME, "fromBytes", None),
+    (
+        crate::mail::ATTACHMENT_NAME,
+        "inlineFile",
+        Some(nvs_config::Cap::FsRead),
+    ),
+    (crate::mail::ATTACHMENT_NAME, "inlineBytes", None),
+    (crate::mail::ATTACHMENT_NAME, "src", None),
+    (crate::mail::ATTACHMENT_NAME, "name", None),
+    (crate::mail::ATTACHMENT_NAME, "type", None),
+    (crate::mail::ATTACHMENT_NAME, "bytes", None),
+    (crate::mail::ATTACHMENT_NAME, "isInline", None),
     // `rule:core-classes/db-capabilities`'s split. `db.connect` names *blocks* and not hosts, for
     // `mail.send`'s reason and by the same authority: the endpoint is one an
     // operator wrote into root-owned configuration. `db.open`'s targets are
@@ -2898,6 +2922,23 @@ pub const NEEDS_NONE: &[(&str, &str)] = &[
     ),
     (r"Core\Test\LogRecord", "reads a log line the test recorded"),
     (r"Core\Test\SentMail", "reads a mail the test kept unsent"),
+    (r"Core\Mail\Address", "computes over its arguments"),
+    (
+        r"Core\Mail\Preview",
+        "reads a message `Core\\Mail::preview` built and did not send",
+    ),
+    (
+        r"Core\Mail\Message",
+        "reads a received message the program already holds",
+    ),
+    (
+        r"Core\Mail\Report",
+        "reads a received message's delivery report",
+    ),
+    (
+        r"Core\Mail\ReportRecipient",
+        "reads one recipient of a received delivery report",
+    ),
     (
         r"Core\Test\SentRequest",
         "reads a request the test recorded",

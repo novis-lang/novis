@@ -2301,6 +2301,66 @@ mod tests {
                     "whoami",
                     "tainted string".to_owned(),
                 ),
+                // An address, an attachment and a received message can each come
+                // from outside, and a reader never removes a qualifier.
+                (r"Core\Mail\Address", "address", "tainted string".to_owned()),
+                (r"Core\Mail\Address", "name", "tainted string".to_owned()),
+                (r"Core\Mail\Attachment", "bytes", "tainted bytes".to_owned()),
+                (
+                    r"Core\Mail\Attachment",
+                    "name",
+                    "null|tainted string".to_owned(),
+                ),
+                (r"Core\Mail\Attachment", "type", "tainted string".to_owned()),
+                (
+                    r"Core\Mail\Message",
+                    "answers",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Mail\Message",
+                    "bounceTag",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Mail\Message",
+                    "header",
+                    "array<tainted string>".to_owned(),
+                ),
+                (r"Core\Mail\Message", "html", "null|tainted string".to_owned()),
+                (
+                    r"Core\Mail\Message",
+                    "inReplyTo",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Mail\Message",
+                    "messageId",
+                    "null|tainted string".to_owned(),
+                ),
+                (r"Core\Mail\Message", "raw", "tainted bytes".to_owned()),
+                (
+                    r"Core\Mail\Message",
+                    "references",
+                    "array<tainted string>".to_owned(),
+                ),
+                (r"Core\Mail\Message", "subject", "tainted string".to_owned()),
+                (r"Core\Mail\Message", "text", "null|tainted string".to_owned()),
+                (
+                    r"Core\Mail\ReportRecipient",
+                    "address",
+                    "tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Mail\ReportRecipient",
+                    "diagnostic",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Mail\ReportRecipient",
+                    "status",
+                    "tainted string".to_owned(),
+                ),
                 // A parsed node's text is tainted, and the answer cannot follow
                 // one arm of its union parameter (`rule:core-classes/markdown-from-html`).
                 (r"Core\Markdown", "fromHtml", "tainted string".to_owned()),

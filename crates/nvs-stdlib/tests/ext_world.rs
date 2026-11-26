@@ -65,6 +65,7 @@ const TERMINAL: &str = "It styles the host's own terminal, which a guest does no
 const REFLECT: &str = "It describes the running program, which a guest cannot see.";
 const TREE: &str = "It is a recursive tree, and WIT has no recursive types.";
 const TEST_READBACK: &str = "It shows a test what its own program did, and a guest runs no tests.";
+const REPORT_PARSED: &str = "It is a part of a received message the host parsed, and a guest takes the fields it needs as scalars.";
 
 /// The `Core` value classes that do not cross, each with why.
 const REFUSED: &[(&str, &str)] = &[
@@ -240,6 +241,24 @@ const REFUSED: &[(&str, &str)] = &[
         "Its endpoint and keys are checked when the host reads one, and a guest takes the browser's JSON as a string.",
     ),
     ("Core\\WebPush\\Sent", REPORT),
+    (
+        "Core\\Mail\\Address",
+        "Its address is checked when the host builds one, and a guest takes the address and the name as strings.",
+    ),
+    (
+        "Core\\Mail\\Attachment",
+        "It is a part of a message the host sends, and a guest sends no mail.",
+    ),
+    (
+        "Core\\Mail\\Preview",
+        "It is a message the host built for sending, and a guest sends no mail.",
+    ),
+    (
+        "Core\\Mail\\Message",
+        "It is a received message the host parsed within its bounds, and a guest takes the raw message as `list<u8>`.",
+    ),
+    ("Core\\Mail\\Report", REPORT_PARSED),
+    ("Core\\Mail\\ReportRecipient", REPORT_PARSED),
 ];
 
 /// Every interface the `extension` world imports once resolved: its own

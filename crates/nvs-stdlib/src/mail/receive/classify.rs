@@ -491,9 +491,7 @@ pub(crate) fn classified(
     } else {
         Kind::Other
     };
-    let original = (delivery || feedback)
-        .then(|| original_id(root))
-        .flatten();
+    let original = (delivery || feedback).then(|| original_id(root)).flatten();
     let answers = original
         .or_else(|| in_reply_to.map(str::to_owned))
         .or_else(|| references.last().cloned());
@@ -546,7 +544,10 @@ fn report_of(root: &MessageRef<'_>) -> Vec<Recipient> {
 fn original_id(root: &MessageRef<'_>) -> Option<String> {
     root.parts().filter(within).find_map(|part| {
         if let PartKind::Message(nested) = part.kind() {
-            return nested.message_id().filter(|id| !id.is_empty()).map(str::to_owned);
+            return nested
+                .message_id()
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned);
         }
         let headers_only = part.is_content_type("text", "rfc822-headers")
             || part.is_content_type("message", "global-headers");

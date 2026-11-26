@@ -166,6 +166,12 @@ const RESERVED: &[&str] = &[
     r"Core\Ldap\Ad\GroupType",
     r"Core\Queue\Id",
     r"Core\Queue\Stats",
+    r"Core\Mail\Address",
+    r"Core\Mail\Attachment",
+    r"Core\Mail\Preview",
+    r"Core\Mail\Message",
+    r"Core\Mail\Report",
+    r"Core\Mail\ReportRecipient",
 ];
 
 /// The decision recorded for the `Core` class `name`, or `None` for a name

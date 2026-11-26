@@ -248,6 +248,7 @@ const KEYS_FROM: &[(&str, &str, KeysFrom)] = {
         (r"Core\Zip", "entries", Positions),
         (r"Core\Http\Response", "headers", Positions),
         (r"Core\Http\Stream", "headers", Positions),
+        (r"Core\Mail\Message", "header", Positions),
         (r"Core\Db\Rows", "column", Positions),
         (r"Core\Ldap\Entry", "strings", Positions),
         (r"Core\Ldap\Entry", "sids", Positions),
