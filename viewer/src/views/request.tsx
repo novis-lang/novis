@@ -7,7 +7,7 @@
 // records load.
 //
 // Below it are tabs, and the tab is part of the link (`?tab=queries`): Timeline, Request, Response,
-// Queries, Dumps, Logs, Coverage, and Exception when the request threw. The Timeline tab also lists the
+// Queries, Cache, Dumps, Logs, Coverage, and Exception when the request threw. The Timeline tab also lists the
 // request's profiles and the lines that copied a value. A link that ends in `#exception`, as the
 // exceptions view opens a request, opens the Exception tab and focuses it. Enter on a dump or a log line
 // in the timeline opens its tab at that record. Escape goes back to the list.
@@ -48,12 +48,13 @@ import { Coverage } from "./coverage.tsx";
 import { curl } from "./request/curl.ts";
 import { RequestInput } from "./request/input.tsx";
 import { RequestOutput } from "./request/output.tsx";
+import { Cache } from "./request/cache.tsx";
 import { Queries } from "./request/queries.tsx";
 import { Timeline } from "./timeline.tsx";
 import { ValueTree } from "./value-tree.tsx";
 
 /** The tabs of a request's page, in the order the tab row shows them. */
-export const TABS = ["timeline", "request", "response", "queries", "dumps", "logs", "coverage", "exception"] as const;
+export const TABS = ["timeline", "request", "response", "queries", "cache", "dumps", "logs", "coverage", "exception"] as const;
 export type TabId = (typeof TABS)[number];
 
 /** The link to one tab of a request's page. The Timeline tab is the page's own link. */
@@ -327,6 +328,7 @@ function TabbedRecords(props: { row: RequestRow; detail: { (): RequestDetail | u
       { id: "request", label: "Request", href: tabLink(row(), "request") },
       { id: "response", label: "Response", href: tabLink(row(), "response") },
       { id: "queries", label: "Queries", href: tabLink(row(), "queries"), count: row().queries },
+      { id: "cache", label: "Cache", href: tabLink(row(), "cache"), count: d?.events.filter((e) => e.kind === "cache").length ?? 0 },
       { id: "dumps", label: "Dumps", href: tabLink(row(), "dumps"), count: d?.dumps.length ?? row().dumps },
       { id: "logs", label: "Logs", href: tabLink(row(), "logs"), count: d?.logs.length ?? row().logs },
       { id: "coverage", label: "Coverage", href: tabLink(row(), "coverage") },
@@ -369,6 +371,9 @@ function TabbedRecords(props: { row: RequestRow; detail: { (): RequestDetail | u
                 </Match>
                 <Match when={tab() === "queries"}>
                   <Queries detail={d()} />
+                </Match>
+                <Match when={tab() === "cache"}>
+                  <Cache detail={d()} />
                 </Match>
                 <Match when={tab() === "dumps"}>
                   <Dumps detail={d()} />

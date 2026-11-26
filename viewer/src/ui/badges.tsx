@@ -46,6 +46,12 @@ export function Status(props: { code: number | null | undefined; text?: string }
   );
 }
 
+/** A cache read's result: a green `Hit` when the store had the entry, and an orange `Miss` when it
+ *  did not. */
+export function Hit(props: { hit: boolean }) {
+  return <span class={`hit ${props.hit ? "hit-yes" : "hit-no"}`}>{props.hit ? "Hit" : "Miss"}</span>;
+}
+
 /** The gold count beside a statement that ran more than once at one site, such as `5×`. `title`
  *  replaces the text a pointer shows when the count means something else. */
 export function Repeat(props: { count: number; title?: string }) {

@@ -726,6 +726,23 @@ button.chip:hover {
   color: var(--muted);
 }
 
+.hit {
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-1);
+}
+
+.hit-yes {
+  color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 16%, transparent);
+}
+
+.hit-no {
+  color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 16%, transparent);
+}
+
 .repeat {
   margin-left: 5px;
   padding: 1px 6px;

@@ -237,6 +237,30 @@ export interface TraceEvent {
   /** A call's checked-return status. */
   status: number | null;
   query: EventQuery | null;
+  /** What an outbound call, a cache, session or file event was of: the host and path, the key or the file path. */
+  target?: string | null;
+  /** What the event came to, on the kinds that record it. */
+  outcome?: EventOutcome | null;
+}
+
+/** What an event came to. Each kind sets only its own fields. */
+export interface EventOutcome {
+  /** A cache `get`: whether the store had the entry. */
+  hit?: boolean;
+  /** A cache event: the store it reached. */
+  tier?: "memory" | "redis";
+  /** An outbound call: the reply's status. */
+  http_status?: number;
+  /** An outbound call: the reply body's bytes, when the call read the whole body. */
+  bytes_in?: number;
+  /** An outbound call: the request body's bytes. */
+  bytes_out?: number;
+  /** A file event: the bytes read or written. */
+  bytes?: number;
+  /** A process: the program's file name. */
+  command?: string;
+  /** A process: its exit code. */
+  exit?: number;
 }
 
 /** One `Core\Debug::dump`: its site and its value tree. */

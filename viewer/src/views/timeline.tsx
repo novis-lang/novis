@@ -13,7 +13,8 @@
 // log line calls `reveal`, which opens that record's tab. A dump's site is a link to the editor
 // (`ui/site.tsx`), out of the tab order because the row is reached with the arrow keys. Each row keeps
 // text cells for its kind, its start, its label, its detail and its duration; the kind and the start are
-// for a screen reader, and the swatch and the bar's place show them on screen.
+// for a screen reader, and the swatch and the bar's place show them on screen. An event's detail is
+// its outcome (`request/outcome.ts`), and a cache `get` has a `Hit` or `Miss` chip.
 //
 // What it spends: one object per row and one per bar, and one map entry per query site while grouping,
 // for lists the service already limited.
@@ -21,8 +22,9 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Dump, LogLine, RequestDetail, TraceEvent } from "../api.ts";
 import { ignored } from "../keys.ts";
-import { Repeat } from "../ui/badges.tsx";
+import { Hit, Repeat } from "../ui/badges.tsx";
 import { Site } from "../ui/site.tsx";
+import { outcomeText } from "./request/outcome.ts";
 import { duration } from "./requests.tsx";
 
 type Kind = TraceEvent["kind"] | "dump" | "log";
@@ -50,6 +52,8 @@ interface Item {
   detail: string;
   /** How many events the row is: above 1 for a repeated statement. */
   count: number;
+  /** A cache `get`'s result: `true` for a hit, `false` for a miss. */
+  hit?: boolean | undefined;
   dump?: Dump;
   log?: LogLine;
 }
@@ -84,9 +88,10 @@ function eventItem(event: TraceEvent): Item {
     end: b.end,
     bars: [b],
     total: b.end - b.start,
-    label: query ? query.sql : event.label,
-    detail: query ? (query.rows === null ? query.driver : `${query.driver}, ${rowsText(query.rows)}`) : "",
+    label: query ? query.sql : event.target ? `${event.label} ${event.target}` : event.label,
+    detail: query ? (query.rows === null ? query.driver : `${query.driver}, ${rowsText(query.rows)}`) : outcomeText(event),
     count: 1,
+    hit: event.outcome?.hit,
   };
 }
 
@@ -282,6 +287,9 @@ export function Timeline(props: { detail: RequestDetail; reveal: (kind: "dump" |
                     </span>
                     <Show when={item.count > 1}>
                       <Repeat count={item.count} />
+                    </Show>
+                    <Show when={item.hit !== undefined}>
+                      <Hit hit={item.hit!} />
                     </Show>
                     <span class="tl-detail">{item.detail}</span>
                   </div>

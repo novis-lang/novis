@@ -43,6 +43,7 @@ import { Site } from "../ui/site.tsx";
 import { Meter, type Part, Spark, Tile } from "../ui/tile.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 import { SaveButton } from "./saved.tsx";
+import { size } from "../format.ts";
 
 /** A request row's height in pixels. */
 export const REQUEST_ROW = 38;
@@ -54,18 +55,8 @@ export function duration(us: number): string {
   return `${(us / 1_000_000).toFixed(2)} s`;
 }
 
-/** A number of bytes the way a person reads it: `512 B`, `1.50 KiB`, `12.3 MiB` or `256 MiB`. */
-export function size(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KiB", "MiB", "GiB", "TiB"];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return `${value.toFixed(value < 10 ? 2 : value < 100 ? 1 : 0)} ${units[unit]}`;
-}
+/** A number of bytes the way a person reads it, from `../format.ts`. */
+export { size };
 
 /** The class that colours a status: `s4` for a client error, `s5` for a server error. */
 export function statusClass(status: number): string {
