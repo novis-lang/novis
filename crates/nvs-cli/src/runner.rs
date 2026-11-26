@@ -1114,6 +1114,7 @@ pub(crate) fn run(
     let select = &select;
     let checked = Rc::new(checked);
     let started = Instant::now();
+    let began = std::time::SystemTime::now();
     let (suite, mut ctx) = match run_suite_in_a_task(
         &unit,
         ctx,
@@ -1147,6 +1148,23 @@ pub(crate) fn run(
         exited,
         class_failures,
     } = suite;
+    // `rule:testing/a-run-is-recorded-like-a-request`'s one line for the invocation, named after
+    // the entry file. A failed test is no uncaught exception, so the line carries none.
+    let ran = match exited.is_none() && counts.failed == 0 && class_failures.is_empty() {
+        true => nvs_runtime::spool::RunOutcome::Ok,
+        false => nvs_runtime::spool::RunOutcome::Failed,
+    };
+    nvs_runtime::spool::run_in(
+        &ctx,
+        nvs_runtime::spool::RunOf::Command,
+        || {
+            let entry = checked.map.files().next().and_then(|file| file.path());
+            format!("test {}", entry.map_or_else(String::new, |path| path.display().to_string()))
+        },
+        began,
+        ran,
+        None,
+    );
     if let Some(file) = &record_failed {
         record_failed_tests(file, &cases);
     }
