@@ -1,0 +1,3 @@
+Core\Imap::open needs the capability `imap.connect` for archive, which is not granted
+help: add `connect = ["archive"]` under `[capabilities.imap]` in nvs.toml
+Core\Imap::open: `[imap.office]` sets no `user` and `password`, and a mailbox always needs a sign-in

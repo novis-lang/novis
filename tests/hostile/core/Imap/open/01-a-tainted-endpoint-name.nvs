@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a request tries to choose which mailbox the program opens.
+// The name of the block must come from the program, so every step does not compile.
+// hostile: expect-refusal
+
+use Core\Imap;
+
+// 1. Opens the block named by the query string.
+var $fromQuery = Imap::open(Core\Request::queryParameter('mailbox') ?? 'inbox');
+
+// 2. Opens the block named by a tainted variable.
+tainted string $chosen = 'inbox';
+var $fromVariable = Imap::open($chosen);
+
+// 3. Joins the tainted name to a fixed prefix, and opens that block.
+var $joined = Imap::open('shop_' . $chosen);

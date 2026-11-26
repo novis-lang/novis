@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a folder has files that only look like messages, and broken headers. Each search option
+// gets a value at or past its limit, or text that tries to add an IMAP command. Each search should
+// return UIDs or throw an error, which is caught so the next step still runs.
+
+use Core\Arr;
+use Core\Imap;
+use Core\Str;
+use Core\Time\Date;
+
+final class Show {
+    public static function uids(array<int> $uids): string {
+        string $text = '';
+        foreach ($uids as int $uid) {
+            $text = $text . ' ' . $uid;
+        }
+        return $text == '' ? ' none' : $text;
+    }
+}
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. The folder has `007.eml`, `0.eml`, `abc.eml`, a directory `5.eml` and a lone `6.flags`.
+//    None of them is a message, so only 1, 2 and 3 are found.
+echo '1', Show::uids($inbox->search()), "\n";
+
+// 2. A limit of 0, a negative limit and the largest whole number.
+foreach ([0, -1, 9223372036854775807] as var $limit) {
+    try {
+        string $limited = Show::uids($inbox->search({ limit: $limit }));
+        echo '2', $limited, "\n";
+    } catch (RuntimeError $bad) {
+        echo "2 RuntimeError\n";
+    }
+}
+
+// 3. A range that ends before it starts, and dates at the ends of the calendar.
+echo '3', Show::uids($inbox->search({ since: Date::at(2026, 12, 1), before: Date::at(2026, 1, 1) })), "\n";
+echo '3', Show::uids($inbox->search({ since: Date::at(1, 1, 1) })), "\n";
+echo '3', Show::uids($inbox->search({ before: Date::at(9999, 12, 31) })), "\n";
+
+// 4. Search text with a line break and a second command, quotes, braces, a NUL byte, and one million letters.
+foreach (["x\r\nA1 DELETE INBOX", '"', '{5}', '*', "\0", Str::repeat('a', 1000000)] as var $text) {
+    try {
+        echo '4', Show::uids($inbox->search({ subject: $text })), Show::uids($inbox->search({ from: $text })), "\n";
+    } catch (RuntimeError $bad) {
+        echo "4 RuntimeError\n";
+    }
+}
+
+// 5. Runs a search that reads every message 3000 times. Each result is freed when the next replaces it.
+uint $i = 0;
+uint $found = 0;
+while ($i < 3000) {
+    $found = $found + Arr::count($inbox->search({ subject: 'hello', unseen: true }));
+    $i = $i + 1;
+}
+echo '5 ', $found, "\n";

@@ -1,0 +1,43 @@
+<?nvs
+// Attack: the program opens blocks with names that are close to a granted block, or not names at all.
+// Only `inbox` is granted, so every other name should throw a `RuntimeError`. Each error is caught,
+// so the steps after it still run.
+
+use Core\Imap;
+use Core\Str;
+
+// 1. Names that differ from `inbox` by case, by a space, by a dot or by a line break.
+foreach (['INBOX', 'inbox ', ' inbox', 'inbox.', "inbox\r\n", "inbox\0", '', 'imap.inbox'] as var $name) {
+    try {
+        Imap::open($name);
+        echo "1 opened\n";
+    } catch (RuntimeError $e) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+// 2. A path in place of a name, and a block that exists but is not granted.
+foreach (['../inbox', 'inbox/../secret', 'secret'] as var $name) {
+    try {
+        Imap::open($name);
+        echo "2 opened\n";
+    } catch (RuntimeError $e) {
+        echo "2 RuntimeError\n";
+    }
+}
+
+// 3. A name of one million letters.
+try {
+    Imap::open(Str::repeat('a', 1000000));
+    echo "3 opened\n";
+} catch (RuntimeError $e) {
+    echo "3 RuntimeError\n";
+}
+
+// 4. Opens the granted block 10000 times in one run. Each mailbox is freed when the next replaces it.
+uint $i = 0;
+while ($i < 10000) {
+    var $mailbox = Imap::open('inbox');
+    $i = $i + 1;
+}
+echo '4 ', Str::join(Imap::open('inbox')->folders(), ','), "\n";

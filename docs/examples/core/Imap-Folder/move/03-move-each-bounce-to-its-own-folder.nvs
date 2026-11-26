@@ -1,0 +1,30 @@
+<?nvs
+// Shows a newsletter script that finds the bounces in `INBOX` and moves each one to `Bounces`.
+
+use Core\Imap;
+use Core\Mail\Message;
+
+var $mailbox = Imap::open('newsletter');
+var $inbox = $mailbox->folder('INBOX');
+var $bounces = $mailbox->folder('Bounces');
+
+// A bounce is a report that a mail could not be delivered.
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    if ($message->kind() == Message::Kind::Bounce) {
+        foreach ($message->report()?->recipients() ?? [] as var $recipient) {
+            echo 'bounce ', $uid, ' for ', $recipient->address(), "\n";
+        }
+        $inbox->move($uid, 'Bounces');
+    }
+}
+
+// Only the reply from Ada is left in `INBOX`.
+foreach ($inbox->search() as int $uid) {
+    echo 'INBOX ', $uid, ': ', $inbox->fetch($uid)->subject(), "\n";
+}
+
+// These lines move the bounces back, so the example prints the same each time it runs.
+foreach ($bounces->search({ unseen: true }) as int $uid) {
+    $bounces->move($uid, 'INBOX');
+}

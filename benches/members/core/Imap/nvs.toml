@@ -1,0 +1,9 @@
+# The benches read the folder `mailbox` beside this file. They need no mail server.
+[imap.inbox]
+directory = "mailbox"
+
+[imap.archive]
+directory = "mailbox"
+
+[capabilities.imap]
+connect = ["inbox", "archive"]

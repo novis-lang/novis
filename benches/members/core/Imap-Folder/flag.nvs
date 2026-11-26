@@ -1,0 +1,26 @@
+<?nvs
+// Measures how a flag is added to a message, as a script does when it flags a complaint.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Imap;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $inbox = Imap::open('flag')->folder('INBOX');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $inbox->flag(1, '\Flagged');
+            // This removes the flag again, so each round adds it to a message without it.
+            $inbox->unflag(1, '\Flagged');
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

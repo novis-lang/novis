@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a script reads only the messages that are newer than the last run.
+
+use Core\Imap;
+
+// The last run saved the `UIDVALIDITY` 1 and the highest UID it read, 1.
+int $savedValidity = 1;
+int $lastUid = 1;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// The `UIDVALIDITY` is the same, so the saved UID is still correct.
+if ($inbox->uidValidity() == $savedValidity) {
+    foreach ($inbox->search() as int $uid) {
+        if ($uid > $lastUid) {
+            echo 'new: ', $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+            $lastUid = $uid;
+        }
+    }
+}
+
+// The script saves this line for its next run. This prints "save: 1 3".
+echo 'save: ', $inbox->uidValidity(), ' ', $lastUid, "\n";

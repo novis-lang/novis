@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the messages that are not read yet and arrived on 1 November or later.
+
+use Core\Imap;
+use Core\Time\Date;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// Both options must match. Message 2 is not read, but it arrived in October.
+foreach ($inbox->search({ unseen: true, since: Date::at(2026, 11, 1) }) as int $uid) {
+    echo $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+}

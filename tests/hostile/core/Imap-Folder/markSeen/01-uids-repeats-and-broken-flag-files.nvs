@@ -1,0 +1,58 @@
+<?nvs
+// Attack: `markSeen` gets UIDs outside the allowed range, the same message 5000 times, and flag files
+// that are too large or written in odd ways. Each error is caught, so the next step still runs.
+// The last step removes every flag the program set, so the next run finds the folder as it was.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+use Core\Str;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. UIDs below 1 and past the largest UID, and a UID that no message has.
+foreach ([0, -1, 4294967296, 9] as var $uid) {
+    try {
+        $inbox->markSeen($uid);
+        echo "1 marked\n";
+    } catch (IOError $missing) {
+        echo "1 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+try {
+    // 2. Marks the same message 5000 times. Its flag file should have one line.
+    uint $i = 0;
+    while ($i < 5000) {
+        $inbox->markSeen(1);
+        $i = $i + 1;
+    }
+    echo '2 ', Arr::count(Str::split(Str::trim(IO::readText('mailbox/INBOX/1.flags')), "\n")), "\n";
+
+    // 3. A flag file of 70 KB, larger than a flag file may be. `markSeen` should throw an `IOError`.
+    IO::write('mailbox/INBOX/2.flags', Str::repeat("\\Flagged\n", 8000));
+    try {
+        $inbox->markSeen(2);
+        echo "3 marked\n";
+    } catch (IOError $tooLarge) {
+        echo "3 IOError\n";
+    }
+    IO::remove('mailbox/INBOX/2.flags');
+
+    // 4. A flag file with `\SEEN` in capitals, empty lines and spaces. The message counts as read.
+    IO::write('mailbox/INBOX/3.flags', "\n  \\SEEN  \n\n\\Deleted\n");
+    $inbox->markSeen(3);
+    echo '4 ', Arr::count($inbox->search({ unseen: true })), "\n";
+} finally {
+    // 5. Removes the flags, so the next run finds the folder as it was.
+    $inbox->markUnseen(1);
+    if (IO::exists('mailbox/INBOX/2.flags')) {
+        IO::remove('mailbox/INBOX/2.flags');
+    }
+    if (IO::exists('mailbox/INBOX/3.flags')) {
+        IO::remove('mailbox/INBOX/3.flags');
+    }
+}
+echo '5 ', Arr::count($inbox->search({ unseen: true })), "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows a script that runs every few minutes and reports the new messages in each folder.
+
+use Core\Arr;
+use Core\Imap;
+
+// The script opens the mailbox once. The connection closes when the script ends.
+var $mailbox = Imap::open('inbox');
+
+// The server writes the folder names, so each name is a `tainted string`.
+foreach ($mailbox->folders() as tainted string $name) {
+    var $folder = $mailbox->folder($name);
+    uint $new = Arr::count($folder->search({ unseen: true }));
+    // This prints "INBOX: 2 new" and "Sent: 0 new".
+    echo $name, ': ', $new, " new\n";
+}

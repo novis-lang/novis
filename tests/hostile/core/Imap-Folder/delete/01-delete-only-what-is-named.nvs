@@ -1,0 +1,68 @@
+<?nvs
+// Attack: another mail program marked a message `\Deleted`, and this program deletes a different one.
+// Only the named message may go. A bad UID, a second delete and a message that is a directory
+// each throw an error. Each error is caught, so the next step still runs.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. UIDs below 1 and past the largest UID, and a UID that no message has.
+foreach ([0, -1, 4294967296, 9] as var $uid) {
+    try {
+        $inbox->delete($uid);
+        echo "1 deleted\n";
+    } catch (IOError $missing) {
+        echo "1 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+try {
+    // 2. Message 1 has the flag `\Deleted`. Deleting message 2 should leave message 1 where it is.
+    IO::write('mailbox/INBOX/1.flags', "\\Deleted\n");
+    IO::write('mailbox/INBOX/2.eml', "From: a@example.com\nSubject: Delete me\n\nHello.\n");
+    $inbox->delete(2);
+    echo '2 ', Arr::count($inbox->search()), ' ', $inbox->fetch(1)->subject(), "\n";
+
+    // 3. Deletes message 2 a second time.
+    try {
+        $inbox->delete(2);
+        echo "3 deleted\n";
+    } catch (IOError $missing) {
+        echo "3 IOError\n";
+    }
+
+    // 4. `2.eml` is a directory. `delete` should throw an `IOError` and leave the directory.
+    IO::makeDirectory('mailbox/INBOX/2.eml');
+    try {
+        $inbox->delete(2);
+        echo "4 deleted\n";
+    } catch (IOError $notAFile) {
+        echo "4 IOError\n";
+    }
+    echo '4 ', IO::isDirectory('mailbox/INBOX/2.eml') ? 'directory stays' : 'directory gone', "\n";
+} finally {
+    // 5. Removes what this program wrote, so the next run finds the folder as it was.
+    if (IO::exists('mailbox/INBOX/1.flags')) {
+        IO::remove('mailbox/INBOX/1.flags');
+    }
+    if (IO::isDirectory('mailbox/INBOX/2.eml')) {
+        IO::removeDirectory('mailbox/INBOX/2.eml');
+    }
+    if (IO::isFile('mailbox/INBOX/2.eml')) {
+        IO::remove('mailbox/INBOX/2.eml');
+    }
+}
+
+// 6. Writes and deletes a new message 2000 times. Message 1 should stay the only one.
+uint $i = 0;
+while ($i < 2000) {
+    IO::write('mailbox/INBOX/2.eml', "From: a@example.com\nSubject: Delete me\n\nHello.\n");
+    $inbox->delete(2);
+    $i = $i + 1;
+}
+echo '6 ', Arr::count($inbox->search()), "\n";

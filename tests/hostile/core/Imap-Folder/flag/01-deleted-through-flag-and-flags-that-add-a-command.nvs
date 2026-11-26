@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program tries to mark a message for deletion through `flag`, and to add an IMAP command
+// inside a flag. Every such flag should throw a `RuntimeError`, and no flag should be written.
+// Each error is caught, so the next step still runs.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+use Core\Str;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. `\Deleted` in three ways of writing it.
+foreach (['\Deleted', '\deleted', '\DELETED'] as var $flag) {
+    try {
+        $inbox->flag(1, $flag);
+        echo "1 flagged\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+// 2. Other names that start with `\`, and a flag that is only `\`.
+foreach (['\Recent', '\Foo', '\\', '\Seen\Deleted', '\*'] as var $flag) {
+    try {
+        $inbox->flag(1, $flag);
+        echo "2 flagged\n";
+    } catch (RuntimeError $bad) {
+        echo "2 RuntimeError\n";
+    }
+}
+
+// 3. Flags with a line break and a second command, a space, brackets, quotes and a NUL byte.
+foreach (["x\r\nA1 UID EXPUNGE 1", 'a b', '(x)', '{5}', '"x"', 'x]', '%', '*', "x\0", ''] as var $flag) {
+    try {
+        $inbox->flag(1, $flag);
+        echo "3 flagged\n";
+    } catch (RuntimeError $bad) {
+        echo "3 RuntimeError\n";
+    }
+}
+
+// 4. A keyword of one million letters, and then the same keyword removed again.
+//    The flag file is removed at the end, so the next run finds the folder as it was.
+try {
+    $inbox->flag(1, Str::repeat('a', 1000000));
+    echo "4 flagged\n";
+    $inbox->unflag(1, Str::repeat('a', 1000000));
+    echo "4 unflagged\n";
+} catch (IOError $tooLarge) {
+    echo "4 IOError\n";
+} catch (RuntimeError $bad) {
+    echo "4 RuntimeError\n";
+} finally {
+    if (IO::exists('mailbox/INBOX/1.flags')) {
+        IO::remove('mailbox/INBOX/1.flags');
+    }
+}
+
+// 5. The message is still there, and it has no flag file.
+echo '5 ', Arr::count($inbox->search()), ' ', IO::exists('mailbox/INBOX/1.flags') ? 'flag file' : 'no flag file', "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows a script that removes the label `$Todo` from an order once the order is sent.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('orders')->folder('INBOX');
+
+echo 'sent: ', $inbox->fetch(1)->subject(), "\n";
+$inbox->unflag(1, '$Todo');
+
+// `$Todo` was the only flag, so `1.flags` is gone. This prints "flags file: no".
+echo 'flags file: ', IO::exists('orders/INBOX/1.flags') ? 'yes' : 'no', "\n";
+
+// This adds the label again, so the example prints the same each time it runs.
+$inbox->flag(1, '$Todo');

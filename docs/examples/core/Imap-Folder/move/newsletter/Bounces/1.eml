@@ -1,0 +1,21 @@
+From: Mail Delivery System <mailer-daemon@mx.example.net>
+To: news@example.com
+Subject: Undelivered Mail Returned to Sender
+Date: Mon, 26 Oct 2026 07:10:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="b0"
+
+--b0
+Content-Type: text/plain
+
+The message could not be delivered.
+--b0
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.net
+
+Final-Recipient: rfc822; old@example.com
+Action: failed
+Status: 5.1.1
+
+--b0--

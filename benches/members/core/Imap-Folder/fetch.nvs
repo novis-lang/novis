@@ -1,0 +1,28 @@
+<?nvs
+// Measures how one short message is read and parsed, as a support script does for each new message.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Imap;
+use Core\Str;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $inbox = Imap::open('read')->folder('INBOX');
+        uint $total = 0;
+        uint $letters = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round uses the total so far to pick one of the three messages.
+            var $message = $inbox->fetch((($total % 3) + 1) as int);
+            $letters = $letters + Str::length($message->subject());
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total + $letters;
+    }
+}
+
+echo Bench::run(256), "\n";

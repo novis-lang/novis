@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find messages by a part of the sender and a part of the subject.
+
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// The case of the letters does not matter, so `invoice` also finds "INVOICE 1042 IS WRONG".
+echo "subject contains 'invoice':\n";
+foreach ($inbox->search({ subject: 'invoice' }) as int $uid) {
+    echo '  ', $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+}
+
+// With two options, a message must match both. Ada sent messages 1 and 4, and only 1 is about an invoice.
+echo "from Ada, about an invoice:\n";
+foreach ($inbox->search({ from: 'ada@example.com', subject: 'invoice' }) as int $uid) {
+    echo '  ', $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+}

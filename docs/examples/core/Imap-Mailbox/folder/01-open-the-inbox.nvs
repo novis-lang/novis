@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to open the inbox and print the subject of each message in it.
+
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+foreach ($inbox->search() as int $uid) {
+    echo $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+}

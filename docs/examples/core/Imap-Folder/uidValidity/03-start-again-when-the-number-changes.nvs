@@ -1,0 +1,23 @@
+<?nvs
+// Shows what a script does when the `UIDVALIDITY` of a folder is not the one it saved.
+
+use Core\Imap;
+
+// An earlier run saved the `UIDVALIDITY` 7 and the UID 2.
+int $savedValidity = 7;
+int $lastUid = 2;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// The folder now has the `UIDVALIDITY` 1. The saved UID 2 may be another message now,
+// so the script forgets it and reads every message again.
+if ($inbox->uidValidity() != $savedValidity) {
+    echo 'UIDVALIDITY changed from ', $savedValidity, ' to ', $inbox->uidValidity(), "\n";
+    $lastUid = 0;
+}
+
+foreach ($inbox->search() as int $uid) {
+    if ($uid > $lastUid) {
+        echo 'read: ', $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+    }
+}

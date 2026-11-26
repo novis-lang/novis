@@ -1,0 +1,13 @@
+# Each example reads its own mailbox, a folder beside this file. They need no mail server.
+[imap.shop]
+directory = "shop"
+
+[imap.support]
+directory = "support"
+
+[imap.newsletter]
+directory = "newsletter"
+
+# The program may open the three blocks.
+[capabilities.imap]
+connect = ["shop", "support", "newsletter"]

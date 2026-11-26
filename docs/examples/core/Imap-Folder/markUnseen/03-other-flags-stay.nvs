@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `markUnseen` removes only `\Seen`, and the other flags of the message stay.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('support')->folder('INBOX');
+
+// In a `directory` block, the flags of message 1 are the lines of the file `1.flags`.
+echo "before:\n", IO::readText('support/INBOX/1.flags');
+
+$inbox->markUnseen(1);
+
+// The message is still `\Flagged`. This prints only "\Flagged".
+echo "after:\n", IO::readText('support/INBOX/1.flags');
+
+// This marks the message as read again, so the example prints the same each time it runs.
+$inbox->markSeen(1);

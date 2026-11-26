@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to use two folders of one mailbox: the questions in `INBOX` and the replies in `Sent`.
+
+use Core\Arr;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+var $inbox = $mailbox->folder('INBOX');
+var $sent = $mailbox->folder('Sent');
+
+// A subject comes from the sender of the mail, so it is a `tainted string`.
+array<tainted string> $replied = [];
+foreach ($sent->search() as int $uid) {
+    $replied[] = $sent->fetch($uid)->subject();
+}
+
+// UID 1 in `INBOX` and UID 1 in `Sent` are two different messages.
+foreach ($inbox->search() as int $uid) {
+    tainted string $subject = $inbox->fetch($uid)->subject();
+    bool $done = Arr::contains($replied, 'Re: ' . $subject);
+    echo $subject, ($done ? ': replied' : ': waiting for a reply'), "\n";
+}

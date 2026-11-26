@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a script checks that the folders it needs exist before it moves any message.
+
+use Core\Arr;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+var $names = $mailbox->folders();
+array<string> $needs = ['Junk', 'Archive'];
+
+// This mailbox has a `Junk` folder, but no `Archive` folder.
+foreach ($needs as string $needed) {
+    if (Arr::contains($names, $needed)) {
+        echo $needed, ": found\n";
+    } else {
+        echo $needed, ": missing. Create it in your mail program first.\n";
+    }
+}

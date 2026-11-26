@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to move a message from `INBOX` to `Archive`.
+
+use Core\Imap;
+
+var $mailbox = Imap::open('shop');
+var $inbox = $mailbox->folder('INBOX');
+var $archive = $mailbox->folder('Archive');
+
+// Message 2 says that an order arrived, so the shop moves it to the archive.
+$inbox->move(2, 'Archive');
+
+foreach ($inbox->search() as int $uid) {
+    echo 'INBOX ', $uid, ': ', $inbox->fetch($uid)->subject(), "\n";
+}
+foreach ($archive->search() as int $uid) {
+    echo 'Archive ', $uid, ': ', $archive->fetch($uid)->subject(), "\n";
+}
+
+// This moves the message back, so the example prints the same each time it runs.
+$archive->move(2, 'INBOX');

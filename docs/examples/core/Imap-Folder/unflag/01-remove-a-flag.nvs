@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to remove the flag from a complaint once it is answered.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('shop')->folder('INBOX');
+
+// In a `directory` block, the flags of message 1 are the lines of the file `1.flags`.
+echo "before:\n", IO::readText('shop/INBOX/1.flags');
+
+$inbox->unflag(1, '\Flagged');
+
+// `\Seen` stays. This prints only "\Seen".
+echo "after:\n", IO::readText('shop/INBOX/1.flags');
+
+// This adds the flag again, so the example prints the same each time it runs.
+$inbox->flag(1, '\Flagged');

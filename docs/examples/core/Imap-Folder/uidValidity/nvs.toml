@@ -1,0 +1,7 @@
+# The `inbox` block reads the folder `mailbox` beside this file. It needs no mail server.
+[imap.inbox]
+directory = "mailbox"
+
+# The program may open the `inbox` block.
+[capabilities.imap]
+connect = ["inbox"]

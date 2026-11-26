@@ -529,6 +529,7 @@ fn search_sends_each_filter_and_returns_uids() {
 }
 
 /// `SELECT` returns the folder's `UIDVALIDITY`, and a server that sends none is an error.
+// covers: Core\Imap\Folder::uidValidity
 #[cfg_attr(
     miri,
     ignore = "`ring` runs C and assembly, which Miri cannot interpret"

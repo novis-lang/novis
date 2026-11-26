@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to mark a message as read, and how `search` then finds one new message less.
+
+use Core\Arr;
+use Core\Imap;
+
+var $inbox = Imap::open('shop')->folder('INBOX');
+
+// This prints "new: 2".
+echo 'new: ', Arr::count($inbox->search({ unseen: true })), "\n";
+
+$inbox->markSeen(1);
+
+// Message 1 is read now, so this prints "new: 1".
+echo 'new: ', Arr::count($inbox->search({ unseen: true })), "\n";
+
+// This marks the message as new again, so the example prints the same each time it runs.
+$inbox->markUnseen(1);

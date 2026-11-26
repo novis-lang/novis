@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to delete one spam message from the `Junk` folder.
+
+use Core\Imap;
+use Core\IO;
+
+// In a `directory` block, each message is a file. This line adds a spam message with the UID 2.
+IO::write('junk/Junk/2.eml', "From: Prize Office <win@example.net>\nSubject: You won a prize\n\nClick here.\n");
+
+var $junk = Imap::open('junk')->folder('Junk');
+$junk->delete(2);
+
+// Message 1 is not spam, so it stays. This prints "1 My new address".
+foreach ($junk->search() as int $uid) {
+    echo $uid, ' ', $junk->fetch($uid)->subject(), "\n";
+}

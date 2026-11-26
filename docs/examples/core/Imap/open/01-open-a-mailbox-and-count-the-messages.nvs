@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to open a mailbox and count the messages in its inbox.
+
+use Core\Arr;
+use Core\Imap;
+
+// `open` takes the name of the block `[imap.inbox]` in `nvs.toml`.
+var $mailbox = Imap::open('inbox');
+var $inbox = $mailbox->folder('INBOX');
+
+// This prints "3 messages, 2 not read yet".
+echo Arr::count($inbox->search()), ' messages, ';
+echo Arr::count($inbox->search({ unseen: true })), " not read yet\n";

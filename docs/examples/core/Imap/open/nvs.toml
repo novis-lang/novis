@@ -1,0 +1,15 @@
+# The `inbox` block reads the folder `mailbox` beside this file. It needs no mail server.
+[imap.inbox]
+directory = "mailbox"
+
+# A block for a real server. It has no `user` and `password`, so `open` throws for it.
+[imap.office]
+host = "imap.example.com"
+
+# The `archive` block is not listed under `connect`, so the program may not open it.
+[imap.archive]
+directory = "mailbox"
+
+# The program may open the `inbox` and `office` blocks.
+[capabilities.imap]
+connect = ["inbox", "office"]

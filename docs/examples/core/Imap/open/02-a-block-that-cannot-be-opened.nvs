@@ -1,0 +1,18 @@
+<?nvs
+// Shows the errors `open` throws for a block that the program cannot open.
+
+use Core\Imap;
+
+// `[imap.archive]` exists, but `[capabilities.imap] connect` does not list it.
+try {
+    Imap::open('archive');
+} catch (RuntimeError $notGranted) {
+    echo $notGranted->message, "\n";
+}
+
+// `[imap.office]` has a server, but no `user` and `password`.
+try {
+    Imap::open('office');
+} catch (RuntimeError $noSignIn) {
+    echo $noSignIn->message, "\n";
+}

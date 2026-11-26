@@ -1,0 +1,25 @@
+<?nvs
+// Shows that `markSeen` on a message that is read already changes nothing.
+
+use Core\Arr;
+use Core\Imap;
+
+var $inbox = Imap::open('support')->folder('INBOX');
+
+// Message 1 is read already. Message 2 is marked twice. Neither call throws an error.
+$inbox->markSeen(1);
+$inbox->markSeen(2);
+$inbox->markSeen(2);
+
+// This prints "new: 0".
+echo 'new: ', Arr::count($inbox->search({ unseen: true })), "\n";
+
+// A message that does not exist throws an `IOError`.
+try {
+    $inbox->markSeen(7);
+} catch (IOError $error) {
+    echo $error->message, "\n";
+}
+
+// This marks message 2 as new again, so the example prints the same each time it runs.
+$inbox->markUnseen(2);

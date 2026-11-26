@@ -1,0 +1,2 @@
+new: 0
+Core\Imap\Folder::markSeen: the folder has no message with the UID 7

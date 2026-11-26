@@ -1,0 +1,28 @@
+<?nvs
+// Shows a script that marks an order as new again when it cannot handle it, so the next run tries again.
+
+use Core\Imap;
+use Core\Str;
+
+var $inbox = Imap::open('orders')->folder('INBOX');
+
+foreach ($inbox->search({ unseen: true }) as int $uid) {
+    // The script marks the order as read first, so a second script does not take it too.
+    $inbox->markSeen($uid);
+    var $subject = $inbox->fetch($uid)->subject();
+    if (Str::contains($subject, 'sofa')) {
+        // The shop has no sofa today. The order is marked as new, and the next run tries it again.
+        echo 'not sent: ', $subject, "\n";
+        $inbox->markUnseen($uid);
+    } else {
+        echo 'sent: ', $subject, "\n";
+    }
+}
+
+// This prints "next run: 2".
+foreach ($inbox->search({ unseen: true }) as int $uid) {
+    echo 'next run: ', $uid, "\n";
+}
+
+// This marks order 1 as new again, so the example prints the same each time it runs.
+$inbox->markUnseen(1);

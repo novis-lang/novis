@@ -1,0 +1,43 @@
+<?nvs
+// Attack: the directory of an open folder is renamed, and a program keeps using the folder.
+// `uidValidity` should still return its number, and every read should throw an `IOError`.
+// The last step renames the directory back, so the next run finds it.
+
+use Core\IO;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+var $inbox = $mailbox->folder('INBOX');
+
+// 1. Opens the same folder 10000 times and adds up the numbers. Each folder is freed when the next replaces it.
+uint $i = 0;
+int $sum = 0;
+while ($i < 10000) {
+    $sum = $sum + $mailbox->folder('INBOX')->uidValidity();
+    $i = $i + 1;
+}
+echo '1 ', $sum, "\n";
+
+IO::move('mailbox/INBOX', 'mailbox/Gone');
+try {
+    // 2. Reads the number of the folder whose directory is gone.
+    echo '2 ', $inbox->uidValidity(), "\n";
+
+    // 3. Searches and reads the folder whose directory is gone. Each error is caught.
+    try {
+        $inbox->search();
+        echo "3 found\n";
+    } catch (IOError $gone) {
+        echo "3 IOError\n";
+    }
+    try {
+        $inbox->fetch(1);
+        echo "3 read\n";
+    } catch (IOError $gone) {
+        echo "3 IOError\n";
+    }
+} finally {
+    // 4. Renames the directory back, and the same folder works again.
+    IO::move('mailbox/Gone', 'mailbox/INBOX');
+}
+echo '4 ', $inbox->uidValidity(), ' ', $inbox->fetch(1)->subject(), "\n";

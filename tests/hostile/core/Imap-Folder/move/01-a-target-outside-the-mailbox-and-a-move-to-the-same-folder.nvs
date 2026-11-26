@@ -1,0 +1,64 @@
+<?nvs
+// Attack: `move` gets target folders that add an IMAP command or leave the mailbox. It also moves
+// a message into its own folder, and 2000 times in a row. No message may leave the mailbox or be lost.
+// Each error is caught, so the next step still runs. The last step puts every file back.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+var $inbox = $mailbox->folder('INBOX');
+var $archive = $mailbox->folder('Archive');
+
+// 1. Targets with a second command, the parent directory, an absolute path and the empty name.
+foreach (["Archive\r\nA1 EXPUNGE", '..', '../..', 'Archive/../..', '/tmp', 'C:\\', ''] as var $target) {
+    try {
+        $inbox->move(1, $target);
+        echo "1 moved\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+// 2. A target that does not exist, a UID that does not exist, and UIDs outside the allowed range.
+try {
+    $inbox->move(1, 'Nope');
+    echo "2 moved\n";
+} catch (IOError $missing) {
+    echo "2 IOError\n";
+}
+foreach ([7, 0, -1, 4294967296] as var $uid) {
+    try {
+        $inbox->move($uid, 'Archive');
+        echo "2 moved\n";
+    } catch (IOError $missing) {
+        echo "2 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "2 RuntimeError\n";
+    }
+}
+
+// 3. Moves the message back and forth 2000 times. It should end in `INBOX` with the UID 1.
+uint $i = 0;
+while ($i < 1000) {
+    $inbox->move(1, 'Archive');
+    $archive->move(2, 'INBOX');
+    $i = $i + 1;
+}
+echo '3 ', Arr::count($inbox->search()), ' ', Arr::count($archive->search()), ' ', Arr::count($inbox->search({ unseen: true })), "\n";
+
+// 4. Moves the message into the folder it is in. It gets the UID 2 there, and nothing is lost.
+try {
+    $inbox->move(1, 'INBOX');
+    echo '4 ', Arr::count($inbox->search()), ' ', $inbox->fetch(2)->subject(), "\n";
+} finally {
+    // 5. Puts the message back under the UID 1, so the next run finds the folder as it was.
+    if (IO::exists('mailbox/INBOX/2.eml')) {
+        IO::move('mailbox/INBOX/2.eml', 'mailbox/INBOX/1.eml');
+    }
+    if (IO::exists('mailbox/INBOX/2.flags')) {
+        IO::move('mailbox/INBOX/2.flags', 'mailbox/INBOX/1.flags');
+    }
+}
+echo '5 ', $inbox->fetch(1)->subject(), "\n";

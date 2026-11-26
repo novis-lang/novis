@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to list the folders of a mailbox.
+
+use Core\Imap;
+use Core\Str;
+
+var $mailbox = Imap::open('inbox');
+
+// This prints "INBOX, Junk, Sent".
+echo Str::join($mailbox->folders(), ', '), "\n";

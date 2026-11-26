@@ -1,0 +1,25 @@
+# Each bench that changes messages reads its own mailbox under `mailboxes`, so two benches that
+# run at the same time never change the same files. They need no mail server.
+[imap.read]
+directory = "mailboxes/read"
+
+[imap.move]
+directory = "mailboxes/move"
+
+[imap.markSeen]
+directory = "mailboxes/markSeen"
+
+[imap.markUnseen]
+directory = "mailboxes/markUnseen"
+
+[imap.flag]
+directory = "mailboxes/flag"
+
+[imap.unflag]
+directory = "mailboxes/unflag"
+
+[imap.delete]
+directory = "mailboxes/delete"
+
+[capabilities.imap]
+connect = ["read", "move", "markSeen", "markUnseen", "flag", "unflag", "delete"]

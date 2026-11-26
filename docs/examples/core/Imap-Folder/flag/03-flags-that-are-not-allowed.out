@@ -1,0 +1,3 @@
+Core\Imap\Folder::flag: `\Deleted` cannot be set as a flag. To delete a message, call `delete`.
+Core\Imap\Folder::flag: `not spam` cannot be set as a flag. A keyword has no space and none of the characters `(){%*"\]`.
+Not-Spam is set

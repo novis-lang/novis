@@ -1,0 +1,15 @@
+<?nvs
+// Shows a support desk script that lists each new request with its sender and the first line of its text.
+
+use Core\Imap;
+use Core\Str;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+foreach ($inbox->search({ unseen: true }) as int $uid) {
+    var $message = $inbox->fetch($uid);
+    // `uid()` returns the UID that was passed to `fetch`.
+    string $ticket = 'T-' . ($message->uid() ?? 0);
+    var $firstLine = Str::split($message->text() ?? '', "\n")[0] ?? '';
+    echo $ticket, ' ', $message->from()?->address() ?? 'unknown', ': ', $firstLine, "\n";
+}

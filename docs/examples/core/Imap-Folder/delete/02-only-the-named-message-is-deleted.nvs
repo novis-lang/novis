@@ -1,0 +1,24 @@
+<?nvs
+// Shows that `delete` deletes only the message you name, also when another message is marked for deletion.
+
+use Core\Imap;
+use Core\IO;
+
+// In a `directory` block, each message is a file. This line adds a message with the UID 3.
+IO::write('shop/INBOX/3.eml', "From: Cy Okafor <cy@example.net>\nSubject: Test\n\nThis is a test.\n");
+
+// Another mail program marked message 2 with the flag `\Deleted`. `delete(3)` does not remove it.
+var $inbox = Imap::open('shop')->folder('INBOX');
+$inbox->delete(3);
+
+// This prints messages 1 and 2.
+foreach ($inbox->search() as int $uid) {
+    echo $uid, ' ', $inbox->fetch($uid)->subject(), "\n";
+}
+
+// Message 3 is gone, so a second `delete` throws an `IOError`.
+try {
+    $inbox->delete(3);
+} catch (IOError $gone) {
+    echo $gone->message, "\n";
+}

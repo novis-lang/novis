@@ -1,0 +1,77 @@
+<?nvs
+// Attack: `fetch` gets bad UIDs, a message with 5000 nested parts, bytes that are not text,
+// and a message larger than the memory limit. Each step returns a message or throws an error.
+// Each error is caught, so the next step still runs. The program deletes the messages it wrote.
+
+use Core\Arr;
+use Core\Encoding;
+use Core\IO;
+use Core\Imap;
+use Core\Str;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. UIDs below 1, past the largest UID, and the largest whole number.
+foreach ([0, -1, 4294967296, 9223372036854775807] as var $uid) {
+    try {
+        $inbox->fetch($uid);
+        echo "1 read\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+// 2. A UID that no message has.
+try {
+    $inbox->fetch(4294967295);
+    echo "2 read\n";
+} catch (IOError $missing) {
+    echo "2 IOError\n";
+}
+
+try {
+    // 3. A message with 5000 parts, each one inside the one before.
+    string $open = '';
+    string $close = '';
+    uint $level = 0;
+    while ($level < 5000) {
+        $open = $open . 'Content-Type: multipart/mixed; boundary="b' . $level . "\"\n\n--b" . $level . "\n";
+        $close = "\n--b" . $level . "--\n" . $close;
+        $level = $level + 1;
+    }
+    IO::write('mailbox/INBOX/2.eml', "From: a@example.com\nSubject: Deep\nMIME-Version: 1.0\n" . $open . "Content-Type: text/plain\n\nInside.\n" . $close);
+    var $deep = $inbox->fetch(2);
+    echo '3 ', $deep->subject(), ' ', Str::length($deep->text() ?? ''), ' ', Arr::count($deep->attachments()), "\n";
+
+    // 4. A message whose header and body are bytes that are not UTF-8.
+    IO::write('mailbox/INBOX/3.eml', Encoding::fromHex('5375626a6563743a20fffe00c30a0aff00fe80'));
+    var $binary = $inbox->fetch(3);
+    echo '4 ', Str::length($binary->subject()), ' ', Str::length($binary->text() ?? ''), "\n";
+
+    // 5. A message of 24 MB. The program may use 16 MB, so `fetch` should throw an `IOError`
+    //    before it reads the message.
+    IO::write('mailbox/INBOX/4.eml', "From: a@example.com\nSubject: Large\n\n");
+    string $block = Str::repeat('x', 1048576);
+    uint $part = 0;
+    while ($part < 24) {
+        IO::append('mailbox/INBOX/4.eml', $block);
+        $part = $part + 1;
+    }
+    try {
+        $inbox->fetch(4);
+        echo "5 read\n";
+    } catch (IOError $tooLarge) {
+        echo "5 IOError\n";
+    }
+} finally {
+    if (IO::exists('mailbox/INBOX/2.eml')) {
+        IO::remove('mailbox/INBOX/2.eml');
+    }
+    if (IO::exists('mailbox/INBOX/3.eml')) {
+        IO::remove('mailbox/INBOX/3.eml');
+    }
+    if (IO::exists('mailbox/INBOX/4.eml')) {
+        IO::remove('mailbox/INBOX/4.eml');
+    }
+}
+echo '6 ', $inbox->fetch(1)->subject(), "\n";

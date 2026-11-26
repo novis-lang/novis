@@ -1,0 +1,20 @@
+<?nvs
+// Shows the errors `folder` throws for a folder that does not exist and for a name that is not allowed.
+
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+
+// This mailbox has no `Archive` folder, so `folder` throws an `IOError`.
+try {
+    $mailbox->folder('Archive');
+} catch (IOError $missing) {
+    echo "Archive: the folder does not exist\n";
+}
+
+// A folder name with `..` could point outside the mailbox, so it throws a `RuntimeError`.
+try {
+    $mailbox->folder('../INBOX');
+} catch (RuntimeError $badName) {
+    echo $badName->message, "\n";
+}

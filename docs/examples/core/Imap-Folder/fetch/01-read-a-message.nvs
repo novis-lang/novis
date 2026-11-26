@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read one message and print its sender, date, subject and text.
+
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+var $message = $inbox->fetch(1);
+
+echo 'From: ', $message->from()?->name() ?? 'unknown', ' <', $message->from()?->address() ?? '', ">\n";
+echo 'Date: ', $message->date()?->format('yyyy-MM-dd HH:mm') ?? 'no date', "\n";
+echo 'Subject: ', $message->subject(), "\n\n";
+echo $message->text() ?? '', "\n";

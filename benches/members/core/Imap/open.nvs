@@ -1,0 +1,26 @@
+<?nvs
+// Measures how a mailbox is opened from a `directory` block, as a scheduled script does each time it runs.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Imap;
+use Core\Imap\Mailbox;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $blocks = ['inbox', 'archive'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round uses the total so far to pick one of the two blocks.
+            Mailbox $mailbox = Imap::open($blocks[($total % 2) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

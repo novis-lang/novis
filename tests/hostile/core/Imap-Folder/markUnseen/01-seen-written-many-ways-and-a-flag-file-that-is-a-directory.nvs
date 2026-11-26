@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `markUnseen` gets bad UIDs, a flag file with `\Seen` written in several ways beside
+// `\Deleted`, and a flag file that is a directory. No message may be deleted.
+// Each error is caught, so the next step still runs. The last step removes what the program wrote.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// 1. UIDs below 1 and past the largest UID, and a UID that no message has.
+foreach ([0, -1, 4294967296, 9] as var $uid) {
+    try {
+        $inbox->markUnseen($uid);
+        echo "1 marked\n";
+    } catch (IOError $missing) {
+        echo "1 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "1 RuntimeError\n";
+    }
+}
+
+try {
+    // 2. A flag file has `\Seen` three times in different case, and `\Deleted`.
+    //    Every `\Seen` should go, and the message should still be there.
+    IO::write('mailbox/INBOX/1.flags', "\\seen\n\\SEEN\n\\Seen\n\\Deleted\n\$Label\n");
+    $inbox->markUnseen(1);
+    echo '2 ', Arr::count($inbox->search({ unseen: true })), ' ', $inbox->fetch(1)->subject(), "\n";
+    echo IO::readText('mailbox/INBOX/1.flags');
+
+    // 3. The flag file of message 2 is a directory. `markUnseen` should throw an `IOError`.
+    IO::makeDirectory('mailbox/INBOX/2.flags');
+    try {
+        $inbox->markUnseen(2);
+        echo "3 marked\n";
+    } catch (IOError $notAFile) {
+        echo "3 IOError\n";
+    }
+} finally {
+    // 4. Removes the files this program wrote, so the next run finds the folder as it was.
+    if (IO::exists('mailbox/INBOX/1.flags')) {
+        IO::remove('mailbox/INBOX/1.flags');
+    }
+    if (IO::exists('mailbox/INBOX/2.flags')) {
+        IO::removeDirectory('mailbox/INBOX/2.flags');
+    }
+}
+
+// 5. Marks a message without flags 5000 times. No flag file should appear.
+uint $i = 0;
+while ($i < 5000) {
+    $inbox->markUnseen(2);
+    $i = $i + 1;
+}
+echo '5 ', IO::exists('mailbox/INBOX/2.flags') ? 'flag file' : 'no flag file', "\n";

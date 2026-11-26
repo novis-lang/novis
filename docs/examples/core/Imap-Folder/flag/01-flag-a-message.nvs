@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to flag a complaint, so that it shows with a star or a red flag in a mail program.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('shop')->folder('INBOX');
+
+$inbox->flag(1, '\Flagged');
+
+// In a `directory` block, the flags of message 1 are the lines of the file `1.flags`.
+// This prints "\Flagged".
+echo IO::readText('shop/INBOX/1.flags');
+
+// This removes the flag again, so the example prints the same each time it runs.
+$inbox->unflag(1, '\Flagged');

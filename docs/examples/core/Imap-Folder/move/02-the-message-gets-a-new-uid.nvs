@@ -1,0 +1,26 @@
+<?nvs
+// Shows that a moved message has a new UID in its new folder and keeps its flags.
+
+use Core\Arr;
+use Core\Imap;
+
+var $mailbox = Imap::open('support');
+var $inbox = $mailbox->folder('INBOX');
+var $done = $mailbox->folder('Done');
+
+// Message 3 is read. `Done` has the UIDs 1 and 2, so the moved message gets the UID 3 there.
+$inbox->move(3, 'Done');
+echo 'Done 3: ', $done->fetch(3)->subject(), "\n";
+
+// The message is still read, so `Done` has no unread message. This prints "unread in Done: 0".
+echo 'unread in Done: ', Arr::count($done->search({ unseen: true })), "\n";
+
+// The old UID is gone from `INBOX`, so `fetch` throws an `IOError`.
+try {
+    $inbox->fetch(3);
+} catch (IOError $gone) {
+    echo $gone->message, "\n";
+}
+
+// This moves the message back, so the example prints the same each time it runs.
+$done->move(3, 'INBOX');

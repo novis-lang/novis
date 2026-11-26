@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `unflag` changes nothing when the message does not have the flag.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('support')->folder('INBOX');
+
+// Message 1 has no flags. Neither call throws an error.
+$inbox->unflag(1, '\Answered');
+$inbox->unflag(1, '$Urgent');
+
+// A message without flags has no `1.flags` file. This prints "flags file: no".
+echo 'flags file: ', IO::exists('support/INBOX/1.flags') ? 'yes' : 'no', "\n";
+
+// A UID that does not exist throws an `IOError`.
+try {
+    $inbox->unflag(5, '\Answered');
+} catch (IOError $error) {
+    echo $error->message, "\n";
+}

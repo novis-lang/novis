@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to add a label of your own, `$Paid`, to a message about a payment.
+
+use Core\Imap;
+use Core\IO;
+
+var $inbox = Imap::open('orders')->folder('INBOX');
+
+// The second call changes nothing, because the message has the label already.
+$inbox->flag(1, '$Paid');
+$inbox->flag(1, '$Paid');
+
+// The message was read before, so it has two flags. This prints "\Seen" and "$Paid".
+echo IO::readText('orders/INBOX/1.flags');
+
+// This removes the label again, so the example prints the same each time it runs.
+$inbox->unflag(1, '$Paid');

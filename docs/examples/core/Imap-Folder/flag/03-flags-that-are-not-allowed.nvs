@@ -1,0 +1,27 @@
+<?nvs
+// Shows the flags that `flag` does not allow. Each one throws a `RuntimeError`.
+
+use Core\Imap;
+
+var $inbox = Imap::open('support')->folder('INBOX');
+
+// To delete a message, call `delete` instead.
+try {
+    $inbox->flag(1, '\Deleted');
+} catch (RuntimeError $deleted) {
+    echo $deleted->message, "\n";
+}
+
+// A keyword cannot have a space.
+try {
+    $inbox->flag(1, 'not spam');
+} catch (RuntimeError $space) {
+    echo $space->message, "\n";
+}
+
+// This works. A keyword can have a `-`.
+$inbox->flag(1, 'Not-Spam');
+echo "Not-Spam is set\n";
+
+// This removes the flag again, so the example prints the same each time it runs.
+$inbox->unflag(1, 'Not-Spam');

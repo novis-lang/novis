@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to open each folder of the list and count its messages.
+
+use Core\Arr;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+
+// The server writes the folder names, so each name is a `tainted string`.
+foreach ($mailbox->folders() as tainted string $name) {
+    var $folder = $mailbox->folder($name);
+    echo $name, ': ', Arr::count($folder->search()), "\n";
+}

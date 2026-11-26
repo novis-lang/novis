@@ -1,0 +1,73 @@
+<?nvs
+// Attack: folder names try to add an IMAP command, or to point outside the mailbox directory.
+// No name may add a command or open a directory outside the mailbox. Each step should throw
+// an error, which is caught so the next step still runs.
+
+use Core\Imap;
+use Core\Str;
+
+var $mailbox = Imap::open('inbox');
+
+// 1. A line break and a second command after the folder name.
+try {
+    $mailbox->folder("INBOX\r\nA1 DELETE x");
+    echo "1 opened\n";
+} catch (RuntimeError $bad) {
+    echo "1 RuntimeError\n";
+}
+
+// 2. Names that point to the parent directory, or further up.
+foreach (['..', '../..', '.', 'INBOX/..', 'INBOX/../..', '..\\..', '../mailbox/INBOX'] as var $name) {
+    try {
+        $mailbox->folder($name);
+        echo '2 opened ', $name, "\n";
+    } catch (RuntimeError $bad) {
+        echo "2 RuntimeError\n";
+    }
+}
+
+// 3. Absolute paths, a drive letter, a network share and a stream name.
+foreach (['/etc', 'C:\\Windows', 'C:', '\\\\server\\share', 'INBOX:secret'] as var $name) {
+    try {
+        $mailbox->folder($name);
+        echo '3 opened ', $name, "\n";
+    } catch (RuntimeError $bad) {
+        echo "3 RuntimeError\n";
+    }
+}
+
+// 4. A NUL byte, a tab, the empty name, and quotes around the name.
+foreach (["INBOX\0", "IN\tBOX", '', '"INBOX"', '{5}'] as var $name) {
+    try {
+        $mailbox->folder($name);
+        echo "4 opened\n";
+    } catch (IOError $missing) {
+        echo "4 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "4 RuntimeError\n";
+    }
+}
+
+// 5. Names that are devices on Windows, and names with a dot or a space at the end.
+//    Each one opens `INBOX` or nothing, and never a device.
+foreach (['NUL', 'CON', 'COM1', 'INBOX.', 'INBOX '] as var $name) {
+    try {
+        $mailbox->folder($name);
+        echo '5 opened, ', Str::length($name), " letters\n";
+    } catch (IOError $missing) {
+        echo "5 IOError\n";
+    }
+}
+
+// 6. A name of one million letters.
+try {
+    $mailbox->folder(Str::repeat('a', 1000000));
+    echo "6 opened\n";
+} catch (IOError $missing) {
+    echo "6 IOError\n";
+} catch (RuntimeError $bad) {
+    echo "6 RuntimeError\n";
+}
+
+// 7. The real folder still opens and has its one message.
+echo '7 ', $mailbox->folder('INBOX')->fetch(1)->subject(), "\n";

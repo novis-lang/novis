@@ -1,0 +1,37 @@
+<?nvs
+// Attack: the mailbox has folders whose names look like IMAP commands, and a file beside them.
+// Each name should come back as plain text, and opening it should open that folder and nothing else.
+
+use Core\Arr;
+use Core\Imap;
+
+var $mailbox = Imap::open('inbox');
+
+// 1. Lists the folders. The file `Notes` is not a folder, so it is not in the list.
+var $names = $mailbox->folders();
+echo '1 ', Arr::count($names), ' folders, Notes listed: ', Arr::contains($names, 'Notes') ? 'yes' : 'no', "\n";
+
+// 2. Opens each listed folder and reads its messages. The names come from the disk, so they are tainted.
+foreach ($names as tainted string $name) {
+    var $folder = $mailbox->folder($name);
+    foreach ($folder->search() as int $uid) {
+        echo '2 ', $folder->fetch($uid)->subject(), "\n";
+    }
+}
+
+// 3. Opens the file `Notes` as a folder. It should throw an `IOError`, which is caught.
+try {
+    $mailbox->folder('Notes');
+    echo "3 opened\n";
+} catch (IOError $e) {
+    echo "3 IOError\n";
+}
+
+// 4. Lists the folders 5000 times. Each list is freed when the next one replaces it.
+uint $i = 0;
+uint $total = 0;
+while ($i < 5000) {
+    $total = $total + Arr::count($mailbox->folders());
+    $i = $i + 1;
+}
+echo '4 ', $total, "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// Shows a script that handles each new order once. It runs twice here, and the second run finds nothing new.
+
+use Core\Imap;
+
+var $inbox = Imap::open('orders')->folder('INBOX');
+array<int> $handled = [];
+
+foreach ([1, 2] as var $run) {
+    echo 'run ', $run, ":\n";
+    foreach ($inbox->search({ unseen: true }) as int $uid) {
+        echo '  ', $inbox->fetch($uid)->subject(), "\n";
+        // The order is handled, so the script marks the message as read.
+        $inbox->markSeen($uid);
+        $handled[] = $uid;
+    }
+}
+
+// These lines mark the orders as new again, so the example prints the same each time it runs.
+foreach ($handled as int $uid) {
+    $inbox->markUnseen($uid);
+}

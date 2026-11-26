@@ -1,0 +1,24 @@
+<?nvs
+// Measures how a folder of three messages is searched for the ones not read yet, as a script does each time it runs.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Arr;
+use Core\Imap;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $inbox = Imap::open('read')->folder('INBOX');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Arr::count($inbox->search({ unseen: true }));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

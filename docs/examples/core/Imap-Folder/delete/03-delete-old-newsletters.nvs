@@ -1,0 +1,25 @@
+<?nvs
+// Shows a cleanup job that deletes the newsletters that are older than one week.
+
+use Core\Imap;
+use Core\IO;
+use Core\Time\Date;
+use Core\Unit;
+
+// In a `directory` block, each message is a file. These lines add two old newsletters.
+IO::write('newsletter/INBOX/2.eml', "From: Shop News <news@example.com>\nSubject: Offers for October\nDate: Thu, 1 Oct 2026 07:00:00 +0000\n\nOffers.\n");
+IO::write('newsletter/INBOX/3.eml', "From: Shop News <news@example.com>\nSubject: Offers for September\nDate: Tue, 1 Sep 2026 07:00:00 +0000\n\nOffers.\n");
+
+var $inbox = Imap::open('newsletter')->folder('INBOX');
+
+// The job runs on 10 November 2026, so it deletes the newsletters from before 3 November.
+var $weekAgo = Date::at(2026, 11, 10)->minus(1, Unit::Week);
+foreach ($inbox->search({ from: 'news@example.com', before: $weekAgo }) as int $uid) {
+    echo 'deleted: ', $inbox->fetch($uid)->subject(), "\n";
+    $inbox->delete($uid);
+}
+
+// The reply from Ada is not a newsletter, so it stays.
+foreach ($inbox->search() as int $uid) {
+    echo 'kept: ', $inbox->fetch($uid)->subject(), "\n";
+}

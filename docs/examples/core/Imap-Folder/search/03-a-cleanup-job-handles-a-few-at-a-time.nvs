@@ -1,0 +1,21 @@
+<?nvs
+// Shows a cleanup job that finds the old messages and handles at most two per run.
+
+use Core\Imap;
+use Core\Time\Date;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+// `before` does not include the day itself, so messages 1, 2 and 3 match.
+// `limit: 2` returns the two oldest of them.
+foreach ($inbox->search({ before: Date::at(2026, 11, 3), limit: 2 }) as int $uid) {
+    var $message = $inbox->fetch($uid);
+    echo $uid, ' ', $message->date()?->format('yyyy-MM-dd') ?? 'no date', ' ', $message->subject(), "\n";
+}
+
+// A limit of 0 is not allowed, so `search` throws a `RuntimeError`.
+try {
+    $inbox->search({ limit: 0 });
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

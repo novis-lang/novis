@@ -1,0 +1,35 @@
+<?nvs
+// Measures how one message is moved to another folder, as a script does when it archives a message.
+// bench: iterations 256
+// bench: complexity constant
+
+use Core\Imap;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $mailbox = Imap::open('move');
+        var $inbox = $mailbox->folder('INBOX');
+        var $archive = $mailbox->folder('Archive');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The message goes to `Archive` as UID 2, and in the next round back to `INBOX` as UID 1.
+            if ($total % 2 == 0) {
+                $inbox->move(1, 'Archive');
+            } else {
+                $archive->move(2, 'INBOX');
+            }
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        // After an odd number of rounds, this moves the message back to `INBOX` for the next run.
+        if ($total % 2 == 1) {
+            $archive->move(2, 'INBOX');
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

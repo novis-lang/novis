@@ -1,0 +1,54 @@
+<?nvs
+// Attack: another mail program marked a message `\Deleted`, and this program tries to remove that
+// flag and to add an IMAP command inside a flag. Each such flag should throw a `RuntimeError`, and the
+// message should stay. Each error is caught, so the next step still runs.
+
+use Core\Arr;
+use Core\IO;
+use Core\Imap;
+
+var $inbox = Imap::open('inbox')->folder('INBOX');
+
+try {
+    IO::write('mailbox/INBOX/1.flags', "\\Deleted\n\$Label\n");
+
+    // 1. Removes `\Deleted` in three ways of writing it.
+    foreach (['\Deleted', '\deleted', '\DELETED'] as var $flag) {
+        try {
+            $inbox->unflag(1, $flag);
+            echo "1 unflagged\n";
+        } catch (RuntimeError $bad) {
+            echo "1 RuntimeError\n";
+        }
+    }
+
+    // 2. Flags with a line break and a second command, a space, brackets, quotes and a NUL byte.
+    foreach (["x\r\nA1 UID EXPUNGE 1", '\Recent', 'a b', '(x)', '{5}', '"x"', "x\0", ''] as var $flag) {
+        try {
+            $inbox->unflag(1, $flag);
+            echo "2 unflagged\n";
+        } catch (RuntimeError $bad) {
+            echo "2 RuntimeError\n";
+        }
+    }
+
+    // 3. Removes `$label` in small letters. Keywords ignore case, so `$Label` should go.
+    $inbox->unflag(1, '$label');
+    echo '3 ', IO::readText('mailbox/INBOX/1.flags');
+
+    // 4. The message is still there.
+    echo '4 ', Arr::count($inbox->search()), "\n";
+} finally {
+    // 5. Removes the flag file, so the next run finds the folder as it was.
+    if (IO::exists('mailbox/INBOX/1.flags')) {
+        IO::remove('mailbox/INBOX/1.flags');
+    }
+}
+
+// 6. Removes a flag the message does not have 5000 times. No flag file should appear.
+uint $i = 0;
+while ($i < 5000) {
+    $inbox->unflag(1, '\Flagged');
+    $i = $i + 1;
+}
+echo '6 ', IO::exists('mailbox/INBOX/1.flags') ? 'flag file' : 'no flag file', "\n";
