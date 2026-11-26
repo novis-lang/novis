@@ -1,0 +1,289 @@
+---
+title: Sending mail
+covers: ['Core\Mail::send', 'Core\Mail::preview', 'Core\Mail\Preview::html', 'Core\Mail\Preview::keptCss', 'Core\Mail\Preview::unusedCss', 'Core\Mail\Address::of', 'Core\Mail\Attachment::fromFile', 'Core\Mail\Attachment::fromBytes', 'Core\Mail\Attachment::inlineFile', 'Core\Mail\Attachment::src', 'Core\Test::sentMail']
+description: How to set up a mail server in nvs.toml, send text and HTML mail with attachments, and test it.
+---
+
+Your program sends mail with `Core\Mail::send`. The mail server, its password and the sender
+address are in `nvs.toml`. Your code names a block of settings, and nothing else. So a program
+cannot send mail as somebody else.
+
+## The settings block
+
+A `[mail.<name>]` block describes one mail server. You choose the name. This block is named `shop`:
+
+```toml
+[mail.shop]
+host = "smtp.example.com"
+port = 465                                   # TLS from the first byte
+from = "shop@example.com"                    # the sender of every message
+from_name = "Example Shop"                   # the name a mail program shows
+user = "shop@example.com"
+password_file = "/run/secrets/mail-shop"     # the file contains the password
+
+[capabilities.mail]
+send = ["shop"]                              # the blocks this program may send through
+```
+
+The `[capabilities.mail]` block allows the program to use the block. Without it, `send` throws a
+`RuntimeError`. These keys change how Novis connects:
+
+- `tls` is `implicit`, `starttls` or `none`. On port 465 the default is `implicit`. With a password
+  it is `starttls`. Novis never sends a password without TLS.
+- `tls_ca_file` is a PEM file with the certificates of your own certificate authority. Use it for a
+  mail server inside your company.
+- `auth` is `plain`, `login` or `xoauth2`. The default is `plain` when the server offers it.
+
+Every certificate is checked. Read every key in
+[Reference: configuration](/reference/config/the-blocks-the-binary-accepts/).
+
+## Sending a message
+
+`Core\Mail::send` takes the block name, the recipients, the subject and the body. A `string` body is
+sent as plain text:
+
+```nvs
+string $id = Core\Mail::send('shop', ['anna@example.com'], 'Your order', 'Thank you for your order.');
+```
+
+`send` returns when the mail server has accepted the message. It returns the message id, such as
+`2271a1bb6fceb73304da92a00081d6d0@example.com`. Store it if you want to match a reply or a bounce
+to the message.
+
+A `Core\Html\Markup` body is sent as HTML. An `html` template gives you one, and each `{$name}` in
+it is escaped:
+
+```nvs
+string $name = 'Anna';
+Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your order',
+    html`<h1>Thank you, {$name}</h1><p>Your order <a href="https://example.com/orders/1042">1042</a> is on its way.</p>`,
+);
+```
+
+Novis also builds a plain-text version from the HTML. A mail program that shows no HTML shows that
+version. A link becomes its text with the URL in parentheses. The `text` option replaces the plain
+text with your own.
+
+A string from the request is always sent as plain text. So a visitor cannot add HTML to a message.
+
+`send` throws a `RuntimeError` for a mistake in the call, such as an address without `@`. It throws
+an `IOError` when the server cannot be reached or rejects the message. In both cases nothing is sent.
+
+## Names
+
+`from_name` in the block is the sender name that mail programs show. The `fromName` option replaces
+it for one message. The sender address is always `from` of the block.
+
+`Core\Mail\Address::of` gives an address with a name. You can use it for `to`, `cc`, `bcc` and
+`replyTo`:
+
+```nvs
+use Core\Mail;
+use Core\Mail\Address;
+
+Mail::send(
+    'shop',
+    [Address::of('anna@example.com', 'Anna Schmidt')],
+    'Your order',
+    'Thank you for your order.',
+    { fromName: 'Example Shop Support', replyTo: Address::of('help@example.com', 'Support') },
+);
+```
+
+A plain string is only an address. The string `'Anna <anna@example.com>'` throws an error. Pass the
+name as the second argument of `Address::of`.
+
+## Attachments and inline images
+
+The `attachments` option takes a list of `Core\Mail\Attachment` values:
+
+- `Attachment::fromFile` reads a file. The file is read at this call, so it needs the `fs.read`
+  capability.
+- `Attachment::fromBytes` makes a file from a value in your program, such as a CSV export.
+- `Attachment::inlineFile` reads an image to show inside the HTML. Write its `src()` in an
+  `<img src>`.
+
+```nvs
+use Core\Mail;
+use Core\Mail\Attachment;
+
+Attachment $logo = Attachment::inlineFile('images/logo.png');
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your invoice',
+    html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Your invoice is attached.</p>`,
+    { attachments: [
+        Attachment::fromFile('invoices/1042.pdf', { name: 'invoice-1042.pdf' }),
+        Attachment::fromBytes('items.csv', "item,price\ntea,4.50\n", { type: 'text/csv' }),
+        $logo,
+    ] },
+);
+```
+
+The media type is detected from the first bytes of the file. The `type` option sets it yourself.
+Each inline image must be used in the HTML, and each `cid:` URL in the HTML needs its inline image.
+Otherwise `send` throws a `RuntimeError` that names the missing one.
+
+## Styling an HTML mail
+
+Most mail programs ignore a `<style>` element. So Novis copies the CSS of each `<style>` element
+into the `style` attribute of each element it matches. This happens for every HTML body, and you do
+not need to turn it on.
+
+This body has a `<style>` element:
+
+```nvs
+Core\Html\Markup $body = html`<style>
+  p { color: #333; font-family: Arial, sans-serif; }
+  .total { font-weight: bold; }
+  .note { color: gray; }
+  a:hover { color: #c00; }
+  @media (max-width: 600px) { p { font-size: 18px; } }
+</style>
+<p>Thank you for your order.</p>
+<p class="total">Total: 59.90 EUR</p>`;
+
+echo Core\Mail::preview($body)->html();
+```
+
+`Core\Mail::preview` builds the body as `send` would, and sends nothing. This program prints:
+
+```html skip="the output of the program above, copied from nvs run"
+<html><head><style>.note { color: gray; }
+a:hover { color: #c00; }
+@media (max-width: 600px) { p { font-size: 18px; } }</style>
+</head><body><p style="color: #333;font-family: Arial, sans-serif;">Thank you for your order.</p>
+<p class="total" style="color: #333;font-family: Arial, sans-serif;font-weight: bold;">Total: 59.90 EUR</p></body></html>
+```
+
+Three rules stay in the `<style>` element:
+
+- An `@media` rule stays, because a `style` attribute cannot contain it.
+- A rule with `:hover` stays, because it applies only while the mouse is over the element.
+- A rule that matches no element stays, such as `.note` here.
+
+`keptCss()` of the preview returns every rule that stayed. `unusedCss()` returns the rules that
+could match an element and did not. Here it returns `.note { color: gray; }`. A preview is useful
+in a test, or on an admin page that shows the mail.
+
+A `<link rel="stylesheet">` throws a `RuntimeError`. A mail cannot load a stylesheet, so put the CSS
+in a `<style>` element.
+
+## Threads
+
+Mail programs show a reply and the message it answers in one thread. Pass the message id that
+`send` returned:
+
+```nvs
+string $first = Core\Mail::send('shop', ['anna@example.com'], 'Ticket 77', 'We got your question.');
+Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Re: Ticket 77',
+    'Here is the answer.',
+    { inReplyTo: $first, references: [$first] },
+);
+```
+
+`inReplyTo` is the message this one answers. `references` lists the earlier messages of the thread,
+oldest first.
+
+## Unsubscribe
+
+The `unsubscribe` option takes an `https://` URL. Mail programs then show an unsubscribe button.
+When the reader presses it, the mail program sends a POST request to that URL:
+
+```nvs
+Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'News for March',
+    'Our new teas are here.',
+    { unsubscribe: 'https://example.com/unsubscribe?token=abc123' },
+);
+```
+
+Your route for that URL removes the reader from the list. Any other URL scheme throws a
+`RuntimeError`.
+
+## Sending in the background
+
+`send` waits for the mail server. To answer the visitor first, send the mail with
+`Core\Task::runAfterResponse`. The function runs after the browser has the page:
+
+```nvs
+string $email = 'anna@example.com';
+Core\Task::runAfterResponse(fn(): void => {
+    Core\Mail::send('shop', [$email], 'Your order', 'Thank you for your order.');
+});
+```
+
+If the process stops, this work is lost. [Work after the response](/guides/walkthroughs/after-response/)
+shows each step.
+
+To try again when the mail server is down, use `Core\Queue`. A job is saved in the database, and a
+worker runs it. If the job throws, the worker runs it again later:
+
+```nvs
+Core\Queue::push('jobs/send-receipt.nvs', {
+    queue: 'mail',
+    arguments: ['order' => 1042],
+    maxAttempts: 5,
+    backoff: Core\Time\Duration::seconds(30),
+});
+```
+
+## Testing
+
+Under `nvs test`, `send` sends no mail and opens no connection. It still checks every address and
+option. `Core\Test::sentMail()` returns each message that the test sent:
+
+```nvs
+use Core\Mail;
+use Core\Test;
+
+class ReceiptTest
+{
+    #[Test]
+    public function itSendsOneReceipt(): void
+    {
+        string $id = Mail::send('shop', ['anna@example.com'], 'Your order 1042', 'Thank you for your order.');
+
+        var $sent = Test::sentMail();
+        Test::assertCount($sent, 1);
+        Test::assertEquals($sent[0]->to(), ['anna@example.com']);
+        Test::assertSame($sent[0]->messageId(), $id);
+    }
+}
+```
+
+Each test starts with an empty list.
+
+To keep mail outside of tests too, such as on your development computer, write `capture = true` in
+the block. The block then needs only `from`:
+
+```toml
+[mail.shop]
+capture = true
+from = "shop@example.com"
+from_name = "Example Shop"
+```
+
+A capture block keeps each message and sends nothing. With `[debug] store = true`, the debug viewer
+has a Mail page. `nvs debug` prints the link to the viewer. The Mail page lists each kept message
+and shows one message at a time.
+
+## Do and don't
+
+- Do keep the password in a file, and name it with `password_file`.
+- Do grant `[capabilities.mail] send` only the blocks the program uses.
+- Do build an HTML body with an `html` template, so every value is escaped.
+- Do put CSS in a `<style>` element, and check the result with `Core\Mail::preview`.
+- Don't make a visitor wait for the mail server. Send after the response, or with `Core\Queue`.
+- Don't write a name into an address string. Use `Core\Mail\Address::of`.
+
+Read every option in the reference of [`Core\Mail::send`](/reference/core/mail/send/).
