@@ -6,7 +6,7 @@ context: [crates/nvs-host/src/tls.rs, docs/rules/http-server/the-client-trust-ro
 stages:
   - id: 1
     title: "the block is [tls.client] everywhere in the tree's code, tests and settings files"
-    status: open
+    status: done
     context: [crates/nvs-config/src/http.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/directive.rs, crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs]
   - id: 2
     title: "every outbound client that names no tls_ca_file is proven to trust [tls.client] roots, and an unknown issuer names both settings"
@@ -142,21 +142,22 @@ attempt goes to `### Backlog` with what blocked it.
 **Split:** one session. The edits are mechanical across about 30 files. `bun nv splice --patch` takes them in one
 call per crate.
 
-- [ ] `crates/nvs-config/src/tree.rs:73` and `:791`: `Config.tls: Option<Tls>` with `client:
+- [x] `crates/nvs-config/src/tree.rs:73` and `:791`: `Config.tls: Option<Tls>` with `client:
   Option<TlsClient>`; `Http.client.tls` (`tree.rs:773`) is removed. `crates/nvs-config/src/http.rs:442`
   to `:600` read the new path, and the dotted keys in `defaults.rs:558`, `directive.rs:116`,
   `resolve.rs:629`, `db.rs:161`, `snapshot.rs:256` and `capability.rs:131` follow.
-- [ ] `crates/nvs-diagnostics/src/code/config.rs:564` and `crates/nvs-diagnostics/src/code/warnings.rs:89`:
+- [x] `crates/nvs-diagnostics/src/code/config.rs:564` and `crates/nvs-diagnostics/src/code/warnings.rs:89`:
   every message names `[tls.client]`.
-- [ ] `crates/nvs-cli/src/config.rs:768`, `:1197`, `:1963` and `crates/nvs-cli/src/reload.rs:234`,
+- [x] `crates/nvs-cli/src/config.rs:768`, `:1197`, `:1963` and `crates/nvs-cli/src/reload.rs:234`,
   `:474`, `:922`; `crates/nvs-stdlib/src/http.rs:2934` reads `tls.client.min_version`, and its
   messages at `:2353` and `:2941` name it; the doc comments in `crates/nvs-host/src/tls.rs` and
   `crates/nvs-stdlib/src/http/transport.rs:2403`.
-- [ ] Tests and settings files: `crates/nvs-config/tests/directives.rs:1`, `crates/nvs-config/tests/resolve.rs:1`,
+- [x] Tests and settings files: `crates/nvs-config/tests/directives.rs:1`, `crates/nvs-config/tests/resolve.rs:1`,
   `crates/nvs-cli/tests/live_config.rs:1`, `run_command.rs:1`, `package_download.rs:1`,
   `tools/nv/test/registry-browser.test.ts:1`, `nvs.toml:1` and `examples/cache-shared-tls.toml:1`.
-- [ ] `crates/nvs-config/tests/resolve.rs:1`: the two tests of the check `rename`, then `cargo test
-  --test resolve` once. `rg -n 'http\.client\.tls' crates tools nvs.toml examples` prints nothing.
+- [x] `crates/nvs-config/tests/resolve.rs:1`: the two tests of the check `rename`, then `cargo test
+  --test resolve` once. `rg -n 'http\.client\.tls' crates tools nvs.toml examples` prints only
+  `an_http_client_tls_block_is_an_unknown_key`, which has to write the old name.
 
 ### 2. every outbound client that names no tls_ca_file is proven to trust [tls.client] roots, and an unknown issuer names both settings
 
@@ -185,7 +186,10 @@ call per crate.
   `:847`, `:892` and the `rediss://` lines at `:939` say "default: `[tls.client] roots`".
 - [ ] `docs/examples/config/http-client-tls/about.md:1` and `tests/hostile/config/http-client-tls/01-choosing-who-is-believed-from-inside-a-request.nvs:1`
   move to `tls-client/`, rewritten to AGENTS.md § *Text an end user reads*. `bun nv proofs --owed
-  --goal tls-client-block` lists what `directive:tls.client` still owes, and each is paid.
+  --goal tls-client-block` lists what `directive:tls.client` still owes, and each is paid. The
+  example's `nvs.toml` and `.nvs` and two more attacks still name `http.client.tls`:
+  `tests/hostile/config/http-client-socket/01-removing-the-one-bound-a-request-is-allowed-to-set.nvs:73`
+  and `tests/hostile/config/http/01-bending-the-response-policy-from-inside-a-request.nvs:36`, `:91`.
 - [ ] `website/src/data/changes.json:1`: the entry of § *Website*. Then `bun nv site --check stale`,
   `changes` and `review` are green.
 
@@ -198,12 +202,28 @@ call per crate.
 
 ### State
 
-Written by an interactive session on 2026-11-26 from a user report. Nothing of this goal is built.
-Every anchor above was read that day, while `mail-complete` stage 3 was in progress, so the lines in
-`smtp.rs` and `default.toml` may have moved.
+Stage 1 is done and the check `rename` is green. `Config.tls: Option<Tls>` holds `client:
+Option<TlsClient>` (`crates/nvs-config/src/tree.rs:105`, `:785`), and `[http.client]` has no `tls`
+field. Every code, test and settings file under `crates`, `tools`, `nvs.toml` and `examples` names
+`[tls.client]`. The directive row is `tls.client` (`directive.rs:116`), and the two census tests in
+`crates/nvs-config/tests/directives.rs` no longer count it among the `http` exceptions.
+`default.toml:582` writes `[tls.client]` where the old block stood, between `[http.client.socket]` and
+`[http.client.proxy]`. Its comment still talks about `https` calls only, which stage 3 rewrites.
+
+The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`. `c115a735a1` fixed the Miri
+four and `28a4d7a6bf` fixed the conformance four, both before this session. The aarch64
+`serve::tests::a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` failure is in
+`docs/goals/release-green.md` § *Backlog*, and no goal on the chain owns it.
 
 ### Next
 
-Stage 1 from its first item. The check `rename` is red until its two tests exist.
+Stage 2 from its first item: `crates/nvs-cli/tests/client_roots.rs` (new), shaped per § *The tests
+run `nvs` as a child process*. Start from `crates/nvs-cli/tests/live_config.rs:2119`, which already
+writes a `[tls.client] roots` file and makes a CA with `rcgen`.
+
+Expected red until stage 3: the example `docs/examples/config/http-client-tls/` (its `nvs.toml` is
+now an unknown key) and the three attacks under `tests/hostile/config/` that stage 3's third item
+names. Their expected output may also change, because `http.client.tls.*` is now an unknown key and
+not a key a request may not set.
 
 ### Backlog
