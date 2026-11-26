@@ -1,4 +1,4 @@
-assets fc1cedb9b7eedb0b
+assets 2e6ad2ee1a3d8418
 
 N
 Novis debug
@@ -11,6 +11,7 @@ Routes
 Queries
 Errors
 Logs
+Mail
 Stream
 Settings
 Routes

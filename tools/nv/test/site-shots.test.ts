@@ -105,6 +105,18 @@ describe("the shots part", () => {
     });
   });
 
+  test("a picture a snippet reads by its path needs no .shot", () => {
+    s = scratch();
+    s.put(P, VIEWER);
+    s.put(`${P}.out`, OUT);
+    s.put("website/snippets/tools/debug-viewer/requests.png", "png");
+    s.put("website/snippets/guides/mail/attach.nvs", "<?nvs\n$logo = Attachment::inlineFile('files/logo.png');\n");
+    s.put("website/snippets/guides/mail/files/logo.png", "png");
+    s.put("website/snippets/guides/mail/files/unread.png", "png");
+    s.put("website/src/content/docs/tools/debug-viewer/index.mdx", '---\ntitle: Viewer\n---\n\n<Shot src="tools/debug-viewer/requests.shot" alt="The request list" />\n');
+    expect(shotShape(s.root).problems).toEqual(["website/snippets/guides/mail/files/unread.png: a picture and no .shot beside it"]);
+  });
+
   test("a shot no page shows, and a <Shot> that names no .shot, are named", () => {
     s = scratch();
     s.put(P, VIEWER);

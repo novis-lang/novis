@@ -1625,8 +1625,14 @@ export function shotShape(root: string = ROOT): { shots: string[]; problems: str
   for (const p of files.filter((f) => f.endsWith(`.${SHOT_OUT}`))) {
     if (!shots.includes(p.slice(0, -".out".length))) problems.push(`${p}: a .${SHOT_OUT} and no .${SHOT} beside it`);
   }
+  // A picture a snippet reads by its path, such as an attachment's `files/logo.png`, is the snippet's
+  // input and needs no `.shot`.
+  const read = new Set<string>();
+  for (const nvs of files.filter((f) => f.endsWith(".nvs"))) {
+    for (const m of readAt(root, nvs).matchAll(/['"]([^'"\n]+\.png)['"]/g)) read.add(join(dirname(nvs), m[1]!).replaceAll("\\", "/"));
+  }
   for (const p of files.filter((f) => f.endsWith(`.${SHOT_PNG}`))) {
-    if (!shots.some((s) => shotPng(s) === p)) problems.push(`${p}: a picture and no .${SHOT} beside it`);
+    if (!shots.some((s) => shotPng(s) === p) && !read.has(p)) problems.push(`${p}: a picture and no .${SHOT} beside it`);
   }
   return { shots, problems };
 }
