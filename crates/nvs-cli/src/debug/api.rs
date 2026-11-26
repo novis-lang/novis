@@ -163,7 +163,7 @@ pub(super) struct Row {
 /// (`super::index`'s *What the triggers keep*). Events of one kind can overlap, so a sum may pass
 /// the request's duration.
 #[derive(Serialize)]
-struct TimeByKind {
+pub(super) struct TimeByKind {
     query: i64,
     http: i64,
     cache: i64,
@@ -173,9 +173,9 @@ struct TimeByKind {
     spawn: i64,
 }
 
-/// The exception a request did not catch: its class and the site of its `throw`.
+/// The exception a request or a run did not catch: its class and the site of its `throw`.
 #[derive(Serialize)]
-struct Threw {
+pub(super) struct Threw {
     class: String,
     file: String,
     line: i64,
@@ -268,7 +268,7 @@ struct Covered {
 /// An uncaught exception: its class, its message, the site of its `throw`, and its frames and
 /// `previous` chain where the line had them.
 #[derive(Serialize)]
-struct Exception {
+pub(super) struct Exception {
     class: String,
     message: String,
     file: String,
@@ -297,7 +297,7 @@ pub(crate) fn stack(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Stac
 
 /// One trace event: a call, a query, a spawn, a garbage-collection pause or an outbound call.
 #[derive(Serialize)]
-struct Event {
+pub(super) struct Event {
     id: i64,
     kind: String,
     label: String,
@@ -334,7 +334,7 @@ struct QuerySite {
 
 /// One `Core\Debug::dump`: its site and its value tree in the JSON rendering.
 #[derive(Serialize)]
-struct Dump {
+pub(super) struct Dump {
     id: i64,
     at_us: i64,
     file: String,
@@ -345,7 +345,7 @@ struct Dump {
 
 /// One log line the request wrote.
 #[derive(Serialize)]
-struct Log {
+pub(super) struct Log {
     id: i64,
     at_us: i64,
     level: String,
@@ -415,7 +415,7 @@ impl StatusFilter {
 /// route, duration or exception reads the requests newest first and stops here, and its `older`
 /// cursor goes on below the last id it read, so a filter that matches few rows never reads the
 /// whole index in one API request.
-const FILTER_SCAN: i64 = 20_000;
+pub(super) const FILTER_SCAN: i64 = 20_000;
 
 impl Api {
     /// Opens the index at `path` for reading. The ingester has created it already, and `signal`
@@ -807,7 +807,6 @@ pub(super) const ROW_LEN: usize = 29;
 
 /// One [`Row`] from the columns [`ROW`] names, in its order.
 pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
-    let class: Option<String> = row.get(13)?;
     Ok(Row {
         id: row.get(0)?,
         batch: row.get(1)?,
@@ -822,23 +821,8 @@ pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         queries: row.get(10)?,
         dumps: row.get(11)?,
         logs: row.get(12)?,
-        exception: match class {
-            Some(class) => Some(Threw {
-                class,
-                file: row.get(14)?,
-                line: row.get(15)?,
-            }),
-            None => None,
-        },
-        time_us: TimeByKind {
-            query: row.get(16)?,
-            http: row.get(17)?,
-            cache: row.get(18)?,
-            session: row.get(19)?,
-            file: row.get(20)?,
-            gc: row.get(21)?,
-            spawn: row.get(22)?,
-        },
+        exception: threw(row, 13)?,
+        time_us: time_by_kind(row, 16)?,
         repeats: row.get(23)?,
         memory_peak: row.get(24)?,
         memory_limit: row.get(25)?,
@@ -846,6 +830,202 @@ pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
         bytes_in: row.get(27)?,
         bytes_out: row.get(28)?,
     })
+}
+
+/// The uncaught exception's group in the three columns from `at`, `class`, `file` and `line`, or
+/// `None` where the class is null.
+pub(super) fn threw(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Option<Threw>> {
+    let Some(class) = row.get::<_, Option<String>>(at)? else {
+        return Ok(None);
+    };
+    Ok(Some(Threw {
+        class,
+        file: row.get(at + 1)?,
+        line: row.get(at + 2)?,
+    }))
+}
+
+/// The summed durations in the seven columns from `at`, in the order `db_us`, `http_us`,
+/// `cache_us`, `session_us`, `file_us`, `gc_us` and `spawn_us`.
+pub(super) fn time_by_kind(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<TimeByKind> {
+    Ok(TimeByKind {
+        query: row.get(at)?,
+        http: row.get(at + 1)?,
+        cache: row.get(at + 2)?,
+        session: row.get(at + 3)?,
+        file: row.get(at + 4)?,
+        gc: row.get(at + 5)?,
+        spawn: row.get(at + 6)?,
+    })
+}
+
+/// Which records of a trace a page reads: every one, or only those `writer` wrote after the
+/// sequence number `after` and before `before`.
+#[derive(Clone, Copy)]
+pub(super) struct Records<'a> {
+    pub(super) trace: &'a str,
+    pub(super) writer: Option<&'a str>,
+    pub(super) after: i64,
+    pub(super) before: i64,
+}
+
+impl<'a> Records<'a> {
+    /// Every record of `trace`.
+    pub(super) const fn all(trace: &'a str) -> Self {
+        Self {
+            trace,
+            writer: None,
+            after: 0,
+            before: 0,
+        }
+    }
+}
+
+/// The uncaught exception of request `request`, or of run `run`, read from its `exceptions` row.
+pub(super) fn exception(
+    tx: &rusqlite::Transaction<'_>,
+    trace: &str,
+    request: Option<i64>,
+    run: Option<i64>,
+) -> rusqlite::Result<Option<Exception>> {
+    tx.query_row(
+        "SELECT class, message, file, line, frames, frames_cut, previous, previous_cut \
+         FROM exceptions WHERE trace = ?1 AND (request = ?2 OR run = ?3)",
+        params![trace, request, run],
+        |row| {
+            Ok(Exception {
+                class: row.get(0)?,
+                message: row.get(1)?,
+                file: row.get(2)?,
+                line: row.get(3)?,
+                stack: stack(row, 4)?,
+            })
+        },
+    )
+    .optional()
+}
+
+/// The trace events `of` names in time order, at most [`EVENTS_MAX`], and whether that cut any.
+pub(super) fn events(
+    tx: &rusqlite::Transaction<'_>,
+    of: Records<'_>,
+) -> rusqlite::Result<(Vec<Event>, bool)> {
+    let mut statement = tx.prepare_cached(
+        "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site_file, \
+         site_line, site_hash, target, outcome FROM events \
+         WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
+         ORDER BY start_us, id LIMIT ?5",
+    )?;
+    let mut events = statement
+        .query_map(
+            params![of.trace, of.writer, of.after, of.before, EVENTS_MAX + 1],
+            |row| {
+                let driver: Option<String> = row.get(6)?;
+                let site = match row.get::<_, Option<String>>(9)? {
+                    Some(file) => Some(QuerySite {
+                        file,
+                        line: row.get::<_, Option<i64>>(10)?.unwrap_or_default(),
+                        hash: row.get::<_, Option<String>>(11)?.unwrap_or_default(),
+                    }),
+                    None => None,
+                };
+                Ok(Event {
+                    id: row.get(0)?,
+                    kind: row.get(1)?,
+                    label: row.get(2)?,
+                    start_us: row.get(3)?,
+                    end_us: row.get(4)?,
+                    status: row.get(5)?,
+                    query: match driver {
+                        Some(driver) => Some(EventQuery {
+                            driver,
+                            sql: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                            rows: row.get(8)?,
+                            site,
+                        }),
+                        None => None,
+                    },
+                    target: row.get(12)?,
+                    outcome: row
+                        .get::<_, Option<String>>(13)?
+                        .and_then(|text| RawValue::from_string(text).ok()),
+                })
+            },
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let cut = keep(&mut events, EVENTS_MAX);
+    Ok((events, cut))
+}
+
+/// The dumps `of` names in time order, at most [`DUMPS_MAX`], and whether that cut any.
+pub(super) fn dumps(
+    tx: &rusqlite::Transaction<'_>,
+    of: Records<'_>,
+) -> rusqlite::Result<(Vec<Dump>, bool)> {
+    let mut statement = tx.prepare_cached(
+        "SELECT id, at_us, file, line, tree, elided FROM dumps \
+         WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
+         ORDER BY at_us, id LIMIT ?5",
+    )?;
+    let mut dumps = statement
+        .query_map(
+            params![of.trace, of.writer, of.after, of.before, DUMPS_MAX + 1],
+            |row| {
+                Ok(Dump {
+                    id: row.get(0)?,
+                    at_us: row.get(1)?,
+                    file: row.get(2)?,
+                    line: row.get(3)?,
+                    tree: tree(&row.get::<_, String>(4)?),
+                    elided: row.get(5)?,
+                })
+            },
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let cut = keep(&mut dumps, DUMPS_MAX);
+    Ok((dumps, cut))
+}
+
+/// The log lines `of` names, and the tailed lines of its trace from `from_us` to `to_us`, in time
+/// order, at most [`LOGS_MAX`], and whether that cut any.
+pub(super) fn logs(
+    tx: &rusqlite::Transaction<'_>,
+    of: Records<'_>,
+    from_us: i64,
+    to_us: i64,
+) -> rusqlite::Result<(Vec<Log>, bool)> {
+    let mut statement = tx.prepare_cached(
+        "SELECT id, at_us, level, message, fields, elided, lossy FROM logs \
+         WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4) \
+         OR (writer IS NULL AND at_us BETWEEN ?5 AND ?6)) \
+         ORDER BY at_us, id LIMIT ?7",
+    )?;
+    let mut logs = statement
+        .query_map(
+            params![
+                of.trace,
+                of.writer,
+                of.after,
+                of.before,
+                from_us,
+                to_us,
+                LOGS_MAX + 1
+            ],
+            |row| {
+                Ok(Log {
+                    id: row.get(0)?,
+                    at_us: row.get(1)?,
+                    level: row.get(2)?,
+                    message: row.get(3)?,
+                    fields: tree(&row.get::<_, String>(4)?),
+                    elided: row.get(5)?,
+                    lossy: row.get(6)?,
+                })
+            },
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let cut = keep(&mut logs, LOGS_MAX);
+    Ok((logs, cut))
 }
 
 /// The last committed batch.
@@ -886,22 +1066,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     }
     let (request, writer, seq) = found.swap_remove(0);
     let input = input(&tx, request.id, &key.trace, &writer, seq)?;
-    let exception = tx
-        .query_row(
-            "SELECT class, message, file, line, frames, frames_cut, previous, previous_cut \
-             FROM exceptions WHERE request = ?1",
-            [request.id],
-            |row| {
-                Ok(Exception {
-                    class: row.get(0)?,
-                    message: row.get(1)?,
-                    file: row.get(2)?,
-                    line: row.get(3)?,
-                    stack: stack(row, 4)?,
-                })
-            },
-        )
-        .optional()?;
+    let exception = exception(&tx, &key.trace, Some(request.id), None)?;
     let shared: i64 = tx.query_row(
         "SELECT count(*) FROM requests WHERE trace = ?1",
         [&key.trace],
@@ -926,111 +1091,16 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         request.start_us + request.duration_us,
     );
     let mut cut = Cut::default();
-    let events = {
-        let mut statement = tx.prepare_cached(
-            "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site_file, \
-             site_line, site_hash, target, outcome FROM events \
-             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
-             ORDER BY start_us, id LIMIT ?5",
-        )?;
-        let mut events = statement
-            .query_map(
-                params![key.trace, writer, after, before, EVENTS_MAX + 1],
-                |row| {
-                    let driver: Option<String> = row.get(6)?;
-                    let site = match row.get::<_, Option<String>>(9)? {
-                        Some(file) => Some(QuerySite {
-                            file,
-                            line: row.get::<_, Option<i64>>(10)?.unwrap_or_default(),
-                            hash: row.get::<_, Option<String>>(11)?.unwrap_or_default(),
-                        }),
-                        None => None,
-                    };
-                    Ok(Event {
-                        id: row.get(0)?,
-                        kind: row.get(1)?,
-                        label: row.get(2)?,
-                        start_us: row.get(3)?,
-                        end_us: row.get(4)?,
-                        status: row.get(5)?,
-                        query: match driver {
-                            Some(driver) => Some(EventQuery {
-                                driver,
-                                sql: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
-                                rows: row.get(8)?,
-                                site,
-                            }),
-                            None => None,
-                        },
-                        target: row.get(12)?,
-                        outcome: row
-                            .get::<_, Option<String>>(13)?
-                            .and_then(|text| RawValue::from_string(text).ok()),
-                    })
-                },
-            )?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        cut.events = keep(&mut events, EVENTS_MAX);
-        events
+    let of = Records {
+        trace: &key.trace,
+        writer: writer.as_deref(),
+        after,
+        before,
     };
-    let dumps = {
-        let mut statement = tx.prepare_cached(
-            "SELECT id, at_us, file, line, tree, elided FROM dumps \
-             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
-             ORDER BY at_us, id LIMIT ?5",
-        )?;
-        let mut dumps = statement
-            .query_map(
-                params![key.trace, writer, after, before, DUMPS_MAX + 1],
-                |row| {
-                    Ok(Dump {
-                        id: row.get(0)?,
-                        at_us: row.get(1)?,
-                        file: row.get(2)?,
-                        line: row.get(3)?,
-                        tree: tree(&row.get::<_, String>(4)?),
-                        elided: row.get(5)?,
-                    })
-                },
-            )?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        cut.dumps = keep(&mut dumps, DUMPS_MAX);
-        dumps
-    };
-    let logs = {
-        let mut statement = tx.prepare_cached(
-            "SELECT id, at_us, level, message, fields, elided, lossy FROM logs \
-             WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4) \
-             OR (writer IS NULL AND at_us BETWEEN ?5 AND ?6)) \
-             ORDER BY at_us, id LIMIT ?7",
-        )?;
-        let mut logs = statement
-            .query_map(
-                params![
-                    key.trace,
-                    writer,
-                    after,
-                    before,
-                    from_us,
-                    to_us,
-                    LOGS_MAX + 1
-                ],
-                |row| {
-                    Ok(Log {
-                        id: row.get(0)?,
-                        at_us: row.get(1)?,
-                        level: row.get(2)?,
-                        message: row.get(3)?,
-                        fields: tree(&row.get::<_, String>(4)?),
-                        elided: row.get(5)?,
-                        lossy: row.get(6)?,
-                    })
-                },
-            )?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        cut.logs = keep(&mut logs, LOGS_MAX);
-        logs
-    };
+    let (events, events_cut) = events(&tx, of)?;
+    let (dumps, dumps_cut) = dumps(&tx, of)?;
+    let (logs, logs_cut) = logs(&tx, of, from_us, to_us)?;
+    (cut.events, cut.dumps, cut.logs) = (events_cut, dumps_cut, logs_cut);
     let profiles = {
         let mut statement = tx.prepare_cached(
             "SELECT id, at_us, path FROM profiles \

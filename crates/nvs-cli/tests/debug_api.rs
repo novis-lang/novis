@@ -1318,3 +1318,179 @@ fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
         "{written:?} differed from the API's answers and are written again: commit them"
     );
 }
+
+/// A spool of three runs, one of each kind, each with an event, a dump and a log line under its
+/// own trace, and one request. The queue job and the request throw the same exception.
+fn runs_spool() -> String {
+    let writer = "4343-1700000000000-0";
+    let base: u64 = 1_700_000_000_000_000;
+    let mail_down = json!({
+        "class": "Shop\\MailDown", "message": "the mail server did not answer",
+        "file": "jobs/receipt.nvs", "line": 9,
+        "frames": [{ "function": "{main}", "file": "jobs/receipt.nvs", "line": 9 }]
+    });
+    let mut lines = Vec::new();
+    let mut seq = 0_u64;
+    let mut line = |mut value: Value, trace: &str, at_us: u64| {
+        value["writer"] = json!(writer);
+        value["seq"] = json!(seq);
+        value["trace"] = json!(trace);
+        value["at_us"] = json!(at_us);
+        lines.push(value.to_string());
+        seq += 1;
+    };
+    let runs = [
+        ("schedule", "nightly-report", "ok", 2_000, 1_048_576),
+        ("queue", "jobs/receipt.nvs", "failed", 8_400, 524_288),
+        ("command", "run scripts/import.nvs", "ok", 30_000, 4_194_304),
+    ];
+    for (n, (of, name, outcome, duration_us, peak)) in runs.into_iter().enumerate() {
+        let trace = format!("{:032x}", 0x5100 + n);
+        let start_us = base + 60_000_000 * n as u64;
+        line(
+            json!({ "kind": "event", "event": "query", "label": "sqlite main SELECT 1",
+                    "start_us": start_us + 100, "end_us": start_us + 400,
+                    "query": { "driver": "sqlite", "sql": "SELECT 1", "rows": 1 } }),
+            &trace,
+            start_us + 400,
+        );
+        line(dump(7, &json!({ "run": n })), &trace, start_us + 500);
+        line(
+            json!({ "kind": "log", "level": "info", "message": format!("{of} step"),
+                    "fields": {}, "elided": false }),
+            &trace,
+            start_us + 600,
+        );
+        let mut run = json!({
+            "kind": "run", "of": of, "name": name, "start_us": start_us,
+            "duration_us": duration_us, "outcome": outcome,
+            "memory_peak": peak, "memory_limit": 67_108_864
+        });
+        if outcome == "failed" {
+            run["exception"] = mail_down.clone();
+        }
+        line(run, &trace, start_us + duration_us);
+    }
+    let start_us = base + 300_000_000;
+    let mut request = json!({
+        "kind": "request", "span": "00000000000052ff", "start_us": start_us,
+        "duration_us": 500, "method": "POST", "route": "/orders", "path": "/orders", "status": 500
+    });
+    request["exception"] = mail_down;
+    line(request, &format!("{:032x}", 0x52ff), start_us + 500);
+    lines.join("\n") + "\n"
+}
+
+#[test]
+fn the_runs_list_pages_and_filters_and_a_run_opens_to_its_records_and_its_exception() {
+    let service = Service::ingested_from(&runs_spool());
+
+    let page = service.json("/api/runs");
+    let names: Vec<&str> = page["runs"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|run| run["name"].as_str().expect("a name"))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "run scripts/import.nvs",
+            "jobs/receipt.nvs",
+            "nightly-report"
+        ],
+        "newest first: {page}"
+    );
+    assert_eq!(page["older"], Value::Null);
+    let queue = &page["runs"][1];
+    assert_eq!(
+        (
+            &queue["of"],
+            &queue["outcome"],
+            &queue["memory_peak"],
+            &queue["memory_limit"]
+        ),
+        (
+            &json!("queue"),
+            &json!("failed"),
+            &json!(524_288),
+            &json!(67_108_864)
+        )
+    );
+    assert_eq!(
+        (&queue["queries"], &queue["dumps"], &queue["logs"]),
+        (&json!(1), &json!(1), &json!(1)),
+        "the triggers count a run's records"
+    );
+    assert_eq!(queue["time_us"]["query"], 300);
+    assert_eq!(queue["exception"]["class"], "Shop\\MailDown");
+
+    let first = service.json("/api/runs?limit=1");
+    let older = first["older"]
+        .as_i64()
+        .expect("a page of one has an older page");
+    let rest = service.json(&format!("/api/runs?before={older}"));
+    assert_eq!(rest["runs"].as_array().map(Vec::len), Some(2));
+
+    let count = |query: &str| {
+        service.json(&format!("/api/runs?{query}"))["runs"]
+            .as_array()
+            .map_or(0, Vec::len)
+    };
+    assert_eq!(count("of=schedule"), 1);
+    assert_eq!(count("outcome=failed"), 1);
+    assert_eq!(count("name=run%20scripts%2Fimport.nvs"), 1);
+    assert_eq!(count("min_us=8000"), 2);
+    assert_eq!(count("min_memory=1048576"), 2);
+    for query in ["of=request", "outcome=crashed", "method=GET", "limit=0"] {
+        let (status, body) = service.get(&format!("/api/runs?{query}"));
+        assert_eq!(status, 400, "{query}: {body}");
+    }
+
+    let trace = queue["trace"].as_str().expect("a trace id");
+    let one = service.json(&format!("/api/run?trace={trace}"));
+    assert_eq!(one["run"]["name"], "jobs/receipt.nvs");
+    assert_eq!(
+        one["exception"]["message"],
+        "the mail server did not answer"
+    );
+    assert_eq!(one["exception"]["frames"][0]["function"], "{main}");
+    assert_eq!(one["events"][0]["kind"], "query");
+    assert_eq!(one["dumps"][0]["tree"], json!({ "run": 1 }));
+    assert_eq!(one["logs"][0]["message"], "queue step");
+    assert_eq!(
+        (
+            one["events"].as_array().map(Vec::len),
+            one["dumps"].as_array().map(Vec::len),
+            one["logs"].as_array().map(Vec::len)
+        ),
+        (Some(1), Some(1), Some(1)),
+        "a run has only its own trace's records"
+    );
+    let (status, body) = service.get(&format!("/api/run?trace={:032x}", 0x9999));
+    assert_eq!(status, 404, "{body}");
+    let (status, body) = service.get("/api/run?id=1");
+    assert_eq!(status, 400, "{body}");
+
+    // The run's throw and the request's are one group, and the group's page lists both.
+    let site = "class=Shop%5CMailDown&file=jobs%2Freceipt.nvs&line=9";
+    let group = service.json(&format!("/api/exceptions?{site}"));
+    assert_eq!(group["group"]["count"], 2, "{group}");
+    assert_eq!(
+        group["group"]["chart"]
+            .as_array()
+            .map(|chart| chart.iter().filter_map(Value::as_i64).sum::<i64>()),
+        Some(2)
+    );
+    assert_eq!(group["requests"].as_array().map(Vec::len), Some(1));
+    assert_eq!(group["runs"][0]["name"], "jobs/receipt.nvs");
+
+    let written: Vec<String> = [("runs.json", &page), ("run.json", &one)]
+        .into_iter()
+        .filter_map(|(name, value)| fixture(name, value))
+        .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
+}

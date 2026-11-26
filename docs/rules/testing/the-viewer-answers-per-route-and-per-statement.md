@@ -18,7 +18,9 @@ version, and the index is rebuilt from the spool, which is what a cache is for
 
 | Route | Answers | Bound |
 |---|---|---|
-| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
+| `GET /api/requests` | the page of requests, filtered by `method`, `status` (a code, or a class such as `5xx`), `route`, `min_us`, `min_memory` and `threw`, each a bound parameter | the page size, and a filtered page reads at most 20,000 request ids below its cursor; its `older` then names where it stopped |
+| `GET /api/runs` | the page of runs (`rule:testing/a-run-is-recorded-like-a-request`), filtered by `of`, `name`, `outcome`, `min_us` and `min_memory`, paged on the run's id as the requests are | the requests' bound, over run ids |
+| `GET /api/run?trace=` | the newest run of the trace, its uncaught exception with its stack, and every event, dump and log line of its trace | 5,000 events, 200 dumps and 1,000 log lines, as one request's answer, and `cut` says which list stopped |
 | `GET /api/summary` | twelve buckets over the last five minutes of the request count and the error count, and the p50, p95 and largest duration | the newest 10,000 rows of the window, and the answer says when it was cut |
 | `GET /api/routes` | per method and route: the count, the error count, the mean queries, the largest duration, when it was last seen, p50 and p95 | the newest 10,000 requests and 200 routes by count, and the answer says when older requests were not counted; each route's percentiles read its newest 500 durations through the index `requests_route` on `(method, route, start_us)` |
 | `GET /api/statements` | per call site: the newest statement text, the count, the total and the largest time, the requests it reached, and the requests in which it repeated | the newest 100,000 event ids and 200 sites by total time, and the answer says when older events were not read |

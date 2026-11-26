@@ -1,0 +1,88 @@
+{
+  "older": null,
+  "runs": [
+    {
+      "batch": 1,
+      "dumps": 1,
+      "duration_us": 30000,
+      "exception": null,
+      "id": 3,
+      "logs": 1,
+      "memory_limit": 67108864,
+      "memory_peak": 4194304,
+      "name": "run scripts/import.nvs",
+      "of": "command",
+      "outcome": "ok",
+      "queries": 1,
+      "repeats": 1,
+      "start_us": 1700000120000000,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 300,
+        "session": 0,
+        "spawn": 0
+      },
+      "trace": "00000000000000000000000000005102"
+    },
+    {
+      "batch": 1,
+      "dumps": 1,
+      "duration_us": 8400,
+      "exception": {
+        "class": "Shop\\MailDown",
+        "file": "jobs/receipt.nvs",
+        "line": 9
+      },
+      "id": 2,
+      "logs": 1,
+      "memory_limit": 67108864,
+      "memory_peak": 524288,
+      "name": "jobs/receipt.nvs",
+      "of": "queue",
+      "outcome": "failed",
+      "queries": 1,
+      "repeats": 1,
+      "start_us": 1700000060000000,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 300,
+        "session": 0,
+        "spawn": 0
+      },
+      "trace": "00000000000000000000000000005101"
+    },
+    {
+      "batch": 1,
+      "dumps": 1,
+      "duration_us": 2000,
+      "exception": null,
+      "id": 1,
+      "logs": 1,
+      "memory_limit": 67108864,
+      "memory_peak": 1048576,
+      "name": "nightly-report",
+      "of": "schedule",
+      "outcome": "ok",
+      "queries": 1,
+      "repeats": 1,
+      "start_us": 1700000000000000,
+      "time_us": {
+        "cache": 0,
+        "file": 0,
+        "gc": 0,
+        "http": 0,
+        "query": 300,
+        "session": 0,
+        "spawn": 0
+      },
+      "trace": "00000000000000000000000000005100"
+    }
+  ],
+  "watermark": 1
+}

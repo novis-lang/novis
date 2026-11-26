@@ -67,7 +67,7 @@ use super::api::Api;
 use super::secure::Secure;
 use super::settings::{self, Store};
 use super::{Signal, Target};
-use super::{exceptions, replay, search, source, stream, summary, to_test};
+use super::{exceptions, replay, runs, search, source, stream, summary, to_test};
 use crate::viewer;
 
 /// The most connections served at once. A browser opens at most six to one address, so this covers
@@ -369,6 +369,8 @@ impl Site {
             "/api/events" if *method == Method::GET => events(Arc::clone(&self.watermark)),
             "/api/requests" if reads => api(self.api.requests(query)),
             "/api/request" if reads => api(self.api.request(query)),
+            "/api/runs" if reads => api(runs::runs(&self.api, query)),
+            "/api/run" if reads => api(runs::run(&self.api, query)),
             "/api/profile" if reads => match self.api.profile(query) {
                 Ok((name, bytes)) => attachment(&name, bytes),
                 Err(failed) => api(failed),

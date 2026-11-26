@@ -63,6 +63,7 @@ pub(crate) mod ingest;
 pub(crate) mod link;
 pub(crate) mod listen;
 pub(crate) mod replay;
+pub(crate) mod runs;
 pub(crate) mod search;
 pub(crate) mod secure;
 pub(crate) mod settings;

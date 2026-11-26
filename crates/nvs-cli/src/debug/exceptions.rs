@@ -15,10 +15,13 @@
 //! **One group is its class, file and line.** `?class=&file=&line=` names a group the way its
 //! site does, so a link to it stays valid when the deletion window or a discard gives the group
 //! another id. It lists the group's requests newest first, and `before=<older>` gives the next
-//! page.
+//! page. The first page also lists the group's newest runs, at most `limit` of them
+//! (`rule:testing/a-run-is-recorded-like-a-request`). A run's throw counts in the message and the
+//! chart as a request's does, and names no route.
 //!
 //! **What it spends:** one page of at most [`PAGE_MAX`] groups while it is written out, and for
-//! each group one indexed read of at most [`SAMPLE_MAX`] rows.
+//! each group one indexed read of at most [`SAMPLE_MAX`] rows. A group's first page reads at most
+//! `limit` runs more.
 
 use rusqlite::{Connection, OptionalExtension as _, params};
 use serde::Serialize;
@@ -76,6 +79,8 @@ struct Requests {
     latest: api::Stack,
     /// The requests that threw it, newest first.
     requests: Vec<Row>,
+    /// The newest runs that threw it, on the first page alone.
+    runs: Vec<super::runs::Row>,
     /// The `before` that gives the next older page, or `None` when this page has the oldest.
     older: Option<i64>,
 }
@@ -185,9 +190,10 @@ fn group(db: &Connection, row: &rusqlite::Row<'_>) -> rusqlite::Result<Group> {
         sampled: false,
     };
     let mut statement = db.prepare_cached(
-        "SELECT e.message, r.start_us, r.route FROM exceptions e \
-         JOIN requests r ON r.id = e.request \
-         WHERE e.exception_group = ?1 ORDER BY e.id DESC LIMIT ?2",
+        "SELECT e.message, coalesce(r.start_us, u.start_us), r.route FROM exceptions e \
+         LEFT JOIN requests r ON r.id = e.request LEFT JOIN runs u ON u.id = e.run \
+         WHERE e.exception_group = ?1 AND (r.id IS NOT NULL OR u.id IS NOT NULL) \
+         ORDER BY e.id DESC LIMIT ?2",
     )?;
     let mut rows = statement.query(params![group.id, SAMPLE_MAX + 1])?;
     let span = (group.last_us - group.first_us).max(1);
@@ -299,6 +305,20 @@ fn requests(
             )?
             .collect::<rusqlite::Result<Vec<_>>>()?
     };
+    let runs = match before {
+        Some(_) => Vec::new(),
+        None => {
+            let mut statement = tx.prepare_cached(&format!(
+                "SELECT {} FROM exceptions e JOIN runs u ON u.id = e.run \
+                 LEFT JOIN exception_groups g ON g.id = u.exception_group \
+                 WHERE e.exception_group = ?1 ORDER BY e.id DESC LIMIT ?2",
+                super::runs::ROW
+            ))?;
+            statement
+                .query_map(params![group.id, limit], super::runs::row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        }
+    };
     tx.commit()?;
     let full = usize::try_from(limit).unwrap_or(usize::MAX);
     let older = (found.len() > full).then(|| {
@@ -310,6 +330,7 @@ fn requests(
         group,
         latest,
         requests: found.into_iter().map(|(row, _)| row).collect(),
+        runs,
         older,
     }))
 }

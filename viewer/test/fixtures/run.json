@@ -1,0 +1,92 @@
+{
+  "cut": {
+    "dumps": false,
+    "events": false,
+    "logs": false
+  },
+  "dumps": [
+    {
+      "at_us": 1700000060000500,
+      "elided": false,
+      "file": "src/Shop/Orders.nvs",
+      "id": 2,
+      "line": 7,
+      "tree": {
+        "run": 1
+      }
+    }
+  ],
+  "events": [
+    {
+      "end_us": 1700000060000400,
+      "id": 2,
+      "kind": "query",
+      "label": "sqlite main SELECT 1",
+      "outcome": null,
+      "query": {
+        "driver": "sqlite",
+        "rows": 1,
+        "site": null,
+        "sql": "SELECT 1"
+      },
+      "start_us": 1700000060000100,
+      "status": null,
+      "target": null
+    }
+  ],
+  "exception": {
+    "class": "Shop\\MailDown",
+    "file": "jobs/receipt.nvs",
+    "frames": [
+      {
+        "file": "jobs/receipt.nvs",
+        "function": "{main}",
+        "line": 9
+      }
+    ],
+    "line": 9,
+    "message": "the mail server did not answer"
+  },
+  "logs": [
+    {
+      "at_us": 1700000060000600,
+      "elided": false,
+      "fields": {},
+      "id": 2,
+      "level": "info",
+      "lossy": false,
+      "message": "queue step"
+    }
+  ],
+  "run": {
+    "batch": 1,
+    "dumps": 1,
+    "duration_us": 8400,
+    "exception": {
+      "class": "Shop\\MailDown",
+      "file": "jobs/receipt.nvs",
+      "line": 9
+    },
+    "id": 2,
+    "logs": 1,
+    "memory_limit": 67108864,
+    "memory_peak": 524288,
+    "name": "jobs/receipt.nvs",
+    "of": "queue",
+    "outcome": "failed",
+    "queries": 1,
+    "repeats": 1,
+    "start_us": 1700000060000000,
+    "time_us": {
+      "cache": 0,
+      "file": 0,
+      "gc": 0,
+      "http": 0,
+      "query": 300,
+      "session": 0,
+      "spawn": 0
+    },
+    "trace": "00000000000000000000000000005101"
+  },
+  "watermark": 1
+}
