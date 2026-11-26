@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **Writing subagents that run `bun nv proofs --bless` or `--run` side by side pass `--nvs
+  target/debug/nvs.exe`.** Without it, each call builds `--profile proof` first. In `mail-receive`
+  stage 5, two of four proof agents waited on the build lock and were killed as a HANG. Name the
+  flag in each brief. See `tools/nv/cmd/proofs.ts`.
 - **`site --check apps` fails `apps/registry`'s backup tests locally once its `registry.sqlite`
   is large.** Its tests write accounts into the app's own database, which git ignores, so it grows
   with every local run. In `long-run-records` stage 3, at 113 MB, `aCopyOpensOnlyWithItsKey` and
