@@ -28,7 +28,9 @@ outcome, so no new branch runs while `store` is off:
 **The Runs view.** The viewer has a Runs view beside Requests: the same list, filters and paging,
 and the same page with its tabs, without the Request and Response tabs, because a run has neither.
 The index keeps runs in a `runs` table of their own
-(`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`).
+(`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`). A long run's
+oldest records are deleted first. When the index has deleted records from after a run started, the
+run's page says the time before which they were deleted.
 
 - **Memory:** nothing while `store` is off. With it on, one `run` line built per run, where today
   that run writes none.

@@ -35,24 +35,39 @@ written (`rule:security/redaction-reaches-the-tools-own-renderings`), so search 
 **The deletion window.** `[debug] index_age`, `7d` by default, is the oldest record kept, measured
 from a request's start, and `[debug] index_max`, 1 GiB by default, is the most bytes of pages in use;
 a page a deletion frees is reused, so the file stays near that size. Both are `System` keys. After
-each batch the ingester deletes each request and run that started before `index_age`, with every
-row that names its trace id, and then each row that names no recorded request or run by its own
-time. An exception group stays while its last seen is within `index_age`, and its count still
+each batch the ingester deletes each request that started before `index_age`, with every row that
+names its trace id, and each run that ended before it, and then each row that names no recorded
+request by its own time. An exception group stays while its last seen is within `index_age`, and its count still
 counts deleted requests. A saved filter is the viewer's own and is not in the index, because
 discarding the index must lose nothing a person wrote.
 
-**`index_max` bounds every row, in one time order.** A row no request or run names is one of a
-command run still going, whose `run` line is written when it ends, or one whose owner never
-arrived. While the pages in use are past `index_max`, each step compares the oldest request, the
-oldest run and each table's oldest such row, and deletes a batch of the oldest kind up to the next
-oldest: a thousand requests or runs with their rows, or a thousand rows of one table, so the viewer
-never waits on a long write. A table's oldest unowned row is looked up only below the oldest
-owner's start, where an owner's rows are not, so a step reads no row an owner keeps. The order
+**`index_max` bounds every row, in one time order.** A row no request names is one of a run, one
+of a command run still going, whose `run` line is written when it ends, or one whose owner never
+arrived. While the pages in use are past `index_max`, each step compares the oldest request by its
+start, the oldest run by its end and each table's oldest such row, and deletes a batch of the
+oldest kind up to the next oldest: a thousand requests with their rows, a thousand runs, or a
+thousand rows of one table, so the viewer never waits on a long write. A table's oldest unowned row
+is looked up only below the oldest owner's time, where a request's rows are not, so a step reads no
+row a request keeps. The order
 holds to within one batch of owners. The `body_parts_at` index is the one this costs, one entry per
 body part inside the cap.
 
-**A run is forgotten as a request is,** by its start past `index_age` and in the same time order
-past `index_max`, with every row that names its trace id. An event's outcome is one JSON column and not
+**A run's rows are loose rows, and a run row goes by its end.** Each row of a run's trace is
+deleted by its own time, in the same steps as a row no request names, so a long run loses its
+oldest records first and keeps its newest. Only a request deletes its rows with it. A `runs` row
+is deleted once `start_us + duration_us` is past `index_age`, and past `index_max` it is one more
+head of the time order, timed by its end; it takes its `exceptions` row with it. Its end is not
+before any of its rows, so its rows go first and the row last. The `runs_end` index on that
+expression serves both lookups, one entry per run inside the cap.
+
+**The index keeps one cut.** `meta`'s `cut_us` is the newest time of any row a time step deleted:
+each batch of rows deleted by their own time raises it to that batch's newest. `GET /api/run`
+returns `cut_us` for a run that started at or before it, and `null` otherwise, and the run page
+then says that records before that time were deleted. That is true of every run that started
+before the cut, whether or not it had rows that old. A rebuilt file has no cut until its first such
+batch. It costs one `meta` write per batch.
+
+An event's outcome is one JSON column and not
 a column per field, because the viewer draws it and never filters or sums on it, and ten kinds of
 named columns would be mostly empty on every row. Each change that adds a column raises the schema
 version once, so the index is rebuilt from the spool.
@@ -72,5 +87,7 @@ discarded and rebuilt from what is still on disk
 - **Deleting only owned records past `index_max`.** A long command run's rows have no owner until it
   ends, so they would never be deleted for size: the file would grow without a bound, and each pass
   would delete every request because none of them brings the file under the cap.
+- **A count of deleted rows per run.** It needs an `UPDATE` of every run a batch touched, in every
+  batch, for a note on the run page that says what the one cut already says.
 - **Deleting unowned rows before any request.** A busy command run newer than the server's requests
   would still delete them all. One time order keeps the newest of every kind.
