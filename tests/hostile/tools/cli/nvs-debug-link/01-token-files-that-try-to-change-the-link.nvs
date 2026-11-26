@@ -1,0 +1,22 @@
+<?nvs
+// Attack: this program prints the text of forged token files, one on each line. A test saves each one
+// as `[debug] token_file` and runs `nvs debug link`. Each token that would change the link should
+// be an error.
+
+// 1. A token that is too short to guess safely.
+echo "refused short\n";
+
+// 2. A token that tries to add a second query parameter to the link.
+echo "refused 0123456789abcdef&next=https://example.com\n";
+
+// 3. A token that tries to add a `#` part to the end of the link.
+echo "refused 0123456789abcdef#/settings\n";
+
+// 4. A token that tries to add markup to a page that shows the link.
+echo "refused 0123456789abcdef\"><script>alert(1)</script>\n";
+
+// 5. A token with a space, a `%` sign and the letter `é`.
+echo "refused 0123456789 abcdef%2F\u{00e9}\n";
+
+// 6. A long token that is valid. The link should contain it as it is.
+echo "kept " . Core\Str::repeat('a1-_.~', 200) . "\n";

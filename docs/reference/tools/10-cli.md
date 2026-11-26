@@ -620,47 +620,69 @@ folder that only your account can open. In production, a record has no headers a
 
 `nvs debug` also serves the debug viewer, a page that shows the recorded requests in a browser. It
 prints a link to the page when it starts. Open that link, because it contains a token. The viewer
-answers only a browser that has the token. Another account on the same computer does not have it,
-so it cannot read your requests. The address is `127.0.0.1:8137` unless `[debug] listen` or
-`--listen` sets another one. If that port is in use, `nvs debug` stops with an
-error. It does not pick another port, so a link to the viewer still works after a restart.
+opens only in a browser that has the token. Another account on the same computer does not have it,
+so it cannot read your requests. `nvs debug link` prints the same link again. The address is
+`127.0.0.1:8137` unless `[debug] listen` or `--listen` sets another one. If that port is in use,
+`nvs debug` stops with an error. It does not pick another port, so a link to the viewer still works
+after a restart.
+
+A rail on the left lists the pages. The bar at the top has the search box, the live state and the
+theme button. The live state shows *Live* when `nvs serve` started `nvs debug`. It shows *Recording
+stopped* when `nvs debug` runs without a server. It shows how many records were lost when a record
+could not be saved or read.
 
 | Page | What it shows |
 |---|---|
 | `/` | the requests, newest first: method, route, status, duration, queries, dumps and exceptions |
-| `/requests/<trace id>/<span id>` | one request: its timeline, its queries, dumps and log lines, and its input |
+| `/requests/<trace id>/<span id>` | one request, with a tab for its timeline, request, response, queries, dumps, log lines and coverage |
+| `/routes` | one row for each route: requests, errors, the p50 and p95 duration, queries and the last request |
+| `/queries` | one row for each line that ran a query: how often it ran, its total and longest time |
 | `/stream` | every record of every request, as one list you can filter |
 | `/log` | the log lines |
 | `/search` | a full-text search over requests, dumps, logs, queries and exceptions |
 | `/exceptions` | one row for each exception class and the line that threw it, with a count |
 | `/compare/...` | two requests side by side |
+| `/settings` | the theme, the editor, the saved filters, the lost records, and a button that deletes all records |
+
+The request list has filters for the method, the status, the route, the duration and whether the
+request threw an error. A status filter can be one code, such as `404`, or a class, such as `5xx`.
+Three tiles above the list show the requests, the durations and the errors of the last five
+minutes. Each row shows how its time was split between queries, HTTP calls, cache, session, files,
+garbage collection, processes and your own code. A gold badge shows that one query ran several times
+at the same line in that request.
 
 New rows appear at the top while you watch. Press `p` or scroll down to pause the list. The list
-then counts the new rows and does not move. Each page and each filter has its own link, which still
-works after a reload. You can paste a trace id, or the value of a `traceresponse` header, into the
-search box. The viewer then opens that request.
+then counts the new rows and does not move. Each page, each tab and each filter has its own link,
+which still works after a reload. You can paste a trace id, or the value of a `traceresponse`
+header, into the search box. The viewer then opens that request.
 
-Every key is listed when you press `?`. `j` and `k` move the selection, `Enter` opens it, `/` goes to
-the search box and `s` saves a filter. `m` marks a request, and the next request you open is
-compared with it. `c` compares a request with the previous request to the same route.
+A request's **Request** and **Response** tabs show the headers as a table and the body as text. A
+JSON body is shown as a tree. An HTML body is shown as text, and the viewer never runs it. *Copy as
+curl* copies a `curl` command for the request.
+
+Every key is listed when you press `?`. `Ctrl+K` (`Cmd+K` on macOS) opens a list of every page and
+action. `j` and `k` move the selection, `Enter` opens it, `/` goes to the search box and `s` saves a
+filter. `m` marks a request, and the next request you open is compared with it. `c` compares a
+request with the previous request to the same route.
 
 `r` replays a request: it sends the recorded request to your development server again. The handler
 runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
 started `nvs debug`. `t` makes a test from a request, the same test `nvs debug to-test` prints.
 
-Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor in
-the **Editor** dialog. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
+Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor on
+the settings page. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
 `cursor`, `zed`, `idea`, `phpstorm` and `custom`. With `custom`, you write the link yourself, with
 `{file}`, `{line}` and `{column}` in it. A path mapping replaces the start of a recorded path. Use
 one when the program ran in a container and its paths differ from yours. The viewer saves these
-settings and your saved filters next to the index.
+settings and your saved filters next to the index. The Novis extension for VS Code can show the
+viewer in an editor tab. There, a `file:line` opens in that editor.
 
 A profile that `Core\Debug::startProfile` wrote has a download link. In VS Code, it also has a link
 that opens it in the Novis extension. When the server ran with `[debug] mode = ["coverage"]`, a
 request's page shows which lines of each source file ran, and how often.
 
-The viewer is for you alone. It answers only a browser that opened the printed link, which contains
-a token. `nvs debug` creates the token once, in `debug/` in the data folder, so the link still works
+The viewer is for you alone. It opens only in a browser that opened the printed link, which
+contains a token. `nvs debug` creates the token once, in `debug/` in the data folder, so the link still works
 after a restart. A page on another site cannot read the viewer. When `listen` is not a loopback
 address, for example in a container, `nvs debug` serves the viewer over HTTPS. It creates a
 certificate for that. Your browser warns about the certificate once. `[debug] tls_cert_file`,
@@ -704,15 +726,16 @@ command creates it, as `nvs debug` would.
 | Option | What it does |
 |---|---|
 | `--json` | print one JSON object with `url`, `embed`, `running` and `recording` |
-| `--listen <address>` | use this address, the one `nvs debug --listen` was given, in place of `[debug] listen` |
+| `--listen <address>` | use this address and port in place of `[debug] listen`; give it when you started `nvs debug` with `--listen` |
 
 `embed` is the link an editor uses to show the viewer inside its own window. `running` is `true`
-when `nvs debug` runs for the data folder. `recording` is the value of `[debug] store`. The
+when `nvs debug` runs for the same data folder. The data folder is where Novis keeps its own files,
+such as the records and the token file (see `--data`). `recording` is the value of `[debug] store`. The
 command prints a note on standard error when no `nvs debug` runs. It also prints a
-note when `[debug] store` is off, because then no request is recorded.
+note when `[debug] store` is off. Then your server records no request.
 
-If `[debug] listen` has the port `0`, `nvs debug` picks the port when it starts. Then the command
-prints an error, and you use the link that `nvs debug` printed.
+The port `0` in `[debug] listen` means that `nvs debug` picks a free port when it starts. This
+command cannot know that port, so it prints an error. Use the link that `nvs debug` printed.
 
 # Profiling
 

@@ -1,0 +1,11 @@
+Print the link to the debug viewer.
+...
+Options:
+      --json
+          Print one JSON object with `url`, `embed`, `running` and `recording`. `embed` is the link
+          an editor shows inside its own window
+
+      --listen <ADDRESS>
+          The IP address and port that `nvs debug --listen` was given. Without it, the link uses
+          `[debug] listen`
+...

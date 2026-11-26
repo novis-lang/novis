@@ -105,7 +105,7 @@ pub(crate) enum Signal {
 /// `debug/index.sqlite`, and then deletes them.
 ///
 /// The debug viewer shows those requests in a browser. `nvs debug` prints a link to it. Open that
-/// link, because it contains a token. The viewer answers only a browser that has the token. The
+/// link, because it contains a token. The viewer opens only in a browser that has the token. The
 /// address is `127.0.0.1:8137` unless `[debug] listen` or `--listen` sets another one.
 ///
 /// It runs until you stop it. Records older than `[debug] index_age` are deleted, and so are the

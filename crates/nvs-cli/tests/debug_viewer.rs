@@ -543,6 +543,7 @@ fn link_command(data: &std::path::Path, args: &[&str]) -> (String, String) {
     )
 }
 
+// covers: tools:cli/nvs-debug-link
 #[test]
 fn nvs_debug_link_prints_the_link_a_running_service_admits() {
     let service = Service::start("127.0.0.1:0");
@@ -562,6 +563,84 @@ fn nvs_debug_link_prints_the_link_a_running_service_admits() {
     assert_eq!(plain.trim(), service.link);
 }
 
+/// The attack under `tests/hostile/tools/cli/nvs-debug-link/`: each line its program prints is the
+/// text of a forged `[debug] token_file`. A token that would add to the link, end it or put markup
+/// in it is an error, and the command prints no link. The one valid token is the link's whole token.
+// covers: tools:cli/nvs-debug-link
+#[test]
+fn nvs_debug_link_refuses_a_token_file_that_would_change_the_link() {
+    let program = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-debug-link")
+        .join("01-token-files-that-try-to-change-the-link.nvs");
+    let data = nvs_repo::scratch_private("nvsdata");
+    let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("run")
+        .arg(&program)
+        .stdin(Stdio::null())
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    let printed = String::from_utf8(ran.stdout).expect("the program prints UTF-8");
+    let mut cases = 0;
+    for line in printed.lines() {
+        let (verdict, token) = line.split_once(' ').expect("`<verdict> <token>`");
+        let file = data.join(format!("token-{cases}"));
+        std::fs::write(&file, token).expect("the forged token file is written");
+        let config = data.join(format!("nvs-{cases}.toml"));
+        std::fs::write(
+            &config,
+            format!(
+                "[debug]\ntoken_file = '{}'\nlisten = \"127.0.0.1:8137\"\n",
+                file.display()
+            ),
+        )
+        .expect("the configuration is written");
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .current_dir(&*data)
+            .arg("--data")
+            .arg(&*data)
+            .arg("--no-init")
+            .arg("--config")
+            .arg(&config)
+            .args(["debug", "link", "--json"])
+            .stdin(Stdio::null())
+            .output()
+            .expect("`nvs` starts");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        match verdict {
+            "refused" => {
+                assert!(!out.status.success(), "`{token}` was accepted: {stdout}");
+                assert!(stdout.trim().is_empty(), "no link is printed: {stdout}");
+                assert!(stderr.contains("token must be"), "{stderr}");
+            }
+            "kept" => {
+                assert!(out.status.success(), "{stderr}");
+                let json: serde_json::Value =
+                    serde_json::from_str(stdout.trim()).expect("one JSON object");
+                assert_eq!(
+                    json["url"],
+                    format!("http://127.0.0.1:8137/?token={token}").as_str()
+                );
+            }
+            other => panic!("unknown verdict `{other}` in `{line}`"),
+        }
+        cases += 1;
+    }
+    assert_eq!(cases, 6, "the program printed every step: {printed}");
+}
+
+// covers: tools:cli/nvs-debug-link
 #[test]
 fn nvs_debug_link_with_no_service_creates_the_token_the_service_will_use() {
     let data = nvs_repo::scratch_private("nvsdata");

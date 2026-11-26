@@ -1,19 +1,17 @@
 `nvs debug` serves the debug viewer, a page in your browser that shows the requests your server
 recorded.
 
-Turn on `[debug] store = true` in `nvs.toml` first. Then open the link that `nvs debug` prints. The
-link contains a token, and the viewer answers only a browser that has it. The address is
-`127.0.0.1:8137` by default. The first page lists the newest requests. Each row
-has the status, the duration, the number of queries and dumps, and whether the request threw an
-error. Open a request to see its timeline, its queries, its `Core\Debug::dump` values and its log
-lines. The exceptions page has one row for each error class and the line that threw it, with a
-count.
+Turn on `[debug] store = true` in `nvs.toml` first. Then open the link that `nvs debug` prints, or
+that `nvs debug link` prints again. The link contains a token, and the viewer opens only in a
+browser that has it. The first page lists the newest requests, with filters. Each row shows the
+status, the duration, and how much of that time the queries took. Open a request to see its
+timeline, its request and response, its queries, its `Core\Debug::dump` values and its log lines,
+each on its own tab. Other pages show totals for each route and each query.
 
-Every `file:line` in the viewer is a link that opens the file in your editor. Press `?` to see
-every key.
+A `file:line` in the viewer opens the file in your editor. Press `?` to see every key.
 
 **Good to know:** `r` sends a recorded request to your server again. The handler runs again, with
 all its side effects.
 
 **The examples below** show three routes and what the viewer shows for each: a dump, the same query
-run once for each order, and an error that is counted on the exceptions page.
+that runs once for each order, and an error that is counted on the exceptions page.
