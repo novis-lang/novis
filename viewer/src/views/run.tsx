@@ -2,7 +2,9 @@
 // recorded, from `GET /api/run`.
 //
 // The header has what started the run, its name and how it ended, a line with its age, its
-// exception and its trace id, the tiles, and its time split by kind with its legend. Below it are
+// exception and its trace id, the tiles, and its time split by kind with its legend. When the index
+// has deleted records the run may have had, one note under the header gives the time before which
+// they were deleted (`cut_us`). Below it are
 // the request page's tabs without Request, Response and Coverage: Timeline, Queries, Cache, Dumps,
 // Logs, and Exception when the run threw. The tab is part of the link (`?tab=queries`). Escape goes
 // back to the run list.
@@ -71,6 +73,7 @@ export function RunView(props: { trace: string }) {
           {(d) => (
             <>
               <Header row={d().run} />
+              <Show when={d().cut_us}>{(cut) => <Cut at={cut()} />}</Show>
               <TabbedRecords detail={d()} />
             </>
           )}
@@ -131,6 +134,17 @@ function Header(props: { row: RunRow }) {
         </ul>
       </Show>
     </header>
+  );
+}
+
+/** The note that the index deleted this run's records before `at`, in microseconds. */
+function Cut(props: { at: number }) {
+  const when = () => new Date(props.at / 1000);
+  return (
+    <p class="note cut-note run-cut">
+      Records before{" "}
+      <time datetime={when().toISOString()}>{when().toLocaleString()}</time> were deleted.
+    </p>
   );
 }
 

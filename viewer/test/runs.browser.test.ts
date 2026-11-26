@@ -51,10 +51,13 @@ function page(url: URL): Response {
   return json({ watermark: LIST.watermark, runs, older: null } satisfies RunPage);
 }
 
+/** The `cut_us` that `/api/run` returns in place of the fixture's, while a test sets it. */
+let cut: number | null = null;
+
 /** `GET /api/run`: the one run the detail fixture has, or a `404`. */
 function one(url: URL): Response {
   if (url.searchParams.get("trace") !== DETAIL.run.trace) return json({ error: "no such run" }, 404);
-  return json(DETAIL);
+  return json(cut === null ? DETAIL : { ...DETAIL, cut_us: cut });
 }
 
 /** The event stream: a comment at once, and nothing more. */
@@ -182,6 +185,22 @@ describe.skipIf(!EXE)("the run list and a run's page in Chromium", () => {
       "{main}jobs/receipt.nvs:9",
     ]);
     await thrown.close();
+  }, 30_000);
+
+  test("a run's page says which of its records were deleted, and only when some may be", async () => {
+    const plain = await open(`/runs/${QUEUE.trace}`, `document.querySelector(".req-head") !== null`);
+    expect(await plain.eval(`document.querySelector(".run-cut")`)).toBe(null);
+    await plain.close();
+
+    cut = DETAIL.run.start_us + 1_000;
+    try {
+      const tab = await open(`/runs/${QUEUE.trace}`, `document.querySelector(".run-cut") !== null`);
+      expect(await tab.eval(`document.querySelector(".run-cut").textContent`)).toMatch(/^Records before .+ were deleted\.$/);
+      expect(await tab.eval(`document.querySelector(".run-cut time").getAttribute("datetime")`)).toBe(new Date(cut / 1000).toISOString());
+      await tab.close();
+    } finally {
+      cut = null;
+    }
   }, 30_000);
 
   test("a trace with no run says so", async () => {
