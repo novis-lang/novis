@@ -2,7 +2,7 @@
 looper: 1
 title: "sending mail covers what a web app needs: attachments, inline images, styled HTML, names, threads and every common server"
 summary: "Reached when Core\\Mail::send sends attachments and inline images, inlines a mail's CSS and builds its plain text from the HTML, writes a Message-ID and display names, takes only escaped HTML, reaches servers on port 465, with a private CA or with AUTH LOGIN and XOAUTH2, sends many messages over one connection, keeps captured mail for the debug viewer, and the rules, the feature proofs and the website say so."
-context: [crates/nvs-stdlib/src/mail.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/default.toml, docs/rules/programs/framework-core-half.md]
+context: [crates/nvs-stdlib/src/mail/mod.rs, crates/nvs-stdlib/src/mail/compose.rs, crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-config/src/tree.rs, crates/nvs-config/src/default.toml, docs/rules/programs/framework-core-half.md]
 stages:
   - id: 1
     title: "a message carries a Message-ID, display names, thread headers and one-click unsubscribe, and an international domain is sent"
@@ -353,17 +353,28 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 1. a message carries a Message-ID, display names, thread headers and one-click unsubscribe, and an international domain is sent
 
-- [ ] `crates/nvs-stdlib/src/mail.rs:1`: split into `crates/nvs-stdlib/src/mail/{mod,compose,smtp}.rs`
+- [x] `crates/nvs-stdlib/src/mail.rs:1`: split into `crates/nvs-stdlib/src/mail/{mod,compose,smtp}.rs`
   per § *Module layout*; `crates/nvs-stdlib/src/lib.rs:182` keeps `mod mail;`. No behaviour change.
-- [ ] `crates/nvs-stdlib/src/mail.rs:703` (`compose`): `Message-ID`, and `From` with `from_name`;
+- [x] `crates/nvs-stdlib/src/mail.rs:703` (`compose`): `Message-ID`, and `From` with `from_name`;
   `send` returns the id (`mail.rs:179`, `return_ty`). `rule:programs/framework-core-half`.
-- [ ] `crates/nvs-config/src/tree.rs:957` and `crates/nvs-config/src/default.toml:864`: `from_name`.
-- [ ] `crates/nvs-stdlib/src/mail.rs:148` (`OPTIONS`): `fromName`, `inReplyTo`, `references`,
+- [x] `crates/nvs-config/src/tree.rs:957` and `crates/nvs-config/src/default.toml:864`: `from_name`.
+- [ ] `crates/nvs-stdlib/src/mail/mod.rs:162` (`OPTIONS`): `fromName`, `inReplyTo`, `references`,
   `unsubscribe`, `autoSubmitted`; `Core\Mail\Address` as a new class row; `cc`, `bcc`, `replyTo`
   and `$to` take `string|Core\Mail\Address`.
-- [ ] `crates/nvs-stdlib/src/mail.rs:474` (`address_of`): punycode for a non-ASCII domain; a
-  non-ASCII local part is kept for `SMTPUTF8`, checked in `deliver` (`mail.rs:1054`).
+  - [x] the five options, read in `send` and written by `compose` (`compose::Headers`)
+  - [ ] `Core\Mail\Address::of(string $address, string $name)` as a class row
+  - [ ] `$to`, `cc`, `bcc` and `replyTo` take `string|Core\Mail\Address`; `compose::address_line`
+    writes each name through `compose::named_line`'s encoding
+- [ ] `crates/nvs-stdlib/src/mail/compose.rs:44` (`address_of`): punycode for a non-ASCII domain; a
+  non-ASCII local part is kept for `SMTPUTF8`, checked in `deliver` (`smtp.rs:324`).
 - [ ] The nine tests of the check `headers`, then `cargo test --lib mail::` once.
+  - [x] five in `compose.rs`: `a_message_has_a_message_id_on_the_from_domain`,
+    `the_from_name_is_encoded_and_the_address_is_the_blocks`,
+    `in_reply_to_and_references_take_only_message_ids`,
+    `unsubscribe_writes_both_headers_and_takes_only_https`,
+    `auto_submitted_is_written_unless_turned_off`
+  - [ ] `send_returns_the_message_id`, `a_recipient_name_is_encoded_and_cannot_add_a_header`,
+    `an_international_domain_is_sent_as_punycode`, `a_non_ascii_local_part_needs_smtputf8`
 
 ### 2. a block reaches a server on port 465, with STARTTLS and no password, with its own CA, and with AUTH LOGIN, and an oversized message sends no DATA
 
@@ -492,12 +503,37 @@ knows how to use. The user agreed to the gap list, to `Core` composing the messa
 inlining. A user report then added: `Auto-Submitted` on by default and `return_path` with
 `bounceTag` (both the user's calls), and receiving mail as the goal `mail-receive`. Every other choice
 under § *Standing decisions* is the session's, including XOAUTH2 in scope, the pool, DKIM,
-`preview`, the returned (never given) `Message-ID`, and the `string|Core\Html\Markup` body. Nothing is built. The
-anchors were read on that day, before the module split.
+`preview`, the returned (never given) `Message-ID`, and the `string|Core\Html\Markup` body.
+
+Stage 1 is half built. `mail.rs` is split into `crates/nvs-stdlib/src/mail/{mod,compose,smtp}.rs`.
+`send` writes a `Message-ID` and returns it (under `nvs test` too), and `From:` carries
+`[mail.<name>] from_name` or the `fromName` option (`compose::named_line`). `inReplyTo`,
+`references`, `unsubscribe` and `autoSubmitted` are options, checked by `compose::message_id_of`
+and `compose::unsubscribe_of`. `compose` reads one `compose::Headers`. `SEND_DOC` has the five
+options and the new return. Five of the nine `headers` tests exist and pass. The nightly CI
+failures the sweep named were already fixed by `1c3196b0e8`, after that run's commit.
+
+The anchors under stages 2 to 10 still name `mail.rs` lines; read the new file for each.
+`Session::open` and `secure` are in `smtp.rs`, `endpoint_of` and `send` in `mod.rs`.
 
 ### Next
 
-Stage 1 from its first item, once `deeper-debug-records` is reached. The checks `headers` to `dkim`
-are red until their tests exist under `crates/nvs-stdlib/src/mail/`.
+Stage 1's rest, in this order:
+
+- `Core\Mail\Address`: a class row in `crates/nvs-stdlib/src/mail/mod.rs` (beside `CLASS`, `:218`)
+  with `of(string $address, string $name)`, and `$to`, `cc`, `bcc`, `replyTo` as
+  `string|Core\Mail\Address`. Look for how another class row takes a union and a `Core` object
+  (`CoreTy` in `crates/nvs-stdlib/src/registry.rs:242`). `addresses_of` (`mod.rs:529`) returns
+  address and name pairs, and `compose::address_line` writes a name the way `named_line` does.
+  `KeptMail` (`crates/nvs-runtime/src/test_records.rs:30`) keeps addresses only until stage 8.
+- Punycode in `compose::address_of` (`compose.rs:44`) through the `idna` crate, added to
+  `crates/nvs-stdlib/Cargo.toml`; a non-ASCII local part is kept, and `smtp::deliver`
+  (`smtp.rs:324`) sends `MAIL FROM:<…> SMTPUTF8` when it is advertised, else an `IOError` naming the
+  address with nothing sent.
+- The four tests left, then `cargo test --lib mail::` once. `send_returns_the_message_id` needs a
+  `Ctx`; look for a unit test in `nvs-stdlib` that calls a helper with test records.
+
+Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`, since
+its card, its options and its return changed. No unit test is expected red.
 
 ### Backlog
