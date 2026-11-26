@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-host/src/tls.rs, crates/nvs-stdlib/src/db/open.rs]
   - id: 3
     title: "a send reuses an open connection to its block, under the bounds [db.<name>.pool] has"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/db/registry.rs]
   - id: 4
     title: "the body is a string or Core\\Html\\Markup, the plain text is built from the HTML, and a message carries attachments and inline images"
@@ -249,12 +249,20 @@ $subject, string|Core\Html\Markup $body, {options}): string`.
 **The connection pool (stage 3).** The module doc's declined connection reuse (`mail.rs:81`) is
 reversed: with TLS, each message pays a handshake, and one reused connection is countable less work
 (`rule:programs/less-work-is-taken`). The shape is `[db.<name>.pool]`'s
-(`crates/nvs-config/src/default.toml:853`): `pool = false`, or `[mail.<name>.pool]` with `max`
-(default 4 per core), `idle` (default `30s`), `lifetime` (default `5m`). A reused connection sends
-`RSET` first; a connection the server closed is replaced once, then the error stands. A connection
-belongs to one block and is never handed to another. Memory: at most `max` sessions per block per
-core, bounded by the configuration, never by traffic. The test proves reuse by a connection count,
-never a clock.
+(`crates/nvs-config/src/default.toml:853`): `pool = false`, or `[mail.<name>.pool]` with exactly
+`[db.<name>.pool]`'s four keys, read by `nvs_config::db::pool_over` over `nvs_config::mail::POOL_DEFAULTS`:
+`max = 4` per core (relays limit a client's connections), `idle = 2` kept sessions, `lifetime =
+"5m"` (under RFC 5321's five-minute server timeout) and `acquire = "5s"`. `idle` stays a count, as
+it is for `[db]`: a second meaning for one key is the wrong trade. The idle *time* is the fixed
+`mail::pool::IDLE_TIME`, 30 seconds: a session unused that long is closed with `QUIT` at the next
+send, which opens a new one. It is not a setting, because no case yet needs another value. The
+store is `nvs_runtime::pool`, the one `[db]` and `[ldap]` use, under the key `mail:<name>` of the
+generation that declared it. A send takes its lease and releases the session the moment its
+message is accepted, not at request teardown. A reused connection sends `RSET` first; a connection
+the server closed is replaced once, then the error stands. A session that failed in any way is
+closed, never pooled. A connection belongs to one block and is never handed to another. Memory: at
+most `idle` sessions per block per core between sends and `max` while sending, bounded by the
+configuration, never by traffic. The test proves reuse by a connection count, never a clock.
 
 **The body and its parts (stage 4).**
 - `Core\Mail\Attachment::fromFile(path $path, {name, type})`, `::fromBytes(string $name, bytes
@@ -425,14 +433,14 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 3. a send reuses an open connection to its block, under the bounds [db.<name>.pool] has
 
-- [ ] `crates/nvs-config/src/tree.rs:968` (`MailEndpoint`), `crates/nvs-config/src/mail.rs`
+- [x] `crates/nvs-config/src/tree.rs:968` (`MailEndpoint`), `crates/nvs-config/src/mail.rs`
   (`validate`) and `default.toml:868`: `pool` and `[mail.<name>.pool]`, shaped like
   `[db.<name>.pool]` (`default.toml:853`) and read as `crates/nvs-config/src/ldap.rs` `pool_for` does.
-- [ ] `crates/nvs-stdlib/src/mail/pool.rs:1` (new): per block, per core; `RSET` on reuse, one
+- [x] `crates/nvs-stdlib/src/mail/pool.rs:1` (new): per block, per core; `RSET` on reuse, one
   replacement, idle and lifetime closing. `deliver` (`smtp.rs:552`) takes a pooled session.
-- [ ] The five tests of the check `pool`, counting connections at the fake server, then
+- [x] The five tests of the check `pool`, counting connections at the fake server, then
   `cargo test --lib mail::` once.
-- [ ] `handshake` (`crates/nvs-stdlib/src/mail/smtp.rs`): a certificate from an unknown issuer gives
+- [x] `handshake` (`crates/nvs-stdlib/src/mail/smtp.rs`): a certificate from an unknown issuer gives
   an `IOError` that says the server's CA is not trusted and names `[mail.<name>] tls_ca_file` as the
   fix. Every other handshake failure keeps its message. A user met the bare `UnknownIssuer` on a
   server with a company CA and had no way to find the setting. Check `unknown-issuer-hint`.
@@ -540,31 +548,27 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
 `return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stages 1 and 2 are done. Stage 1: `send` returns the `Message-ID` it wrote, takes `fromName`,
-`inReplyTo`, `references`, `unsubscribe`, `autoSubmitted` and `Core\Mail\Address::of` recipients,
-and sends a non-ASCII domain as punycode; the nine `headers` tests pass. The nightly CI failures
-the sweep named (run 45609291264) ran on `53e94a9181`, which `1c3196b0e8` fixed.
+Stages 1 to 3 are done, and the `headers`, `transport`, `pool` and `unknown-issuer-hint` tests pass
+(`cargo test --lib mail::`, 35 green). `smtp.rs` has `open` (greeting, TLS, `authenticate`, the
+`EHLO` extensions kept on the `Session`), `reset` (`RSET`) and `transact` (`SIZE`, envelope,
+`DATA`); `deliver` runs both halves for `pool = false`. `mail/pool.rs` `deliver` takes a `Lease`
+from `mod.rs` `lease_for` and keeps the session in `nvs_runtime::pool`. `[mail.<name>.pool]` is
+read by `nvs_config::mail::pool_for` over `POOL_DEFAULTS`. The fake server in `smtp.rs`'s tests
+has `serve` (one connection) and `serve_many` (one thread per connection, ended by `Many::stop`).
 
-Stage 2: `[mail.<name>]` has `tls`, `tls_ca_file`, `auth` and `return_path`, judged at boot by
-the new `crates/nvs-config/src/mail.rs` (`validate`, `canonicalize`, `tls_from`, `auth_from`), and
-`send` has `bounceTag` (slot 13, `args: [14]`). `smtp.rs` opens implicit TLS in `Session::open`,
-verifies with `tls_ca_file` through `handshake`, sends `AUTH LOGIN` in `authenticate`, checks
-`SIZE` in `size_limit`, reads every `RCPT` reply and sends `RSET` on a rejection, and writes
-`local+tag@domain` in `bounce_sender`. `deliver` takes an `Envelope` (sender and recipients). The
-nine `transport` tests pass (`looper check --name transport`), over the fake server `serve` in
-`smtp.rs`'s tests, which speaks plain, implicit TLS or `STARTTLS` with an `rcgen` certificate.
-`a_mail_block_s_tls_defaults_and_refusals` in `nvs-config` passes too.
+CI: run 45609291264 was fixed by `1c3196b0e8`. Run 45749655184 failed three other ways. The four
+Miri zone tests are fixed by `c115a735a1`. The uuid `Parses` case was fixed by `2f3d849a52`. The
+stack-page test is in § *Backlog*.
 
 ### Next
 
-Stage 3, the pool. Start with the keys in `MailEndpoint` (`crates/nvs-config/src/tree.rs:968`)
-and `crates/nvs-config/src/mail.rs` `validate`, read through `crate::db::pool_of` as
-`crates/nvs-config/src/ldap.rs` `pool_for` does. Then `crates/nvs-stdlib/src/mail/pool.rs`: the
-`ldap` pool in `crates/nvs-stdlib/src/ldap/mod.rs` is the nearest per-block, per-core pool to copy.
-`deliver` (`smtp.rs:552`) splits into opening a `Session` (greeting, TLS, `authenticate`) and one
-transaction (`SIZE`, envelope, `DATA`), so a pooled session runs only the second half after `RSET`.
-The fake server `serve` (`smtp.rs` tests) accepts one connection; the pool tests need it to accept
-several and count them.
+Stage 4, the body and its parts. Start with `CLASS` (`crates/nvs-stdlib/src/mail/mod.rs:234`):
+`$body` as `CoreTy::Union` of text and `Instance(Core\Html\Markup)`, the `text` option, `html`
+removed, and the slot constants beside it. Then the new `crates/nvs-stdlib/src/mail/parts.rs`
+(`Core\Mail\Attachment`, its four constructors, `src()`, the cid checks, RFC 2231 names, and the
+plain text from HTML over html5ever). Then `compose` (`crates/nvs-stdlib/src/mail/compose.rs:427`)
+nests mixed > related > alternative. Last, every caller of the old shape the stage names. The
+stage's item anchors still say `mail.rs`; read them as `mail/mod.rs` and `mail/compose.rs`.
 
 Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send` and
 `Core\Mail\Address::of` (no `about.md`, examples, bench, attack or website page yet), and the
@@ -572,3 +576,10 @@ reference-card review for `send`, whose `bounceTag`, `RuntimeError` and `IOError
 No unit test or conformance case is expected red.
 
 ### Backlog
+
+- CI run 45749655184, `test / linux-x86_64 (tests)`: `serve::tests::
+  a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:5555`)
+  read 691 − 333 = 358 host stack pages for 32 waiting requests, over the bound 11 × 32 = 352. It
+  is a Linux debug count, and no commit since touches `serve.rs`. Find what grew a waiting
+  request's host stack with `bun nv linux-test` before any change to the bound, which alone is not
+  a fix. Not this goal's work; a session with room takes it.
