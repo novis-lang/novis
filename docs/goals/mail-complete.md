@@ -26,7 +26,7 @@ stages:
     context: [Cargo.toml, crates/nvs-stdlib/Cargo.toml]
   - id: 6
     title: "a block signs in with XOAUTH2, its token fetched by the host and reused until it expires"
-    status: open
+    status: done
     context: [docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md]
   - id: 7
     title: "a block with a DKIM key signs every message it sends"
@@ -368,6 +368,29 @@ seconds before `expires_in`. Memory: one token per configured block, bounded by 
 A token request that fails is an `IOError` naming the block and the token server's status, with
 nothing sent.
 
+- Built in stage 6 (session's choices), in `crates/nvs-stdlib/src/mail/oauth.rs`:
+  - **The refresh token is a secret pair, `oauth_refresh_token` and its `_file`,** as the client
+    secret is. `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives every secret both
+    halves, and the rule's list names both new pairs. `secret.rs`'s `SECRETS` has a row for each.
+  - **`auth = "xoauth2"` needs `user`** (the mailbox the token signs in) and refuses a password.
+    An `oauth_*` key on a block whose `auth` is not `xoauth2` is a boot error: it would be read
+    and never used. `oauth_scope` is optional and sent only when written.
+  - **The token is fetched before the relay is reached**, at the start of `smtp::open`, so a
+    refused token opens no SMTP connection. A pooled session is already signed in and fetches
+    nothing.
+  - **The client is a small HTTP/1.1 `POST` with `Connection: close`**, over `NvsTcp` and
+    `NvsTls::over`, its reply capped at 64 KiB and read to its `Content-Length` or last chunk.
+    `nvs_config::mail::token_url` is the one parser of the URL, for the boot check and the send.
+    The relay's `tls_ca_file` is never used for the token server. A test sets its own CA through a
+    `#[cfg(test)]` thread-local in `oauth.rs`.
+  - **The cache is a `Mutex<BTreeMap>` keyed by block name**, replaced when a SHA-256 of the
+    grant's values changes, so a reload with a new client fetches anew. The lock is never held
+    over the network; two sends that both miss both fetch. A token with no `expires_in`, or one
+    no longer than the 60-second margin, is used once and not kept. A token the relay refuses is
+    dropped (`oauth::forget`), so the next send fetches again.
+  - The refusal names the OAuth `error` code when the server sends one that is 1 to 64 letters,
+    digits or `_`, and never its `error_description`.
+
 **DKIM (stage 7).** The keys `dkim_selector`, `dkim_key_file` (PKCS#8 PEM, RSA of 2048 bits or
 more, or Ed25519) and `dkim_domain` (default: the domain of `from`). The signature is written over
 the composed message with relaxed/relaxed canonicalization, over the fixed list From, To, Cc,
@@ -507,11 +530,11 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 6. a block signs in with XOAUTH2, its token fetched by the host and reused until it expires
 
-- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: the `oauth_*` keys and their
+- [x] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: the `oauth_*` keys and their
   settings errors.
-- [ ] `crates/nvs-stdlib/src/mail/oauth.rs:1` (new): both grants, the per-block cache, `AUTH
+- [x] `crates/nvs-stdlib/src/mail/oauth.rs:1` (new): both grants, the per-block cache, `AUTH
   XOAUTH2` in `authenticate` (`smtp.rs:447`), and `xoauth2` in `nvs_config::mail::auth_from`.
-- [ ] The five tests of the check `oauth`, against a fake token server and the fake SMTP server,
+- [x] The five tests of the check `oauth`, against a fake token server and the fake SMTP server,
   then `cargo test --lib mail::` once.
 
 ### 7. a block with a DKIM key signs every message it sends
@@ -579,37 +602,35 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
 `return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stages 1 to 5 are done. `cargo test --lib mail::` runs 59 green, and the cases
-`mail-a-tainted-string-is-sent-as-plain-text` and `mail-preview-shows-the-css-inlined` pass.
-Stage 5: `mail/css.rs` has `inline` (run by `body_of` after `parts::read_html`, which now also
-returns the tree, `styled`, `linked` and `depth`), `report` (the kept and unused rules),
-`Core\Mail\Preview` (`PREVIEW`, rank 883, readers through `css::HELPERS`) and its tests.
-`mod.rs` `message_of` reads the body and the attachments for both `send` and `preview` over a
-`BodySlots`; `preview` is the second row of `CLASS`. The stage's choices are under § *CSS
-inlining*'s "Built in stage 5". `THIRD-PARTY-LICENSES.txt` is regenerated for the new crates.
-`KeptMail.html` is the inlined HTML. `smtp.rs` has `open`, `reset` and `transact`, and
-`authenticate` picks the mechanism. `mail/pool.rs` keeps sessions in `nvs_runtime::pool`. The fake
-server in `smtp.rs`'s tests has `serve` and `serve_many`.
+Stages 1 to 6 are done. `cargo test --lib mail::` runs 63 green in `nvs-stdlib` and 2 in
+`nvs-config`. Stage 6: `nvs_config::mail` has `Auth::XOAuth2`, `Auth::word`, `TokenUrl`,
+`token_url` and the `oauth` refusals in `judge`; `tree.rs` `MailEndpoint` and `default.toml` have
+the seven `oauth_*` keys; `secret.rs` `SECRETS` has the `oauth_client_secret` and
+`oauth_refresh_token` pairs. `mail/oauth.rs` has `Grant`, `grant_of`, `token`, `forget`, the
+cache and the HTTP client; `smtp.rs` `open` fetches the token first and `bearer` sends
+`AUTH XOAUTH2`. The stage's choices are under § *XOAUTH2*'s "Built in stage 6".
 
-CI: the nightly failures of run 45609291264 that the sweep listed were fixed by `1c3196b0e8` and
-`c115a735a1`. The stack-page test of run 45749655184 is in § *Backlog*.
+CI: the nightly failures of run 45609291264 that the sweep listed came before `1c3196b0e8` and
+`c115a735a1`, which fixed them. The stack-page test of run 45749655184 is in § *Backlog*.
 
 ### Next
 
-Stage 6, XOAUTH2. Start with the `oauth_*` keys in `MailEndpoint` (`crates/nvs-config/src/tree.rs`,
-`struct MailEndpoint`) and `[mail.default]` in `default.toml`, with their refusals in
-`crates/nvs-config/src/mail.rs` (`validate`, `auth_from`). Then the new
-`crates/nvs-stdlib/src/mail/oauth.rs` and its `AUTH XOAUTH2` arm in `smtp.rs` `authenticate`. The
-fake SMTP server is `serve` in `smtp.rs`'s tests; the token server needs a fake HTTPS server, so
-look first for one the `Core\Http` client tests already have.
+Stage 7, DKIM. Start with `dkim_selector`, `dkim_key_file` and `dkim_domain` in `MailEndpoint`
+(`crates/nvs-config/src/tree.rs`, `struct MailEndpoint`) and `[mail.default]` in `default.toml`,
+with the short-RSA-key refusal in `crates/nvs-config/src/mail.rs` `judge` (the key file is
+trust-checked as `canonicalize` does for `tls_ca_file`). Then the new
+`crates/nvs-stdlib/src/mail/dkim.rs`, called on the composed message in `mod.rs` `send` before it
+reaches `smtp::transact`; `compose.rs` writes the headers it signs. `ring` 0.17 is already a
+dependency of `nvs-stdlib`.
 
 Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
 `Core\Mail::preview`, `Core\Mail\Address::of`, the five `Core\Mail\Attachment` members and the four
 `Core\Mail\Preview` readers (no `about.md`, examples, bench, attack or website page yet), and the
 reference-card review for `send`, whose `body`, `text`, `attachments` and `RuntimeError` texts
 changed, and for the new `preview` and `Core\Mail\Preview` cards. The examples under
-`docs/examples/core/Test-SentMail/html/` changed, so their members are stale too. No unit test or
-conformance case is expected red: the rewritten examples, cases and attacks each passed once.
+`docs/examples/core/Test-SentMail/html/` changed, so their members are stale too. The four new
+oauth tests carry `// covers: Core\Mail::send`, so `send` is stale for them as well. No unit test
+or conformance case is expected red.
 
 ### Backlog
 
