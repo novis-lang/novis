@@ -1017,6 +1017,15 @@ pub struct MailEndpoint {
     pub oauth_refresh_token: Option<String>,
     /// The file whose whole content is `oauth_refresh_token`, under [`mod@crate::secret`]'s rules.
     pub oauth_refresh_token_file: Option<String>,
+    /// The DKIM selector: the public key is published at `<selector>._domainkey.<dkim_domain>`.
+    /// Set with `dkim_key_file` or not at all; [`mod@crate::mail`] owns the refusals.
+    pub dkim_selector: Option<String>,
+    /// The PKCS#8 PEM file of the DKIM private key, RSA of 2048 to 4096 bits or Ed25519. It is
+    /// made absolute, trust-checked and read once at boot by [`crate::mail::canonicalize`], which
+    /// refuses a shorter RSA key.
+    pub dkim_key_file: Option<String>,
+    /// The domain the DKIM signature names, `d=`. Unset: the domain of `from`.
+    pub dkim_domain: Option<String>,
     /// The envelope sender, `MAIL FROM`, where bounces go. Unset: `from`. The `From:` header stays
     /// `from` either way.
     pub return_path: Option<String>,

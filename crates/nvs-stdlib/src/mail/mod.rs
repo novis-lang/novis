@@ -46,7 +46,8 @@
 //! about the domain the operator runs, not about the request being served, and a program that could
 //! choose its own `From:` is a program that can forge a colleague's. `replyTo` is the option that
 //! covers the real need — answer to the user — and it changes where a reply goes without claiming
-//! who sent it.
+//! who sent it. The DKIM signature is the same kind of fact: a block with `dkim_selector` and
+//! `dkim_key_file` signs every message it sends, in [`dkim`], and no call site names a key.
 //!
 //! # TLS is asked for, and where it is asked for it is required and verified
 //!
@@ -109,6 +110,7 @@
 
 mod compose;
 mod css;
+mod dkim;
 mod oauth;
 mod parts;
 mod pool;
@@ -1148,6 +1150,8 @@ fn send(
         return Ok(Value::text(&message_id));
     }
 
+    let signer = dkim::signer_of(ctx, endpoint, &configured.from, member)?;
+    let sent_at = SystemTime::now();
     let message = compose(
         &compose::Headers {
             from: &configured.from,
@@ -1161,7 +1165,7 @@ fn send(
             references: &references,
             unsubscribe: unsubscribe.as_deref(),
             auto_submitted,
-            now: SystemTime::now(),
+            now: sent_at,
         },
         &compose::Body {
             text: &body.text,
@@ -1169,6 +1173,11 @@ fn send(
             attachments: &attachments,
         },
     );
+    // A block with a DKIM key signs the message as `DATA` carries it.
+    let message = match &signer {
+        Some(signer) => dkim::sign(signer, &message, sent_at, member)?,
+        None => message,
+    };
 
     // Bcc reaches the envelope and no header, which is the whole of what
     // makes it blind — the header set above never names it.

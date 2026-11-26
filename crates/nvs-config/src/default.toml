@@ -904,6 +904,13 @@
 #oauth_scope = "https://outlook.office365.com/.default"  # default: no scope is sent
 #oauth_refresh_token = "1//refresh"   # default: the client-credentials grant
 #oauth_refresh_token_file = "/run/secrets/mail-refresh"  # default: the client-credentials grant
+# DKIM signs every message this block sends, so a receiving server can check that the mail comes
+# from your domain. Publish the public key at `<dkim_selector>._domainkey.<dkim_domain>`. The key
+# file is PKCS#8 PEM: an RSA key of 2048 to 4096 bits, or an Ed25519 key. Set `dkim_selector`
+# and `dkim_key_file` together. A relative path is read from the folder of the file that names it.
+#dkim_selector = "mail2026"           # default: no signature
+#dkim_key_file = "secrets/dkim.pem"   # default: no signature
+#dkim_domain = "example.com"          # default: the domain of `from`
 # A send keeps its connection open for the next send to this block, on the same core. `false`
 # opens a new connection for every message. A table of bounds is the other shape, below.
 #pool = false                         # default: on

@@ -1,6 +1,6 @@
 //! The `[mail.<name>]` blocks of `rule:programs/framework-core-half`, judged once the merge is done:
 //! the `tls` and `auth` words, the credential they go with, the `oauth_*` keys an `xoauth2` block
-//! fetches its token with, the `tls_ca_file` and the pool.
+//! fetches its token with, the `dkim_*` keys a block signs with, the `tls_ca_file` and the pool.
 //!
 //! **A credential never travels in the clear.** `tls = "none"` beside a `user` or a password is
 //! refused here, naming the file, so the send that would have refused it later never runs.
@@ -11,7 +11,8 @@
 //! `tls_ca_file` beside `tls = "none"`.
 //!
 //! The `tls_ca_file` is resolved and trust-checked by [`canonicalize`] on `[db.<name>]
-//! tls_ca_file`'s footing, and the password arrives from `password_file` through
+//! tls_ca_file`'s footing. So is the `dkim_key_file`, which [`canonicalize`] also reads once so
+//! [`dkim_key`] refuses an RSA key under 2048 bits at boot. The password arrives from `password_file` through
 //! [`mod@crate::secret`] before [`validate`] runs. Cost: one pass per tree at boot and at reload,
 //! and nothing per request.
 
@@ -122,6 +123,154 @@ pub fn token_url(written: &str) -> Option<TokenUrl> {
     })
 }
 
+/// The kind of key a `dkim_key_file` holds, and so the `a=` the signature names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DkimAlgorithm {
+    /// `rsa-sha256`, RFC 6376's.
+    Rsa,
+    /// `ed25519-sha256`, RFC 8463's.
+    Ed25519,
+}
+
+/// A `dkim_key_file`'s key, read and judged: its kind and its PKCS#8 DER.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DkimKey {
+    /// Which signature the key makes.
+    pub algorithm: DkimAlgorithm,
+    /// The PKCS#8 `PrivateKeyInfo`, as the PEM carried it.
+    pub pkcs8: Vec<u8>,
+}
+
+/// The narrowest RSA key a block may sign with. RFC 8301 makes 1024 bits the floor a verifier
+/// accepts, and every large receiver asks for 2048.
+pub const DKIM_RSA_MIN_BITS: usize = 2048;
+/// The widest RSA key a block may sign with, the widest `ring` signs with.
+pub const DKIM_RSA_MAX_BITS: usize = 4096;
+
+/// The DER of `1.2.840.113549.1.1.1`, `rsaEncryption`.
+const RSA_OID: &[u8] = &[0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01];
+/// The DER of `1.3.101.112`, `id-Ed25519`.
+const ED25519_OID: &[u8] = &[0x2b, 0x65, 0x70];
+
+/// The key a `dkim_key_file` holds, from its PEM text.
+///
+/// The width of an RSA key is read from the modulus here, at boot, so a key a receiver would
+/// refuse never signs a message. The rest of the key is checked by `ring` when it is first used.
+///
+/// # Errors
+///
+/// A sentence for anything but one PKCS#8 `PRIVATE KEY` block of an RSA key of
+/// [`DKIM_RSA_MIN_BITS`] to [`DKIM_RSA_MAX_BITS`] or an Ed25519 key.
+pub fn dkim_key(pem: &str) -> Result<DkimKey, String> {
+    use base64::Engine as _;
+    const BEGIN: &str = "-----BEGIN PRIVATE KEY-----";
+    const END: &str = "-----END PRIVATE KEY-----";
+    let not_pkcs8 = || {
+        "it is not a PKCS#8 `PRIVATE KEY` in PEM. Convert a key with \
+         `openssl pkcs8 -topk8 -nocrypt -in old.pem -out dkim.pem`"
+            .to_owned()
+    };
+    let start = pem.find(BEGIN).ok_or_else(not_pkcs8)? + BEGIN.len();
+    let end = start + pem[start..].find(END).ok_or_else(not_pkcs8)?;
+    let base64: String = pem[start..end]
+        .chars()
+        .filter(|each| !each.is_ascii_whitespace())
+        .collect();
+    let der = base64::engine::general_purpose::STANDARD
+        .decode(base64)
+        .map_err(|_| not_pkcs8())?;
+
+    let malformed = || "its PKCS#8 structure cannot be read".to_owned();
+    let (tag, info, _) = der_element(&der).ok_or_else(malformed)?;
+    if tag != 0x30 {
+        return Err(malformed());
+    }
+    let (_, _, rest) = der_element(info)
+        .filter(|(tag, ..)| *tag == 0x02)
+        .ok_or_else(malformed)?;
+    let (tag, algorithm, rest) = der_element(rest).ok_or_else(malformed)?;
+    let (_, oid, _) = der_element(algorithm)
+        .filter(|(tag, ..)| *tag == 0x06)
+        .ok_or_else(malformed)?;
+    if tag != 0x30 {
+        return Err(malformed());
+    }
+    let (tag, private, _) = der_element(rest).ok_or_else(malformed)?;
+    if tag != 0x04 {
+        return Err(malformed());
+    }
+    let algorithm = if oid == RSA_OID {
+        let bits = rsa_bits(private).ok_or_else(malformed)?;
+        if !(DKIM_RSA_MIN_BITS..=DKIM_RSA_MAX_BITS).contains(&bits) {
+            return Err(format!(
+                "it is an RSA key of {bits} bits, and a DKIM key is an RSA key of \
+                 {DKIM_RSA_MIN_BITS} to {DKIM_RSA_MAX_BITS} bits or an Ed25519 key"
+            ));
+        }
+        DkimAlgorithm::Rsa
+    } else if oid == ED25519_OID {
+        DkimAlgorithm::Ed25519
+    } else {
+        return Err(
+            "it is a key of another kind, and a DKIM key is an RSA key or an Ed25519 key"
+                .to_owned(),
+        );
+    };
+    Ok(DkimKey {
+        algorithm,
+        pkcs8: der,
+    })
+}
+
+/// One DER element at the start of `octets`: its tag, its content and what follows it.
+fn der_element(octets: &[u8]) -> Option<(u8, &[u8], &[u8])> {
+    let (&tag, rest) = octets.split_first()?;
+    let (&first, rest) = rest.split_first()?;
+    let (length, rest) = if first < 0x80 {
+        (usize::from(first), rest)
+    } else {
+        let count = usize::from(first & 0x7f);
+        if count == 0 || count > 4 || rest.len() < count {
+            return None;
+        }
+        let (bytes, rest) = rest.split_at(count);
+        let length = bytes
+            .iter()
+            .fold(0_usize, |sum, byte| (sum << 8) | usize::from(*byte));
+        (length, rest)
+    };
+    (rest.len() >= length).then(|| (tag, &rest[..length], &rest[length..]))
+}
+
+/// The width of the modulus of a PKCS#1 `RSAPrivateKey`, in bits.
+fn rsa_bits(key: &[u8]) -> Option<usize> {
+    let (tag, fields, _) = der_element(key)?;
+    let (version, _, rest) = (tag == 0x30).then(|| der_element(fields)).flatten()?;
+    let (tag, modulus, _) = (version == 0x02).then(|| der_element(rest)).flatten()?;
+    if tag != 0x02 {
+        return None;
+    }
+    let at = modulus.iter().position(|byte| *byte != 0)?;
+    let lead = modulus[at];
+    Some((modulus.len() - at - 1) * 8 + (8 - lead.leading_zeros() as usize))
+}
+
+/// Whether `written` is a domain name in ASCII: dot-separated labels of letters, digits and `-`,
+/// each 1 to 63 bytes, none starting or ending with `-`.
+fn is_ascii_domain(written: &str) -> bool {
+    !written.is_empty()
+        && written.len() <= 253
+        && written.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+}
+
 /// The first `oauth_*` key `block` sets, by its name.
 fn oauth_written(block: &MailEndpoint) -> Option<&'static str> {
     [
@@ -207,7 +356,8 @@ pub fn auth_from(written: Option<&str>) -> Result<Option<Auth>, &str> {
 ///
 /// # Errors
 ///
-/// `E0607` for a bundle outside the trust boundary and `E0605` for one that cannot be read.
+/// `E0607` for a bundle or a DKIM key outside the trust boundary, `E0605` for one that cannot be
+/// read, and `E0601` for a DKIM key [`dkim_key`] refuses.
 pub fn canonicalize(
     config: &mut Config,
     table: &mut toml::value::Table,
@@ -215,6 +365,39 @@ pub fn canonicalize(
     files: &dyn Files,
 ) -> Result<(), Diagnostic> {
     for (name, block) in &mut config.mail {
+        if let Some(written) = block.dkim_key_file.clone() {
+            let key = format!("mail.{name}.dkim_key_file");
+            let base = crate::db::written_in(origins, &key);
+            let path = crate::resolve::absolute(base, Path::new(&written));
+            let trusted = files.trust(&path).map_err(|why| {
+                crate::resolve::untrusted(
+                    &path,
+                    &why,
+                    "a `[mail]` block's `dkim_key_file` names it, and whoever can write it can sign \
+                     mail as the domain",
+                )
+            })?;
+            let text = files.read(&trusted).map_err(|why| {
+                crate::resolve::unreadable(
+                    &trusted,
+                    &why,
+                    "a `[mail]` block's `dkim_key_file` names it",
+                )
+            })?;
+            dkim_key(&text).map_err(|why| {
+                refusal(
+                    &key,
+                    format!("`[mail.{name}] dkim_key_file` cannot sign mail: {why}"),
+                    "Every message the block sends is signed with this key.",
+                    "write the path of a PKCS#8 PEM file with an RSA key of 2048 bits or more, \
+                     or an Ed25519 key",
+                    origins,
+                )
+            })?;
+            let trusted = trusted.to_string_lossy().into_owned();
+            crate::db::rewrite_in(table, "mail", name, "dkim_key_file", &trusted);
+            block.dkim_key_file = Some(trusted);
+        }
         let Some(written) = block.tls_ca_file.as_deref() else {
             continue;
         };
@@ -293,6 +476,7 @@ fn judge(
         }
         Some(_) => {}
     }
+    dkim(name, block, origins)?;
     let auth_key = format!("mail.{name}.auth");
     match auth_from(block.auth.as_deref()) {
         Err(word) => Err(refusal(
@@ -322,6 +506,59 @@ fn judge(
         )),
         Ok(_) => Ok(()),
     }
+}
+
+/// A block's `dkim_*` keys: `dkim_selector` and `dkim_key_file` both or neither, `dkim_domain` only
+/// beside them, and the selector and the domain each a domain name in ASCII. The key itself is
+/// read by [`canonicalize`].
+fn dkim(
+    name: &str,
+    block: &MailEndpoint,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    let key = |key: &str| format!("mail.{name}.{key}");
+    match (&block.dkim_selector, &block.dkim_key_file) {
+        (Some(_), Some(_)) => {}
+        (None, None) if block.dkim_domain.is_some() => {
+            return Err(refusal(
+                &key("dkim_domain"),
+                format!("`[mail.{name}]` sets `dkim_domain` and no DKIM key"),
+                "The domain is only written into a signature, and the block signs nothing.",
+                "write `dkim_selector` and `dkim_key_file`, or remove `dkim_domain`",
+                origins,
+            ));
+        }
+        (None, None) => return Ok(()),
+        (selector, _) => {
+            let (written, missing) = if selector.is_some() {
+                ("dkim_selector", "dkim_key_file")
+            } else {
+                ("dkim_key_file", "dkim_selector")
+            };
+            return Err(refusal(
+                &key(written),
+                format!("`[mail.{name}]` sets `{written}` and no `{missing}`"),
+                "A signature needs the key and the selector a receiver finds its public half by.",
+                &format!("write `{missing}`, or remove `{written}`"),
+                origins,
+            ));
+        }
+    }
+    for (wanted, written) in [
+        ("dkim_selector", block.dkim_selector.as_deref()),
+        ("dkim_domain", block.dkim_domain.as_deref()),
+    ] {
+        if let Some(written) = written.filter(|written| !is_ascii_domain(written)) {
+            return Err(refusal(
+                &key(wanted),
+                format!("`[mail.{name}] {wanted} = \"{written}\"` is not a domain name"),
+                "A receiver looks the public key up in DNS under this name.",
+                "write labels of letters, digits and `-`, separated by dots",
+                origins,
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// An `auth = "xoauth2"` block: a `user` and no password, an `https://` token URL, a client id
@@ -480,5 +717,87 @@ mod tests {
                 target: "/?a=b".to_owned(),
             })
         );
+    }
+
+    /// A DER element with a length of up to two bytes.
+    fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+        let length = u16::try_from(content.len()).unwrap();
+        let [high, low] = length.to_be_bytes();
+        let mut out = vec![tag];
+        match length {
+            0..0x80 => out.push(low),
+            0x80..0x100 => out.extend([0x81, low]),
+            _ => out.extend([0x82, high, low]),
+        }
+        out.extend_from_slice(content);
+        out
+    }
+
+    /// The PEM of a PKCS#8 RSA key whose modulus is `bits` wide. The other values are placeholders,
+    /// because the width is all the boot reads.
+    fn rsa_pem(bits: usize) -> String {
+        use base64::Engine as _;
+        let mut modulus = vec![0_u8; bits / 8 + 1];
+        modulus[1] = 0x80;
+        let pkcs1 = tlv(
+            0x30,
+            &[tlv(0x02, &[0]), tlv(0x02, &modulus), tlv(0x02, &[1, 0, 1])].concat(),
+        );
+        let der = tlv(
+            0x30,
+            &[
+                tlv(0x02, &[0]),
+                tlv(0x30, &[tlv(0x06, RSA_OID), vec![0x05, 0x00]].concat()),
+                tlv(0x04, &pkcs1),
+            ]
+            .concat(),
+        );
+        let body = base64::engine::general_purpose::STANDARD.encode(der);
+        format!("-----BEGIN PRIVATE KEY-----\n{body}\n-----END PRIVATE KEY-----\n")
+    }
+
+    /// An RSA key under 2048 bits does not boot, and the error names its width. A 2048-bit key
+    /// and an Ed25519 key are read, and a PKCS#1 key gets the command that converts it. The
+    /// selector needs the key file, and both must be domain names.
+    #[test]
+    fn a_key_shorter_than_2048_bits_is_a_settings_error() {
+        let short = dkim_key(&rsa_pem(1024)).unwrap_err();
+        assert!(short.contains("1024 bits"), "{short}");
+        assert!(dkim_key(&rsa_pem(2047)).is_err());
+        assert_eq!(
+            dkim_key(&rsa_pem(2048)).unwrap().algorithm,
+            DkimAlgorithm::Rsa
+        );
+        assert!(dkim_key(&rsa_pem(4096)).is_ok());
+        assert!(dkim_key(&rsa_pem(8192)).is_err());
+        let ed25519 = "-----BEGIN PRIVATE KEY-----\n\
+                       MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g\n\
+                       -----END PRIVATE KEY-----\n";
+        assert_eq!(dkim_key(ed25519).unwrap().algorithm, DkimAlgorithm::Ed25519);
+        let pkcs1 =
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK==\n-----END RSA PRIVATE KEY-----\n";
+        assert!(dkim_key(pkcs1).unwrap_err().contains("openssl pkcs8"));
+
+        let origins = BTreeMap::new();
+        let block = |selector: Option<&str>, file: bool, domain: Option<&str>| MailEndpoint {
+            dkim_selector: selector.map(str::to_owned),
+            dkim_key_file: file.then(|| "dkim.pem".to_owned()),
+            dkim_domain: domain.map(str::to_owned),
+            ..MailEndpoint::default()
+        };
+        assert!(judge("relay", &block(Some("mail2026"), true, None), &origins).is_ok());
+        assert!(
+            judge(
+                "relay",
+                &block(Some("a.b"), true, Some("example.com")),
+                &origins
+            )
+            .is_ok()
+        );
+        assert!(judge("relay", &block(Some("mail2026"), false, None), &origins).is_err());
+        assert!(judge("relay", &block(None, true, None), &origins).is_err());
+        assert!(judge("relay", &block(None, false, Some("example.com")), &origins).is_err());
+        assert!(judge("relay", &block(Some("bad selector"), true, None), &origins).is_err());
+        assert!(judge("relay", &block(Some("s"), true, Some("-x.com")), &origins).is_err());
     }
 }
