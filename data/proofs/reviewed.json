@@ -164,7 +164,7 @@
   "docs/examples/config/debug-inline/about.md": "9eba604612896fdf",
   "docs/examples/config/debug-keep_temporary/about.md": "11e066ed8eaf2f42",
   "docs/examples/config/debug-listen/01-the-address-of-the-debug-viewer.nvs": "eac76b83779bd74a",
-  "docs/examples/config/debug-store/about.md": "703ba9d01a0af1ac",
+  "docs/examples/config/debug-store/about.md": "7f354926ea04358e",
   "docs/examples/config/debug-tls_cert_file/01-your-own-certificate-for-the-debug-viewer.nvs": "ecd34997eae5fa5a",
   "docs/examples/config/debug-tls_key_file/01-your-own-key-for-the-debug-viewer.nvs": "9c0aafafc00d1ab8",
   "docs/examples/config/debug-token_file/01-your-own-token-for-the-debug-viewer.nvs": "eb554eeada573845",
