@@ -16713,6 +16713,625 @@
       ]
     },
     {
+      "id": "Imap",
+      "name": "Core\\Imap",
+      "summary": "Reads a mailbox over IMAP. The server and the sign-in are set in an `[imap.<name>]` block of `nvs.toml`, and your program names the block.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Imap.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(string $endpoint): Core\\Imap\\Mailbox",
+          "params": [
+            {
+              "kind": "param",
+              "name": "endpoint",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Imap\\Mailbox",
+          "doc": {
+            "shortHtml": "Connects to the mailbox of the block <code>[imap.&lt;endpoint&gt;]</code> and signs in. The connection is closed when the request or the script ends.",
+            "params": [
+              {
+                "name": "endpoint",
+                "descHtml": "The name of the block, such as <code>inbox</code> for <code>[imap.inbox]</code>. It must be listed in <code>[capabilities.imap] connect</code>."
+              }
+            ],
+            "returnHtml": "The open mailbox.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The name is not listed in <code>[capabilities.imap] connect</code>, no block has that name, or the block has no sign-in."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The server cannot be reached, its certificate is not trusted, or it does not accept the sign-in."
+              }
+            ]
+          },
+          "slug": "open",
+          "url": "/reference/core/imap/open/",
+          "examples": "core/Imap/open"
+        }
+      ],
+      "slug": "imap",
+      "url": "/reference/core/imap/",
+      "summaryBlocks": [
+        {
+          "html": "<p>Reads a mailbox over IMAP. The server and the sign-in are set in an <code>[imap.&lt;name&gt;]</code> block of <code>nvs.toml</code>, and your program names the block.</p>"
+        }
+      ],
+      "returnedBy": []
+    },
+    {
+      "id": "Imap.Folder",
+      "name": "Core\\Imap\\Folder",
+      "summary": "One folder of an open mailbox. Each message in it has a UID (the number the server gives each message in a folder).",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Imap.Folder.uidValidity",
+          "name": "uidValidity",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "uidValidity(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the folder's <code>UIDVALIDITY</code> (a number that changes when the server numbers the messages again). A UID is the number the server gives each message in a folder. When the <code>UIDVALIDITY</code> changes, a UID you saved may now belong to another message.",
+            "returnHtml": "A number of 1 or more."
+          },
+          "slug": "uidvalidity",
+          "url": "/reference/core/imap-folder/uidvalidity/",
+          "examples": "core/Imap-Folder/uidValidity"
+        },
+        {
+          "id": "Imap.Folder.search",
+          "name": "search",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "search({ unseen?: bool, since?: Core\\Time\\Date, before?: Core\\Time\\Date, from?: string, subject?: string, limit?: int }): array<int>",
+          "params": [],
+          "options": [
+            {
+              "name": "unseen",
+              "type": "bool"
+            },
+            {
+              "name": "since",
+              "type": "Core\\Time\\Date"
+            },
+            {
+              "name": "before",
+              "type": "Core\\Time\\Date"
+            },
+            {
+              "name": "from",
+              "type": "string"
+            },
+            {
+              "name": "subject",
+              "type": "string"
+            },
+            {
+              "name": "limit",
+              "type": "int"
+            }
+          ],
+          "returnType": "array<int>",
+          "doc": {
+            "shortHtml": "Returns the UID (the number the server gives each message in a folder) of each message that matches every option you set. With no option, it returns every message.",
+            "params": [
+              {
+                "name": "unseen",
+                "descHtml": "<code>true</code> finds only the messages that are not read yet."
+              },
+              {
+                "name": "since",
+                "descHtml": "Finds the messages received on this day or later."
+              },
+              {
+                "name": "before",
+                "descHtml": "Finds the messages received before this day. The day itself is not included."
+              },
+              {
+                "name": "from",
+                "descHtml": "Finds the messages whose <code>From</code> header contains this text."
+              },
+              {
+                "name": "subject",
+                "descHtml": "Finds the messages whose subject contains this text."
+              },
+              {
+                "name": "limit",
+                "descHtml": "Returns at most this many UIDs, the oldest first."
+              }
+            ],
+            "returnHtml": "The UIDs, oldest first.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>limit</code> is less than 1."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The server does not answer, or the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "search",
+          "url": "/reference/core/imap-folder/search/",
+          "examples": "core/Imap-Folder/search"
+        },
+        {
+          "id": "Imap.Folder.fetch",
+          "name": "fetch",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "fetch(int $uid): Core\\Mail\\Message",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Mail\\Message",
+          "doc": {
+            "shortHtml": "Reads the message <code>$uid</code> and parses it. The message is not marked as read.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              }
+            ],
+            "returnHtml": "The parsed message. Its <code>uid()</code> is <code>$uid</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, or the server does not answer. It is also thrown when the message is larger than the memory the request has left. It is also thrown when the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "fetch",
+          "url": "/reference/core/imap-folder/fetch/",
+          "examples": "core/Imap-Folder/fetch"
+        },
+        {
+          "id": "Imap.Folder.move",
+          "name": "move",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "move(int $uid, string $folder): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "folder",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Moves the message <code>$uid</code> to the folder <code>$folder</code>. In that folder, the message has a new UID.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              },
+              {
+                "name": "folder",
+                "descHtml": "The name of the folder to move it to, such as <code>Archive</code>."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, the folder <code>$folder</code> does not exist, the server does not support moving a single message, or the server does not answer."
+              }
+            ]
+          },
+          "slug": "move",
+          "url": "/reference/core/imap-folder/move/",
+          "examples": "core/Imap-Folder/move"
+        },
+        {
+          "id": "Imap.Folder.markSeen",
+          "name": "markSeen",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "markSeen(int $uid): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Marks the message <code>$uid</code> as read. It sets the <code>\\Seen</code> flag.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, or the server does not answer. It is also thrown when the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "markseen",
+          "url": "/reference/core/imap-folder/markseen/",
+          "examples": "core/Imap-Folder/markSeen"
+        },
+        {
+          "id": "Imap.Folder.markUnseen",
+          "name": "markUnseen",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "markUnseen(int $uid): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Marks the message <code>$uid</code> as not read. It removes the <code>\\Seen</code> flag.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, or the server does not answer. It is also thrown when the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "markunseen",
+          "url": "/reference/core/imap-folder/markunseen/",
+          "examples": "core/Imap-Folder/markUnseen"
+        },
+        {
+          "id": "Imap.Folder.flag",
+          "name": "flag",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "flag(int $uid, string $flag): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "flag",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Adds the flag <code>$flag</code> to the message <code>$uid</code>. If the message has it already, nothing changes.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              },
+              {
+                "name": "flag",
+                "descHtml": "<code>\\Answered</code>, <code>\\Flagged</code>, <code>\\Draft</code>, <code>\\Seen</code>, or a keyword such as <code>$Important</code>. A keyword cannot have a space or any of these characters: <code>(){%*&quot;\\]</code>."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$flag</code> starts with <code>\\</code> and is not one of the four standard flags, or it has a space or one of the characters <code>(){%*&quot;\\]</code>, or it is longer than 255 bytes. <code>\\Deleted</code> throws too. To delete a message, call <code>delete</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, or the server does not answer. It is also thrown when the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "flag",
+          "url": "/reference/core/imap-folder/flag/",
+          "examples": "core/Imap-Folder/flag"
+        },
+        {
+          "id": "Imap.Folder.unflag",
+          "name": "unflag",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "unflag(int $uid, string $flag): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "flag",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Removes the flag <code>$flag</code> from the message <code>$uid</code>. If the message does not have it, nothing changes.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              },
+              {
+                "name": "flag",
+                "descHtml": "<code>\\Answered</code>, <code>\\Flagged</code>, <code>\\Draft</code>, <code>\\Seen</code>, or a keyword such as <code>$Important</code>. A keyword cannot have a space or any of these characters: <code>(){%*&quot;\\]</code>."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$flag</code> starts with <code>\\</code> and is not one of the four standard flags, or it has a space or one of the characters <code>(){%*&quot;\\]</code>, or it is longer than 255 bytes. <code>\\Deleted</code> throws too. To delete a message, call <code>delete</code>."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, or the server does not answer. It is also thrown when the folder's <code>UIDVALIDITY</code> changed. That is a number that changes when the server numbers the messages again."
+              }
+            ]
+          },
+          "slug": "unflag",
+          "url": "/reference/core/imap-folder/unflag/",
+          "examples": "core/Imap-Folder/unflag"
+        },
+        {
+          "id": "Imap.Folder.delete",
+          "name": "delete",
+          "static": false,
+          "receiver": "folder",
+          "generics": null,
+          "signature": "delete(int $uid): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "uid",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Deletes the message <code>$uid</code> from the folder at once. No other message is deleted.",
+            "params": [
+              {
+                "name": "uid",
+                "descHtml": "A UID (the number the server gives each message in a folder) that <code>search</code> returned."
+              }
+            ],
+            "returnHtml": "Nothing.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>$uid</code> is less than 1 or larger than 4294967295."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "No message has that UID, the server does not support deleting a single message, or the server does not answer."
+              }
+            ]
+          },
+          "slug": "delete",
+          "url": "/reference/core/imap-folder/delete/",
+          "examples": "core/Imap-Folder/delete"
+        }
+      ],
+      "slug": "imap-folder",
+      "url": "/reference/core/imap-folder/",
+      "summaryBlocks": [
+        {
+          "html": "<p>One folder of an open mailbox. Each message in it has a UID (the number the server gives each message in a folder).</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Imap\\Mailbox::folder",
+          "url": "/reference/core/imap-mailbox/folder/"
+        }
+      ]
+    },
+    {
+      "id": "Imap.Mailbox",
+      "name": "Core\\Imap\\Mailbox",
+      "summary": "An open mailbox that `Core\\Imap::open` returns.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Imap.Mailbox.folders",
+          "name": "folders",
+          "static": false,
+          "receiver": "mailbox",
+          "generics": null,
+          "signature": "folders(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the name of every folder you can open, such as <code>INBOX</code> and <code>Sent</code>.",
+            "returnHtml": "The names, in the order the server sends them. A <code>directory</code> block returns them in alphabetical order. The server writes the names, so they are <code>tainted</code> (text from outside your program).",
+            "errors": [
+              {
+                "error": "IOError",
+                "descHtml": "The server does not answer."
+              }
+            ]
+          },
+          "slug": "folders",
+          "url": "/reference/core/imap-mailbox/folders/",
+          "examples": "core/Imap-Mailbox/folders"
+        },
+        {
+          "id": "Imap.Mailbox.folder",
+          "name": "folder",
+          "static": false,
+          "receiver": "mailbox",
+          "generics": null,
+          "signature": "folder(string $name): Core\\Imap\\Folder",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Imap\\Folder",
+          "doc": {
+            "shortHtml": "Opens the folder <code>$name</code> of the mailbox.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The folder name, such as <code>INBOX</code>, as <code>folders</code> returns it."
+              }
+            ],
+            "returnHtml": "The folder.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The block is a <code>directory</code> block, and the name is not allowed there. Such a block is a folder on disk that works like a mailbox. A name is not allowed when it is empty, <code>.</code> or <code>..</code>, or has a <code>/</code>, <code>\\</code>, <code>:</code> or control character. A name that ends with a dot or a space is not allowed either."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The folder does not exist, or the server does not answer."
+              }
+            ]
+          },
+          "slug": "folder",
+          "url": "/reference/core/imap-mailbox/folder/",
+          "examples": "core/Imap-Mailbox/folder"
+        }
+      ],
+      "slug": "imap-mailbox",
+      "url": "/reference/core/imap-mailbox/",
+      "summaryBlocks": [
+        {
+          "html": "<p>An open mailbox that <code>Core\\Imap::open</code> returns.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Imap::open",
+          "url": "/reference/core/imap/open/"
+        }
+      ]
+    },
+    {
       "id": "IO",
       "name": "Core\\IO",
       "summary": "Reads, writes, copies and lists files and directories. Each method needs the `fs.read` or `fs.write` capability for its path, and throws an error instead of returning `false`. `open` gives a `Core\\IO\\File` to read or write part of a file.",
@@ -23905,11 +24524,11 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The body or its attachments are wrong, and nothing is sent. <code>text</code> is given with a <code>string</code> body. The HTML uses a <code>cid:</code> URL that no inline attachment has. A <code>cid:</code> URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a <code>&lt;link rel=&quot;stylesheet&quot;&gt;</code>. A mail cannot load a stylesheet, so put the CSS in a <code>&lt;style&gt;</code> element."
+                "descHtml": "The body or its attachments are wrong, and nothing is sent. <code>text</code> is given with a <code>string</code> body. The HTML uses a <code>cid:</code> URL that no inline attachment has. A <code>cid:</code> URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a <code>&lt;link rel=&quot;stylesheet&quot;&gt;</code>. A mail cannot load a stylesheet, so put the CSS in a <code>&lt;style&gt;</code> element. An attachment of a received message has no file name."
               },
               {
                 "error": "IOError",
-                "descHtml": "The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no <code>STARTTLS</code>, or has a certificate that does not verify. It is thrown when the server offers neither <code>AUTH PLAIN</code> nor <code>AUTH LOGIN</code>, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the message names every rejected address, and nobody gets the message. An address with letters that are not ASCII before the <code>@</code> needs a server that offers <code>SMTPUTF8</code>. With another server, nothing is sent."
+                "descHtml": "The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no <code>STARTTLS</code>, or has a certificate that does not verify. It is thrown when the server offers neither <code>AUTH PLAIN</code> nor <code>AUTH LOGIN</code>, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the error names every rejected address. Then nobody gets the mail. An address with letters that are not ASCII before the <code>@</code> needs a server that offers <code>SMTPUTF8</code>. With another server, nothing is sent."
               }
             ]
           },
@@ -24042,6 +24661,42 @@
           "slug": "of",
           "url": "/reference/core/mail-address/of/",
           "examples": "core/Mail-Address/of"
+        },
+        {
+          "id": "Mail.Address.address",
+          "name": "address",
+          "static": false,
+          "receiver": "address",
+          "generics": null,
+          "signature": "address(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the email address, such as <code>ada@example.org</code>.",
+            "returnHtml": "The address, without the name. For a received message, the address is <code>tainted</code>, because the sender wrote it."
+          },
+          "slug": "address",
+          "url": "/reference/core/mail-address/address/",
+          "examples": "core/Mail-Address/address"
+        },
+        {
+          "id": "Mail.Address.name",
+          "name": "name",
+          "static": false,
+          "receiver": "address",
+          "generics": null,
+          "signature": "name(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the name that is shown for the address, such as <code>Ada Lovelace</code>.",
+            "returnHtml": "The name, or an empty string when the address has no name."
+          },
+          "slug": "name",
+          "url": "/reference/core/mail-address/name/",
+          "examples": "core/Mail-Address/name"
         }
       ],
       "slug": "mail-address",
@@ -24051,7 +24706,12 @@
           "html": "<p>An email address with a name. A mail program shows the name in place of the address. You can pass it to <code>Core\\Mail::send</code> as a recipient, a <code>cc</code>, a <code>bcc</code> or the <code>replyTo</code>.</p>"
         }
       ],
-      "returnedBy": []
+      "returnedBy": [
+        {
+          "name": "Core\\Mail\\Message::from",
+          "url": "/reference/core/mail-message/from/"
+        }
+      ]
     },
     {
       "id": "Mail.Attachment",
@@ -24324,13 +24984,13 @@
           "static": false,
           "receiver": "attachment",
           "generics": null,
-          "signature": "name(): string",
+          "signature": "name(): ?string",
           "params": [],
           "options": [],
-          "returnType": "string",
+          "returnType": "?string",
           "doc": {
             "shortHtml": "Returns the file name of the attachment, such as <code>invoice.pdf</code>.",
-            "returnHtml": "The file name the recipient sees."
+            "returnHtml": "The file name the recipient sees. <code>name()</code> returns <code>null</code> for a received file with no name."
           },
           "slug": "name",
           "url": "/reference/core/mail-attachment/name/",
@@ -24399,6 +25059,430 @@
         }
       ],
       "returnedBy": []
+    },
+    {
+      "id": "Mail.Message",
+      "name": "Core\\Mail\\Message",
+      "summary": "A message that your program received, such as a reply or a bounce. `Core\\Mail\\Message::parse` reads it from its raw bytes. Every text it returns is `tainted`, because the sender wrote it.",
+      "enums": [
+        {
+          "name": "Kind",
+          "cases": [],
+          "raw": "Kind",
+          "doc": {
+            "shortHtml": "What a received message is, as <code>Core\\Mail\\Message::kind()</code> returns it.",
+            "cases": []
+          }
+        }
+      ],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.Message.parse",
+          "name": "parse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "parse(string|bytes $raw): Core\\Mail\\Message",
+          "params": [
+            {
+              "kind": "param",
+              "name": "raw",
+              "type": "string|bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Mail\\Message",
+          "doc": {
+            "shortHtml": "Reads a raw message, such as the content of an <code>.eml</code> file. A broken message is not an error. A header that is missing is <code>null</code> or an empty array. A part (one piece of a message, such as the text, the HTML or a file) that cannot be read is skipped.",
+            "params": [
+              {
+                "name": "raw",
+                "descHtml": "The whole message, headers and body, as <code>bytes</code> or a <code>string</code>."
+              }
+            ],
+            "returnHtml": "The message. Novis reads the first 16 levels of nesting and the first 1,000 parts, and skips the rest. Only the first 1,000 header lines of a part are read."
+          },
+          "slug": "parse",
+          "url": "/reference/core/mail-message/parse/",
+          "examples": "core/Mail-Message/parse"
+        },
+        {
+          "id": "Mail.Message.messageId",
+          "name": "messageId",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "messageId(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the <code>Message-ID</code> header without its angle brackets, such as <code>1f2e@example.com</code>.",
+            "returnHtml": "The message id, or <code>null</code> when the message has none."
+          },
+          "slug": "messageid",
+          "url": "/reference/core/mail-message/messageid/",
+          "examples": "core/Mail-Message/messageId"
+        },
+        {
+          "id": "Mail.Message.from",
+          "name": "from",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "from(): ?Core\\Mail\\Address",
+          "params": [],
+          "options": [],
+          "returnType": "?Core\\Mail\\Address",
+          "doc": {
+            "shortHtml": "Returns the first address of the <code>From</code> header. The sender writes this header, so it does not prove who sent the message.",
+            "returnHtml": "The address and its name, or <code>null</code> when the message has no <code>From</code> address."
+          },
+          "slug": "from",
+          "url": "/reference/core/mail-message/from/",
+          "examples": "core/Mail-Message/from"
+        },
+        {
+          "id": "Mail.Message.to",
+          "name": "to",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "to(): array<Core\\Mail\\Address>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\Address>",
+          "doc": {
+            "shortHtml": "Returns the addresses of the <code>To</code> header.",
+            "returnHtml": "One address for each recipient, in order. The array is empty when there are none."
+          },
+          "slug": "to",
+          "url": "/reference/core/mail-message/to/",
+          "examples": "core/Mail-Message/to"
+        },
+        {
+          "id": "Mail.Message.cc",
+          "name": "cc",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "cc(): array<Core\\Mail\\Address>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\Address>",
+          "doc": {
+            "shortHtml": "Returns the addresses of the <code>Cc</code> header.",
+            "returnHtml": "One address for each recipient, in order. The array is empty when there is none."
+          },
+          "slug": "cc",
+          "url": "/reference/core/mail-message/cc/",
+          "examples": "core/Mail-Message/cc"
+        },
+        {
+          "id": "Mail.Message.replyTo",
+          "name": "replyTo",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "replyTo(): array<Core\\Mail\\Address>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\Address>",
+          "doc": {
+            "shortHtml": "Returns the addresses of the <code>Reply-To</code> header. A reply goes to these addresses.",
+            "returnHtml": "The addresses, in order. The array is empty when the message has no <code>Reply-To</code>."
+          },
+          "slug": "replyto",
+          "url": "/reference/core/mail-message/replyto/",
+          "examples": "core/Mail-Message/replyTo"
+        },
+        {
+          "id": "Mail.Message.subject",
+          "name": "subject",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "subject(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the subject. An encoded subject, such as <code>=?UTF-8?B?…?=</code>, is decoded.",
+            "returnHtml": "The subject, or an empty string when the message has none."
+          },
+          "slug": "subject",
+          "url": "/reference/core/mail-message/subject/",
+          "examples": "core/Mail-Message/subject"
+        },
+        {
+          "id": "Mail.Message.date",
+          "name": "date",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "date(): ?Core\\Time\\DateTime",
+          "params": [],
+          "options": [],
+          "returnType": "?Core\\Time\\DateTime",
+          "doc": {
+            "shortHtml": "Returns the <code>Date</code> header, in the time zone the sender wrote.",
+            "returnHtml": "The date, or <code>null</code> when the message has no date or the date cannot be read."
+          },
+          "slug": "date",
+          "url": "/reference/core/mail-message/date/",
+          "examples": "core/Mail-Message/date"
+        },
+        {
+          "id": "Mail.Message.header",
+          "name": "header",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "header(string $name): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns every value of the header <code>$name</code>, decoded, in the order of the message.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The header name, such as <code>List-Id</code>. Upper and lower case are the same."
+              }
+            ],
+            "returnHtml": "One string for each line of that header. The array is empty when there is none."
+          },
+          "slug": "header",
+          "url": "/reference/core/mail-message/header/",
+          "examples": "core/Mail-Message/header"
+        },
+        {
+          "id": "Mail.Message.inReplyTo",
+          "name": "inReplyTo",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "inReplyTo(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the message id in the <code>In-Reply-To</code> header, without its angle brackets. A reply has this header. It is the id of the message that was answered.",
+            "returnHtml": "The message id, or <code>null</code> when the message has no <code>In-Reply-To</code>."
+          },
+          "slug": "inreplyto",
+          "url": "/reference/core/mail-message/inreplyto/",
+          "examples": "core/Mail-Message/inReplyTo"
+        },
+        {
+          "id": "Mail.Message.references",
+          "name": "references",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "references(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the message ids in the <code>References</code> header, without their angle brackets.",
+            "returnHtml": "The ids, oldest first. The array is empty when the message has none."
+          },
+          "slug": "references",
+          "url": "/reference/core/mail-message/references/",
+          "examples": "core/Mail-Message/references"
+        },
+        {
+          "id": "Mail.Message.text",
+          "name": "text",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "text(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the plain text body of the message: its first <code>text/plain</code> part. The result is tainted, because the sender wrote it.",
+            "returnHtml": "The text, or <code>null</code> when the message has no <code>text/plain</code> part."
+          },
+          "slug": "text",
+          "url": "/reference/core/mail-message/text/",
+          "examples": "core/Mail-Message/text"
+        },
+        {
+          "id": "Mail.Message.html",
+          "name": "html",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "html(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the HTML body of the message, as a <code>tainted</code> string. To show it on a page, pass it to <code>Core\\Html::sanitize</code> first.",
+            "returnHtml": "The HTML, or <code>null</code> when the message has no HTML part."
+          },
+          "slug": "html",
+          "url": "/reference/core/mail-message/html/",
+          "examples": "core/Mail-Message/html"
+        },
+        {
+          "id": "Mail.Message.attachments",
+          "name": "attachments",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "attachments(): array<Core\\Mail\\Attachment>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\Attachment>",
+          "doc": {
+            "shortHtml": "Returns the files of the message and the images shown inside its HTML.",
+            "returnHtml": "One attachment for each file part, in order. A part is one piece of a message, such as the text, the HTML or a file. The array is empty when there is none."
+          },
+          "slug": "attachments",
+          "url": "/reference/core/mail-message/attachments/",
+          "examples": "core/Mail-Message/attachments"
+        },
+        {
+          "id": "Mail.Message.raw",
+          "name": "raw",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "raw(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the message exactly as <code>parse</code> read it.",
+            "returnHtml": "The raw bytes, as <code>tainted bytes</code>, because the sender wrote them."
+          },
+          "slug": "raw",
+          "url": "/reference/core/mail-message/raw/",
+          "examples": "core/Mail-Message/raw"
+        },
+        {
+          "id": "Mail.Message.kind",
+          "name": "kind",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "kind(): Core\\Mail\\Message::Kind",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Mail\\Message::Kind",
+          "doc": {
+            "shortHtml": "Returns what the message is: a bounce, a delay, a complaint, an auto-reply, a reply or something else. Only a delivery report is a bounce or a delay.",
+            "returnHtml": "A <code>Core\\Mail\\Message::Kind</code> case."
+          },
+          "slug": "kind",
+          "url": "/reference/core/mail-message/kind/",
+          "examples": "core/Mail-Message/kind"
+        },
+        {
+          "id": "Mail.Message.answers",
+          "name": "answers",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "answers(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the <code>Message-ID</code> of the mail this message is about, without angle brackets. For a bounce, a delay or a complaint, it is the id of the returned message. Otherwise it is <code>In-Reply-To</code>, then the last id in <code>References</code>.",
+            "returnHtml": "The id, or <code>null</code> when the message names none."
+          },
+          "slug": "answers",
+          "url": "/reference/core/mail-message/answers/",
+          "examples": "core/Mail-Message/answers"
+        },
+        {
+          "id": "Mail.Message.report",
+          "name": "report",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "report(): ?Core\\Mail\\Report",
+          "params": [],
+          "options": [],
+          "returnType": "?Core\\Mail\\Report",
+          "doc": {
+            "shortHtml": "Returns the delivery report of a bounce or a delay, with the status of each recipient.",
+            "returnHtml": "The report, or <code>null</code> when the message is not a delivery report."
+          },
+          "slug": "report",
+          "url": "/reference/core/mail-message/report/",
+          "examples": "core/Mail-Message/report"
+        },
+        {
+          "id": "Mail.Message.bounceTag",
+          "name": "bounceTag",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "bounceTag(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the tag after <code>+</code> in the address this message was sent to, such as <code>order-42</code> for <code>bounces+order-42@example.com</code>. It is the tag that the <code>bounceTag</code> option of <code>Core\\Mail::send</code> wrote. The address is read from <code>Delivered-To</code>, then <code>X-Original-To</code>, then <code>To</code>.",
+            "returnHtml": "The tag, or <code>null</code> when no address has a valid tag."
+          },
+          "slug": "bouncetag",
+          "url": "/reference/core/mail-message/bouncetag/",
+          "examples": "core/Mail-Message/bounceTag"
+        },
+        {
+          "id": "Mail.Message.uid",
+          "name": "uid",
+          "static": false,
+          "receiver": "message",
+          "generics": null,
+          "signature": "uid(): ?int",
+          "params": [],
+          "options": [],
+          "returnType": "?int",
+          "doc": {
+            "shortHtml": "Returns the number of the message in its mailbox folder. <code>Core\\Imap\\Folder::fetch</code> sets it. Pass it to the other methods of the folder.",
+            "returnHtml": "The UID, or <code>null</code> for a message that <code>parse</code> read."
+          },
+          "slug": "uid",
+          "url": "/reference/core/mail-message/uid/",
+          "examples": "core/Mail-Message/uid"
+        }
+      ],
+      "slug": "mail-message",
+      "url": "/reference/core/mail-message/",
+      "summaryBlocks": [
+        {
+          "html": "<p>A message that your program received, such as a reply or a bounce. <code>Core\\Mail\\Message::parse</code> reads it from its raw bytes. Every text it returns is <code>tainted</code>, because the sender wrote it.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Imap\\Folder::fetch",
+          "url": "/reference/core/imap-folder/fetch/"
+        }
+      ]
     },
     {
       "id": "Mail.Preview",
@@ -24495,6 +25579,167 @@
           "url": "/reference/core/mail/preview/"
         }
       ]
+    },
+    {
+      "id": "Mail.Report",
+      "name": "Core\\Mail\\Report",
+      "summary": "The delivery report in a bounce or a delay. `Core\\Mail\\Message::report()` returns it.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.Report.recipients",
+          "name": "recipients",
+          "static": false,
+          "receiver": "report",
+          "generics": null,
+          "signature": "recipients(): array<Core\\Mail\\ReportRecipient>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Mail\\ReportRecipient>",
+          "doc": {
+            "shortHtml": "Returns each recipient the report is about, in the order of the report.",
+            "returnHtml": "The recipients. At most 1,000 are read."
+          },
+          "slug": "recipients",
+          "url": "/reference/core/mail-report/recipients/",
+          "examples": "core/Mail-Report/recipients"
+        }
+      ],
+      "slug": "mail-report",
+      "url": "/reference/core/mail-report/",
+      "summaryBlocks": [
+        {
+          "html": "<p>The delivery report in a bounce or a delay. <code>Core\\Mail\\Message::report()</code> returns it.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Mail\\Message::report",
+          "url": "/reference/core/mail-message/report/"
+        }
+      ]
+    },
+    {
+      "id": "Mail.ReportRecipient",
+      "name": "Core\\Mail\\ReportRecipient",
+      "summary": "One recipient of a delivery report: the address, what the server did, and the status code. Every text it returns is `tainted`, because the server that sent the report wrote it.",
+      "enums": [
+        {
+          "name": "Action",
+          "cases": [],
+          "raw": "Action",
+          "doc": {
+            "shortHtml": "What the server did with the message for one recipient of a delivery report.",
+            "cases": []
+          }
+        }
+      ],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Mail.ReportRecipient.address",
+          "name": "address",
+          "static": false,
+          "receiver": "reportRecipient",
+          "generics": null,
+          "signature": "address(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the address that the server tried to deliver to. It comes from the <code>Final-Recipient</code> line of the report. The type <code>rfc822;</code> and the angle brackets are removed.",
+            "returnHtml": "The address, such as <code>user@example.com</code>. It is tainted, because the server that sent the report wrote it."
+          },
+          "slug": "address",
+          "url": "/reference/core/mail-reportrecipient/address/",
+          "examples": "core/Mail-ReportRecipient/address"
+        },
+        {
+          "id": "Mail.ReportRecipient.action",
+          "name": "action",
+          "static": false,
+          "receiver": "reportRecipient",
+          "generics": null,
+          "signature": "action(): Core\\Mail\\ReportRecipient::Action",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Mail\\ReportRecipient::Action",
+          "doc": {
+            "shortHtml": "Returns what the server did for this recipient.",
+            "returnHtml": "A <code>Core\\Mail\\ReportRecipient::Action</code> case."
+          },
+          "slug": "action",
+          "url": "/reference/core/mail-reportrecipient/action/",
+          "examples": "core/Mail-ReportRecipient/action"
+        },
+        {
+          "id": "Mail.ReportRecipient.status",
+          "name": "status",
+          "static": false,
+          "receiver": "reportRecipient",
+          "generics": null,
+          "signature": "status(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the status code, such as <code>5.1.1</code> for an address that does not exist.",
+            "returnHtml": "The status code from the <code>Status</code> line of the report. The code is three numbers joined by dots, such as <code>5.1.1</code>. The result is an empty string when the report has no such code. It is tainted, because the server that sent the report wrote it."
+          },
+          "slug": "status",
+          "url": "/reference/core/mail-reportrecipient/status/",
+          "examples": "core/Mail-ReportRecipient/status"
+        },
+        {
+          "id": "Mail.ReportRecipient.isPermanent",
+          "name": "isPermanent",
+          "static": false,
+          "receiver": "reportRecipient",
+          "generics": null,
+          "signature": "isPermanent(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Returns <code>true</code> when the status code starts with <code>5</code>. The server will not deliver to this address if you send again. A code that starts with <code>4</code> is temporary.",
+            "returnHtml": "<code>true</code> for a permanent failure."
+          },
+          "slug": "ispermanent",
+          "url": "/reference/core/mail-reportrecipient/ispermanent/",
+          "examples": "core/Mail-ReportRecipient/isPermanent"
+        },
+        {
+          "id": "Mail.ReportRecipient.diagnostic",
+          "name": "diagnostic",
+          "static": false,
+          "receiver": "reportRecipient",
+          "generics": null,
+          "signature": "diagnostic(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the server's own message, such as <code>550 5.1.1 User unknown</code>. It comes from the <code>Diagnostic-Code</code> line of the report.",
+            "returnHtml": "The message, or <code>null</code> when the report gives none. It is tainted, because the server that sent the report wrote it."
+          },
+          "slug": "diagnostic",
+          "url": "/reference/core/mail-reportrecipient/diagnostic/",
+          "examples": "core/Mail-ReportRecipient/diagnostic"
+        }
+      ],
+      "slug": "mail-reportrecipient",
+      "url": "/reference/core/mail-reportrecipient/",
+      "summaryBlocks": [
+        {
+          "html": "<p>One recipient of a delivery report: the address, what the server did, and the status code. Every text it returns is <code>tainted</code>, because the server that sent the report wrote it.</p>"
+        }
+      ],
+      "returnedBy": []
     },
     {
       "id": "Markdown",
@@ -52404,6 +53649,10 @@
         }
       ],
       "returnedBy": [
+        {
+          "name": "Core\\Mail\\Message::date",
+          "url": "/reference/core/mail-message/date/"
+        },
         {
           "name": "Core\\Router\\Match::parameter",
           "url": "/reference/core/router-match/parameter/"

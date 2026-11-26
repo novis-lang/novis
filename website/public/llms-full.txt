@@ -148,7 +148,13 @@ Conventions the whole file uses:
 | [`Core\Mail\Address`](#core-core-mail-address) |  |
 | [`Core\Mail\Attachment`](#core-core-mail-attachment) |  |
 | [`Core\Mail\Preview`](#core-core-mail-preview) |  |
+| [`Core\Mail\Message`](#core-core-mail-message) |  |
+| [`Core\Mail\Report`](#core-core-mail-report) |  |
+| [`Core\Mail\ReportRecipient`](#core-core-mail-reportrecipient) |  |
+| [`Core\Imap`](#core-core-imap) |  |
 | [`Core\Storage`](#core-core-storage) |  |
+| [`Core\Imap\Mailbox`](#core-core-imap-mailbox) |  |
+| [`Core\Imap\Folder`](#core-core-imap-folder) |  |
 | [`Core\Cldr`](#core-core-cldr) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | the interop primitives — authenticated encryption under a cipher named by a closed enum, two key derivations, key pairs over three curves, agreement and signatures, with no algorithm ever a string and none with a default |
@@ -48955,7 +48961,7 @@ Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns w
 
 **Returns** `string` — The message id, such as `3f2a…@example.com`, without angle brackets. The call returns when the mail server has accepted the message, or when a `capture = true` block or `nvs test` has kept it. Store the id to match a reply or a bounce to the message, or to pass it to `inReplyTo` later.
 
-**Throws** `RuntimeError` — The settings or the arguments are wrong, and nothing is sent. The capability `mail.send` does not allow `$endpoint`, or no `[mail.<name>]` block has that name. The block sets only one of `user` and `password`. An address is not a valid address. A value in `inReplyTo` or `references` is not a message id. `unsubscribe` is not an `https://` URL. `bounceTag` has a character that is not allowed.; `RuntimeError` — The body or its attachments are wrong, and nothing is sent. `text` is given with a `string` body. The HTML uses a `cid:` URL that no inline attachment has. A `cid:` URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a `<link rel="stylesheet">`. A mail cannot load a stylesheet, so put the CSS in a `<style>` element.; `IOError` — The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no `STARTTLS`, or has a certificate that does not verify. It is thrown when the server offers neither `AUTH PLAIN` nor `AUTH LOGIN`, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the message names every rejected address, and nobody gets the message. An address with letters that are not ASCII before the `@` needs a server that offers `SMTPUTF8`. With another server, nothing is sent.
+**Throws** `RuntimeError` — The settings or the arguments are wrong, and nothing is sent. The capability `mail.send` does not allow `$endpoint`, or no `[mail.<name>]` block has that name. The block sets only one of `user` and `password`. An address is not a valid address. A value in `inReplyTo` or `references` is not a message id. `unsubscribe` is not an `https://` URL. `bounceTag` has a character that is not allowed.; `RuntimeError` — The body or its attachments are wrong, and nothing is sent. `text` is given with a `string` body. The HTML uses a `cid:` URL that no inline attachment has. A `cid:` URL points at an image inside the same mail. An inline attachment is not used in the HTML. The HTML has a `<link rel="stylesheet">`. A mail cannot load a stylesheet, so put the CSS in a `<style>` element. An attachment of a received message has no file name.; `IOError` — The mail server could not be reached, closed the connection, or rejected a command. In the last case, the message contains the SMTP reply. It is also thrown when the block needs TLS and the server has no `STARTTLS`, or has a certificate that does not verify. It is thrown when the server offers neither `AUTH PLAIN` nor `AUTH LOGIN`, and when the message is larger than the server accepts. In all these cases, nothing is sent. If the server rejects a recipient, the error names every rejected address. Then nobody gets the mail. An address with letters that are not ASCII before the `@` needs a server that offers `SMTPUTF8`. With another server, nothing is sent.
 
 <a id="core-core-mail-preview"></a>
 #### `Core\Mail::preview`
@@ -48979,11 +48985,13 @@ Returns the body of a message exactly as `send` would send it, and sends nothing
 <a id="core-core-mail-address"></a>
 ### `Core\Mail\Address`
 
-Keywords: of
+Keywords: of, address, name
 
 | Member | Signature |
 |---|---|
 | [`Core\Mail\Address::of`](#core-core-mail-address-of) | `of(string $address, string $name): Core\Mail\Address` |
+| [`Core\Mail\Address->address`](#core-core-mail-address-address) | `address(): string` |
+| [`Core\Mail\Address->name`](#core-core-mail-address-name) | `name(): string` |
 
 <a id="core-core-mail-address-of"></a>
 #### `Core\Mail\Address::of`
@@ -49003,6 +49011,28 @@ Returns an address with a name, such as `"Ada Lovelace" <ada@example.com>`.
 
 **Throws** `RuntimeError` — `$address` is not an email address. A string such as `Ada <ada@example.com>` is not an address either: pass the name as `$name`.
 
+<a id="core-core-mail-address-address"></a>
+#### `Core\Mail\Address->address`
+
+```nvs skip
+$address->address(): string
+```
+
+Returns the email address, such as `ada@example.org`.
+
+**Returns** `string` — The address, without the name. For a received message, the address is `tainted`, because the sender wrote it.
+
+<a id="core-core-mail-address-name"></a>
+#### `Core\Mail\Address->name`
+
+```nvs skip
+$address->name(): string
+```
+
+Returns the name that is shown for the address, such as `Ada Lovelace`.
+
+**Returns** `string` — The name, or an empty string when the address has no name.
+
 <a id="core-core-mail-attachment"></a>
 ### `Core\Mail\Attachment`
 
@@ -49015,7 +49045,7 @@ Keywords: fromFile, fromBytes, inlineFile, inlineBytes, src, name, type, bytes, 
 | [`Core\Mail\Attachment::inlineFile`](#core-core-mail-attachment-inlinefile) | `inlineFile(string $path, { type?: string }): Core\Mail\Attachment` |
 | [`Core\Mail\Attachment::inlineBytes`](#core-core-mail-attachment-inlinebytes) | `inlineBytes(string $name, string\|bytes $data, { type?: string }): Core\Mail\Attachment` |
 | [`Core\Mail\Attachment->src`](#core-core-mail-attachment-src) | `src(): string` |
-| [`Core\Mail\Attachment->name`](#core-core-mail-attachment-name) | `name(): string` |
+| [`Core\Mail\Attachment->name`](#core-core-mail-attachment-name) | `name(): ?string` |
 | [`Core\Mail\Attachment->type`](#core-core-mail-attachment-type) | `type(): string` |
 | [`Core\Mail\Attachment->bytes`](#core-core-mail-attachment-bytes) | `bytes(): bytes` |
 | [`Core\Mail\Attachment->isInline`](#core-core-mail-attachment-isinline) | `isInline(): bool` |
@@ -49112,12 +49142,12 @@ Returns the URL to write in `<img src="…">`, such as `cid:3f2a…@inline`. A `
 #### `Core\Mail\Attachment->name`
 
 ```nvs skip
-$attachment->name(): string
+$attachment->name(): ?string
 ```
 
 Returns the file name of the attachment, such as `invoice.pdf`.
 
-**Returns** `string` — The file name the recipient sees.
+**Returns** `?string` — The file name the recipient sees. `name()` returns `null` for a received file with no name.
 
 <a id="core-core-mail-attachment-type"></a>
 #### `Core\Mail\Attachment->type`
@@ -49208,6 +49238,376 @@ Returns the CSS rules that match no element of the HTML. A rule for an attribute
 
 **Returns** `array<string>` — One string for each rule, in the order of the HTML. Each is also in `keptCss()`.
 
+<a id="core-core-mail-message"></a>
+### `Core\Mail\Message`
+
+Keywords: parse, messageId, from, to, cc, replyTo, subject, date, header, inReplyTo, references, text, html, attachments, raw, kind, answers, report, bounceTag, uid
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\Message::parse`](#core-core-mail-message-parse) | `parse(string\|bytes $raw): Core\Mail\Message` |
+| [`Core\Mail\Message->messageId`](#core-core-mail-message-messageid) | `messageId(): ?string` |
+| [`Core\Mail\Message->from`](#core-core-mail-message-from) | `from(): ?Core\Mail\Address` |
+| [`Core\Mail\Message->to`](#core-core-mail-message-to) | `to(): array<Core\Mail\Address>` |
+| [`Core\Mail\Message->cc`](#core-core-mail-message-cc) | `cc(): array<Core\Mail\Address>` |
+| [`Core\Mail\Message->replyTo`](#core-core-mail-message-replyto) | `replyTo(): array<Core\Mail\Address>` |
+| [`Core\Mail\Message->subject`](#core-core-mail-message-subject) | `subject(): string` |
+| [`Core\Mail\Message->date`](#core-core-mail-message-date) | `date(): ?Core\Time\DateTime` |
+| [`Core\Mail\Message->header`](#core-core-mail-message-header) | `header(string $name): array<string>` |
+| [`Core\Mail\Message->inReplyTo`](#core-core-mail-message-inreplyto) | `inReplyTo(): ?string` |
+| [`Core\Mail\Message->references`](#core-core-mail-message-references) | `references(): array<string>` |
+| [`Core\Mail\Message->text`](#core-core-mail-message-text) | `text(): ?string` |
+| [`Core\Mail\Message->html`](#core-core-mail-message-html) | `html(): ?string` |
+| [`Core\Mail\Message->attachments`](#core-core-mail-message-attachments) | `attachments(): array<Core\Mail\Attachment>` |
+| [`Core\Mail\Message->raw`](#core-core-mail-message-raw) | `raw(): bytes` |
+| [`Core\Mail\Message->kind`](#core-core-mail-message-kind) | `kind(): Core\Mail\Message::Kind` |
+| [`Core\Mail\Message->answers`](#core-core-mail-message-answers) | `answers(): ?string` |
+| [`Core\Mail\Message->report`](#core-core-mail-message-report) | `report(): ?Core\Mail\Report` |
+| [`Core\Mail\Message->bounceTag`](#core-core-mail-message-bouncetag) | `bounceTag(): ?string` |
+| [`Core\Mail\Message->uid`](#core-core-mail-message-uid) | `uid(): ?int` |
+
+<a id="core-core-mail-message-parse"></a>
+#### `Core\Mail\Message::parse`
+
+```nvs skip
+Core\Mail\Message::parse(string|bytes $raw): Core\Mail\Message
+```
+
+Reads a raw message, such as the content of an `.eml` file. A broken message is not an error. A header that is missing is `null` or an empty array. A part (one piece of a message, such as the text, the HTML or a file) that cannot be read is skipped.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$raw` | `string\|bytes` (neutral) | The whole message, headers and body, as `bytes` or a `string`. |
+
+**Returns** `Core\Mail\Message` — The message. Novis reads the first 16 levels of nesting and the first 1,000 parts, and skips the rest. Only the first 1,000 header lines of a part are read.
+
+<a id="core-core-mail-message-messageid"></a>
+#### `Core\Mail\Message->messageId`
+
+```nvs skip
+$message->messageId(): ?string
+```
+
+Returns the `Message-ID` header without its angle brackets, such as `1f2e@example.com`.
+
+**Returns** `?string` — The message id, or `null` when the message has none.
+
+<a id="core-core-mail-message-from"></a>
+#### `Core\Mail\Message->from`
+
+```nvs skip
+$message->from(): ?Core\Mail\Address
+```
+
+Returns the first address of the `From` header. The sender writes this header, so it does not prove who sent the message.
+
+**Returns** `?Core\Mail\Address` — The address and its name, or `null` when the message has no `From` address.
+
+<a id="core-core-mail-message-to"></a>
+#### `Core\Mail\Message->to`
+
+```nvs skip
+$message->to(): array<Core\Mail\Address>
+```
+
+Returns the addresses of the `To` header.
+
+**Returns** `array<Core\Mail\Address>` — One address for each recipient, in order. The array is empty when there are none.
+
+<a id="core-core-mail-message-cc"></a>
+#### `Core\Mail\Message->cc`
+
+```nvs skip
+$message->cc(): array<Core\Mail\Address>
+```
+
+Returns the addresses of the `Cc` header.
+
+**Returns** `array<Core\Mail\Address>` — One address for each recipient, in order. The array is empty when there is none.
+
+<a id="core-core-mail-message-replyto"></a>
+#### `Core\Mail\Message->replyTo`
+
+```nvs skip
+$message->replyTo(): array<Core\Mail\Address>
+```
+
+Returns the addresses of the `Reply-To` header. A reply goes to these addresses.
+
+**Returns** `array<Core\Mail\Address>` — The addresses, in order. The array is empty when the message has no `Reply-To`.
+
+<a id="core-core-mail-message-subject"></a>
+#### `Core\Mail\Message->subject`
+
+```nvs skip
+$message->subject(): string
+```
+
+Returns the subject. An encoded subject, such as `=?UTF-8?B?…?=`, is decoded.
+
+**Returns** `string` — The subject, or an empty string when the message has none.
+
+<a id="core-core-mail-message-date"></a>
+#### `Core\Mail\Message->date`
+
+```nvs skip
+$message->date(): ?Core\Time\DateTime
+```
+
+Returns the `Date` header, in the time zone the sender wrote.
+
+**Returns** `?Core\Time\DateTime` — The date, or `null` when the message has no date or the date cannot be read.
+
+<a id="core-core-mail-message-header"></a>
+#### `Core\Mail\Message->header`
+
+```nvs skip
+$message->header(string $name): array<string>
+```
+
+Returns every value of the header `$name`, decoded, in the order of the message.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The header name, such as `List-Id`. Upper and lower case are the same. |
+
+**Returns** `array<string>` — One string for each line of that header. The array is empty when there is none.
+
+<a id="core-core-mail-message-inreplyto"></a>
+#### `Core\Mail\Message->inReplyTo`
+
+```nvs skip
+$message->inReplyTo(): ?string
+```
+
+Returns the message id in the `In-Reply-To` header, without its angle brackets. A reply has this header. It is the id of the message that was answered.
+
+**Returns** `?string` — The message id, or `null` when the message has no `In-Reply-To`.
+
+<a id="core-core-mail-message-references"></a>
+#### `Core\Mail\Message->references`
+
+```nvs skip
+$message->references(): array<string>
+```
+
+Returns the message ids in the `References` header, without their angle brackets.
+
+**Returns** `array<string>` — The ids, oldest first. The array is empty when the message has none.
+
+<a id="core-core-mail-message-text"></a>
+#### `Core\Mail\Message->text`
+
+```nvs skip
+$message->text(): ?string
+```
+
+Returns the plain text body of the message: its first `text/plain` part. The result is tainted, because the sender wrote it.
+
+**Returns** `?string` — The text, or `null` when the message has no `text/plain` part.
+
+<a id="core-core-mail-message-html"></a>
+#### `Core\Mail\Message->html`
+
+```nvs skip
+$message->html(): ?string
+```
+
+Returns the HTML body of the message, as a `tainted` string. To show it on a page, pass it to `Core\Html::sanitize` first.
+
+**Returns** `?string` — The HTML, or `null` when the message has no HTML part.
+
+<a id="core-core-mail-message-attachments"></a>
+#### `Core\Mail\Message->attachments`
+
+```nvs skip
+$message->attachments(): array<Core\Mail\Attachment>
+```
+
+Returns the files of the message and the images shown inside its HTML.
+
+**Returns** `array<Core\Mail\Attachment>` — One attachment for each file part, in order. A part is one piece of a message, such as the text, the HTML or a file. The array is empty when there is none.
+
+<a id="core-core-mail-message-raw"></a>
+#### `Core\Mail\Message->raw`
+
+```nvs skip
+$message->raw(): bytes
+```
+
+Returns the message exactly as `parse` read it.
+
+**Returns** `bytes` — The raw bytes, as `tainted bytes`, because the sender wrote them.
+
+<a id="core-core-mail-message-kind"></a>
+#### `Core\Mail\Message->kind`
+
+```nvs skip
+$message->kind(): Core\Mail\Message::Kind
+```
+
+Returns what the message is: a bounce, a delay, a complaint, an auto-reply, a reply or something else. Only a delivery report is a bounce or a delay.
+
+**Returns** `Core\Mail\Message::Kind` — A `Core\Mail\Message::Kind` case.
+
+<a id="core-core-mail-message-answers"></a>
+#### `Core\Mail\Message->answers`
+
+```nvs skip
+$message->answers(): ?string
+```
+
+Returns the `Message-ID` of the mail this message is about, without angle brackets. For a bounce, a delay or a complaint, it is the id of the returned message. Otherwise it is `In-Reply-To`, then the last id in `References`.
+
+**Returns** `?string` — The id, or `null` when the message names none.
+
+<a id="core-core-mail-message-report"></a>
+#### `Core\Mail\Message->report`
+
+```nvs skip
+$message->report(): ?Core\Mail\Report
+```
+
+Returns the delivery report of a bounce or a delay, with the status of each recipient.
+
+**Returns** `?Core\Mail\Report` — The report, or `null` when the message is not a delivery report.
+
+<a id="core-core-mail-message-bouncetag"></a>
+#### `Core\Mail\Message->bounceTag`
+
+```nvs skip
+$message->bounceTag(): ?string
+```
+
+Returns the tag after `+` in the address this message was sent to, such as `order-42` for `bounces+order-42@example.com`. It is the tag that the `bounceTag` option of `Core\Mail::send` wrote. The address is read from `Delivered-To`, then `X-Original-To`, then `To`.
+
+**Returns** `?string` — The tag, or `null` when no address has a valid tag.
+
+<a id="core-core-mail-message-uid"></a>
+#### `Core\Mail\Message->uid`
+
+```nvs skip
+$message->uid(): ?int
+```
+
+Returns the number of the message in its mailbox folder. `Core\Imap\Folder::fetch` sets it. Pass it to the other methods of the folder.
+
+**Returns** `?int` — The UID, or `null` for a message that `parse` read.
+
+<a id="core-core-mail-report"></a>
+### `Core\Mail\Report`
+
+Keywords: recipients
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\Report->recipients`](#core-core-mail-report-recipients) | `recipients(): array<Core\Mail\ReportRecipient>` |
+
+<a id="core-core-mail-report-recipients"></a>
+#### `Core\Mail\Report->recipients`
+
+```nvs skip
+$report->recipients(): array<Core\Mail\ReportRecipient>
+```
+
+Returns each recipient the report is about, in the order of the report.
+
+**Returns** `array<Core\Mail\ReportRecipient>` — The recipients. At most 1,000 are read.
+
+<a id="core-core-mail-reportrecipient"></a>
+### `Core\Mail\ReportRecipient`
+
+Keywords: address, action, status, isPermanent, diagnostic
+
+| Member | Signature |
+|---|---|
+| [`Core\Mail\ReportRecipient->address`](#core-core-mail-reportrecipient-address) | `address(): string` |
+| [`Core\Mail\ReportRecipient->action`](#core-core-mail-reportrecipient-action) | `action(): Core\Mail\ReportRecipient::Action` |
+| [`Core\Mail\ReportRecipient->status`](#core-core-mail-reportrecipient-status) | `status(): string` |
+| [`Core\Mail\ReportRecipient->isPermanent`](#core-core-mail-reportrecipient-ispermanent) | `isPermanent(): bool` |
+| [`Core\Mail\ReportRecipient->diagnostic`](#core-core-mail-reportrecipient-diagnostic) | `diagnostic(): ?string` |
+
+<a id="core-core-mail-reportrecipient-address"></a>
+#### `Core\Mail\ReportRecipient->address`
+
+```nvs skip
+$reportRecipient->address(): string
+```
+
+Returns the address that the server tried to deliver to. It comes from the `Final-Recipient` line of the report. The type `rfc822;` and the angle brackets are removed.
+
+**Returns** `string` — The address, such as `user@example.com`. It is tainted, because the server that sent the report wrote it.
+
+<a id="core-core-mail-reportrecipient-action"></a>
+#### `Core\Mail\ReportRecipient->action`
+
+```nvs skip
+$reportRecipient->action(): Core\Mail\ReportRecipient::Action
+```
+
+Returns what the server did for this recipient.
+
+**Returns** `Core\Mail\ReportRecipient::Action` — A `Core\Mail\ReportRecipient::Action` case.
+
+<a id="core-core-mail-reportrecipient-status"></a>
+#### `Core\Mail\ReportRecipient->status`
+
+```nvs skip
+$reportRecipient->status(): string
+```
+
+Returns the status code, such as `5.1.1` for an address that does not exist.
+
+**Returns** `string` — The status code from the `Status` line of the report. The code is three numbers joined by dots, such as `5.1.1`. The result is an empty string when the report has no such code. It is tainted, because the server that sent the report wrote it.
+
+<a id="core-core-mail-reportrecipient-ispermanent"></a>
+#### `Core\Mail\ReportRecipient->isPermanent`
+
+```nvs skip
+$reportRecipient->isPermanent(): bool
+```
+
+Returns `true` when the status code starts with `5`. The server will not deliver to this address if you send again. A code that starts with `4` is temporary.
+
+**Returns** `bool` — `true` for a permanent failure.
+
+<a id="core-core-mail-reportrecipient-diagnostic"></a>
+#### `Core\Mail\ReportRecipient->diagnostic`
+
+```nvs skip
+$reportRecipient->diagnostic(): ?string
+```
+
+Returns the server's own message, such as `550 5.1.1 User unknown`. It comes from the `Diagnostic-Code` line of the report.
+
+**Returns** `?string` — The message, or `null` when the report gives none. It is tainted, because the server that sent the report wrote it.
+
+<a id="core-core-imap"></a>
+### `Core\Imap`
+
+Keywords: open
+
+| Member | Signature |
+|---|---|
+| [`Core\Imap::open`](#core-core-imap-open) | `open(string $endpoint): Core\Imap\Mailbox` |
+
+<a id="core-core-imap-open"></a>
+#### `Core\Imap::open`
+
+```nvs skip
+Core\Imap::open(string $endpoint): Core\Imap\Mailbox
+```
+
+Connects to the mailbox of the block `[imap.<endpoint>]` and signs in. The connection is closed when the request or the script ends.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$endpoint` | `string` (sink) | The name of the block, such as `inbox` for `[imap.inbox]`. It must be listed in `[capabilities.imap] connect`. |
+
+**Returns** `Core\Imap\Mailbox` — The open mailbox.
+
+**Throws** `RuntimeError` — The name is not listed in `[capabilities.imap] connect`, no block has that name, or the block has no sign-in.; `IOError` — The server cannot be reached, its certificate is not trusted, or it does not accept the sign-in.
+
 <a id="core-core-storage"></a>
 ### `Core\Storage`
 
@@ -49293,6 +49693,218 @@ Returns the keys of the files on `$disk`, sorted by their bytes. `get` can read 
 **Returns** `array<string>` — The matching keys, sorted. An empty array if no file matches. Only regular files with a valid key are listed. A folder, a symlink and a file with any other name are not in the result.
 
 **Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `prefix` is not empty and not a valid key. Or the `fs.read` capability does not include the disk's folder.; `IOError` — The disk's folder could not be read. It does not exist, or it is not a folder.
+
+<a id="core-core-imap-mailbox"></a>
+### `Core\Imap\Mailbox`
+
+Keywords: folders, folder
+
+| Member | Signature |
+|---|---|
+| [`Core\Imap\Mailbox->folders`](#core-core-imap-mailbox-folders) | `folders(): array<string>` |
+| [`Core\Imap\Mailbox->folder`](#core-core-imap-mailbox-folder) | `folder(string $name): Core\Imap\Folder` |
+
+<a id="core-core-imap-mailbox-folders"></a>
+#### `Core\Imap\Mailbox->folders`
+
+```nvs skip
+$mailbox->folders(): array<string>
+```
+
+Returns the name of every folder you can open, such as `INBOX` and `Sent`.
+
+**Returns** `array<string>` — The names, in the order the server sends them. A `directory` block returns them in alphabetical order. The server writes the names, so they are `tainted` (text from outside your program).
+
+**Throws** `IOError` — The server does not answer.
+
+<a id="core-core-imap-mailbox-folder"></a>
+#### `Core\Imap\Mailbox->folder`
+
+```nvs skip
+$mailbox->folder(string $name): Core\Imap\Folder
+```
+
+Opens the folder `$name` of the mailbox.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The folder name, such as `INBOX`, as `folders` returns it. |
+
+**Returns** `Core\Imap\Folder` — The folder.
+
+**Throws** `RuntimeError` — The block is a `directory` block, and the name is not allowed there. Such a block is a folder on disk that works like a mailbox. A name is not allowed when it is empty, `.` or `..`, or has a `/`, `\`, `:` or control character. A name that ends with a dot or a space is not allowed either.; `IOError` — The folder does not exist, or the server does not answer.
+
+<a id="core-core-imap-folder"></a>
+### `Core\Imap\Folder`
+
+Keywords: uidValidity, search, fetch, move, markSeen, markUnseen, flag, unflag, delete
+
+| Member | Signature |
+|---|---|
+| [`Core\Imap\Folder->uidValidity`](#core-core-imap-folder-uidvalidity) | `uidValidity(): int` |
+| [`Core\Imap\Folder->search`](#core-core-imap-folder-search) | `search({ unseen?: bool, since?: Core\Time\Date, before?: Core\Time\Date, from?: string, subject?: string, limit?: int }): array<int>` |
+| [`Core\Imap\Folder->fetch`](#core-core-imap-folder-fetch) | `fetch(int $uid): Core\Mail\Message` |
+| [`Core\Imap\Folder->move`](#core-core-imap-folder-move) | `move(int $uid, string $folder): void` |
+| [`Core\Imap\Folder->markSeen`](#core-core-imap-folder-markseen) | `markSeen(int $uid): void` |
+| [`Core\Imap\Folder->markUnseen`](#core-core-imap-folder-markunseen) | `markUnseen(int $uid): void` |
+| [`Core\Imap\Folder->flag`](#core-core-imap-folder-flag) | `flag(int $uid, string $flag): void` |
+| [`Core\Imap\Folder->unflag`](#core-core-imap-folder-unflag) | `unflag(int $uid, string $flag): void` |
+| [`Core\Imap\Folder->delete`](#core-core-imap-folder-delete) | `delete(int $uid): void` |
+
+<a id="core-core-imap-folder-uidvalidity"></a>
+#### `Core\Imap\Folder->uidValidity`
+
+```nvs skip
+$folder->uidValidity(): int
+```
+
+Returns the folder's `UIDVALIDITY` (a number that changes when the server numbers the messages again). A UID is the number the server gives each message in a folder. When the `UIDVALIDITY` changes, a UID you saved may now belong to another message.
+
+**Returns** `int` — A number of 1 or more.
+
+<a id="core-core-imap-folder-search"></a>
+#### `Core\Imap\Folder->search`
+
+```nvs skip
+$folder->search({ unseen?: bool, since?: Core\Time\Date, before?: Core\Time\Date, from?: string, subject?: string, limit?: int }): array<int>
+```
+
+Returns the UID (the number the server gives each message in a folder) of each message that matches every option you set. With no option, it returns every message.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{ unseen: … }` | `bool` (default `false`) | `true` finds only the messages that are not read yet. |
+| `{ since: … }` | `Core\Time\Date` (default `null`) | Finds the messages received on this day or later. |
+| `{ before: … }` | `Core\Time\Date` (default `null`) | Finds the messages received before this day. The day itself is not included. |
+| `{ from: … }` | `string` (default `null`, neutral) | Finds the messages whose `From` header contains this text. |
+| `{ subject: … }` | `string` (default `null`, neutral) | Finds the messages whose subject contains this text. |
+| `{ limit: … }` | `int` (default `null`) | Returns at most this many UIDs, the oldest first. |
+
+**Returns** `array<int>` — The UIDs, oldest first.
+
+**Throws** `RuntimeError` — `limit` is less than 1.; `IOError` — The server does not answer, or the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-fetch"></a>
+#### `Core\Imap\Folder->fetch`
+
+```nvs skip
+$folder->fetch(int $uid): Core\Mail\Message
+```
+
+Reads the message `$uid` and parses it. The message is not marked as read.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+
+**Returns** `Core\Mail\Message` — The parsed message. Its `uid()` is `$uid`.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `IOError` — No message has that UID, or the server does not answer. It is also thrown when the message is larger than the memory the request has left. It is also thrown when the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-move"></a>
+#### `Core\Imap\Folder->move`
+
+```nvs skip
+$folder->move(int $uid, string $folder): void
+```
+
+Moves the message `$uid` to the folder `$folder`. In that folder, the message has a new UID.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+| `$folder` | `string` (neutral) | The name of the folder to move it to, such as `Archive`. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `IOError` — No message has that UID, the folder `$folder` does not exist, the server does not support moving a single message, or the server does not answer.
+
+<a id="core-core-imap-folder-markseen"></a>
+#### `Core\Imap\Folder->markSeen`
+
+```nvs skip
+$folder->markSeen(int $uid): void
+```
+
+Marks the message `$uid` as read. It sets the `\Seen` flag.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `IOError` — No message has that UID, or the server does not answer. It is also thrown when the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-markunseen"></a>
+#### `Core\Imap\Folder->markUnseen`
+
+```nvs skip
+$folder->markUnseen(int $uid): void
+```
+
+Marks the message `$uid` as not read. It removes the `\Seen` flag.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `IOError` — No message has that UID, or the server does not answer. It is also thrown when the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-flag"></a>
+#### `Core\Imap\Folder->flag`
+
+```nvs skip
+$folder->flag(int $uid, string $flag): void
+```
+
+Adds the flag `$flag` to the message `$uid`. If the message has it already, nothing changes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+| `$flag` | `string` (neutral) | `\Answered`, `\Flagged`, `\Draft`, `\Seen`, or a keyword such as `$Important`. A keyword cannot have a space or any of these characters: `(){%*"\]`. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `RuntimeError` — `$flag` starts with `\` and is not one of the four standard flags, or it has a space or one of the characters `(){%*"\]`, or it is longer than 255 bytes. `\Deleted` throws too. To delete a message, call `delete`.; `IOError` — No message has that UID, or the server does not answer. It is also thrown when the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-unflag"></a>
+#### `Core\Imap\Folder->unflag`
+
+```nvs skip
+$folder->unflag(int $uid, string $flag): void
+```
+
+Removes the flag `$flag` from the message `$uid`. If the message does not have it, nothing changes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+| `$flag` | `string` (neutral) | `\Answered`, `\Flagged`, `\Draft`, `\Seen`, or a keyword such as `$Important`. A keyword cannot have a space or any of these characters: `(){%*"\]`. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `RuntimeError` — `$flag` starts with `\` and is not one of the four standard flags, or it has a space or one of the characters `(){%*"\]`, or it is longer than 255 bytes. `\Deleted` throws too. To delete a message, call `delete`.; `IOError` — No message has that UID, or the server does not answer. It is also thrown when the folder's `UIDVALIDITY` changed. That is a number that changes when the server numbers the messages again.
+
+<a id="core-core-imap-folder-delete"></a>
+#### `Core\Imap\Folder->delete`
+
+```nvs skip
+$folder->delete(int $uid): void
+```
+
+Deletes the message `$uid` from the folder at once. No other message is deleted.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$uid` | `int` | A UID (the number the server gives each message in a folder) that `search` returned. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — `$uid` is less than 1 or larger than 4294967295.; `IOError` — No message has that UID, the server does not support deleting a single message, or the server does not answer.
 
 <a id="core-core-cldr"></a>
 ### `Core\Cldr`
@@ -62007,6 +62619,33 @@ Whether a connection to a directory is encrypted.
 | `Core\Ldap::Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
 | `Core\Ldap::Tls::None` | The connection is not encrypted. The password and every result are sent over the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
 
+<a id="enum-core-mail-message-kind"></a>
+#### `Core\Mail\Message::Kind`
+
+What a received message is, as `Core\Mail\Message::kind()` returns it.
+
+| Case | Meaning |
+|---|---|
+| `Core\Mail\Message::Kind::Bounce` | A delivery report with at least one recipient whose delivery failed. |
+| `Core\Mail\Message::Kind::Delay` | A delivery report with no failed recipient and at least one delayed recipient. The server still tries to deliver the message. |
+| `Core\Mail\Message::Kind::Complaint` | A feedback report: a recipient marked the message as spam. |
+| `Core\Mail\Message::Kind::AutoReply` | A message that a program wrote in answer, such as an out-of-office reply. |
+| `Core\Mail\Message::Kind::Reply` | A message with an `In-Reply-To` header. |
+| `Core\Mail\Message::Kind::Other` | Any other message. |
+
+<a id="enum-core-mail-reportrecipient-action"></a>
+#### `Core\Mail\ReportRecipient::Action`
+
+What the server did with the message for one recipient of a delivery report.
+
+| Case | Meaning |
+|---|---|
+| `Core\Mail\ReportRecipient::Action::Failed` | The message could not be delivered. |
+| `Core\Mail\ReportRecipient::Action::Delayed` | The message is late. The server still tries to deliver it. |
+| `Core\Mail\ReportRecipient::Action::Delivered` | The server put the message in the mailbox. |
+| `Core\Mail\ReportRecipient::Action::Relayed` | The message was passed to another server, which sends no report. |
+| `Core\Mail\ReportRecipient::Action::Expanded` | The message was sent on to the members of a mailing list. |
+
 <a id="enum-core-ldap-connection-scope"></a>
 #### `Core\Ldap\Connection::Scope`
 
@@ -64495,7 +65134,7 @@ wall_time=unset
 ### The blocks the binary accepts
 
 Every directive is written in a block. The root table has no directives. The table below lists
-every block the parser accepts. Any other block is `E0601` when it contains a setting. An unknown block with no
+every block the parser accepts. Any other block that contains a setting is the error `E0601`. An unknown block with no
 setting under it gives the warning `W1024`, and Novis ignores it.
 
 | Block | Contains |
@@ -64508,9 +65147,10 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[cache.memory]`, `[cache.shared]` | `Core\Cache`'s two caches: `max_size`, `fill_wait`; `url`, `timeout`. The compiled-artifact cache is not here. It is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `journal_mode`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the connection pool's bounds, written as a table. `pool = false` turns the pool off |
-| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. That includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
-| `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`; the default is `implicit` on port 465, `starttls` when the block has a credential, and `none` otherwise), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
+| `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. This includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
+| `[mail.<name>]` | an SMTP server a program sends mail through. The server and the sender: `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the address that bounces go to) and `timeout`. The sign-in: `user`, `password`, `password_file` and `auth` (`plain`, `login` or `xoauth2`). `tls` is `implicit`, `starttls` or `none`. The default is `implicit` on port 465. On another port it is `starttls` when the block has a credential, and `none` otherwise. `tls_ca_file` names your own certificate authority. For `xoauth2`: `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file`. To sign each message: `dkim_selector`, `dkim_key_file`, `dkim_domain`. `capture` keeps each message and sends nothing. `pool` sets the kept connections |
 | `[mail.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the bounds of the block's kept connections, as `[db.<name>.pool]` has them. `pool = false` opens a new connection for every message |
+| `[imap.<name>]` | a mailbox that `Core\Imap::open` reads over IMAP (the protocol a program uses to read a mailbox on a server). The server: `host`, `port` (default 993) and `timeout` (default `30s`). The sign-in: `user`, `password`, `password_file` and `auth` (`plain`, `login` or `xoauth2`). `tls` is `implicit`, the default, or `starttls`. There is no `none`. `tls_ca_file` works as in `[mail.<name>]`. For `xoauth2`, as in `[mail.<name>]`: `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file`. `directory` reads a folder of `.eml` files on disk instead of a server. Each subfolder is a mail folder, and each `<uid>.eml` file is a message. A `directory` block needs no other key, and it does not allow one |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
@@ -64685,19 +65325,19 @@ This table is the complete list of capabilities:
 | `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
-| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly. A `net.connect` grant does not give it |
+| `net.listen` | binding an endpoint | the `address:port` endpoints the program may bind. Each one must match exactly. A `net.connect` grant does not allow binding |
 | `net.local` | connecting to or binding a socket path | the paths or directories reachable. `net.connect` and `net.local` are separate grants |
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 | `db.schema` | changing tables with `Core\Db\Schema::applySafe` and `applyIncludingRisky` | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
+| `imap.connect` | opening an `[imap.<name>]` block with `Core\Imap::open` | the block names |
 | `cache.shared` | the store that `[cache.shared] url` names, used by `Core\Cache::shared()` and `Core\RateLimit::consume` | `true` or `false`: a deployment has one shared store |
 | `queue.purge` | removing a queue's rows with `Core\Queue::delete` and `purge` | the queue names |
 | `env` | reading environment variables with `Core\Env::get`, `secret` and `all`, and `Core\Config::secret` | `true` or `false`; write `env = true` under `[capabilities]` |
 
-Every capability in the table is accepted in `nvs.toml`, also one that no method of this version
-checks yet.
+Every capability in the table is accepted in `nvs.toml`, even one that no method checks yet.
 
 A grant is a list or `true` or `false`. A dotted key is the same as a nested block:
 
@@ -64715,7 +65355,7 @@ names. So `data/../etc` is not under `data`, and `data2` is not under `data`. A 
 does not allow running it as a script.
 
 **A denied call throws an ordinary `RuntimeError`.** Its message names the method, the capability
-and the argument. A program can catch it and go on. In this example, the program catches two
+and the argument. A program can catch it and continue. In this example, the program catches two
 denied calls:
 
 ```toml file=nvs.toml
@@ -64956,7 +65596,8 @@ A directive that contains a secret has a `_file` sibling. The file's **whole con
 value. Exactly one trailing newline (and a `\r` before it) is removed, and nothing else is trimmed.
 Only one of the pair may be set. Setting both is `E0608`. These directives have such a pair:
 `[db.<name>] password`, `[mail.<name>] password`, `[mail.<name>] oauth_client_secret`,
-`[mail.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
+`[mail.<name>] oauth_refresh_token`, `[imap.<name>] password`, `[imap.<name>] oauth_client_secret`,
+`[imap.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
 `[http] csrf_key` and `[cache.shared] password`:
 
 ```toml
@@ -64982,13 +65623,13 @@ printing it.
 A secret file is part of the trust boundary above. An account that can rewrite it chooses the
 credential the server connects with. So the boot stops with an error when another account can
 **write** a secret file. When another account can only **read** it, the boot gives a warning and
-goes on. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
+continues. A Docker Compose secret is mounted `0444`, and a Kubernetes secret volume defaults to
 `0644`. Inside a container, a file that others can read is normal.
 
 A credential is used exactly as it was written, and no part of the runtime trims one. A password may
-begin or end with a space. Such a space is hard to see. A secret file is never shown, and at the end
-of a TOML line the space is one character before a quote. So the boot warns `W1007`, names the
-directive, and goes on with the value.
+begin or end with a space. Such a space is hard to see. Novis never prints the content of a secret file.
+In a TOML line, a space at the end of the value is only one character before the closing quote. So
+the boot warns `W1007`, names the directive, and continues with the value.
 
 There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
 or it is the content of a file the directive names.
@@ -65003,7 +65644,7 @@ the secret to a plaintext file. A `_file` directive reads that file.
 | [SOPS](https://getsops.io/) with `age` or a KMS, in a task runner or a `make` target | `sops -d --extract '["db"]["password"]' secrets.enc.yaml > /run/novis/db-password` | `password_file = "/run/novis/db-password"` |
 | SOPS under systemd | a `sops -d` in `ExecStartPre`, or `LoadCredential=` | `password_file = "/run/credentials/novis.service/db-password"` |
 | Docker Compose | a `secrets:` entry, mounted `0444` | `password_file = "/run/secrets/db-password"` |
-| Kubernetes — Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
+| Kubernetes: Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
 | Vault or a cloud secret manager | an agent or sidecar templating a file | `password_file = "/run/novis/db-password"` |
 
 Two things make this setup safe and reliable. First, write the decrypted file where only the serving

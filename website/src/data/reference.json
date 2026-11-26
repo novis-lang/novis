@@ -1934,6 +1934,32 @@
     },
     {
       "area": "types",
+      "slug": "mail-message-kind",
+      "url": "/reference/types/mail-message-kind/",
+      "title": "Core\\Mail\\Message::Kind",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Mail\\Message::Kind",
+        "title": "Core\\Mail\\Message::Kind",
+        "examples": "types/Mail-Message-Kind"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "mail-reportrecipient-action",
+      "url": "/reference/types/mail-reportrecipient-action/",
+      "title": "Core\\Mail\\ReportRecipient::Action",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Mail\\ReportRecipient::Action",
+        "title": "Core\\Mail\\ReportRecipient::Action",
+        "examples": "types/Mail-ReportRecipient-Action"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "mime-type",
       "url": "/reference/types/mime-type/",
       "title": "Core\\Mime::Type",
