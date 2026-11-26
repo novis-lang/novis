@@ -164,6 +164,16 @@ a queue run's job is its script, because `Core\Queue::push` takes a script and h
 the index an event's outcome is one nullable JSON column, `outcome`, because the viewer draws it and
 never filters or sums on it. An `exceptions` row names its `request` or its `run`, both nullable.
 
+**Stage 2 settled what each request figure is.** The route tables keep no handler declaration
+site, so a line records the handler's name alone, and the rule declines `handler_site`. A link to
+the handler's source is the viewer's to make from the name. `bytes_in` is the request body bytes
+the server read off the wire (`Supply::carried`, the count `upload_total` is held to), and
+`bytes_out` is the body length the head knew, the access line's `bytes`, so a streamed answer has
+none. The memory limit is the ceiling the operator wrote, `memory_limit` plus the fatal reserve,
+and `None` with no ceiling. The facts cross on `Completion::recorded` and the door's boxed
+`spooled::Ran`, built only when `store` is on, so a request with it off allocates nothing more.
+The list's memory filter is `min_memory`, in bytes, beside `min_us`.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -191,16 +201,24 @@ place of none, and no stage adds a line per request). A stage that would add one
 **Split:** an `Explore` subagent first reports whether a route's row carries the site of its
 handler, as `file.rs:NN` and one line.
 
-- [ ] `crates/nvs-runtime/src/host.rs:700`: `Completion` carries the peak and the limit, set at
+- [x] `crates/nvs-runtime/src/host.rs:700`: `Completion` carries the peak and the limit, set at
   `crates/nvs-host/src/isolate.rs:1488` only when `store` is on.
-- [ ] `crates/nvs-runtime/src/spool.rs:191`: the five optional fields on `Request`, and
+- [x] `crates/nvs-runtime/src/spool.rs:191`: the five optional fields on `Request`, and
   `crates/nvs-server/src/spooled.rs:230` writes them. The byte counts come from the body recorder
   (`spool.rs:257`) and the answer the door sends.
-- [ ] `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`: its `request` line gains the fields.
-- [ ] `crates/nvs-cli/src/debug/index.rs:78` and `ingest.rs`: the columns, and `api.rs` gives them.
+- [x] `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`: its `request` line gains the fields.
+- [x] `crates/nvs-cli/src/debug/index.rs:78` and `ingest.rs`: the columns, and `api.rs` gives them.
 - [ ] The viewer: the memory column and tile with its meter against the limit, the handler link in
   the request page's header, the response size tile, and a *Memory over* filter on the list.
-- [ ] Tests in `crates/nvs-cli/tests/debug_ingest.rs` and `debug_api.rs`: the fields round-trip, and
+  - [ ] `viewer/src/api.ts`: `Row` gains `memory_peak`, `memory_limit`, `handler`, `bytes_in`,
+    `bytes_out` (each `number | null`, `handler` a string), and the filter `min_memory`.
+  - [ ] The request list: a memory column, and a *Memory over* filter beside the duration one in
+    `viewer/src/views/requests.tsx` (`min_us` is the pattern at :85, :100, :113, :124, :333).
+  - [ ] The request page: a memory tile with a meter against the limit, a response size tile, and
+    the handler's name in the header.
+  - [ ] The viewer's tests and its build are green over the rewritten fixtures in
+    `viewer/test/fixtures/`.
+- [x] Tests in `crates/nvs-cli/tests/debug_ingest.rs` and `debug_api.rs`: the fields round-trip, and
   a line without them reads. The check `lines` is green.
 
 ### 3. an uncaught exception is recorded with its stack frames and its previous chain
@@ -292,24 +310,35 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 1 is done: the rules name every line and field, and `bun nv rules --check` is green. The two
-new rules, `testing/a-run-is-recorded-like-a-request` and
-`testing/a-recorded-exception-keeps-its-frames-and-never-a-value`, are `designed` with this goal as
-owner, and their `guardedBy` is empty: stage 3 and stage 6 set it and the status to `shipped`. The
-shipped rules mark each field not yet built as "from goal `deeper-debug-records`", and the stage
-that builds a field drops that phrase. No code changed, so no test is expected to go red.
+Stage 2 has every item but the viewer. `0435144eae` carries the memory peak and limit and the
+handler on `Completion::recorded` (`crates/nvs-host/src/isolate.rs`, after `Store::of`), and the
+door writes the five fields through `spooled::Ending::Ran(Option<Box<Ran>>)` and
+`spooled::Outcome` (`crates/nvs-server/src/spooled.rs`). `bytes_in` is `Supply::carried`
+(`crates/nvs-server/src/body.rs`). `5e1b828972` puts the five columns in the index at schema 11,
+gives them on every API row, and adds the `min_memory` filter. The rule declines `handler_site`,
+and the request row of the spool rule no longer says "from goal". The index rule's `requests` row
+still does, until the viewer item lands. Standing decisions has *Stage 2 settled what each request
+figure is*.
 
-The nightly failures the sweep listed (Miri zone tests in `nvs-stdlib`, the `Math/quotient`
-attack, the macOS json-api allocation count) were already fixed by `1c3196b0e8` and `8ca2f09e1b`,
-after the run's commit `53e94a9181`.
+The check `lines` (`cargo test --test debug_ingest`) is green, and so are the two `debug_api`
+tests that changed. `the_sample_spool_is_what_the_writer_writes` and
+`the_request_list_pages_newest_first_and_writes_the_viewers_fixture` rewrote their fixtures, which
+are committed. No test is expected to go red. The viewer's own tests read
+`viewer/test/fixtures/requests.json` and `request.json`, which gained the fields, and may compare
+whole rows.
+
+The nightly failures the sweep listed were from the run's commit `53e94a9181` and were already
+fixed by `1c3196b0e8` and `8ca2f09e1b`.
 
 ### Next
 
-Stage 2 from its first item. Its anchors come from a survey, so check each before editing:
-`crates/nvs-runtime/src/host.rs:700` (`Completion`), `crates/nvs-runtime/src/spool.rs:191`
-(`Request`), `crates/nvs-server/src/spooled.rs` (the door's `request` line), and
-`crates/nvs-cli/src/debug/index.rs:88` (`requests`). First settle with an `Explore` subagent
-whether the route table keeps a handler's file and line.
+Stage 2's viewer item, from its checkpoints: `viewer/src/api.ts` (`Row`, and the filter at :81),
+`viewer/src/views/requests.tsx` (the `min_us` filter at :85, :100, :113, :124, :333 is the pattern
+for `min_memory`), the request page's header and tiles, and `viewer/src/ui/list.tsx` for the
+column. Then drop "from goal `deeper-debug-records`" from the `requests` row of
+`docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md` for the
+five columns, run `bun nv rules --render`, and set stage 2 to done. Then stage 3, whose files
+(`isolate.rs`, `host.rs`'s `Failure`, `spooled.rs`'s `exception`) this stage just touched.
 
 ### Backlog
 
