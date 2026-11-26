@@ -1,0 +1,18 @@
+{
+  "title": "An `[imap.<name>]` block is a whole mailbox, a server over verified TLS or a directory, and `Core\\Imap` reads, moves, flags and deletes one message by its UID",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/mail-receive",
+    "core-classes/mail-transport",
+    "core-classes/db-capabilities",
+    "testing/a-test-reads-its-logs-and-mail"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/imap.rs",
+    "crates/nvs-stdlib/src/imap/mod.rs",
+    "crates/nvs-stdlib/src/imap/session.rs",
+    "crates/nvs-stdlib/src/imap/directory.rs",
+    "tests/conformance/core/imap-open-without-a-grant-throws.nvst",
+    "tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst"
+  ]
+}

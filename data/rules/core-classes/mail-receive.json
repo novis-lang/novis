@@ -1,0 +1,17 @@
+{
+  "title": "`Core\\Mail\\Message::parse` reads a received message into tainted values within bounds, and says whether it is a bounce, a delay, a complaint, an auto-reply or a reply, and to which message",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/imap",
+    "core-classes/mail-message",
+    "core-classes/mail-transport",
+    "core-classes/html-sanitize",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/mail/receive.rs",
+    "crates/nvs-stdlib/src/mail/receive/classify.rs",
+    "tests/conformance/core/mail-message-parse-returns-tainted-values.nvst",
+    "tests/conformance/core/mail-message-a-bounce-reports-each-recipient-and-the-message-it-returns.nvst"
+  ]
+}

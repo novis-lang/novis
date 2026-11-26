@@ -16,6 +16,10 @@ outside a test (`rule:core-classes/mail-transport`). It is the reason an outboun
 answered from a table in a test (`rule:testing/an-outbound-call-is-answered-from-a-table`): a test
 never reaches a real person. What it spends: the messages of one test, freed with it.
 
+A test that reads mail opens an `[imap.<name>] directory` block, a folder of `.eml` files, because an
+`[imap.<name>]` server block is opened under `nvs test` like any other network door
+(`rule:core-classes/imap`).
+
 What a request or a run wrote crosses back into the test as a copy, because nothing crosses an
 isolate boundary by reference (`rule:security/isolate-shares-nothing`).
 
