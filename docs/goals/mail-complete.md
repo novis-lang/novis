@@ -30,7 +30,7 @@ stages:
     context: [docs/rules/config/a-secret-is-a-file-whose-content-is-the-value.md]
   - id: 7
     title: "a block with a DKIM key signs every message it sends"
-    status: open
+    status: done
   - id: 8
     title: "a capture block keeps its mail, Core\\Test\\SentMail reads every new part, and the debug viewer shows a mail page"
     status: open
@@ -398,6 +398,26 @@ Subject, Date, Message-ID, MIME-Version, Content-Type, Reply-To, In-Reply-To, Re
 List-Unsubscribe and List-Unsubscribe-Post (those present). Signing uses `ring` 0.17, already in the
 tree. The signing identity is the deployment's, like `from`, so there is no call-site parameter.
 
+- Built in stage 7 (session's choices), in `crates/nvs-stdlib/src/mail/dkim.rs` and
+  `crates/nvs-config/src/mail.rs`:
+  - **The boot reads the key.** `nvs_config::mail::canonicalize` makes `dkim_key_file` absolute,
+    trust-checks it as it does `tls_ca_file`, reads it, and `dkim_key` refuses anything but one
+    PKCS#8 `PRIVATE KEY`: an RSA key of 2048 to 4096 bits (4096 is the widest `ring` signs with)
+    or an Ed25519 key. A PKCS#1 key gets the `openssl pkcs8 -topk8 -nocrypt` command. `dkim_key`
+    is the one parser of the file: `dkim.rs` `Key::of` builds the `ring` key over its DER.
+  - **`dkim_selector` and `dkim_key_file` are both or neither**, `dkim_domain` alone is refused,
+    and the selector and the domain must be ASCII domain names (a non-ASCII domain is written as
+    its `xn--` form by the operator).
+  - **A send keeps the parsed key** in `dkim::KEYS`, one per key file, and reads the file again
+    only when its modification time or length changed, so a rotated key is used without a
+    reload. One `stat` per send is the cost, and the key is parsed on the first send of a block.
+  - **The signature covers the message `compose` wrote**, parsed back into its header fields, so
+    `compose` stays the one writer of a header. The `DKIM-Signature` header is put first, folded
+    with tabs under 78 bytes a line for a common domain, with `t=` and no `x=`. `h=` names each
+    header on the list once, the last instance, and no header the message lacks; no
+    over-signing.
+  - **A captured message (`nvs test`) is not signed**: the key is read after the capture branch.
+
 **Capture and the viewer (stage 8).** `[mail.<name>] capture = true` makes a block keep its mail and
 open no connection, as `nvs test` does (`crates/nvs-runtime/src/test_records.rs:81`). A capture
 block needs `from` and no `host`. A kept message is written to the debug spool when recording is on,
@@ -539,11 +559,11 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 7. a block with a DKIM key signs every message it sends
 
-- [ ] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `dkim_selector`, `dkim_key_file`,
+- [x] `crates/nvs-config/src/tree.rs:957` and `default.toml:864`: `dkim_selector`, `dkim_key_file`,
   `dkim_domain`; a short RSA key is a settings error.
-- [ ] `crates/nvs-stdlib/src/mail/dkim.rs:1` (new): canonicalization, the header list, RSA and
+- [x] `crates/nvs-stdlib/src/mail/dkim.rs:1` (new): canonicalization, the header list, RSA and
   Ed25519 over `ring`; called on the composed message before `DATA`.
-- [ ] The five tests of the check `dkim`, then `cargo test --lib mail::` once.
+- [x] The five tests of the check `dkim`, then `cargo test --lib mail::` once.
 
 ### 8. a capture block keeps its mail, Core\Test\SentMail reads every new part, and the debug viewer shows a mail page
 
@@ -602,26 +622,29 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
 `return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stages 1 to 6 are done. `cargo test --lib mail::` runs 63 green in `nvs-stdlib` and 2 in
-`nvs-config`. Stage 6: `nvs_config::mail` has `Auth::XOAuth2`, `Auth::word`, `TokenUrl`,
-`token_url` and the `oauth` refusals in `judge`; `tree.rs` `MailEndpoint` and `default.toml` have
-the seven `oauth_*` keys; `secret.rs` `SECRETS` has the `oauth_client_secret` and
-`oauth_refresh_token` pairs. `mail/oauth.rs` has `Grant`, `grant_of`, `token`, `forget`, the
-cache and the HTTP client; `smtp.rs` `open` fetches the token first and `bearer` sends
-`AUTH XOAUTH2`. The stage's choices are under § *XOAUTH2*'s "Built in stage 6".
+Stages 1 to 7 are done. `cargo test --lib mail::` runs 67 green in `nvs-stdlib` and 3 in
+`nvs-config`. Stage 7: `tree.rs` `MailEndpoint` and `default.toml` have `dkim_selector`,
+`dkim_key_file` and `dkim_domain`; `nvs_config::mail` has `DkimAlgorithm`, `DkimKey`, `dkim_key`
+(the PEM and DER reader and the 2048-to-4096-bit refusal), the `dkim` pair checks in `judge`, and
+the key file's trust check and read in `canonicalize`. `mail/dkim.rs` has `SIGNED`, `Key`,
+`Signer`, `signer_of`, the `KEYS` cache, `sign` and the relaxed canonicalization; `mod.rs` `send`
+signs the composed message after the capture branch. Both RFC 8463 vectors verify. The stage's
+choices are under § *DKIM*'s "Built in stage 7".
 
 CI: the nightly failures of run 45609291264 that the sweep listed came before `1c3196b0e8` and
-`c115a735a1`, which fixed them. The stack-page test of run 45749655184 is in § *Backlog*.
+`c115a735a1`, which fixed them (checked again this session: the run's head `53e94a9181` is an
+ancestor of both). The stack-page test of run 45749655184 is in § *Backlog*.
 
 ### Next
 
-Stage 7, DKIM. Start with `dkim_selector`, `dkim_key_file` and `dkim_domain` in `MailEndpoint`
-(`crates/nvs-config/src/tree.rs`, `struct MailEndpoint`) and `[mail.default]` in `default.toml`,
-with the short-RSA-key refusal in `crates/nvs-config/src/mail.rs` `judge` (the key file is
-trust-checked as `canonicalize` does for `tls_ca_file`). Then the new
-`crates/nvs-stdlib/src/mail/dkim.rs`, called on the composed message in `mod.rs` `send` before it
-reaches `smtp::transact`; `compose.rs` writes the headers it signs. `ring` 0.17 is already a
-dependency of `nvs-stdlib`.
+Stage 8, capture and the viewer. Its gate is open: `docs/goals/deeper-debug-records.md` is gone.
+Start with `capture` in `MailEndpoint` (`crates/nvs-config/src/tree.rs`, `struct MailEndpoint`)
+and `default.toml` `[mail.default]`, with its refusals in `crates/nvs-config/src/mail.rs` `judge`
+(a capture block needs `from` and no `host`). Then `crates/nvs-stdlib/src/mail/mod.rs` `send`:
+its capture branch (`ctx.test_records()`) is where a capture block keeps its message too, and
+`nvs_runtime::test_records::KeptMail` (`crates/nvs-runtime/src/test_records.rs`) gains the new
+parts. The spool is `crates/nvs-runtime/src/spool.rs`; the viewer page goes to one writing
+subagent, as the stage's **Split:** says.
 
 Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
 `Core\Mail::preview`, `Core\Mail\Address::of`, the five `Core\Mail\Attachment` members and the four
@@ -633,6 +656,13 @@ oauth tests carry `// covers: Core\Mail::send`, so `send` is stale for them as w
 or conformance case is expected red.
 
 ### Backlog
+
+- No test sends a signed message through `send` and the fake relay: the five `dkim` tests call
+  `dkim::sign` directly, and `signer_of` reads the block's keys as `oauth::grant_of` does. A
+  stage-9 test over `smtp::tests::send_to` with a `dkim_key_file` block would pin the wiring.
+- The DKIM key file is a private key, and `secret.rs`'s read advisory (another account can read
+  the file) does not cover it yet. Adding it to that advisory is a small change in
+  `crates/nvs-config/src/secret.rs` and `mail.rs` `canonicalize`.
 
 - CI run 45749655184, `test / linux-x86_64 (tests)`: `serve::tests::
   a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:5555`)
