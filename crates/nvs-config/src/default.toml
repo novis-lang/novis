@@ -426,12 +426,10 @@
 # A server reads a change to this key when it reloads, so you can turn it on and off without a restart.
 #keep_temporary = false               # default
 
-# With `true`, debug records are written to files in `debug/spool` in the data folder. A server
-# records each request, scheduled run and queue job. `nvs run` and `nvs test` record each run.
-# `nvs debug` reads the files into `debug/index.sqlite` and deletes them. In development, `nvs serve`
-# starts `nvs debug` and stops it when the server stops. In production, you start `nvs debug`
-# yourself. A request can turn its own recording off and cannot turn it on. To record the server
-# and not a command, give the command a second `--config` file with `store = false`.
+# With `true`, Novis saves a debug record of each request, and of each `nvs run` and `nvs test`.
+# `nvs debug` reads the records into `debug/index.sqlite` in the data folder. In development,
+# `nvs serve` starts `nvs debug` for you. In production, you start `nvs debug` yourself.
+# A program may turn this off for its own request. It may not turn it on.
 #store = false                        # default
 
 # A spool file is a file in `debug/spool` with the debug records of one request. `nvs debug` has
@@ -445,8 +443,8 @@
 #index_age = "7d"                     # default
 
 # The largest size of the index, the database of `nvs debug`. When the index is larger,
-# `nvs debug` deletes the oldest records first. This includes the records of a command that is
-# still running.
+# `nvs debug` deletes the oldest records first. It also deletes the old records of a command that
+# is still running.
 #index_max = "1G"                     # default
 
 # The address `nvs debug` serves the debug viewer on: an IP address and a port. `nvs debug` prints

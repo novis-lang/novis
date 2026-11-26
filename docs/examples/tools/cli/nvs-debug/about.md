@@ -1,16 +1,16 @@
 `nvs debug` reads the debug records of your requests and runs into one database.
 
 With `[debug] store = true` in `nvs.toml`, Novis writes a record of each request, `nvs run` and
-`nvs test` to files in `debug/spool` in the data folder. `nvs debug` reads each file when it is complete. It saves the
-records in `debug/index.sqlite` and deletes the file. Then it waits for new files. Files that were
-written while `nvs debug` did not run are read when it starts.
+`nvs test`. The records go to files in `debug/spool` in the data folder. Novis finishes a file
+before `nvs debug` reads it. `nvs debug` saves its records in `debug/index.sqlite` and deletes the
+file. Then it waits for new files. When `nvs debug` starts, it reads the files that were written
+while it was not running.
 
-In development mode, `nvs serve` starts `nvs debug` when `store` is on. It stops `nvs debug` when the
-server stops. A production server never starts it. On a production host, you start `nvs debug`
-yourself.
+In development mode, `nvs serve` starts `nvs debug` when `store` is on, and stops it with the server.
+On a production host, you start `nvs debug` yourself.
 
-`--once` reads the files that are ready, deletes old records, and exits. `--tail <file>` also reads a
-log file that uses the `json` log format, and each line that is added to it later. `nvs debug` never
-changes that file.
+`--once` reads the files that are ready, deletes old records, and exits. `--tail <file>` reads a
+log file too. `nvs debug` reads the lines that are in the file, and each line that is added later.
+Set `[log] format = "json"` for that log. `nvs debug` never changes the file.
 
 Only one `nvs debug` runs for a data folder. A second one prints an error and exits with status `1`.

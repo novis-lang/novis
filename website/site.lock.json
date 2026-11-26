@@ -1679,8 +1679,53 @@
   "docs/examples/core/Log/write/about.md": {
     "Core\\Log::write": "643590ecf600a3d1"
   },
+  "docs/examples/core/Mail/preview/about.md": {
+    "Core\\Mail::preview": "d216e8f7129ecafe"
+  },
   "docs/examples/core/Mail/send/about.md": {
-    "Core\\Mail::send": "524577122401d0dc"
+    "Core\\Mail::send": "9eb6e00c813d0ee0"
+  },
+  "docs/examples/core/Mail-Address/of/about.md": {
+    "Core\\Mail\\Address::of": "103b90585645fd3e"
+  },
+  "docs/examples/core/Mail-Attachment/bytes/about.md": {
+    "Core\\Mail\\Attachment::bytes": "16e56b1dab615df7"
+  },
+  "docs/examples/core/Mail-Attachment/fromBytes/about.md": {
+    "Core\\Mail\\Attachment::fromBytes": "4868e27fe59d0961"
+  },
+  "docs/examples/core/Mail-Attachment/fromFile/about.md": {
+    "Core\\Mail\\Attachment::fromFile": "c07f27638e4fd5e2"
+  },
+  "docs/examples/core/Mail-Attachment/inlineBytes/about.md": {
+    "Core\\Mail\\Attachment::inlineBytes": "c35d91feb4ecf67c"
+  },
+  "docs/examples/core/Mail-Attachment/inlineFile/about.md": {
+    "Core\\Mail\\Attachment::inlineFile": "60af3d89d99c94b4"
+  },
+  "docs/examples/core/Mail-Attachment/isInline/about.md": {
+    "Core\\Mail\\Attachment::isInline": "620649652211c9bc"
+  },
+  "docs/examples/core/Mail-Attachment/name/about.md": {
+    "Core\\Mail\\Attachment::name": "4c8abe17853b5ab8"
+  },
+  "docs/examples/core/Mail-Attachment/src/about.md": {
+    "Core\\Mail\\Attachment::src": "851f4f296a509cf9"
+  },
+  "docs/examples/core/Mail-Attachment/type/about.md": {
+    "Core\\Mail\\Attachment::type": "bb60f937c9a3b2c7"
+  },
+  "docs/examples/core/Mail-Preview/html/about.md": {
+    "Core\\Mail\\Preview::html": "60237e564ca732c6"
+  },
+  "docs/examples/core/Mail-Preview/keptCss/about.md": {
+    "Core\\Mail\\Preview::keptCss": "154496577f6d6522"
+  },
+  "docs/examples/core/Mail-Preview/text/about.md": {
+    "Core\\Mail\\Preview::text": "48f1e22ae0123d9d"
+  },
+  "docs/examples/core/Mail-Preview/unusedCss/about.md": {
+    "Core\\Mail\\Preview::unusedCss": "02d0d6d37aa6dcd0"
   },
   "docs/examples/core/Markdown/fromHtml/about.md": {
     "Core\\Markdown::fromHtml": "a38698675e44bb2e"
@@ -2984,8 +3029,17 @@
   "docs/examples/core/Test-RunResult/stdout/about.md": {
     "Core\\Test\\RunResult::stdout": "566e424da80b7948"
   },
+  "docs/examples/core/Test-SentMail/attachments/about.md": {
+    "Core\\Test\\SentMail::attachments": "078a126a4e0cd87c"
+  },
+  "docs/examples/core/Test-SentMail/autoSubmitted/about.md": {
+    "Core\\Test\\SentMail::autoSubmitted": "fe35d1ebf531b322"
+  },
   "docs/examples/core/Test-SentMail/bcc/about.md": {
     "Core\\Test\\SentMail::bcc": "43e402905f113089"
+  },
+  "docs/examples/core/Test-SentMail/bounceTag/about.md": {
+    "Core\\Test\\SentMail::bounceTag": "100cb638fc450e5c"
   },
   "docs/examples/core/Test-SentMail/cc/about.md": {
     "Core\\Test\\SentMail::cc": "31ab94672165fcb5"
@@ -2993,8 +3047,20 @@
   "docs/examples/core/Test-SentMail/endpoint/about.md": {
     "Core\\Test\\SentMail::endpoint": "2942c238a91dfa7e"
   },
+  "docs/examples/core/Test-SentMail/fromName/about.md": {
+    "Core\\Test\\SentMail::fromName": "03a44e6d7996b700"
+  },
   "docs/examples/core/Test-SentMail/html/about.md": {
     "Core\\Test\\SentMail::html": "a4d389f1b7e31be2"
+  },
+  "docs/examples/core/Test-SentMail/inReplyTo/about.md": {
+    "Core\\Test\\SentMail::inReplyTo": "d45cb6ddddee610a"
+  },
+  "docs/examples/core/Test-SentMail/messageId/about.md": {
+    "Core\\Test\\SentMail::messageId": "01fdba39f0e76626"
+  },
+  "docs/examples/core/Test-SentMail/references/about.md": {
+    "Core\\Test\\SentMail::references": "e6ca93efd97adc20"
   },
   "docs/examples/core/Test-SentMail/replyTo/about.md": {
     "Core\\Test\\SentMail::replyTo": "435acb508d8648f5"
@@ -3007,6 +3073,9 @@
   },
   "docs/examples/core/Test-SentMail/to/about.md": {
     "Core\\Test\\SentMail::to": "a44dbc30610e7953"
+  },
+  "docs/examples/core/Test-SentMail/unsubscribe/about.md": {
+    "Core\\Test\\SentMail::unsubscribe": "15eb4d2842790424"
   },
   "docs/examples/core/Test-SentRequest/body/about.md": {
     "Core\\Test\\SentRequest::body": "c7ac1666fa3472fd"
@@ -5042,6 +5111,19 @@
   "docs/examples/types/Xml-Node-Kind/about.md": {
     "Core\\Xml\\Node::Kind": "787325a225bf3321"
   },
+  "guides/how-to-use/sending-mail.mdx": {
+    "Core\\Mail::preview": "11b446fbdca0096d",
+    "Core\\Mail::send": "58d39dc70906ef9d",
+    "Core\\Mail\\Address::of": "81ba636cbe9ada69",
+    "Core\\Mail\\Attachment::fromBytes": "fd33105260bb8c9f",
+    "Core\\Mail\\Attachment::fromFile": "847674b78e7471c3",
+    "Core\\Mail\\Attachment::inlineFile": "d2aaab98442bc5b7",
+    "Core\\Mail\\Attachment::src": "0177354b636c7483",
+    "Core\\Mail\\Preview::html": "a17869c74a9e9840",
+    "Core\\Mail\\Preview::keptCss": "6a68f1def945eb75",
+    "Core\\Mail\\Preview::unusedCss": "a35afd0ef44cd1f8",
+    "Core\\Test::sentMail": "d4129ae8225442bd"
+  },
   "guides/why-novis/secret-values.mdx": {
     "lang:types/qualifiers-tainted-and-secret": "14f5cadffab584f1"
   },
@@ -6644,8 +6726,53 @@
   "help:Core\\Log::write": {
     "Core\\Log::write": "f096d776a05492b1"
   },
+  "help:Core\\Mail::preview": {
+    "Core\\Mail::preview": "d2f8e8dc119d419b"
+  },
   "help:Core\\Mail::send": {
-    "Core\\Mail::send": "00e089ac74148f2d"
+    "Core\\Mail::send": "e98ddbae61ab0b88"
+  },
+  "help:Core\\Mail\\Address::of": {
+    "Core\\Mail\\Address::of": "907a4254cc41bdae"
+  },
+  "help:Core\\Mail\\Attachment::bytes": {
+    "Core\\Mail\\Attachment::bytes": "0e1f5bd84aa8dd18"
+  },
+  "help:Core\\Mail\\Attachment::fromBytes": {
+    "Core\\Mail\\Attachment::fromBytes": "3937f318232bfee2"
+  },
+  "help:Core\\Mail\\Attachment::fromFile": {
+    "Core\\Mail\\Attachment::fromFile": "3d165d09750eaea0"
+  },
+  "help:Core\\Mail\\Attachment::inlineBytes": {
+    "Core\\Mail\\Attachment::inlineBytes": "09450e6c2d5aacaa"
+  },
+  "help:Core\\Mail\\Attachment::inlineFile": {
+    "Core\\Mail\\Attachment::inlineFile": "be19f077f819fb55"
+  },
+  "help:Core\\Mail\\Attachment::isInline": {
+    "Core\\Mail\\Attachment::isInline": "59fe666ca3ca2600"
+  },
+  "help:Core\\Mail\\Attachment::name": {
+    "Core\\Mail\\Attachment::name": "607e47ea04baba14"
+  },
+  "help:Core\\Mail\\Attachment::src": {
+    "Core\\Mail\\Attachment::src": "8926c77fb14fd675"
+  },
+  "help:Core\\Mail\\Attachment::type": {
+    "Core\\Mail\\Attachment::type": "da379cbfd6f50d5d"
+  },
+  "help:Core\\Mail\\Preview::html": {
+    "Core\\Mail\\Preview::html": "69f015f2ec912905"
+  },
+  "help:Core\\Mail\\Preview::keptCss": {
+    "Core\\Mail\\Preview::keptCss": "05e71ee81331b05d"
+  },
+  "help:Core\\Mail\\Preview::text": {
+    "Core\\Mail\\Preview::text": "c6997d1aa38d8f77"
+  },
+  "help:Core\\Mail\\Preview::unusedCss": {
+    "Core\\Mail\\Preview::unusedCss": "7dd1d5820ebb9621"
   },
   "help:Core\\Markdown::fromHtml": {
     "Core\\Markdown::fromHtml": "d267ee43484211e9"
@@ -7991,8 +8118,17 @@
   "help:Core\\Test\\RunResult::stdout": {
     "Core\\Test\\RunResult::stdout": "ee77931752413643"
   },
+  "help:Core\\Test\\SentMail::attachments": {
+    "Core\\Test\\SentMail::attachments": "183980179a701a72"
+  },
+  "help:Core\\Test\\SentMail::autoSubmitted": {
+    "Core\\Test\\SentMail::autoSubmitted": "cbedd33ffa1a8337"
+  },
   "help:Core\\Test\\SentMail::bcc": {
     "Core\\Test\\SentMail::bcc": "12787bacb19dbdab"
+  },
+  "help:Core\\Test\\SentMail::bounceTag": {
+    "Core\\Test\\SentMail::bounceTag": "6c49af0c75d827e7"
   },
   "help:Core\\Test\\SentMail::cc": {
     "Core\\Test\\SentMail::cc": "2f40980479596889"
@@ -8000,8 +8136,20 @@
   "help:Core\\Test\\SentMail::endpoint": {
     "Core\\Test\\SentMail::endpoint": "8f5cb9496d0d94af"
   },
+  "help:Core\\Test\\SentMail::fromName": {
+    "Core\\Test\\SentMail::fromName": "ae43bb420a0c612f"
+  },
   "help:Core\\Test\\SentMail::html": {
     "Core\\Test\\SentMail::html": "5f6685c7914714e5"
+  },
+  "help:Core\\Test\\SentMail::inReplyTo": {
+    "Core\\Test\\SentMail::inReplyTo": "d827cb09e48bbe21"
+  },
+  "help:Core\\Test\\SentMail::messageId": {
+    "Core\\Test\\SentMail::messageId": "a4dc9b15eed15412"
+  },
+  "help:Core\\Test\\SentMail::references": {
+    "Core\\Test\\SentMail::references": "e8114f90d7b0798a"
   },
   "help:Core\\Test\\SentMail::replyTo": {
     "Core\\Test\\SentMail::replyTo": "4f6f75993561841f"
@@ -8014,6 +8162,9 @@
   },
   "help:Core\\Test\\SentMail::to": {
     "Core\\Test\\SentMail::to": "7558c7b232fdb69d"
+  },
+  "help:Core\\Test\\SentMail::unsubscribe": {
+    "Core\\Test\\SentMail::unsubscribe": "1296cb7807aa5eec"
   },
   "help:Core\\Test\\SentRequest::body": {
     "Core\\Test\\SentRequest::body": "04ca6eb9c5f10ed3"

@@ -304,7 +304,8 @@ const SUBJECT_DOC: MethodDoc = MethodDoc {
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "Returns the plain-text body of the message.",
     params: &[],
-    ret: "The `$text` given to `Core\\Mail::send`.",
+    ret: "The plain text that was sent: a `string` body, the `text` option, or the text made from \
+          the HTML body.",
     errors: &[],
 };
 

@@ -578,43 +578,50 @@ tree are each an error beside it.
 
     nvs debug [--once] [--tail <file>]... [--listen <address>]
 
-With `[debug] store = true` in `nvs.toml`, every request is recorded, and so is every scheduled run,
-queue job, `nvs run` and `nvs test`. The records are written to
-files in `debug/spool` in the data folder. `nvs debug` reads those files into one SQLite database,
-`debug/index.sqlite`, and deletes each file once it is read. Then it waits for new files.
+With `[debug] store = true` in `nvs.toml`, Novis records every request. It also records every job
+of a `[[schedule]]` block, every job that a worker takes from the queue, and every `nvs run` and
+`nvs test`. The records are written to files in `debug/spool` in the data folder. `nvs debug` reads
+those files into one database, `debug/index.sqlite`. This database is the index. It is a SQLite
+database, which is one file. `nvs debug` deletes each record file after it has read it. Then it
+waits for new files.
 
-You usually do not start it yourself. A `nvs serve` in development starts `nvs debug` when
-`store` is on, and stops it when the server stops. A production server never starts it. On a
-production host, you run `nvs debug` yourself, when and where you choose.
+You usually do not start it yourself. In development mode, `nvs serve` starts `nvs debug` when
+`store` is on. It stops `nvs debug` when the server stops. A production server never starts it. On a
+production host, you start `nvs debug` yourself.
 
 | Option | What it does |
 |---|---|
 | `--once` | read the files that are ready, delete old records, then exit |
 | `--tail <file>` | also read this log file, and each line added to it later; you can give it more than once |
+| `--listen <address>` | serve the debug viewer on this IP address and port; this replaces `[debug] listen` for this run |
 
 A `--tail` file must use the `json` log format (`[log] format = "json"`). `nvs debug` never changes
-that file. It remembers how far it read, so a restart goes on from there. When the file is rotated,
-it first reads the rest of `<file>.1`.
+that file. It saves the position of the last line it read. After a restart, it continues from that
+line. The log can be rotated: the file is renamed to `<file>.1`, and a new `<file>` starts. Then
+`nvs debug` first reads the lines of `<file>.1` that it has not read yet.
 
 Only one `nvs debug` runs for a data folder. A second one prints an error and exits with status
-`1`. A server that finds one running uses it.
+`1`. When `nvs serve` starts and an `nvs debug` already runs for its data folder, the server does
+not start another one.
 
-The index deletes records once they are older than `[debug] index_age` (`7d`). When it grows past
-`[debug] index_max` (`1G`), the oldest records are deleted first. This includes the records of a
-command that is still running. A line that cannot be
-read is kept as an error record, and the lines after it are read as usual. A file that cannot be
-read is tried again later, and the other files are read in the meantime.
+The index deletes records once they are older than `[debug] index_age` (`7d`). When the index grows
+past `[debug] index_max` (`1G`), the oldest records are deleted first. The records of a command that
+is still running are deleted too. A line in a file can be impossible to read. `nvs debug` saves that
+line as an error record. Then it reads the next lines as usual. A file that cannot be read is tried
+again later. The other files are read in the meantime.
 
-**What a record contains.** In development, a record has the request's method, path, query,
-headers and body, and the response's status, headers and body. The values of `Authorization`,
-`Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
-as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
-program did not read is not stored. A program can read a body into a class with
-`Core\Request::jsonAs<X>()` or `formFieldsAs<X>()`. The decoder fills each `secret` property of `X`, and
-the stored body has `[redacted]` in place of that value. If Novis cannot find those values in the
-body, the body is not stored. That is the case for a multipart form, for example. A body the program
-read another way is stored as it was read, so a password in it is in the index. The files are in a
-folder that only your account can open. In production, a record has no headers and no body.
+**What a record contains.** In development mode, a record has the request's method, path, query,
+headers and body. It also has the response's status, headers and body. The values of
+`Authorization`, `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`.
+A body is stored up to `[limits] request_body`. A longer body is cut at that size. A body that the
+program did not read is not stored.
+
+A program can read a body into a class with `Core\Request::jsonAs<X>()` or `formFieldsAs<X>()`. Then
+the stored body has `[redacted]` for each `secret` property of `X`. Sometimes Novis cannot find
+those values in the body. Then the body is not stored. A form that uploads files (a multipart form)
+is an example. A program can also read the body as plain text. Then the record has the body exactly
+as it was sent, with every password in it. The record files are in a folder that only your account
+can open. In production mode, a record has no headers and no body.
 
 # The debug viewer
 
