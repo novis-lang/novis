@@ -2,14 +2,17 @@
 // A scheduled job whose mail server does not answer.
 // Nothing catches the error, so the run fails. The debug viewer shows its stack: the functions it was called from.
 
-class Receipts {
-    public static function sendAll(array<int> $orders): void {
+class Receipts
+{
+    public static function sendAll(array<int> $orders): void
+    {
         foreach ($orders as int $order) {
             Receipts::send($order);
         }
     }
 
-    public static function send(int $order): void {
+    public static function send(int $order): void
+    {
         throw new RuntimeError('The mail server did not answer.');
     }
 }

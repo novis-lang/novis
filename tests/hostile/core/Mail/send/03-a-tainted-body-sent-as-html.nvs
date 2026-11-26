@@ -3,7 +3,7 @@
 // A `tainted` string is text from outside the program, such as a request.
 // It should be sent as plain text, so no tag in it becomes HTML.
 
-tainted string $typed = "<b>Hi</b><script>alert(1)</script><style>p { display: none }</style>";
+tainted string $typed = '<b>Hi</b><script>alert(1)</script><style>p { display: none }</style>';
 
 // 1. The typed text is the whole body. It is sent as plain text.
 try {

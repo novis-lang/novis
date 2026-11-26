@@ -10,8 +10,8 @@ Core\Mail\Preview $mail = Core\Mail::preview(html`<style>
 <p class="logo">Example Shop</p>`);
 
 foreach ($mail->unusedCss() as string $rule) {
-    echo "unused: ", $rule, "\n";
+    echo 'unused: ', $rule, "\n";
 }
 foreach ($mail->keptCss() as string $rule) {
-    echo "kept: ", $rule, "\n";
+    echo 'kept: ', $rule, "\n";
 }

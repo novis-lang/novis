@@ -1,4 +1,4 @@
-assets fc1cedb9b7eedb0b
+assets 2e6ad2ee1a3d8418
 
 N
 Novis debug
@@ -11,13 +11,14 @@ Routes
 Queries
 Errors
 Logs
+Mail
 Stream
 Settings
 Schedule
 send-receipts
 Failed
 
-<duration> ago · RuntimeError at jobs/send-receipts.nvs:13 · Trace <id>
+<duration> ago · RuntimeError at jobs/send-receipts.nvs:16 · Trace <id>
 
 Duration
 
@@ -50,12 +51,12 @@ Exception
 
 RuntimeError: The mail server did not answer.
 
-Thrown at jobs/send-receipts.nvs:13
+Thrown at jobs/send-receipts.nvs:16
 
 Stack
 Receipts::send
-jobs/send-receipts.nvs:13
+jobs/send-receipts.nvs:16
 Receipts::sendAll
-jobs/send-receipts.nvs:8
+jobs/send-receipts.nvs:10
 <script>
-jobs/send-receipts.nvs:17
+jobs/send-receipts.nvs:20

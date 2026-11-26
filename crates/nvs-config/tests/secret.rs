@@ -632,11 +632,25 @@ fn both_halves_of_the_cache_shared_password_pair_is_refused() {
 const CANARY: &str = "Y2FuYXJ5LWNyZWRlbnRpYWwtUXo3dlg5LW5vdmlzISE=";
 
 /// The rest of a block a row of [`SECRETS`](nvs_config::secret::SECRETS) is written in, so the tree
-/// resolves, keyed by the row's block. A row with no entry here fails the test that reads it, so a
-/// new secret directive is driven through every printer the day it is added.
-fn fixture(block: &str) -> Option<(&'static str, &'static str)> {
+/// resolves, keyed by the row's block and value. A row with no entry here fails the test that reads
+/// it, so a new secret directive is driven through every printer the day it is added. An `oauth_*`
+/// value is only read by an `auth = "xoauth2"` block, which also needs a token URL, a client id and
+/// a client secret.
+fn fixture(block: &str, value: &str) -> Option<(&'static str, &'static str)> {
     Some(match block {
         "db.*" => ("db.main", "driver = \"postgres\"\n"),
+        "mail.*" if value == "oauth_client_secret" => (
+            "mail.relay",
+            "host = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\n\
+             auth = \"xoauth2\"\noauth_token_url = \"https://login.example.test/token\"\n\
+             oauth_client_id = \"app\"\n",
+        ),
+        "mail.*" if value.starts_with("oauth_") => (
+            "mail.relay",
+            "host = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\n\
+             auth = \"xoauth2\"\noauth_token_url = \"https://login.example.test/token\"\n\
+             oauth_client_id = \"app\"\noauth_client_secret = \"client-secret\"\n",
+        ),
         "mail.*" => (
             "mail.relay",
             "host = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\n",
@@ -698,7 +712,7 @@ fn printed(fs: &Fake, resolved: &Resolved) -> Vec<(&'static str, String)> {
 #[test]
 fn no_printer_shows_a_secret_directive() {
     for pair in nvs_config::secret::SECRETS {
-        let (header, rest) = fixture(pair.block).unwrap_or_else(|| {
+        let (header, rest) = fixture(pair.block, pair.value).unwrap_or_else(|| {
             panic!(
                 "`{}` has no fixture in this test, so no printer is checked against it",
                 pair.block
@@ -773,6 +787,12 @@ const NOT_A_SECRET: &[(&str, &str, &str)] = &[
         "token_file",
         "a path to the viewer's token file, which the viewer reads itself; the token is never a \
          configuration value",
+    ),
+    (
+        "MailEndpoint",
+        "dkim_key_file",
+        "a path to the DKIM private key, which the boot trust-checks and a send reads through \
+         `nvs_config::mail::dkim_key_text`; the key is never a configuration value",
     ),
 ];
 

@@ -86,11 +86,12 @@ class Records
     public function mailOpensNoConnection(): void
     {
         // Nothing listens on the relay's port, so a real send would throw.
-        Core\Mail::send('relay', ['ada@example.com'], 'Hello', 'Hi', { html: '<p>Hi</p>' });
+        Core\Mail::send('relay', ['ada@example.com'], 'Hello', '<p>Hi</p>' as Core\Html\Markup);
 
         array<Core\Test\SentMail> $sent = Core\Test::sentMail();
         Core\Test::assertCount($sent, 1);
         Core\Test::assertEquals($sent[0]->html(), '<p>Hi</p>');
+        Core\Test::assertEquals($sent[0]->text(), "Hi\n");
         Core\Test::assertNull($sent[0]->replyTo());
     }
 }

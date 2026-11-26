@@ -17,15 +17,15 @@ class AttachmentsAttackTest
         // sending it throws, and no message is kept.
         Test::assertThrows(fn(): void => {
             Attachment $bad = Attachment::fromBytes("a.txt\r\nBcc: spy@example.com", 'data');
-            Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', {attachments: [$bad]});
+            Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello', { attachments: [$bad] });
         }, RuntimeError::class);
         Test::assertCount(Test::sentMail(), 0);
 
         // 2. An inline image is shown inside the HTML of the mail. This HTML does not show it,
         // so `send` throws, and no message is kept.
         Test::assertThrows(fn(): void => {
-            Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});
-            Mail::send('shop', ['ada@example.com'], 'Hi', html`<p>No image here.</p>`, {attachments: [$logo]});
+            Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' });
+            Mail::send('shop', ['ada@example.com'], 'Hi', html`<p>No image here.</p>`, { attachments: [$logo] });
         }, RuntimeError::class);
         Test::assertCount(Test::sentMail(), 0);
 
@@ -36,7 +36,7 @@ class AttachmentsAttackTest
             $files[] = Attachment::fromBytes('file-' . $i . '.txt', 'line ' . $i);
             $i = $i + 1;
         }
-        Mail::send('shop', ['ada@example.com'], 'Many files', 'See the files.', {attachments: $files});
+        Mail::send('shop', ['ada@example.com'], 'Many files', 'See the files.', { attachments: $files });
         Test::assertCount(Test::sentMail()[0]->attachments(), 500);
         Test::assertSame(Test::sentMail()[0]->attachments()[499]->name(), 'file-499.txt');
 

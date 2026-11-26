@@ -10,6 +10,6 @@ a:hover { text-decoration: underline }
 <p><a href="https://example.com/help">Get help</a></p>`);
 
 foreach ($mail->keptCss() as string $rule) {
-    echo "kept: ", $rule, "\n";
+    echo 'kept: ', $rule, "\n";
 }
 echo $mail->html(), "\n";

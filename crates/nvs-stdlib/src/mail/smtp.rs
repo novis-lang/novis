@@ -827,7 +827,7 @@ fn transaction(
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -1006,8 +1006,24 @@ pub(super) mod tests {
 
     /// A self-signed certificate for `localhost`, the server's configuration that presents it, and
     /// a scratch PEM file holding it for a `tls_ca_file`.
+    ///
+    /// Each certificate has a common name of its own. `rcgen`'s simple certificate has one fixed
+    /// name, which the process's outbound client also trusts (`crate::tests::outbound_client`).
+    /// A verifier finds an anchor by name, so a shared name would check this certificate against
+    /// another key and fail with a bad signature, not an unknown issuer.
     pub(in crate::mail) fn localhost() -> (Arc<rustls::ServerConfig>, nvs_repo::Scratch, PathBuf) {
-        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+        static ISSUED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let signing_key = rcgen::KeyPair::generate().expect("a key pair");
+        let mut params =
+            rcgen::CertificateParams::new(vec!["localhost".to_owned()]).expect("a valid name");
+        let serial = ISSUED.fetch_add(1, Ordering::Relaxed);
+        params.distinguished_name = rcgen::DistinguishedName::new();
+        params.distinguished_name.push(
+            rcgen::DnType::CommonName,
+            format!("Mail test server {} {serial}", std::process::id()),
+        );
+        let cert = params
+            .self_signed(&signing_key)
             .expect("a loopback certificate");
         let config = rustls::ServerConfig::builder_with_provider(Arc::new(
             rustls::crypto::ring::default_provider(),
@@ -1016,15 +1032,15 @@ pub(super) mod tests {
         .expect("the shipped versions")
         .with_no_client_auth()
         .with_single_cert(
-            vec![issued.cert.der().clone()],
+            vec![cert.der().clone()],
             rustls::pki_types::PrivateKeyDer::Pkcs8(rustls::pki_types::PrivatePkcs8KeyDer::from(
-                issued.signing_key.serialize_der(),
+                signing_key.serialize_der(),
             )),
         )
         .expect("the certificate and its key");
         let dir = nvs_repo::scratch("mail-smtp");
         let path = dir.join("ca.pem");
-        std::fs::write(&path, issued.cert.pem()).expect("the bundle");
+        std::fs::write(&path, cert.pem()).expect("the bundle");
         (Arc::new(config), dir, path)
     }
 
@@ -1239,6 +1255,10 @@ pub(super) mod tests {
     /// `[mail.<name>] tls_ca_file` and `[tls.client] roots` as the fix, and no `MAIL FROM` is
     /// sent.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn an_unknown_issuer_names_the_tls_ca_file() {
         let (certificate, _dir, _ca) = localhost();
@@ -1268,6 +1288,10 @@ pub(super) mod tests {
     /// `tls = "implicit"`, the default on port 465, starts the handshake before the server's
     /// greeting. A server that answers in plain text gets no `EHLO`.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn port_465_speaks_tls_from_the_first_byte() {
         let (certificate, _dir, ca) = localhost();
@@ -1301,6 +1325,10 @@ pub(super) mod tests {
     /// `tls = "starttls"` with no credential still needs TLS: a server without `STARTTLS` gets no
     /// `MAIL FROM`, and a certificate the built-in anchors do not sign stops the send.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn starttls_without_a_credential_is_required_and_verified() {
         let endpoint = block(Tls::StartTls);
@@ -1335,6 +1363,10 @@ pub(super) mod tests {
     /// A `tls_ca_file` makes the block trust the certificate it names. It replaces the built-in
     /// anchors, so a file that names another certificate fails.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_tls_ca_file_replaces_the_anchors_for_one_block() {
         let (certificate, _dir, ca) = localhost();
@@ -1367,6 +1399,10 @@ pub(super) mod tests {
     /// A server that offers only `LOGIN` gets the user and the password, each base64 on its own
     /// line.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn auth_login_is_used_when_plain_is_not_offered() {
         let (certificate, _dir, ca) = localhost();

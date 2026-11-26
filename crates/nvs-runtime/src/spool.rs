@@ -2371,7 +2371,12 @@ mod tests {
             .join("receipt.nvs")
             .to_string_lossy()
             .into_owned();
-        let outside = std::env::temp_dir()
+        // The root of the working directory's own path: absolute, and outside the directory.
+        let outside = cwd
+            .ancestors()
+            .last()
+            .expect("an absolute path has a root")
+            .join("elsewhere")
             .join("elsewhere.nvs")
             .to_string_lossy()
             .into_owned();

@@ -17,7 +17,7 @@ class AutoSubmittedAttackTest
         int $i = 0;
         while ($i < 2000) {
             if ($i % 2 == 0) {
-                Mail::send('shop', ['ada@example.com'], 'Hi', 'A person wrote this.', {autoSubmitted: false});
+                Mail::send('shop', ['ada@example.com'], 'Hi', 'A person wrote this.', { autoSubmitted: false });
             } else {
                 Mail::send('shop', ['ada@example.com'], 'Hi', 'A program sent this.');
             }
@@ -43,6 +43,6 @@ class AutoSubmittedAttackTest
 // `Test::request` sends a request to this program. The code below, outside the class, runs for it.
 // It sends one message that a person wrote.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    Mail::send('shop', ['bo@example.com'], 'Re: Hi', 'A person wrote this.', {autoSubmitted: false});
+    Mail::send('shop', ['bo@example.com'], 'Re: Hi', 'A person wrote this.', { autoSubmitted: false });
     Core\Response::setStatus(202);
 }

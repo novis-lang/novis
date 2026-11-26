@@ -27,13 +27,13 @@ class UnsubscribeAttackTest
         ];
         foreach ($bad as string $url) {
             Test::assertThrows(fn(): void => {
-                Mail::send('shop', ['ada@example.com'], 'News', 'Hello', {unsubscribe: $url});
+                Mail::send('shop', ['ada@example.com'], 'News', 'Hello', { unsubscribe: $url });
             }, RuntimeError::class);
         }
         Test::assertCount(Test::sentMail(), 0);
 
         // 2. A valid URL with a query string is kept exactly.
-        Mail::send('shop', ['ada@example.com'], 'News', 'Hello', {unsubscribe: 'https://example.com/u?id=7&t=a%20b'});
+        Mail::send('shop', ['ada@example.com'], 'News', 'Hello', { unsubscribe: 'https://example.com/u?id=7&t=a%20b' });
         Test::assertSame(Test::sentMail()[0]->unsubscribe(), 'https://example.com/u?id=7&t=a%20b');
     }
 }

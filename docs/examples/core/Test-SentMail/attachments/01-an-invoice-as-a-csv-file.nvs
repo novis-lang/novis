@@ -11,7 +11,7 @@ class Invoice
     // Sends the invoice for one month. The rows go into a CSV file that is attached to the mail.
     public static function send(string $email, string $month, string $rows): void
     {
-        Attachment $csv = Attachment::fromBytes('invoice-' . $month . '.csv', $rows, {type: 'text/csv'});
+        Attachment $csv = Attachment::fromBytes('invoice-' . $month . '.csv', $rows, { type: 'text/csv' });
         Mail::send('shop', [$email], 'Your invoice for ' . $month, 'The invoice is attached.', {
             attachments: [$csv],
         });

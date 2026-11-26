@@ -657,7 +657,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
 /// The `Core` symbol table's arm for this module — see [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_mail_send" => (nvs_core_mail_send as *const ()).cast(),
+        "nvs_core_mail_send" => return Some(nvs_core_mail_send::entry()),
         "nvs_core_mail_address_of" => (nvs_core_mail_address_of as *const ()).cast(),
         "nvs_core_mail_preview" => (nvs_core_mail_preview as *const ()).cast(),
         "nvs_core_mail_address_address" => (nvs_core_mail_address_address as *const ()).cast(),
@@ -1119,7 +1119,7 @@ nvs_runtime::nvs_helper! {
     /// A recorded request files one `mail` event for the call
     /// (`rule:observability/trace-events-carry-a-kind`), with the number of recipients and
     /// whether the send returned, and never an address, the subject or the body.
-    fn nvs_core_mail_send(ctx, args: [15]) {
+    fn nvs_core_mail_send(ctx, args: [15]) -> Value, owns nvs_runtime::NvsStr, at 0 {
         let member = format!("{NAME}::send");
         let recipients = Cell::new(None);
         crate::site::watched_with(
@@ -1135,6 +1135,8 @@ nvs_runtime::nvs_helper! {
                 ..Outcome::default()
             },
         )
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1608,6 +1610,10 @@ mod tests {
     /// `preview` returns the HTML and the plain text `send` sends, its CSS inlined, and the rules
     /// left in `<style>`. A string body has no HTML, and a stylesheet `<link>` throws in both.
     // covers: Core\Mail::preview, Core\Mail::send, Core\Mail\Preview::html, Core\Mail\Preview::text, Core\Mail\Preview::keptCss, Core\Mail\Preview::unusedCss
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn preview_returns_what_send_puts_in_the_message() {
         let (mut ctx, records) = kept_site(None);

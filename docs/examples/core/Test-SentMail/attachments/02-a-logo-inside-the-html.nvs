@@ -13,7 +13,7 @@ class Newsletter
     // inside the same mail. `src()` returns that URL, and the `<img>` tag uses it.
     public static function send(string $email): void
     {
-        Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', {type: 'image/png'});
+        Attachment $logo = Attachment::inlineBytes('logo.png', 'pixel', { type: 'image/png' });
         Mail::send('shop', [$email], 'New in October', html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Ten new books.</p>`, {
             attachments: [$logo],
         });

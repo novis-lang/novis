@@ -400,6 +400,10 @@ mod tests {
 
     /// A rule is copied into the `style` attribute of each element it matches.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn a_style_rule_is_copied_onto_every_element_it_matches() {
         let html = inlined(
@@ -413,6 +417,10 @@ mod tests {
 
     /// The more specific selector wins, and of two equal ones the later rule wins.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn the_more_specific_rule_wins_and_a_later_one_breaks_a_tie() {
         let html = inlined(
@@ -429,6 +437,10 @@ mod tests {
 
     /// An `!important` declaration wins over a normal one with a more specific selector.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn an_important_rule_beats_a_normal_one() {
         let html = inlined(
@@ -443,6 +455,10 @@ mod tests {
     /// A `style` attribute the author wrote wins over a normal rule, and the rule's other
     /// declarations are still added.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn a_style_attribute_the_author_wrote_wins() {
         let html = inlined(
@@ -458,6 +474,10 @@ mod tests {
     /// `@media`, `@font-face`, `:hover` and `::before` stay in a `<style>` element, and none of
     /// them is copied into an element.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn a_media_query_and_a_pseudo_class_stay_in_a_style_element() {
         let html = inlined(
@@ -486,6 +506,10 @@ mod tests {
     /// A rule that matches nothing when the message is sent stays, such as one for an attribute
     /// a mail program adds when it shows the message. It is in both lists.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn a_rule_that_matches_nothing_stays_in_a_style_element() {
         let html = inlined(
@@ -506,6 +530,10 @@ mod tests {
     /// A rule copied into every element it matches is removed, and a `<style>` element with no
     /// rule left is removed with it.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn an_inlined_rule_is_removed_from_its_style_element() {
         let html = inlined("<style>p { color: red }</style><p>One</p>");
@@ -517,6 +545,10 @@ mod tests {
     /// A stylesheet `<link>` throws with the fix, and nothing is fetched. A `<link>` that is not
     /// a stylesheet is sent as written.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn a_stylesheet_link_throws_and_names_the_fix() {
         for html in [
@@ -535,6 +567,10 @@ mod tests {
 
     /// Inlining HTML that is already inlined gives the same HTML.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`css-inline` builds selectors with `servo_arc`, which breaks the Stacked Borrows rules Miri checks"
+    )]
     #[test]
     fn inlining_twice_gives_the_same_html() {
         let once = inlined(

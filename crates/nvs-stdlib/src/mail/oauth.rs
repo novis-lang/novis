@@ -519,6 +519,10 @@ mod tests {
     /// Two sends through a client-credentials block fetch one token and sign in with it twice.
     /// The token request carries the grant, the client and the scope.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_client_credentials_token_is_fetched_once_and_reused() {
         let (certificate, _dir, ca) = localhost();
@@ -571,6 +575,10 @@ mod tests {
     /// A kept token is reused until a minute before it expires, then fetched again. A token that
     /// lasts no longer than that minute is never kept.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_token_is_fetched_again_before_it_expires() {
         let (certificate, _dir, ca) = localhost();
@@ -606,6 +614,10 @@ mod tests {
 
     /// A block with a refresh token sends it with the refresh-token grant.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_refresh_token_block_sends_its_refresh_token() {
         let (certificate, _dir, ca) = localhost();
@@ -638,6 +650,10 @@ mod tests {
     /// A token server that refuses the client gives an `IOError` naming the block, the status and
     /// the OAuth error code. The relay is never reached.
     // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_refused_token_names_the_block_and_sends_nothing() {
         let (certificate, _dir, ca) = localhost();

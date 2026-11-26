@@ -16,9 +16,9 @@ Markup $body = html`<p>Your invoice is attached.</p>`;
 foreach ($parts as Attachment $part) {
     if ($part->isInline()) {
         $body = $body + html`<p><img src="{$part->src()}" alt="Example Shop"></p>`;
-        echo "Added an image tag for ", $part->name(), "\n";
+        echo 'Added an image tag for ', $part->name(), "\n";
     } else {
-        echo "Skipped ", $part->name(), "\n";
+        echo 'Skipped ', $part->name(), "\n";
     }
 }
 

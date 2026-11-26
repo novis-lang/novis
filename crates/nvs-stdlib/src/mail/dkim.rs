@@ -20,7 +20,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use nvs_config::mail::{DkimAlgorithm, dkim_key};
+use nvs_config::mail::{DkimAlgorithm, dkim_key, dkim_key_stamp, dkim_key_text};
 use nvs_runtime::{Ctx, Fault, ThrownClass};
 use ring::digest::{SHA256, digest};
 use ring::signature::{Ed25519KeyPair, RSA_PKCS1_SHA256, RsaKeyPair};
@@ -171,11 +171,12 @@ pub(super) fn signer_of(
 }
 
 /// The key in the file at `path`: the kept one while the file is unchanged, else read anew.
+///
+/// [`nvs_config::mail`] reads the file, as the boot did: the path is the operator's and no
+/// program names it, so no capability guards it.
 fn key_at(path: &Path) -> Result<Arc<Key>, (ThrownClass, String)> {
     let io = |error: std::io::Error| (ThrownClass::Io, format!("it cannot be read: {error}"));
-    let meta = std::fs::metadata(path).map_err(io)?;
-    let modified = meta.modified().ok();
-    let len = meta.len();
+    let (modified, len) = dkim_key_stamp(path).map_err(io)?;
     {
         let keys = KEYS.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(kept) = keys.get(path)
@@ -185,7 +186,7 @@ fn key_at(path: &Path) -> Result<Arc<Key>, (ThrownClass, String)> {
             return Ok(Arc::clone(&kept.key));
         }
     }
-    let text = std::fs::read_to_string(path).map_err(io)?;
+    let text = dkim_key_text(path).map_err(io)?;
     let key = Arc::new(Key::of(&text).map_err(|why| (ThrownClass::Runtime, why))?);
     KEYS.lock().unwrap_or_else(PoisonError::into_inner).insert(
         path.to_owned(),
@@ -527,6 +528,10 @@ MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g
 
     /// Both signatures of RFC 8463's Appendix A verify through this module's canonicalization, and
     /// a message this module signs with the same Ed25519 key verifies too.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_rfc_8463_ed25519_vector_verifies() {
         let ed25519 = "DKIM-Signature: v=1; a=ed25519-sha256; c=relaxed/relaxed;\r\n \
@@ -619,6 +624,10 @@ MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g
 
     /// `h=` names the headers on [`SIGNED`] the message has, in that order, and no other. A
     /// header the message does not have is not named.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_signed_headers_are_the_fixed_list() {
         let signer = Signer {

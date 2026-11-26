@@ -215,7 +215,9 @@ mod tests {
         let pool = ticket("idle", nvs_config::mail::POOL_DEFAULTS);
         let now = Instant::now();
         send(&pool, server.address, now).expect("the first message");
-        let later = now + IDLE_TIME + Duration::from_secs(1);
+        // The session's last use is the end of the first send, which a slow runner reaches long
+        // after `now`. So the idle time is counted from the instant that send returned.
+        let later = Instant::now() + IDLE_TIME + Duration::from_secs(1);
         send(&pool, server.address, later).expect("the second message");
         close(&pool);
         let sessions = server.stop();

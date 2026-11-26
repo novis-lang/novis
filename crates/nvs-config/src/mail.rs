@@ -222,6 +222,50 @@ pub fn dkim_key(pem: &str) -> Result<DkimKey, String> {
     })
 }
 
+/// The widest `dkim_key_file` a send reads. A 4096-bit RSA key is about 3.3 KB of PEM, so this is
+/// many times any key [`dkim_key`] accepts, and a file past it is not a key.
+pub const DKIM_KEY_FILE_MAX: u64 = 64 * 1024;
+
+/// What a `dkim_key_file` looked like when it was read: its modification time and its length.
+pub type DkimStamp = (Option<std::time::SystemTime>, u64);
+
+/// The stamp of the `dkim_key_file` at `path`, which [`canonicalize`] already made absolute and
+/// trust-checked. A sender compares it with the stamp of the key it keeps, and reads the file
+/// again with [`dkim_key_text`] only when the two differ.
+///
+/// The read is here and not in `nvs_stdlib::mail`, because no program names this path: it is the
+/// operator's, like the `tls_ca_file` `nvs_host::tls` reads, and so it is not a door a capability
+/// guards.
+///
+/// # Errors
+///
+/// Whatever the filesystem says about the path.
+pub fn dkim_key_stamp(path: &Path) -> std::io::Result<DkimStamp> {
+    let meta = std::fs::metadata(path)?;
+    Ok((meta.modified().ok(), meta.len()))
+}
+
+/// The text of the `dkim_key_file` at `path`, of at most [`DKIM_KEY_FILE_MAX`] bytes.
+///
+/// # Errors
+///
+/// Whatever the filesystem says, `InvalidData` for a file that is not UTF-8, and `FileTooLarge`
+/// for one past the bound.
+pub fn dkim_key_text(path: &Path) -> std::io::Result<String> {
+    use std::io::Read as _;
+    let mut text = String::new();
+    std::fs::File::open(path)?
+        .take(DKIM_KEY_FILE_MAX + 1)
+        .read_to_string(&mut text)?;
+    if text.len() as u64 > DKIM_KEY_FILE_MAX {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::FileTooLarge,
+            format!("it is larger than {DKIM_KEY_FILE_MAX} bytes, and a key is a few kilobytes"),
+        ));
+    }
+    Ok(text)
+}
+
 /// One DER element at the start of `octets`: its tag, its content and what follows it.
 fn der_element(octets: &[u8]) -> Option<(u8, &[u8], &[u8])> {
     let (&tag, rest) = octets.split_first()?;

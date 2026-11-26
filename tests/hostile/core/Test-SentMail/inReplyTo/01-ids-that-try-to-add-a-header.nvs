@@ -28,14 +28,14 @@ class InReplyToAttackTest
         ];
         foreach ($bad as string $id) {
             Test::assertThrows(fn(): void => {
-                Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {inReplyTo: $id});
+                Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', { inReplyTo: $id });
             }, RuntimeError::class);
         }
         Test::assertCount(Test::sentMail(), 0);
 
         // 2. A valid id that `send` returned is kept exactly.
         string $first = Mail::send('shop', ['ada@example.com'], 'Hi', 'Hello');
-        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello again', {inReplyTo: $first});
+        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello again', { inReplyTo: $first });
         Test::assertSame(Test::sentMail()[1]->inReplyTo(), $first);
     }
 }

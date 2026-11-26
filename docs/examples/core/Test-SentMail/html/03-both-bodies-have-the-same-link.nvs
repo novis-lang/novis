@@ -29,7 +29,8 @@ class InvoiceTest
 // It sends the invoice link in an HTML body. The plain-text body is made from the HTML.
 if (Core\Env::context() == Core\Env::Context::Request) {
     string $link = 'https://example.com/invoices/77.pdf';
-    Markup $body = ('<p><a href="' as Markup) + Html::escape($link)
+    Markup $body = ('<p><a href="' as Markup)
+        + Html::escape($link)
         + ('">Download your invoice</a></p>' as Markup);
     Core\Mail::send('site', ['billing@example.com'], 'Invoice 77', $body);
     Core\Response::setStatus(202);

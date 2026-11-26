@@ -34,7 +34,7 @@ class ReferencesAttackTest
             $ids[] = 'm' . $i . '@example.com';
             $i = $i + 1;
         }
-        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', {references: $ids});
+        Mail::send('shop', ['ada@example.com'], 'Re: Hi', 'Hello', { references: $ids });
         Test::assertEquals(Test::sentMail()[0]->references(), $ids);
 
         // 4. Changes the list that `references()` returned. A second read returns the first list.

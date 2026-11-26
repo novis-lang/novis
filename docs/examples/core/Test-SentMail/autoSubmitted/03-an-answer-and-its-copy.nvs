@@ -24,7 +24,7 @@ class AnswerTest
 // It sends the reply to the customer, and then a copy to the support team.
 if (Core\Env::context() == Core\Env::Context::Request) {
     string $answer = 'Your parcel arrives tomorrow.';
-    Core\Mail::send('shop', ['anna@example.com'], 'Re: Ticket 381', $answer, {autoSubmitted: false});
+    Core\Mail::send('shop', ['anna@example.com'], 'Re: Ticket 381', $answer, { autoSubmitted: false });
     Core\Mail::send('shop', ['support@example.com'], 'Ticket 381 was answered', 'Carla wrote: ' . $answer);
     Core\Response::setStatus(202);
 }
