@@ -74,6 +74,7 @@ import {
 } from "vscode";
 
 import { binary, runnable } from "./binary";
+import { withData } from "./shadow";
 import { coverageDirectory } from "./stubs";
 import {
   Listed,
@@ -560,11 +561,11 @@ function byFile(items: TestItem[]): Map<string, TestItem[]> {
 
 /** What `nvs` printed and what it exited with, or nothing when it did not run at all. */
 async function cli(args: string[], cwd?: string): Promise<Output | undefined> {
-  const { command } = await runnable();
+  const { command, data } = await runnable();
   return new Promise((resolve) => {
     execFile(
       command,
-      args,
+      withData(data, args),
       { cwd, maxBuffer: OUTPUT_CEILING, env: { ...process.env, NO_COLOR: "1" } },
       (failure, stdout, stderr) => {
         if (failure !== null && (failure as NodeJS.ErrnoException).code === "ENOENT") {

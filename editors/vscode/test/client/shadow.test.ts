@@ -7,11 +7,34 @@
 // agreeing, or about the moment they stop.
 
 import * as assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-import { Copies, Stamp, Watch, changed, copyName, locate, shadow, stamp, sweep } from "../../src/shadow";
+import {
+  Copies,
+  Stamp,
+  Watch,
+  changed,
+  copyName,
+  dataBeside,
+  locate,
+  shadow,
+  stamp,
+  sweep,
+  withData,
+} from "../../src/shadow";
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 const FIRST = Buffer.from("the first build\n");
@@ -97,6 +120,49 @@ describe("the copy the server runs from", function () {
     build(source, SECOND, 2_000_000);
     rmSync(source);
     assert.deepEqual(readFileSync(copied.path), FIRST);
+  });
+});
+
+describe("the data folder a copy is told", function () {
+  this.timeout(DISK);
+
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "nvs-data-"));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("is .nvsdata beside the real path of the source", async () => {
+    const source = join(root, EXE);
+    build(source, FIRST, 1_000_000);
+    // `.native` is the resolution `fs/promises` uses, which expands a Windows short name too.
+    assert.equal(await dataBeside(source), join(realpathSync.native(root), ".nvsdata"));
+  });
+
+  it("follows a link to the folder of the file it names", async function () {
+    const real = join(root, "real");
+    mkdirSync(real);
+    build(join(real, EXE), FIRST, 1_000_000);
+    const link = join(root, "link");
+    try {
+      symlinkSync(real, link, "junction");
+    } catch {
+      // Windows without the right to make a link: the platform's own case is not testable here.
+      this.skip();
+    }
+    assert.equal(await dataBeside(join(link, EXE)), join(realpathSync.native(real), ".nvsdata"));
+  });
+
+  it("goes in front of the subcommand when it is set, and adds nothing when it is not", () => {
+    assert.deepEqual(withData("/d", ["lsp"]), ["--data", "/d", "lsp"]);
+    assert.deepEqual(withData(undefined, ["lsp"]), ["lsp"]);
+    const args = ["fmt", "--stdin"];
+    withData("/d", args);
+    assert.deepEqual(args, ["fmt", "--stdin"]);
   });
 });
 

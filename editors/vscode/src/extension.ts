@@ -67,7 +67,7 @@ import { profileLink } from "./profilelink";
 import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
-import { Shadow, Stamp, Watch, stamp } from "./shadow";
+import { Shadow, Stamp, Watch, stamp, withData } from "./shadow";
 import { coverageDirectory, stubsDirectory, withCoverage, withStubs } from "./stubs";
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
@@ -463,7 +463,7 @@ async function attempt(context: ExtensionContext, found: Runnable): Promise<Outc
   let held = found.held ?? "";
   let starting: LanguageClient;
   try {
-    starting = await launch(context, found.command);
+    starting = await launch(context, found.command, found.data);
   } catch (failure) {
     if (copied === undefined || source === undefined) {
       return { client: undefined, text: "not running", detail: `${shown} lsp did not start: ${reason(failure)}` };
@@ -471,7 +471,8 @@ async function attempt(context: ExtensionContext, found: Runnable): Promise<Outc
     held = `its copy did not start (${reason(failure)})`;
     copied = undefined;
     try {
-      starting = await launch(context, source);
+      // The named file finds its own data folder, so it needs no `--data`.
+      starting = await launch(context, source, undefined);
     } catch (again) {
       return { client: undefined, text: "not running", detail: `${shown} lsp did not start: ${reason(again)}` };
     }
@@ -501,10 +502,11 @@ function offer(detail: string): void {
   });
 }
 
-// One client over `command`, started. It throws what `LanguageClient.start` throws, which is how a
-// binary that cannot be spawned at all is told from one that answered.
-async function launch(context: ExtensionContext, command: string): Promise<LanguageClient> {
-  const executable: Executable = { command, args: SUBCOMMAND };
+// One client over `command`, started, with `--data <data>` when `command` is a copy. It throws what
+// `LanguageClient.start` throws, which is how a binary that cannot be spawned at all is told from
+// one that answered.
+async function launch(context: ExtensionContext, command: string, data: string | undefined): Promise<LanguageClient> {
+  const executable: Executable = { command, args: withData(data, SUBCOMMAND) };
   const server: ServerOptions = { run: executable, debug: executable };
   // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
   // of `initialize`'s `initializationOptions`, and again out of each `didChangeConfiguration` that

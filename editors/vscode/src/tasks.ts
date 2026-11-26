@@ -32,6 +32,7 @@ import {
 } from "vscode";
 
 import { runnable } from "./binary";
+import { withData } from "./shadow";
 
 /** The `type` a `tasks.json` entry names, and the manifest's `taskDefinitions` entry. */
 export const TYPE = "nvs";
@@ -140,16 +141,16 @@ async function taskFor(
   definition: NvsTaskDefinition,
   scope?: WorkspaceFolder | TaskScope,
 ): Promise<Task> {
-  const { command } = await runnable();
+  const { command, data } = await runnable();
   // `nvs debug` takes no file, and reads the configuration of the folder it runs in.
   const execution = definition.command === "debug"
-    ? new ProcessExecution(command, ["debug", ...(definition.args ?? [])], {
+    ? new ProcessExecution(command, withData(data, ["debug", ...(definition.args ?? [])]), {
       env: { NO_COLOR: "1" },
       cwd: definition.file,
     })
     : new ProcessExecution(
       command,
-      [definition.command, definition.file, ...(definition.args ?? [])],
+      withData(data, [definition.command, definition.file, ...(definition.args ?? [])]),
       { env: { NO_COLOR: "1" } },
     );
   return new Task(

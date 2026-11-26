@@ -17,12 +17,18 @@
 // runs the verified copy that hands back (`rule:ide/the-extension-runs-a-copy-of-the-binary`), so
 // nothing this extension does ever holds the named file, and nothing it starts is an older build
 // than the one on disk: `shadow.ts`'s `Copies` reads the binary's stamp on every call.
+//
+// A copy is told the data folder of the binary it was copied from. With no `--data`, `nvs` uses
+// the `.nvsdata` beside its own file, and the copy's file is in this extension's storage. So every
+// spawn puts `withData(found.data, args)` on its command line, and the server, a Task and a
+// developer's own `nvs debug` read one token, one lock and one index. Spends: two path joins and
+// one `realpath` per spawn.
 
 import { join } from "node:path";
 
 import { ExtensionContext, workspace } from "vscode";
 
-import { Copies, Shadow, locate } from "./shadow";
+import { Copies, Shadow, dataBeside, locate } from "./shadow";
 
 let copies: Copies | undefined;
 let storage: string | undefined;
@@ -70,6 +76,11 @@ export interface Runnable {
   readonly copy: Shadow | undefined;
   /** Why `command` is the named file although that file exists, which is the case a user is told of. */
   readonly held: string | undefined;
+  /**
+   * The data folder `--data` names: `.nvsdata` beside the real path of `source`, set only when
+   * `command` is a copy. The named file finds that folder itself.
+   */
+  readonly data: string | undefined;
 }
 
 /**
@@ -96,7 +107,15 @@ export async function runnable(): Promise<Runnable> {
     return managed;
   }
   const named = binary();
-  return { command: named, shown: named, source: undefined, origin: undefined, copy: undefined, held: undefined };
+  return {
+    command: named,
+    shown: named,
+    source: undefined,
+    origin: undefined,
+    copy: undefined,
+    held: undefined,
+    data: undefined,
+  };
 }
 
 /**
@@ -106,10 +125,9 @@ export async function runnable(): Promise<Runnable> {
  * A command that resolves to no file is handed back as it is, so the start fails and the editor
  * says which command it could not run.
  */
-export async function runnableNamed(named: string): Promise<string> {
+export async function runnableNamed(named: string): Promise<Runnable | undefined> {
   // The command stands where `nvs.path` would, so it is found and copied as that setting's is.
-  const found = await candidate(named, "nvs.path");
-  return found?.command ?? named;
+  return candidate(named, "nvs.path");
 }
 
 /**
@@ -137,13 +155,14 @@ async function candidate(named: string, origin: Origin): Promise<Runnable | unde
     return undefined;
   }
   if (copies === undefined) {
-    return { command: source, shown: source, source, origin, copy: undefined, held: undefined };
+    return { command: source, shown: source, source, origin, copy: undefined, held: undefined, data: undefined };
   }
   try {
     const copy = await copies.of(source);
-    return { command: copy.path, shown: source, source, origin, copy, held: undefined };
+    const data = await dataBeside(source);
+    return { command: copy.path, shown: source, source, origin, copy, held: undefined, data };
   } catch (failure) {
     const held = failure instanceof Error ? failure.message : String(failure);
-    return { command: source, shown: source, source, origin, copy: undefined, held };
+    return { command: source, shown: source, source, origin, copy: undefined, held, data: undefined };
   }
 }

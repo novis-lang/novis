@@ -25,6 +25,7 @@ import {
 } from "vscode";
 
 import { runnable, runnableNamed } from "./binary";
+import { withData } from "./shadow";
 import * as taskView from "./taskview";
 
 /** The `type` a `launch.json` configuration names, and the manifest's `debuggers` entry. */
@@ -60,13 +61,18 @@ const factory: DebugAdapterDescriptorFactory = {
  * whole command line, such as `["docker", "exec", "-i", "app", "nvs"]`, and runs as it is written:
  * its first word is a wrapper and not an `nvs` build, so there is nothing of ours to copy. With
  * neither, the binary is the one every other spawn runs.
+ *
+ * A copy carries `--data` with the folder of the binary it was copied from, so the line is the
+ * command and, for a copy, the flag. A wrapper's line is left as written.
  */
 async function commandLine(named: unknown): Promise<string[]> {
   if (typeof named === "string" && named.trim() !== "") {
-    return [await runnableNamed(named.trim())];
+    const found = await runnableNamed(named.trim());
+    return found === undefined ? [named.trim()] : [found.command, ...withData(found.data, [])];
   }
   if (Array.isArray(named) && named.length > 0 && named.every((word) => typeof word === "string")) {
     return named as string[];
   }
-  return [(await runnable()).command];
+  const found = await runnable();
+  return [found.command, ...withData(found.data, [])];
 }

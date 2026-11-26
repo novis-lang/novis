@@ -44,6 +44,7 @@ import {
 } from "vscode";
 
 import { runnable } from "./binary";
+import { withData } from "./shadow";
 import { embedding, regions } from "./regions";
 import { Chunk, chunks, edited, formatted, hidden, merged } from "./template";
 
@@ -165,11 +166,11 @@ function ending(text: string): Position {
  * arrives here as the same refusal, which is the direction that cannot damage a buffer.
  */
 async function fmt(text: string): Promise<string | undefined> {
-  const { command } = await runnable();
+  const { command, data } = await runnable();
   return new Promise((resolve) => {
     const child = execFile(
       command,
-      ["fmt", "--stdin"],
+      withData(data, ["fmt", "--stdin"]),
       { maxBuffer: OUTPUT_CEILING },
       (failure, stdout) => resolve(failure === null ? stdout : undefined),
     );

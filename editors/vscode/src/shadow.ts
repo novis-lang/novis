@@ -27,8 +27,8 @@
 
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { chmod, copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
+import { chmod, copyFile, mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { delimiter, dirname, join, resolve } from "node:path";
 
 /** How often `Watch` looks at the source. One `stat` a second is below anything a machine notices. */
 const POLL_MS = 1000;
@@ -121,6 +121,27 @@ export function copyName(source: string, at: Stamp, platform: NodeJS.Platform): 
 /** The start of every name `copyName` gives a copy of `source`, whichever build it is a copy of. */
 function family(source: string): string {
   return `${PREFIX}${createHash("sha256").update(source).digest("hex").slice(0, 8)}-`;
+}
+
+/**
+ * The data folder of the binary at `source`: `.nvsdata` in the folder of its real path, which is
+ * the folder that binary uses when no `--data` names one (`nvs_config::data::Folder::beside_binary`).
+ *
+ * A copy runs from this extension's storage, so with no flag it would use a folder of its own, and
+ * its token, its lock and its debug index would not be the ones a developer's `nvs debug` uses. A
+ * path that cannot be resolved is read as it is, which is what the binary does with it too.
+ */
+export async function dataBeside(source: string): Promise<string> {
+  const real = await realpath(source).catch(() => source);
+  return join(dirname(real), ".nvsdata");
+}
+
+/**
+ * The arguments of one spawn: `--data <data>` in front of `args` when `data` is set, and `args`
+ * alone when it is not. The flag is global in `nvs`, so it goes before the subcommand.
+ */
+export function withData(data: string | undefined, args: readonly string[]): string[] {
+  return data === undefined ? [...args] : ["--data", data, ...args];
 }
 
 /** A copy the server may be started from. */

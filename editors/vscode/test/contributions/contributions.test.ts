@@ -557,6 +557,32 @@ describe("the debugger", () => {
   });
 });
 
+describe("the data folder every spawn is told", () => {
+  const source = (file: string): string => readFileSync(join(ROOT, "src", file), "utf8");
+
+  // Each of the six spawns names the data folder of the binary it was copied from, so a copy reads
+  // the token, the lock and the index a developer's own `nvs debug` uses.
+  const SITES: [string, RegExp][] = [
+    ["extension.ts", /args: withData\(data, SUBCOMMAND\)/],
+    ["tasks.ts", /withData\(data, \["debug"/],
+    ["tasks.ts", /withData\(data, \[definition\.command, definition\.file/],
+    ["format.ts", /withData\(data, \["fmt", "--stdin"\]\)/],
+    ["ast.ts", /withData\(data, \["ast", "--json", file\]\)/],
+    ["tests.ts", /withData\(data, args\)/],
+    ["debug.ts", /\[found\.command, \.\.\.withData\(found\.data, \[\]\)\]/],
+  ];
+  for (const [file, site] of SITES) {
+    it(`${file} passes it at ${site.source}`, () => {
+      assert.match(source(file), site);
+    });
+  }
+
+  it("the language server is started from a copy with its folder, and from the named file without one", () => {
+    assert.match(source("extension.ts"), /launch\(context, found\.command, found\.data\)/);
+    assert.match(source("extension.ts"), /launch\(context, source, undefined\)/);
+  });
+});
+
 describe("what the extension may depend on", () => {
   it("depends only on the allowlist", () => {
     const dependencies = Object.keys(manifest.dependencies ?? {});

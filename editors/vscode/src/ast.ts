@@ -37,6 +37,7 @@ import {
 } from "vscode";
 
 import { binary, runnable } from "./binary";
+import { withData } from "./shadow";
 import { Node, detail, index, label, read, tooltip } from "./nodes";
 
 /** The view `package.json` contributes, and the id the editor's own `<view>.focus` hangs off. */
@@ -170,11 +171,11 @@ async function render(file: string): Promise<void> {
  * that is the one case the user is told about.
  */
 async function dump(file: string): Promise<string | undefined> {
-  const { command, shown } = await runnable();
+  const { command, shown, data } = await runnable();
   return new Promise((resolve) => {
     execFile(
       command,
-      ["ast", "--json", file],
+      withData(data, ["ast", "--json", file]),
       { maxBuffer: OUTPUT_CEILING },
       (failure, stdout, stderr) => {
         if (stdout.trim().length > 0) {
