@@ -64,6 +64,7 @@ setting under it gives the warning `W1024`, and Novis ignores it.
 | `[db] pool` | `pool = false` written in `[db]` itself, not in a `[db.<name>]` block. It turns pooling off for every connection this process opens. That includes a connection that `Core\Db::open` describes itself, with no block. Bounds are not written here. They go in the block they size |
 | `[mail.<name>]` | an SMTP server a program sends mail through. `host`, `port`, `from`, `from_name` (the sender's display name), `return_path` (the envelope sender, where bounces go), `timeout`; `user`, `password`, `password_file`; `tls` (`implicit`, `starttls` or `none`; the default is `implicit` on port 465, `starttls` when the block has a credential, and `none` otherwise), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`; `dkim_selector`, `dkim_key_file`, `dkim_domain` to sign each message; `capture` (keep each message and send nothing); `pool` |
 | `[mail.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire`: the bounds of the block's kept connections, as `[db.<name>.pool]` has them. `pool = false` opens a new connection for every message |
+| `[imap.<name>]` | an IMAP mailbox that `Core\Imap::open` reads. `host`, `port` (default 993), `timeout` (default `30s`); `user`, `password`, `password_file`; `tls` (`implicit`, the default, or `starttls`; there is no `none`), `tls_ca_file`, `auth` (`plain`, `login` or `xoauth2`); `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_client_secret_file`, `oauth_scope`, `oauth_refresh_token`, `oauth_refresh_token_file` for `xoauth2`, as in `[mail.<name>]`. `directory` reads a folder on disk instead of a server: each subfolder is a mail folder and each `<uid>.eml` file a message. A block with `directory` has no other key |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level`, `access`, `client_ip` |
 | `[regex]` | `backtracking`: `"allow"` (the default), `"warn"` or `"deny"`. It decides what a pattern with lookaround or a backreference does. Under `"warn"`, such a `Core\Regex::compile` literal compiles with a warning. Under `"deny"`, the literal does not compile, and such a pattern built at run time throws a `RuntimeError`. A program cannot change this setting |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
@@ -246,6 +247,7 @@ This table is the complete list of capabilities:
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 | `db.schema` | changing tables with `Core\Db\Schema::applySafe` and `applyIncludingRisky` | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
+| `imap.connect` | opening an `[imap.<name>]` block with `Core\Imap::open` | the block names |
 | `cache.shared` | the store that `[cache.shared] url` names, used by `Core\Cache::shared()` and `Core\RateLimit::consume` | `true` or `false`: a deployment has one shared store |
 | `queue.purge` | removing a queue's rows with `Core\Queue::delete` and `purge` | the queue names |
 | `env` | reading environment variables with `Core\Env::get`, `secret` and `all`, and `Core\Config::secret` | `true` or `false`; write `env = true` under `[capabilities]` |
@@ -510,7 +512,8 @@ A directive that contains a secret has a `_file` sibling. The file's **whole con
 value. Exactly one trailing newline (and a `\r` before it) is removed, and nothing else is trimmed.
 Only one of the pair may be set. Setting both is `E0608`. These directives have such a pair:
 `[db.<name>] password`, `[mail.<name>] password`, `[mail.<name>] oauth_client_secret`,
-`[mail.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
+`[mail.<name>] oauth_refresh_token`, `[imap.<name>] password`, `[imap.<name>] oauth_client_secret`,
+`[imap.<name>] oauth_refresh_token`, `[ldap.<name>] password`, `[http.client.proxy] password`,
 `[http] csrf_key` and `[cache.shared] password`:
 
 ```toml
