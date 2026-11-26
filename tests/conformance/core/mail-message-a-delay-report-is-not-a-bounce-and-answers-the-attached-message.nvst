@@ -1,0 +1,73 @@
+--TEST--
+A delivery report with a delayed recipient and no failed one is a `Delay`: a delivered recipient has no diagnostic and is not permanent, `answers()` is read from an attached `message/rfc822` part, and a `To` with no `+tag` gives no bounce tag — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// A mail server reports that one message is late. The other recipient got it.
+use Core\Mail\ReportRecipient;
+
+Core\Mail\Message $delay = Core\Mail\Message::parse(
+    "From: Mail Delivery System <mailer-daemon@mx.example.net>\r\n"
+    . "To: bounces@example.com\r\n"
+    . "Subject: Delayed Mail\r\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"B2\"\r\n"
+    . "\r\n"
+    . "--B2\r\n"
+    . "Content-Type: message/delivery-status\r\n"
+    . "\r\n"
+    . "Reporting-MTA: dns; mx.example.net\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; ada@example.org\r\n"
+    . "Action: delayed\r\n"
+    . "Status: 4.4.7\r\n"
+    . "Diagnostic-Code: smtp; 421 4.4.7 Try again later\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; bo@example.org\r\n"
+    . "Action: delivered\r\n"
+    . "Status: 2.0.0\r\n"
+    . "\r\n"
+    . "--B2\r\n"
+    . "Content-Type: message/rfc822\r\n"
+    . "\r\n"
+    . "From: Shop <shop@example.com>\r\n"
+    . "Subject: Your invoice\r\n"
+    . "Message-ID: <invoice-7@example.com>\r\n"
+    . "\r\n"
+    . "The invoice is attached.\r\n"
+    . "--B2--\r\n"
+);
+
+// No recipient failed, so the kind is `Delay` and not `Bounce`.
+echo $delay->kind() == Core\Mail\Message::Kind::Delay ? "delay" : "other", "\n";
+echo $delay->answers() ?? "no answer", "\n";
+echo $delay->bounceTag() ?? "no tag", "\n";
+
+?Core\Mail\Report $report = $delay->report();
+array<Core\Mail\ReportRecipient> $recipients = $report?->recipients() ?? [];
+echo Core\Arr::count($recipients), "\n";
+
+// The first recipient is late. A status that starts with `4` is temporary.
+echo $recipients[0]->address(), "\n";
+echo $recipients[0]->action() == ReportRecipient::Action::Delayed ? "delayed" : "other", "\n";
+echo $recipients[0]->isPermanent() ? "permanent" : "temporary", "\n";
+echo $recipients[0]->diagnostic() ?? "no diagnostic", "\n";
+
+// The second recipient got the message. The report gives no diagnostic for it.
+echo $recipients[1]->address(), "\n";
+echo $recipients[1]->action() == ReportRecipient::Action::Delivered ? "delivered" : "other", "\n";
+echo $recipients[1]->status(), "\n";
+echo $recipients[1]->isPermanent() ? "permanent" : "temporary", "\n";
+echo $recipients[1]->diagnostic() ?? "no diagnostic", "\n";
+--EXPECT--
+delay
+invoice-7@example.com
+no tag
+2
+ada@example.org
+delayed
+temporary
+421 4.4.7 Try again later
+bo@example.org
+delivered
+2.0.0
+temporary
+no diagnostic

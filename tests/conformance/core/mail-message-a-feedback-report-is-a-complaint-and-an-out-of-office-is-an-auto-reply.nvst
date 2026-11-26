@@ -1,0 +1,52 @@
+--TEST--
+A feedback report is a `Complaint` that answers the `Message-ID` of the attached message and has no delivery report, and a message with `Auto-Submitted: auto-replied` is an `AutoReply` that answers its `In-Reply-To` — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// A spam complaint about a newsletter, and an out-of-office reply to an order.
+Core\Mail\Message $complaint = Core\Mail\Message::parse(
+    "From: Feedback Loop <fbl@isp.example.net>\r\n"
+    . "To: abuse@example.com\r\n"
+    . "Subject: Complaint about a message\r\n"
+    . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"B3\"\r\n"
+    . "\r\n"
+    . "--B3\r\n"
+    . "Content-Type: message/feedback-report\r\n"
+    . "\r\n"
+    . "Feedback-Type: abuse\r\n"
+    . "Version: 1\r\n"
+    . "\r\n"
+    . "--B3\r\n"
+    . "Content-Type: message/rfc822\r\n"
+    . "\r\n"
+    . "From: Shop <shop@example.com>\r\n"
+    . "Subject: Weekly news\r\n"
+    . "Message-ID: <news-9@example.com>\r\n"
+    . "\r\n"
+    . "This week in the shop.\r\n"
+    . "--B3--\r\n"
+);
+echo $complaint->kind() == Core\Mail\Message::Kind::Complaint ? "complaint" : "other", "\n";
+echo $complaint->answers() ?? "no answer", "\n";
+// A feedback report is not a delivery report, so `report()` is `null`.
+echo $complaint->report() == null ? "no report" : "report", "\n";
+
+Core\Mail\Message $away = Core\Mail\Message::parse(
+    "From: Ada <ada@example.org>\r\n"
+    . "To: Shop <shop@example.com>\r\n"
+    . "Subject: Out of office: Your order\r\n"
+    . "In-Reply-To: <order-42@example.com>\r\n"
+    . "Auto-Submitted: auto-replied\r\n"
+    . "\r\n"
+    . "I am away until Monday."
+);
+// The message has `In-Reply-To`, but `Auto-Submitted` makes it an `AutoReply` and not a `Reply`.
+echo $away->kind() == Core\Mail\Message::Kind::AutoReply ? "auto-reply" : "other", "\n";
+echo $away->answers() ?? "no answer", "\n";
+echo $away->report() == null ? "no report" : "report", "\n";
+--EXPECT--
+complaint
+news-9@example.com
+no report
+auto-reply
+order-42@example.com
+no report

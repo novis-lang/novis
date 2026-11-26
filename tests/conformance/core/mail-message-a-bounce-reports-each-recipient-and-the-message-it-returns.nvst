@@ -1,0 +1,87 @@
+--TEST--
+A delivery report with a failed recipient is a `Bounce`: `report()` lists each recipient with its action, status and diagnostic, `answers()` is the `Message-ID` of the returned message, and `bounceTag()` is read from `Delivered-To` — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// A mail server sends this report back to a shop.
+// One recipient does not exist, and the delivery to the other one is late.
+use Core\Mail\ReportRecipient;
+
+final class Show {
+    public static function action(ReportRecipient::Action $action): string {
+        if ($action == ReportRecipient::Action::Failed) {
+            return "failed";
+        }
+        if ($action == ReportRecipient::Action::Delayed) {
+            return "delayed";
+        }
+        return "other";
+    }
+}
+
+Core\Mail\Message $bounce = Core\Mail\Message::parse(
+    "Delivered-To: bounces+order-42@example.com\r\n"
+    . "From: Mail Delivery System <mailer-daemon@mx.example.net>\r\n"
+    . "To: bounces@example.com\r\n"
+    . "Subject: Undelivered Mail Returned to Sender\r\n"
+    . "Message-ID: <report-1@mx.example.net>\r\n"
+    . "MIME-Version: 1.0\r\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"B1\"\r\n"
+    . "\r\n"
+    . "--B1\r\n"
+    . "Content-Type: text/plain\r\n"
+    . "\r\n"
+    . "The message could not be delivered.\r\n"
+    . "--B1\r\n"
+    . "Content-Type: message/delivery-status\r\n"
+    . "\r\n"
+    . "Reporting-MTA: dns; mx.example.net\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; ada@example.org\r\n"
+    . "Action: failed\r\n"
+    . "Status: 5.1.1\r\n"
+    . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; <bo@example.org>\r\n"
+    . "Action: delayed\r\n"
+    . "Status: 4.4.1 (connection timed out)\r\n"
+    . "\r\n"
+    . "--B1\r\n"
+    . "Content-Type: text/rfc822-headers\r\n"
+    . "\r\n"
+    . "From: Shop <shop@example.com>\r\n"
+    . "Subject: Your order\r\n"
+    . "Message-ID: <order-42@example.com>\r\n"
+    . "\r\n"
+    . "--B1--\r\n"
+);
+
+// One recipient failed, so the kind is `Bounce`.
+echo $bounce->kind() == Core\Mail\Message::Kind::Bounce ? "bounce" : "other", "\n";
+echo $bounce->messageId() ?? "no id", "\n";
+echo $bounce->from()?->address() ?? "no sender", "\n";
+echo $bounce->subject(), "\n";
+echo Core\Str::join($bounce->header("Reporting-MTA"), ","), "|\n";
+
+// `answers()` is the `Message-ID` of the shop's own message, from the last part.
+echo $bounce->answers() ?? "no answer", "\n";
+
+// The `+tag` comes from `Delivered-To`. The `To` address has no tag.
+echo $bounce->bounceTag() ?? "no tag", "\n";
+
+// Each recipient: the address, the action, the status, whether it is permanent, and the server's message.
+?Core\Mail\Report $report = $bounce->report();
+foreach ($report?->recipients() ?? [] as Core\Mail\ReportRecipient $recipient) {
+    echo $recipient->address(), " ", Show::action($recipient->action()), " ", $recipient->status(), " ";
+    echo $recipient->isPermanent() ? "permanent" : "temporary", " ";
+    echo $recipient->diagnostic() ?? "no diagnostic", "\n";
+}
+--EXPECT--
+bounce
+report-1@mx.example.net
+mailer-daemon@mx.example.net
+Undelivered Mail Returned to Sender
+|
+order-42@example.com
+order-42
+ada@example.org failed 5.1.1 permanent 550 5.1.1 User unknown
+bo@example.org delayed 4.4.1 temporary no diagnostic

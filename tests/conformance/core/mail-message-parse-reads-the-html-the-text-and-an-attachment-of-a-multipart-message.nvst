@@ -1,0 +1,71 @@
+--TEST--
+`Core\Mail\Message::parse` reads a multipart message: the text and the HTML body, an attachment with its name, type and decoded bytes, several `To` and `Cc` addresses in order, and a `Date` in the sender's time zone — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// A customer sends a message with a text body, an HTML body and a file.
+Core\Mail\Message $message = Core\Mail\Message::parse(
+    "From: ada@example.org\r\n"
+    . "To: Shop <shop@example.com>, Sales <sales@example.com>\r\n"
+    . "Cc: Bo <bo@example.org>, cy@example.org\r\n"
+    . "Reply-To: orders@example.org\r\n"
+    . "Subject: My order list\r\n"
+    . "Date: Mon, 2 Nov 2026 09:30:00 -0500\r\n"
+    . "MIME-Version: 1.0\r\n"
+    . "Content-Type: multipart/mixed; boundary=\"M1\"\r\n"
+    . "\r\n"
+    . "--M1\r\n"
+    . "Content-Type: multipart/alternative; boundary=\"A1\"\r\n"
+    . "\r\n"
+    . "--A1\r\n"
+    . "Content-Type: text/plain; charset=utf-8\r\n"
+    . "\r\n"
+    . "The list is attached.\r\n"
+    . "--A1\r\n"
+    . "Content-Type: text/html; charset=utf-8\r\n"
+    . "\r\n"
+    . "<p>The list is attached.</p>\r\n"
+    . "--A1--\r\n"
+    . "--M1\r\n"
+    . "Content-Type: text/csv; name=\"list.csv\"\r\n"
+    . "Content-Disposition: attachment; filename=\"list.csv\"\r\n"
+    . "Content-Transfer-Encoding: base64\r\n"
+    . "\r\n"
+    . "aXRlbSxjb3VudAo=\r\n"
+    . "--M1--\r\n"
+);
+
+foreach ($message->to() as Core\Mail\Address $to) {
+    echo $to->name(), " <", $to->address(), ">\n";
+}
+foreach ($message->cc() as Core\Mail\Address $cc) {
+    echo "[", $cc->name(), "] ", $cc->address(), "\n";
+}
+echo $message->replyTo()[0]->address(), "\n";
+echo $message->date()?->toIso() ?? "no date", "\n";
+echo $message->header("Content-Type")[0], "\n";
+
+echo Core\Str::trim($message->text() ?? ""), "\n";
+echo Core\Str::trim($message->html() ?? ""), "\n";
+
+// The attachment is base64 in the message. `bytes()` returns the decoded content.
+array<Core\Mail\Attachment> $files = $message->attachments();
+echo Core\Arr::count($files), "\n";
+echo $files[0]->name() ?? "no name", "\n";
+echo $files[0]->type(), "\n";
+echo Core\Encoding::toHex($files[0]->bytes()), "\n";
+echo Core\Bytes::length($message->raw()) > 400 ? "raw kept" : "raw short", "\n";
+--EXPECT--
+Shop <shop@example.com>
+Sales <sales@example.com>
+[Bo] bo@example.org
+[] cy@example.org
+orders@example.org
+2026-11-02T09:30:00-05:00[-05:00]
+multipart/mixed; boundary="M1"
+The list is attached.
+<p>The list is attached.</p>
+1
+list.csv
+text/csv
+6974656d2c636f756e740a
+raw kept

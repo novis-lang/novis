@@ -1,0 +1,69 @@
+--TEST--
+`Core\Test\SentMail` reads a thread of two messages: each message id is 32 hex digits at the domain of `from`, a second message answers the first by the id `send` returned, and `fromName` without the option is the block's `from_name` — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test\SentMail::messageId, Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references
+// covers: Core\Test\SentMail::fromName, Core\Test\SentMail::unsubscribe, Core\Test\SentMail::autoSubmitted
+// covers: Core\Test\SentMail::bounceTag, Core\Test\SentMail::attachments
+use Core\Str;
+use Core\Test;
+
+final class ThreadTest {
+    #[Test]
+    public function theSecondMessageAnswersTheFirst(): void {
+        string $first = Core\Mail::send("site", ["ada@example.org"], "Your order", "We got your order.");
+        string $second = Core\Mail::send(
+            "site",
+            ["ada@example.org"],
+            "Re: Your order",
+            "Your order is on its way.",
+            {
+                fromName: "Shop Support",
+                inReplyTo: $first,
+                references: [$first],
+                bounceTag: "order-42"
+            }
+        );
+
+        // Each id is 32 hex digits, `@` and the domain of `from` in `nvs.toml`.
+        Test::assertSame(Str::length($first), 32 + Str::length("@example.com"));
+        Test::assertTrue(Str::endsWith($first, "@example.com"));
+        Test::assertTrue($first != $second);
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Core\Test\SentMail $order = $sent[0];
+        Core\Test\SentMail $reply = $sent[1];
+        Test::assertSame($order->messageId(), $first);
+        Test::assertSame($reply->messageId(), $second);
+
+        // The first message sets no `fromName`, so it is `from_name` of the block.
+        Test::assertSame($order->fromName(), "Shop");
+        Test::assertSame($reply->fromName(), "Shop Support");
+
+        // The second message names the first one as the message it answers.
+        Test::assertNull($order->inReplyTo());
+        Test::assertSame($reply->inReplyTo(), $first);
+        Test::assertEquals($reply->references(), [$first]);
+        Test::assertSame($reply->bounceTag(), "order-42");
+
+        // Neither message sets these options, so each has its default.
+        Test::assertNull($reply->unsubscribe());
+        Test::assertTrue($reply->autoSubmitted());
+        Test::assertCount($reply->attachments(), 0);
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+capture = true
+from = "hello@example.com"
+from_name = "Shop"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  ThreadTest
+    ✓ theSecondMessageAnswersTheFirst  %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

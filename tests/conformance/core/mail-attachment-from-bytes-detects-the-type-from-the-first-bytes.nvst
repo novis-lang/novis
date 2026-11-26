@@ -1,0 +1,25 @@
+--TEST--
+`Core\Mail\Attachment::fromBytes` detects the type from the first bytes and not from the file name, a written `type` replaces the detected one, and a `type` that is not a media type throws an error — `rule:core-classes/mail-message`
+--FILE--
+<?nvs
+// The first bytes of this content are the start of a PDF file. The name ends in `.txt`.
+Core\Mail\Attachment $pdf = Core\Mail\Attachment::fromBytes("notes.txt", "%PDF-1.4\n%%EOF\n");
+echo $pdf->name() ?? "no name", " ", $pdf->type(), "\n";
+
+// A written `type` is used as it is.
+Core\Mail\Attachment $csv = Core\Mail\Attachment::fromBytes("list.csv", "item,count\n", {type: "text/csv"});
+echo $csv->type(), "\n";
+echo $csv->isInline() ? "inline" : "file", "\n";
+
+// `csv` alone is not a media type, so this call throws an error.
+try {
+    Core\Mail\Attachment::fromBytes("list.csv", "item,count\n", {type: "csv"});
+    echo "no error\n";
+} catch (RuntimeError $e) {
+    echo "RuntimeError\n";
+}
+--EXPECT--
+notes.txt application/pdf
+text/csv
+file
+RuntimeError

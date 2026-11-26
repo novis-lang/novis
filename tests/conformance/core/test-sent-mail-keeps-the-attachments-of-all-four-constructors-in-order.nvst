@@ -1,0 +1,79 @@
+--TEST--
+`Core\Test\SentMail::attachments` returns the attachments that `fromBytes`, `fromFile`, `inlineBytes` and `inlineFile` built, in the order given, with the type detected from the first bytes when none is given — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Mail\Attachment::fromBytes, Core\Mail\Attachment::fromFile
+// covers: Core\Mail\Attachment::inlineBytes, Core\Mail\Attachment::inlineFile
+use Core\Test;
+
+final class AttachmentTest {
+    #[Test]
+    public function everyAttachmentIsSentInOrder(): void {
+        Core\Mail\Attachment $csv = Core\Mail\Attachment::fromBytes("list.csv", "item,count\n");
+        Core\Mail\Attachment $pdf = Core\Mail\Attachment::fromFile("files/invoice.pdf");
+        Core\Mail\Attachment $dot = Core\Mail\Attachment::inlineBytes("dot.png", "pixel", {type: "image/png"});
+        Core\Mail\Attachment $logo = Core\Mail\Attachment::inlineFile("files/logo.gif");
+        string $id = Core\Mail::send(
+            "site",
+            ["ada@example.org"],
+            "Your invoice",
+            html`<p><img src="{$logo->src()}" alt="Shop"><img src="{$dot->src()}" alt=""></p>`,
+            {
+                attachments: [$csv, $pdf, $dot, $logo],
+                unsubscribe: "https://example.com/unsubscribe/ada",
+                autoSubmitted: false,
+                bounceTag: "invoice_7.a"
+            }
+        );
+
+        Core\Test\SentMail $mail = Core\Test::sentMail()[0];
+        array<Core\Mail\Attachment> $parts = $mail->attachments();
+        Test::assertCount($parts, 4);
+
+        // Without a `type`, the type is detected from the first bytes.
+        // These bytes are plain text, so the type is `application/octet-stream`.
+        Test::assertSame($parts[0]->name(), "list.csv");
+        Test::assertSame($parts[0]->type(), "application/octet-stream");
+        Test::assertTrue(!$parts[0]->isInline());
+        Test::assertSame($parts[1]->name(), "invoice.pdf");
+        Test::assertSame($parts[1]->type(), "application/pdf");
+        Test::assertTrue(!$parts[1]->isInline());
+        Test::assertSame($parts[2]->type(), "image/png");
+        Test::assertTrue($parts[2]->isInline());
+        Test::assertSame($parts[3]->name(), "logo.gif");
+        Test::assertSame($parts[3]->type(), "image/gif");
+        Test::assertTrue($parts[3]->isInline());
+        Test::assertSame(Core\Encoding::toHex($parts[3]->bytes()), "4749463839610a");
+
+        // The other options of this message, read back as they were given.
+        Test::assertSame($mail->messageId(), $id);
+        Test::assertSame($mail->unsubscribe(), "https://example.com/unsubscribe/ada");
+        Test::assertTrue(!$mail->autoSubmitted());
+        Test::assertSame($mail->bounceTag(), "invoice_7.a");
+        Test::assertNull($mail->fromName());
+        Test::assertNull($mail->inReplyTo());
+        Test::assertEquals($mail->references(), []);
+    }
+}
+--FILE files/invoice.pdf--
+%PDF-1.4
+%%EOF
+--FILE files/logo.gif--
+GIF89a
+--FILE nvs.toml--
+[mail.site]
+capture = true
+from = "hello@example.com"
+
+[capabilities.mail]
+send = ["site"]
+
+[capabilities.fs]
+read = ["files"]
+--EXPECTF--
+  AttachmentTest
+    ✓ everyAttachmentIsSentInOrder     %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

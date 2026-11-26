@@ -1,0 +1,49 @@
+--TEST--
+`Core\Mail\Report::recipients` skips a group whose `Action` is not one RFC 3464 defines or that has no `Final-Recipient`, and a recipient with no `Status` has an empty status and is not permanent — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// This report has three groups of fields. Only the first one is a valid recipient.
+use Core\Mail\ReportRecipient;
+
+Core\Mail\Message $bounce = Core\Mail\Message::parse(
+    "From: mailer-daemon@mx.example.net\r\n"
+    . "To: bounces@example.com\r\n"
+    . "Subject: Returned mail\r\n"
+    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"B4\"\r\n"
+    . "\r\n"
+    . "--B4\r\n"
+    . "Content-Type: message/delivery-status\r\n"
+    . "\r\n"
+    . "Reporting-MTA: dns; mx.example.net\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; ada@example.org\r\n"
+    . "Action: failed\r\n"
+    . "\r\n"
+    . "Final-Recipient: rfc822; bo@example.org\r\n"
+    . "Action: lost\r\n"
+    . "Status: 5.0.0\r\n"
+    . "\r\n"
+    . "Action: failed\r\n"
+    . "Status: 5.0.0\r\n"
+    . "\r\n"
+    . "--B4--\r\n"
+);
+
+?Core\Mail\Report $report = $bounce->report();
+foreach ($report?->recipients() ?? [] as Core\Mail\ReportRecipient $recipient) {
+    echo $recipient->address(), "\n";
+    echo $recipient->action() == ReportRecipient::Action::Failed ? "failed" : "other", "\n";
+    // The report gives no `Status` here, so `status()` is an empty string.
+    echo "[", $recipient->status(), "]\n";
+    echo $recipient->isPermanent() ? "permanent" : "not permanent", "\n";
+    echo $recipient->diagnostic() ?? "no diagnostic", "\n";
+}
+// The one valid recipient failed, so the message is a bounce.
+echo $bounce->kind() == Core\Mail\Message::Kind::Bounce ? "bounce" : "other", "\n";
+--EXPECT--
+ada@example.org
+failed
+[]
+not permanent
+no diagnostic
+bounce

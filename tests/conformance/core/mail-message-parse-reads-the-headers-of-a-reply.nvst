@@ -1,0 +1,66 @@
+--TEST--
+`Core\Mail\Message::parse` reads every header of a reply: the sender, the recipients, the date, the thread, and the `+tag` of the address it was sent to — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// This program reads a reply that a customer sent to a shop.
+Core\Mail\Message $reply = Core\Mail\Message::parse(
+    "From: Ada <ada@example.org>\r\n"
+    . "To: Shop <shop+support@example.com>\r\n"
+    . "Cc: bo@example.org\r\n"
+    . "Reply-To: Ada Home <ada@home.example.org>\r\n"
+    . "Subject: Re: Your order\r\n"
+    . "Date: Tue, 3 Nov 2026 14:05:09 +0100\r\n"
+    . "Message-ID: <reply-5@example.org>\r\n"
+    . "In-Reply-To: <order-42@example.com>\r\n"
+    . "References: <welcome-1@example.com> <order-42@example.com>\r\n"
+    . "X-Ticket: 12\r\n"
+    . "X-Ticket: 13\r\n"
+    . "\r\n"
+    . "Can I change the address?"
+);
+
+// `from()` returns the first address of `From`, with its display name.
+?Core\Mail\Address $from = $reply->from();
+echo $from?->name() ?? "", " <", $from?->address() ?? "", ">\n";
+echo $reply->to()[0]->address(), "\n";
+echo $reply->cc()[0]->address(), "\n";
+echo $reply->replyTo()[0]->name(), "\n";
+echo $reply->subject(), "\n";
+echo $reply->date()?->toIso() ?? "no date", "\n";
+echo $reply->messageId() ?? "no id", "\n";
+echo $reply->inReplyTo() ?? "no reply", "\n";
+echo Core\Str::join($reply->references(), " "), "\n";
+
+// `header()` returns every value of a header, in the order of the message.
+echo Core\Str::join($reply->header("x-ticket"), ","), "\n";
+echo $reply->text() ?? "no text", "\n";
+
+// A reply has an `In-Reply-To` header, so its kind is `Reply`.
+echo $reply->kind() == Core\Mail\Message::Kind::Reply ? "reply" : "other", "\n";
+echo $reply->answers() ?? "no answer", "\n";
+echo $reply->report() == null ? "no report" : "report", "\n";
+
+// The address in `To` is `shop+support@example.com`, so the bounce tag is `support`.
+echo $reply->bounceTag() ?? "no tag", "\n";
+echo $reply->html() ?? "no html", "\n";
+echo Core\Arr::count($reply->attachments()), "\n";
+echo Core\Bytes::length($reply->raw()) > 0 ? "raw kept" : "raw empty", "\n";
+--EXPECT--
+Ada <ada@example.org>
+shop+support@example.com
+bo@example.org
+Ada Home
+Re: Your order
+2026-11-03T14:05:09+01:00[+01:00]
+reply-5@example.org
+order-42@example.com
+welcome-1@example.com order-42@example.com
+12,13
+Can I change the address?
+reply
+order-42@example.com
+no report
+support
+no html
+0
+raw kept

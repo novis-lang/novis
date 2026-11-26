@@ -1,0 +1,39 @@
+--TEST--
+A received message with only a subject and a body is `Other`: every header it does not have gives `null` or an empty list, and it has no report, no answer and no bounce tag — `rule:core-classes/mail-receive`
+--FILE--
+<?nvs
+// This message has a subject and a body, and nothing else.
+Core\Mail\Message $note = Core\Mail\Message::parse("Subject: Hello\r\n\r\nA short note.");
+
+echo $note->kind() == Core\Mail\Message::Kind::Other ? "other" : "not other", "\n";
+
+// A header that is not there gives `null`.
+?Core\Mail\Address $from = $note->from();
+echo $from?->address() ?? "null", "\n";
+echo $note->messageId() ?? "null", "\n";
+echo $note->date()?->toIso() ?? "null", "\n";
+echo $note->inReplyTo() ?? "null", "\n";
+echo $note->answers() ?? "null", "\n";
+echo $note->bounceTag() ?? "null", "\n";
+echo $note->html() ?? "null", "\n";
+echo $note->report() == null ? "null" : "report", "\n";
+
+// A list header that is not there gives an empty list.
+echo Core\Arr::count($note->to()), Core\Arr::count($note->cc()), Core\Arr::count($note->replyTo()), "\n";
+echo Core\Arr::count($note->references()), Core\Arr::count($note->header("X-Ticket")), "\n";
+echo Core\Arr::count($note->attachments()), "\n";
+echo $note->text() ?? "null", "\n";
+--EXPECT--
+other
+null
+null
+null
+null
+null
+null
+null
+null
+000
+00
+0
+A short note.
