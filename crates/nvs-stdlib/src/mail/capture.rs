@@ -19,7 +19,11 @@ use nvs_runtime::{Ctx, Value};
 /// Writes `kept` to the debug spool as a `mail` line, when `[debug] store` is on for the request.
 /// `body` is the call's `$body`, read again for the HTML as the program wrote it.
 pub(super) fn spool(ctx: &Ctx, from: &str, body: Value, kept: &KeptMail) {
-    if ctx.config().and_then(nvs_runtime::spool::Store::of).is_none() {
+    if ctx
+        .config()
+        .and_then(nvs_runtime::spool::Store::of)
+        .is_none()
+    {
         return;
     }
     nvs_runtime::spool::record(ctx, Record::Mail(Box::new(line(from, body, kept))));
@@ -27,7 +31,11 @@ pub(super) fn spool(ctx: &Ctx, from: &str, body: Value, kept: &KeptMail) {
 
 /// The `mail` line of `kept`.
 fn line(from: &str, body: Value, kept: &KeptMail) -> Mail {
-    let report = kept.html.as_deref().map(super::css::report).unwrap_or_default();
+    let report = kept
+        .html
+        .as_deref()
+        .map(super::css::report)
+        .unwrap_or_default();
     let html_written = crate::html::markup_slot(body, "body")
         .ok()
         .and_then(|markup| markup.as_text().map(str::to_owned));

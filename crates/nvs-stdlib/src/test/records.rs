@@ -841,6 +841,10 @@ mod tests {
     /// an empty list.
     // covers: Core\Test\SentMail::endpoint, Core\Test\SentMail::to, Core\Test\SentMail::subject, Core\Test\SentMail::text
     // covers: Core\Test\SentMail::cc, Core\Test\SentMail::bcc, Core\Test\SentMail::replyTo, Core\Test\SentMail::html
+    // covers: Core\Test\SentMail::messageId, Core\Test\SentMail::fromName, Core\Test\SentMail::attachments
+    // covers: Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references, Core\Test\SentMail::unsubscribe
+    // covers: Core\Test\SentMail::autoSubmitted, Core\Test\SentMail::bounceTag
+    // covers: Core\Mail\Attachment::name, Core\Mail\Attachment::type, Core\Mail\Attachment::bytes, Core\Mail\Attachment::isInline
     #[test]
     fn sent_mail_members_read_each_parameter_and_an_absent_part_is_empty_or_null() {
         let mut ctx = Ctx::buffered();
@@ -943,6 +947,127 @@ mod tests {
             is_null
         ));
         assert!(read(&mut ctx, nvs_core_test_sent_mail_html, alert, is_null));
+
+        // The parts `send` added: the id, the name, the thread, the attachments.
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_message_id, news, text).as_deref(),
+            Some("1f2e@example.com")
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_from_name, news, text).as_deref(),
+            Some("Shop")
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_in_reply_to, news, text).as_deref(),
+            Some("0a@example.com")
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_references, news, texts),
+            ["09@example.com", "0a@example.com"]
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_unsubscribe, news, text).as_deref(),
+            Some("https://example.com/unsubscribe")
+        );
+        assert_eq!(
+            read(
+                &mut ctx,
+                nvs_core_test_sent_mail_auto_submitted,
+                news,
+                |value| value.as_bool()
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_bounce_tag, news, text).as_deref(),
+            Some("order-7")
+        );
+        let attachments = nvs_runtime::call(nvs_core_test_sent_mail_attachments, &mut ctx, &[news])
+            .expect("a reader cannot fail");
+        assert_eq!(count(attachments), 1);
+        let logo = at(attachments, 0);
+        assert_eq!(
+            read(
+                &mut ctx,
+                crate::mail::nvs_core_mail_attachment_name,
+                logo,
+                text
+            )
+            .as_deref(),
+            Some("logo.png")
+        );
+        assert_eq!(
+            read(
+                &mut ctx,
+                crate::mail::nvs_core_mail_attachment_type,
+                logo,
+                text
+            )
+            .as_deref(),
+            Some("image/png")
+        );
+        assert_eq!(
+            read(
+                &mut ctx,
+                crate::mail::nvs_core_mail_attachment_bytes,
+                logo,
+                |value| value.as_bytes().map(<[u8]>::to_vec)
+            ),
+            Some(vec![1, 2, 3])
+        );
+        assert_eq!(
+            read(
+                &mut ctx,
+                crate::mail::nvs_core_mail_attachment_is_inline,
+                logo,
+                |value| value.as_bool()
+            ),
+            Some(true)
+        );
+        dropped(attachments);
+
+        // A message that set none of them: `null`, empty, and `Auto-Submitted` off.
+        assert!(read(
+            &mut ctx,
+            nvs_core_test_sent_mail_from_name,
+            alert,
+            is_null
+        ));
+        assert!(read(
+            &mut ctx,
+            nvs_core_test_sent_mail_in_reply_to,
+            alert,
+            is_null
+        ));
+        assert!(read(
+            &mut ctx,
+            nvs_core_test_sent_mail_unsubscribe,
+            alert,
+            is_null
+        ));
+        assert!(read(
+            &mut ctx,
+            nvs_core_test_sent_mail_bounce_tag,
+            alert,
+            is_null
+        ));
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_references, alert, count),
+            0
+        );
+        assert_eq!(
+            read(&mut ctx, nvs_core_test_sent_mail_attachments, alert, count),
+            0
+        );
+        assert_eq!(
+            read(
+                &mut ctx,
+                nvs_core_test_sent_mail_auto_submitted,
+                alert,
+                |value| value.as_bool()
+            ),
+            Some(false)
+        );
 
         assert!(
             nvs_runtime::call(nvs_core_test_sent_mail_to, &mut ctx, &[Value::int(7)]).is_err(),

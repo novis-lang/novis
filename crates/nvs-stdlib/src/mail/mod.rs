@@ -119,6 +119,11 @@ mod smtp;
 
 pub(crate) use css::PREVIEW;
 pub(crate) use parts::{ATTACHMENT, ATTACHMENT_NAME, built as attachment};
+#[cfg(test)]
+pub(crate) use parts::{
+    nvs_core_mail_attachment_bytes, nvs_core_mail_attachment_is_inline,
+    nvs_core_mail_attachment_name, nvs_core_mail_attachment_type,
+};
 
 use std::cell::Cell;
 use std::net::SocketAddr;
@@ -1753,6 +1758,172 @@ mod tests {
                 present(verbatim.to_string()).as_deref(),
                 Some(verbatim),
                 "a non-blank value is the operator's, byte for byte",
+            );
+        }
+    }
+
+    /// A context outside `nvs test` that grants the block `site`, written as `block`, with
+    /// `[debug] store` on when `store` is.
+    fn granted_site(block: &str, store: bool) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        let debug = if store {
+            "[debug]\nstore = true\n\n"
+        } else {
+            ""
+        };
+        ctx.set_config(crate::tests::granting(&format!(
+            "{debug}[capabilities.mail]\nsend = [\"site\"]\n\n[mail.site]\n{block}"
+        )));
+        ctx
+    }
+
+    /// Every line this thread's spool writer wrote under `dir`, once it is sealed.
+    fn spooled(dir: &std::path::Path) -> (Vec<nvs_runtime::spool::Line>, Vec<u8>) {
+        nvs_runtime::spool::seal_now();
+        let mut raw = Vec::new();
+        for entry in std::fs::read_dir(dir).expect("the spool directory") {
+            raw.extend(std::fs::read(entry.expect("an entry").path()).expect("a file"));
+        }
+        let lines = std::str::from_utf8(&raw)
+            .expect("a spool file is UTF-8")
+            .lines()
+            .map(|line| nvs_runtime::spool::Line::parse(line).expect("a line"))
+            .collect();
+        (lines, raw)
+    }
+
+    /// Makes this thread's spool writer write under `dir`.
+    fn spool_into(dir: &std::path::Path) {
+        nvs_runtime::spool::install(nvs_runtime::spool::Writer::new(
+            dir.to_path_buf(),
+            "1-2-0".to_owned(),
+            u64::MAX,
+        ));
+    }
+
+    /// A `capture = true` block with no `host` keeps the message outside a test and returns its
+    /// id. It has no address to reach, so a send that tried to connect would throw.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_capture_block_opens_no_connection() {
+        let mut ctx = granted_site("capture = true\nfrom = \"noreply@example.com\"\n", false);
+        assert!(ctx.test_records().is_none(), "this is not a test");
+        let args = send_args(Value::text("Hello."), Value::null(), Vec::new());
+        let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args)
+            .expect("a capture block keeps the message");
+        let id = sent.as_text().expect("send returns a string").to_owned();
+        assert!(id.ends_with("@example.com"), "{id}");
+        let again =
+            nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("every message is kept");
+        assert_ne!(again.as_text(), Some(id.as_str()));
+        release(args.into_iter().chain([sent, again]));
+    }
+
+    /// With `[debug] store` on, a captured message is one `mail` line with its HTML as written
+    /// and as sent, its plain text, the CSS report and its attachments.
+    // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "canonicalises a scratch directory, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_captured_message_reaches_the_spool() {
+        let dir = nvs_repo::scratch("mail-capture-spool");
+        spool_into(&dir);
+        let mut ctx = granted_site(
+            "capture = true\nfrom = \"noreply@example.com\"\nfrom_name = \"Shop\"\n",
+            true,
+        );
+        let html = "<html><head><style>p { color: red } .gone { color: blue }</style></head>\
+                    <body><p>Your order</p></body></html>";
+        let report = nvs_runtime::call(
+            parts::HELPERS[1],
+            &mut ctx,
+            &[
+                Value::text("report.csv"),
+                Value::text("day,total\n"),
+                Value::text("text/csv"),
+            ],
+        )
+        .expect("bytes with a name");
+        let args = send_args(markup(html), Value::null(), vec![report]);
+        let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
+        let id = sent.as_text().expect("an id").to_owned();
+        release(args.into_iter().chain([sent]));
+
+        let (lines, _raw) = spooled(&dir);
+        let mails: Vec<_> = lines
+            .iter()
+            .filter_map(|line| match &line.record {
+                nvs_runtime::spool::Record::Mail(mail) => Some(mail),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            mails.len(),
+            1,
+            "one `mail` line per kept message: {lines:?}"
+        );
+        let mail = mails[0];
+        assert_eq!(mail.endpoint, "site");
+        assert_eq!(mail.message_id, id);
+        assert_eq!(mail.from, "noreply@example.com");
+        assert_eq!(mail.from_name.as_deref(), Some("Shop"));
+        assert_eq!(mail.to, ["ada@example.com"]);
+        assert_eq!(mail.subject, "Your order");
+        assert_eq!(mail.text, "Your order\n");
+        assert_eq!(mail.html_written.as_deref(), Some(html));
+        let inlined = mail.html.as_deref().expect("the HTML as sent");
+        assert!(inlined.contains("style=\"color: red"), "{inlined}");
+        assert_eq!(mail.kept_css, [".gone { color: blue; }"]);
+        assert_eq!(mail.unused_css, [".gone { color: blue; }"]);
+        assert_eq!(mail.attachments.len(), 1);
+        assert_eq!(mail.attachments[0].name, "report.csv");
+        assert_eq!(mail.attachments[0].media_type, "text/csv");
+        assert_eq!(mail.attachments[0].size, 10);
+        assert_eq!(mail.attachments[0].base64, "ZGF5LHRvdGFsCg==");
+        assert!(mail.auto_submitted);
+        assert!(!mail.elided);
+    }
+
+    /// A block that sends writes its `mail` event to the spool and nothing of the message: no
+    /// `mail` line, no address, no subject and no byte of the body.
+    // covers: Core\Mail::send
+    #[cfg_attr(
+        miri,
+        ignore = "opens a loopback socket and a scratch directory, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_real_send_spools_only_its_event() {
+        let dir = nvs_repo::scratch("mail-send-spool");
+        spool_into(&dir);
+        let (address, server) = smtp::tests::serve(smtp::tests::Fake::default());
+        let mut ctx = granted_site(
+            &format!(
+                "host = \"127.0.0.1\"\nport = {}\nfrom = \"noreply@example.com\"\npool = false\n",
+                address.port()
+            ),
+            true,
+        );
+        let args = send_args(Value::text("reset-link-7f3a9"), Value::null(), Vec::new());
+        let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a sent message");
+        release(args.into_iter().chain([sent]));
+        let seen = server.join().expect("the server");
+        assert!(seen.contains(&"<body>".to_owned()), "{seen:?}");
+
+        let (lines, raw) = spooled(&dir);
+        assert_eq!(lines.len(), 1, "one line, the event: {lines:?}");
+        let nvs_runtime::spool::Record::Event(event) = &lines[0].record else {
+            panic!("a sent message wrote a line that is not its event: {lines:?}");
+        };
+        assert_eq!(event.event, nvs_runtime::spool::EventKind::Mail);
+        assert_eq!(event.outcome.recipients, Some(1));
+        assert_eq!(event.outcome.ok, Some(true));
+        for secret in [&b"reset-link"[..], b"ada@example.com", b"Your order"] {
+            assert!(
+                !raw.windows(secret.len()).any(|window| window == secret),
+                "{} reached the spool",
+                String::from_utf8_lossy(secret)
             );
         }
     }
