@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "fixed",
+      "features": [
+        "directive:debug.index_max"
+      ],
+      "text": "`[debug] index_max` now limits every record in the debug database, including the records of a command that is still running. The oldest records are deleted first. Before, those records were never deleted for size, and the database deleted every request instead."
+    },
+    {
       "kind": "changed",
       "highlight": true,
       "features": [
