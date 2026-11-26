@@ -135,22 +135,28 @@ table.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+  - [x] This goal's reds: `debug-index_age/about.md` was 227 words (bound 200), and the questions of
+    `/reference/config/debug/` and `/tools/debug-viewer/` were stale. Fixed in `ad134efa32`.
+  - [ ] The `Core\Arr` reds, then `bun nv close --goal long-run-records` green.
 
 ## Handoff
 
 ### State
 
-Written on 2026-11-26 by the loop session that built stage 2 (`37b67b7c4c`, `8d8adb6e1f`,
-`2e6f00a566`). Stages 1 and 2 are done, and the checks `rows` and `viewer` are green. The run page
-shows `Cut` (`viewer/src/views/run.tsx`, class `run-cut`) when `cut_us` is set, and its browser
-case in `viewer/test/runs.browser.test.ts` passed once by name. Both rules, the two `about.md`,
-`default.toml`'s two comments, the viewer page and one `changes.json` entry say what
-§ *Standing decisions* says. Every text was stamped and had its newcomer review, and
-`site --check stale changes review` names only `Core\Arr` texts. Those belong to the uncommitted
-`Core\Arr` work in the tree (`arr.rs`, `core_members.rs`, `docs/rules/types/arrays.md`,
-`taint-propagation.md`), which is not this goal's and was not staged.
+Written on 2026-11-26 by the loop session that ran stage 3's close. A build, clippy and the four
+tests of the check `rows`, by name, are green. `bun nv close --goal long-run-records` was red in
+two parts, `goal proofs` and `website stale guard`. This goal's three reds are fixed in
+`ad134efa32`: `debug-index_age/about.md` is shortened under its 200-word bound and had its newcomer
+review, and both debug pages' questions are rewritten and stamped.
+
+Every red left is the `Core\Arr` uint-key fix's (`983903d5f5`, `fa8838ab80`), which another
+session committed to `main` while this one ran. `goal proofs` names 57 `Core\Arr` members as
+`perf: stale` (`crates/nvs-stdlib/src/arr.rs` changed since they were measured). `site --check
+questions` names 9 `/reference/core/arr/` pages as stale. `site stale`, `review` and `changes` are
+green. The goal file had a duplicated block of stages and an old handoff from the last session's
+edit, now removed.
 
 The acceptance sweep's nine nightly failures are all run 45813627231, which the Backlog below
 already accounts for: eight were fixed after the commit it tested, and the ninth is the aarch64
@@ -158,74 +164,10 @@ stack-page test.
 
 ### Next
 
-Stage 3: close the goal with a build, clippy, the tests this goal wrote by name (the check `rows`
-and the new browser case), and `bun nv close --goal long-run-records`. If the `Core\Arr` work is
-still uncommitted then, its red `site` lines are not this goal's. No test is expected to go red.
-
-### Backlog` with what blocked it.
-
-**Lanes.** It is a chain goal, placed right behind `mail-complete` by the user's call. It depends on
-no chain goal, and it shares `crates/nvs-cli/src/debug/index.rs` only with a goal that adds a debug
-table.
-
-## Stages
-
-### 1. a run's rows go by their own time, a run row by its end, and the index keeps the cut
-
-- [x] `crates/nvs-cli/src/debug/index.rs`: `runs` leaves `OWNERS`, `unowned` tests only `requests`,
-  and § *A run row goes by its end* is built: the age pass, the `Index::oldest` head, the
-  `runs_end` index and the schema raised once. The module doc's *The deletion window* says so.
-- [x] `crates/nvs-cli/src/debug/index.rs`: `forget_rows` raises `meta`'s `cut_us`, and `rebuild`
-  starts a fresh file without one.
-- [x] `crates/nvs-cli/src/debug/runs.rs:135`: `/api/run` returns `cut_us` as § *The index keeps one
-  cut* says.
-- [x] `crates/nvs-cli/tests/debug_ingest.rs`: three tests beside
-  `index_max_deletes_the_oldest_rows_whether_a_request_names_them_or_not`, built the same way with a
-  `run` line from the sample: `index_age_deletes_a_finished_runs_old_rows_and_keeps_its_new_ones`,
-  `index_max_deletes_a_long_runs_oldest_rows_before_a_newer_request` and
-  `a_run_row_goes_once_its_end_is_past_index_age`.
-- [x] `crates/nvs-cli/tests/debug_api.rs:1388`: `a_run_that_started_before_the_cut_returns_it`, and a
-  run that started after it returns `null`. Then the check `rows` once.
-
-### 2. the run page says which records were deleted, and the rules, the docs and the website say so
-
-- [x] `viewer/src/api.ts` and `viewer/src/views/run.tsx:44`: the run page shows one note under its
-  header when `cut_us` is set: "Records before <time> were deleted." A case in
-  `viewer/test/runs.browser.test.ts`. Then `bun nv viewer` to rebuild `viewer/dist/`, and the check
-  `viewer` once.
-- [x] `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md`: the
-  paragraph *A run is forgotten as a request is* says what § *Standing decisions* says, and its
-  Declined list gets *a count of deleted rows per run*. `bun nv rules --render`.
-- [x] `docs/rules/testing/a-run-is-recorded-like-a-request.md:28`: *The Runs view* says the page
-  shows the cut.
-- [x] `docs/examples/config/debug-index_max/about.md` and `docs/examples/config/debug-index_age/about.md`:
-  a finished run's records are deleted one by one too. `crates/nvs-config/src/default.toml`'s
-  `index_age` and `index_max` comments say the same.
-- [x] `website/src/content/docs/tools/debug-viewer/index.mdx`: one sentence where the page describes
-  a run. `website/src/data/changes.json:1`: the entry of § *Website*, written to AGENTS.md § *Text an
-  end user reads*. Each page reread and stamped with `bun nv site --stamp`.
-
-### 3. the goal is verified once, and every failure is fixed
-
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
-
-## Handoff
-
-### State
-
-Written on 2026-11-26 by the loop session that built stage 1 (`8c0a7b2f00`). Stage 1 is done
-and the check `rows` is green. `index.rs` deletes a run's rows by their own time and a run row
-by its end on `runs_end`, `forget_rows` raises `meta`'s `cut_us`, and `SCHEMA` is 17. `/api/run`
-returns `cut_us` (`runs.rs` `detail`). `viewer/src/api.ts`'s `RunDetail` already has
-`cut_us: number | null`, and `viewer/test/fixtures/run.json` has `"cut_us": null`. The page
-does not show it yet. `debug_api.rs` has `Service::start_on(data)`, which starts a service on a
-data folder that `nvs debug --once` has already ingested.
-
-### Next
-
-Stage 2 from its first item: the note in `viewer/src/views/run.tsx:44` reads `detail.cut_us`.
-Its browser case can set `cut_us` on a copy of `run.json` in `viewer/test/runs.browser.test.ts:20`.
+Rerun `bun nv close --goal long-run-records`. If the `Core\Arr` reds are still there, pay them:
+measure the stale `Core\Arr` benches (`bun nv proofs --id 'Core\Arr::count'` names what perf
+needs), and rewrite and stamp the questions of the nine pages
+`site --questions --owed core` lists (`MSYS_NO_PATHCONV=1` before `--stamp`). Then claim DONE.
 No test is expected to go red.
 
 ### Backlog
