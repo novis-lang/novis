@@ -102,7 +102,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         // The next compile reads and writes the new directory.
         "opcache.file_cache_dir",
         // The next outbound connection is judged by the new anchors.
-        "http.client.tls",
+        "tls.client",
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
@@ -262,7 +262,7 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
-        "http.client.tls",
+        "tls.client",
         LIVE,
         "changed_anchors_judge_the_next_outbound_connection",
     ),
@@ -1319,13 +1319,12 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
             "http.client.pool_idle",
             "http.client.pool_idle_timeout",
             "http.client.proxy",
-            "http.client.tls",
             "http.csrf_key",
             "http.csrf_key_file",
         ],
         "a key leaves the blanket row for one of two reasons and no third — it is a secret the \
          door reads for every request, or it settles something more than one request shares — so a \
-         seventh exception is a decision to write down rather than a row to add",
+         sixth exception is a decision to write down rather than a row to add",
     );
     for key in &carved {
         assert_eq!(
@@ -1664,7 +1663,7 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
     );
 }
 
-/// `rule:security/one-tls-client`: there is one TLS client in the process and `[http.client.tls]` is
+/// `rule:security/one-tls-client`: there is one TLS client in the process and `[tls.client]` is
 /// what settles it, so no key of the block is settable — a request writing one would be choosing
 /// whose certificates every co-resident request believes.
 ///
@@ -1675,28 +1674,28 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
 /// (`rule:config/reloadability-is-its-own-field`), and a `Boot` row added there is a key whose new
 /// value a reload would report and no outbound call would use.
 ///
-/// The keys are read back out of the block rather than listed, so one added to `[http.client.tls]`
+/// The keys are read back out of the block rather than listed, so one added to `[tls.client]`
 /// joins this census in the commit that adds it — and `keylog` is in it, which matters: the file it
 /// names decrypts everything this deployment sends, and making that one key settable would put the
 /// whole of it inside a request's reach.
-// covers: directive:http.client.tls
+// covers: directive:tls.client
 #[test]
 fn every_key_of_the_tls_block_is_the_deployments_and_reaches_the_next_connection() {
-    let keys = keys_in("http.client.tls");
+    let keys = keys_in("tls.client");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
         ["roots", "min_version", "keylog"],
-        "a key added to `[http.client.tls]` joins this census in the commit that adds it, and all \
+        "a key added to `[tls.client]` joins this census in the commit that adds it, and all \
          three of these describe the one client the process shares rather than one call",
     );
 
-    let mut asked = vec!["http.client.tls".to_string()];
-    asked.extend(keys.iter().map(|key| format!("http.client.tls.{key}")));
+    let mut asked = vec!["tls.client".to_string()];
+    asked.extend(keys.iter().map(|key| format!("tls.client.{key}")));
     for key in asked {
         let row = governing(&key);
         assert_eq!(
             (row.key, row.apply),
-            ("http.client.tls", Apply::Reload),
+            ("tls.client", Apply::Reload),
             "`{key}` resolves through `{}` to {:?}, and `Boot` would hold a changed anchor set back \
              until a restart the client does not need",
             row.key,
@@ -1737,8 +1736,8 @@ fn every_key_of_the_tls_block_is_the_deployments_and_reaches_the_next_connection
 /// registry reading one ground off the other would be right today and wrong the moment a key
 /// arrives that costs no memory at all: `bypass` and `resolve` hold nothing per core.
 ///
-/// **`Reload`, as the block beside it is.** `[http.client.tls]` is the other exception under
-/// `[http.client]` that no request may set, and both reach the next call by the same means: the
+/// **`Reload`, as `[tls.client]` is.** That block is the other outbound one no request may set,
+/// and both reach the next call by the same means: the
 /// next call reads the block or the client built from it, and the pool's key carries the proxy and
 /// the client, so nothing the old value made can serve one. The pair is asserted together because
 /// they share settability and the apply for two different reasons.
@@ -1789,11 +1788,11 @@ fn every_key_of_the_proxy_block_is_the_deployments_and_reaches_the_next_call() {
     }
 
     // The block beside it, which shares settability and the apply.
-    let tls = governing("http.client.tls.roots");
+    let tls = governing("tls.client.roots");
     assert_eq!(
-        (tls.key, settable::how("http.client.tls.roots"), tls.apply),
-        ("http.client.tls", None, Apply::Reload),
-        "`[http.client.tls]` settles the one client the process shares, and a reload installs a new \
+        (tls.key, settable::how("tls.client.roots"), tls.apply),
+        ("tls.client", None, Apply::Reload),
+        "`[tls.client]` settles the one client the process shares, and a reload installs a new \
          one — the proxy is not settable either, for a different reason, and reaches the next call \
          too",
     );
@@ -1859,11 +1858,10 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
             ("http.client.pool_idle_timeout", false),
             ("http.client.proxy", false),
             ("http.client.socket", true),
-            ("http.client.tls", false),
         ],
         "of the rows carved under `[http.client]`, exactly one is still the request's — and it is \
          the last of them, which is why it carries a row of its own rather than letting a reader \
-         carry four exceptions on to a fifth",
+         carry three exceptions on to a fourth",
     );
 }
 
@@ -1934,7 +1932,7 @@ fn socket_refusal(written: &str) -> Option<Code> {
 /// key an operator may write as `false` hands a *request* a bound with nothing in it, which is
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` reached the long way round; a
 /// bounded key that was not settable is a program that cannot name the message size it knows its
-/// own peer sends, which is the whole reason the block is not in `[http.client.tls]`'s company.
+/// own peer sends, which is the whole reason the block is not in `[tls.client]`'s company.
 ///
 /// The keys come from `keys_in`, so the settable half is asserted of **every** key the block
 /// accepts, and the bounds half is counted rather than read off a line: a check that grew a hole

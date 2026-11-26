@@ -231,7 +231,7 @@ enum Recache {
 
 /// What a reload does to the outbound TLS client, decided before the publish.
 enum Retrust {
-    /// The client `[http.client.tls]` builds, installed after the publish.
+    /// The client `[tls.client]` builds, installed after the publish.
     /// `nvs_host::tls::install` keeps the running one when the two are the same.
     Swap(nvs_host::tls::Client),
     /// The block did not build and is the one the running client was built
@@ -471,7 +471,7 @@ impl Process {
             keep.push("opcache.file_cache_dir");
         }
         if matches!(retrust, Retrust::Keep) {
-            keep.push("http.client.tls");
+            keep.push("tls.client");
         }
         // The publish takes a snapshot by value and this one was built for it,
         // so the clone is the branch that never runs: a tree just resolved is
@@ -919,14 +919,14 @@ fn uncached(written: &str, reason: &str) -> Record {
     record
 }
 
-/// An `[http.client.tls]` block that did not build, as the record
+/// An `[tls.client]` block that did not build, as the record
 /// [`Process::trusting`] writes: `Warn`, with the key and the reason, which
 /// names the file.
 fn untrusted(reason: &str) -> Record {
     let mut record = Record::at(Level::Warn);
     record.envelope.message = Some(Rendered::new("configuration key not applied"));
     record.envelope.fields = vec![
-        ("key".to_string(), text("http.client.tls")),
+        ("key".to_string(), text("tls.client")),
         ("reason".to_string(), text(reason)),
     ];
     record

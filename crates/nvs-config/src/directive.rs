@@ -107,13 +107,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // carry that reason, and reload as their block does.
     Directive { key: "http.client.pool_idle", apply: Apply::Reload },
     Directive { key: "http.client.pool_idle_timeout", apply: Apply::Reload },
-    // Not settable: `[http.client.tls]` settles the single `ClientConfig` every session in the
+    // Not settable: `[tls.client]` settles the single `ClientConfig` every session in the
     // process shares, so a request that could set one of its keys would be choosing trust anchors
     // for every co-resident request. `Reload`, because a
     // reload builds the new client before it publishes and installs it after (`nvs_host::tls`), and
     // the pool files every connection under the client it was opened with, so the next connection
     // is judged by the new anchors and no socket the old ones accepted serves a later call.
-    Directive { key: "http.client.tls", apply: Apply::Reload },
+    Directive { key: "tls.client", apply: Apply::Reload },
     // `[http.client.proxy]` is not settable: where every outbound byte goes is the deployment's
     // decision, and a per-call value would be a per-call way to narrow
     // `rule:security/net-address-policy`. `Reload` and not `Boot`, because the next call

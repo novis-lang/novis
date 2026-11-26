@@ -943,7 +943,7 @@ macro_rules! connection_options {
         default: Const::Bool(true),
     },
     // The key of the group that needs no grant, because it can only tighten: a
-    // floor under `[http.client.tls] min_version` throws rather than lowering
+    // floor under `[tls.client] min_version` throws rather than lowering
     // what the deployment set.
     CoreOption {
         name: TLS_MIN_VERSION_OPTION,
@@ -2350,7 +2350,7 @@ macro_rules! connection_params {
         name: "tlsMinVersion",
         desc: "The lowest TLS version this call allows, `\"1.2\"` or `\"1.3\"`. It needs no \
                grant, because it can only make the call stricter. A value below the runtime's \
-               `[http.client.tls] min_version` throws an error.",
+               `[tls.client] min_version` throws an error.",
         shape: &[],
     },
     ParamDoc {
@@ -2902,7 +2902,7 @@ fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str, bag: Bag) -> 
     judge_floor(ctx, args, member, bag)
 }
 
-/// `tlsMinVersion` against `[http.client.tls] min_version`: the one key of the
+/// `tlsMinVersion` against `[tls.client] min_version`: the one key of the
 /// group that needs no grant, because a call may only raise the floor.
 ///
 /// One direction, checked here rather than taken as the larger of the two
@@ -2931,14 +2931,14 @@ fn judge_floor(ctx: &Ctx, args: &[Value], member: &str, bag: Bag) -> Result<(), 
     };
     let floor = ctx
         .config()
-        .and_then(|config| config.get("http.client.tls.min_version"));
+        .and_then(|config| config.get("tls.client.min_version"));
     let floor = floor.as_deref().unwrap_or(DEFAULT_MIN_VERSION);
     if rank < tls_version_rank(floor).unwrap_or(0) {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "{member}: `tlsMinVersion` can only raise the floor, and `\"{asked}\"` is under \
-                 the `\"{floor}\"` this deployment set in `[http.client.tls] min_version`"
+                 the `\"{floor}\"` this deployment set in `[tls.client] min_version`"
             ),
         ));
     }
@@ -2959,9 +2959,9 @@ fn tls_version_rank(version: &str) -> Option<u8> {
     }
 }
 
-/// The floor a deployment that configured none speaks over — `[http.client.tls]
+/// The floor a deployment that configured none speaks over — `[tls.client]
 /// min_version`'s shipped value, which is this client's lowest.
-const DEFAULT_MIN_VERSION: &str = nvs_config::defaults::HTTP_CLIENT_TLS_MIN_VERSION;
+const DEFAULT_MIN_VERSION: &str = nvs_config::defaults::TLS_CLIENT_MIN_VERSION;
 
 /// The five relaxing keys as one value, for the session the handshake builds.
 ///
@@ -8198,7 +8198,7 @@ mod tests {
 
         let mut raised = Ctx::buffered();
         raised.set_config(granting(&format!(
-            "{REACHABLE}[http.client.tls]\nmin_version = \"1.3\"\n"
+            "{REACHABLE}[tls.client]\nmin_version = \"1.3\"\n"
         )));
         let refused = super::judge_trust(&raised, &args, URL, MEMBER, super::REQUEST_BAG)
             .expect_err("`1.2` is under the floor this operator set");

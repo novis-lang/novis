@@ -2116,16 +2116,16 @@ fn calling(peer: &Peer) -> String {
     )
 }
 
-/// `[http.client.tls]` trusting the one file `roots` names, or the compiled-in
+/// `[tls.client]` trusting the one file `roots` names, or the compiled-in
 /// set when it is `None`, beside a grant to call the loopback address.
 fn anchors(roots: Option<&Path>) -> String {
     let block = roots.map_or_else(String::new, |path| {
-        format!("[http.client.tls]\nroots = ['{}']\n\n", path.display())
+        format!("[tls.client]\nroots = ['{}']\n\n", path.display())
     });
     format!("{block}[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n")
 }
 
-/// `[http.client.tls]` reloads. The compiled-in anchors refuse the peer's
+/// `[tls.client]` reloads. The compiled-in anchors refuse the peer's
 /// certificate. After a reload that trusts it, the next call is answered. A
 /// file that holds no certificate is not used: the reload logs the key and
 /// names it as not applied, and the anchors in force stay.
@@ -2149,8 +2149,8 @@ fn changed_anchors_judge_the_next_outbound_connection() {
 
     let report = server.reload(&anchors(Some(&server.dir.join("peer.pem"))));
     assert!(
-        report.contains("applied: http.client.tls.roots\n"),
-        "the reload did not name `http.client.tls.roots` as applied: {report}"
+        report.contains("applied: tls.client.roots\n"),
+        "the reload did not name `tls.client.roots` as applied: {report}"
     );
     server.awaits("/", "the call answered under the new anchors", |answer| {
         answer.status == 200 && answer.body == "ok"
@@ -2158,8 +2158,8 @@ fn changed_anchors_judge_the_next_outbound_connection() {
 
     let report = server.reload(&anchors(Some(&server.dir.join("empty.pem"))));
     assert!(
-        report.contains("ignored: http.client.tls\n"),
-        "the reload did not name `http.client.tls` as not applied: {report}"
+        report.contains("ignored: tls.client\n"),
+        "the reload did not name `tls.client` as not applied: {report}"
     );
     let said = server.logs("configuration key not applied");
     assert!(

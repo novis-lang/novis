@@ -561,7 +561,7 @@ codes! {
          include. Add the queue name to `purge` under `[capabilities.queue]` in `nvs.toml`.",
     );
 
-    /// `[http.client.tls] roots` naming no trust anchor at all — an empty
+    /// `[tls.client] roots` naming no trust anchor at all — an empty
     /// list.
     ///
     /// Written out, that key is the whole answer to "whose certificates do
@@ -572,11 +572,11 @@ codes! {
     /// than at the key they wrote. Omitting the key is how a deployment asks
     /// for the compiled-in set, so there is nothing `[]` could have meant.
     pub const E_TLS_ROOTS_EMPTY: Code = Code::new("E0638").card(
-        "`[http.client.tls] roots` is an empty list, so every outbound `https` call would fail. Name \
+        "`[tls.client] roots` is an empty list, so every outbound `https` call would fail. Name \
          at least one certificate file, or leave the key out to use the built-in certificates.",
     );
 
-    /// `[http.client.tls] min_version` naming a version this build does not
+    /// `[tls.client] min_version` naming a version this build does not
     /// speak.
     ///
     /// The client implements TLS 1.2 and 1.3 and nothing beneath them, so
@@ -585,11 +585,11 @@ codes! {
     /// chosen otherwise, which is the one outcome worse than refusing the
     /// key.
     pub const E_TLS_MIN_VERSION: Code = Code::new("E0639").card(
-        "`[http.client.tls] min_version` must be `\"1.2\"` or `\"1.3\"`. Older TLS versions are not \
+        "`[tls.client] min_version` must be `\"1.2\"` or `\"1.3\"`. Older TLS versions are not \
          supported.",
     );
 
-    /// `[http.client.tls] keylog` written on a host whose mode is
+    /// `[tls.client] keylog` written on a host whose mode is
     /// `production`.
     ///
     /// The file it names collects every TLS session's secrets in the
@@ -600,11 +600,11 @@ codes! {
     /// announced in `development` and refused here rather than left for a
     /// reviewer to catch.
     pub const E_KEYLOG_IN_PRODUCTION: Code = Code::new("E0640").card(
-        "`[http.client.tls] keylog` is not allowed in `production` mode. The file it writes can \
+        "`[tls.client] keylog` is not allowed in `production` mode. The file it writes can \
          decrypt every outbound connection. Use it only in `development`.",
     );
 
-    /// `[http.client.tls]` resolved, and the outbound client it describes
+    /// `[tls.client]` resolved, and the outbound client it describes
     /// could not be built from it — a `roots` entry that cannot be opened or
     /// holds no certificate, or a `keylog` whose file will not open.
     ///
@@ -616,7 +616,7 @@ codes! {
     /// `https` call with a handshake failure an operator reads as the
     /// origin's fault. The message names the file.
     pub const E_TLS_CLIENT_UNBUILDABLE: Code = Code::new("E0641").card(
-        "A file named in `[http.client.tls]` cannot be used. A `roots` file cannot be opened or \
+        "A file named in `[tls.client]` cannot be used. A `roots` file cannot be opened or \
          contains no certificate, or the `keylog` file cannot be opened. The message names the file.",
     );
 

@@ -1589,7 +1589,7 @@ max_concurrent = 256
 # as many idle connections per core with the two lines as it did without them. They are here to be
 # *read*, by the attacks on the pair under `tests/hostile/config/`.
 #
-# `[http.client.tls] min_version` is written for the same reason and at the floor the client already
+# `[tls.client] min_version` is written for the same reason and at the floor the client already
 # speaks, so its attack reads a version back. Its two
 # siblings stay out: an unset `roots` is the compiled-in Mozilla set, which is what this checkout
 # trusts, and a list-valued key reads back as absent through `Core\Config::get` in any case
@@ -1606,7 +1606,7 @@ max_concurrent = 256
 pool_idle = 16
 pool_idle_timeout = "30s"
 
-[http.client.tls]
+[tls.client]
 min_version = "1.2"
 
 # The values the `Core\Config::setting` and `Core\Config::secret` benches read, so each bench times

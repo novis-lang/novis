@@ -10,7 +10,7 @@ import { Browser, EXE } from "./chromium.ts";
 // `hosting.json` names is the one the browser sees, and a passkey is CDP's virtual authenticator.
 //
 // Webhooks and push endpoints must be `https:`, so one TLS receiver stands for both. Its certificate
-// comes from a CA `openssl` makes per run, which the copy trusts through `[http.client.tls] roots`.
+// comes from a CA `openssl` makes per run, which the copy trusts through `[tls.client] roots`.
 // Headless Chromium has no push service: `PushManager.prototype.subscribe` is replaced with a stub
 // whose keys the test made, the test decrypts the message the registry sent to the receiver, and hands
 // it to the service worker with `ServiceWorker.deliverPushMessage`. An operator's `nvs run` gives an
@@ -292,7 +292,7 @@ beforeAll(async () => {
     .replace('read = ["hosting.json",', 'read = ["keys", "hosting.json",')
     .replace("[capabilities.net]\ninternal = []\n", '[capabilities.net]\ninternal = ["127.0.0.1"]\n');
   if (!changed.includes('"keys"') || !changed.includes('internal = ["127.0.0.1"]')) throw new Error("apps/registry/nvs.toml changed its `read` or `internal` line");
-  writeFileSync(join(APP, "nvs.toml"), `${changed}\n[http.client.tls]\nroots = ["keys/ca.pem"]\n`);
+  writeFileSync(join(APP, "nvs.toml"), `${changed}\n[tls.client]\nroots = ["keys/ca.pem"]\n`);
 
   target = await serve();
   browser = await Browser.launch("registry-browser", ["--host-resolver-rules=MAP localhost 127.0.0.1"]);

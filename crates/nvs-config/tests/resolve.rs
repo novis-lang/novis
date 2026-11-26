@@ -163,19 +163,14 @@ fn refusal(fs: &Fake, root: &str) -> Diagnostic {
         .expect_err("this tree should have been refused")
 }
 
-/// `[http.client.tls] roots` out of a resolved tree, which four blocks of `and_then` otherwise
-/// spell at each of its cases.
+/// `[tls.client]` out of a resolved tree.
+fn tls_client(resolved: &Resolved) -> Option<&nvs_config::tree::TlsClient> {
+    resolved.config.tls.as_ref()?.client.as_ref()
+}
+
+/// `[tls.client] roots` out of a resolved tree.
 fn roots_of(resolved: &Resolved) -> Option<Vec<String>> {
-    resolved
-        .config
-        .http
-        .as_ref()?
-        .client
-        .as_ref()?
-        .tls
-        .as_ref()?
-        .roots
-        .clone()
+    tls_client(resolved)?.roots.clone()
 }
 
 /// `[limits] memory` out of a resolved tree, which is the value most cases assert on.
@@ -401,7 +396,7 @@ fn the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all() {
 fn a_block_with_no_key_under_it_is_no_block() {
     let fs = Fake::with(&[(
         "app/nvs.toml",
-        "[metrics]\n\n[capabilities.fs]\n\n[http.client.tls]\n\n[db.main]\n\n[db.main.pool]\n\n\
+        "[metrics]\n\n[capabilities.fs]\n\n[tls.client]\n\n[db.main]\n\n[db.main.pool]\n\n\
          [queue]\n\n[limits]\n\n[limits.hard]\nmemory = \"1GB\"\n",
     )]);
 
@@ -795,19 +790,19 @@ fn a_db_blocks_tls_ca_file_reaches_the_table_resolved_too() {
     );
 }
 
-/// `[http.client.tls] roots` resolved: a file entry becomes the path the trust check examined, in
+/// `[tls.client] roots` resolved: a file entry becomes the path the trust check examined, in
 /// the table as well as in the typed tree, and `"bundled"` is passed over untouched.
 ///
 /// The table half is the one that matters — `Snapshot::retype` deserializes the tree back out of it,
 /// so a pass that rewrote only the typed side would prove one bundle safe and hand `nvs_host::tls` a
 /// relative path to open against whatever directory the process happened to start in.
 #[test]
-fn http_client_tls_roots_reach_the_table_resolved_and_leave_bundled_alone() {
+fn tls_client_roots_reach_the_table_resolved_and_leave_bundled_alone() {
     let fs = Fake::with(&[
         ("etc/nvs.toml", "[[include]]\npath = \"conf.d/tls.toml\"\n"),
         (
             "etc/conf.d/tls.toml",
-            "[http.client.tls]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
+            "[tls.client]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
         ),
         ("etc/conf.d/corp-ca.pem", "-----BEGIN CERTIFICATE-----\n"),
     ]);
@@ -820,7 +815,7 @@ fn http_client_tls_roots_reach_the_table_resolved_and_leave_bundled_alone() {
         Some(vec!["bundled".to_string(), want.clone()]),
         "the typed tree kept a relative bundle path or lost the compiled-in entry",
     );
-    let table = resolved.table["http"]["client"]["tls"]["roots"]
+    let table = resolved.table["tls"]["client"]["roots"]
         .as_array()
         .expect("`roots` left the table as something other than an array")
         .iter()
@@ -841,7 +836,7 @@ fn a_group_writable_roots_file_is_refused_at_boot() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",
-            "[http.client.tls]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
+            "[tls.client]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
         ),
         ("etc/corp-ca.pem", "-----BEGIN CERTIFICATE-----\n"),
     ])
@@ -862,7 +857,7 @@ fn a_group_writable_roots_file_is_refused_at_boot() {
 /// unknown issuer and sending an operator to look at the origin.
 #[test]
 fn an_empty_roots_list_is_refused_rather_than_trusting_nobody() {
-    let fs = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nroots = []\n")]);
+    let fs = Fake::with(&[("etc/nvs.toml", "[tls.client]\nroots = []\n")]);
 
     assert_eq!(
         refusal(&fs, "etc/nvs.toml").code,
@@ -875,34 +870,69 @@ fn an_empty_roots_list_is_refused_rather_than_trusting_nobody() {
 /// otherwise, which is the one outcome worse than a boot that stops.
 #[test]
 fn a_min_version_below_what_the_client_speaks_is_refused() {
-    let fs = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nmin_version = \"1.0\"\n")]);
+    let fs = Fake::with(&[("etc/nvs.toml", "[tls.client]\nmin_version = \"1.0\"\n")]);
 
     assert_eq!(
         refusal(&fs, "etc/nvs.toml").code,
         Some(code::E_TLS_MIN_VERSION)
     );
 
-    let raised = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nmin_version = \"1.3\"\n")]);
+    let raised = Fake::with(&[("etc/nvs.toml", "[tls.client]\nmin_version = \"1.3\"\n")]);
     assert_eq!(
-        tree_of(&raised, "etc/nvs.toml")
-            .config
-            .http
-            .as_ref()
-            .unwrap()
-            .client
-            .as_ref()
-            .unwrap()
-            .tls
-            .as_ref()
-            .unwrap()
-            .min_version
-            .as_deref(),
-        Some("1.3"),
+        tls_client(&tree_of(&raised, "etc/nvs.toml")).and_then(|tls| tls.min_version.clone()),
+        Some("1.3".to_string()),
         "the floor an operator raised did not survive the merge",
     );
 }
 
-/// `[http.client.tls] keylog` on a `production` host is refused, and the mode with nothing written
+/// `[tls.client]` is the block the outbound client is built from: its three keys reach the typed
+/// tree and the table under `tls.client`, and `[http.client]` keeps no TLS table of its own.
+#[test]
+fn a_tls_client_block_sets_the_outbound_roots() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[mode]\ndefault = \"development\"\n\n[tls.client]\n\
+             roots = [\"corp-ca.pem\"]\nmin_version = \"1.3\"\nkeylog = \"tls-secrets.log\"\n",
+        ),
+        ("etc/corp-ca.pem", "-----BEGIN CERTIFICATE-----\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/corp-ca.pem").to_string_lossy().into_owned();
+
+    let tls = tls_client(&resolved).expect("`[tls.client]` did not reach the typed tree");
+    assert_eq!(tls.roots, Some(vec![want.clone()]));
+    assert_eq!(tls.min_version.as_deref(), Some("1.3"));
+    assert_eq!(tls.keylog.as_deref(), Some("tls-secrets.log"));
+    assert_eq!(
+        resolved.table["tls"]["client"]["roots"][0].as_str(),
+        Some(want.as_str()),
+        "the table the snapshot is rebuilt from does not carry the resolved root",
+    );
+    assert!(
+        resolved.table.get("http").is_none(),
+        "a `[tls.client]` block wrote something under `[http]`",
+    );
+}
+
+/// The block's old name is an unknown key like any other: `[http.client.tls]` is refused at boot
+/// with `E0601`, and nothing reads it as `[tls.client]`.
+#[test]
+fn an_http_client_tls_block_is_an_unknown_key() {
+    for text in [
+        "[http.client.tls]\nroots = [\"bundled\"]\n",
+        "[http.client.tls]\nmin_version = \"1.3\"\n",
+        "[http.client]\ntls = { roots = [\"bundled\"] }\n",
+    ] {
+        let fs = Fake::with(&[("etc/nvs.toml", text)]);
+
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+        assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE), "{text}");
+    }
+}
+
+/// `[tls.client] keylog` on a `production` host is refused, and the mode with nothing written
 /// is `production` — so the tree below names no mode at all.
 ///
 /// That is the pairing the key needs: the file it names decrypts everything this deployment sends,
@@ -912,7 +942,7 @@ fn a_min_version_below_what_the_client_speaks_is_refused() {
 fn keylog_is_refused_at_boot_in_production() {
     let fs = Fake::with(&[(
         "etc/nvs.toml",
-        "[http.client.tls]\nkeylog = \"/tmp/tls-secrets.log\"\n",
+        "[tls.client]\nkeylog = \"/tmp/tls-secrets.log\"\n",
     )]);
 
     let diagnostic = refusal(&fs, "etc/nvs.toml");
@@ -935,7 +965,7 @@ fn keylog_is_accepted_in_development() {
     let fs = Fake::with(&[(
         "etc/nvs.toml",
         "[mode]\ndefault = \"development\"\n\n\
-         [http.client.tls]\nkeylog = \"/tmp/tls-secrets.log\"\n",
+         [tls.client]\nkeylog = \"/tmp/tls-secrets.log\"\n",
     )]);
 
     let resolved = tree_of(&fs, "etc/nvs.toml");

@@ -28,7 +28,7 @@ shared = true
 # against this file (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`). The
 # file itself is a copy an operator makes from the volume, which `tests/db/compose.yaml`'s header
 # spells as one `docker compose cp`.
-[http.client.tls]
+[tls.client]
 roots = ["bundled", "../tests/db/ca.crt"]
 
 # `rediss://` is the transport, `database` is the index, and neither is a value carried over the

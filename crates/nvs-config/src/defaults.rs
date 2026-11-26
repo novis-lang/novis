@@ -170,10 +170,10 @@ pub const HTTP_CLIENT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 pub const HTTP_CLIENT_SOCKET_MAX_MESSAGE: u64 = 4 * MIB;
 /// `[http.client.socket] send_timeout`.
 pub const HTTP_CLIENT_SOCKET_SEND_TIMEOUT: Duration = Duration::from_secs(30);
-/// `[http.client.tls] roots`.
-pub const HTTP_CLIENT_TLS_ROOTS: &[&str] = &["bundled"];
-/// `[http.client.tls] min_version`.
-pub const HTTP_CLIENT_TLS_MIN_VERSION: &str = "1.2";
+/// `[tls.client] roots`.
+pub const TLS_CLIENT_ROOTS: &[&str] = &["bundled"];
+/// `[tls.client] min_version`.
+pub const TLS_CLIENT_MIN_VERSION: &str = "1.2";
 
 /// `[server] listen`.
 pub const SERVER_LISTEN: &[&str] = &["127.0.0.1:8000"];
@@ -555,8 +555,8 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("http.client.pool_idle_timeout", Value::Time(HTTP_CLIENT_POOL_IDLE_TIMEOUT)),
     row!("http.client.socket.max_message", Value::Count(HTTP_CLIENT_SOCKET_MAX_MESSAGE)),
     row!("http.client.socket.send_timeout", Value::Time(HTTP_CLIENT_SOCKET_SEND_TIMEOUT)),
-    row!("http.client.tls.roots", Value::List(HTTP_CLIENT_TLS_ROOTS)),
-    row!("http.client.tls.min_version", Value::Text(HTTP_CLIENT_TLS_MIN_VERSION)),
+    row!("tls.client.roots", Value::List(TLS_CLIENT_ROOTS)),
+    row!("tls.client.min_version", Value::Text(TLS_CLIENT_MIN_VERSION)),
     row!("server.listen", Value::List(SERVER_LISTEN)),
     row!("server.socket_mode", Value::FileMode(SERVER_SOCKET_MODE)),
     row!("server.dispatch", Value::Startup {

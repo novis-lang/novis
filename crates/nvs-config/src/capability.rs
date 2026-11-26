@@ -128,7 +128,7 @@ pub enum Cap {
     /// It has no `true` spelling ([`takes_true_spelling`](Self::takes_true_spelling)).
     NetDowngrade,
     /// `tls.anchors` — the hosts a call may trust PEM certificates of its own for with `tlsCa`,
-    /// in place of `[http.client.tls] roots`
+    /// in place of `[tls.client] roots`
     /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
     ///
     /// The first of the four grants that relax certificate verification, which share one shape and

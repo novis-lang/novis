@@ -81,7 +81,7 @@
 //!   [`NvsTls::over_bundle`] and **replaces** the compiled-in set for that
 //!   endpoint rather than adding to it — [`anchors_from`] argues that, and it is
 //!   the reading every other client an operator has configured already has.
-//! - **The whole process's list**, `[http.client.tls] roots`, reaches
+//! - **The whole process's list**, `[tls.client] roots`, reaches
 //!   [`configure`] and says what it holds: `["bundled", "corp.pem"]` is both
 //!   sets and a list without [`BUNDLED`] is only its files. Nothing is inferred
 //!   there because the operator wrote the list out ([`store_for`]).
@@ -113,7 +113,7 @@
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
 //! at boot by [`configure`] or on first use from the compiled-in set, and shared
 //! by every session after it — the whole Mozilla anchor set, a few hundred
-//! kilobytes, O(1) in requests served. A reload that changes `[http.client.tls]`
+//! kilobytes, O(1) in requests served. A reload that changes `[tls.client]`
 //! builds a second one and [`install`]s it, and the two live together only until
 //! the last session on the old one ends. A key log adds one open file descriptor
 //! and one lock acquisition per secret written, on a host that has already said
@@ -1068,7 +1068,7 @@ pub fn generation() -> u64 {
 /// that decides which entries are files, so neither can hold it alone.
 pub const BUNDLED: &str = "bundled";
 
-/// `[http.client.tls]` in this crate's own terms: the outbound TLS policy an
+/// `[tls.client]` in this crate's own terms: the outbound TLS policy an
 /// operator wrote, resolved.
 ///
 /// Plain strings and a path rather than `nvs_config`'s block, because nothing
@@ -1129,7 +1129,7 @@ pub struct CallPolicy {
     /// it beside another: what it asked for is a superset of the rest.
     pub insecure: bool,
     /// `tlsMinVersion` — `"1.3"` to drop 1.2 for this call. It needs no grant
-    /// because it can only tighten, and a value below `[http.client.tls]
+    /// because it can only tighten, and a value below `[tls.client]
     /// min_version` is refused before it reaches here.
     pub min_version: Option<String>,
 }
@@ -1252,7 +1252,7 @@ pub fn configure(policy: &ClientPolicy) -> io::Result<()> {
 ///
 /// A client judged the same as the running one ([`Client::same_as`]) is
 /// dropped and the running one stays, with its generation, so a reload that
-/// did not touch `[http.client.tls]` leaves every pooled connection usable.
+/// did not touch `[tls.client]` leaves every pooled connection usable.
 pub fn install(client: Client) -> bool {
     let mut held = INSTALLED.write().unwrap_or_else(PoisonError::into_inner);
     let generation = match held.as_ref() {
@@ -1348,7 +1348,7 @@ fn read_anchors(path: &Path, store: &mut RootCertStore) -> io::Result<()> {
     Ok(())
 }
 
-/// `[http.client.tls] keylog`'s destination: each session's secrets appended in
+/// `[tls.client] keylog`'s destination: each session's secrets appended in
 /// the `SSLKEYLOGFILE` format, which is the one format Wireshark reads.
 ///
 /// One handle for the process behind a mutex rather than an open per secret,
@@ -1791,7 +1791,7 @@ fn verifying(roots: impl Into<Arc<RootCertStore>>) -> ConfigBuilder<ClientConfig
     floored(None, roots)
 }
 
-/// [`verifying`] with `[http.client.tls] min_version` applied.
+/// [`verifying`] with `[tls.client] min_version` applied.
 ///
 /// `None` and `"1.2"` are the same builder, because 1.2 is already the lowest
 /// version this build speaks — `rustls` implements neither TLS 1.0 nor 1.1, so

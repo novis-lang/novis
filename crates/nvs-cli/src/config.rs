@@ -32,7 +32,7 @@
 //! # What it costs
 //!
 //! [`install_tls_client`] runs at every start of `nvs run`, with or without an
-//! `[http.client.tls]` table. Counted on a one-line program in a debug build, it
+//! `[tls.client]` table. Counted on a one-line program in a debug build, it
 //! is 18 allocations and 33 KB, under 0.1% of the start's allocations, with no
 //! file read and no thread. Building the client at its first handshake would
 //! save no more than that, so the client is built at the start.
@@ -765,7 +765,7 @@ pub(crate) fn roots_in(config: &[PathBuf], cwd: &Path) -> nvs_config::Roots {
     nvs_config::resolve::roots(config, cwd, data.as_deref(), &LocalFiles)
 }
 
-/// Builds the process's one outbound TLS client from `[http.client.tls]` and
+/// Builds the process's one outbound TLS client from `[tls.client]` and
 /// installs it, so the first `https` call a program makes verifies against the
 /// anchors this deployment chose (`rule:security/one-tls-client`).
 ///
@@ -799,7 +799,7 @@ pub(crate) fn install_tls_client(snapshot: &nvs_config::Snapshot) -> Result<(), 
     nvs_host::tls::configure(&policy_of(snapshot)).map_err(|err| {
         Diagnostic::error(
             nvs_diagnostics::code::E_TLS_CLIENT_UNBUILDABLE,
-            format!("`[http.client.tls]` does not build an outbound TLS client: {err}"),
+            format!("`[tls.client]` does not build an outbound TLS client: {err}"),
         )
     })?;
     for line in relaxed_grants(snapshot) {
@@ -831,7 +831,7 @@ fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
         .collect()
 }
 
-/// `[http.client.tls]` as `nvs_host` asks for it.
+/// `[tls.client]` as `nvs_host` asks for it.
 ///
 /// Split from [`install_tls_client`] so the reading can be asserted on its own,
 /// since installing changes the process's one client, and so a reload can build
@@ -839,10 +839,9 @@ fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
 pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
     let block = snapshot
         .config
-        .http
+        .tls
         .as_ref()
-        .and_then(|http| http.client.as_ref())
-        .and_then(|client| client.tls.as_ref());
+        .and_then(|tls| tls.client.as_ref());
     nvs_host::tls::ClientPolicy {
         roots: block.and_then(|tls| tls.roots.clone()).unwrap_or_default(),
         min_version: block.and_then(|tls| tls.min_version.clone()),
@@ -1194,7 +1193,7 @@ pub(crate) fn grants(
 /// `None` where no tree is found, so only the shipped refusals apply. Nothing is
 /// written into the data folder.
 ///
-/// The tree's `[http.client.tls]` builds the process's one outbound TLS client
+/// The tree's `[tls.client]` builds the process's one outbound TLS client
 /// here too, as [`install_tls_client`] builds it for a run, so a registry, a
 /// clone or a download behind a private certificate authority is reached with
 /// the anchors the operator wrote. `ca_file` adds one more anchor to those, for
@@ -1960,7 +1959,7 @@ mod tests {
         path
     }
 
-    /// What the run sites hand `nvs_host::tls::configure`: the three keys of `[http.client.tls]`,
+    /// What the run sites hand `nvs_host::tls::configure`: the three keys of `[tls.client]`,
     /// off the booted snapshot rather than off the file.
     ///
     /// The `roots` assertion is the one worth making twice. `bundled` names no file and survives
@@ -1976,7 +1975,7 @@ mod tests {
         fs::write(
             dir.join("nvs.toml"),
             format!(
-                "[mode]\ndefault = \"development\"\n\n[http.client.tls]\n\
+                "[mode]\ndefault = \"development\"\n\n[tls.client]\n\
                  roots = [\"bundled\", \"corp.pem\"]\nmin_version = \"1.3\"\nkeylog = {}\n",
                 toml::Value::from(keylog.to_string_lossy().into_owned())
             ),

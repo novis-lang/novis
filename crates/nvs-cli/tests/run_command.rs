@@ -116,7 +116,7 @@ fn an_anchor_bundle_with_no_certificate_stops_the_run_as_e0641() {
     fs::write(dir.join("anchors.pem"), "not a certificate\n").unwrap();
     fs::write(
         dir.join("nvs.toml"),
-        "[http.client.tls]\nroots = ['anchors.pem']\n",
+        "[tls.client]\nroots = ['anchors.pem']\n",
     )
     .unwrap();
 

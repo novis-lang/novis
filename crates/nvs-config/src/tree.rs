@@ -103,6 +103,9 @@ pub struct Config {
     pub regex: Option<Regex>,
     /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
+    /// `[tls.client]` — whose certificates every outbound TLS connection believes, for HTTP and
+    /// for every other protocol (`rule:http-server/the-client-trust-roots-are-the-operators`).
+    pub tls: Option<Tls>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// `rule:security/db-pool-reset-is-a-boundary` lets an operator write beside them rather than
     /// inside one.
@@ -425,12 +428,12 @@ pub struct CapNet {
 ///
 /// A grant here relaxes nothing on its own. It says *where* verification may be relaxed, and only a
 /// call naming the option beside it says *here*; a call that names no option keeps the strict
-/// process-wide trust `[http.client.tls]` configures.
+/// process-wide trust `[tls.client]` configures.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapTls {
     /// The hosts a call may trust PEM certificates of its own for with `tlsCa`, in place of
-    /// `[http.client.tls] roots`.
+    /// `[tls.client] roots`.
     pub anchors: Option<Setting>,
     /// The hosts a call may accept on a `sha256//` public-key pin alone with `tlsPin`, building no
     /// chain — the spelling a self-signed origin is reached by.
@@ -769,16 +772,23 @@ pub struct HttpClient {
     /// How long one may sit idle before it is closed — see [`HttpClient::pool_idle`], under whose
     /// count alone a connection the far end retired hours ago would still be drawn.
     pub pool_idle_timeout: Option<String>,
-    /// `[http.client.tls]`.
-    pub tls: Option<HttpClientTls>,
     /// `[http.client.proxy]`.
     pub proxy: Option<HttpClientProxy>,
     /// `[http.client.socket]`.
     pub socket: Option<HttpClientSocket>,
 }
 
-/// `[http.client.tls]` — whose certificates an outbound `https` call believes, the version floor it
-/// speaks over, and the debugging file it may write its secrets to.
+/// `[tls]` — the process's TLS settings. Its one sub-table is [`Tls::client`].
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Tls {
+    /// `[tls.client]`.
+    pub client: Option<TlsClient>,
+}
+
+/// `[tls.client]` — whose certificates every outbound TLS connection believes, the version floor
+/// it speaks over, and the debugging file it may write its secrets to. A block's own
+/// `tls_ca_file` replaces `roots` for that block alone.
 ///
 /// `System` as a block, and for the reason `rule:config/set-changes-only-listed-keys` gives: these
 /// three settle the one `ClientConfig` every session in the process shares
@@ -788,7 +798,7 @@ pub struct HttpClient {
 /// not widen a decision the deployment made.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
-pub struct HttpClientTls {
+pub struct TlsClient {
     /// The trust anchors, in order. Each entry is `"bundled"` — the compiled-in Mozilla set — or a
     /// PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company CA to the shipped set
     /// and a list naming only files trusts only those files. Unset is `["bundled"]`.

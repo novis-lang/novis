@@ -341,7 +341,7 @@ impl Tree {
         fs::write(
             self.app().join("nvs.toml"),
             format!(
-                "[http.client.tls]\nroots = ['{}']\n\n\
+                "[tls.client]\nroots = ['{}']\n\n\
                  [capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n",
                 host.roots.display()
             ),

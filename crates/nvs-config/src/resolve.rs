@@ -626,7 +626,7 @@ pub fn resolve(
     crate::mail::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // `[storage.<name>] root`, by the same rule and for the same reason as a `[db]` path.
     crate::db::canonicalize_storage(&mut resolved.config, &mut resolved.table, &origins);
-    // `[http.client.tls] roots`, immediately after the `[db]` bundles and through the same check:
+    // `[tls.client] roots`, immediately after the `[db]` bundles and through the same check:
     // the anchors an outbound call verifies against are a wider authority than one block's, so a
     // pass that resolved them anywhere but inside the trust boundary would be the one file in the
     // tree a stranger could rewrite.

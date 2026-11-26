@@ -86,7 +86,7 @@ codes! {
         "`[cache.shared] url` names a store, but no application may use it, so \
          `Core\\Cache::shared()` will fail. Write `cache.shared = true` under `[capabilities]`.",
     );
-    /// `[http.client.tls] keylog` is on, and this host is one where that is
+    /// `[tls.client] keylog` is on, and this host is one where that is
     /// allowed: every outbound TLS session is appending its secrets to the
     /// named file.
     ///
@@ -98,7 +98,7 @@ codes! {
     /// `production` never reaches this, so the only host that sees it has
     /// already said it is being debugged.
     pub const W_TLS_KEYLOG_ON: Code = Code::new("W1009").card(
-        "`[http.client.tls] keylog` is on, so the keys of every TLS connection are written to \
+        "`[tls.client] keylog` is on, so the keys of every TLS connection are written to \
          a file. Anybody who can read that file can read the traffic. Remove the setting when \
          you have finished debugging.",
     );

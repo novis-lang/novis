@@ -2400,7 +2400,7 @@ fn tunnel_head(stream: &mut NvsTcp) -> Result<Vec<u8>, String> {
 /// prefix of the other.
 ///
 /// **And so is the process's client** ([`nvs_host::tls::generation`]): a
-/// reload that replaced `[http.client.tls]` has said which anchors the next
+/// reload that replaced `[tls.client]` has said which anchors the next
 /// connection is judged by, and a socket opened under the old ones never
 /// serves a call made after it. The old sockets stay idle until the pool's own
 /// idle bound closes them.

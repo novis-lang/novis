@@ -51,7 +51,7 @@
 //! entry a header line could not carry is one no `Origin` can equal.
 //!
 //! **[`validate`] carries the outbound block's refusals too, and they are asked first.** They are
-//! not about a response at all: `[http.client.tls]`'s three and then `[http.client.proxy]`'s four,
+//! not about a response at all: `[tls.client]`'s three and then `[http.client.proxy]`'s four,
 //! because a tree that writes its own TLS secrets to a file or hands its destinations to a proxy on
 //! terms it never stated is a security question, and what a header means is not. Inside the proxy block the
 //! mandatory `resolve` is asked before the `url` it qualifies, since that word is what decides
@@ -72,10 +72,10 @@ use std::path::Path;
 use nvs_diagnostics::{Diagnostic, code};
 
 use crate::resolve::{Files, Origin, origin_note};
-use crate::tree::{Config, Http, HttpClientProxy, HttpClientTls, Setting};
+use crate::tree::{Config, Http, HttpClientProxy, Setting, TlsClient};
 use crate::value::{Quantity, Unit};
 
-/// The `[http.client.tls] roots` entry naming the compiled-in Mozilla set rather than a file.
+/// The `[tls.client] roots` entry naming the compiled-in Mozilla set rather than a file.
 ///
 /// A constant because two crates spell it: this one skips it while resolving paths, and
 /// `nvs_host::tls` reads it as "extend with the bundled anchors". A literal in each would be one
@@ -439,7 +439,7 @@ fn is_true(value: &str) -> bool {
     value.trim().eq_ignore_ascii_case("true")
 }
 
-/// Makes every PEM file under `[http.client.tls] roots` absolute — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` — and proves each
+/// Makes every PEM file under `[tls.client] roots` absolute — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` — and proves each
 /// one is inside the trust boundary.
 ///
 /// [`crate::db::canonicalize`]'s pass asked of the outbound client's anchors instead of a `[db]`
@@ -464,15 +464,14 @@ pub fn canonicalize(
     files: &dyn Files,
 ) -> Result<(), Diagnostic> {
     let Some(roots) = config
-        .http
+        .tls
         .as_mut()
-        .and_then(|http| http.client.as_mut())
-        .and_then(|client| client.tls.as_mut())
-        .and_then(|tls| tls.roots.as_mut())
+        .and_then(|tls| tls.client.as_mut())
+        .and_then(|client| client.roots.as_mut())
     else {
         return Ok(());
     };
-    let base = crate::db::written_in(origins, "http.client.tls.roots");
+    let base = crate::db::written_in(origins, "tls.client.roots");
     for entry in roots.iter_mut() {
         if entry == BUNDLED {
             continue;
@@ -482,7 +481,7 @@ pub fn canonicalize(
             crate::resolve::untrusted(
                 &path,
                 &why,
-                "`[http.client.tls] roots` names it, and whoever can write it chooses which servers \
+                "`[tls.client] roots` names it, and whoever can write it chooses which servers \
                  every outbound call this process makes may be talking to",
             )
         })?;
@@ -500,11 +499,9 @@ pub fn canonicalize(
 /// the typed side is what says the block exists.
 fn rewrite_roots(table: &mut toml::value::Table, roots: &[String]) {
     let Some(tls) = table
-        .get_mut("http")
+        .get_mut("tls")
         .and_then(toml::Value::as_table_mut)
-        .and_then(|http| http.get_mut("client"))
-        .and_then(toml::Value::as_table_mut)
-        .and_then(|client| client.get_mut("tls"))
+        .and_then(|tls| tls.get_mut("client"))
         .and_then(toml::Value::as_table_mut)
     else {
         return;
@@ -516,7 +513,7 @@ fn rewrite_roots(table: &mut toml::value::Table, roots: &[String]) {
     tls.insert("roots".to_string(), toml::Value::Array(entries));
 }
 
-/// `[http.client.tls]`'s three values, asked of the merged tree at boot.
+/// `[tls.client]`'s three values, asked of the merged tree at boot.
 ///
 /// Here rather than beside the anchors in `nvs_host::tls` because each of the three is wrong in a
 /// way the file can be shown for: the parse that would otherwise discover it happens on the first
@@ -528,14 +525,14 @@ fn tls(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagno
     if tls.roots.as_deref().is_some_and(<[String]>::is_empty) {
         return Err(Diagnostic::error(
             code::E_TLS_ROOTS_EMPTY,
-            "`[http.client.tls] roots` is empty, so no certificate could vouch for any origin"
+            "`[tls.client] roots` is empty, so no certificate could vouch for any origin"
                 .to_string(),
         )
         .with_note(format!(
             "the list is the whole answer to whose certificates an outbound `https` call believes, \
              and an empty one answers nobody's: every such call would fail at the handshake with an \
              unknown issuer{}",
-            origin_note(origins.get("http.client.tls.roots"))
+            origin_note(origins.get("tls.client.roots"))
         ))
         .with_help(format!(
             "leave the key out for the compiled-in set, or name what this deployment trusts — \
@@ -547,12 +544,12 @@ fn tls(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagno
     {
         return Err(Diagnostic::error(
             code::E_TLS_MIN_VERSION,
-            format!("`[http.client.tls] min_version` is `{written}`, which this client cannot speak"),
+            format!("`[tls.client] min_version` is `{written}`, which this client cannot speak"),
         )
         .with_note(format!(
             "the client implements TLS 1.2 and 1.3 and nothing beneath them, so a lower floor would \
              leave the real one at 1.2 while the file said otherwise{}",
-            origin_note(origins.get("http.client.tls.min_version"))
+            origin_note(origins.get("tls.client.min_version"))
         ))
         .with_help("write `1.2` or `1.3` — or leave the key out, which is `1.2`".to_string()));
     }
@@ -564,14 +561,12 @@ fn tls(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagno
     }
     Err(Diagnostic::error(
         code::E_KEYLOG_IN_PRODUCTION,
-        format!(
-            "`[http.client.tls] keylog` writes `{written}`, and this host runs in `production`"
-        ),
+        format!("`[tls.client] keylog` writes `{written}`, and this host runs in `production`"),
     )
     .with_note(format!(
         "the file collects every TLS session's secrets, which decrypts everything this deployment \
          sends — the credentials in it included — for whoever can read it{}",
-        origin_note(origins.get("http.client.tls.keylog"))
+        origin_note(origins.get("tls.client.keylog"))
     ))
     .with_help(
         "remove the key, or write it only in a tree whose `[mode] default` is `development`"
@@ -589,13 +584,9 @@ fn mode(config: &Config) -> &str {
         .unwrap_or(crate::mode::PRODUCTION)
 }
 
-/// The `[http.client.tls]` block as the merge left it.
-fn written_tls(config: &Config) -> Option<&HttpClientTls> {
-    config
-        .http
-        .as_ref()
-        .and_then(|http| http.client.as_ref())
-        .and_then(|client| client.tls.as_ref())
+/// The `[tls.client]` block as the merge left it.
+fn written_tls(config: &Config) -> Option<&TlsClient> {
+    config.tls.as_ref().and_then(|tls| tls.client.as_ref())
 }
 
 /// The `[http.client.proxy]` block, where a tree wrote one. An absent block is no proxy.
@@ -853,10 +844,10 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Vec<Diagno
                 format!("every TLS session's secrets are being appended to `{written}`"),
             )
             .with_note(format!(
-                "`[http.client.tls] keylog` is set and this host runs in `{}`, so the file \
+                "`[tls.client] keylog` is set and this host runs in `{}`, so the file \
                  decrypts this deployment's outbound traffic for anyone who can read it{}",
                 mode(config),
-                origin_note(origins.get("http.client.tls.keylog"))
+                origin_note(origins.get("tls.client.keylog"))
             ))
             .with_help("remove the key once the capture you wanted is taken".to_string()),
         );
@@ -976,7 +967,7 @@ fn socket_bound(
 /// `same_site` that is none of the three spellings — a value neither pair can be decided from.
 /// Before either, `E0625` for a value under `[http.headers]` or a list entry under `[http.cors]`
 /// that a header line cannot carry, and `E0601` for a `[http.cors] max_age` that is not a duration.
-/// Before all of them, the outbound block's: `[http.client.tls]`'s three — `E0638` for an empty
+/// Before all of them, the outbound block's: `[tls.client]`'s three — `E0638` for an empty
 /// `roots`, `E0639` for a `min_version` this client cannot speak, `E0640` for a `keylog` on a
 /// `production` host — and then `[http.client.proxy]`'s four, `E0643` for a block with no
 /// `resolve`, `E0644` for a third word, `E0645` for a `url` this client cannot dial and `E0646` for

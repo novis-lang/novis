@@ -238,7 +238,7 @@
 # matched as `net.connect` matches them, and **none has a `true` spelling**: what a deployment
 # relaxed stays legible host by host in review. A grant here relaxes nothing on its own — it says
 # where this may happen, and only the call's own option says here, so a call naming no option keeps
-# the strict trust `[http.client.tls]` configures.
+# the strict trust `[tls.client]` configures.
 #
 # `anchors` unlocks `tlsCa`, which trusts the PEM certificates the call gives in place of `roots`;
 # `pin` unlocks `tlsPin`, which accepts a peer whose public key hashes to a `sha256//` value with no
@@ -579,7 +579,7 @@
 # How long one frame may wait to be written before the send fails.
 #send_timeout = "30s"                 # default
 
-[http.client.tls]
+[tls.client]
 # Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
 # carried in the binary — or a PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company
 # CA and a list without `"bundled"` trusts only its files. Each file is resolved against the
