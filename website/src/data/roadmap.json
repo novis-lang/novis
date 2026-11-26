@@ -3,14 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Mail that a web app needs",
-      "text": "`Core\\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.",
-      "goals": [
-        "mail-complete",
-        "mail-receive"
-      ]
-    },
-    {
       "title": "Debug records that stay within their limits",
       "text": "The settings `index_age` and `index_max` under `[debug]` also delete the records of a finished run, oldest first. The run's page in the debug viewer shows which of its records were deleted.",
       "goals": [
@@ -22,6 +14,13 @@
       "text": "A `[tls.client]` block sets which certificate authorities every outgoing TLS connection trusts. If a server's certificate comes from an unknown authority, the error names the setting that fixes it.",
       "goals": [
         "tls-client-block"
+      ]
+    },
+    {
+      "title": "Mail that a web app needs",
+      "text": "`Core\\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.",
+      "goals": [
+        "mail-receive"
       ]
     },
     {
