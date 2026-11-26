@@ -1,8 +1,8 @@
 A key that ends in `_file` reads a secret, such as a password, from a separate file, so the secret
 is not written in `nvs.toml`.
 
-Eight settings have this form, such as `password_file` in `[db.<name>]` and
-`oauth_client_secret_file` in `[mail.<name>]`. The configuration reference lists them all. The
+Several settings have this form, such as `password_file` in `[db.<name>]` and
+`oauth_client_secret_file` in `[mail.<name>]` and `[imap.<name>]`. The configuration reference lists them all. The
 whole content of the file is the value. Novis removes one line break at the end and changes nothing
 else. Set either `password` or `password_file`. Setting both is the error `E0608`.
 

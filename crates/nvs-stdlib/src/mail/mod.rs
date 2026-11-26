@@ -642,7 +642,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    has. A `cid:` URL points at an image inside the same mail. An inline \
                    attachment is not used in the HTML. The HTML has a \
                    `<link rel=\"stylesheet\">`. A mail cannot load a stylesheet, so put the CSS \
-                   in a `<style>` element.",
+                   in a `<style>` element. An attachment of a received message has no file \
+                   name.",
         },
         ErrorDoc {
             error: "IOError",
@@ -652,8 +653,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    certificate that does not verify. It is thrown when the server offers neither \
                    `AUTH PLAIN` nor `AUTH LOGIN`, and when the message is larger than the server \
                    accepts. In all these cases, nothing is sent. If the server rejects a \
-                   recipient, the message names every rejected address, and nobody gets the \
-                   message. An address with letters that are not ASCII before the `@` needs a \
+                   recipient, the error names every rejected address. Then nobody gets the \
+                   mail. An address with letters that are not ASCII before the `@` needs a \
                    server that offers `SMTPUTF8`. With another server, nothing is sent.",
         },
     ],

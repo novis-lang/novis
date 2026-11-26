@@ -1,7 +1,11 @@
-Returns the content of an attachment, as `bytes`. These are the bytes that the mail sends.
+Returns the content of an attachment, as `tainted bytes`. For an attachment you send, these are
+the bytes that the mail contains. For an attachment of a received message, the sender wrote them.
 
-The result is `bytes` for every attachment, also when it was made from a `string`. A string is
-stored as UTF-8, so a letter such as `é` is two bytes. `Core\Bytes::length` gives the size of the
+The result is `tainted bytes` for every attachment, also when it was made from a `string`. Tainted
+means that the value comes from outside your program, so you must check it before you use it.
+
+An attachment made from a `string` stores the string as UTF-8. So a letter such as `é` is two
+bytes. `Core\Bytes::length` gives the size of the
 content, and `Core\Encoding::toHex` shows each byte.
 
 In a test, `Core\Test::sentMail()[0]->attachments()` returns the attachments of the first mail

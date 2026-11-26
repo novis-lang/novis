@@ -1721,7 +1721,6 @@
   "docs/examples/config/cache-memory/about.md": "c6d2a0f07636907d",
   "docs/examples/config/cache-shared/01-the-store-a-whole-fleet-shares.nvs": "a61b149b7669dac6",
   "docs/examples/config/cache-shared/about.md": "4a2796cd486b812a",
-  "docs/examples/config/capabilities/about.md": "046846ff4be5402b",
   "docs/examples/config/debug-index_age/01-how-long-request-records-are-kept.nvs": "970e2ff932f56440",
   "docs/examples/config/debug-inline/01-where-a-debugging-dump-shows-up.nvs": "a14997fb7caae2df",
   "docs/examples/config/debug-keep_temporary/01-what-happens-to-your-scratch-files.nvs": "13b9234c0033e684",
