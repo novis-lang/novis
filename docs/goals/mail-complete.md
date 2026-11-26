@@ -41,7 +41,7 @@ stages:
     context: [docs/examples/core/Mail/send/about.md, website/src/content/docs/guides/walkthroughs/after-response.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: headers
@@ -640,89 +640,42 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### 10. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done, and stage 10 (the close) is under way. This session's commits:
+Every stage is done, and `bun nv close --goal mail-complete` is green on all fourteen checks. This
+session's commits:
 
-- `0b69843fbc`: the debug viewer page has a **Mail** section and lists the page in the rail.
-  `debug-store` says a capture block writes the whole message. The ten debug texts and four more
-  were reviewed by a `reader`, fixed and stamped. `nvs debug`'s first help line names the SQLite
-  database. Six `Core\Test\SentMail` readers whose tests moved are recorded as unseen.
-- `39d476a9d1`: `debug-store/about.md` fits the 200-word bound. `proofs --gate --goal
-  mail-complete` is green.
-- `5860b414cc`: `bun nv render` writes `crate::mail::parts::ATTACHMENT` and
-  `crate::mail::css::PREVIEW` into `classes.rs`, so `parts` and `css` are `pub(crate)` and the
-  re-exports are gone. rustfmt, the rendered website data, two long paragraphs of the viewer page
-  and the `index_max` changelog entry (another session's commit `fdbd809da7`) are fixed.
-
-Stage 10's checks, run this session: clippy green; every acceptance check of the goal green
-(`headers` to `proofs`). `viewer` failed once and passed twice after it, while another session ran;
-see the backlog. The nightly run 45609291264's failures are fixed on main (backlog).
-
-`bun nv close --goal mail-complete` was red on four checks. `rendered files`, `rustfmt` and
-`website render` are fixed in `5860b414cc`. The fourth, `website stale guard`, is still red on
-two parts, below.
+- `28a4d7a6bf`: the nightly run 45813627231 failed its checked-types conformance leg on four
+  runners, because a `Core` object was never `Parses` or `Comparable` at run time. `$uuid is
+  Parses` was false too. `ClassDesc::conforms_to` and `conforms_to_name`
+  (`crates/nvs-runtime/src/object.rs`) now answer both interfaces from the native `format` and
+  `compareTo` fields. The new case `a-core-value-is-the-comparable-or-parses-it-is-checked-as`
+  fails without the fix under `NOVIS_CHECK_TYPES=1`. The run's four Miri failures were already
+  fixed by `c115a735a1`, which landed after the run's commit.
+- `dfa12862b7`: the five chain goals each have a roadmap theme.
+- `e620a8611c`: the 37 pages owing or with stale search questions have them, stamped.
+- `d72ce6984a`: `Core\Mail::send`, `::preview` and `Address::of` are measured again. The goal's
+  open sending items are in `mail-receive`'s backlog, and the serve host-stack test in
+  `release-green`'s.
 
 ### Next
 
-1. **`site --check questions`: 37 pages.** Eleven are stale (`/reference/core/mail/send/`,
-   `/reference/core/test/sentmail/`, `test-sentmail/text/` and `html/`, `/reference/config/debug/`,
-   `/reference/config/the-blocks-the-binary-accepts/`, `/reference/config/secrets-from-files/`,
-   `/reference/cli/nvs-debug/`, `/reference/cli/the-debug-viewer/`,
-   `/guides/how-to-use/sending-mail/`, `/tools/debug-viewer/`). 26 owe questions: every
-   `Core\Mail\Attachment`, `Core\Mail\Preview` and `Core\Mail\Address` page, `Core\Mail::preview`,
-   and the eight new `Core\Test\SentMail` readers. `bun nv site --questions --owed core` prints what
-   to write them from. This is wide: split it over writing subagents by class, each brief naming
-   AGENTS.md § *Text an end user reads*. Stamp with `MSYS_NO_PATHCONV=1 bun nv site --questions
-   --stamp <url>...`.
-2. **`site --check roadmap`: five goals on the chain are in no theme** of
-   `website/src/data/roadmap.json`: `long-run-records`, `tls-client-block`, `loadable-completion`,
-   `test-only` and `narrowed-static`. Add each to its theme, or to `internal`.
-3. Then `bun nv close --goal mail-complete` once more, fix what it names, tick stage 10's items,
-   set stage 10 `done`, delete the goal's file after moving any decision only it holds (the
-   standing decisions are in `docs/rules/core-classes/mail-message.md` and `mail-transport.md`;
-   check the stage 6 to 8 session choices are there), and write `DONE`.
-
-Expected red: `close`'s `website stale guard` (questions and roadmap) until Next 1 and 2 land;
-`scaling --budget` for other goals' benches. No unit test or conformance case is expected red.
+The driver runs the goal's checks and retires the file. Nothing is expected red. The decisions are
+in `docs/rules/core-classes/mail-message.md` and `mail-transport.md`, and the viewer's in
+`docs/rules/testing/the-viewer-answers-per-route-and-per-statement.md`.
 
 ### Backlog
 
-- `bun nv scaling --budget` fails on benches no mail work touched: ten over their share and about
-  80 with no share at all. `--budget --write` keeps an over bench at its old share
-  (`budgetAfter` in `tools/nv/cmd/scaling.ts:1458`), so it does not raise them, but it rewrites
-  every other share. A session that owns those benches lowers their N or writes the reason, then
-  runs `--write`.
-- No test sends a signed message through `send` and the fake relay: the five `dkim` tests call
-  `dkim::sign` directly, and `signer_of` reads the block's keys as `oauth::grant_of` does. A
-  test over `smtp::tests::send_to` with a `dkim_key_file` block would pin the wiring.
-- The DKIM key file is a private key, and `secret.rs`'s read advisory (another account can read
-  the file) does not cover it yet. Adding it to that advisory is a small change in
-  `crates/nvs-config/src/secret.rs` and `mail.rs` `canonicalize`.
-- The same inline attachment passed twice (`attachments: [$img, $img]`) is sent as two parts
-  with one Content-ID, which RFC 2045 forbids. `check_cids` in `crates/nvs-stdlib/src/mail/parts.rs`
-  should throw. `tests/hostile/core/Mail-Attachment/inlineBytes/` step 4 records it as sent now.
-- The unused-image error in `parts.rs` (near line 700) says "attach it with `fromFile` or
-  `fromBytes`" for an image made with `inlineFile` too. The `Attachment` doc near `parts.rs:133`
-  says `bytes()` returns tainted bytes; it compiles into plain `bytes`. Check which is right.
-- `css-inline` rewrites a CSS value's double quotes as single quotes when it copies it into a
-  `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Nothing is escaped wrongly,
-  but the value is not kept as written. Inlining cost grows with rules times elements, and only
-  depth is capped; the author of the markup alone can trigger it.
-- CI run 45749655184, `test / linux-x86_64 (tests)`: `serve::tests::
-  a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:5555`)
-  read 691 − 333 = 358 host stack pages for 32 waiting requests, over the bound 11 × 32 = 352. It
-  is a Linux debug count, and no commit since touches `serve.rs`. Find what grew a waiting
-  request's host stack with `bun nv linux-test` before any change to the bound, which alone is not
-  a fix. Not this goal's work; a session with room takes it.
-- Nightly CI run 45609291264 (miri `nvs-stdlib` shards, proofs on three runners, macOS tests) ran
-  on `53e94a9181`; its failures are fixed on main by `1c3196b0e8` and `c115a735a1`. The next
-  nightly confirms it.
-- `looper check --name viewer` (`viewer/test/mail.browser.test.ts`) failed once in the close of
-  this goal while another session ran, then passed twice, and `bun test` on the file passed.
-  If it fails again, read its output for a wait on time, not on an event.
+- `bun nv scaling --budget` fails on benches no mail work touched (ten over their share, about 80
+  with none). A session that owns those benches lowers their N or writes the reason.
+- The new `Core\Mail::send` and `Address::of` perf records have a clock of 0 ns/op (the old `send`
+  record had 4498), measured while another session loaded the machine. The four counts match.
+  The next `--record-perf` of either re-measures it.
+- `viewer/test/mail.browser.test.ts` failed once under load earlier in this stage, then passed.
+  If it fails again, read it for a wait on time, not on an event.
+
