@@ -5550,6 +5550,7 @@ mod tests {
         let [_warm, nothing, idle, waiting] = stacks[..] else {
             panic!("the probes read {stacks:?}, not four readings");
         };
+        eprintln!("TMPSTACKS {nothing:?} {idle:?} {waiting:?}");
         if cfg!(all(debug_assertions, any(target_os = "linux", windows))) {
             let waiting_count = WAITING.unsigned_abs();
             assert!(
