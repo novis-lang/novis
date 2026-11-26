@@ -236,6 +236,12 @@ reads only the first 1,000 root header lines (`receive.rs` `parse`).
   `.flags` file. A freed highest UID can be given again; a directory block is for tests and local
   work, so that is accepted. The files are read with blocking calls for the same reason.
 
+**Built in stage 6, the bounds the proofs asked for.** A report's per-message group is read like
+the others and gives no recipient, so a report without one stays readable. A status that is not
+an RFC 3463 code is empty, so `5.` and `5` are not permanent. One header gives at most 1,000
+addresses or ids, because each is a value many times its bytes. A flag is at most 255 bytes, and
+a directory block refuses a flag that would push its flags file past 64 KiB.
+
 **Cost.** The parse and the classification run per message read, never on the request path of an
 app that does not receive mail; a program that never calls them pays nothing. Two dependencies,
 `mail-parser` and `imap-codec`, with no network or async code of their own.
@@ -359,62 +365,29 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6, the gate, is next.
+Stages 1 to 5 are done. Stage 6, the full gate, is running: `looper verify` was started over
+everything since the last full gate.
 
-**Stage 5's end.** The newcomer review of all 302 texts is read, fixed and stamped (`0c5e8b110d`).
-The 52 sending-mail, `Core\Test\SentMail` and config texts this goal's tests made stale were
-reread against those tests. Four were wrong and are fixed (`90d8ce58d0`): `Attachment::bytes` is
-`tainted bytes`, `Attachment::name` can be `null`, `[capabilities]` has defaults, and the `_file`
-settings include `[imap.<name>]`'s. The receiving-mail guide has its search questions, and seven
-`about.md` files the review pushed past 200 words are cut back (`9b36155e57`). Green on disk:
-`site --check stale`, `review`, `questions` and `changes`, and `proofs --owed --goal mail-receive`
-names nothing. Not run: `proofs --gate --goal mail-receive` and any test suite.
+**The eleven bugs the proof agents found are fixed**, each with a test (`c136463405`): a `Date`
+with an out-of-range zone or year is `null` (`receive.rs` `readable_date`), `Message-ID` is the
+first id, a received address must be one (`is_address`), a header gives at most `MAX_LIST` ids or
+addresses, a report's status is an RFC 3463 code or empty, a report field keeps 4 KiB, a directory
+folder may not end with a dot or a space, and a flag is at most 255 bytes. The two rules say so.
+Every text it reached is reviewed and stamped, the perf figures are new (`3fa9c2a6dd`), and
+`proofs --owed --goal mail-receive` names nothing.
 
-**CI run 45813627231's nine jobs** are fixed on disk but one: the Miri zone tests skip Miri
-(`c115a735a1`), and the uuid case passes since `28a4d7a6bf`. linux-aarch64 `tests` is the serve
-stack-page test in § *Backlog*.
-
-Expected red at the gate: none known. The hostile and example files under
-`tests/hostile/core/Mail-*` and `docs/examples/core/Mail-*` had only comments changed, so their
-`.out` files should still match.
+Expected red at the gate: none known. The changed error text is pinned in
+`docs/examples/core/Imap-Mailbox/folder/02-a-folder-that-does-not-exist.out` and the conformance
+case `imap-a-directory-folder-throws-for-a-bad-name-flag-or-uid`, which passes.
 
 ### Next
 
-Stage 6:
-1. Fix the goal's own bugs the proof agents found (the first list under § *Backlog*), each with a
-   test, before the gate's run. Most are in `crates/nvs-stdlib/src/mail/receive.rs`,
-   `mail/receive/classify.rs` and `imap/directory.rs`. A fix that changes what a covering test
-   says makes its `about.md`, help card and the receiving-mail page stale: reread and stamp them,
-   and check each `about.md` stays within 40 to 200 words (`bun nv proofs --owed --goal
-   mail-receive`).
-2. Then the gate stage as the pack names it: at a full gate, `looper verify` in the background;
-   at a close, the build, clippy, this goal's tests by name and `bun nv close --goal
-   mail-receive`. Before `DONE`, recheck the CI items under § *Backlog*.
+1. Read `looper verify`'s report. Only if it is red, fix every failure in one pass and run it once
+   more.
+2. Then `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
+   fixed, and recheck the CI items under § *Backlog*. Then `DONE`.
 
 ### Backlog
-
-Found by stage 5's proof agents in this goal's own code. Stage 6 fixes each, with a test:
-- `crates/nvs-stdlib/src/mail/receive.rs:571`: `date()` never range-checks the offset from
-  `mail-parser`: `+2400` reads as UTC and `+0199` as `+01:39`. It should be `null`. A 20-digit year
-  reads as 9999-01-01.
-- `receive.rs:604`: `Message-ID: <a@b> <c@d>` gives `c@d`, the last id; the first is meant.
-- `receive.rs:550`: a received address is kept if not empty, so `<ada>` and `<ada lovelace@x>` pass.
-- `classify.rs:611`: `Final-Recipient: rfc822; <ada@example.org> extra` keeps `> extra` in the
-  address; `bare_address` (`:652`) would fix it.
-- `classify.rs:564`: the doc says groups are read "after the first", and the code never skips the
-  per-message group.
-- `classify.rs:584`: a folded continuation line has no size bound and does not count toward the
-  1,000 lines; a 1 MB `Diagnostic-Code` is read whole.
-- `classify.rs:427`: `is_permanent` is `starts_with("5.")`, so `5.` is permanent and `5` is not.
-- `imap/directory.rs:386`: a `Date` that `date()` reads as `null` still matches both `since` and
-  `before` in a directory search (`tests/hostile/core/Imap-Folder/search/mailbox/INBOX/3.eml`).
-- `imap/directory.rs:159` and `imap/mod.rs:969`: `flag` takes a keyword of any length, so one
-  1 MB keyword pushes `<uid>.flags` past `FLAGS_CEILING` and every later flag call on that message
-  throws. `flag_of` should bound a keyword.
-- `imap/directory.rs:281`: on Windows `folder('INBOX.')` and `folder('INBOX ')` open `INBOX`; on
-  Linux both are an `IOError`. `is_folder_name` should refuse a trailing dot or space.
-- Unbounded but within the memory limit: addresses in one header (`receive.rs:536`) and ids in
-  `References` (`:560`). Decide a bound or record why none.
 
 Left by `mail-complete`, about sending. A session of this goal that touches the file takes each.
 

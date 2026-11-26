@@ -27,6 +27,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A helper added to a shared module makes every feature it serves owe its proofs again.** In
+  `mail-receive` stage 6, one small `pub(crate) fn` in `crates/nvs-stdlib/src/time.rs` made
+  `proofs --owed` name about 100 `Core\Time` features for `perf`. Put a helper in the module
+  of the feature that needs it, and run `bun nv proofs --owed --goal <slug>` after the first
+  edit. See `tools/nv/proofs/since.ts`.
+
 - **Writing subagents that run `bun nv proofs --bless` or `--run` side by side pass `--nvs
   target/debug/nvs.exe`.** Without it, each call builds `--profile proof` first. In `mail-receive`
   stage 5, two of four proof agents waited on the build lock and were killed as a HANG. Name the
