@@ -72,6 +72,11 @@ pub(crate) const FOLDER_NAME: &str = r"Core\Imap\Folder";
 /// `Core\Imap::open`, as its errors spell it.
 const OPEN: &str = r"Core\Imap::open";
 
+/// The longest flag `flag` and `unflag` take, in bytes. A server keeps every keyword of a
+/// folder, and a directory block writes each into a file with a ceiling, so one keyword is
+/// bounded.
+pub(super) const MAX_KEYWORD_BYTES: usize = 255;
+
 /// The slot of [`MAILBOX`] and [`FOLDER`] that holds the session's key.
 const HANDLE: usize = 0;
 
@@ -346,9 +351,10 @@ const FOLDER_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A `directory` block is a folder on disk that works like a mailbox. For such a \
-                   block, the name is empty, `.` or `..`, or has a `/`, `\\`, `:` or control \
-                   character.",
+            desc: "The block is a `directory` block, and the name is not allowed there. Such a \
+                   block is a folder on disk that works like a mailbox. A name is not allowed \
+                   when it is empty, `.` or `..`, or has a `/`, `\\`, `:` or control character. \
+                   A name that ends with a dot or a space is not allowed either.",
         },
         ErrorDoc {
             error: "IOError",
@@ -481,8 +487,9 @@ const FLAG_PARAM: ParamDoc = ParamDoc {
 /// The `RuntimeError` of a flag that cannot be set.
 const FLAG_ERROR: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "`$flag` is `\\Deleted`, another flag that starts with `\\`, or not a flag name. To \
-           delete a message, call `delete`.",
+    desc: "`$flag` starts with `\\` and is not one of the four standard flags, or it has a space \
+           or one of the characters `(){%*\"\\]`, or it is longer than 255 bytes. `\\Deleted` \
+           throws too. To delete a message, call `delete`.",
 };
 
 /// `move`'s card.
@@ -981,12 +988,18 @@ fn writing_folder<'c>(ctx: &'c mut Ctx, value: Value, member: &str) -> Result<&'
 ///
 /// # Errors
 ///
-/// A catchable `RuntimeError` for `\Deleted`, which only `delete` sets, for any other name that
-/// starts with `\`, and for text that is not an IMAP atom.
+/// A catchable `RuntimeError` for a flag over [`MAX_KEYWORD_BYTES`], for `\Deleted`, which only
+/// `delete` sets, for any other name that starts with `\`, and for text that is not an IMAP atom.
 pub(super) fn flag_of(text: &str, member: &str) -> Result<String, Fault> {
     use imap_codec::imap_types::flag::Flag;
     let refused =
         |why: &str| Fault::thrown(format!("{member}: `{text}` cannot be set as a flag. {why}"));
+    if text.len() > MAX_KEYWORD_BYTES {
+        return Err(Fault::thrown(format!(
+            "{member}: a flag is at most {MAX_KEYWORD_BYTES} bytes, and this one is {} bytes.",
+            text.len()
+        )));
+    }
     match Flag::try_from(text) {
         Ok(Flag::Deleted) => Err(refused("To delete a message, call `delete`.")),
         Ok(Flag::Keyword(_)) => Ok(text.to_owned()),

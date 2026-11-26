@@ -22,7 +22,14 @@
 //! **Three bounds, each counted before the parse descends:** [`MAX_DEPTH`] levels of nesting
 //! and [`MAX_PARTS`] parts, which `mail-parser` itself stops at, and [`MAX_HEADERS`] header
 //! lines per part, which this module reads no further than. A part past a bound is skipped, and
-//! the message keeps what came before it.
+//! the message keeps what came before it. One header gives at most [`MAX_LIST`] addresses or
+//! ids, because each one read is a Novis value many times the size of its bytes.
+//!
+//! **What is read as a value, and what is `null`.** A received address has one `@`, a local part
+//! and a domain, and no space or control character; any other mailbox is left out of its list.
+//! `Message-ID` is the first id the header gives. A `Date` is `null` unless its year is 1900 to
+//! 3000, its zone is `+hhmm` or `-hhmm` with an hour under 24 and a minute under 60 (or a zone
+//! name), and the calendar has that day and time.
 //!
 //! **What it spends** (`rule:programs/memory-priority`): the raw bytes, kept for `raw()`, and the
 //! decoded headers, bodies and attachments beside them, so about twice the message, charged to
@@ -47,6 +54,9 @@ pub(crate) const MAX_PARTS: usize = 1_000;
 
 /// The most header lines read from one part. A line past it is not read.
 pub(crate) const MAX_HEADERS: usize = 1_000;
+
+/// The most addresses read from one address header, and the most ids from one id header.
+pub(crate) const MAX_LIST: usize = 1_000;
 
 /// The slots, in order. [`parse`] fills each, and each reader returns one.
 const SLOTS: &[&str] = &[
@@ -550,12 +560,13 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
             .map(|list| {
                 list.mailboxes()
                     .filter_map(|mailbox| {
-                        let address = mailbox.address().filter(|a| !a.is_empty())?;
+                        let address = mailbox.address().filter(|a| is_address(a))?;
                         Some(Mailbox {
                             address: address.to_owned(),
                             name: mailbox.name().unwrap_or_default().to_owned(),
                         })
                     })
+                    .take(MAX_LIST)
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default()
@@ -566,17 +577,18 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
             .map(|list| {
                 list.iter()
                     .filter(|id| !id.is_empty())
+                    .take(MAX_LIST)
                     .map(str::to_owned)
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     };
-    let date = field("date")
-        .and_then(|value| value.as_datetime())
-        .map(|at| {
-            let east = i32::from(at.tz_hour) * 3600 + i32::from(at.tz_minute) * 60;
-            let offset = if at.tz_before_gmt { -east } else { east };
-            (at, offset)
+    let date = fields
+        .iter()
+        .find(|field| field.raw_name().eq_ignore_ascii_case("date"))
+        .and_then(|field| {
+            let at = field.value().as_datetime()?;
+            readable_date(&at, &String::from_utf8_lossy(field.raw_value()))
         });
     let headers: Vec<(String, String)> = fields
         .iter()
@@ -610,8 +622,10 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
         classify::classified(&root, &headers, in_reply_to.as_deref(), &references, &to);
     Parsed {
         message_id: field("message-id")
-            .and_then(|value| value.as_text())
-            .filter(|id| !id.is_empty())
+            .and_then(|value| match value.as_text_list() {
+                Some(list) => list.iter().find(|id| !id.is_empty()),
+                None => value.as_text().filter(|id| !id.is_empty()),
+            })
             .map(str::to_owned),
         from: addresses("from").into_iter().next(),
         to,
@@ -630,6 +644,79 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
         attachments,
         classified,
     }
+}
+
+/// Whether `text` is read as a received address: one `@` with a local part before it and a
+/// domain after it, and no space or control character.
+pub(crate) fn is_address(text: &str) -> bool {
+    text.split_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty() && !domain.is_empty() && !domain.contains('@')
+    }) && !text
+        .chars()
+        .any(|each| each.is_whitespace() || each.is_control())
+}
+
+/// The `Date` `mail-parser` read as `at`, with its offset east of UTC in seconds, or `None` when
+/// the date is not one: a year outside 1900 to 3000, a numeric zone in `written` that is not
+/// `+hhmm` with `hh` under 24 and `mm` under 60, or a day or time the calendar does not have.
+/// `mail-parser` reduces an hour of 24 or more and a minute of 60 or more, so the zone is read
+/// again from the field as written.
+fn readable_date(
+    at: &mail_parser::DateTime,
+    written: &str,
+) -> Option<(mail_parser::DateTime, i32)> {
+    if !at.is_valid() || !zone_is_readable(written) {
+        return None;
+    }
+    let east = i32::from(at.tz_hour) * 3600 + i32::from(at.tz_minute) * 60;
+    let offset = if at.tz_before_gmt { -east } else { east };
+    let small = |n: u8| i8::try_from(n).ok();
+    let date = jiff::civil::Date::new(
+        i16::try_from(at.year).ok()?,
+        small(at.month)?,
+        small(at.day)?,
+    )
+    .ok()?;
+    let time =
+        jiff::civil::Time::new(small(at.hour)?, small(at.minute)?, small(at.second)?, 0).ok()?;
+    let zone = jiff::tz::TimeZone::fixed(jiff::tz::Offset::from_seconds(offset).ok()?);
+    jiff::civil::DateTime::from_parts(date, time)
+        .to_zoned(zone)
+        .ok()
+        .map(|_| (*at, offset))
+}
+
+/// Whether the numeric zone of a `Date` field as `written`, if it has one, is four digits with
+/// an hour under 24 and a minute under 60. A comment in parentheses is not read, and a field
+/// whose last word has no `+` or `-` followed by digits has a zone name or none.
+fn zone_is_readable(written: &str) -> bool {
+    let mut depth = 0_usize;
+    let bare: String = written
+        .chars()
+        .filter(|&each| match each {
+            '(' => {
+                depth += 1;
+                false
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                false
+            }
+            _ => depth == 0,
+        })
+        .collect();
+    let Some(last) = bare.split_whitespace().last() else {
+        return true;
+    };
+    let Some(sign) = last.rfind(['+', '-']) else {
+        return true;
+    };
+    let digits = &last[sign + 1..];
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return true;
+    }
+    let number = |range: std::ops::Range<usize>| digits[range].parse::<u8>().unwrap_or(u8::MAX);
+    digits.len() == 4 && number(0..2) < 24 && number(2..4) < 60
 }
 
 /// One attachment part as a [`Received`].

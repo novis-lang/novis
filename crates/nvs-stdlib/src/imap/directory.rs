@@ -8,7 +8,8 @@
 //! `UIDVALIDITY` of every folder is 1.
 //!
 //! **Every path is judged before it is joined.** A folder is one directory name: no separator, no
-//! `.` or `..`, no `:` and no control character. A UID is a number. So every path this module
+//! `.` or `..`, no `:`, no control character, and no dot or space at its end, which Windows
+//! would remove. A UID is a number. So every path this module
 //! opens is `<directory>/<folder>/<uid>.eml` or `.flags`, and none leaves the directory.
 //! [`super`] asks `fs.read` for the directory when it opens the mailbox, and `fs.write` before each
 //! change.
@@ -184,6 +185,13 @@ impl Directory {
         } else {
             let mut text = kept.join("\n");
             text.push('\n');
+            if text.len() as u64 > FLAGS_CEILING {
+                return Err(io(format!(
+                    "{member}: the flags of the message with the UID {uid} would be {} bytes, and \
+                     a flags file may have {FLAGS_CEILING}. Nothing was written.",
+                    text.len()
+                )));
+            }
             std::fs::write(&path, text)
         };
         written.map_err(|why| {
@@ -260,7 +268,8 @@ impl Directory {
         if !is_folder_name(folder) {
             return Err(Fault::thrown(format!(
                 "{member}: `{folder}` is not a folder of `[imap.{}]`. A folder of a directory \
-                 block is one directory name, without `/`, `\\`, `:` or `..`.",
+                 block is one directory name, without `/`, `\\`, `:` or `..`. It does not end \
+                 with a dot or a space.",
                 self.block
             )));
         }
@@ -276,12 +285,12 @@ impl Directory {
     }
 }
 
-/// Whether `name` is one directory name: not empty, not `.` or `..`, and without a separator,
-/// a `:` or a control character.
+/// Whether `name` is one directory name: not empty, not `.` or `..`, without a separator, a `:`
+/// or a control character, and not ending with a dot or a space. Windows removes a trailing dot
+/// or space when it opens a path, so `INBOX.` would open `INBOX` there and fail on Linux.
 fn is_folder_name(name: &str) -> bool {
     !name.is_empty()
-        && name != "."
-        && name != ".."
+        && !name.ends_with(['.', ' '])
         && !name
             .chars()
             .any(|each| matches!(each, '/' | '\\' | ':') || each.is_control())

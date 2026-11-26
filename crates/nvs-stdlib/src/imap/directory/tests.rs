@@ -60,7 +60,9 @@ fn a_directory_block_lists_its_subdirectories_as_folders() {
         mailbox.select("INBOX", MEMBER).expect("the folder"),
         VALIDITY
     );
-    for outside in ["..", "../INBOX", "INBOX/..", "a\\b", "C:", ""] {
+    for outside in [
+        "..", "../INBOX", "INBOX/..", "a\\b", "C:", "", "INBOX.", "INBOX ", ".",
+    ] {
         let Err(fault) = mailbox.select(outside, MEMBER) else {
             panic!("`{outside}` was opened as a folder");
         };
@@ -196,4 +198,64 @@ fn a_directory_block_moves_flags_and_deletes_files() {
         format!("{fault:?}").contains("no message with the UID 1"),
         "{fault:?}"
     );
+}
+
+/// A message whose `Date` reads as `null` matches neither `since` nor `before`.
+#[cfg_attr(miri, ignore = "reads a directory, which Miri does not emulate")]
+#[test]
+fn a_date_that_is_null_matches_neither_since_nor_before() {
+    let dir = nvs_repo::scratch("imap-directory-null-date");
+    let inbox = dir.join("INBOX");
+    std::fs::create_dir_all(&inbox).expect("the inbox");
+    write(
+        &inbox.join("1.eml"),
+        "Subject: a\r\nDate: Mon, 2 Nov 2026 09:15:00 +0000\r\n\r\nhi\r\n",
+    );
+    write(
+        &inbox.join("2.eml"),
+        "Subject: b\r\nDate: Mon, 2 Nov 2026 09:15:00 +2400\r\n\r\nhi\r\n",
+    );
+    write(
+        &inbox.join("3.eml"),
+        "Subject: c\r\nDate: yesterday at noon, 99 Foo -1 99:99:99 +9999\r\n\r\nhi\r\n",
+    );
+    let mailbox = Directory::new(dir.to_path_buf(), "inbox".to_owned());
+    let since = Filter {
+        since: Some((1, 1, 1)),
+        ..Filter::default()
+    };
+    assert_eq!(search(&mailbox, &since), [1]);
+    let before = Filter {
+        before: Some((9999, 12, 31)),
+        ..Filter::default()
+    };
+    assert_eq!(search(&mailbox, &before), [1]);
+}
+
+/// A flag that would push `<uid>.flags` past its ceiling is an `IOError`, and the flags the
+/// message has stay readable.
+#[cfg_attr(miri, ignore = "reads a directory, which Miri does not emulate")]
+#[test]
+fn a_flag_past_the_flags_ceiling_is_not_written() {
+    let dir = nvs_repo::scratch("imap-directory-flags-ceiling");
+    let inbox = dir.join("INBOX");
+    std::fs::create_dir_all(&inbox).expect("the inbox");
+    write(&inbox.join("1.eml"), "Subject: a\r\n\r\nhi\r\n");
+    let mailbox = Directory::new(dir.to_path_buf(), "inbox".to_owned());
+    let keyword = "k".repeat(200);
+    let mut refused = None;
+    for n in 0..400 {
+        if let Err(fault) = mailbox.store("INBOX", 1, &format!("{keyword}{n}"), true, MEMBER) {
+            refused = Some(fault);
+            break;
+        }
+    }
+    let fault = refused.expect("a flag past the ceiling was written");
+    assert!(
+        format!("{fault:?}").contains("Nothing was written"),
+        "{fault:?}"
+    );
+    mailbox
+        .store("INBOX", 1, "\\Seen", false, MEMBER)
+        .expect("the flags stay readable");
 }

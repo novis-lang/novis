@@ -13,6 +13,12 @@ array<Core\Mail\Attachment>` and `raw(): bytes`. `Core\Mail\Address` has `addres
 received attachment is a `Core\Mail\Attachment`, so a program can forward one, and its `name()` is
 `?string` for every attachment; `send` throws a catchable error for one with no name.
 
+**What is read, and what is `null`.** A received address has one `@` with a local part and a domain,
+and no space or control character; any other mailbox is left out of its list. `messageId()` is the
+first id of its header. `date()` is `null` unless its year is 1900 to 3000, a numeric zone is `+hhmm`
+with an hour under 24 and a minute under 60, and the calendar has that day and time. `mail-parser`
+reduces an out-of-range zone, so the zone is read again from the field as written.
+
 **Every value is tainted.** The bytes came from whoever sent the message. `html()` is a tainted string,
 never `Core\Html\Markup`, so a page shows it through `Core\Html::sanitize`
 (`rule:core-classes/html-sanitize`). An attachment's `bytes()` is `tainted bytes`.
@@ -23,8 +29,9 @@ received message was not written by the program, which must still reach its othe
 
 **Bounds, counted before descending.** 16 levels of nesting and 1,000 parts are `mail-parser`'s own
 `max_depth` and `max_parts`, and a part it flags `LIMIT_REACHED` is skipped. The wrapper reads only
-the first 1,000 root header lines. A part past a bound is skipped and the message keeps what came
-before. The raw bytes are already under the request's memory limit. What it spends: the parsed
+the first 1,000 root header lines, and at most 1,000 addresses or ids from one header, because each
+one read is a value many times the size of its bytes. A part past a bound is skipped and the message
+keeps what came before. The raw bytes are already under the request's memory limit. What it spends: the parsed
 message, per message read, freed with its last reference; an app that never parses pays nothing.
 
 **The kind.** `kind(): Core\Mail\Message::Kind`, run once inside `parse`, is the first that matches of:
@@ -50,9 +57,12 @@ rule of `send`'s `bounceTag` (`rule:core-classes/mail-transport`); one predicate
 **The report.** `report(): ?Core\Mail\Report` is set for a delivery report. `recipients():
 array<Core\Mail\ReportRecipient>` gives each recipient's `address()` (`Final-Recipient`), `action()`
 (`Core\Mail\ReportRecipient::Action`: `Failed`, `Delayed`, `Delivered`, `Relayed`, `Expanded`),
-`status()` (the first word of `Status`, empty when there is none), `isPermanent()` (status class 5) and
-`diagnostic(): ?string` (`Diagnostic-Code`). A report reads at most 1,000 recipients and 1,000 lines per
-group, and a recipient with no `Final-Recipient` or an `Action` RFC 3464 does not define is skipped.
+`status()` (the first word of `Status` when it is an RFC 3463 code such as `5.1.1`, else empty),
+`isPermanent()` (status class 5) and `diagnostic(): ?string` (`Diagnostic-Code`). A report reads at
+most 1,000 recipients, 1,000 lines per group with a folded line counted, and 4 KiB of one field. A
+recipient with no `Final-Recipient` address or an `Action` RFC 3464 does not define is skipped. The
+report's own first group is read like the others and gives no recipient, because it has no
+`Final-Recipient`.
 Both enums live in the class that returns them (`rule:enums/an-enum-lives-in-the-class-that-uses-it`).
 
 **Declined:**

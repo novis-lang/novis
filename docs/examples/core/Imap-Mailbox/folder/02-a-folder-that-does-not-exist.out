@@ -1,2 +1,2 @@
 Archive: the folder does not exist
-Core\Imap\Mailbox::folder: `../INBOX` is not a folder of `[imap.inbox]`. A folder of a directory block is one directory name, without `/`, `\`, `:` or `..`.
+Core\Imap\Mailbox::folder: `../INBOX` is not a folder of `[imap.inbox]`. A folder of a directory block is one directory name, without `/`, `\`, `:` or `..`. It does not end with a dot or a space.

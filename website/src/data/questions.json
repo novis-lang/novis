@@ -334,7 +334,7 @@
   },
   "/guides/how-to-use/receiving-mail/": {
     "feature": "guides/how-to-use/receiving-mail.mdx",
-    "hash": "4526a5ba118771a7",
+    "hash": "21a1e5e17a96cf33",
     "questions": [
       "Read new emails from a mailbox over IMAP in my app",
       "Find out which of my sent emails bounced and why",

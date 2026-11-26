@@ -8,7 +8,9 @@
 //! (`rule:errors/ambiguous-input-refused`), and the large senders all write RFC 3464.
 //!
 //! **Bounds.** A report is read up to [`MAX_RECIPIENTS`] recipients and [`super::MAX_HEADERS`]
-//! lines per group, so the work is linear in the report part, which is within the message.
+//! lines per group, a folded line counted as one, and one field's value up to
+//! [`MAX_FIELD_BYTES`]. So the work is linear in the report part, which is within the message,
+//! and what is kept per recipient is bounded.
 
 use mail_parser::{MessageParser, MessagePart, MessageRef, PartFlags, PartKind};
 use nvs_runtime::{Fault, NvsArray, Value};
@@ -19,6 +21,10 @@ use crate::registry::{
 
 /// The most recipients read from one delivery report. A recipient past it is not read.
 pub(crate) const MAX_RECIPIENTS: usize = 1_000;
+
+/// The most bytes kept of one field of a delivery report, its folded lines included: 4 KiB,
+/// four times RFC 5322's line limit. The rest of a longer `Diagnostic-Code` is not read.
+pub(crate) const MAX_FIELD_BYTES: usize = 4 << 10;
 
 /// `Core\Mail\Message::Kind`'s name. `rule:enums/an-enum-lives-in-the-class-that-uses-it` puts
 /// it in `Core\Mail\Message`, the one class that returns it.
@@ -262,8 +268,9 @@ const ACTION_MEMBER_DOC: MethodDoc = MethodDoc {
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "Returns the status code, such as `5.1.1` for an address that does not exist.",
     params: &[],
-    ret: "The status code from the `Status` line of the report, or an empty string when the \
-          report gives none. It is tainted, because the server that sent the report wrote it.",
+    ret: "The status code from the `Status` line of the report. The code is three numbers \
+          joined by dots, such as `5.1.1`. The result is an empty string when the report has no \
+          such code. It is tainted, because the server that sent the report wrote it.",
     errors: &[],
 };
 
@@ -420,7 +427,7 @@ pub(crate) struct Recipient {
     pub address: String,
     /// The `Action`.
     pub action: Action,
-    /// The `Status`, such as `5.1.1`, or empty when the report gives none.
+    /// The `Status`, such as `5.1.1`, or empty when the report gives no RFC 3463 code.
     pub status: String,
     /// The `Diagnostic-Code` text, its type removed.
     pub diagnostic: Option<String>,
@@ -431,6 +438,28 @@ impl Recipient {
     pub(crate) fn is_permanent(&self) -> bool {
         self.status.starts_with("5.")
     }
+}
+
+/// Whether `word` is an RFC 3463 status code: a class of `2`, `4` or `5`, then a subject and a
+/// detail of one to three digits each, joined by dots.
+fn is_status_code(word: &str) -> bool {
+    let number =
+        |text: &str| (1..=3).contains(&text.len()) && text.bytes().all(|b| b.is_ascii_digit());
+    let mut pieces = word.split('.');
+    matches!(pieces.next(), Some("2" | "4" | "5"))
+        && pieces.next().is_some_and(number)
+        && pieces.next().is_some_and(number)
+        && pieces.next().is_none()
+}
+
+/// Adds `more` to `value`, cut at a character so the value is at most [`MAX_FIELD_BYTES`].
+fn push_bounded(value: &mut String, more: &str) {
+    let room = MAX_FIELD_BYTES.saturating_sub(value.len());
+    let mut end = more.len().min(room);
+    while !more.is_char_boundary(end) {
+        end -= 1;
+    }
+    value.push_str(&more[..end]);
 }
 
 /// What [`classified`] read.
@@ -572,11 +601,14 @@ fn original_id(root: &MessageRef<'_>) -> Option<String> {
     })
 }
 
-/// A `message/delivery-status` body read into its recipients: each group of fields after the
-/// first, separated by a blank line, that has a `Final-Recipient` and an `Action` RFC 3464 defines.
+/// A `message/delivery-status` body read into its recipients: each group of fields, separated
+/// by a blank line, that has a `Final-Recipient` with an address and an `Action` RFC 3464
+/// defines. The first group is the report's own fields, and it is read like the others: it has
+/// no `Final-Recipient`, so it gives no recipient.
 pub(crate) fn recipients(body: &[u8]) -> Vec<Recipient> {
     let text = String::from_utf8_lossy(body);
     let mut groups: Vec<Vec<(String, String)>> = vec![Vec::new()];
+    let mut lines = 0_usize;
     for line in text.lines() {
         if groups.len() > MAX_RECIPIENTS + 1 {
             break;
@@ -585,16 +617,23 @@ pub(crate) fn recipients(body: &[u8]) -> Vec<Recipient> {
         if line.trim().is_empty() {
             if !group.is_empty() {
                 groups.push(Vec::new());
+                lines = 0;
             }
-        } else if line.starts_with([' ', '\t']) {
+            continue;
+        }
+        if lines >= super::MAX_HEADERS {
+            continue;
+        }
+        lines += 1;
+        if line.starts_with([' ', '\t']) {
             if let Some((_, value)) = group.last_mut() {
-                value.push(' ');
-                value.push_str(line.trim());
+                push_bounded(value, " ");
+                push_bounded(value, line.trim());
             }
-        } else if group.len() < super::MAX_HEADERS
-            && let Some((name, value)) = line.split_once(':')
-        {
-            group.push((name.trim().to_ascii_lowercase(), value.trim().to_owned()));
+        } else if let Some((name, written)) = line.split_once(':') {
+            let mut value = String::new();
+            push_bounded(&mut value, written.trim());
+            group.push((name.trim().to_ascii_lowercase(), value));
         }
     }
     groups
@@ -606,9 +645,13 @@ pub(crate) fn recipients(body: &[u8]) -> Vec<Recipient> {
                     .find(|(written, _)| written == name)
                     .map(|(_, value)| value.as_str())
             };
-            let address = typed_value(field("final-recipient")?);
-            let address = address.trim_start_matches('<').trim_end_matches('>').trim();
-            if address.is_empty() || address.chars().any(char::is_control) {
+            let written = typed_value(field("final-recipient")?);
+            let address = if written.contains('<') {
+                bare_address(written)
+            } else {
+                written.split_whitespace().next().unwrap_or_default()
+            };
+            if !super::is_address(address) {
                 return None;
             }
             Some(Recipient {
@@ -616,6 +659,7 @@ pub(crate) fn recipients(body: &[u8]) -> Vec<Recipient> {
                 action: Action::of(field("action")?)?,
                 status: field("status")
                     .and_then(|status| status.split_whitespace().next())
+                    .filter(|word| is_status_code(word))
                     .unwrap_or_default()
                     .to_owned(),
                 diagnostic: field("diagnostic-code")

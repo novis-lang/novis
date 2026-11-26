@@ -11,4 +11,5 @@ Pass each UID to `fetch` to read the message, or to `move`, `markSeen` or `delet
 
 **Good to know:** `search` does not read the messages and does not mark them as read. A
 `directory` block is a folder on disk that works like a mailbox, for tests and local work. In such
-a block, `since` and `before` use the `Date` header of each message.
+a block, `since` and `before` use the `Date` header of each message. A message whose date cannot
+be read matches neither `since` nor `before`.

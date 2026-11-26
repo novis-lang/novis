@@ -121,7 +121,7 @@ a delivery report, the result is `null`. The report is a `Core\Mail\Report`.
   - `Delivered`: the message was delivered.
   - `Relayed`: the message was passed to a server that sends no report.
   - `Expanded`: the message was delivered to a mailing list. The list sends it to its members.
-- `status()` is the status code, such as `5.1.1`. It is an empty string when the report has none.
+- `status()` is the status code, such as `5.1.1`. It is an empty string when the report has no code of three numbers.
 - `isPermanent()` is `true` when the status code starts with `5`. Mail to this address will not
   arrive later, so do not send to it again.
 - `diagnostic()` is the message of the mail server, or `null`.

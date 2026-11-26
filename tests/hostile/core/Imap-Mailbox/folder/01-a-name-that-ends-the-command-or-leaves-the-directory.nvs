@@ -49,13 +49,15 @@ foreach (["INBOX\0", "IN\tBOX", '', '"INBOX"', '{5}'] as var $name) {
 }
 
 // 5. Names that are devices on Windows, and names with a dot or a space at the end.
-//    Each name should open the folder `INBOX` or throw an `IOError`. No name should open a device.
+//    No name should open a device. A name with a dot or a space at the end should throw an error.
 foreach (['NUL', 'CON', 'COM1', 'INBOX.', 'INBOX '] as var $name) {
     try {
         $mailbox->folder($name);
         echo '5 opened, ', Str::length($name), " letters\n";
     } catch (IOError $missing) {
         echo "5 IOError\n";
+    } catch (RuntimeError $bad) {
+        echo "5 RuntimeError\n";
     }
 }
 

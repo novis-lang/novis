@@ -31,15 +31,17 @@ they are an `IOError` before any command is sent. `imap-codec` has no `UID EXPUN
 `<tag> UID EXPUNGE <uid>` itself: the line has a tag and a number and nothing a program wrote. `UID
 STORE` is sent without `.SILENT`, so the server's reply shows the message exists, and a `UID MOVE` with
 no `EXPUNGE` reply is "no message with that UID". `flag` and `unflag` take `\Answered`, `\Flagged`,
-`\Draft`, `\Seen` (in any case) or an IMAP atom keyword. `\Deleted` is a `RuntimeError` that names
+`\Draft`, `\Seen` (in any case) or an IMAP atom keyword of at most 255 bytes. `\Deleted` is a `RuntimeError` that names
 `delete`, so every `\Deleted` message this program marks is expunged at once; any other `\` name and
 text that is not an atom throw too.
 
 **The directory block.** `directory = "path"` reads a folder of folders instead of a server: each
 subdirectory is a folder, each `<uid>.eml` (no leading zero) a message, and its flags are in
 `<uid>.flags` beside it. `open` needs `fs.read` for the directory, and each change needs `fs.write`
-first. A folder is one directory name: no `/`, `\`, `:`, control character, `.` or `..`. `since` and
-`before` read the `Date` header, because a test cannot set a file's arrival date. `move` gives the
+first. A folder is one directory name: no `/`, `\`, `:`, control character, `.` or `..`, and no dot or
+space at its end, which Windows removes when it opens a path. `since` and `before` read the `Date`
+header, because a test cannot set a file's arrival date, and a message whose `Date` is `null` matches
+neither. A flag that would push `<uid>.flags` past 64 KiB is an `IOError`, and nothing is written. `move` gives the
 message the highest UID in the target plus one and carries its flags, and a freed highest UID can be
 given again. `uidValidity()` is 1. The files are read with blocking calls, because the block is for
 tests and local work (`rule:testing/a-test-reads-its-logs-and-mail`).

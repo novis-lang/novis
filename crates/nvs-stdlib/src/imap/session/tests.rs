@@ -892,6 +892,18 @@ fn a_flag_is_set_and_cleared() {
             "{written}"
         );
     }
+    let longest = "k".repeat(super::super::MAX_KEYWORD_BYTES);
+    assert_eq!(
+        super::super::flag_of(&longest, MEMBER).ok().as_deref(),
+        Some(longest.as_str())
+    );
+    let Err(fault) = super::super::flag_of(&format!("{longest}k"), MEMBER) else {
+        panic!("a keyword over the bound was taken");
+    };
+    assert!(
+        format!("{fault:?}").contains("at most 255 bytes"),
+        "{fault:?}"
+    );
 }
 
 /// `delete` sets `\Deleted` and runs `UID EXPUNGE` of its own UID. A plain `EXPUNGE`, which

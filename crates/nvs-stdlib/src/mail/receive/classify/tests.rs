@@ -188,3 +188,92 @@ fn the_bounce_tag_is_read_from_delivered_to() {
     let invalid = classified(b"Delivered-To: <b+a/b@example.com>\r\n\r\nHi.\r\n");
     assert_eq!(invalid.bounce_tag, None);
 }
+
+/// A delivery-status body: the report's own group, then one recipient group of `fields`.
+fn report_body(fields: &[&str]) -> Vec<u8> {
+    format!(
+        "Reporting-MTA: dns; mx.example.com\r\n\r\n{}\r\n",
+        fields.join("\r\n")
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_final_recipient_is_the_address_in_its_angle_brackets() {
+    let read = super::recipients(&report_body(&[
+        "Final-Recipient: rfc822; <ada@example.org> extra",
+        "Action: failed",
+        "Status: 5.1.1",
+    ]));
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].address, "ada@example.org");
+    // A comment after a bare address is not part of it.
+    let read = super::recipients(&report_body(&[
+        "Final-Recipient: rfc822; bo@example.org (Bo)",
+        "Action: failed",
+    ]));
+    assert_eq!(read[0].address, "bo@example.org");
+    // Text that is not an address gives no recipient.
+    for written in [
+        "rfc822; <ada>",
+        "rfc822; <ada lovelace@example.org>",
+        "rfc822; @example.org",
+    ] {
+        let line = format!("Final-Recipient: {written}");
+        let read = super::recipients(&report_body(&[&line, "Action: failed"]));
+        assert!(read.is_empty(), "{written} gave {read:?}");
+    }
+}
+
+#[test]
+fn a_status_is_a_code_of_three_numbers_or_empty() {
+    for (written, status, permanent) in [
+        ("5.1.1", "5.1.1", true),
+        ("4.4.7 (delayed)", "4.4.7", false),
+        ("2.0.0", "2.0.0", false),
+        ("5.", "", false),
+        ("5", "", false),
+        ("5.1", "", false),
+        ("5.1.1.1", "", false),
+        ("6.1.1", "", false),
+        ("5.1234.1", "", false),
+    ] {
+        let line = format!("Status: {written}");
+        let read = super::recipients(&report_body(&[
+            "Final-Recipient: rfc822; ada@example.org",
+            "Action: failed",
+            &line,
+        ]));
+        assert_eq!(read[0].status, status, "{written}");
+        assert_eq!(read[0].is_permanent(), permanent, "{written}");
+    }
+}
+
+#[test]
+fn a_folded_field_is_bounded_and_its_lines_count() {
+    let long = "x".repeat(1 << 20);
+    let continued = format!(" {long}");
+    let read = super::recipients(&report_body(&[
+        "Final-Recipient: rfc822; ada@example.org",
+        "Action: failed",
+        "Diagnostic-Code: smtp; 550 no",
+        &continued,
+    ]));
+    let diagnostic = read[0].diagnostic.as_deref().expect("a diagnostic");
+    assert!(diagnostic.starts_with("550 no x"));
+    assert!(diagnostic.len() <= super::MAX_FIELD_BYTES);
+    // An unfolded value is cut at the same bound.
+    let unfolded = format!("Diagnostic-Code: smtp; {long}");
+    let read = super::recipients(&report_body(&[
+        "Final-Recipient: rfc822; ada@example.org",
+        "Action: failed",
+        &unfolded,
+    ]));
+    let diagnostic = read[0].diagnostic.as_deref().expect("a diagnostic");
+    assert!(diagnostic.len() <= super::MAX_FIELD_BYTES);
+    // Folded lines count toward the bound on lines, so an `Action` past it is not read.
+    let mut fields = vec!["Final-Recipient: rfc822; ada@example.org", "X-Note: a"];
+    fields.extend(std::iter::repeat_n(" b", super::super::MAX_HEADERS));
+    fields.push("Action: failed");
+    assert!(super::recipients(&report_body(&fields)).is_empty());
+}

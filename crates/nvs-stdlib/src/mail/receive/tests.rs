@@ -292,6 +292,68 @@ fn parse_stops_at_the_header_line_bound() {
     assert_eq!(parsed.subject, "", "a header past the bound is not read");
 }
 
+/// The offset `parse` reads from `Date: <written>`, or `None` for a date that is `null`.
+fn date_offset(written: &str) -> Option<i32> {
+    let raw = format!("Date: {written}\r\n\r\nHi.\r\n");
+    parse(raw.as_bytes()).date.map(|(_, offset)| offset)
+}
+
+#[test]
+fn a_date_with_a_zone_or_year_out_of_range_is_null() {
+    assert_eq!(date_offset("Tue, 3 Nov 2026 14:05:09 +0100"), Some(3600));
+    assert_eq!(date_offset("Tue, 3 Nov 2026 14:05:09 -0230"), Some(-9000));
+    assert_eq!(date_offset("Tue, 3 Nov 2026 14:05:09 +2359"), Some(86_340));
+    assert_eq!(
+        date_offset("Tue, 3 Nov 2026 14:05:09 +0100 (CET)"),
+        Some(3600)
+    );
+    assert_eq!(date_offset("Tue, 3 Nov 2026 14:05:09 GMT"), Some(0));
+    for written in [
+        "Tue, 3 Nov 2026 14:05:09 +2400",
+        "Tue, 3 Nov 2026 14:05:09 +0199",
+        "Tue, 3 Nov 2026 14:05:09 +100",
+        "Tue, 3 Nov 2026 14:05:09 +010000",
+        "Tue, 3 Nov 12345678901234567890 14:05:09 +0000",
+        "Tue, 3 Nov 1850 14:05:09 +0000",
+        "Tue, 31 Feb 2026 14:05:09 +0000",
+    ] {
+        assert_eq!(date_offset(written), None, "{written}");
+    }
+}
+
+#[test]
+fn a_message_id_is_the_first_id_of_its_header() {
+    let parsed = parse(b"Message-ID: <a@b> <c@d>\r\n\r\nHi.\r\n");
+    assert_eq!(parsed.message_id.as_deref(), Some("a@b"));
+}
+
+#[test]
+fn a_received_mailbox_that_is_not_an_address_is_left_out() {
+    let parsed = parse(
+        b"To: <ada>, <ada lovelace@example.org>, @example.org, bo@example.org\r\n\r\nHi.\r\n",
+    );
+    let read: Vec<&str> = parsed.to.iter().map(|each| each.address.as_str()).collect();
+    assert_eq!(read, ["bo@example.org"]);
+}
+
+#[test]
+fn one_header_gives_at_most_max_list_addresses_and_ids() {
+    let to: Vec<String> = (0..=MAX_LIST)
+        .map(|i| format!("a{i}@example.org"))
+        .collect();
+    let ids: Vec<String> = (0..=MAX_LIST)
+        .map(|i| format!("<{i}@example.org>"))
+        .collect();
+    let raw = format!(
+        "To: {}\r\nReferences: {}\r\n\r\nHi.\r\n",
+        to.join(", "),
+        ids.join(" ")
+    );
+    let parsed = parse(raw.as_bytes());
+    assert_eq!(parsed.to.len(), MAX_LIST);
+    assert_eq!(parsed.references.len(), MAX_LIST);
+}
+
 /// Every seed under `fuzz/seeds/mail_parse/` parses without a panic, and its instance's slots
 /// fit their types.
 #[test]

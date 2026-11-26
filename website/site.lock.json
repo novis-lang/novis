@@ -1197,40 +1197,40 @@
     "Core\\Http\\TlsInfo::version": "49069fbc89a50bab"
   },
   "docs/examples/core/Imap/open/about.md": {
-    "Core\\Imap::open": "52b5a56c87439c83"
+    "Core\\Imap::open": "d0408d01dada1fd9"
   },
   "docs/examples/core/Imap-Folder/delete/about.md": {
-    "Core\\Imap\\Folder::delete": "e7d5490001785991"
+    "Core\\Imap\\Folder::delete": "b90af92505fd9973"
   },
   "docs/examples/core/Imap-Folder/fetch/about.md": {
-    "Core\\Imap\\Folder::fetch": "d47ad214a2a813d0"
+    "Core\\Imap\\Folder::fetch": "d4669566d32f2d44"
   },
   "docs/examples/core/Imap-Folder/flag/about.md": {
-    "Core\\Imap\\Folder::flag": "054c58e16073a2ee"
+    "Core\\Imap\\Folder::flag": "4131557f6e466dcf"
   },
   "docs/examples/core/Imap-Folder/markSeen/about.md": {
-    "Core\\Imap\\Folder::markSeen": "b85602070016b5a5"
+    "Core\\Imap\\Folder::markSeen": "2a007d95ecce5adc"
   },
   "docs/examples/core/Imap-Folder/markUnseen/about.md": {
-    "Core\\Imap\\Folder::markUnseen": "7a0934f33dc922e0"
+    "Core\\Imap\\Folder::markUnseen": "58c02e4c851d079f"
   },
   "docs/examples/core/Imap-Folder/move/about.md": {
-    "Core\\Imap\\Folder::move": "5671a335d3f230ac"
+    "Core\\Imap\\Folder::move": "300f07d0230d4223"
   },
   "docs/examples/core/Imap-Folder/search/about.md": {
-    "Core\\Imap\\Folder::search": "d945c1e3f9726ee1"
+    "Core\\Imap\\Folder::search": "b01dcd11a5829acf"
   },
   "docs/examples/core/Imap-Folder/uidValidity/about.md": {
-    "Core\\Imap\\Folder::uidValidity": "4416b7cd79fae155"
+    "Core\\Imap\\Folder::uidValidity": "2f81b7561830b0c7"
   },
   "docs/examples/core/Imap-Folder/unflag/about.md": {
-    "Core\\Imap\\Folder::unflag": "44c1ccebb9f1573a"
+    "Core\\Imap\\Folder::unflag": "acb123bccb92828d"
   },
   "docs/examples/core/Imap-Mailbox/folder/about.md": {
-    "Core\\Imap\\Mailbox::folder": "73715a01ead634ab"
+    "Core\\Imap\\Mailbox::folder": "5b6a560a2500abc2"
   },
   "docs/examples/core/Imap-Mailbox/folders/about.md": {
-    "Core\\Imap\\Mailbox::folders": "33a6a5b721cf5385"
+    "Core\\Imap\\Mailbox::folders": "8e268c2e400cdd11"
   },
   "docs/examples/core/IO/append/about.md": {
     "Core\\IO::append": "6ebdb6e1b8776b1e"
@@ -1848,7 +1848,7 @@
     "Core\\Mail\\ReportRecipient::isPermanent": "0361793fdb8a9381"
   },
   "docs/examples/core/Mail-ReportRecipient/status/about.md": {
-    "Core\\Mail\\ReportRecipient::status": "5f624e6f73a66072"
+    "Core\\Mail\\ReportRecipient::status": "9e075c40fbda1fa7"
   },
   "docs/examples/core/Markdown/fromHtml/about.md": {
     "Core\\Markdown::fromHtml": "a38698675e44bb2e"
@@ -5241,16 +5241,16 @@
     "Core\\Xml\\Node::Kind": "787325a225bf3321"
   },
   "guides/how-to-use/receiving-mail.mdx": {
-    "Core\\Imap::open": "78848a30273f4d06",
-    "Core\\Imap\\Folder::delete": "6b7468973fea4270",
-    "Core\\Imap\\Folder::fetch": "6740e53ca3202096",
-    "Core\\Imap\\Folder::flag": "4e91c38141f7296f",
-    "Core\\Imap\\Folder::markSeen": "628019a21f6de357",
-    "Core\\Imap\\Folder::markUnseen": "e6809d3e11080a02",
-    "Core\\Imap\\Folder::move": "8be7b7145d0cceaf",
-    "Core\\Imap\\Folder::search": "6dff2d4071965193",
-    "Core\\Imap\\Folder::unflag": "c77cc3617ec88027",
-    "Core\\Imap\\Mailbox::folder": "f7871e1852905fea",
+    "Core\\Imap::open": "e23a7ce58fd3d50a",
+    "Core\\Imap\\Folder::delete": "f02a067ef3c0554d",
+    "Core\\Imap\\Folder::fetch": "4f8140b0c0aba7e4",
+    "Core\\Imap\\Folder::flag": "9158687d2b7b63c2",
+    "Core\\Imap\\Folder::markSeen": "7e12a9209f6273a9",
+    "Core\\Imap\\Folder::markUnseen": "bdfefd7489b3d3a3",
+    "Core\\Imap\\Folder::move": "d516919e98615c53",
+    "Core\\Imap\\Folder::search": "a27241f78684120b",
+    "Core\\Imap\\Folder::unflag": "03ee732126cd9094",
+    "Core\\Imap\\Mailbox::folder": "1b313f166241f948",
     "Core\\Mail\\Message::answers": "bc598a7a45d10e8e",
     "Core\\Mail\\Message::bounceTag": "31a2e44c608b0404",
     "Core\\Mail\\Message::html": "26bdb5822833e569",
@@ -5264,7 +5264,7 @@
     "Core\\Mail\\ReportRecipient::address": "cde51c11f8e73e05",
     "Core\\Mail\\ReportRecipient::diagnostic": "07ceefe17c0d9e8a",
     "Core\\Mail\\ReportRecipient::isPermanent": "d80afbcee69cb8f3",
-    "Core\\Mail\\ReportRecipient::status": "69b2bd581ed2caf6"
+    "Core\\Mail\\ReportRecipient::status": "b359b554b27eec49"
   },
   "guides/how-to-use/sending-mail.mdx": {
     "Core\\Mail::preview": "95aa8cf9c941c9e2",
@@ -6375,40 +6375,40 @@
     "Core\\Http\\TlsInfo::version": "980c43bb47c671f9"
   },
   "help:Core\\Imap::open": {
-    "Core\\Imap::open": "315e7d2efdb97033"
+    "Core\\Imap::open": "c7bf06fa84a6d519"
   },
   "help:Core\\Imap\\Folder::delete": {
-    "Core\\Imap\\Folder::delete": "66f2a8d7b3838f27"
+    "Core\\Imap\\Folder::delete": "8d74f57703e2d257"
   },
   "help:Core\\Imap\\Folder::fetch": {
-    "Core\\Imap\\Folder::fetch": "f2c7701715d5a357"
+    "Core\\Imap\\Folder::fetch": "372b02b383471b7a"
   },
   "help:Core\\Imap\\Folder::flag": {
-    "Core\\Imap\\Folder::flag": "37584cb31937ecc6"
+    "Core\\Imap\\Folder::flag": "bb30cf3db0124a4d"
   },
   "help:Core\\Imap\\Folder::markSeen": {
-    "Core\\Imap\\Folder::markSeen": "10f2236305028fd5"
+    "Core\\Imap\\Folder::markSeen": "54dbbc905756e049"
   },
   "help:Core\\Imap\\Folder::markUnseen": {
-    "Core\\Imap\\Folder::markUnseen": "ed5b88a55bfc389a"
+    "Core\\Imap\\Folder::markUnseen": "ebd6788a25ef04fd"
   },
   "help:Core\\Imap\\Folder::move": {
-    "Core\\Imap\\Folder::move": "d3561f66bbb93187"
+    "Core\\Imap\\Folder::move": "c496c4da36d4e731"
   },
   "help:Core\\Imap\\Folder::search": {
-    "Core\\Imap\\Folder::search": "86637e07d04c59f6"
+    "Core\\Imap\\Folder::search": "5e7b198513728dbb"
   },
   "help:Core\\Imap\\Folder::uidValidity": {
-    "Core\\Imap\\Folder::uidValidity": "f61dda851653a743"
+    "Core\\Imap\\Folder::uidValidity": "77f95cecc9cd2774"
   },
   "help:Core\\Imap\\Folder::unflag": {
-    "Core\\Imap\\Folder::unflag": "f5d5eec8fbf57acf"
+    "Core\\Imap\\Folder::unflag": "a65880d6ad8732fb"
   },
   "help:Core\\Imap\\Mailbox::folder": {
-    "Core\\Imap\\Mailbox::folder": "6312973483f51448"
+    "Core\\Imap\\Mailbox::folder": "847a2d7cfc9c72a7"
   },
   "help:Core\\Imap\\Mailbox::folders": {
-    "Core\\Imap\\Mailbox::folders": "940e7bb34a8464c7"
+    "Core\\Imap\\Mailbox::folders": "0ba382c011884dff"
   },
   "help:Core\\IO::append": {
     "Core\\IO::append": "96580ff1707cdc5d"
@@ -6993,7 +6993,7 @@
     "Core\\Mail\\Message::kind": "b70876c39cdb01e3"
   },
   "help:Core\\Mail\\Message::messageId": {
-    "Core\\Mail\\Message::messageId": "b5b54dd582411a4d"
+    "Core\\Mail\\Message::messageId": "e5ba5f504c62a3a5"
   },
   "help:Core\\Mail\\Message::parse": {
     "Core\\Mail\\Message::parse": "800442600558d159"
@@ -7017,7 +7017,7 @@
     "Core\\Mail\\Message::text": "33ccf8a3a484968d"
   },
   "help:Core\\Mail\\Message::to": {
-    "Core\\Mail\\Message::to": "b6fff3277e5626d4"
+    "Core\\Mail\\Message::to": "90198ef207124ceb"
   },
   "help:Core\\Mail\\Message::uid": {
     "Core\\Mail\\Message::uid": "20ca618c6af3026b"
@@ -7053,7 +7053,7 @@
     "Core\\Mail\\ReportRecipient::isPermanent": "83c91041dcdbaf42"
   },
   "help:Core\\Mail\\ReportRecipient::status": {
-    "Core\\Mail\\ReportRecipient::status": "1bc7c1506b5fe6d3"
+    "Core\\Mail\\ReportRecipient::status": "0ae63313036cd84c"
   },
   "help:Core\\Markdown::fromHtml": {
     "Core\\Markdown::fromHtml": "d267ee43484211e9"

@@ -109,7 +109,7 @@ read = ["mailbox", "shared"]
 write = ["mailbox"]
 --EXPECT--
 INBOX
-Core\Imap\Mailbox::folder: `../secrets` is not a folder of `[imap.inbox]`. A folder of a directory block is one directory name, without `/`, `\`, `:` or `..`.
+Core\Imap\Mailbox::folder: `../secrets` is not a folder of `[imap.inbox]`. A folder of a directory block is one directory name, without `/`, `\`, `:` or `..`. It does not end with a dot or a space.
 IOError: no folder Spam
 validity 1
 Core\Imap\Folder::fetch: `$uid` is 0, and a UID is 1 to 4294967295
