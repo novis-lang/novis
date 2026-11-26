@@ -6,7 +6,6 @@
       "title": "A debug viewer that shows more",
       "text": "The debug viewer gets the website's design, a view of your routes and a view of your database queries. One button in VS Code opens it. Each recorded request also shows its memory, its handler and the stack of an uncaught exception. Scheduled jobs, queue jobs and commands are recorded like requests.",
       "goals": [
-        "debug-viewer-flagship",
         "deeper-debug-records"
       ]
     }
