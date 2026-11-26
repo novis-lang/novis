@@ -119,6 +119,25 @@ describe("the name a type slot holds", () => {
     coloured("gross", PROPERTY);
   });
 
+  it("reads a doc comment above an alias's field as a comment, apostrophe and all", async () => {
+    // A `///` line inside the braces is prose. Read as a type, its words are names and its `'`
+    // opens a string that never closes, so every line after it takes the string's colour.
+    const documented = await tokenize(
+      "<?nvs\ntype Issue = {\n    /// The file, as a path.\n    file: string,\n" +
+        "    /// The file's line, when known.\n    line: ?uint,\n};\nconst int MAX = 20;\n",
+    );
+    for (const text of ["/// The file, as a path.", "/// The file's line, when known."]) {
+      const found = documented.filter((s) => s.text.trim() === text);
+      assert.equal(found.length, 1, `${text} is not one span`);
+      assert.ok(found[0].scopes.includes("comment.line.documentation.nvs"), `${text} is not a comment`);
+    }
+    assert.deepEqual(
+      documented.filter((s) => s.scopes.includes(PROPERTY)).map((s) => s.text),
+      ["file", "line"],
+    );
+    assert.equal(documented.some((s) => s.scopes.some((scope) => scope.startsWith("string."))), false);
+  });
+
   it("colours the name a signature declares, and none where an anonymous function declares none", () => {
     assert.deepEqual(carrying(FUNCTION_NAME), ["charge", "rate", "shape", "rows", "map"]);
     coloured("$line", VARIABLE);
