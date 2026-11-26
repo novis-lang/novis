@@ -130,9 +130,8 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **A debug viewer that shows more.** *Working on it now.* The debug viewer gets the website's design, a view of your routes and a view of your database queries. One button in VS Code opens it. Each recorded request also shows its memory, its handler and the stack of an uncaught exception. Scheduled jobs, queue jobs and commands are recorded like requests.
-2. **Mail that a web app needs.** `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
-3. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
+1. **Mail that a web app needs.** *Working on it now.* `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
+2. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
 <!-- roadmap:end -->
 
 ## Contributing
