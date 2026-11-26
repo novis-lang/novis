@@ -617,7 +617,7 @@ kept message; its files (`viewer/`) are disjoint from the Rust items.
 are written, and the how-to page to a second; their files are disjoint. Each brief names AGENTS.md
 § *Text an end user reads*.
 
-- [ ] `docs/rules/programs/framework-core-half.md:12`, `docs/rules/core-classes/mail-message.md:1`
+- [x] `docs/rules/programs/framework-core-half.md:12`, `docs/rules/core-classes/mail-message.md:1`
   (new), `docs/rules/core-classes/mail-transport.md:1` (new) and
   `docs/rules/testing/a-test-reads-its-logs-and-mail.md:7`, then `bun nv rules`.
 - [ ] The feature proofs `bun nv proofs --owed --goal mail-complete` names. The examples it will
@@ -627,11 +627,11 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
   `Core\Task::runAfterResponse`. Benches: inlining a typical styled mail, and composing a mail with
   a 1 MB attachment. Attacks: a header through a display name, a file name and a message id; a
   tainted string sent as a body; a `cid:` pointing at another message; a stylesheet link.
-- [ ] `docs/examples/core/Mail/send/about.md:1`: rewritten, with a section on styling a mail.
+- [x] `docs/examples/core/Mail/send/about.md:1`: rewritten, with a section on styling a mail.
 - [ ] `website/src/content/docs/guides/how-to-use/sending-mail.mdx:1` (new): the settings block,
   sending, names, attachments and inline images, "Styling an HTML mail" with the before and after,
   threads, unsubscribe, sending in the background, testing and the viewer.
-- [ ] `docs/reference/tools/20-config.md:1`: every new `[mail.<name>]` key.
+- [x] `docs/reference/tools/20-config.md:1`: every new `[mail.<name>]` key.
 - [ ] `website/src/data/changes.json:1`: entries `changed` `Core\Mail::send`, `new`
   `Core\Mail::preview`, `new` `Core\Mail\Attachment`, `new` `Core\Mail\Address`, `changed`
   `Core\Test\SentMail`, `changed` `[mail]` settings. Then `bun nv site --check stale`, `changes` and
@@ -647,55 +647,54 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 
 ### State
 
-Stages 1 to 8 are done. Stage 8 landed in `e73c7ce6ce` and this session's four commits:
+Stages 1 to 8 are done. Stage 9 is mostly written. This session's commits:
 
-- `38cfbe32c1`: the check `capture`'s three tests in `mail/mod.rs` (`granted_site`,
-  `spool_into` and `spooled` are their helpers), and the records test reads the eight new
-  `SentMail` readers and the four `Attachment` readers (re-exported `#[cfg(test)]` from
-  `mail/mod.rs`).
-- `de27cebce2`: `crates/nvs-cli/src/debug/mails.rs`, `GET /api/mails` and `GET /api/mail?id=`;
-  the sample spool's `mail` line (seq 11, before `dropped`); `debug_ingest.rs` counts `mails`;
-  `debug_api.rs` `the_mail_list_pages_newest_first_and_a_message_opens_to_its_whole_line` writes
-  `viewer/test/fixtures/mails.json` and `mail.json`.
-- `6aa4c076bd`: the case `test-sent-mail-reads-attachments-names-and-the-sent-html.nvst`.
-- `af73bd9c1e`: the viewer's Mail page (`viewer/src/views/mail.tsx`, `styles/mail.css`, the rail
-  item in `app.tsx`, `/mail` and `/mail/<id>` in `router.ts`) and `viewer/dist/`.
+- `c188a10560`: the rules. `core-classes/mail-message` and `core-classes/mail-transport` are new,
+  with their records under `data/rules/core-classes/`. `programs/framework-core-half`'s row,
+  `testing/a-test-reads-its-logs-and-mail`'s readers, the debug stream's `mail` line and the
+  viewer's two mail routes are written. `bun nv rules` is clean.
+- `904338abaa`: the config reference's mail keys; `changes.json`'s mail entries, green, with
+  eleven test-only moves recorded `unseen`.
+- `25b3db81dd`, `a4e2ab43ad`, `fe363b4e75`: about, three examples, an attack and a bench (perf
+  skipped for the `SentMail` readers) for every new member, send's rewritten `about.md` over a
+  `capture = true` block, and eight `mail-attachment-*` and `mail-preview-*` cases.
+- `037d5f4b28`: `website/src/content/docs/guides/how-to-use/sending-mail.mdx`, a draft. Its
+  ten Novis blocks are inline fences, which `site --check snippets` refuses.
+- `05f89f8784`: the unit test `an_inline_file_is_read_when_called_and_its_src_is_its_content_id`
+  (ran once, green), the reader `covers:` lines, and send's card no longer names `host`.
 
-Checked once each: `cargo test --lib mail::` (70 passed), the `sent-mail` case, `bun test
-viewer/test/mail.browser.test.ts` (3 passed), `debug_ingest` (16 passed), `bun nv viewer --check`.
+`bun nv proofs --owed --goal mail-complete` now names only `perf` and `reviewed`, for 69 features.
 
-CI: run 45609291264's failures (stdlib Miri, proofs, macOS tests) ran on `53e94a9181`, an
-ancestor of their fixes `1c3196b0e8` and `c115a735a1`.
+CI: run 45609291264's failures (stdlib Miri zone tests, the quotient attack, the macOS count) ran
+on `53e94a9181`. Each failed test is fixed on main by `1c3196b0e8` and `c115a735a1`, checked one by
+one.
 
 ### Next
 
-Stage 9, per its **Split:** line:
+1. **The how-to page's snippets.** Each ` ```nvs ` fence in `sending-mail.mdx` becomes a
+   `<Snippet src="…"/>` over a file in `website/snippets/guides/how-to-use/sending-mail/`, with an
+   `nvs.toml` holding a `capture = true` block, and `.out` files from `bun nv site --bless`. Read
+   another page that uses `<Snippet>` first. A message id is random, so a snippet prints a fixed
+   line. The `Core\Queue::push` block becomes prose. The styling "after" block can be that
+   snippet's `.out`. Then add the page to `website/astro.config.ts`'s sidebar and to
+   `guides/how-to-use/index.mdx`, run `bun nv site --questions --owed pages` and stamp the
+   questions.
+2. **Perf.** `bun nv proofs --record-perf` for the owed features (the 42 `Core\IO` members and
+   `Core\Mime` are stale since `io.rs` changed in stage 4), then `bun nv scaling --budget --write`
+   for the new benches.
+3. **The review.** `bun nv site --review`, batched to `reader` subagents per `docs/agent/prose.md`
+   § *A newcomer reads it*. Fix every finding, `cargo build`, then stamp. Then `bun nv site --check
+   stale` and stamp what is still right. `changes` must stay green: the new tests may move a
+   feature again.
+4. Small fixes found this session: `docs/examples/core/Test-SentMail/html/about.md` still names the
+   removed `html` option. The root `nvs.toml` `[[app]]` for
+   `tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs` (about line 442) is unused
+   now that the folder has its own `nvs.toml`, and its comment is wrong. Delete it.
+5. Then `bun nv proofs --gate --goal mail-complete` (the check `proofs`), and stage 10.
 
-1. The rule fragments first: `docs/rules/programs/framework-core-half.md:12` (the `Core\Mail` row
-   becomes "the transport and the message"), the new `docs/rules/core-classes/mail-message.md` and
-   `mail-transport.md` from § *Standing decisions*, and
-   `docs/rules/testing/a-test-reads-its-logs-and-mail.md:7` naming the new readers. Two more rows
-   no stage names: the `mail` line kind in the table of
-   `rule:testing/the-debug-stream-reaches-the-service-through-the-disk` § *What a line is*
-   (its fields are `spool.rs` `Mail` and `MailPart`), and `GET /api/mails` and `GET /api/mail` in
-   `docs/rules/testing/the-viewer-answers-per-route-and-per-statement.md:22`'s route table. Then
-   `bun nv rules`.
-2. `bun nv proofs --owed --goal mail-complete`, then the examples, attacks and benches to one
-   writing subagent and the how-to page to a second, each brief naming AGENTS.md § *Text an end
-   user reads* and the 190-word bound for an `about.md` (playbook).
-3. `docs/reference/tools/20-config.md` keys, the `changes.json` entries, then `bun nv site --check
-   stale`, `changes` and `review`, and stamp after `cargo build` (playbook).
-
-Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
-`Core\Mail::preview`, `Core\Mail\Address::of`, the five `Core\Mail\Attachment` members and the four
-`Core\Mail\Preview` readers (no `about.md`, examples, bench, attack or website page yet), and the
-reference-card review for `send`, whose `body`, `text`, `attachments` and `RuntimeError` texts
-changed, and for the new `preview` and `Core\Mail\Preview` cards. The examples under
-`docs/examples/core/Test-SentMail/html/` changed, so their members are stale too. The four new
-oauth tests carry `// covers: Core\Mail::send`, so `send` is stale for them as well. The eight new
-`Core\Test\SentMail` readers and the four `Core\Mail\Attachment` readers are stale and owe their
-proofs too: this session's records test and case cover them. The viewer's `tools:cli/the-debug-viewer`
-is stale for the new `debug_api.rs` test. No unit test or conformance case is expected red.
+Expected red: `site --check stale`, `review`, `snippets` and `questions` for the mail features and
+the page; `proofs --gate` for `perf` and `reviewed`. No unit test or conformance case is expected
+red.
 
 ### Backlog
 
@@ -705,6 +704,16 @@ is stale for the new `debug_api.rs` test. No unit test or conformance case is ex
 - The DKIM key file is a private key, and `secret.rs`'s read advisory (another account can read
   the file) does not cover it yet. Adding it to that advisory is a small change in
   `crates/nvs-config/src/secret.rs` and `mail.rs` `canonicalize`.
+- The same inline attachment passed twice (`attachments: [$img, $img]`) is sent as two parts
+  with one Content-ID, which RFC 2045 forbids. `check_cids` in `crates/nvs-stdlib/src/mail/parts.rs`
+  should throw. `tests/hostile/core/Mail-Attachment/inlineBytes/` step 4 records it as sent now.
+- The unused-image error in `parts.rs` (near line 700) says "attach it with `fromFile` or
+  `fromBytes`" for an image made with `inlineFile` too. The `Attachment` doc near `parts.rs:133`
+  says `bytes()` returns tainted bytes; it compiles into plain `bytes`. Check which is right.
+- `css-inline` rewrites a CSS value's double quotes as single quotes when it copies it into a
+  `style` attribute (`tests/hostile/core/Mail-Preview/html/` step 5). Nothing is escaped wrongly,
+  but the value is not kept as written. Inlining cost grows with rules times elements, and only
+  depth is capped; the author of the markup alone can trigger it.
 
 - CI run 45749655184, `test / linux-x86_64 (tests)`: `serve::tests::
   a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap` (`crates/nvs-cli/src/serve.rs:5555`)

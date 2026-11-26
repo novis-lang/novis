@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A website page has no inline Novis code: every ` ```nvs ` block is a `<Snippet>`.** In
+  `mail-complete` stage 9, a writing subagent briefed with the page's path alone wrote ten inline
+  fences, and `site --check snippets` refused them all. It could not write the snippet files
+  outside its list. A page's brief names its folder under `website/snippets/` too, and says that
+  `bun nv site --bless` writes each `.out`. See `tools/nv/cmd/site.ts`.
 - **The viewer's CSS is one global sheet, so a new class name must not reuse one in `ui.css`.**
   In `deeper-debug-records` stage 3, the stack's `.frame` rule took the name of the window's grid,
   and every viewer page put the rail in a row of its own. Only a re-shot picture showed it, five
