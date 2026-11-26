@@ -99,8 +99,11 @@ You also see its handler: the method that handled the request. Boxes show the du
 the number of queries, dumps and log lines. Below them, a bar shows how the time was split.
 
 Two more boxes show the memory and the sizes. **Memory peak** is the most memory the request used.
-Beside it is the memory limit, which `[limits] memory` in `nvs.toml` sets. The bar under it turns orange at 75% of the limit, and red at 90%. **Response size** is the number of bytes in the response body. It also shows how many
-bytes of the request body your program read. A streamed response has no size.
+Beside it is the memory limit, which `[limits] memory` in `nvs.toml` sets. The bar under it turns
+orange at 75% of the limit, and red at 90%.
+
+**Response size** is the number of bytes in the response body. It also shows how many bytes of the
+request body your program read. A streamed response has no size.
 
 The tabs below show one part of the request each. The tab is part of the page's link, such as
 `?tab=queries`.

@@ -1575,13 +1575,13 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "41b01a8f12f7a718",
+    "hash": "fa7255d58ffae6c7",
     "questions": [
       "How do I look at the requests my development server recorded?",
-      "See the queries, dumps and log lines of one request on a timeline",
-      "Which errors does my application throw most often?",
+      "Which keys and pages does the debug viewer have?",
       "Why does the debug viewer only open from the link nvs debug prints?",
-      "Send a recorded request to my server again, or make a test from it",
+      "See how much memory each request used against its limit",
+      "List my scheduled jobs and queue jobs with their outcome",
       "Use the debug viewer when my server runs in a Docker container"
     ]
   },
@@ -1647,10 +1647,10 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "2021b344084fe77e",
+    "hash": "3805b9ab0f3d8137",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
-      "Use my own token file for the debug viewer",
+      "Show my debug dumps at the bottom of the HTML page",
       "Save a record of every request so I can look at it later",
       "Limit the disk space and the age of saved request records",
       "Change the address and port of the debug viewer",
@@ -19626,14 +19626,14 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "bb5b4cae9b7911d4",
+    "hash": "036e438ed92e19b5",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",
-      "Find every request that threw the same exception",
-      "Why does the debug viewer need the link with the token?",
-      "Send a recorded request to my server again",
-      "Make a test from a request I saw in the browser"
+      "See the stack of an uncaught exception without its argument values",
+      "Open the request of the page I see in the debug viewer",
+      "Why did my scheduled job fail, and which functions did it call?",
+      "Send a recorded request to my server again, or make a test from it"
     ]
   },
   "/tools/debugger/": {
