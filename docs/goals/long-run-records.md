@@ -72,7 +72,7 @@ row a time step deleted. Each `forget_rows` batch raises it to that batch's newe
 `/api/run` returns `cut_us` when the run started before it, and `null` otherwise. The run page then
 says that records before that time were deleted. That is true for every run that started before the
 cut, whether or not it had rows that old. A count per run would need an `UPDATE` of every touched run
-in every batch, for a note that says the same thing. My call, recorded here.
+in every batch, for a note that says the same thing. The user chose the one cut.
 
 **A command that is still running stays out of the Runs view.** It has no `run` line until it ends.
 Showing it would need a line written at the start and a second at the end, which is a change to
@@ -89,9 +89,9 @@ deleted first, and its page says which records were deleted.
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is written to `### Backlog` with what blocked it.
 
-**Lanes.** It runs as a side goal: it depends on no chain goal. It shares
-`crates/nvs-cli/src/debug/index.rs` with any chain goal that adds a debug table, so its branch merges
-`main` in before it lands, as every side loop does.
+**Lanes.** It is a chain goal, placed right behind `mail-complete` by the user's call. It depends on
+no chain goal, and it shares `crates/nvs-cli/src/debug/index.rs` only with a goal that adds a debug
+table.
 
 ## Stages
 
