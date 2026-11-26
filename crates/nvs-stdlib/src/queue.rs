@@ -65,10 +65,12 @@
 //! that never ran `nvs queue migrate` is the one case the key is absent in, and
 //! [`schema_shortfall`] is what a boot asks before it serves such a queue at all.
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nvs_runtime::{Fault, Tag, ThrownClass, Value};
+use nvs_runtime::spool::Outcome;
+use nvs_runtime::{Fault, Tag, ThrownClass, TraceKind, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
@@ -3914,188 +3916,224 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one statement, plus the connection if the request had not already opened
     /// one — which is then held for the rest of the request like any other, and pooled after it.
+    ///
+    /// A recorded request files one `queue` event for the call
+    /// (`rule:observability/trace-events-carry-a-kind`), with the queue, the job's script and its
+    /// delay, and never the job's arguments.
     fn nvs_core_queue_push(ctx, args: [13]) {
-        // Unreachable from source: the row types this parameter `string`, so a non-text argument is
-        // refused at `E0401` first — `Core\Db::connect`'s guard states the same judgement.
-        let script = args[SCRIPT_ARG]
-            .as_text()
-            .ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{PUSH}: expected a `string` script, got tag {}",
-                    args[SCRIPT_ARG].tag_byte()
-                ))
-            })?
-            .to_owned();
-        // `rule:programs/relative-paths-resolve-from-their-file`: a relative string literal arrives
-        // joined to its file's folder, so a relative script here was built while the program ran.
-        // It throws before any other argument is read, and the row only ever stores an absolute
-        // path.
-        if let Some(message) =
-            nvs_runtime::capability::relative(std::path::Path::new(&script), &format!("`{PUSH}`"))
-        {
-            return Err(Fault::thrown_as(ThrownClass::Runtime, message));
-        }
-        let queue = args[QUEUE_ARG]
-            .as_text()
-            .ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{PUSH}: expected a `string` for `queue`, got tag {}",
-                    args[QUEUE_ARG].tag_byte()
-                ))
-            })?
-            .to_owned();
-        let key = args[KEY_ARG].as_text().map(str::to_owned);
-        let tag = args[TAG_ARG].as_text().map(str::to_owned);
-        let payload = payload_of(ctx, args)?;
-        let run_at = run_at_of(args)?;
-        let backoff = backoff_of(args)?;
-
-        let configured = configured_queue(ctx, PUSH)?;
-        let max_attempts = max_attempts_of(args, configured.max_attempts)?;
-        // `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s two facts, read off
-        // the enqueuing context beside its arguments and before anything is opened: what the job
-        // may ask for is a property of the request that enqueued it, so the reading belongs at the
-        // one instant that request is certainly still the one running. A call site that wrote
-        // either option narrows that reading — and is refused here, still before the connection,
-        // where what it wrote would widen it instead.
-        let granted = grants_of(ctx, args)?;
-        let limited = limits_of(ctx, args)?;
-        // Drawn before the connection, like every other value the row gets. A push that finds a
-        // pending job under its `key` returns that job's token instead, and this one is dropped.
-        let token = fresh_token(ctx);
-
-        // Shared, and that is `rule:concurrency/enqueue-commits-with-your-write` rather than an
-        // economy: `{ shared: false }` would open a second connection, outside whatever
-        // transaction the request has open on the first, and the enqueue would commit on its
-        // own. The memo is what makes the property hold.
-        let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
-        // `rule:concurrency/foreign-connection-enqueue-is-counted`: no level open on the queue's
-        // connection and one open on another means the job commits now and the caller's write
-        // later, so the row says so. Read before the statements, so a transaction this member
-        // opens for its own pair is not mistaken for the caller's.
-        let foreign = crate::db::open_levels(ctx, handle, PUSH)? == 0
-            && crate::db::foreign_level_open(ctx, handle);
-        let committed_alone = foreign.then_some(b"1".as_slice());
-        // The wall clock the request reads, so under `#[Test(at: …)]` a job's
-        // creation and its default due time are on the test clock
-        // (`rule:testing/task-tree-and-virtual-clock`).
-        let now = crate::time::wall_clock(ctx).map_or_else(now_millis, |at| at.as_millisecond());
-        // Encoded once and bound twice, because the two dialects want the same values in two
-        // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
-        // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like
-        // every other value — twice, since it writes it to two columns and a `?` cannot repeat.
-        // One array per order over one set of buffers, rather than a second encoding of the same
-        // integers. A text parameter's octets are the string's own on both dialects, so the four
-        // strings are borrowed and only the numbers are rendered; SQLite takes neither form, and
-        // [`Sent`] is where its own values are built.
-        let dedupe = key.as_deref().map(str::as_bytes);
-        let tagged = tag.as_deref().map(str::as_bytes);
-        let queued = queue.as_bytes();
-        let scripted = script.as_bytes();
-        let payloaded = payload.as_deref().map(str::as_bytes);
-        let state = PENDING.to_string().into_bytes();
-        let attempts = max_attempts.to_string().into_bytes();
-        let backing = backoff.to_string().into_bytes();
-        let due = run_at.unwrap_or(now).to_string().into_bytes();
-        let created = now.to_string().into_bytes();
-        let granting = granted.as_deref().map(str::as_bytes);
-        let limiting = limited.as_deref().map(str::as_bytes);
-        let tokened = token.as_bytes();
-
-        let block = configured.connection.clone();
-        // `rule:observability/a-query-is-a-trace-event`'s event belongs to a *statement*, not to `Core\Db`, so this one files it
-        // on the same terms as that class's own — read before the connection takes the context,
-        // for the reason [`crate::db::QueryWatch`] gives. The split dialect runs up to four
-        // statements, so what a driver hands back is a *list* of spans, filed once the connection
-        // has let the context go.
-        let mut spans = Spans::of(ctx, &block);
-        // [`INSERT_MYSQL`]'s slots, which [`INSERT_SQLSERVER`] takes unchanged: the two texts write
-        // the same columns in the same order, so the array is one binding rather than one per
-        // dialect that happens to agree.
-        let framed_order: [Option<&[u8]>; 15] = [
-            Some(queued),
-            Some(scripted),
-            payloaded,
-            Some(&state),
-            Some(&attempts),
-            Some(&backing),
-            Some(&due),
-            // `dedupe_key` and `dedupe_pending`: one value in two columns, which `INSERT_MYSQL`'s
-            // doc owns and `INSERT_POSTGRES` spells as `$1` twice.
-            dedupe,
-            dedupe,
-            Some(&created),
-            tagged,
-            granting,
-            limiting,
-            committed_alone,
-            Some(tokened),
-        ];
-        let (id, pending_token) = match queue_connection(ctx, handle, PUSH)? {
-            Queued::Postgres(postgres) => {
-                let bound: [Option<&[u8]>; 14] = [
-                    dedupe,
-                    Some(queued),
-                    Some(scripted),
-                    payloaded,
-                    Some(&state),
-                    Some(&attempts),
-                    Some(&backing),
-                    Some(&due),
-                    Some(&created),
-                    tagged,
-                    granting,
-                    limiting,
-                    committed_alone,
-                    Some(tokened),
-                ];
-                push_in_one(postgres, &bound, &block, &mut spans)?
-            }
-            Queued::Framed(framed) => {
-                push_in_two(framed, dedupe, &framed_order, &block, &mut spans)?
-            }
-            // The same slots, because `@p1` onwards are written over the same columns in the same
-            // order — [`INSERT_SQLSERVER`] owns why the pair is a transaction here and why each
-            // slot a column types as a number is cast where it is bound.
-            Queued::SqlServer(tds) => push_in_tds(tds, dedupe, &framed_order, &block, &mut spans)?,
-            // [`INSERT_SQLITE`]'s slots, which are the framed dialect's in the framed dialect's
-            // order — the same value in `dedupe_key` and `dedupe_pending` among them.
-            Queued::Sqlite(sqlite) => {
-                let keyed = sqlite_text(key.as_deref());
-                let values = vec![
-                    sqlite_text(Some(&queue)),
-                    sqlite_text(Some(&script)),
-                    sqlite_text(payload.as_deref()),
-                    nvs_db::SqliteValue::Int(i64::from(PENDING)),
-                    nvs_db::SqliteValue::Int(i64::from(max_attempts)),
-                    nvs_db::SqliteValue::Int(backoff),
-                    nvs_db::SqliteValue::Int(run_at.unwrap_or(now)),
-                    keyed.clone(),
-                    keyed,
-                    nvs_db::SqliteValue::Int(now),
-                    sqlite_text(tag.as_deref()),
-                    sqlite_text(granted.as_deref()),
-                    sqlite_text(limited.as_deref()),
-                    if foreign {
-                        nvs_db::SqliteValue::Int(1)
-                    } else {
-                        nvs_db::SqliteValue::Null
-                    },
-                    sqlite_text(Some(&token)),
-                ];
-                push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
-            }
-        };
-        spans.file(ctx);
-        announce(ctx, handle)?;
-        // A dedupe hit returns the pending job's token with its id. A row written before the
-        // column has none, and its `Queue\Id` then matches nothing.
-        let token = pending_token.unwrap_or(token);
-        Ok(crate::instance::build(
-            &ID,
-            [Value::uint(id), Value::text(&queue), Value::text(&token)],
-        ))
+        let pushed = Cell::new(Outcome::default());
+        crate::site::watched_with(
+            ctx,
+            Value::null(),
+            TraceKind::Queue,
+            PUSH,
+            None,
+            |ctx| push(ctx, args, &pushed),
+            |_| pushed.take(),
+        )
     }
+}
+
+/// `Core\Queue::push`'s body, which [`nvs_core_queue_push`] files the event around. When the
+/// request is recorded, `pushed` is given the queue and the script once both are read, and the
+/// delay once the clock is.
+fn push(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    pushed: &Cell<Outcome>,
+) -> Result<Value, Fault> {
+    // Unreachable from source: the row types this parameter `string`, so a non-text argument is
+    // refused at `E0401` first — `Core\Db::connect`'s guard states the same judgement.
+    let script = args[SCRIPT_ARG]
+        .as_text()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUSH}: expected a `string` script, got tag {}",
+                args[SCRIPT_ARG].tag_byte()
+            ))
+        })?
+        .to_owned();
+    // `rule:programs/relative-paths-resolve-from-their-file`: a relative string literal arrives
+    // joined to its file's folder, so a relative script here was built while the program ran.
+    // It throws before any other argument is read, and the row only ever stores an absolute
+    // path.
+    if let Some(message) =
+        nvs_runtime::capability::relative(std::path::Path::new(&script), &format!("`{PUSH}`"))
+    {
+        return Err(Fault::thrown_as(ThrownClass::Runtime, message));
+    }
+    let queue = args[QUEUE_ARG]
+        .as_text()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUSH}: expected a `string` for `queue`, got tag {}",
+                args[QUEUE_ARG].tag_byte()
+            ))
+        })?
+        .to_owned();
+    if ctx.records_spans() {
+        pushed.set(Outcome {
+            queue: Some(queue.clone()),
+            job: Some(script.clone()),
+            ..Outcome::default()
+        });
+    }
+    let key = args[KEY_ARG].as_text().map(str::to_owned);
+    let tag = args[TAG_ARG].as_text().map(str::to_owned);
+    let payload = payload_of(ctx, args)?;
+    let run_at = run_at_of(args)?;
+    let backoff = backoff_of(args)?;
+
+    let configured = configured_queue(ctx, PUSH)?;
+    let max_attempts = max_attempts_of(args, configured.max_attempts)?;
+    // `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s two facts, read off
+    // the enqueuing context beside its arguments and before anything is opened: what the job
+    // may ask for is a property of the request that enqueued it, so the reading belongs at the
+    // one instant that request is certainly still the one running. A call site that wrote
+    // either option narrows that reading — and is refused here, still before the connection,
+    // where what it wrote would widen it instead.
+    let granted = grants_of(ctx, args)?;
+    let limited = limits_of(ctx, args)?;
+    // Drawn before the connection, like every other value the row gets. A push that finds a
+    // pending job under its `key` returns that job's token instead, and this one is dropped.
+    let token = fresh_token(ctx);
+
+    // Shared, and that is `rule:concurrency/enqueue-commits-with-your-write` rather than an
+    // economy: `{ shared: false }` would open a second connection, outside whatever
+    // transaction the request has open on the first, and the enqueue would commit on its
+    // own. The memo is what makes the property hold.
+    let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
+    // `rule:concurrency/foreign-connection-enqueue-is-counted`: no level open on the queue's
+    // connection and one open on another means the job commits now and the caller's write
+    // later, so the row says so. Read before the statements, so a transaction this member
+    // opens for its own pair is not mistaken for the caller's.
+    let foreign = crate::db::open_levels(ctx, handle, PUSH)? == 0
+        && crate::db::foreign_level_open(ctx, handle);
+    let committed_alone = foreign.then_some(b"1".as_slice());
+    // The wall clock the request reads, so under `#[Test(at: …)]` a job's
+    // creation and its default due time are on the test clock
+    // (`rule:testing/task-tree-and-virtual-clock`).
+    let now = crate::time::wall_clock(ctx).map_or_else(now_millis, |at| at.as_millisecond());
+    if let Some(run_at) = run_at
+        && ctx.records_spans()
+    {
+        let mut outcome = pushed.take();
+        outcome.delay_ms = u64::try_from(run_at.saturating_sub(now)).ok().or(Some(0));
+        pushed.set(outcome);
+    }
+    // Encoded once and bound twice, because the two dialects want the same values in two
+    // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
+    // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like
+    // every other value — twice, since it writes it to two columns and a `?` cannot repeat.
+    // One array per order over one set of buffers, rather than a second encoding of the same
+    // integers. A text parameter's octets are the string's own on both dialects, so the four
+    // strings are borrowed and only the numbers are rendered; SQLite takes neither form, and
+    // [`Sent`] is where its own values are built.
+    let dedupe = key.as_deref().map(str::as_bytes);
+    let tagged = tag.as_deref().map(str::as_bytes);
+    let queued = queue.as_bytes();
+    let scripted = script.as_bytes();
+    let payloaded = payload.as_deref().map(str::as_bytes);
+    let state = PENDING.to_string().into_bytes();
+    let attempts = max_attempts.to_string().into_bytes();
+    let backing = backoff.to_string().into_bytes();
+    let due = run_at.unwrap_or(now).to_string().into_bytes();
+    let created = now.to_string().into_bytes();
+    let granting = granted.as_deref().map(str::as_bytes);
+    let limiting = limited.as_deref().map(str::as_bytes);
+    let tokened = token.as_bytes();
+
+    let block = configured.connection.clone();
+    // `rule:observability/a-query-is-a-trace-event`'s event belongs to a *statement*, not to `Core\Db`, so this one files it
+    // on the same terms as that class's own — read before the connection takes the context,
+    // for the reason [`crate::db::QueryWatch`] gives. The split dialect runs up to four
+    // statements, so what a driver hands back is a *list* of spans, filed once the connection
+    // has let the context go.
+    let mut spans = Spans::of(ctx, &block);
+    // [`INSERT_MYSQL`]'s slots, which [`INSERT_SQLSERVER`] takes unchanged: the two texts write
+    // the same columns in the same order, so the array is one binding rather than one per
+    // dialect that happens to agree.
+    let framed_order: [Option<&[u8]>; 15] = [
+        Some(queued),
+        Some(scripted),
+        payloaded,
+        Some(&state),
+        Some(&attempts),
+        Some(&backing),
+        Some(&due),
+        // `dedupe_key` and `dedupe_pending`: one value in two columns, which `INSERT_MYSQL`'s
+        // doc owns and `INSERT_POSTGRES` spells as `$1` twice.
+        dedupe,
+        dedupe,
+        Some(&created),
+        tagged,
+        granting,
+        limiting,
+        committed_alone,
+        Some(tokened),
+    ];
+    let (id, pending_token) = match queue_connection(ctx, handle, PUSH)? {
+        Queued::Postgres(postgres) => {
+            let bound: [Option<&[u8]>; 14] = [
+                dedupe,
+                Some(queued),
+                Some(scripted),
+                payloaded,
+                Some(&state),
+                Some(&attempts),
+                Some(&backing),
+                Some(&due),
+                Some(&created),
+                tagged,
+                granting,
+                limiting,
+                committed_alone,
+                Some(tokened),
+            ];
+            push_in_one(postgres, &bound, &block, &mut spans)?
+        }
+        Queued::Framed(framed) => push_in_two(framed, dedupe, &framed_order, &block, &mut spans)?,
+        // The same slots, because `@p1` onwards are written over the same columns in the same
+        // order — [`INSERT_SQLSERVER`] owns why the pair is a transaction here and why each
+        // slot a column types as a number is cast where it is bound.
+        Queued::SqlServer(tds) => push_in_tds(tds, dedupe, &framed_order, &block, &mut spans)?,
+        // [`INSERT_SQLITE`]'s slots, which are the framed dialect's in the framed dialect's
+        // order — the same value in `dedupe_key` and `dedupe_pending` among them.
+        Queued::Sqlite(sqlite) => {
+            let keyed = sqlite_text(key.as_deref());
+            let values = vec![
+                sqlite_text(Some(&queue)),
+                sqlite_text(Some(&script)),
+                sqlite_text(payload.as_deref()),
+                nvs_db::SqliteValue::Int(i64::from(PENDING)),
+                nvs_db::SqliteValue::Int(i64::from(max_attempts)),
+                nvs_db::SqliteValue::Int(backoff),
+                nvs_db::SqliteValue::Int(run_at.unwrap_or(now)),
+                keyed.clone(),
+                keyed,
+                nvs_db::SqliteValue::Int(now),
+                sqlite_text(tag.as_deref()),
+                sqlite_text(granted.as_deref()),
+                sqlite_text(limited.as_deref()),
+                if foreign {
+                    nvs_db::SqliteValue::Int(1)
+                } else {
+                    nvs_db::SqliteValue::Null
+                },
+                sqlite_text(Some(&token)),
+            ];
+            push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
+        }
+    };
+    spans.file(ctx);
+    announce(ctx, handle)?;
+    // A dedupe hit returns the pending job's token with its id. A row written before the
+    // column has none, and its `Queue\Id` then matches nothing.
+    let token = pending_token.unwrap_or(token);
+    Ok(crate::instance::build(
+        &ID,
+        [Value::uint(id), Value::text(&queue), Value::text(&token)],
+    ))
 }
 
 /// Tells this process's idle workers about the job `push` has just written on the connection

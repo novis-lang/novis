@@ -138,6 +138,11 @@ pub enum TraceKind {
     Session,
     /// One `Core\IO` member that opens a file, filed as a [`TraceKind::Cache`] is.
     File,
+    /// One `Core\Mail::send` call, filed where it returns or throws with no call site
+    /// ([`Ctx::record_site_event`]).
+    Mail,
+    /// One `Core\Queue::push` call, filed as a [`TraceKind::Mail`] is.
+    Queue,
 }
 
 impl TraceKind {
@@ -154,6 +159,8 @@ impl TraceKind {
             Self::Cache => "cache",
             Self::Session => "session",
             Self::File => "file",
+            Self::Mail => "mail",
+            Self::Queue => "queue",
         }
     }
 }

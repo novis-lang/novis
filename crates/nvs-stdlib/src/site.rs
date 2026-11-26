@@ -7,7 +7,8 @@
 //! body, and only when [`Ctx::records_spans`] is true does it read the clock and the id, and file
 //! one event with the member's name, its target and the site's row. [`watched_with`] adds the
 //! call's outcome, such as a cache read's hit or a file read's length, read off its result only
-//! when the event is filed.
+//! when the event is filed. `Core\Mail::send` and `Core\Queue::push` file their `mail` and
+//! `queue` events through [`watched_with`] too, with a null site word, so the event names no site.
 //!
 //! **What it spends:** with recording off, one flag test per call. With it on, two clock reads,
 //! one label and one target string per call, freed with the spool line.
@@ -44,7 +45,9 @@ pub(crate) fn watched<T>(
     target: Option<&str>,
     body: impl FnOnce(&mut Ctx) -> Result<T, Fault>,
 ) -> Result<T, Fault> {
-    watched_with(ctx, site, kind, member, target, body, |_| Outcome::default())
+    watched_with(ctx, site, kind, member, target, body, |_| {
+        Outcome::default()
+    })
 }
 
 /// [`watched`], and the event carries the outcome `describe` reads off the call's result.

@@ -765,6 +765,8 @@ const fn kind(kind: EventKind) -> &'static str {
         EventKind::Cache => "cache",
         EventKind::Session => "session",
         EventKind::File => "file",
+        EventKind::Mail => "mail",
+        EventKind::Queue => "queue",
     }
 }
 

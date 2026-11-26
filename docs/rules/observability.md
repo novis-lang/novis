@@ -424,8 +424,7 @@ path for the same reason ([`observability/gc-pause-is-its-own-event`](observabil
 `rule:observability/trace-events-carry-a-kind`
 
 Every trace event carries a `kind` tag, and the tag is one of exactly ten: `call`, `gc`, `spawn`,
-`query`, `http`, `cache`, `session`, `file`, `mail` and `queue`. The last two are built by goal
-`deeper-debug-records`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s
+`query`, `http`, `cache`, `session`, `file`, `mail` and `queue`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s
 probe pair unchanged — callee, arguments, entry and exit timestamp, checked-return status, result.
 The other kinds are emitted from routines of their own, not from the per-statement or per-call probe: a `gc` from the collector's run
 routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from each routine that starts a
@@ -437,7 +436,8 @@ a `Core\Cache\Store` read or write, a `Core\Session` read or write, and a `Core\
 a file, each on `nvs_stdlib::registry::RECORDED_SITE_MEMBERS`, filed once per call with its duration,
 the member's name and its target, and with ` failed` after the name when the call threw. A `mail`
 event comes from `Core\Mail::send` and a `queue` event from `Core\Queue::push`, each filed once per
-call where the call returns or throws.
+call where the call returns or throws. Neither names a call site: a site would add an argument to
+both members, and the editor's lens counts only the kinds it reads by line.
 
 A `query` carries the duration, the driver, the connection name, the truncated SQL text, the rows
 returned and the rows affected — and **never a bound parameter value**, because a trace is a

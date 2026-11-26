@@ -224,8 +224,8 @@ export interface EventQuery {
   site: { file: string; line: number; hash: string } | null;
 }
 
-/** The eight kinds of trace event. */
-export type EventKind = "call" | "query" | "spawn" | "gc" | "http" | "cache" | "session" | "file";
+/** The ten kinds of trace event. */
+export type EventKind = "call" | "query" | "spawn" | "gc" | "http" | "cache" | "session" | "file" | "mail" | "queue";
 
 /** One trace event of a request. Its times are Unix microseconds. */
 export interface TraceEvent {
@@ -261,6 +261,16 @@ export interface EventOutcome {
   command?: string;
   /** A process: its exit code. */
   exit?: number;
+  /** Sent mail: how many addresses it went to. */
+  recipients?: number;
+  /** Sent mail: whether the send succeeded. */
+  ok?: boolean;
+  /** A pushed job: its queue. */
+  queue?: string;
+  /** A pushed job: its script. */
+  job?: string;
+  /** A pushed job: how long after the push it is due, in milliseconds. */
+  delay_ms?: number;
 }
 
 /** One `Core\Debug::dump`: its site and its value tree. */
@@ -394,7 +404,7 @@ export interface Replayed {
 }
 
 /** Every kind of record the stream has. `dropped` and `unparseable` belong to no request. */
-export const RECORD_KINDS = ["request", "call", "query", "spawn", "gc", "http", "cache", "session", "file", "dump", "log", "dropped", "unparseable"] as const;
+export const RECORD_KINDS = ["request", "call", "query", "spawn", "gc", "http", "cache", "session", "file", "mail", "queue", "dump", "log", "dropped", "unparseable"] as const;
 
 export type RecordKind = (typeof RECORD_KINDS)[number];
 

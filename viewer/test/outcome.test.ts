@@ -24,6 +24,15 @@ describe("outcomeText", () => {
     expect(outcomeText(event({ outcome: { hit: true, tier: "redis" } }))).toBe("shared store");
     expect(outcomeText(event({ kind: "session" }))).toBe("");
   });
+
+  test("sent mail gives its recipient count, and a pushed job its script, queue and delay", () => {
+    expect(outcomeText(event({ kind: "mail", outcome: { recipients: 3, ok: true } }))).toBe("3 recipients");
+    expect(outcomeText(event({ kind: "mail", outcome: { recipients: 1, ok: false } }))).toBe("1 recipient · not sent");
+    expect(outcomeText(event({ kind: "queue", outcome: { queue: "default", job: "/app/jobs/mail.nvs", delay_ms: 300_000 } }))).toBe(
+      "/app/jobs/mail.nvs · queue default · due in 5 min",
+    );
+    expect(outcomeText(event({ kind: "queue", outcome: { queue: "low", job: "/app/jobs/a.nvs" } }))).toBe("/app/jobs/a.nvs · queue low");
+  });
 });
 
 describe("cacheGroups", () => {

@@ -209,6 +209,14 @@
   background: var(--k-file);
 }
 
+.rk-mail {
+  background: var(--k-mail);
+}
+
+.rk-queue {
+  background: var(--k-queue);
+}
+
 .rk-dump {
   background: var(--highlight);
 }

@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/trace.rs, crates/nvs-stdlib/src/site.rs, crates/nvs-stdlib/src/cache.rs, crates/nvs-stdlib/src/http.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/process.rs]
   - id: 5
     title: sending mail and pushing a job are events
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/mail.rs, crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/site.rs]
   - id: 6
     title: a scheduled job, a queue job and a command run are recorded as runs, and the viewer lists them
@@ -193,6 +193,15 @@ The end-to-end miss-then-hit check is a Rust test in `crates/nvs-cli/tests/reque
 already reads a served request's spool lines, and not a conformance case: no `.nvst` section
 reads the spool, and a new harness section for one check is a mechanism nothing else uses.
 
+**Stage 5 settled where mail and queue are filed.** A `mail` and a `queue` event name no call
+site, so neither member joins `RECORDED_SITE_MEMBERS`: a site would add an argument to both
+members' ABI, and the editor's lens reads only the five kinds it counts by line. Both file through
+`site::watched_with` with a null site word. `recipients` counts `to`, `cc` and `bcc` once all of
+them parsed, so a send that fails later still has it, and under `nvs test` a kept mail is `ok`.
+`delay_ms` is set only where the push named a `runAt`, clamped at zero. A push's `queue` and
+`job` are cloned only when the request is recorded. The index keeps both kinds' outcomes in the
+existing `outcome` column, so the schema does not rise, and no `*_us` sum is added for them.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -295,13 +304,20 @@ handler, as `file.rs:NN` and one line.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/spool.rs:573`: `EventKind` gains `mail` and `queue`.
-- [ ] `crates/nvs-stdlib/src/mail.rs:1176` and `queue.rs:3917`: each goes through `site::watched`
-  (`crates/nvs-stdlib/src/site.rs:42`), and its member joins `RECORDED_SITE_MEMBERS`
-  (`crates/nvs-stdlib/src/registry.rs:4278`).
-- [ ] `crates/nvs-cli/src/debug/stream.rs:31` and `viewer/src/api.ts`: the two kinds, their tone
+- [x] `crates/nvs-runtime/src/spool.rs:573`: `EventKind` gains `mail` and `queue`.
+  - [x] `TraceKind` and `spool::EventKind` gain both, and `Outcome` gains `recipients`, `ok`,
+    `queue`, `job` and `delay_ms`
+- [x] `crates/nvs-stdlib/src/mail.rs:1176` and `queue.rs:3917`: each goes through `site::watched`
+  (`crates/nvs-stdlib/src/site.rs:42`). Neither joins `RECORDED_SITE_MEMBERS`: a standing
+  decision gives them no call site.
+  - [x] `send` and `push` are each a body `watched_with` files the event around
+- [x] `crates/nvs-cli/src/debug/stream.rs:31` and `viewer/src/api.ts`: the two kinds, their tone
   and their stream filter.
-- [ ] Tests: a send records a count and no address, and a push records a class and no payload.
+  - [x] `EVENT_KINDS`, `KINDS`, `RECORD_KINDS`, `KIND_NAMES`, `--k-mail` and `--k-queue`
+  - [x] `outcomeText` writes the count, the script, the queue and the delay
+- [x] Tests: a send records a count and no address, and a push records a class and no payload.
+  - [x] `a_served_send_and_push_record_counts_and_names_and_no_data` in `request.rs`
+  - [x] `viewer/test/outcome.test.ts`, and `bun nv viewer --verify` is green
 
 ### 6. a scheduled job, a queue job and a command run are recorded as runs, and the viewer lists them
 
@@ -349,39 +365,35 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 4 is done but for one test, in two commits. `aeb3754a14` is the runtime, index and API
-part: `spool::Outcome` and `CacheTier` flattened into `spool::Event` (`Record::Event` is now
-boxed), `Ctx::record_site_event` and the new `Ctx::close_spawn_with` take an outcome in
-`crates/nvs-runtime/src/ctx/trace.rs`, `site::watched_with` and `site::length_of` in
-`crates/nvs-stdlib/src/site.rs`, and the members: `cache.rs` (`outcome_of`), `io.rs`
-(`read_outcome`, `written_outcome`), `http.rs` (`traced` takes the bytes read, `HttpSpan::status`)
-and `process.rs` (the wait's join). Index schema 13 has `outcome` on `events`, and the request API
-gives each event's `target` and `outcome`. The two rules' "from goal" wording for the stage 4
-fields is now present tense. `3d215ad133` is the viewer: `viewer/src/views/request/outcome.ts`
-(`outcomeText`, `cacheGroups`), the timeline's detail and `Hit` chip (`viewer/src/ui/badges.tsx`),
-the Cache tab (`viewer/src/views/request/cache.tsx`), and `size` moved to `viewer/src/format.ts`.
+Stages 4 and 5 are done. Stage 4's last test is `a_served_cache_get_is_recorded_as_a_miss_and_then_a_hit`
+in `crates/nvs-cli/tests/request.rs` (`4a8dd4bf8a`). Stage 5 adds the `mail` and `queue` kinds:
+`TraceKind` (`crates/nvs-runtime/src/ctx/trace.rs`), `spool::EventKind` and five new `Outcome`
+fields (`crates/nvs-runtime/src/spool.rs`), `Core\Mail::send`'s body moved to `send` and
+`Core\Queue::push`'s to `push`, each filed through `site::watched_with` with no site
+(`crates/nvs-stdlib/src/mail.rs`, `queue.rs`). The span exporter skips both
+(`crates/nvs-server/src/trace.rs`), the ingester and the stream API know both, and the viewer
+gives both a tone and an outcome text. Both rule fragments are present tense for stage 5. One
+`chore` commit put five files from earlier stages into rustfmt's layout.
 
-Tests that ran, each green: the spool unit tests (`the_sample_spool_is_what_the_writer_writes`
-rewrote `one-of-each.spool`, which gains a cache `get` hit), the whole `debug_ingest` suite with the
-new `each_kinds_outcome_reaches_its_events_row_and_an_event_without_one_has_none`, the whole
-`debug_api` suite (it rewrote `viewer/test/fixtures/request.json`, then passed),
-`viewer/test/outcome.test.ts`, `bun nv viewer --verify`, and `request.browser.test.ts`. No test is
-expected to go red.
+Tests that ran, each green: the two new `request.rs` tests by name,
+`viewer/test/outcome.test.ts`, and `bun nv viewer --verify` (which rebuilt `viewer/dist/`). No test
+is expected to go red. The `one-of-each.spool` sample has no mail or queue line yet.
 
-The nightly failures the sweep listed were from run `45609291264` on `53e94a9181`, and were
-already fixed by `1c3196b0e8` and `8ca2f09e1b`, which are on `main` after it.
+The nightly failures the sweep listed are run `45609291264` on `53e94a9181`, already fixed by
+`1c3196b0e8` and `8ca2f09e1b` on `main`.
 
 ### Next
 
-1. Stage 4's last item: a test in `crates/nvs-cli/tests/request.rs` that serves a program running
-   `Core\Cache::memory()->get('k')`, `->put('k', 1)`, `->get('k')` with `[debug] store` on, and
-   reads the two `get` event lines' `outcome.hit` as `false` then `true`, with `tier` `Memory`. Its
-   spool helpers are `spooled_as` (`request.rs:311`) and `spooled_queries` (`request.rs:302`). Run
-   it once by name, tick it, and set stage 4 to done in the front matter.
-2. Stage 5, mail and queue events. Both share `crates/nvs-stdlib/src/site.rs` with stage 4: a
-   `mail` and a `queue` kind join `TraceKind` (`crates/nvs-runtime/src/ctx/trace.rs:120`) and
-   `spool::EventKind`, and `Outcome` gains `recipients`, `ok`, `queue`, `job` and `delay_ms`. The
-   viewer's `EventKind` and `KIND_NAMES` in `viewer/src/views/timeline.tsx` gain the two kinds.
+1. Stage 6, runs. A `run` line kind in `crates/nvs-runtime/src/spool.rs` (`of`, `name`,
+   `start_us`, `duration_us`, `outcome`, memory peak and limit, exception with `Stack`), as
+   `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md` row `run` names.
+   Written for a scheduled run where `nvs_schedule_runs_total` is counted
+   (`crates/nvs-server/src/metrics.rs:272`), for a queue job where the worker ends it, and for a
+   command run where `nvs run` and `nvs test` seal their spool (`crates/nvs-cli/src/main.rs:822`).
+   The index gains a `runs` table and `exceptions.run` (schema 14), the API a runs list, and the
+   viewer a Runs view on `viewer/src/ui/list.tsx`.
+2. Optional, in stage 6's spool slice: a `mail` and a `queue` line in the sample spool test that
+   writes `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`.
 
 ### Backlog
 

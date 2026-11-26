@@ -647,8 +647,8 @@ pub struct Event {
 /// sent or read, and never a process's arguments, because a trace is a `secret` sink.
 ///
 /// **What it spends:** nothing on a request nobody records. The member that filed the event
-/// builds it only once [`crate::Ctx::records_spans`] is true, and a spawn's `command` is the one
-/// string, freed with the spool line.
+/// builds it only once [`crate::Ctx::records_spans`] is true. A spawn's `command`, and a queue
+/// event's `queue` and `job`, are its only strings, freed with the spool line.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Outcome {
     /// A `cache` read: whether the store had the entry.
@@ -675,6 +675,22 @@ pub struct Outcome {
     /// A process `spawn`: the exit code the program's `wait()` read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit: Option<i64>,
+    /// A `mail` event: the number of addresses the message went to, `cc` and `bcc` included.
+    /// Never an address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipients: Option<u64>,
+    /// A `mail` event: whether the send returned without an error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ok: Option<bool>,
+    /// A `queue` event: the queue the job was pushed to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<String>,
+    /// A `queue` event: the job's script, as `Core\Queue::push` named it. Never its arguments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<String>,
+    /// A `queue` event: how long after the push the job is due, where the push named a `runAt`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delay_ms: Option<u64>,
 }
 
 impl Outcome {
@@ -734,6 +750,10 @@ pub enum EventKind {
     Session,
     /// One file a `Core\IO` member opened.
     File,
+    /// One `Core\Mail::send` call.
+    Mail,
+    /// One `Core\Queue::push` call.
+    Queue,
 }
 
 impl From<crate::TraceKind> for EventKind {
@@ -747,6 +767,8 @@ impl From<crate::TraceKind> for EventKind {
             crate::TraceKind::Cache => Self::Cache,
             crate::TraceKind::Session => Self::Session,
             crate::TraceKind::File => Self::File,
+            crate::TraceKind::Mail => Self::Mail,
+            crate::TraceKind::Queue => Self::Queue,
         }
     }
 }
@@ -1824,8 +1846,7 @@ mod tests {
             site: Some(super::QuerySite {
                 file: "src/Shop/Orders.nvs".to_owned(),
                 line: 14,
-                hash: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
-                    .to_owned(),
+                hash: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262".to_owned(),
             }),
             outcome: Outcome {
                 hit: Some(true),
@@ -1873,7 +1894,9 @@ mod tests {
             records: 3,
             files: 1,
         });
-        vec![body, request, event, cache, dump, log, coverage, copies, dropped]
+        vec![
+            body, request, event, cache, dump, log, coverage, copies, dropped,
+        ]
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line
@@ -2154,7 +2177,11 @@ mod tests {
         assert_eq!((site.file.as_str(), site.line), ("shop.nvs", 9));
         assert_eq!(unnamed.site, None, "the zero id names no site");
         assert_eq!(unnamed.target, None);
-        assert_eq!(named.outcome.bytes, Some(12), "the outcome reaches the line");
+        assert_eq!(
+            named.outcome.bytes,
+            Some(12),
+            "the outcome reaches the line"
+        );
         assert!(unnamed.outcome.is_empty());
         assert_eq!(ctx.trace().len(), 2, "both events are in the trace as well");
     }

@@ -1,6 +1,6 @@
 // One request's timeline as a waterfall: one row per item on one time axis from the request's start to
-// its end. A call, a query, a spawn, a garbage-collection pause, an outbound call, a cache, session or
-// file event is a bar from its start to its end in its row's lane, in its kind's tone (`.k-<kind>`); a
+// its end. A call, a query, a spawn, a garbage-collection pause, an outbound call, a cache, session,
+// file, mail or queue event is a bar from its start to its end in its row's lane, in its kind's tone (`.k-<kind>`); a
 // dump or a log line is a point. Above the rows, an axis row has five ticks at each quarter of the span.
 //
 // A repeated statement is one row: query events with the same SQL text and the same non-null call site
@@ -68,6 +68,8 @@ const KIND_NAMES: Record<Kind, string> = {
   cache: "Cache",
   session: "Session",
   file: "File",
+  mail: "Mail",
+  queue: "Queue job",
   dump: "Dump",
   log: "Log line",
 };

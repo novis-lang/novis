@@ -81,6 +81,7 @@
 //! **Declined:** keeping an SMTP session open between messages. Each send opens its own
 //! connection and closes it, and no measured program sends enough mail for the handshake to count.
 
+use std::cell::Cell;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -89,7 +90,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
+use nvs_runtime::spool::Outcome;
+use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, TraceKind, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
@@ -1173,73 +1175,103 @@ nvs_runtime::nvs_helper! {
     /// before any block is read, every address is parsed before a socket is
     /// opened, and the message is composed before anything is sent — so a
     /// refusal costs no connection and reveals no configuration.
+    ///
+    /// A recorded request files one `mail` event for the call
+    /// (`rule:observability/trace-events-carry-a-kind`), with the number of recipients and
+    /// whether the send returned, and never an address, the subject or the body.
     fn nvs_core_mail_send(ctx, args: [8]) {
         let member = format!("{NAME}::send");
-
-        let endpoint = text_of(args, ENDPOINT, "endpoint", &member)?;
-        let to = addresses_of(args, TO, "to", &member)?;
-        if to.is_empty() {
-            return Err(Fault::thrown(format!(
-                "{member}: `$to` is empty, and a message with no recipient is not one"
-            )));
-        }
-        let cc = addresses_of(args, CC, "cc", &member)?;
-        let bcc = addresses_of(args, BCC, "bcc", &member)?;
-        let reply_to = match optional_of(args, REPLY_TO) {
-            Some(text) => Some(address_of(text, "replyTo", &member)?),
-            None => None,
-        };
-        let subject = text_of(args, SUBJECT, "subject", &member)?;
-        let text = text_of(args, TEXT, "text", &member)?;
-        let html = optional_of(args, HTML);
-
-        let configured = endpoint_of(ctx, endpoint, &member)?;
-
-        // Under `nvs test`, the message is kept for `Core\Test::sentMail` and no connection is
-        // opened, so a test never reaches a real person
-        // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
-        // were checked above, as they are in production.
-        if let Some(records) = ctx.test_records() {
-            records.mail(nvs_runtime::test_records::KeptMail {
-                endpoint: endpoint.to_owned(),
-                to,
-                subject: subject.to_owned(),
-                text: text.to_owned(),
-                cc,
-                bcc,
-                reply_to,
-                html: html.map(str::to_owned),
-            });
-            return Ok(Value::null());
-        }
-
-        let mut message = compose(
-            &configured.from,
-            &to,
-            &cc,
-            subject,
-            text,
-            html,
-            SystemTime::now(),
-        );
-        if let Some(reply_to) = &reply_to {
-            message.insert_str(0, &format!("Reply-To: <{reply_to}>\r\n"));
-        }
-
-        // Bcc reaches the envelope and no header, which is the whole of what
-        // makes it blind — the header set above never names it.
-        let envelope: Vec<String> = to.iter().chain(&cc).chain(&bcc).cloned().collect();
-
-        // The configured `timeout` bounds the whole exchange. The scheduler
-        // bounds every park under it by the request's wall deadline, and ends
-        // the request there (`rule:errors/on-limit`). The name lookup runs off
-        // the core, so it also stops at the request's wall deadline itself.
-        let until = Instant::now() + configured.timeout;
-        let lookup_until = ctx.off_core_deadline().map_or(until, |wall| until.min(wall));
-        resolve(&configured, &member, lookup_until)
-            .and_then(|address| deliver(address, &configured, until, &envelope, &message, &member))?;
-        Ok(Value::null())
+        let recipients = Cell::new(None);
+        crate::site::watched_with(
+            ctx,
+            Value::null(),
+            TraceKind::Mail,
+            &member,
+            None,
+            |ctx| send(ctx, args, &member, &recipients),
+            |sent| Outcome {
+                recipients: recipients.get(),
+                ok: Some(sent.is_some()),
+                ..Outcome::default()
+            },
+        )
     }
+}
+
+/// `Core\Mail::send`'s body, which [`nvs_core_mail_send`] files the event around. `recipients`
+/// is set to the number of `to`, `cc` and `bcc` addresses once all of them have been parsed.
+fn send(
+    ctx: &mut Ctx,
+    args: &[Value],
+    member: &str,
+    recipients: &Cell<Option<u64>>,
+) -> Result<Value, Fault> {
+    let endpoint = text_of(args, ENDPOINT, "endpoint", member)?;
+    let to = addresses_of(args, TO, "to", member)?;
+    if to.is_empty() {
+        return Err(Fault::thrown(format!(
+            "{member}: `$to` is empty, and a message with no recipient is not one"
+        )));
+    }
+    let cc = addresses_of(args, CC, "cc", member)?;
+    let bcc = addresses_of(args, BCC, "bcc", member)?;
+    recipients.set(u64::try_from(to.len() + cc.len() + bcc.len()).ok());
+    let reply_to = match optional_of(args, REPLY_TO) {
+        Some(text) => Some(address_of(text, "replyTo", member)?),
+        None => None,
+    };
+    let subject = text_of(args, SUBJECT, "subject", member)?;
+    let text = text_of(args, TEXT, "text", member)?;
+    let html = optional_of(args, HTML);
+
+    let configured = endpoint_of(ctx, endpoint, member)?;
+
+    // Under `nvs test`, the message is kept for `Core\Test::sentMail` and no connection is
+    // opened, so a test never reaches a real person
+    // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
+    // were checked above, as they are in production.
+    if let Some(records) = ctx.test_records() {
+        records.mail(nvs_runtime::test_records::KeptMail {
+            endpoint: endpoint.to_owned(),
+            to,
+            subject: subject.to_owned(),
+            text: text.to_owned(),
+            cc,
+            bcc,
+            reply_to,
+            html: html.map(str::to_owned),
+        });
+        return Ok(Value::null());
+    }
+
+    let mut message = compose(
+        &configured.from,
+        &to,
+        &cc,
+        subject,
+        text,
+        html,
+        SystemTime::now(),
+    );
+    if let Some(reply_to) = &reply_to {
+        message.insert_str(0, &format!("Reply-To: <{reply_to}>\r\n"));
+    }
+
+    // Bcc reaches the envelope and no header, which is the whole of what
+    // makes it blind — the header set above never names it.
+    let envelope: Vec<String> = to.iter().chain(&cc).chain(&bcc).cloned().collect();
+
+    // The configured `timeout` bounds the whole exchange. The scheduler
+    // bounds every park under it by the request's wall deadline, and ends
+    // the request there (`rule:errors/on-limit`). The name lookup runs off
+    // the core, so it also stops at the request's wall deadline itself.
+    let until = Instant::now() + configured.timeout;
+    let lookup_until = ctx
+        .off_core_deadline()
+        .map_or(until, |wall| until.min(wall));
+    resolve(&configured, member, lookup_until)
+        .and_then(|address| deliver(address, &configured, until, &envelope, &message, member))?;
+    Ok(Value::null())
 }
 
 #[cfg(test)]

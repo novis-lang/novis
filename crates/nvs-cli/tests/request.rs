@@ -817,3 +817,95 @@ fn a_served_cache_get_is_recorded_as_a_miss_and_then_a_hit() {
         ]
     );
 }
+
+/// A program that sends one mail to three addresses through an endpoint nothing listens on, and
+/// pushes one job with arguments and a due time.
+const MAIL_AND_QUEUE: &str = "<?nvs
+try {
+    Core\\Mail::send(\"site\", [\"ada@example.com\", \"bob@example.com\"], \"Welcome\", \"Hello\", {bcc: [\"log@example.com\"]});
+} catch (Throwable $e) {
+    echo \"not sent;\";
+}
+var $id = Core\\Queue::push(\"jobs/job.nvs\", {queue: \"low\", arguments: [\"token\" => \"queue-arg-secret\"], runAt: Core\\Time::now()->plus(5m)});
+echo \"pushed\";
+";
+
+/// `rule:observability/trace-events-carry-a-kind`: a `mail` event records how many addresses the
+/// send had and whether it succeeded, and never an address or the subject. A `queue` event
+/// records the queue, the job's script and its delay, and never the job's arguments.
+#[test]
+fn a_served_send_and_push_record_counts_and_names_and_no_data() {
+    let served = Served::serving(
+        "spool-mail-queue",
+        MAIL_AND_QUEUE,
+        Some(
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n\n\
+             [mail.site]\nhost = \"127.0.0.1\"\nport = 1\nfrom = \"hello@example.com\"\ntimeout = \"1s\"\n\n\
+             [capabilities.mail]\nsend = [\"site\"]\n\n\
+             [capabilities.script]\nspawn = [\"jobs/\"]\n\n\
+             [db.jobs]\ndriver = \"sqlite\"\npath = \"jobs.db\"\n\n\
+             [queue]\nconnection = \"jobs\"\nworkers = 0\n",
+        ),
+    );
+    std::fs::create_dir_all(served.dir.join("jobs")).expect("the jobs folder is created");
+    std::fs::write(served.dir.join("jobs").join("job.nvs"), "<?nvs\n").expect("the job is written");
+    let migrated = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["queue", "migrate"])
+        .current_dir(&served.dir)
+        .output()
+        .expect("`nvs queue migrate` runs");
+    assert!(
+        migrated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    let answer =
+        served.answer_to(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    assert!(answer.ends_with("not sent;pushed"), "{answer}");
+
+    let (raw, events) = served.spooled_as(2, "mail and queue", |record| match record {
+        nvs_runtime::spool::Record::Event(event)
+            if matches!(
+                event.event,
+                nvs_runtime::spool::EventKind::Mail | nvs_runtime::spool::EventKind::Queue
+            ) =>
+        {
+            Some(*event)
+        }
+        _ => None,
+    });
+    let mail = events
+        .iter()
+        .find(|event| event.event == nvs_runtime::spool::EventKind::Mail)
+        .expect("a mail event");
+    assert_eq!(mail.label, "Core\\Mail::send failed");
+    assert_eq!(mail.outcome.recipients, Some(3));
+    assert_eq!(mail.outcome.ok, Some(false));
+    let queue = events
+        .iter()
+        .find(|event| event.event == nvs_runtime::spool::EventKind::Queue)
+        .expect("a queue event");
+    assert_eq!(queue.label, "Core\\Queue::push");
+    assert_eq!(queue.outcome.queue.as_deref(), Some("low"));
+    assert!(
+        queue
+            .outcome
+            .job
+            .as_deref()
+            .is_some_and(|job| job.ends_with("job.nvs")),
+        "{queue:?}"
+    );
+    let delay = queue
+        .outcome
+        .delay_ms
+        .expect("a pushed job with a due time has a delay");
+    assert!((240_000..=300_000).contains(&delay), "{delay}");
+
+    let text = String::from_utf8_lossy(&raw);
+    for private in ["example.com", "Welcome", "queue-arg-secret"] {
+        assert!(
+            !text.contains(private),
+            "the spool names `{private}`: {text}"
+        );
+    }
+}

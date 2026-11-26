@@ -279,11 +279,14 @@ pub fn spans(
             // nobody decided to create.
             // A cache, session or file event names a call site for the editor's lens and is
             // no span of its own: `rule:observability/four-kinds-become-a-span` names the four.
+            // A mail or queue event is one call whose time is already inside the root's.
             TraceKind::Call
             | TraceKind::Gc
             | TraceKind::Cache
             | TraceKind::Session
-            | TraceKind::File => continue,
+            | TraceKind::File
+            | TraceKind::Mail
+            | TraceKind::Queue => continue,
             TraceKind::Query => SpanKind::Query,
             TraceKind::Http => SpanKind::Http,
             TraceKind::Spawn => SpanKind::Spawn,

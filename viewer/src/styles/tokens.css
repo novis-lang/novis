@@ -94,6 +94,8 @@
   --k-cache: var(--ok);
   --k-session: var(--ok);
   --k-file: var(--highlight);
+  --k-mail: var(--violet);
+  --k-queue: var(--warn);
   --k-gc: var(--nv-orange);
   --k-spawn: light-dark(var(--nv-crimson), color-mix(in oklab, var(--nv-crimson) 60%, white));
   --k-own: var(--faint);

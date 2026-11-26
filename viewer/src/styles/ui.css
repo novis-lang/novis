@@ -994,6 +994,14 @@ button.chip:hover {
   background: var(--k-file);
 }
 
+.k-mail {
+  background: var(--k-mail);
+}
+
+.k-queue {
+  background: var(--k-queue);
+}
+
 .k-gc {
   background: var(--k-gc);
 }

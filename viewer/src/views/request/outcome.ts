@@ -1,10 +1,11 @@
 // What a trace event came to, as the short text the timeline shows after its label: a cache call's
-// store, an outbound call's status and sizes, a file call's bytes, and a process's name and exit code.
+// store, an outbound call's status and sizes, a file call's bytes, a process's name and exit code, sent
+// mail's recipient count, and a pushed job's script, queue and delay.
 // A cache `get`'s hit or miss is a chip of its own (`Hit` in `../timeline.tsx`), so it is not in the text.
 // The Cache tab's groups are here too (`cacheGroups`), so a unit test reads them without the page.
 
 import type { RequestDetail, TraceEvent } from "../../api.ts";
-import { size } from "../../format.ts";
+import { delay, size } from "../../format.ts";
 
 /** The cache calls of one key on one store. */
 export interface CacheGroup {
@@ -51,5 +52,10 @@ export function outcomeText(event: TraceEvent): string {
   if (o.bytes !== undefined) parts.push(size(o.bytes));
   if (o.command !== undefined) parts.push(o.command);
   if (o.exit !== undefined) parts.push(`exit code ${o.exit}`);
+  if (o.recipients !== undefined) parts.push(o.recipients === 1 ? "1 recipient" : `${o.recipients} recipients`);
+  if (o.ok === false) parts.push("not sent");
+  if (o.job !== undefined) parts.push(o.job);
+  if (o.queue !== undefined) parts.push(`queue ${o.queue}`);
+  if (o.delay_ms !== undefined) parts.push(`due in ${delay(o.delay_ms)}`);
   return parts.join(" · ");
 }
