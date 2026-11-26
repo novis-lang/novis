@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-cli/src/debug/api.rs, viewer/src/views/saved.tsx, viewer/src/views/editor.tsx, viewer/src/views/stream.tsx]
   - id: 8
     title: nvs debug link prints the link, and the page is served under a token path that only the editor may frame
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug.rs, crates/nvs-cli/src/debug/secure.rs, crates/nvs-cli/tests/debug_viewer.rs, viewer/src/router.ts, viewer/src/editor-link.ts, docs/agent/coding.md]
   - id: 9
     title: the extension opens the viewer in a panel or the browser from one button, and a site in the panel opens in the editor
@@ -319,6 +319,30 @@ Stage 4:
   and `.discard`. The rail's Settings item is `a.editor-open` to `/settings`. The rail's saved
   filters are links only; the settings page deletes them. Stage 9's panel sends a theme with
   `setTheme()`, as the radios do.
+
+**The names stage 8 gave, which later stages use.**
+
+- `nvs debug link [--json] [--listen <address>]` is `crates/nvs-cli/src/debug/link.rs`. The JSON is
+  `{url, embed, running, recording}`; `embed` is `http://<addr>/embed/<token>/`. `listen::links(addr,
+  token)` gives both links, `secure::token(listen, own)` reads or creates the token, and
+  `debug::probe(lock)` says whether a service runs. `nvs-lsp` does not depend on `nvs-cli`, so
+  stage 9's `nvs/debugViewer` either moves these three into `nvs-config` (the data folder's
+  owner, which both crates link) or runs `nvs debug link --json`. Moving them is the simpler
+  one to keep correct: one copy of the token rule.
+- The service tries its lock five times, 20 ms apart, because a probe holds it for an instant.
+- `viewer/src/base.ts`: `BASE` (`/embed/<token>` or `""`), `embedded`, `under(path)` and
+  `within(path)`. View links stay without the prefix. `router.ts` adds it on `pushState` and
+  removes it in `here()`, and `api.ts` adds it to every fetch, the event stream and
+  `profileDownload()`. Embedded, the frame's click handler takes a modified click too.
+- `viewer/src/embed.ts`: `take(e)`, `listenToEditor()`, `readable(path)` and
+  `openInEditor(site, mappings)`. `open` goes to the origin of the panel's first accepted message,
+  or `location.ancestorOrigins[0]` when it is `vscode-webview:`, and with neither nothing is sent.
+  **So stage 9's panel posts `{type: "theme"}` once the frame loads.** The page applies the path
+  mappings before it sends `open`, so the host opens `file` as given, after its own workspace check.
+- `ui/site.tsx` exports `siteClick(site)`, which the coverage view's line links use too. Embedded,
+  every site is a link (`#` when the settings give none).
+- An admitted response under the prefix keeps `cross-origin-resource-policy: same-origin`. If
+  stage 9's host test shows the webview's frame refused for it, that header is what changes there.
 
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
@@ -620,19 +644,19 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 
 **Split:** none, one session. Read `docs/agent/coding.md` first: the stage changes a listener.
 
-- [ ] `crates/nvs-cli/src/debug.rs:140`: the `link` subcommand with `--json`, its help, and its
+- [x] `crates/nvs-cli/src/debug.rs:140`: the `link` subcommand with `--json`, its help, and its
   reference card.
-- [ ] `crates/nvs-cli/src/debug/listen.rs:271`: the `/embed/<token>/` prefix: the constant-time
+- [x] `crates/nvs-cli/src/debug/listen.rs:271`: the `/embed/<token>/` prefix: the constant-time
   compare before any route, no cookie, the page, the bundle and every `/api/` route
   under it, and `frame-ancestors vscode-webview:` on its responses alone (`:84`).
-- [ ] `viewer/src/router.ts:9` and `viewer/src/api.ts`: the base path in front of every path, fetch
+- [x] `viewer/src/router.ts:9` and `viewer/src/api.ts`: the base path in front of every path, fetch
   and the event stream.
-- [ ] `viewer/src/embed.ts:1`: the three messages and their checks. `viewer/src/ui/site.tsx` sends
+- [x] `viewer/src/embed.ts:1`: the three messages and their checks. `viewer/src/ui/site.tsx` sends
   `open` when embedded.
-- [ ] `crates/nvs-cli/tests/debug_viewer.rs`: a wrong token under the prefix is `401`, a right one
+- [x] `crates/nvs-cli/tests/debug_viewer.rs`: a wrong token under the prefix is `401`, a right one
   serves the page and one API route with no `Set-Cookie`, the two `frame-ancestors` values, and
   `nvs debug link --json` against a running service. The check `embed` is green.
-- [ ] `viewer/test/embed.browser.test.ts:1`: a page under a base path moves, fetches and sends
+- [x] `viewer/test/embed.browser.test.ts:1`: a page under a base path moves, fetches and sends
   `open`, and ignores a message from any other origin. Run by name.
 
 ### 9. the extension opens the viewer in a panel or the browser from one button, and a site in the panel opens in the editor
@@ -698,33 +722,37 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 7 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+Stages 1 to 8 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
 `testing/the-viewer-wears-the-websites-palette` and
 `testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
 record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
 `path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3 to 7 gave are under Standing decisions.
+The names stages 3 to 8 gave are under Standing decisions.
 
-Stage 7 is commit `97949cbf8b`. The rail has Routes and Queries, the live pill reads
-`/api/health` and `/api/replay` and links lost records to `/settings#lost`, Errors counts the
-groups thrown since the tab opened, and `/settings` is one page in place of the editor dialog and
-the stream's quarantine panel. The new browser tests `routes` (4 cases) and `settings` (4) are
-green, as are `exceptions`, `stream`, `frame`, `hostile`, `requests`, `request` and `replay`, `tsc`
-and `bun nv viewer --check`. The exceptions test now saves the editor on `/settings`, and the
-stream test lost its quarantine case and its delete step to the settings test. The bundle is
-164,153 bytes of JavaScript and 47,307 of CSS. The nightly failures the sweep named ran at
-`53e94a9181`, before their fixes `1c3196b0e8` and `8ca2f09e1b`, so they needed no change.
+Stage 8 landed in one commit after `22fd05e79f`. `nvs debug link [--json] [--listen]` prints the
+link, its help is in the binary, and `docs/reference/tools/10-cli.md` has its card
+`# nvs debug link`, a new feature `tools:cli/nvs-debug-link` that owes its proofs in stage 11.
+The listener serves the page, the files and every `/api/` route under `/embed/<token>/`, with
+`frame-ancestors vscode-webview:` there alone. The viewer reads its base path, and `embed.ts`
+takes `theme` and `go` and sends `open`. The rule
+`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path` stays `designed` with its
+`guardedBy` filled: its panel half is stage 9's, which ships it. Green: the check `embed`
+(`cargo test --test debug_viewer`, 11 cases, also on Linux through `bun nv linux-test`), the unit
+test `an_embed_path_splits_into_its_token_and_the_viewer_path`, the browser tests `embed` (3),
+`frame`, `request` and `hostile`, `tsc`, clippy and `bun nv viewer --check`. The bundle is
+165,760 bytes of JavaScript and 47,307 of CSS. The nightly failures the sweep named are the same
+run at `53e94a9181` as before, fixed by `1c3196b0e8` and `8ca2f09e1b`.
 
 ### Next
 
-Stage 8 from its first item, at `crates/nvs-cli/src/debug.rs:140` (check the anchor): the `link`
-subcommand. Read `docs/agent/coding.md` first, because the stage changes a listener. Then the
-`/embed/<token>/` prefix in `crates/nvs-cli/src/debug/listen.rs`, and the base path in
-`viewer/src/router.ts` (`here()`, `navigate()`, `route()` and every link the views build, which
-start with `/`) and in `get()`, `send()`, `watermarks()` and `profileDownload()` of
-`viewer/src/api.ts`. The frame's click handler in `viewer/src/app.tsx` (`onClick`) reads hrefs
-that start with `/`. `bun nv site --check shots` stays red until stage 11 takes the screenshots
-again. No test is expected to go red.
+Stage 9 from its first item, `crates/nvs-lsp/src/server.rs:2432` (check the anchor): the request
+`nvs/debugViewer`. `nvs-lsp` does not link `nvs-cli`, so first move `secure::token`,
+`listen::links` and `debug::probe` (`crates/nvs-cli/src/debug/`) where both crates reach them, as
+Standing decisions' stage 8 names say. Then the extension under `editors/vscode/`. The panel posts
+`{type: "theme"}` once the frame loads, or the page sends no `open`. Then ship the embed rule and
+`ide/the-debug-viewer-opens-from-one-button`. `bun nv site --check shots` stays red until stage 11.
+`bun nv proofs --owed` now also names `tools:cli/nvs-debug-link`, which stage 11 pays. No test is
+expected to go red.
 
 ### Backlog
 
