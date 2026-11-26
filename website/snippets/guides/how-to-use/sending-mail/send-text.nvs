@@ -1,0 +1,6 @@
+<?nvs
+// This program sends a plain-text mail through the `shop` block.
+string $id = Core\Mail::send('shop', ['anna@example.com'], 'Your order', 'Thank you for your order.');
+
+// The message id is random. It ends with the domain of the sender address.
+echo Core\Str::endsWith($id, '@example.com') ? "The mail is sent.\n" : "No id.\n";

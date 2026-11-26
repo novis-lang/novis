@@ -242,7 +242,7 @@
   },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
-    "hash": "e17809090cbdf0b3",
+    "hash": "a0474e9eef9b0d2c",
     "questions": [
       "How do the parts of a Novis application fit together?",
       "Good habits for building a Novis web application",
@@ -340,6 +340,18 @@
       "Set the status code and headers of a response",
       "Build a link to another page from the route name",
       "Read a JSON request body into my own class"
+    ]
+  },
+  "/guides/how-to-use/sending-mail/": {
+    "feature": "guides/how-to-use/sending-mail.mdx",
+    "hash": "1f6357b4671a3656",
+    "questions": [
+      "Step by step guide to sending email from my app",
+      "Why does Gmail ignore the CSS in my email?",
+      "Show a company logo inside an HTML email",
+      "Put a reply in the same email thread",
+      "Add a one-click unsubscribe button to a newsletter",
+      "See the emails my app sent on my own computer"
     ]
   },
   "/guides/how-to-use/tainted-input/": {
@@ -1875,13 +1887,14 @@
   },
   "/reference/config/secrets-from-files/": {
     "feature": "tools:config/secrets-from-files",
-    "hash": "5ab510304e1e35a1",
+    "hash": "ccf4a00ad91e419c",
     "questions": [
       "How do I keep the database password out of the config file?",
       "Read a password from a Docker or Kubernetes secret",
       "Use SOPS or Vault to provide credentials",
       "Can I use environment variables in the configuration?",
-      "Why does the server warn about a space in my password?"
+      "Why does the server warn about a space in my password?",
+      "Where do I put the OAuth client secret of a mail server?"
     ]
   },
   "/reference/config/server/": {
@@ -1910,7 +1923,7 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "9a115837c7e099a1",
+    "hash": "0cff1801ec8fa3a9",
     "questions": [
       "Which sections can I write in the configuration file?",
       "Configure a database connection or mail server",
@@ -8105,24 +8118,25 @@
   },
   "/reference/core/mail/": {
     "feature": "Core\\Mail",
-    "hash": "b9541ab143ecadd6",
+    "hash": "034e21e356e2d6ef",
     "questions": [
       "How do I send email?",
       "Email from a web application",
       "Send mail through an SMTP server",
-      "Where do I put the mail server password?"
+      "Where do I put the mail server password?",
+      "Send an email with a PDF file attached"
     ]
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "e5a3b6ea2804cc77",
+    "hash": "de56a0eecd56951c",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
       "Add hidden copy recipients to an email",
       "What happens when the mail server cannot be reached?",
       "Why does an email address with a line break throw an error?",
-      "Does nvs test send real emails?"
+      "Get the message id of an email I sent"
     ]
   },
   "/reference/core/markdown/": {
@@ -15327,12 +15341,13 @@
   },
   "/reference/core/test-sentmail/": {
     "feature": "Core\\Test\\SentMail",
-    "hash": "2ccdf3b2cb1c6737",
+    "hash": "e6bac989c6bda2f4",
     "questions": [
       "What does Core\\Test::sentMail return?",
       "One email that my code sent during a test",
       "Which parts of a sent email can a test check?",
-      "Read the recipients, subject and body of a mail in a test"
+      "Read the recipients, subject and body of a mail in a test",
+      "Check the files attached to an email in a test"
     ]
   },
   "/reference/core/test-sentmail/bcc/": {
@@ -15367,12 +15382,13 @@
   },
   "/reference/core/test-sentmail/html/": {
     "feature": "Core\\Test\\SentMail::html",
-    "hash": "29fb8818eefc2424",
+    "hash": "86ceb5c4be57617f",
     "questions": [
       "How do I check the HTML body of an email in a test?",
       "Test the HTML version of a sent mail",
       "What does html return for a plain text email?",
-      "Read the HTML part my code sent in a test"
+      "Read the HTML part my code sent in a test",
+      "Is the CSS already copied into the HTML a test reads?"
     ]
   },
   "/reference/core/test-sentmail/replyto/": {

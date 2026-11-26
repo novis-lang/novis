@@ -1,0 +1,8 @@
+<?nvs
+// This program sends an HTML mail. `html` escapes each value it inserts.
+string $name = 'Anna';
+Core\Html\Markup $body = html`<h1>Thank you, {$name}</h1><p>Your order <a href="https://example.com/orders/1042">1042</a> is on its way.</p>`;
+Core\Mail::send('shop', ['anna@example.com'], 'Your order', $body);
+
+// `preview` returns the plain-text version that `send` made from the HTML.
+echo Core\Mail::preview($body)->text(), "\n";

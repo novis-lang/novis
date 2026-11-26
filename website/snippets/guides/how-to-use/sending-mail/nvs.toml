@@ -1,0 +1,14 @@
+# The snippets send mail through this block. `capture = true` keeps each message
+# and sends nothing, so no mail leaves the computer.
+[mail.shop]
+capture = true
+from = "shop@example.com"
+from_name = "Example Shop"
+
+# The program may send mail through the `shop` block.
+[capabilities.mail]
+send = ["shop"]
+
+# The program may read files in the `files` folder beside this file, and no other file.
+[capabilities.fs]
+read = ["files"]

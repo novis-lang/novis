@@ -4,6 +4,8 @@ covers: ['Core\Mail::send', 'Core\Mail::preview', 'Core\Mail\Preview::html', 'Co
 description: How to set up a mail server in nvs.toml, send text and HTML mail with attachments, and test it.
 ---
 
+import Snippet from '@components/Snippet.astro'
+
 Your program sends mail with `Core\Mail::send`. The mail server, its password and the sender
 address are in `nvs.toml`. Your code names a block of settings, and nothing else. So a program
 cannot send mail as somebody else.
@@ -42,30 +44,23 @@ Every certificate is checked. Read every key in
 `Core\Mail::send` takes the block name, the recipients, the subject and the body. A `string` body is
 sent as plain text:
 
-```nvs
-string $id = Core\Mail::send('shop', ['anna@example.com'], 'Your order', 'Thank you for your order.');
-```
+<Snippet src="guides/how-to-use/sending-mail/send-text.nvs" />
 
 `send` returns when the mail server has accepted the message. It returns the message id, such as
 `2271a1bb6fceb73304da92a00081d6d0@example.com`. Store it if you want to match a reply or a bounce
 to the message.
 
+The snippets on this page use a block with `capture = true`, so they send no mail. The section
+[Testing](#testing) explains this setting.
+
 A `Core\Html\Markup` body is sent as HTML. An `html` template gives you one, and each `{$name}` in
 it is escaped:
 
-```nvs
-string $name = 'Anna';
-Core\Mail::send(
-    'shop',
-    ['anna@example.com'],
-    'Your order',
-    html`<h1>Thank you, {$name}</h1><p>Your order <a href="https://example.com/orders/1042">1042</a> is on its way.</p>`,
-);
-```
+<Snippet src="guides/how-to-use/sending-mail/send-html.nvs" />
 
 Novis also builds a plain-text version from the HTML. A mail program that shows no HTML shows that
-version. A link becomes its text with the URL in parentheses. The `text` option replaces the plain
-text with your own.
+version. A link becomes its text with the URL in parentheses, as the output shows. The `text`
+option replaces the plain text with your own.
 
 A string from the request is always sent as plain text. So a visitor cannot add HTML to a message.
 
@@ -80,18 +75,7 @@ it for one message. The sender address is always `from` of the block.
 `Core\Mail\Address::of` gives an address with a name. You can use it for `to`, `cc`, `bcc` and
 `replyTo`:
 
-```nvs
-use Core\Mail;
-use Core\Mail\Address;
-
-Mail::send(
-    'shop',
-    [Address::of('anna@example.com', 'Anna Schmidt')],
-    'Your order',
-    'Thank you for your order.',
-    { fromName: 'Example Shop Support', replyTo: Address::of('help@example.com', 'Support') },
-);
-```
+<Snippet src="guides/how-to-use/sending-mail/names.nvs" />
 
 A plain string is only an address. The string `'Anna <anna@example.com>'` throws an error. Pass the
 name as the second argument of `Address::of`.
@@ -106,23 +90,7 @@ The `attachments` option takes a list of `Core\Mail\Attachment` values:
 - `Attachment::inlineFile` reads an image to show inside the HTML. Write its `src()` in an
   `<img src>`.
 
-```nvs
-use Core\Mail;
-use Core\Mail\Attachment;
-
-Attachment $logo = Attachment::inlineFile('images/logo.png');
-Mail::send(
-    'shop',
-    ['anna@example.com'],
-    'Your invoice',
-    html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Your invoice is attached.</p>`,
-    { attachments: [
-        Attachment::fromFile('invoices/1042.pdf', { name: 'invoice-1042.pdf' }),
-        Attachment::fromBytes('items.csv', "item,price\ntea,4.50\n", { type: 'text/csv' }),
-        $logo,
-    ] },
-);
-```
+<Snippet src="guides/how-to-use/sending-mail/attachments.nvs" />
 
 The media type is detected from the first bytes of the file. The `type` option sets it yourself.
 Each inline image must be used in the HTML, and each `cid:` URL in the HTML needs its inline image.
@@ -134,31 +102,10 @@ Most mail programs ignore a `<style>` element. So Novis copies the CSS of each `
 into the `style` attribute of each element it matches. This happens for every HTML body, and you do
 not need to turn it on.
 
-This body has a `<style>` element:
+This body has a `<style>` element. `Core\Mail::preview` builds the body as `send` would, and sends
+nothing. The output shows the HTML that `send` puts in the message:
 
-```nvs
-Core\Html\Markup $body = html`<style>
-  p { color: #333; font-family: Arial, sans-serif; }
-  .total { font-weight: bold; }
-  .note { color: gray; }
-  a:hover { color: #c00; }
-  @media (max-width: 600px) { p { font-size: 18px; } }
-</style>
-<p>Thank you for your order.</p>
-<p class="total">Total: 59.90 EUR</p>`;
-
-echo Core\Mail::preview($body)->html();
-```
-
-`Core\Mail::preview` builds the body as `send` would, and sends nothing. This program prints:
-
-```html skip="the output of the program above, copied from nvs run"
-<html><head><style>.note { color: gray; }
-a:hover { color: #c00; }
-@media (max-width: 600px) { p { font-size: 18px; } }</style>
-</head><body><p style="color: #333;font-family: Arial, sans-serif;">Thank you for your order.</p>
-<p class="total" style="color: #333;font-family: Arial, sans-serif;font-weight: bold;">Total: 59.90 EUR</p></body></html>
-```
+<Snippet src="guides/how-to-use/sending-mail/styling.nvs" />
 
 Three rules stay in the `<style>` element:
 
@@ -178,16 +125,7 @@ in a `<style>` element.
 Mail programs show a reply and the message it answers in one thread. Pass the message id that
 `send` returned:
 
-```nvs
-string $first = Core\Mail::send('shop', ['anna@example.com'], 'Ticket 77', 'We got your question.');
-Core\Mail::send(
-    'shop',
-    ['anna@example.com'],
-    'Re: Ticket 77',
-    'Here is the answer.',
-    { inReplyTo: $first, references: [$first] },
-);
-```
+<Snippet src="guides/how-to-use/sending-mail/threads.nvs" />
 
 `inReplyTo` is the message this one answers. `references` lists the earlier messages of the thread,
 oldest first.
@@ -197,15 +135,7 @@ oldest first.
 The `unsubscribe` option takes an `https://` URL. Mail programs then show an unsubscribe button.
 When the reader presses it, the mail program sends a POST request to that URL:
 
-```nvs
-Core\Mail::send(
-    'shop',
-    ['anna@example.com'],
-    'News for March',
-    'Our new teas are here.',
-    { unsubscribe: 'https://example.com/unsubscribe?token=abc123' },
-);
-```
+<Snippet src="guides/how-to-use/sending-mail/unsubscribe.nvs" />
 
 Your route for that URL removes the reader from the list. Any other URL scheme throws a
 `RuntimeError`.
@@ -215,51 +145,21 @@ Your route for that URL removes the reader from the list. Any other URL scheme t
 `send` waits for the mail server. To answer the visitor first, send the mail with
 `Core\Task::runAfterResponse`. The function runs after the browser has the page:
 
-```nvs
-string $email = 'anna@example.com';
-Core\Task::runAfterResponse(fn(): void => {
-    Core\Mail::send('shop', [$email], 'Your order', 'Thank you for your order.');
-});
-```
+<Snippet src="guides/how-to-use/sending-mail/after-response.nvs" />
 
 If the process stops, this work is lost. [Work after the response](/guides/walkthroughs/after-response/)
 shows each step.
 
-To try again when the mail server is down, use `Core\Queue`. A job is saved in the database, and a
-worker runs it. If the job throws, the worker runs it again later:
-
-```nvs
-Core\Queue::push('jobs/send-receipt.nvs', {
-    queue: 'mail',
-    arguments: ['order' => 1042],
-    maxAttempts: 5,
-    backoff: Core\Time\Duration::seconds(30),
-});
-```
+To try again when the mail server is down, use `Core\Queue`. Write the `send` call in a job file.
+[`Core\Queue::push`](/reference/core/queue/push/) saves the job in the database, and a worker runs
+it later. If the job throws, the worker runs it again.
 
 ## Testing
 
 Under `nvs test`, `send` sends no mail and opens no connection. It still checks every address and
 option. `Core\Test::sentMail()` returns each message that the test sent:
 
-```nvs
-use Core\Mail;
-use Core\Test;
-
-class ReceiptTest
-{
-    #[Test]
-    public function itSendsOneReceipt(): void
-    {
-        string $id = Mail::send('shop', ['anna@example.com'], 'Your order 1042', 'Thank you for your order.');
-
-        var $sent = Test::sentMail();
-        Test::assertCount($sent, 1);
-        Test::assertEquals($sent[0]->to(), ['anna@example.com']);
-        Test::assertSame($sent[0]->messageId(), $id);
-    }
-}
-```
+<Snippet src="guides/how-to-use/sending-mail/testing.nvs" />
 
 Each test starts with an empty list.
 

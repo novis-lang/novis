@@ -1,0 +1,11 @@
+<?nvs
+// This program sends a newsletter with an unsubscribe link. The URL must start with `https://`.
+Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'News for March',
+    'Our new teas are here.',
+    { unsubscribe: 'https://example.com/unsubscribe?token=abc123' },
+);
+
+echo "The newsletter is sent.\n";

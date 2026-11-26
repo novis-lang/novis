@@ -1,0 +1,12 @@
+<?nvs
+// This program sends the receipt after the response, so the visitor does not wait.
+string $email = 'anna@example.com';
+
+// This line adds the function to a list. It runs after the response.
+Core\Task::runAfterResponse(fn(): void => {
+    Core\Mail::send('shop', [$email], 'Your order', 'Thank you for your order.');
+    echo "The receipt is sent.\n";
+});
+
+// The response. This line prints first.
+echo "Thank you! Your order is confirmed.\n";

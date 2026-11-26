@@ -1,0 +1,14 @@
+<?nvs
+// This program sends a question and then an answer in the same thread.
+string $first = Core\Mail::send('shop', ['anna@example.com'], 'Ticket 77', 'We got your question.');
+
+// `inReplyTo` and `references` take the message id that `send` returned.
+string $answer = Core\Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Re: Ticket 77',
+    'Here is the answer.',
+    { inReplyTo: $first, references: [$first] },
+);
+
+echo $answer != $first ? "Two messages in one thread.\n" : "Same id.\n";

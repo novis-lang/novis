@@ -1,0 +1,23 @@
+<?nvs
+// This program sends an invoice with a PDF file, a CSV file and a logo inside the HTML.
+use Core\Mail;
+use Core\Mail\Attachment;
+
+// `inlineFile` reads the image now. Its `src()` goes into the `<img src>` of the HTML.
+Attachment $logo = Attachment::inlineFile('files/logo.png');
+Attachment $invoice = Attachment::fromFile('files/invoice-1042.pdf', { name: 'invoice-1042.pdf' });
+
+Mail::send(
+    'shop',
+    ['anna@example.com'],
+    'Your invoice',
+    html`<p><img src="{$logo->src()}" alt="Example Shop"></p><p>Your invoice is attached.</p>`,
+    { attachments: [
+        $invoice,
+        Attachment::fromBytes('items.csv', "item,price\ntea,4.50\n", { type: 'text/csv' }),
+        $logo,
+    ] },
+);
+
+// The type is detected from the first bytes of the file. This prints `application/pdf`.
+echo $invoice->name(), ' is ', $invoice->type(), "\n";

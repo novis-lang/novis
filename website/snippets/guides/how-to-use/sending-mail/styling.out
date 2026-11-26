@@ -1,0 +1,7 @@
+<html><head><style>.note { color: gray; }
+a:hover { color: #c00; }
+@media (max-width: 600px) { p { font-size: 18px; } }</style>
+</head><body><p style="color: #333;font-family: Arial, sans-serif;">Thank you for your order.</p>
+<p class="total" style="color: #333;font-family: Arial, sans-serif;font-weight: bold;">Total: 59.90 EUR</p></body></html>
+
+Unused: .note { color: gray; }

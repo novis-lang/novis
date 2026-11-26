@@ -455,6 +455,11 @@ export default defineConfig({
                   link: '/guides/how-to-use/live-updates/',
                   attrs: { 'data-subtext': 'Event streams, WebSockets and topics' },
                 },
+                {
+                  label: 'Sending mail',
+                  link: '/guides/how-to-use/sending-mail/',
+                  attrs: { 'data-subtext': 'Settings, attachments, styled HTML and tests' },
+                },
               ],
             },
             {

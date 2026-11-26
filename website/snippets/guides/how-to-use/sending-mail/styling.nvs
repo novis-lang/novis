@@ -1,0 +1,18 @@
+<?nvs
+// This program prints an HTML body after its CSS is copied into the elements.
+Core\Html\Markup $body = html`<style>
+  p { color: #333; font-family: Arial, sans-serif; }
+  .total { font-weight: bold; }
+  .note { color: gray; }
+  a:hover { color: #c00; }
+  @media (max-width: 600px) { p { font-size: 18px; } }
+</style>
+<p>Thank you for your order.</p>
+<p class="total">Total: 59.90 EUR</p>`;
+
+// `preview` builds the body as `send` would, and sends nothing.
+Core\Mail\Preview $preview = Core\Mail::preview($body);
+echo $preview->html(), "\n";
+
+// `unusedCss` lists the rules that matched no element. This prints `.note { color: gray; }`.
+echo "\nUnused: ", Core\Str::join($preview->unusedCss(), ', '), "\n";

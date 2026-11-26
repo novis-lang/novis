@@ -1,0 +1,22 @@
+<?nvs
+// This program has a test that checks the receipt mail. `nvs test` runs the test.
+use Core\Mail;
+use Core\Test;
+
+class ReceiptTest
+{
+    #[Test]
+    public function itSendsOneReceipt(): void
+    {
+        string $id = Mail::send('shop', ['anna@example.com'], 'Your order 1042', 'Thank you for your order.');
+
+        // `sentMail` returns each message this test sent. Nothing left the computer.
+        var $sent = Test::sentMail();
+        Test::assertCount($sent, 1);
+        Test::assertEquals($sent[0]->to(), ['anna@example.com']);
+        Test::assertSame($sent[0]->messageId(), $id);
+    }
+}
+
+// `nvs run` runs this line and not the test.
+echo "Run `nvs test testing.nvs` to run the test.\n";
