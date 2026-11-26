@@ -110,6 +110,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::mail::parts::ATTACHMENT,
     crate::mail::css::PREVIEW,
     crate::mail::receive::MESSAGE,
+    crate::mail::receive::classify::REPORT,
+    crate::mail::receive::classify::RECIPIENT,
     crate::storage::CLASS,
     crate::cldr::CLASS,
     crate::password::CLASS,

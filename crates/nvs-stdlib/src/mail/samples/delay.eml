@@ -1,0 +1,37 @@
+From: Mail Delivery System <mailer-daemon@mx.example.net>
+To: bounces@shop.example.com
+Subject: Delayed Mail (still being retried)
+Message-ID: <report-2@mx.example.net>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="B2"
+
+--B2
+Content-Type: text/plain
+
+The delivery of your message is delayed. The server tries again for five days.
+
+--B2
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.net
+
+Final-Recipient: rfc822; ada@example.org
+Action: delayed
+Status: 4.4.7
+Diagnostic-Code: smtp; 421 4.4.7 Try again later
+
+Final-Recipient: rfc822; bo@example.org
+Action: delivered
+Status: 2.0.0
+
+--B2
+Content-Type: message/rfc822
+
+From: Shop <shop@example.com>
+To: ada@example.org
+Subject: Your invoice
+Message-ID: <invoice-7@shop.example.com>
+
+The invoice is attached.
+
+--B2--

@@ -37,6 +37,13 @@ pub(super) struct Envelope<'a> {
 /// ordinary `return_path`.
 const BOUNCE_TAG_CEILING: usize = 64;
 
+/// Whether `tag` fits the bounce tag rule: 1 to [`BOUNCE_TAG_CEILING`] of `A-Z a-z 0-9 . _ -`.
+/// `send` throws for any other tag, and `Core\Mail\Message::bounceTag` reads no other.
+pub(super) fn is_bounce_tag(tag: &str) -> bool {
+    let allowed = |byte: u8| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
+    !tag.is_empty() && tag.len() <= BOUNCE_TAG_CEILING && tag.bytes().all(allowed)
+}
+
 /// The envelope sender for `return_path` and the call's `tag`: `return_path` itself without one,
 /// and `local+tag@domain` with one.
 ///
@@ -55,8 +62,7 @@ pub(super) fn bounce_sender(
     let Some(tag) = tag else {
         return Ok(return_path.to_owned());
     };
-    let allowed = |byte: &u8| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
-    if tag.is_empty() || tag.len() > BOUNCE_TAG_CEILING || !tag.bytes().all(|byte| allowed(&byte)) {
+    if !is_bounce_tag(tag) {
         return Err(Fault::thrown(format!(
             "{member}: `bounceTag` is `{}`. A bounce tag has 1 to {BOUNCE_TAG_CEILING} letters, \
              digits, dots, underscores or hyphens.",

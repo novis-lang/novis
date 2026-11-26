@@ -1,0 +1,9 @@
+From: Ada <ada@example.org>
+To: Shop <shop@example.com>
+Subject: Out of office: Your order
+Message-ID: <ooo-4@example.org>
+In-Reply-To: <order-42@shop.example.com>
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=utf-8
+
+I am away until Monday.

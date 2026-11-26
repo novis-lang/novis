@@ -1,0 +1,30 @@
+From: Feedback Loop <fbl@isp.example.net>
+To: abuse@shop.example.com
+Subject: Complaint about a message
+Message-ID: <fbl-3@isp.example.net>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=feedback-report; boundary="B3"
+
+--B3
+Content-Type: text/plain
+
+A user marked a message from your domain as spam.
+
+--B3
+Content-Type: message/feedback-report
+
+Feedback-Type: abuse
+User-Agent: ExampleFBL/1.0
+Version: 1
+
+--B3
+Content-Type: message/rfc822
+
+From: Shop <shop@example.com>
+To: ada@example.org
+Subject: Weekly news
+Message-ID: <news-9@shop.example.com>
+
+This week in the shop.
+
+--B3--

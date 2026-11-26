@@ -3538,6 +3538,9 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::db::GRADE,
     crate::ldap::ERROR_KIND,
     crate::ldap::TLS,
+    // What a received message is, and what a delivery report says for each recipient.
+    crate::mail::receive::classify::KIND,
+    crate::mail::receive::classify::ACTION,
     crate::ldap::SCOPE,
     crate::ldap::ACCOUNT_TYPE,
     // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums

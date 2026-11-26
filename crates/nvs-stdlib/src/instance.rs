@@ -464,6 +464,15 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
         &crate::mail::receive::MESSAGE,
         Slots::Typed(crate::mail::receive::SLOT_TYPES),
     ),
+    // `parse` builds both from the delivery report, and each slot is read back as it is.
+    (
+        &crate::mail::receive::classify::REPORT,
+        Slots::Typed(crate::mail::receive::classify::REPORT_SLOT_TYPES),
+    ),
+    (
+        &crate::mail::receive::classify::RECIPIENT,
+        Slots::Typed(crate::mail::receive::classify::RECIPIENT_SLOT_TYPES),
+    ),
     // `preview` builds it, and each slot is read back as it is.
     (
         &crate::mail::css::PREVIEW,

@@ -65,6 +65,10 @@ const SLOTS: &[&str] = &[
     "html",
     "attachments",
     "raw",
+    "kind",
+    "answers",
+    "report",
+    "bounceTag",
 ];
 
 /// The index of the slot `name` in [`SLOTS`].
@@ -214,6 +218,30 @@ pub(crate) const MESSAGE: CoreClass = CoreClass {
             &ATTACHMENTS_DOC,
         ),
         reader("raw", CoreTy::Bytes, "nvs_core_mail_message_raw", &RAW_DOC),
+        reader(
+            "kind",
+            CoreTy::Enum(classify::KIND_NAME),
+            "nvs_core_mail_message_kind",
+            &KIND_DOC,
+        ),
+        reader(
+            "answers",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_mail_message_answers",
+            &ANSWERS_DOC,
+        ),
+        reader(
+            "report",
+            CoreTy::Nullable(&CoreTy::Instance(classify::REPORT_NAME)),
+            "nvs_core_mail_message_report",
+            &REPORT_DOC,
+        ),
+        reader(
+            "bounceTag",
+            CoreTy::Nullable(&CoreTy::Str),
+            "nvs_core_mail_message_bounce_tag",
+            &BOUNCE_TAG_DOC,
+        ),
     ],
     slots: SLOTS,
     constants: &[],
@@ -236,6 +264,10 @@ pub(crate) const SLOT_TYPES: &[CoreTy] = &[
     CoreTy::Nullable(&CoreTy::Str),
     CoreTy::Array(&CoreTy::Instance(super::ATTACHMENT_NAME)),
     CoreTy::Bytes,
+    CoreTy::Enum(classify::KIND_NAME),
+    CoreTy::Nullable(&CoreTy::Str),
+    CoreTy::Nullable(&CoreTy::Instance(classify::REPORT_NAME)),
+    CoreTy::Nullable(&CoreTy::Str),
 ];
 
 /// The class card — `rule:core-api/reference-card`.
@@ -380,6 +412,45 @@ const RAW_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `kind`'s card.
+const KIND_DOC: MethodDoc = MethodDoc {
+    short: "Returns what the message is: a bounce, a delay, a complaint, an auto-reply, a reply \
+            or something else. Only a delivery report is a bounce or a delay.",
+    params: &[],
+    ret: "A `Core\\Mail\\Message::Kind` case.",
+    errors: &[],
+};
+
+/// `answers`' card.
+const ANSWERS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the `Message-ID` of the mail this message is about, without angle brackets. \
+            For a bounce, a delay or a complaint, it is the ID of the returned message. \
+            Otherwise it is `In-Reply-To`, then the last `References` ID.",
+    params: &[],
+    ret: "The ID, or `null` when the message names none.",
+    errors: &[],
+};
+
+/// `report`'s card.
+const REPORT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the delivery report of a bounce or a delay, with the status of each \
+            recipient.",
+    params: &[],
+    ret: "The report, or `null` when the message is not a delivery report.",
+    errors: &[],
+};
+
+/// `bounceTag`'s card.
+const BOUNCE_TAG_DOC: MethodDoc = MethodDoc {
+    short: "Returns the tag after `+` in the address this message was sent to, such as \
+            `order-42` for `bounces+order-42@example.com`. It is the tag that the `bounceTag` \
+            option of `Core\\Mail::send` wrote. The address is read from `Delivered-To`, then \
+            `X-Original-To`, then `To`.",
+    params: &[],
+    ret: "The tag, or `null` when no address has a valid tag.",
+    errors: &[],
+};
+
 /// What [`parse`] read: owned Rust data, so the tests can check it without a value, and
 /// [`built`] makes the instance from it.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -410,6 +481,8 @@ pub(crate) struct Parsed {
     pub html: Option<String>,
     /// The attachments and the inline parts.
     pub attachments: Vec<Received>,
+    /// The kind, the ID it answers, the delivery report and the bounce tag.
+    pub classified: classify::Classified,
 }
 
 /// One address of a received header.
@@ -485,7 +558,7 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
             let offset = if at.tz_before_gmt { -east } else { east };
             (at, offset)
         });
-    let headers = fields
+    let headers: Vec<(String, String)> = fields
         .iter()
         .map(|field| {
             let parsed = field.parse_as(HeaderForm::Text);
@@ -510,13 +583,18 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
         .filter(|part| part.is_attachment() || matches!(part.role(), PartRole::MediaBody))
         .map(|part| received(&part))
         .collect();
+    let to = addresses("to");
+    let in_reply_to = ids("in-reply-to").into_iter().next();
+    let references = ids("references");
+    let classified =
+        classify::classified(&root, &headers, in_reply_to.as_deref(), &references, &to);
     Parsed {
         message_id: field("message-id")
             .and_then(|value| value.as_text())
             .filter(|id| !id.is_empty())
             .map(str::to_owned),
         from: addresses("from").into_iter().next(),
-        to: addresses("to"),
+        to,
         cc: addresses("cc"),
         reply_to: addresses("reply-to"),
         subject: field("subject")
@@ -525,11 +603,12 @@ pub(crate) fn parse(raw: &[u8]) -> Parsed {
             .to_owned(),
         date,
         headers,
-        in_reply_to: ids("in-reply-to").into_iter().next(),
-        references: ids("references"),
+        in_reply_to,
+        references,
         text,
         html,
         attachments,
+        classified,
     }
 }
 
@@ -638,6 +717,14 @@ fn built(parsed: Parsed, raw: &[u8]) -> Value {
             text(parsed.html),
             Value::array(attachments),
             Value::bytes(NvsStr::new(raw)),
+            Value::enum_int(parsed.classified.kind as i64),
+            text(parsed.classified.answers),
+            parsed
+                .classified
+                .report
+                .as_deref()
+                .map_or_else(Value::null, classify::report_value),
+            text(parsed.classified.bounce_tag),
         ],
     )
 }
@@ -692,6 +779,10 @@ readers! {
     nvs_core_mail_message_html => "html",
     nvs_core_mail_message_attachments => "attachments",
     nvs_core_mail_message_raw => "raw",
+    nvs_core_mail_message_kind => "kind",
+    nvs_core_mail_message_answers => "answers",
+    nvs_core_mail_message_report => "report",
+    nvs_core_mail_message_bounce_tag => "bounceTag",
 }
 
 nvs_runtime::nvs_helper! {
@@ -739,7 +830,11 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_mail_message_html" => nvs_core_mail_message_html,
         "nvs_core_mail_message_attachments" => nvs_core_mail_message_attachments,
         "nvs_core_mail_message_raw" => nvs_core_mail_message_raw,
-        _ => return None,
+        "nvs_core_mail_message_kind" => nvs_core_mail_message_kind,
+        "nvs_core_mail_message_answers" => nvs_core_mail_message_answers,
+        "nvs_core_mail_message_report" => nvs_core_mail_message_report,
+        "nvs_core_mail_message_bounce_tag" => nvs_core_mail_message_bounce_tag,
+        _ => return classify::address(symbol),
     };
     Some(nvs_runtime::Entry::borrowed((helper as *const ()).cast()))
 }
@@ -748,6 +843,8 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 pub(crate) fn message_of(raw: &[u8]) -> Value {
     built(parse(raw), raw)
 }
+
+pub(crate) mod classify;
 
 #[cfg(test)]
 mod tests;

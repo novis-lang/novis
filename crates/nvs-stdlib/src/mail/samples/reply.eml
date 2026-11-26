@@ -1,0 +1,9 @@
+From: Ada <ada@example.org>
+To: Shop <shop+support@example.com>
+Subject: Re: Your order
+Message-ID: <reply-5@example.org>
+In-Reply-To: <order-42@shop.example.com>
+References: <welcome-1@shop.example.com> <order-42@shop.example.com>
+Content-Type: text/plain; charset=utf-8
+
+Thank you. Can I change the address?
