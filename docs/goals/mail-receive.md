@@ -17,7 +17,7 @@ stages:
     context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/default.toml, crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-stdlib/src/mail/oauth.rs, crates/nvs-host/src/tls.rs]
   - id: 4
     title: "Core\\Imap moves, flags and deletes, and a directory block serves tests and local work"
-    status: open
+    status: done
     context: [crates/nvs-config/src/tree.rs]
   - id: 5
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
@@ -214,6 +214,27 @@ reads only the first 1,000 root header lines (`receive.rs` `parse`).
   does for sending. `uidValidity()` is 1.
 - Under `nvs test`, a server block is opened like any other network door: a test uses a directory
   block, and `rule:testing/a-test-reads-its-logs-and-mail` gains one sentence saying so.
+- **Built in stage 4, the server writes.** `imap-codec` 1.x has no `UID EXPUNGE`, so
+  `session::uid_expunge` writes `<tag> UID EXPUNGE <uid>` itself: the line holds a tag and a
+  number and nothing a program wrote. `delete` and a `move` without `MOVE` need `UIDPLUS`, and
+  without it they are an `IOError` before any command is sent. A plain `EXPUNGE` would remove
+  every `\Deleted` message, including ones another client marked. `UID STORE` is sent without
+  `.SILENT`, so the server's `FETCH` reply shows the message exists. A `UID MOVE` with no
+  `EXPUNGE` reply is "no message with that UID".
+- **Built in stage 4, the flags.** `flag` and `unflag` take `\Answered`, `\Flagged`, `\Draft`,
+  `\Seen` (in any case, sent in this case) or an IMAP atom keyword, as written (`imap::flag_of`).
+  `\Deleted` is a `RuntimeError` that names `delete`, so only `delete` sets it and every
+  `\Deleted` message this program marks is expunged at once. Any other `\` name and text that is
+  not an atom are a `RuntimeError` too.
+- **Built in stage 4, the directory block.** `imap/directory.rs`, behind `Held`'s `Backend` enum.
+  `open` asks `fs.read` for the directory, and each of the six changes asks `fs.write` first
+  (`writing_folder`). A folder is one directory name: no `/`, `\`, `:`, control character, `.` or
+  `..` (a `RuntimeError`). Only `<uid>.eml` with no leading zero is a message. `since` and
+  `before` read the `Date` header, because a test cannot set a file's arrival date, and a message
+  with no `Date` matches neither. `from` and `subject` match the decoded header text, ignoring
+  case. `move` gives the message the highest UID in the target plus one, and carries its
+  `.flags` file. A freed highest UID can be given again; a directory block is for tests and local
+  work, so that is accepted. The files are read with blocking calls for the same reason.
 
 **Cost.** The parse and the classification run per message read, never on the request path of an
 app that does not receive mail; a program that never calls them pays nothing. Two dependencies,
@@ -284,13 +305,19 @@ Gate: `docs/goals/mail-complete.md` does not exist.
 
 ### 4. Core\Imap moves, flags and deletes, and a directory block serves tests and local work
 
-- [ ] `crates/nvs-stdlib/src/imap/session.rs:1`: `move`, `markSeen`, `markUnseen`, `flag`, `unflag`,
+- [x] `crates/nvs-stdlib/src/imap/session.rs:1`: `move`, `markSeen`, `markUnseen`, `flag`, `unflag`,
   `delete`, per § *`Core\Imap`*.
-- [ ] `crates/nvs-stdlib/src/imap/directory.rs:1` (new) and `crates/nvs-config/src/tree.rs:113`: the
+  - [x] `Session::store`, `move_to`, `delete` and `uid_expunge`.
+  - [x] The six `Folder` rows, their cards and helpers in `imap/mod.rs`, and `flag_of`.
+- [x] `crates/nvs-stdlib/src/imap/directory.rs:1` (new) and `crates/nvs-config/src/tree.rs:113`: the
   `directory` key and every `Folder` member over files.
-- [ ] `tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst:1` (new),
+  - [x] `Held` over a `Backend` enum, and `block_of` opens a directory under `fs.read`.
+  - [x] `directory.rs` with every member, and each change under `fs.write`.
+- [x] `tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst:1` (new),
   with its mailbox of neutral `.eml` files.
-- [ ] The six tests of the check `imap-write`, then `cargo test --lib imap::` once.
+  - [x] Three more directory cases, so every `Mailbox` and `Folder` member has three.
+  - [x] `conformance_coverage` run by name, green.
+- [x] The six tests of the check `imap-write`, then `cargo test --lib imap::` once.
 
 ### 5. the rules, the reference, the examples, the feature proofs and the website say so
 
@@ -325,20 +352,21 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1, 2 and 3 are done. `imap/mod.rs` has `Core\Imap::open` (`block_of` after
-`Cap::ImapConnect`, a password or `xoauth2` sign-in, a `Held` filed with
-`hold_open_connection(None, None, ..)`), `Mailbox` (`folders`, `folder`) and `Folder`
-(`uidValidity`, `search`, `fetch`). `Held` keeps the selected folder and selects again on
-demand; a changed `UIDVALIDITY` is an `IOError`. Its `Drop` sends `LOGOUT` with a deadline of
-now. A `directory` block throws in `block_of` until stage 4. `Core\Mail\Message` has `uid(): ?int`
-(`receive::fetched_message`). The roster rows are in `classes.rs`, `lib.rs`, `registry.rs`,
-`instance.rs`, `added_slot.rs`, `core_lib.rs` and `tests/ext_world.rs`. The ten `imap-read`
-tests, the `registry::` tests, three new `imap-open-*.nvst` cases and three `mail-message-*`
-cases that check `uid()` are green.
+Stages 1 to 4 are done. `Core\Imap\Folder` has `move`, `markSeen`, `markUnseen`, `flag`,
+`unflag` and `delete` (`imap/mod.rs`, over `Session::store`, `move_to`, `delete` and
+`uid_expunge` in `imap/session.rs`). `Held` is over a `Backend` enum: a server `Session` or a
+`directory::Directory` (`imap/directory.rs`). § *`Core\Imap`* records the decisions made in
+this stage. All 16 `imap::` lib tests are green, among them the six `imap-write` tests. So are
+`ext_world`, `tier_boundary`, `taint_signatures` (it gained a `KEYS_FROM` row for
+`Folder::search`) and `conformance_coverage`. The four `imap-a-directory-*.nvst` cases pass
+under `nvs test`, the `imap-novis` case among them.
 
-Expected red until stage 4: both `conformance_coverage` tests, for the five `Mailbox` and
-`Folder` members, which only a directory block can reach in a case. `ext_world`,
-`tier_boundary` and `taint_signatures` were not run yet. Expected red until stage 5: the proof
+The sweep's CI run 45813627231 tested `4e43e1fa2e`. Its Miri failures (zoned `DateTime` in
+`json.rs`, `iso.rs` and `routes.rs`) were fixed later by `c115a735a1`. Its Uuid `Parses` case
+under `NOVIS_CHECK_TYPES` was fixed by `28a4d7a6bf`, and it passes here. What is still open from
+that run is the `serve` pages test, listed in the backlog below.
+
+Expected red until stage 5: the proof
 checks over every new member (`Core\Mail\Message::*`, `Core\Imap*`, `Core\Mail\Report*`,
 `Core\Mail\Address::address` and `::name`, `Core\Mail\Attachment::name` and `::bytes`),
 `rules --check` on `rule:core-classes/mail-receive` and `/imap`, and `site --check stale`,
@@ -346,18 +374,16 @@ checks over every new member (`Core\Mail\Message::*`, `Core\Imap*`, `Core\Mail\R
 
 ### Next
 
-First: `cargo test --test ext_world --test tier_boundary --test taint_signatures`, and fix any red.
-Then stage 4. `move`, `markSeen`, `markUnseen`, `flag`, `unflag` and `delete` on
-`FOLDER_CLASS` in `imap/mod.rs`, over new `Session` commands in `imap/session.rs` (`UID MOVE`
-when `MOVE` is offered, else `UID COPY` and `UID EXPUNGE`; `UID STORE` for flags; `delete`
-stores `\Deleted` and runs `UID EXPUNGE` of that one UID). Each needs the fake's answers in
-`imap/session/tests.rs` `converse` and the four `imap-write` server tests. Then the directory
-block: replace the `directory` throw in `block_of` with a second kind of `Held` (an enum over
-the session and a directory) under `fs.read` and `fs.write`, and the two directory tests. Then
-the `imap-novis` case `tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst`
-and enough directory cases to give every `Mailbox` and `Folder` member three cases, which
-closes the `conformance_coverage` reds. Add every new member to the same roster lists (they are
-instance members, so only `core_lib` and the conformance floor change).
+Stage 5, per its `**Split:**` line. First, the rule fragments
+`docs/rules/core-classes/mail-receive.md` and `docs/rules/core-classes/imap.md` (new), from §
+*Standing decisions*, including stage 4's three "Built in stage 4" bullets. Then the placements in
+`docs/rules/core-api/tier-roster.md:20`, the one sentence in
+`docs/rules/testing/a-test-reads-its-logs-and-mail.md:7` (a test uses a directory block), and
+`bun nv rules`. Then `bun nv proofs --owed --goal mail-receive` for the list. The examples, attacks
+and benches go to one writing subagent, and the website section in `sending-mail.mdx` to a second
+(each brief names AGENTS.md § *Text an end user reads* and the page's `website/snippets/` folder).
+After those: `docs/reference/tools/20-config.md` (`[imap.<name>]`, `directory`, the grant),
+`changes.json`, then `site --check stale`, `questions`, `changes` and `review`.
 
 ### Backlog
 
