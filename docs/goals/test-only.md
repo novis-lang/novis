@@ -211,8 +211,8 @@ folder, and `chapter.md` lists it.
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is written to `### Backlog` with what blocked it.
 
-**Lanes.** It runs on the chain, after `refactor-commands`, which also edits
-`crates/nvs-lsp/src/completion.rs` and `hover.rs`. Stages 1 to 3 touch only the checker, the lowering
+**Lanes.** It runs on the chain, after `refactor-commands` and `loadable-completion`, which also edit
+`crates/nvs-lsp/src/completion.rs` (and `refactor-commands` `hover.rs`). Stages 1 to 3 touch only the checker, the lowering
 and the hierarchy and could run beside `refactor-commands` as a side goal. Stage 4 runs after it.
 
 ## Stages
@@ -259,7 +259,8 @@ and the hierarchy and could run beside `refactor-commands` as a side goal. Stage
 
 ### 4. the editor offers test-only code only inside test code, and its hover says it is for tests
 
-Gate: `refactor-commands` is reached (its goal file is gone from `docs/goals/`).
+Gate: `refactor-commands` and `loadable-completion` are reached (their goal files are gone from
+`docs/goals/`). The test-only filter joins the loadable filter in `every_type` and `under`.
 
 - [ ] `crates/nvs-lsp/src/completion.rs:5069`: outside test code, a test-only member is left out of
   every member list (`members_of` `:676`, `member` `:3518`, `declared_members` `:4902`), and a
