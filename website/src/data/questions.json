@@ -1329,6 +1329,17 @@
       "Is a password from a login form saved in the request record?"
     ]
   },
+  "/reference/cli/nvs-debug-link/": {
+    "feature": "tools:cli/nvs-debug-link",
+    "hash": "fe51af5627e9664d",
+    "questions": [
+      "I lost the debug viewer link. How do I print it again?",
+      "Get the debug viewer link as JSON for a script or an editor",
+      "Check from a script whether nvs debug is running",
+      "Why does printing the link fail when the debug port is 0?",
+      "Print the viewer link for an nvs debug started with another address"
+    ]
+  },
   "/reference/cli/nvs-debug-to-test/": {
     "feature": "tools:cli/nvs-debug-to-test",
     "hash": "e4a55e18ba26ab1e",
@@ -1564,19 +1575,19 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "3631ffddd36edae5",
+    "hash": "41b01a8f12f7a718",
     "questions": [
       "How do I look at the requests my development server recorded?",
       "See the queries, dumps and log lines of one request on a timeline",
       "Which errors does my application throw most often?",
-      "Why does the debug viewer answer 401 when I open its address?",
+      "Why does the debug viewer only open from the link nvs debug prints?",
       "Send a recorded request to my server again, or make a test from it",
       "Use the debug viewer when my server runs in a Docker container"
     ]
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "32911fc92f4c97bc",
+    "hash": "91c8ce6ede346a06",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
@@ -2448,7 +2459,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "e69a35157233dac8",
+    "hash": "89097c01654fe7d7",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -6690,7 +6701,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "20d9850121b38a03",
+    "hash": "d382671c80b6eedc",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -17091,7 +17102,7 @@
   },
   "/reference/core/uuid/format/": {
     "feature": "Core\\Uuid::format",
-    "hash": "e862a36404bc0989",
+    "hash": "66b85b223c838541",
     "questions": [
       "How is a UUID written into a link?",
       "Link to a route that takes a UUID in its path",
@@ -19615,7 +19626,7 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "b1cc75ac561d4219",
+    "hash": "bb5b4cae9b7911d4",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",
@@ -19639,7 +19650,7 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "444cfc452a69aabf",
+    "hash": "1a71b8b4978dc943",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",

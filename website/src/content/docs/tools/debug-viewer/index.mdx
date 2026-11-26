@@ -9,7 +9,7 @@ import Terminal from '@components/Terminal.astro'
 
 The debug viewer is a page in your browser. It shows the requests that your server recorded. For each
 request, you see its status, its duration, its queries and its log lines. You also see the values it
-dumped: the values it printed for debugging with `CoreDebug::dump`. Other pages show
+dumped: the values it printed for debugging with `Core\Debug::dump`. Other pages show
 totals for each route and for each query.
 
 `nvs debug` serves the viewer. It also reads the recorded requests into one database,
@@ -128,7 +128,9 @@ value `[redacted]`.
 The **Routes** page has one row for each method and route. Each row shows the number of requests
 and the number of errors. It also shows the median (p50) and the 95th percentile (p95) duration.
 The p95 duration is longer than 95 of 100 requests. It also shows the average number of queries,
-and when the route last ran. Click a column's name to sort by it. Click a row to see the route's
+and when the route last ran.
+
+Click a column's name to sort by it. Click a row to see the route's
 requests.
 
 <Shot src="tools/debug-viewer/routes.shot" alt="The Routes page with five routes, such as GET /polls/{id} and POST /polls. Each row shows its requests, errors, p50, p95 and queries." />

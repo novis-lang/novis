@@ -1805,6 +1805,7 @@ dependencies = [
  "nvs-diagnostics",
  "nvs-footprint",
  "nvs-render",
+ "rand",
  "serde",
  "sha1",
  "toml",
