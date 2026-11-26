@@ -344,6 +344,36 @@ Stage 4:
 - An admitted response under the prefix keeps `cross-origin-resource-policy: same-origin`. If
   stage 9's host test shows the webview's frame refused for it, that header is what changes there.
 
+**The names stage 9 gave, which later stages use.**
+
+- `crates/nvs-config/src/viewer.rs` (`nvs_config::viewer`) holds `EMBED`, `links(addr, token)`,
+  `token(named, own)`, `write_private` and `probe(lock)`, and `Folder::service_lock()` names the
+  lock. `nvs-cli`'s `secure::token` only adds the warning for a named file that does not exist.
+- `crates/nvs-lsp/src/debug_viewer.rs`: `METHOD` (`nvs/debugViewer`), `Params` (`{uri?}`),
+  `read(params, root)`, `answer(read, folder)` and `answer_here`. An error is `RequestFailed` with
+  the message the editor shows.
+- `Client::OPEN_VIEWER` (`nvs.openDebugViewer`) and `Client::open_viewer`. A recorded lens runs it
+  with one argument, the viewer path `/requests/<trace>/<span>` (`server.rs` `open_request`).
+  Stage 10's lenses call `open_request`, or build the same `Command` with their own path.
+- `editors/vscode/src/debugpage.ts`: `frameOrigin`, `policy`, `goable`, `frameAddress`, `page`,
+  `opened`, `within` and `themeOf`. `debugviewer.ts`: `install(context, client)`, `METHOD`,
+  `PANEL`, `OPEN` and `openPanel()`, the open panel for a host test. `tasks.ts` has
+  `startDebug(folder)` and the task command `debug`, which runs `nvs debug` with `cwd` = `file`.
+
+**The language server and every task run from a copy, so they must be told the data folder.**
+The extension runs each process from a verified copy in its own storage
+(`rule:ide/the-extension-runs-a-copy-of-the-binary`), and with no `--data` a binary uses the
+`.nvsdata` beside itself (`nvs_config::data::Folder::beside_exe`). So `nvs lsp` reads the copy's
+token, lock and index, and a developer's `nvs debug` or `nvs serve` uses the folder beside the
+binary they named. The query lens has had this gap since it shipped. The fix is the binary's,
+once: `binary.ts`'s `Runnable` gains `data`, the `.nvsdata` beside the real path of `source`, set
+only when `command` is a copy, and every spawn puts `--data <data>` in front of its subcommand
+(the server, the tasks, the formatter, the AST panel, the test controller and the debug adapter).
+The flag is global in `nvs` (`crates/nvs-cli/src/main.rs:453`). Declined: an environment variable
+that names the source binary, which is a second way to choose a data folder that every reader of
+the folder has to know; and `nvs debug link --json` run from the copy, which has the same gap.
+Spends: two path joins per spawn.
+
 **Motion is transform, opacity and colour only,** 140 ms, and none under
 `prefers-reduced-motion`. A new row fades in, and nothing on screen moves when a record arrives
 while paused, as the rule already says.
@@ -663,21 +693,35 @@ the timeline (`timeline.tsx`), and the Request, Response and Queries tabs (new f
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-lsp/src/server.rs:2432`: the request `nvs/debugViewer`, its entry in the closed
+- [x] `crates/nvs-lsp/src/server.rs:2432`: the request `nvs/debugViewer`, its entry in the closed
   request set, and its case in `crates/nvs-lsp/tests/handshake.rs`.
-- [ ] `editors/vscode/package.json:234`: the two commands, the setting, the `editor/title` entry,
+  - [x] `secure::token`, `listen::links` and `debug::probe` move to `nvs_config::viewer`
+  - [x] `crates/nvs-lsp/src/debug_viewer.rs` and its arm in `answer`
+  - [x] the rule `ide/the-request-set-is-closed` names the eighth request
+  - [x] `the_debug_viewer_request_is_answered_and_names_the_two_links` and the module's tests
+- [x] `editors/vscode/package.json:234`: the two commands, the setting, the `editor/title` entry,
   the `debug` command of the `nvs` task type, and their rows in
   `editors/vscode/test/contributions/contributions.test.ts`.
-- [ ] `editors/vscode/src/debugviewer.ts:1`: the commands, the panel, the start offer and the
+  - [x] the manifest entries
+  - [x] the roster rows and the `the debug viewer button` suite
+- [x] `editors/vscode/src/debugviewer.ts:1`: the commands, the panel, the start offer and the
   message for `store` off. `editors/vscode/src/debugpage.ts:1` builds the panel's page and its
   policy, pure, as `viewer.ts` does for the profile.
-- [ ] `editors/vscode/src/extension.ts:88`: `nvs.openDebugViewer` is server-callable, and the query
+  - [x] `debugpage.ts`
+  - [x] `debugviewer.ts` and `tasks.ts`'s `startDebug`
+- [x] `editors/vscode/src/extension.ts:88`: `nvs.openDebugViewer` is server-callable, and the query
   and copy lenses call it with the request's path (`crates/nvs-lsp/src/recorded.rs:325`).
-- [ ] Headless tests under `editors/vscode/test/debugviewer/`: the page's policy admits one frame
+  - [x] `EDITOR_COMMANDS` names it
+  - [x] `Client::OPEN_VIEWER` and `open_request` in both lenses
+- [x] Headless tests under `editors/vscode/test/debugviewer/`: the page's policy admits one frame
   source, an `open` for a file outside every workspace folder opens nothing, and a `go` path is
   checked. The check `extension` is green.
+- [ ] Every process the extension runs from a copy gets `--data` with the data folder beside the
+  binary it was copied from, as Standing decisions say (`editors/vscode/src/binary.ts:59`).
 - [ ] A host test under `editors/vscode/test/host/`: the command opens a panel of type
   `nvs.debugViewer` against a service the test starts. It is the test the stop rule reads.
+- [ ] Ship `ide/the-debug-viewer-opens-from-one-button` and
+  `testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path`.
 
 ### 10. a lens shows what a route, a dump and a throw site recorded, and opens it in the viewer
 
@@ -722,37 +766,51 @@ pages, after the session has listed what each page must say.
 
 ### State
 
-Stages 1 to 8 are done. Four rules are `designed` and owned by this goal, and two are `shipped`:
+Stages 1 to 8 are done, and stage 9 is in its first session. Four rules are `designed` and owned
+by this goal, and two are `shipped`:
 `testing/the-viewer-wears-the-websites-palette` and
 `testing/the-viewer-answers-per-route-and-per-statement`. The stage that ships a rule sets its
 record `data/rules/<topic>/<slug>.json` to `shipped`, drops `goal` and fills `guardedBy`. The
 `path:line` anchors in later stages come from surveys, so a stage checks an anchor before it edits.
-The names stages 3 to 8 gave are under Standing decisions.
+The names stages 3 to 9 gave are under Standing decisions.
 
-Stage 8 landed in one commit after `22fd05e79f`. `nvs debug link [--json] [--listen]` prints the
-link, its help is in the binary, and `docs/reference/tools/10-cli.md` has its card
-`# nvs debug link`, a new feature `tools:cli/nvs-debug-link` that owes its proofs in stage 11.
-The listener serves the page, the files and every `/api/` route under `/embed/<token>/`, with
-`frame-ancestors vscode-webview:` there alone. The viewer reads its base path, and `embed.ts`
-takes `theme` and `go` and sends `open`. The rule
-`testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path` stays `designed` with its
-`guardedBy` filled: its panel half is stage 9's, which ships it. Green: the check `embed`
-(`cargo test --test debug_viewer`, 11 cases, also on Linux through `bun nv linux-test`), the unit
-test `an_embed_path_splits_into_its_token_and_the_viewer_path`, the browser tests `embed` (3),
-`frame`, `request` and `hostile`, `tsc`, clippy and `bun nv viewer --check`. The bundle is
-165,760 bytes of JavaScript and 47,307 of CSS. The nightly failures the sweep named are the same
-run at `53e94a9181` as before, fixed by `1c3196b0e8` and `8ca2f09e1b`.
+Stage 9 landed two commits after `b98e21a68f`. The first moves the token, the links and the lock
+probe into `nvs_config::viewer`, adds `nvs/debugViewer` to the language server, and makes a
+recorded lens run `nvs.openDebugViewer` with its viewer path for a client that names it. The
+second is the extension: two commands, the setting `nvs.debugViewer.openIn`, the `editor/title`
+button, the panel page (`debugpage.ts`) and its commands (`debugviewer.ts`), and the task command
+`debug`. Green: clippy, `cargo test --test handshake the_debug_viewer_request`, the unit tests
+`debug_viewer` (2) and `a_loopback_link_is_http…` in `nvs-config`, and the check `extension`
+(`test:headless`, 400 passing, with the new suite `debugviewer`, 11) and `npm run lint`.
+
+The session found a gap the query lens already had. The extension runs `nvs lsp` from a copy, so
+the server's data folder is the `.nvsdata` beside the copy, and its token and lock are not the
+ones a developer's `nvs debug` uses. Standing decisions say the fix: `--data` on every spawn from
+a copy. Until then the panel opens with a token the service refuses. No host test was run.
 
 ### Next
 
-Stage 9 from its first item, `crates/nvs-lsp/src/server.rs:2432` (check the anchor): the request
-`nvs/debugViewer`. `nvs-lsp` does not link `nvs-cli`, so first move `secure::token`,
-`listen::links` and `debug::probe` (`crates/nvs-cli/src/debug/`) where both crates reach them, as
-Standing decisions' stage 8 names say. Then the extension under `editors/vscode/`. The panel posts
-`{type: "theme"}` once the frame loads, or the page sends no `open`. Then ship the embed rule and
-`ide/the-debug-viewer-opens-from-one-button`. `bun nv site --check shots` stays red until stage 11.
-`bun nv proofs --owed` now also names `tools:cli/nvs-debug-link`, which stage 11 pays. No test is
-expected to go red.
+Stage 9's second session, from its first open item:
+
+1. `editors/vscode/src/binary.ts:59` `Runnable` gains `data` (the `.nvsdata` beside
+   `realpath(source)`, only when `copy` is set). Put `--data <data>` in front of the subcommand at
+   each spawn: `extension.ts:507` (`lsp`), `tasks.ts` `taskFor`, `format.ts:168`, `ast.ts:173`,
+   `tests.ts:563` and `debug.ts:50`. A headless test pins that each site passes it.
+2. The host test `editors/vscode/test/host/debugviewer.test.ts`: write `nvs.toml` with
+   `[debug] listen = "127.0.0.1:<free port>"` into the workspace copy, start `nvs --data <the
+   data folder> debug` there with `node:child_process`, wait for its printed link (an event, not a
+   time), run `nvs.openDebugViewer` and wait until `openPanel()?.viewType` is `nvs.debugViewer`.
+   Stop the service in `after`. Run `npm --prefix editors/vscode run test:host` once. If VS Code
+   does not draw the frame, the stop rule in Standing decisions applies.
+3. Ship the two rules: `data/rules/ide/the-debug-viewer-opens-from-one-button.json` and
+   `data/rules/testing/the-viewer-is-framed-only-by-the-editor-under-a-token-path.json` go to
+   `shipped`, drop `goal`, and name `crates/nvs-config/src/viewer.rs`,
+   `crates/nvs-lsp/src/debug_viewer.rs`, `editors/vscode/src/debugpage.ts`,
+   `editors/vscode/src/debugviewer.ts` and `editors/vscode/test/debugviewer/page.test.ts` in
+   `guardedBy`. Then set stage 9 to done.
+
+`bun nv site --check shots` stays red until stage 11, and `bun nv proofs --owed` names
+`tools:cli/nvs-debug-link`, which stage 11 pays. No test is expected to go red.
 
 ### Backlog
 

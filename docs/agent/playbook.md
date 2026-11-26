@@ -335,6 +335,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **A process the VS Code extension starts runs from a copy, so its data folder is beside the
+  copy.** In `debug-viewer-flagship` stage 9, `nvs/debugViewer` was written and tested before the
+  session saw that `nvs lsp` with no `--data` reads the `.nvsdata` beside its copy in extension
+  storage, not the one beside the binary the user named. So its token, lock and debug index were
+  the wrong ones. Before a server feature reads the data folder, check which binary runs it. See
+  `crates/nvs-config/src/data.rs` `located()` and `editors/vscode/src/binary.ts` `runnable()`.
 - **An `nvs-suite` check runs every case the change reaches, not only its `--case` list.** In
   `enum-tables`' DONE, `cases` went red on three `image-*` cases, which passed when run alone.
   Run with `nvs test tests/conformance/novis/`, one printed os error 1455: each process's
