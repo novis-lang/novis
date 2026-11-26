@@ -156,6 +156,40 @@ pub enum Record {
 }
 
 impl Record {
+    /// Writes each file the record names under the process's working directory relative to it:
+    /// an exception's site, its frames and its chain's, and a dump's site. A request's program is
+    /// compiled from a path relative to that directory, and a scheduled or queued script from an
+    /// absolute one, so this is what makes a run's sites read as a request's do. A file outside
+    /// the directory, and one already relative, is left as it is. Costs one root test per file,
+    /// and only where `[debug] store` is on.
+    pub fn anchor_files(&mut self) {
+        let exception = match self {
+            Self::Request(request) => request.exception.as_mut(),
+            Self::Run(run) => run.exception.as_mut(),
+            Self::Dump(dump) => {
+                anchor(&mut dump.file);
+                None
+            }
+            _ => None,
+        };
+        let Some(exception) = exception else {
+            return;
+        };
+        anchor(&mut exception.file);
+        let frames = |frames: &mut Vec<Frame>| {
+            for file in frames.iter_mut().filter_map(|frame| frame.file.as_mut()) {
+                anchor(file);
+            }
+        };
+        frames(&mut exception.stack.frames);
+        for link in &mut exception.stack.previous {
+            if let Some(file) = link.file.as_mut() {
+                anchor(file);
+            }
+            frames(&mut link.frames);
+        }
+    }
+
     /// Removes what can make a record long: a dump's tree, a log record's fields, and a request's
     /// recorded bodies. Each says so, with `elided` or `cut`.
     pub fn elide(&mut self) {
@@ -1500,13 +1534,54 @@ pub fn record(ctx: &Ctx, record: Record) {
 
 /// Writes `record` for the request in `trace`, under the gate [`Store::of`] read for it, for a
 /// caller that holds no request context. A failure is printed once per process.
-pub fn record_under(store: Store, trace: &crate::TraceContext, record: Record) {
+pub fn record_under(store: Store, trace: &crate::TraceContext, mut record: Record) {
+    record.anchor_files();
     let share = store.spool_max / WRITERS.load(Ordering::Relaxed).max(1);
     let trace = trace.trace_id_hex();
     with_writer(|writer| {
         writer.set_share(share);
         writer.append(Some(&trace), record, Now::read())
     });
+}
+
+/// The process's working directory as read and as resolved, read once: the directories
+/// [`anchor`] writes a recorded file relative to.
+fn working_dirs() -> &'static [PathBuf] {
+    static DIRS: OnceLock<Vec<PathBuf>> = OnceLock::new();
+    DIRS.get_or_init(|| {
+        let Ok(read) = std::env::current_dir() else {
+            return Vec::new();
+        };
+        let mut dirs = vec![read];
+        if let Ok(resolved) = dirs[0].canonicalize()
+            && resolved != dirs[0]
+        {
+            dirs.push(resolved);
+        }
+        dirs
+    })
+}
+
+/// Rewrites an absolute `file` under the working directory relative to it, with `/` between its
+/// parts as a request's program names them.
+fn anchor(file: &mut String) {
+    let path = Path::new(file.as_str());
+    if !path.has_root() {
+        return;
+    }
+    let Some(rest) = working_dirs()
+        .iter()
+        .find_map(|dir| path.strip_prefix(dir).ok())
+    else {
+        return;
+    };
+    let parts: Vec<_> = rest
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect();
+    if !parts.is_empty() {
+        *file = parts.join("/");
+    }
 }
 
 /// Seals this thread's open file if it is due, and answers when the next one is due. The caller
@@ -2155,6 +2230,89 @@ mod tests {
         vec![
             body, request, event, cache, dump, log, coverage, copies, mail, queue, run, dropped,
         ]
+    }
+
+    /// A scheduled run's script is compiled from an absolute path, and its exception, frames,
+    /// chain and dumps are recorded relative to the working directory, as a request's are. A file
+    /// already relative, and one outside the directory, is left as it is.
+    #[test]
+    #[cfg_attr(miri, ignore = "Miri's isolation refuses the working directory")]
+    fn a_runs_files_are_written_relative_to_the_working_directory() {
+        let cwd = std::env::current_dir().expect("the working directory");
+        let inside = cwd.join("jobs").join("receipt.nvs").to_string_lossy().into_owned();
+        let outside = std::env::temp_dir()
+            .join("elsewhere.nvs")
+            .to_string_lossy()
+            .into_owned();
+        let frame = |file: &str| Frame {
+            function: "{main}".to_owned(),
+            file: Some(file.to_owned()),
+            line: Some(9),
+        };
+        let mut run = Record::Run(Box::new(Run {
+            of: RunOf::Schedule,
+            name: "send-receipts".to_owned(),
+            start_us: 1,
+            duration_us: 1,
+            outcome: RunOutcome::Failed,
+            memory_peak: None,
+            memory_limit: None,
+            exception: Some(Exception {
+                class: "Shop\\MailDown".to_owned(),
+                message: "down".to_owned(),
+                file: inside.clone(),
+                line: 9,
+                stack: Stack {
+                    frames: vec![frame(&inside), frame("src/Mail.nvs"), frame(&outside)],
+                    previous: vec![Link {
+                        class: "Shop\\Timeout".to_owned(),
+                        message: "slow".to_owned(),
+                        file: Some(inside.clone()),
+                        line: Some(4),
+                        frames: vec![frame(&inside)],
+                        frames_cut: false,
+                    }],
+                    ..Stack::default()
+                },
+            }),
+        }));
+        run.anchor_files();
+        let Record::Run(run) = run else {
+            unreachable!("the record is a run")
+        };
+        let exception = run.exception.expect("the exception");
+        assert_eq!(exception.file, "jobs/receipt.nvs");
+        let files: Vec<_> = exception
+            .stack
+            .frames
+            .iter()
+            .map(|frame| frame.file.as_deref())
+            .collect();
+        let relative_outside = outside.starts_with(cwd.to_string_lossy().as_ref());
+        if !relative_outside {
+            assert_eq!(
+                files,
+                [
+                    Some("jobs/receipt.nvs"),
+                    Some("src/Mail.nvs"),
+                    Some(outside.as_str())
+                ]
+            );
+        }
+        let link = &exception.stack.previous[0];
+        assert_eq!(link.file.as_deref(), Some("jobs/receipt.nvs"));
+        assert_eq!(link.frames[0].file.as_deref(), Some("jobs/receipt.nvs"));
+        let mut dump = Record::Dump(Dump {
+            file: inside,
+            line: 3,
+            tree: serde_json::Value::Null,
+            elided: false,
+        });
+        dump.anchor_files();
+        let Record::Dump(dump) = dump else {
+            unreachable!("the record is a dump")
+        };
+        assert_eq!(dump.file, "jobs/receipt.nvs");
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line

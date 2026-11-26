@@ -76,6 +76,8 @@
   color: var(--text);
   font-family: var(--mono);
   font-size: var(--fs-2);
+  flex-shrink: 0;
+  max-width: 70%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -90,8 +92,12 @@
   font-size: var(--fs-2);
 }
 
+/* The name keeps its room, and a long exception site is cut first. */
 .path .exc-at {
   font-size: var(--fs-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .request-grid .age {
