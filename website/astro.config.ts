@@ -460,6 +460,11 @@ export default defineConfig({
                   link: '/guides/how-to-use/sending-mail/',
                   attrs: { 'data-subtext': 'Settings, attachments, styled HTML and tests' },
                 },
+                {
+                  label: 'Reading bounces and replies',
+                  link: '/guides/how-to-use/receiving-mail/',
+                  attrs: { 'data-subtext': 'Read a mailbox, and match each message to your mail' },
+                },
               ],
             },
             {

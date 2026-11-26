@@ -1,0 +1,8 @@
+<?nvs
+// This program shows the HTML body of a reply safely.
+var $inbox = Core\Imap::open('inbox')->folder('INBOX');
+Core\Mail\Message $reply = $inbox->fetch(2);
+
+// `html()` returns a tainted string, because the sender wrote it.
+// `Core\Html::sanitize` keeps the `p` and `b` tags and removes the script.
+echo Core\Html::sanitize($reply->html() ?? ''), "\n";

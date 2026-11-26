@@ -1,0 +1,53 @@
+<?nvs
+// This program sorts the new messages of a folder by their kind, and a test checks it.
+use Core\Imap\Folder;
+use Core\Mail\Message;
+use Core\Test;
+
+final class Sorter
+{
+    public static function sort(Folder $folder): void
+    {
+        foreach ($folder->search({ unseen: true }) as int $uid) {
+            Message::Kind $kind = $folder->fetch($uid)->kind();
+            if ($kind == Message::Kind::Bounce) {
+                // `move` puts the bounce in the folder `Bounces`. There it gets a new UID.
+                $folder->move($uid, 'Bounces');
+            } elseif ($kind == Message::Kind::Delay) {
+                // A delay report needs no work, so `delete` removes it from the server.
+                $folder->delete($uid);
+            } elseif ($kind == Message::Kind::Reply) {
+                // `flag` adds the flag `\Flagged`. The reply stays unread, so a person reads it.
+                $folder->flag($uid, "\\Flagged");
+            } else {
+                // `markSeen` marks the message as read.
+                $folder->markSeen($uid);
+            }
+        }
+    }
+}
+
+class SorterTest
+{
+    #[Test]
+    public function itMovesTheBounce(): void
+    {
+        var $mailbox = Core\Imap::open('inbox');
+        var $inbox = $mailbox->folder('INBOX');
+        Sorter::sort($inbox);
+
+        // The bounce, UID 4, is now message 2 in `Bounces`. Only the reply is still unread.
+        Test::assertEquals($inbox->search(), [1, 2, 3]);
+        Test::assertEquals($mailbox->folder('Bounces')->search(), [1, 2]);
+        Test::assertEquals($inbox->search({ unseen: true }), [2]);
+
+        // These lines undo the changes, so the next run finds the same files.
+        $mailbox->folder('Bounces')->move(2, 'INBOX');
+        $inbox->unflag(2, "\\Flagged");
+        $inbox->markUnseen(1);
+        $inbox->markUnseen(3);
+    }
+}
+
+// `nvs run` runs the `echo` line below and not the test.
+echo "Run `nvs test sort.nvs` to run the test.\n";

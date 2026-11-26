@@ -1,0 +1,27 @@
+<?nvs
+// This program prints the kind of each message in the inbox, and the message it answers.
+use Core\Mail\Message;
+
+class Label
+{
+    public static function of(Message::Kind $kind): string
+    {
+        return match ($kind) {
+            Message::Kind::Bounce => 'bounce',
+            Message::Kind::Delay => 'delay',
+            Message::Kind::Complaint => 'complaint',
+            Message::Kind::AutoReply => 'auto-reply',
+            Message::Kind::Reply => 'reply',
+            Message::Kind::Other => 'other',
+        };
+    }
+}
+
+var $inbox = Core\Imap::open('inbox')->folder('INBOX');
+
+foreach ($inbox->search() as int $uid) {
+    Message $message = $inbox->fetch($uid);
+    // `answers()` returns the message id of the message this one is about.
+    // A new question is about no message, so the result is `null`.
+    echo Label::of($message->kind()), ': ', $message->answers() ?? 'null', "\n";
+}

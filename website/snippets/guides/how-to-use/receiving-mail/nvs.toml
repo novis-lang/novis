@@ -1,0 +1,13 @@
+# The snippets read the mailbox `inbox`. It is the `mail` folder beside this file.
+# Each folder in it is a mail folder, and each `<uid>.eml` file is one message.
+[imap.inbox]
+directory = "mail"
+
+# The program may open the mailbox `inbox`.
+[capabilities.imap]
+connect = ["inbox"]
+
+# The program may read and change the files in the `mail` folder, and no other file.
+[capabilities.fs]
+read = ["mail"]
+write = ["mail"]

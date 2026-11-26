@@ -1,0 +1,4 @@
+Message: order-1042@example.com
+Tag: order-1042
+anna@example.org: failed, 5.1.1, do not send again
+bo@example.org: delayed, 4.4.1, may arrive later

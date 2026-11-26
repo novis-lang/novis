@@ -1,0 +1,183 @@
+---
+title: Reading bounces and replies
+covers: ['Core\Imap::open', 'Core\Imap\Mailbox::folder', 'Core\Imap\Folder::search', 'Core\Imap\Folder::fetch', 'Core\Imap\Folder::move', 'Core\Imap\Folder::markSeen', 'Core\Imap\Folder::markUnseen', 'Core\Imap\Folder::flag', 'Core\Imap\Folder::unflag', 'Core\Imap\Folder::delete', 'Core\Mail\Message::parse', 'Core\Mail\Message::kind', 'Core\Mail\Message::Kind', 'Core\Mail\Message::answers', 'Core\Mail\Message::bounceTag', 'Core\Mail\Message::report', 'Core\Mail\Message::html', 'Core\Mail\Report::recipients', 'Core\Mail\ReportRecipient::address', 'Core\Mail\ReportRecipient::action', 'Core\Mail\ReportRecipient::Action', 'Core\Mail\ReportRecipient::status', 'Core\Mail\ReportRecipient::isPermanent', 'Core\Mail\ReportRecipient::diagnostic']
+description: How to read a mailbox over IMAP, find bounces and replies to the mail you sent, and test it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Mail comes back after you send it. A bounce says that a message could not be delivered. A reply
+comes from a person. Your program reads these messages in two ways:
+
+- `Core\Imap` reads a mailbox on a mail server. IMAP is the protocol that mail programs use to
+  read a mailbox.
+- `Core\Mail\Message::parse` reads one message that a mail provider posts to your webhook.
+
+Both ways give you a `Core\Mail\Message`. [Sending mail](/guides/how-to-use/sending-mail/) shows how
+to send the messages.
+
+## The settings block
+
+An `[imap.<name>]` block describes one mailbox. You choose the name. This block is named `inbox`:
+
+```toml
+[imap.inbox]
+host = "imap.example.com"
+port = 993                                   # the default
+tls = "implicit"                             # encrypted from the first byte, the default
+user = "bounces@example.com"
+password_file = "/run/secrets/imap-inbox"    # the file contains the password
+
+[capabilities.imap]
+connect = ["inbox"]                          # the blocks this program may open
+```
+
+The `[capabilities.imap]` block allows the program to open the block. Without it, `Core\Imap::open`
+throws a `RuntimeError`. Your code gives only the name of the block. So a program cannot read
+another mailbox.
+
+- `tls` is `implicit` or `starttls`. With `starttls`, the connection starts without encryption and
+  is encrypted before the sign-in. There is no `none`, so a password is never sent unencrypted.
+- `tls_ca_file` is a PEM file with the certificate of your own certificate authority. It works as
+  in a `[mail.<name>]` block.
+- `auth = "xoauth2"` signs in with an OAuth token in place of a password. The keys
+  `oauth_token_url`, `oauth_client_id`, `oauth_client_secret`, `oauth_scope` and
+  `oauth_refresh_token` work as in a `[mail.<name>]` block.
+- `timeout` is how long one command to the server may take. The default is `30s`.
+
+Read every key in [Reference: configuration](/reference/config/the-blocks-the-binary-accepts/).
+
+## Reading a mailbox
+
+`Core\Imap::open` connects to the server and signs in. `folder` opens one folder, such as `INBOX`.
+`search` returns the UID of each message that matches. A UID is the number of a message in its
+folder. `fetch` reads the message with that UID:
+
+<Snippet src="guides/how-to-use/receiving-mail/read-inbox.nvs" />
+
+`search` takes these options, and each one makes the list shorter:
+
+- `unseen: true` finds only the messages that are not read yet.
+- `since` and `before` take a date. They find the messages received on that day or later, or
+  before that day.
+- `from` and `subject` take a text. They find the messages whose `From` header or subject contains it.
+- `limit` returns at most that many UIDs.
+
+The connection is closed when the request or the script ends. A script that checks the mailbox
+every few minutes can run as a [scheduled job](/guides/simple-programs/scheduled-job/).
+
+## Reading a message from a webhook
+
+Many mail providers can post each message they receive to a URL of your program. The body of that
+request is the whole message. `Core\Mail\Message::parse` reads it:
+
+<Snippet src="guides/how-to-use/receiving-mail/webhook.nvs" />
+
+`parse` takes a `string` or `bytes`. It never throws. A header that the message does not have is
+`null` or an empty list. The other sections of this page explain `kind()`, `answers()`,
+`bounceTag()` and `report()`.
+
+## What kind of message it is
+
+`kind()` returns a `Core\Mail\Message::Kind`. It is one of these:
+
+- `Bounce`: a delivery report that says at least one recipient failed.
+- `Delay`: a delivery report that says the delivery is late, and no recipient failed.
+- `Complaint`: a report that a recipient marked your message as spam.
+- `AutoReply`: a message that a program wrote, such as an out-of-office reply.
+- `Reply`: a reply from a person to an earlier message.
+- `Other`: any other message, such as a new question.
+
+Novis reads the kind from the standard headers and report formats. It never guesses from the
+subject or the sender. So a bounce that is not a standard delivery report is not a `Bounce`.
+
+<Snippet src="guides/how-to-use/receiving-mail/kinds.nvs" />
+
+## Matching a message to the mail you sent
+
+`answers()` returns the message id of the message that this one is about. For a bounce, a delay or
+a complaint, it comes from the copy of your message inside the report. For any other message, it
+comes from the `In-Reply-To` header, or else from the last id in `References`. `Core\Mail::send`
+returned the same id when you sent the message. Store it, and you can find the order or the user
+that the message is about.
+
+A bounce does not always contain a copy of your message. The `bounceTag` option of `send` helps
+here. It adds a tag to the bounce address. With `return_path = "bounces@example.com"` in the
+`[mail.<name>]` block and the tag `order-42`, a bounce goes to `bounces+order-42@example.com`.
+`bounceTag()` reads that tag from the address the bounce was delivered to. In the webhook snippet
+above, it returns `order-1042`.
+
+## The delivery report
+
+A bounce and a delay contain a delivery report. `report()` returns it. For a message that is not
+a delivery report, the result is `null`. Its `recipients()` returns one `Core\Mail\ReportRecipient` for each address:
+
+- `address()` is the address of the recipient.
+- `action()` is `Failed`, `Delayed`, `Delivered`, `Relayed` or `Expanded`.
+- `status()` is the status code, such as `5.1.1`. It is an empty string when the report has none.
+- `isPermanent()` is `true` when the status code starts with `5`. Mail to this address will not
+  arrive later, so do not send to it again.
+- `diagnostic()` is the message of the mail server, or `null`.
+
+In the webhook snippet above, `anna@example.org` failed with `5.1.1`, so `isPermanent()` is `true`.
+The delivery to `bo@example.org` is late, and the status `4.4.1` is not permanent.
+
+## Every value is tainted
+
+A received message was written by somebody outside your program. So every value that a
+`Core\Mail\Message` returns is tainted. [Tainted input](/guides/how-to-use/tainted-input/) explains
+what that means. `html()` returns a tainted string. To show it on a page, pass it to
+`Core\Html::sanitize`. It keeps simple formatting and removes scripts:
+
+<Snippet src="guides/how-to-use/receiving-mail/html-body.nvs" />
+
+## Moving, marking and deleting messages
+
+A `Core\Imap\Folder` changes messages on the server:
+
+- `move($uid, $folder)` moves the message to another folder. There it has a new UID.
+- `markSeen($uid)` marks the message as read, and `markUnseen($uid)` marks it as not read.
+- `flag($uid, $flag)` adds a flag, such as `\Flagged`, and `unflag` removes it.
+- `delete($uid)` deletes this one message. Other messages stay.
+
+`flag` does not accept `\Deleted`. Call `delete` to delete a message. This program sorts the new
+messages of a folder by their kind:
+
+<Snippet src="guides/how-to-use/receiving-mail/sort.nvs" />
+
+## Testing
+
+A test should not read or change a real mailbox. For tests, the block reads a folder on your disk
+in place of a server. Write `directory` in the block, and no other key:
+
+```toml
+[imap.inbox]
+directory = "mail"
+
+[capabilities.imap]
+connect = ["inbox"]
+
+[capabilities.fs]
+read = ["mail"]
+write = ["mail"]
+```
+
+Each folder inside `mail` is a mail folder, such as `mail/INBOX`. Each message is a file named
+`<uid>.eml`, such as `mail/INBOX/4.eml`. A `.eml` file is one whole message, headers first. The
+flags of a message are in a `<uid>.flags` file beside it, one flag on each line.
+
+The program needs `fs.read` for the folder. It also needs `fs.write` to move, mark or delete a
+message. Each change is made to the files on disk. So the test in the snippet above undoes its
+changes at the end. The snippets on this page use this block, so the output shows the messages in its folder.
+
+## Do and don't
+
+- Do keep the password in a file, and name it with `password_file`.
+- Do grant `[capabilities.imap] connect` only the blocks the program uses.
+- Do store the message id that `send` returns, and match it with `answers()`.
+- Do stop sending to an address when `isPermanent()` is `true`.
+- Don't put a received HTML body on a page without `Core\Html::sanitize`.
+- Don't test against a real mailbox. Use a `directory` block.
+
+Read every method in the reference of [`Core\Imap`](/reference/core/imap/) and
+[`Core\Mail\Message`](/reference/core/mail-message/).

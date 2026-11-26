@@ -1,0 +1,14 @@
+<?nvs
+// This program prints the sender and the subject of each new message in the inbox.
+use Core\Mail\Message;
+
+// `open` connects to the mailbox of the block `[imap.inbox]`. `folder` opens one folder.
+var $mailbox = Core\Imap::open('inbox');
+var $inbox = $mailbox->folder('INBOX');
+
+// `search` returns the UID of each message that is not read yet. The oldest message is first.
+foreach ($inbox->search({ unseen: true }) as int $uid) {
+    // `fetch` reads one message. The message stays unread.
+    Message $message = $inbox->fetch($uid);
+    echo $uid, ': ', $message->from()?->address() ?? 'unknown', ', ', $message->subject(), "\n";
+}

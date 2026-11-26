@@ -1,0 +1,24 @@
+<?nvs
+// This route reads a bounce that a mail provider posts, and prints what happened to each recipient.
+use Core\Mail\Message;
+use Core\Mail\ReportRecipient;
+
+// The body of the request is the whole message. `parse` reads it.
+Message $mail = Message::parse(Core\Request::bytes());
+
+if ($mail->kind() == Message::Kind::Bounce) {
+    // `answers()` is the message id that `Core\Mail::send` returned for your message.
+    echo 'Message: ', $mail->answers() ?? 'unknown', "\n";
+    // `bounceTag()` is the tag you gave to `send` with its `bounceTag` option.
+    echo 'Tag: ', $mail->bounceTag() ?? 'none', "\n";
+
+    // `report()` lists each recipient with its action and its status code.
+    foreach ($mail->report()?->recipients() ?? [] as ReportRecipient $recipient) {
+        ReportRecipient::Action $action = $recipient->action();
+        string $what = $action == ReportRecipient::Action::Failed ? 'failed'
+            : ($action == ReportRecipient::Action::Delayed ? 'delayed' : 'other');
+        // `isPermanent()` is `true` for a status that starts with 5.
+        string $retry = $recipient->isPermanent() ? 'do not send again' : 'may arrive later';
+        echo $recipient->address(), ': ', $what, ', ', $recipient->status(), ', ', $retry, "\n";
+    }
+}
