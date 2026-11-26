@@ -561,14 +561,15 @@ const SEND_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The message id, such as `3f2a…@example.com`, without angle brackets. The mail server \
-          accepted the message. Store the id to match a reply or a bounce to the message, or to \
+    ret: "The message id, such as `3f2a…@example.com`, without angle brackets. The call returns \
+          when the mail server has accepted the message, or when a `capture = true` block or \
+          `nvs test` has kept it. Store the id to match a reply or a bounce to the message, or to \
           pass it to `inReplyTo` later.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The capability `mail.send` does not allow `$endpoint`. Or no `[mail.<name>]` \
-                   block with that name sets `host` or `from`. Or the block sets only one \
+                   block has that name. Or the block sets only one \
                    of `user` and `password`. Or an address is not a valid address. Or \
                    `inReplyTo` or `references` has a value that is not a message id. Or \
                    `unsubscribe` is not an `https://` URL. Or `bounceTag` has a character that \
@@ -1540,7 +1541,7 @@ mod tests {
 
     /// `preview` returns the HTML and the plain text `send` sends, its CSS inlined, and the rules
     /// left in `<style>`. A string body has no HTML, and a stylesheet `<link>` throws in both.
-    // covers: Core\Mail::preview, Core\Mail::send
+    // covers: Core\Mail::preview, Core\Mail::send, Core\Mail\Preview::html, Core\Mail\Preview::text, Core\Mail\Preview::keptCss, Core\Mail\Preview::unusedCss
     #[test]
     fn preview_returns_what_send_puts_in_the_message() {
         let (mut ctx, records) = kept_site(None);
@@ -1698,9 +1699,54 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// `inlineFile` reads a granted file when it is called, takes the path's last part as its
+    /// name, and its `src()` is `cid:` and the Content-ID the message carries. Two reads of one
+    /// file are two images with two Content-IDs.
+    // covers: Core\Mail\Attachment::inlineFile, Core\Mail\Attachment::src
+    #[cfg_attr(
+        miri,
+        ignore = "reaches a file through `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn an_inline_file_is_read_when_called_and_its_src_is_its_content_id() {
+        let dir = nvs_repo::scratch("mail-inline-file");
+        let granted = dir.join("granted");
+        std::fs::create_dir_all(&granted).expect("a temporary directory the test owns");
+        let logo_path = granted.join("logo.png");
+        std::fs::write(&logo_path, b"\x89PNG\r\n\x1a\n").expect("the image to attach");
+        let (mut ctx, _records) = kept_site(Some(&granted));
+
+        let path = Value::text(&logo_path.to_string_lossy());
+        let first = nvs_runtime::call(parts::HELPERS[2], &mut ctx, &[path, Value::null()])
+            .expect("a granted file");
+        let second = nvs_runtime::call(parts::HELPERS[2], &mut ctx, &[path, Value::null()])
+            .expect("a granted file");
+        let src = nvs_runtime::call(parts::HELPERS[4], &mut ctx, &[first])
+            .expect("an inline image has a src");
+        let other = nvs_runtime::call(parts::HELPERS[4], &mut ctx, &[second])
+            .expect("an inline image has a src");
+
+        let part = parts::part_of(first, "send").expect("an attachment");
+        assert_eq!(part.name, "logo.png", "the name is the path's last part");
+        assert_eq!(part.media_type, "image/png", "the type is read from the bytes");
+        assert_eq!(part.data, b"\x89PNG\r\n\x1a\n");
+        let id = part.content_id.expect("an inline image has a Content-ID");
+        assert_eq!(src.as_text(), Some(format!("cid:{id}").as_str()));
+        assert_ne!(src.as_text(), other.as_text(), "each read has its own Content-ID");
+
+        std::fs::remove_file(&logo_path).expect("the test's own file");
+        assert!(
+            parts::part_of(first, "send").is_ok(),
+            "the bytes were read when the call ran"
+        );
+
+        release([path, first, second, src, other]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// An inline attachment's `src()` is `cid:` and its Content-ID, and a message whose HTML uses
     /// it is sent. An attachment that is not inline has no `src()`.
-    // covers: Core\Mail\Attachment::inlineBytes, Core\Mail::send
+    // covers: Core\Mail\Attachment::inlineBytes, Core\Mail\Attachment::src, Core\Mail::send
     #[test]
     fn an_inline_image_src_is_its_content_id() {
         let (mut ctx, records) = kept_site(None);
