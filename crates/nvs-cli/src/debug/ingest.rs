@@ -429,8 +429,8 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
             let inserted = tx.execute(
                 "INSERT OR IGNORE INTO requests \
                  (writer, seq, batch, trace, span, start_us, duration_us, method, route, path, \
-                 status) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                 status, memory_peak, memory_limit, handler, bytes_in, bytes_out) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 params![
                     key.0,
                     key.1,
@@ -443,6 +443,11 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                     request.route,
                     request.path,
                     request.status,
+                    request.memory_peak.map(int),
+                    request.memory_limit.map(int),
+                    request.handler,
+                    request.bytes_in.map(int),
+                    request.bytes_out.map(int),
                 ],
             )?;
             if inserted == 0 {

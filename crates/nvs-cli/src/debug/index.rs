@@ -28,6 +28,10 @@
 //! after its request line counts its own statement at its site, on the `events_trace` index, and a
 //! query whose request is not in yet costs nothing. Spends: eight integers per request row.
 //!
+//! A request row also keeps what its line recorded of the program: the memory peak and limit,
+//! the handler's name and the body bytes read and written, each null where the line has none.
+//! Spends: four integers and one name per request row.
+//!
 //! # The viewer's cursor
 //!
 //! A request's id is `AUTOINCREMENT`, so it only rises, and in the order the batches were
@@ -64,7 +68,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 10;
+pub(crate) const SCHEMA: i64 = 11;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -109,7 +113,12 @@ CREATE TABLE requests (
     file_us INTEGER NOT NULL DEFAULT 0,
     gc_us INTEGER NOT NULL DEFAULT 0,
     spawn_us INTEGER NOT NULL DEFAULT 0,
-    repeats INTEGER NOT NULL DEFAULT 0
+    repeats INTEGER NOT NULL DEFAULT 0,
+    memory_peak INTEGER,
+    memory_limit INTEGER,
+    handler TEXT,
+    bytes_in INTEGER,
+    bytes_out INTEGER
 );
 CREATE UNIQUE INDEX requests_key ON requests (writer, seq);
 CREATE INDEX requests_trace ON requests (trace);

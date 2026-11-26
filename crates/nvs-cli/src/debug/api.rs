@@ -14,11 +14,12 @@
 //! cursor*), so neither moves a row the viewer already shows.
 //!
 //! **A filter is a bound parameter, and a filtered page reads a bounded range.** `method`,
-//! `status` (a code, or a class such as `5xx`), `route`, `min_us` and `threw` each add one
-//! predicate. A page with any of them reads at most [`FILTER_SCAN`] ids below its cursor, so a
+//! `status` (a code, or a class such as `5xx`), `route`, `min_us`, `min_memory` (a memory peak in
+//! bytes) and `threw` each add one predicate. A page with any of them reads at most [`FILTER_SCAN`] ids below its cursor, so a
 //! filter that matches few requests never walks the whole index in one API request: the page
 //! can hold fewer rows than its limit, and `older` then names the floor it stopped at. A row
-//! carries its time by event kind and its repeat count, which the index keeps at ingest.
+//! carries its time by event kind and its repeat count, which the index keeps at ingest, and the
+//! memory peak and limit, the handler and the body sizes its `request` line recorded.
 //! The summary, the routes, the statements and the health are [`super::summary`].
 //!
 //! **One request is its trace id and span id.** `GET /api/request?trace=&span=` gives the row,
@@ -148,6 +149,14 @@ pub(super) struct Row {
     time_us: TimeByKind,
     /// The most times one statement text ran at one call site in it.
     repeats: i64,
+    /// The highest its memory was, and its ceiling, in bytes, where the line recorded them.
+    memory_peak: Option<i64>,
+    memory_limit: Option<i64>,
+    /// The matched route's handler, `Class::method`, where the line recorded one.
+    handler: Option<String>,
+    /// The request body bytes the server read, and the response body bytes, where recorded.
+    bytes_in: Option<i64>,
+    bytes_out: Option<i64>,
 }
 
 /// A request's summed event durations by kind, in microseconds, which the index keeps at ingest
@@ -354,6 +363,7 @@ struct Filter {
     status: Option<StatusFilter>,
     route: Option<String>,
     min_us: Option<i64>,
+    min_memory: Option<i64>,
     threw: Option<bool>,
 }
 
@@ -568,11 +578,12 @@ impl Filter {
             || self.status.is_some()
             || self.route.is_some()
             || self.min_us.is_some()
+            || self.min_memory.is_some()
             || self.threw.is_some()
     }
 
-    /// Reads `before`, `since`, `trace`, `span`, `limit`, `method`, `status`, `route`, `min_us`
-    /// and `threw`. Any other key is an error, so a viewer that sends one finds out.
+    /// Reads `before`, `since`, `trace`, `span`, `limit`, `method`, `status`, `route`, `min_us`,
+    /// `min_memory` and `threw`. Any other key is an error, so a viewer that sends one finds out.
     fn parse(query: &str) -> Result<Self, String> {
         let mut filter = Self::default();
         for pair in query.split('&').filter(|pair| !pair.is_empty()) {
@@ -600,6 +611,7 @@ impl Filter {
                 "status" => filter.status = Some(status(value)?),
                 "route" => filter.route = Some(super::search::decode(key, value)?),
                 "min_us" => filter.min_us = Some(number(key, value)?),
+                "min_memory" => filter.min_memory = Some(number(key, value)?),
                 "threw" => {
                     filter.threw = Some(match value {
                         "true" => true,
@@ -687,6 +699,10 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
         wheres.push("r.duration_us >= ?");
         values.push(min_us);
     }
+    if let Some(min_memory) = &filter.min_memory {
+        wheres.push("r.memory_peak >= ?");
+        values.push(min_memory);
+    }
     match filter.threw {
         Some(true) => wheres.push("r.exception_group IS NOT NULL"),
         Some(false) => wheres.push("r.exception_group IS NULL"),
@@ -757,10 +773,10 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
 pub(super) const ROW: &str = "r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
                    r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line, \
                    r.db_us, r.http_us, r.cache_us, r.session_us, r.file_us, r.gc_us, r.spawn_us, \
-                   r.repeats";
+                   r.repeats, r.memory_peak, r.memory_limit, r.handler, r.bytes_in, r.bytes_out";
 
 /// How many columns [`ROW`] names, so a query that selects more after it knows their positions.
-pub(super) const ROW_LEN: usize = 24;
+pub(super) const ROW_LEN: usize = 29;
 
 /// One [`Row`] from the columns [`ROW`] names, in its order.
 pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
@@ -797,6 +813,11 @@ pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
             spawn: row.get(22)?,
         },
         repeats: row.get(23)?,
+        memory_peak: row.get(24)?,
+        memory_limit: row.get(25)?,
+        handler: row.get(26)?,
+        bytes_in: row.get(27)?,
+        bytes_out: row.get(28)?,
     })
 }
 

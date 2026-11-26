@@ -454,7 +454,16 @@ fn spool() -> String {
         if let Some(route) = route {
             request["route"] = json!(route);
         }
+        if *span == "b7ad6b7169203331" {
+            request["memory_peak"] = json!(2_097_152);
+            request["handler"] = json!("Shop\\Items::show");
+        }
         if *status == 500 {
+            request["memory_peak"] = json!(8_388_608);
+            request["memory_limit"] = json!(134_217_728);
+            request["handler"] = json!("Shop\\Orders::create");
+            request["bytes_in"] = json!(23);
+            request["bytes_out"] = json!(13);
             request["exception"] = json!({
                 "class": "Shop\\OutOfStock", "message": "item 7 is out of stock",
                 "file": "src/Shop/Orders.nvs", "line": 42
@@ -1104,6 +1113,8 @@ fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
         ["/items/7"]
     );
     assert_eq!(paths_of(&service, "min_us=3000"), ["/items/7", "/orders"]);
+    assert_eq!(paths_of(&service, "min_memory=4000000"), ["/orders"]);
+    assert_eq!(paths_of(&service, "min_memory=1"), ["/orders", "/items/7"]);
     assert_eq!(paths_of(&service, "threw=true"), ["/orders"]);
     assert_eq!(paths_of(&service, "threw=false").len(), 5);
     for wrong in [
@@ -1112,6 +1123,7 @@ fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
         "method=get",
         "threw=yes",
         "min_us=-1",
+        "min_memory=-1",
     ] {
         let (status, body) = service.get(&format!("/api/requests?{wrong}"));
         assert_eq!(status, 400, "{wrong}: {body}");
@@ -1145,6 +1157,34 @@ fn the_list_filters_and_each_row_has_its_time_by_kind_and_its_repeats() {
     );
     assert_eq!(threw["repeats"], 1);
     assert_eq!(row("/", "GET")["repeats"], 0);
+    assert_eq!(
+        (
+            &threw["memory_peak"],
+            &threw["memory_limit"],
+            &threw["handler"],
+            &threw["bytes_in"],
+            &threw["bytes_out"],
+        ),
+        (
+            &json!(8_388_608),
+            &json!(134_217_728),
+            &json!("Shop\\Orders::create"),
+            &json!(23),
+            &json!(13),
+        ),
+        "the row has the memory, the handler and the sizes its line recorded"
+    );
+    assert_eq!(
+        (&looped["memory_peak"], &looped["memory_limit"]),
+        (&json!(2_097_152), &Value::Null),
+        "a request with no ceiling has a peak and no limit"
+    );
+    let missing = row("/missing", "GET");
+    assert_eq!(
+        (&missing["memory_peak"], &missing["handler"], &missing["bytes_out"]),
+        (&Value::Null, &Value::Null, &Value::Null),
+        "a line without the fields reads with each null"
+    );
 
     let until = 1_700_000_300_000_000_i64;
     let summary = service.json(&format!("/api/summary?until={until}"));

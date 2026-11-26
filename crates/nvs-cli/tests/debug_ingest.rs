@@ -326,6 +326,69 @@ fn a_crash_between_commit_and_delete_ingests_nothing_twice() {
     assert_eq!(row, (1, 1, 1), "the request counts its query, dump and log");
 }
 
+/// A request's memory, handler and sizes reach its row, and a line written before they existed
+/// reads with each of them null.
+#[test]
+fn a_requests_memory_handler_and_sizes_reach_its_row_and_an_older_line_reads() {
+    type Facts = (
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+    );
+    let folder = Folder::new();
+    let start = now_us();
+    let with = copy("9-1-0", "00000000000000000000000000000009", start);
+    let mut without = copy("9-2-0", "0000000000000000000000000000000a", start + 10_000);
+    for line in &mut without {
+        if let Record::Request(request) = &mut line.record {
+            request.memory_peak = None;
+            request.memory_limit = None;
+            request.handler = None;
+            request.bytes_in = None;
+            request.bytes_out = None;
+        }
+    }
+    folder.write("9-1-0.0.spool", &with);
+    folder.write("9-2-0.0.spool", &without);
+    folder.ingest();
+    let db = folder.index();
+    let facts = |trace: &str| -> Facts {
+        db.query_row(
+            "SELECT memory_peak, memory_limit, handler, bytes_in, bytes_out FROM requests \
+             WHERE trace = ?1",
+            [trace],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("the request has its row")
+    };
+    assert_eq!(
+        facts("00000000000000000000000000000009"),
+        (
+            Some(1_048_576),
+            Some(134_217_728),
+            Some("Shop\\Orders::create".to_owned()),
+            Some(34),
+            Some(3),
+        ),
+        "the sample's figures round-trip"
+    );
+    assert_eq!(
+        facts("0000000000000000000000000000000a"),
+        (None, None, None, None, None),
+        "a line without them reads"
+    );
+}
+
 #[test]
 fn a_search_finds_a_dumps_text() {
     let folder = Folder::new();
