@@ -6,7 +6,7 @@ use Core\Mail\Message;
 array<string> $headers = [
     "Date: Wed, 4 Nov 2026 09:30:00 -0500\r\n",
     "Date: sometime next week\r\n",
-    "",
+    '',
 ];
 
 // The first date is read. The second is not a date, and the third message has no `Date` header.

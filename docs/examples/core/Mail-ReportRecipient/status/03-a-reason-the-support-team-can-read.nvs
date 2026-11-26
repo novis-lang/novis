@@ -31,15 +31,15 @@ class Reason
 
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
-    . "Subject: Undelivered Mail\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
-    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.7.1\n\n"
-    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.7\n\n"
-    . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.3.0\n"
-    . "--b--\n"
+        . "Subject: Undelivered Mail\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+        . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.7.1\n\n"
+        . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.7\n\n"
+        . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.3.0\n"
+        . "--b--\n",
 );
 
 foreach ($bounce->report()?->recipients() ?? [] as ReportRecipient $recipient) {

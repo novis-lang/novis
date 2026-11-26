@@ -13,11 +13,11 @@ class Forged
     {
         return Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\nStatus: 5.1.1\n\n"
-            . $groups
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\nStatus: 5.1.1\n\n"
+                . $groups
+                . "--b--\n",
         );
     }
 }
@@ -25,13 +25,13 @@ class Forged
 string $groups =
     // 1. A temporary code with `5.1.1` in a comment, and with `5.1.1` in the server message.
     "Final-Recipient: rfc822; a@example.org\nAction: failed\nStatus: 4.2.2 (5.1.1 permanent)\n\n"
-    . "Final-Recipient: rfc822; b@example.org\nAction: failed\nStatus: 4.4.1\nDiagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
-    // 2. A code with spaces in front of the `5`, and a field name in lower case.
-    . "Final-Recipient: rfc822; c@example.org\nAction: failed\nStatus:      5.1.1\n\n"
-    . "Final-Recipient: rfc822; d@example.org\nAction: failed\nstatus: 5.1.1\n\n"
-    // 3. A delivered recipient with a permanent code, and a recipient with no status at all.
-    . "Final-Recipient: rfc822; e@example.org\nAction: delivered\nStatus: 5.1.1\n\n"
-    . "Final-Recipient: rfc822; f@example.org\nAction: failed\n\n";
+        . "Final-Recipient: rfc822; b@example.org\nAction: failed\nStatus: 4.4.1\nDiagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
+        // 2. A code with spaces in front of the `5`, and a field name in lower case.
+        . "Final-Recipient: rfc822; c@example.org\nAction: failed\nStatus:      5.1.1\n\n"
+        . "Final-Recipient: rfc822; d@example.org\nAction: failed\nstatus: 5.1.1\n\n"
+        // 3. A delivered recipient with a permanent code, and a recipient with no status at all.
+        . "Final-Recipient: rfc822; e@example.org\nAction: delivered\nStatus: 5.1.1\n\n"
+        . "Final-Recipient: rfc822; f@example.org\nAction: failed\n\n";
 foreach (Forged::report($groups)->report()?->recipients() ?? [] as ReportRecipient $recipient) {
     echo $recipient->address(), ' ', $recipient->isPermanent() ? 'permanent' : 'temporary', "\n";
 }

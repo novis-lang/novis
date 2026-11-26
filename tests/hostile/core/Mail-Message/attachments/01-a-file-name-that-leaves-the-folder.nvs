@@ -12,9 +12,9 @@ class Mailed
     {
         return Message::parse(
             "MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b1\"\n\n"
-            . "--b1\nContent-Type: text/plain\n\nHello\n"
-            . "--b1\nContent-Type: application/octet-stream\nContent-Disposition: attachment; filename=\"" . $name . "\"\n\nroot:x:0:0\n"
-            . "--b1--\n"
+                . "--b1\nContent-Type: text/plain\n\nHello\n"
+                . "--b1\nContent-Type: application/octet-stream\nContent-Disposition: attachment; filename=\"" . $name . "\"\n\nroot:x:0:0\n"
+                . "--b1--\n",
         );
     }
 
@@ -52,4 +52,4 @@ while ($n < 3000) {
     $n = $n + 1;
 }
 Message $many = Message::parse("MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b1\"\n\n" . $parts . "--b1--\n");
-echo "5 ", Core\Arr::count($many->attachments()), "\n";
+echo '5 ', Core\Arr::count($many->attachments()), "\n";

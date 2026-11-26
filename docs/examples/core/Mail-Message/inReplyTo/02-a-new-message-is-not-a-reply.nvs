@@ -13,6 +13,6 @@ foreach ($inbox as Message $message) {
     if ($message->inReplyTo() == null) {
         echo $message->subject(), ": a new ticket\n";
     } else {
-        echo $message->subject(), ": a reply to ", $message->inReplyTo() ?? '', "\n";
+        echo $message->subject(), ': a reply to ', $message->inReplyTo() ?? '', "\n";
     }
 }

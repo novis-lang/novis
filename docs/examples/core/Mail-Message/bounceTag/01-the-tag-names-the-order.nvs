@@ -7,13 +7,13 @@ use Core\Mail\Message;
 // The server sends the bounce to `bounces+order-1042@example.com`, and writes that in `Delivered-To`.
 Message $bounce = Message::parse(
     "Delivered-To: bounces+order-1042@example.com\n"
-    . "From: mailer-daemon@mx.example.net\nTo: bounces@example.com\n"
-    . "Subject: Undelivered Mail Returned to Sender\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; anna@example.org\nAction: failed\nStatus: 5.1.1\n"
-    . "--b--\n"
+        . "From: mailer-daemon@mx.example.net\nTo: bounces@example.com\n"
+        . "Subject: Undelivered Mail Returned to Sender\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; anna@example.org\nAction: failed\nStatus: 5.1.1\n"
+        . "--b--\n",
 );
 
 // `answers()` returns the id of the mail that bounced, from the copy inside the bounce.

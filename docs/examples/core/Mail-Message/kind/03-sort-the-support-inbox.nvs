@@ -20,8 +20,8 @@ class Folder
 array<string> $inbox = [
     // A mail provider reports that a customer marked a mail as spam.
     "From: abuse@mail.example.net\nSubject: Complaint\n"
-    . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
-    . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\n--f--\n",
+        . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
+        . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\n--f--\n",
     // An out-of-office program wrote this message. It has the header `X-Autoreply`.
     "From: bo@example.org\nX-Autoreply: yes\nSubject: Re: Ticket 7\nIn-Reply-To: <ticket-7@example.com>\n\nI am away.\n",
     // The customer answers the support team.

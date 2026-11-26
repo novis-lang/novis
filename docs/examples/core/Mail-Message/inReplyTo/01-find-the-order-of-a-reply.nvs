@@ -8,10 +8,10 @@ array<int> $sent = ['order-41@example.com' => 41, 'order-42@example.com' => 42];
 
 Message $reply = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "Subject: Re: Your order\n"
-    . "In-Reply-To: <order-42@example.com>\n"
-    . "\n"
-    . "Can I change the address?\n"
+        . "Subject: Re: Your order\n"
+        . "In-Reply-To: <order-42@example.com>\n"
+        . "\n"
+        . "Can I change the address?\n",
 );
 
 // `inReplyTo()` returns the id as a tainted string (text from outside your program).

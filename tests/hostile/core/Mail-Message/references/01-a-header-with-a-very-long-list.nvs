@@ -6,16 +6,16 @@ use Core\Mail\Message;
 
 // 1. 200,000 ids on one header line.
 Message $long = Message::parse('References: ' . Core\Str::repeat('<a@example.com> ', 200000) . "\n\nHello");
-echo "1 ", Core\Arr::count($long->references()), "\n";
+echo '1 ', Core\Arr::count($long->references()), "\n";
 
 // 2. Brackets that never close, empty brackets, and text with no brackets.
 Message $broken = Message::parse("References: <a@example.com <> <<b>> plain-text\n\nHello");
-echo "2 ", Core\Arr::count($broken->references()), "\n";
+echo '2 ', Core\Arr::count($broken->references()), "\n";
 
 // 3. The message has the header 3,000 times. `parse` reads only the first 1,000 header lines.
 Message $copies = Message::parse(Core\Str::repeat("References: <x@example.com>\n", 3000) . "\nHello");
-echo "3 ", Core\Arr::count($copies->references()), "\n";
+echo '3 ', Core\Arr::count($copies->references()), "\n";
 
 // 4. An id of 1 MB.
 Message $big = Message::parse('References: <' . Core\Str::repeat('a', 1048576) . "@example.com>\n\nHello");
-echo "4 ", Core\Str::length(Core\Arr::first($big->references()) ?? ''), "\n";
+echo '4 ', Core\Str::length(Core\Arr::first($big->references()) ?? ''), "\n";

@@ -26,9 +26,12 @@ Kind::show('2', "Content-Type: multipart/report; boundary=\"b\"\n\n--b\nContent-
 Kind::show('3', "Content-Type: multipart/mixed; boundary=\"b\"\n\n--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n");
 
 // 4. A normal mail with a bounce attached inside it. The outer message is not a report, so it is not a bounce.
-Kind::show('4', "Content-Type: multipart/mixed; boundary=\"o\"\n\n--o\nContent-Type: message/rfc822\n\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n--o--\n");
+Kind::show(
+    '4',
+    "Content-Type: multipart/mixed; boundary=\"o\"\n\n--o\nContent-Type: message/rfc822\n\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n--o--\n",
+);
 
 // 5. A delivery report whose status part is not there.
 Kind::show('5', "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n--b\nContent-Type: text/plain\n\n" . $groups . "--b--\n");
@@ -39,15 +42,18 @@ string $close = '';
 uint $level = 0;
 while ($level < 5000) {
     $open = $open . "Content-Type: multipart/mixed; boundary=\"n" . $level . "\"\n\n--n" . $level . "\n";
-    $close = "--n" . $level . "--\n" . $close;
+    $close = '--n' . $level . "--\n" . $close;
     $level = $level + 1;
 }
 Kind::show('6', $open . "Content-Type: message/delivery-status\n\n" . $groups . $close);
 
 // 7. A real report after 200,000 `Auto-Submitted` header lines.
-Kind::show('7', Str::repeat("Auto-Submitted: auto-replied\n", 200000)
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n");
+Kind::show(
+    '7',
+    Str::repeat("Auto-Submitted: auto-replied\n", 200000)
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n" . $groups . "--b--\n",
+);
 
 // 8. A report type of one million letters.
-Kind::show('8', "Content-Type: multipart/report; report-type=" . Str::repeat('x', 1000000) . "; boundary=\"b\"\n\n--b--\n");
+Kind::show('8', 'Content-Type: multipart/report; report-type=' . Str::repeat('x', 1000000) . "; boundary=\"b\"\n\n--b--\n");

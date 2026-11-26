@@ -9,18 +9,18 @@ array<string> $subscribers = ['ada@example.org', 'bo@example.org', 'cy@example.o
 // These bounces arrived after the last newsletter.
 array<string> $bounces = [
     "From: mailer-daemon@mx.example.net\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
-    . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.1\n"
-    . "--b--\n",
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+        . "Final-Recipient: rfc822; cy@example.org\nAction: delayed\nStatus: 4.4.1\n"
+        . "--b--\n",
     "From: postmaster@mx.example.com\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"c\"\n\n"
-    . "--c\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.com\n\n"
-    . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.2.1\n"
-    . "--c--\n",
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"c\"\n\n"
+        . "--c\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.com\n\n"
+        . "Final-Recipient: rfc822; dee@example.org\nAction: failed\nStatus: 5.2.1\n"
+        . "--c--\n",
 ];
 
 // This loop collects the addresses that failed permanently.

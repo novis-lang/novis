@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to flag a complaint, so that it shows with a star or a red flag in a mail program.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 var $inbox = Imap::open('shop')->folder('INBOX');
 

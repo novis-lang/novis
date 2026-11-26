@@ -7,14 +7,14 @@ use Core\Mail\ReportRecipient;
 // A mail server sends this report back. The report lists three recipients.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
-    . "Subject: Undelivered Mail\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
-    . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.2.2\n\n"
-    . "Final-Recipient: rfc822; cy@example.org\nAction: delivered\nStatus: 2.0.0\n"
-    . "--b--\n"
+        . "Subject: Undelivered Mail\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+        . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.2.2\n\n"
+        . "Final-Recipient: rfc822; cy@example.org\nAction: delivered\nStatus: 2.0.0\n"
+        . "--b--\n",
 );
 
 // `5.1.1` means the address does not exist. `4.2.2` means the mailbox is full for now.

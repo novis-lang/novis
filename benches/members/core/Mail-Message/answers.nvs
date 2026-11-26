@@ -14,10 +14,10 @@ class Bench
             Message::parse("From: dee@example.org\nReferences: <a@example.com> <order-42@example.com>\n\nSee below.\n"),
             Message::parse(
                 "From: mailer-daemon@mx.example.net\n"
-                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-                . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; x\n\n"
-                . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
-                . "--b\nContent-Type: text/rfc822-headers\n\nMessage-ID: <order-1042@example.com>\n\n--b--\n"
+                    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                    . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; x\n\n"
+                    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+                    . "--b\nContent-Type: text/rfc822-headers\n\nMessage-ID: <order-1042@example.com>\n\n--b--\n",
             ),
         ];
         uint $total = 0;

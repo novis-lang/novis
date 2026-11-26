@@ -6,11 +6,11 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "From: Ada <ada@example.org>\r\n"
-    . "To: support@example.com, bo@example.org\r\n"
-    . "Cc: Cleo <cleo@example.org>, support@example.com\r\n"
-    . "Subject: Delivery date\r\n"
-    . "\r\n"
-    . "When does the order arrive?"
+        . "To: support@example.com, bo@example.org\r\n"
+        . "Cc: Cleo <cleo@example.org>, support@example.com\r\n"
+        . "Subject: Delivery date\r\n"
+        . "\r\n"
+        . 'When does the order arrive?',
 );
 
 // The reply goes to the sender, every `To` recipient and every `Cc` recipient.

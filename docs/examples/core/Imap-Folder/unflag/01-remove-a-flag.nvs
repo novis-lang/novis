@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to remove the flag from a complaint once it is answered.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 var $inbox = Imap::open('shop')->folder('INBOX');
 

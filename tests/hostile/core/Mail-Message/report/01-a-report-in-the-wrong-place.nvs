@@ -16,7 +16,7 @@ class Show
 
     public static function message(string $type, string $part): string
     {
-        return "Content-Type: " . $type . "; boundary=\"b\"\n\n--b\n" . $part . "--b--\n";
+        return 'Content-Type: ' . $type . "; boundary=\"b\"\n\n--b\n" . $part . "--b--\n";
     }
 }
 
@@ -42,5 +42,7 @@ Show::report('5', Show::message('multipart/report; report-type=delivery-status',
 Show::report('6', Show::message('multipart/report; report-type=delivery-status', $status . Str::repeat('Action: failed; ', 600000) . "\n"));
 
 // 7. A report part in base64 that is not valid base64.
-Show::report('7', Show::message('multipart/report; report-type=delivery-status',
-    "Content-Type: message/delivery-status\nContent-Transfer-Encoding: base64\n\n!!!not base64!!!\n"));
+Show::report('7', Show::message(
+    'multipart/report; report-type=delivery-status',
+    "Content-Type: message/delivery-status\nContent-Transfer-Encoding: base64\n\n!!!not base64!!!\n",
+));

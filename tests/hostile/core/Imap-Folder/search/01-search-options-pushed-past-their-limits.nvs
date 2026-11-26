@@ -8,8 +8,10 @@ use Core\Imap;
 use Core\Str;
 use Core\Time\Date;
 
-final class Show {
-    public static function uids(array<int> $uids): string {
+final class Show
+{
+    public static function uids(array<int> $uids): string
+    {
         string $text = '';
         foreach ($uids as int $uid) {
             $text = $text . ' ' . $uid;

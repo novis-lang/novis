@@ -5,12 +5,12 @@ use Core\Mail\Message;
 
 Message $post = Message::parse(
     "From: Forum <forum@example.com>\n"
-    . "Subject: New answer in your topic\n"
-    . "List-Id: Shop forum <forum.example.com>\n"
-    . "Received: from mx1.example.net\n"
-    . "Received: from mx2.example.net\n"
-    . "\n"
-    . "Someone answered your question.\n"
+        . "Subject: New answer in your topic\n"
+        . "List-Id: Shop forum <forum.example.com>\n"
+        . "Received: from mx1.example.net\n"
+        . "Received: from mx2.example.net\n"
+        . "\n"
+        . "Someone answered your question.\n",
 );
 
 // `List-Id` names the mailing list that a message came from. `header()` returns one value for each line.

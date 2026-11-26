@@ -7,9 +7,9 @@ use Core\Mail\Message;
 // The sender chose this name, and it has HTML in it.
 Message $mail = Message::parse(
     "From: \"<b>Bo</b>\" <bo@example.org>\r\n"
-    . "Subject: Refund\r\n"
-    . "\r\n"
-    . "I would like a refund."
+        . "Subject: Refund\r\n"
+        . "\r\n"
+        . 'I would like a refund.',
 );
 
 // The name and the address are tainted. Tainted means that the value comes from outside your program.

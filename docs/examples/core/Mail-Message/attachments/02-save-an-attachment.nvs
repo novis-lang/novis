@@ -7,20 +7,20 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "Subject: The photo\n"
-    . "MIME-Version: 1.0\n"
-    . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
-    . "\n"
-    . "--b1\n"
-    . "Content-Type: text/plain\n"
-    . "\n"
-    . "The photo of the broken mug.\n"
-    . "--b1\n"
-    . "Content-Type: image/png\n"
-    . "Content-Disposition: attachment; filename=\"mug.png\"\n"
-    . "Content-Transfer-Encoding: base64\n"
-    . "\n"
-    . "iVBORw0KGgo=\n"
-    . "--b1--\n"
+        . "MIME-Version: 1.0\n"
+        . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
+        . "\n"
+        . "--b1\n"
+        . "Content-Type: text/plain\n"
+        . "\n"
+        . "The photo of the broken mug.\n"
+        . "--b1\n"
+        . "Content-Type: image/png\n"
+        . "Content-Disposition: attachment; filename=\"mug.png\"\n"
+        . "Content-Transfer-Encoding: base64\n"
+        . "\n"
+        . "iVBORw0KGgo=\n"
+        . "--b1--\n",
 );
 
 // `name()` is a tainted string (text from outside your program), because the sender chose it.

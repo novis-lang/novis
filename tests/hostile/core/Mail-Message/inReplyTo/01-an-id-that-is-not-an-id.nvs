@@ -9,7 +9,7 @@ class Show
 {
     public static function id(int $step, string $header): void
     {
-        ?tainted string $id = Message::parse("In-Reply-To: " . $header . "\n\nHello")->inReplyTo();
+        ?tainted string $id = Message::parse('In-Reply-To: ' . $header . "\n\nHello")->inReplyTo();
         echo $step, ' ', $id == null ? 'null' : Core\Str::length($id ?? ''), "\n";
     }
 }

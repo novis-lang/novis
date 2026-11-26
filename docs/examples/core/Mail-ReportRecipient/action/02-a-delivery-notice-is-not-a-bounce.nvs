@@ -7,12 +7,12 @@ use Core\Mail\ReportRecipient;
 // Some servers send a report when the message arrives, if the sender asked for one.
 Message $notice = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
-    . "Subject: Delivery Status Notification (Success)\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: delivered\nStatus: 2.0.0\n"
-    . "--b--\n"
+        . "Subject: Delivery Status Notification (Success)\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: delivered\nStatus: 2.0.0\n"
+        . "--b--\n",
 );
 
 // `kind()` returns the kind of message. `Other` means it is not a bounce, a delay, a complaint, a reply or an automatic reply.

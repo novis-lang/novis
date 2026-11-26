@@ -9,20 +9,20 @@ use Core\Mail\Message;
 var $inbox = Core\Imap::open('inbox')->folder('INBOX');
 
 // 1. `search()` lists only the files whose name is a valid UID.
-echo "1 ", Core\Str::join(Core\Arr::map($inbox->search(), fn(int $uid): string => $uid . ''), ','), "\n";
+echo '1 ', Core\Str::join(Core\Arr::map($inbox->search(), fn(int $uid): string => $uid . ''), ','), "\n";
 
 // 2. The sender wrote an `X-Uid: 99` header in the message. `uid()` ignores it and should return the UID of the file.
-echo "2 ", $inbox->fetch(5)->uid() ?? 0, "\n";
+echo '2 ', $inbox->fetch(5)->uid() ?? 0, "\n";
 
 // 3. UIDs that cannot exist. Each error is caught, so the next one still runs.
 array<int> $wrong = [0, -1, 4294967296, 9223372036854775807, 6];
 foreach ($wrong as int $uid) {
     try {
         Message $message = $inbox->fetch($uid);
-        echo "3 ", $uid, " read as ", $message->uid() ?? 0, "\n";
+        echo '3 ', $uid, ' read as ', $message->uid() ?? 0, "\n";
     } catch (IOError $missing) {
-        echo "3 ", $uid, " IOError\n";
+        echo '3 ', $uid, " IOError\n";
     } catch (RuntimeError $error) {
-        echo "3 ", $uid, " RuntimeError\n";
+        echo '3 ', $uid, " RuntimeError\n";
     }
 }

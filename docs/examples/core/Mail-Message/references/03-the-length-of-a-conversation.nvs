@@ -5,11 +5,11 @@ use Core\Mail\Message;
 
 Message $reply = Message::parse(
     "Subject: Re: Ticket 7\n"
-    . "References: <ticket-7@example.com>\n"
-    . " <answer-1@example.com>\n"
-    . " <question-2@example.org>\n"
-    . "\n"
-    . "It works now.\n"
+        . "References: <ticket-7@example.com>\n"
+        . " <answer-1@example.com>\n"
+        . " <question-2@example.org>\n"
+        . "\n"
+        . "It works now.\n",
 );
 
 // A long `References` header continues on the next lines. Each of these lines starts with a space.

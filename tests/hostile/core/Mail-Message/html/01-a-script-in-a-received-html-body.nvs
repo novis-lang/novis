@@ -25,7 +25,7 @@ class Received
 
 // 1. A script, an event handler and a `javascript:` link.
 Received::check(1, Received::page(
-    '<p onclick="steal()">Hi</p><script>steal()</script><a href="javascript:steal()">open</a>' as bytes
+    '<p onclick="steal()">Hi</p><script>steal()</script><a href="javascript:steal()">open</a>' as bytes,
 ));
 
 // 2. 100,000 nested `div` tags around one script.

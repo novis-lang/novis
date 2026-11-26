@@ -16,11 +16,11 @@ class Forged
     {
         Message $message = Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\n\n"
-            . $groups
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . $groups
+                . "--b--\n",
         );
         array<tainted string> $addresses = [];
         foreach ($message->report()?->recipients() ?? [] as ReportRecipient $recipient) {
@@ -40,7 +40,7 @@ class AddressAttackTest
         string $groups = "Final-Recipient: rfc822; ada@example.org\rBcc: all@example.com\nAction: failed\n\n"
             . "Final-Recipient: rfc822; a\x00b@example.org\nAction: failed\n\n"
             . "Final-Recipient: rfc822; bo\x07@example.org\nAction: failed\n\n"
-            . "Final-Recipient: rfc822; cy" . Str::fromCodePoint(27) . "[31m@example.org\nAction: failed\n\n"
+            . 'Final-Recipient: rfc822; cy' . Str::fromCodePoint(27) . "[31m@example.org\nAction: failed\n\n"
             . "Final-Recipient: rfc822; dee@example.org\nAction: failed\n";
         Test::assertSame(Forged::addresses($groups), ['dee@example.org']);
     }
@@ -69,7 +69,7 @@ class AddressAttackTest
     {
         // 5. An address of 4 MB. It is returned whole, and the program keeps running.
         string $local = Str::repeat('a', 4194304);
-        array<tainted string> $addresses = Forged::addresses("Final-Recipient: rfc822; " . $local . "@example.org\nAction: failed\n");
+        array<tainted string> $addresses = Forged::addresses('Final-Recipient: rfc822; ' . $local . "@example.org\nAction: failed\n");
         Test::assertCount($addresses, 1);
         Test::assertSame(Str::length($addresses[0]), 4194316);
     }

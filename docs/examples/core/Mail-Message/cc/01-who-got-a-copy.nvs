@@ -6,11 +6,11 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "From: ada@example.org\r\n"
-    . "To: support@example.com\r\n"
-    . "Cc: Bo Chen <bo@example.org>, accounts@example.org\r\n"
-    . "Subject: Invoice 1042\r\n"
-    . "\r\n"
-    . "The invoice has the wrong address."
+        . "To: support@example.com\r\n"
+        . "Cc: Bo Chen <bo@example.org>, accounts@example.org\r\n"
+        . "Subject: Invoice 1042\r\n"
+        . "\r\n"
+        . 'The invoice has the wrong address.',
 );
 
 // `cc` returns one address for each person in the `Cc` header, in order.

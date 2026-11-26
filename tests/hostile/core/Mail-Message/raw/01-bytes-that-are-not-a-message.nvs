@@ -6,17 +6,17 @@ use Core\Bytes;
 use Core\Mail\Message;
 
 // 1. No bytes at all.
-echo "1 ", Bytes::length(Message::parse('' as bytes)->raw()), "\n";
+echo '1 ', Bytes::length(Message::parse('' as bytes)->raw()), "\n";
 
 // 2. 4,096 bytes of 0, and 4,096 bytes of 255. Neither is text.
-echo "2 ", Bytes::length(Message::parse(Bytes::fill(4096, 0))->raw()), "\n";
-echo "2 ", Bytes::length(Message::parse(Bytes::fill(4096, 255))->raw()), "\n";
+echo '2 ', Bytes::length(Message::parse(Bytes::fill(4096, 0))->raw()), "\n";
+echo '2 ', Bytes::length(Message::parse(Bytes::fill(4096, 255))->raw()), "\n";
 
 // 3. A message that is only a header line with no end.
 bytes $endless = Core\Str::repeat('X-A: ', 100000) as bytes;
-echo "3 ", Message::parse($endless)->raw() == $endless ? 'same bytes' : 'changed', "\n";
+echo '3 ', Message::parse($endless)->raw() == $endless ? 'same bytes' : 'changed', "\n";
 
 // 4. A body of 16 MB, parsed and read back twice.
 bytes $big = Bytes::join(["Subject: big\n\n" as bytes, Bytes::fill(16777216, 65)]);
 Message $message = Message::parse($big);
-echo "4 ", Bytes::length($message->raw()) + Bytes::length($message->raw()), "\n";
+echo '4 ', Bytes::length($message->raw()) + Bytes::length($message->raw()), "\n";

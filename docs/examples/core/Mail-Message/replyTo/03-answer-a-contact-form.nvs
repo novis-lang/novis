@@ -7,11 +7,11 @@ use Core\Mail\Message;
 // The website sends each form as a mail from `form@example.com`, with the visitor in `Reply-To`.
 Message $form = Message::parse(
     "From: Contact form <form@example.com>\r\n"
-    . "Reply-To: Cleo Martin <cleo@example.org>\r\n"
-    . "To: support@example.com\r\n"
-    . "Subject: Question about delivery\r\n"
-    . "\r\n"
-    . "Do you deliver to Austria?"
+        . "Reply-To: Cleo Martin <cleo@example.org>\r\n"
+        . "To: support@example.com\r\n"
+        . "Subject: Question about delivery\r\n"
+        . "\r\n"
+        . 'Do you deliver to Austria?',
 );
 
 // The answer goes to the visitor. The name is tainted, because the visitor typed it into the form.

@@ -7,9 +7,9 @@ use Core\Mail\Message;
 // An encoded word is the way a header writes non-ASCII text.
 Message $ticket = Message::parse(
     "From: shop@example.com\n"
-    . "X-Customer: =?UTF-8?B?SsO8cmdlbiBNw7xsbGVy?=\n"
-    . "\n"
-    . "A new ticket.\n"
+        . "X-Customer: =?UTF-8?B?SsO8cmdlbiBNw7xsbGVy?=\n"
+        . "\n"
+        . "A new ticket.\n",
 );
 
 // `header()` returns the decoded text. This prints `Jürgen Müller`.

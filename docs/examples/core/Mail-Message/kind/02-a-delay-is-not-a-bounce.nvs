@@ -14,7 +14,7 @@ class Report
             . "--b\nContent-Type: message/delivery-status\n\n"
             . "Reporting-MTA: dns; mx.example.net\n\n"
             . "Final-Recipient: rfc822; ada@example.org\n"
-            . "Action: " . $action . "\nStatus: " . $status . "\n"
+            . 'Action: ' . $action . "\nStatus: " . $status . "\n"
             . "--b--\n";
     }
 }

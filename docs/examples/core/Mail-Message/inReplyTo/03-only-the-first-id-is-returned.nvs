@@ -6,9 +6,9 @@ use Core\Mail\Message;
 // Some mail programs write two ids in `In-Reply-To`.
 Message $reply = Message::parse(
     "Subject: Re: Your order\n"
-    . "In-Reply-To: <order-42@example.com> <welcome-1@example.com>\n"
-    . "\n"
-    . "Thanks!\n"
+        . "In-Reply-To: <order-42@example.com> <welcome-1@example.com>\n"
+        . "\n"
+        . "Thanks!\n",
 );
 
 // `inReplyTo()` returns the first id. This prints `order-42@example.com`.

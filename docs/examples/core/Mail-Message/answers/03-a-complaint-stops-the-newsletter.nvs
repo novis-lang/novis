@@ -13,13 +13,13 @@ array<string> $sentTo = [
 // The last part of the report is a copy of the newsletter.
 Message $complaint = Message::parse(
     "From: feedback@mail.example.net\nSubject: Complaint about message\n"
-    . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
-    . "--f\nContent-Type: text/plain\n\nA user marked this message as spam.\n"
-    . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\nVersion: 1\n\n"
-    . "--f\nContent-Type: message/rfc822\n\n"
-    . "From: Shop <news@example.com>\nTo: bo@example.org\nSubject: Our June offers\n"
-    . "Message-ID: <news-0611-bo@example.com>\n\nTen percent off.\n"
-    . "--f--\n"
+        . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"f\"\n\n"
+        . "--f\nContent-Type: text/plain\n\nA user marked this message as spam.\n"
+        . "--f\nContent-Type: message/feedback-report\n\nFeedback-Type: abuse\nVersion: 1\n\n"
+        . "--f\nContent-Type: message/rfc822\n\n"
+        . "From: Shop <news@example.com>\nTo: bo@example.org\nSubject: Our June offers\n"
+        . "Message-ID: <news-0611-bo@example.com>\n\nTen percent off.\n"
+        . "--f--\n",
 );
 
 if ($complaint->kind() == Message::Kind::Complaint) {

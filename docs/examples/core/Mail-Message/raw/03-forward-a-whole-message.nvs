@@ -7,9 +7,9 @@ use Core\Mail\Message;
 
 Message $complaint = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "Subject: The mug arrived broken\n"
-    . "\n"
-    . "Please send a new one.\n"
+        . "Subject: The mug arrived broken\n"
+        . "\n"
+        . "Please send a new one.\n",
 );
 
 // `message/rfc822` is the media type of a whole mail message. The mail program of

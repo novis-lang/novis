@@ -6,21 +6,21 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "Subject: Invoice from the supplier\n"
-    . "MIME-Version: 1.0\n"
-    . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
-    . "\n"
-    . "--b1\n"
-    . "Content-Type: text/plain\n"
-    . "\n"
-    . "The invoice is attached.\n"
-    . "--b1\n"
-    . "Content-Type: application/pdf\n"
-    . "Content-Disposition: attachment; filename=\"invoice-77.pdf\"\n"
-    . "Content-Transfer-Encoding: base64\n"
-    . "\n"
-    . "JVBERi0xLjQKJcOkw7zDtsOfCg==\n"
-    . "--b1--\n"
+        . "Subject: Invoice from the supplier\n"
+        . "MIME-Version: 1.0\n"
+        . "Content-Type: multipart/mixed; boundary=\"b1\"\n"
+        . "\n"
+        . "--b1\n"
+        . "Content-Type: text/plain\n"
+        . "\n"
+        . "The invoice is attached.\n"
+        . "--b1\n"
+        . "Content-Type: application/pdf\n"
+        . "Content-Disposition: attachment; filename=\"invoice-77.pdf\"\n"
+        . "Content-Transfer-Encoding: base64\n"
+        . "\n"
+        . "JVBERi0xLjQKJcOkw7zDtsOfCg==\n"
+        . "--b1--\n",
 );
 
 // A received attachment is a `Core\Mail\Attachment`, so `Mail::send` can send it again.

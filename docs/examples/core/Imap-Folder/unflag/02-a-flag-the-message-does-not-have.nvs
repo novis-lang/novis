@@ -1,8 +1,8 @@
 <?nvs
 // Shows that `unflag` changes nothing when the message does not have the flag.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 var $inbox = Imap::open('support')->folder('INBOX');
 

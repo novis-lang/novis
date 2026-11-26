@@ -8,14 +8,14 @@ use Core\Mail\ReportRecipient;
 // Its delivery report is the standard part that lists each recipient and what happened.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\nSubject: Undelivered Mail Returned to Sender\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
-    . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
-    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.2.2\n"
-    . "Diagnostic-Code: smtp; 552 5.2.2 Mailbox full\n"
-    . "--b--\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+        . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
+        . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.2.2\n"
+        . "Diagnostic-Code: smtp; 552 5.2.2 Mailbox full\n"
+        . "--b--\n",
 );
 
 // `report()` returns a `Core\Mail\Report`, because this message is a delivery report.

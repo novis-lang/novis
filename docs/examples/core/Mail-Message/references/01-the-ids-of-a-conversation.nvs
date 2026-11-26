@@ -5,11 +5,11 @@ use Core\Mail\Message;
 
 Message $reply = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "Subject: Re: Re: Your order\n"
-    . "In-Reply-To: <answer-2@example.com>\n"
-    . "References: <order-42@example.com> <question-1@example.org> <answer-2@example.com>\n"
-    . "\n"
-    . "Thank you, that helps.\n"
+        . "Subject: Re: Re: Your order\n"
+        . "In-Reply-To: <answer-2@example.com>\n"
+        . "References: <order-42@example.com> <question-1@example.org> <answer-2@example.com>\n"
+        . "\n"
+        . "Thank you, that helps.\n",
 );
 
 // `references()` returns the ids without their angle brackets, the oldest first.

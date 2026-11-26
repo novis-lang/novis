@@ -21,7 +21,7 @@ class Show
 Show::tag('1', "Delivered-To: bounces+order-42@example.com\n");
 
 // 2. A tag of 65 characters, one more than a valid tag can have.
-Show::tag('2', "To: bounces+" . Str::repeat('a', 65) . "@example.com\n");
+Show::tag('2', 'To: bounces+' . Str::repeat('a', 65) . "@example.com\n");
 
 // 3. A tag with a quote and a semicolon, written to reach a database query.
 Show::tag('3', "To: \"bounces+1';drop table orders;--\"@example.com\n");
@@ -39,4 +39,4 @@ Show::tag('6', "To: bounces+a+b@example.com, bounces@exa+mple.com\n");
 Show::tag('7', Str::repeat("Delivered-To: bounces@example.com\n", 100000) . "To: bounces+late@example.com\n");
 
 // 8. One `To` header with 100,000 addresses.
-Show::tag('8', "To: " . Str::repeat("bounces+x@example.com, ", 100000) . "a@example.com\n");
+Show::tag('8', 'To: ' . Str::repeat('bounces+x@example.com, ', 100000) . "a@example.com\n");

@@ -27,11 +27,11 @@ foreach ($words as string $word) {
 
 Message $report = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n"
-    . $groups
-    . "--b--\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n"
+        . $groups
+        . "--b--\n",
 );
 
 foreach ($report->report()?->recipients() ?? [] as ReportRecipient $recipient) {

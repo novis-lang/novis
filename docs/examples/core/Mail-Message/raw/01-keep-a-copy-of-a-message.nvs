@@ -6,9 +6,9 @@ use Core\Mail\Message;
 
 Message $complaint = Message::parse(
     "From: Ada <ada@example.org>\r\n"
-    . "Subject: The mug arrived broken\r\n"
-    . "\r\n"
-    . "Please send a new one.\r\n"
+        . "Subject: The mug arrived broken\r\n"
+        . "\r\n"
+        . "Please send a new one.\r\n",
 );
 
 // `raw()` returns the whole message as tainted bytes: the headers and the body.

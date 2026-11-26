@@ -14,11 +14,11 @@ class Forged
     {
         return Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\n\n"
-            . $groups
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . $groups
+                . "--b--\n",
         );
     }
 
@@ -75,10 +75,10 @@ class ActionAttackTest
         // 4. A spam report that also has a delivery-status part with a failed recipient.
         Message $message = Message::parse(
             "From: abuse@example.net\n"
-            . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=feedback-report; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+                . "--b--\n",
         );
         Test::assertNull($message->report());
         Test::assertTrue($message->kind() == Message::Kind::Complaint);

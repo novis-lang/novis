@@ -1,8 +1,8 @@
 <?nvs
 // Shows a script that removes the label `$Todo` from an order once the order is sent.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 var $inbox = Imap::open('orders')->folder('INBOX');
 

@@ -6,9 +6,9 @@ use Core\Mail\Message;
 
 Message $question = Message::parse(
     "From: Ada Lovelace <ada@example.org>\n"
-    . "Subject: Opening hours\n"
-    . "\n"
-    . "Are you open on Sunday?\n"
+        . "Subject: Opening hours\n"
+        . "\n"
+        . "Are you open on Sunday?\n",
 );
 
 // `name()` returns the name before the address. This prints `Hello Ada Lovelace,`.

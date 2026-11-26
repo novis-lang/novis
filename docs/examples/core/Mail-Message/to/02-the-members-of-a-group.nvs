@@ -8,10 +8,10 @@ use Core\Mail\Message;
 // The last address comes after the `;` that ends the group, so it is not in the group.
 Message $mail = Message::parse(
     "From: manager@example.com\r\n"
-    . "To: Kitchen: ana@example.com, bo@example.com;, cleo@example.com\r\n"
-    . "Subject: Menu for Saturday\r\n"
-    . "\r\n"
-    . "The new menu is attached."
+        . "To: Kitchen: ana@example.com, bo@example.com;, cleo@example.com\r\n"
+        . "Subject: Menu for Saturday\r\n"
+        . "\r\n"
+        . 'The new menu is attached.',
 );
 
 // This prints the three addresses. The name of the group is not part of the result.

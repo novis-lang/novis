@@ -15,16 +15,16 @@ class Bench
             "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n",
             "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\nFinal-Recipient: rfc822; bo@example.org\nAction: delayed\n",
             "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\nFinal-Recipient: rfc822; bo@example.org\nAction: delayed\n\n"
-            . "Final-Recipient: rfc822; cy@example.org\nAction: failed\n",
+                . "Final-Recipient: rfc822; cy@example.org\nAction: failed\n",
         ];
         foreach ($groups as string $group) {
             Message $message = Message::parse(
                 "From: mailer-daemon@mx.example.net\n"
-                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-                . "--b\nContent-Type: message/delivery-status\n\n"
-                . "Reporting-MTA: dns; mx.example.net\n\n"
-                . $group
-                . "--b--\n"
+                    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                    . "--b\nContent-Type: message/delivery-status\n\n"
+                    . "Reporting-MTA: dns; mx.example.net\n\n"
+                    . $group
+                    . "--b--\n",
             );
             ?Report $report = $message->report();
             if ($report != null) {

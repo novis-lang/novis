@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to delete one spam message from the `Junk` folder.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 // A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
 // In such a block, each message is a file. This line adds a spam message with the UID 2.

@@ -1,8 +1,8 @@
 <?nvs
 // Shows a cleanup job that deletes the newsletters that are older than one week.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 use Core\Time\Date;
 use Core\Unit;
 

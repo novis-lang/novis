@@ -6,10 +6,10 @@ use Core\Mail\Message;
 // Ada writes from her work address, and she wants the answer at home.
 Message $mail = Message::parse(
     "From: Ada <ada@work.example.org>\r\n"
-    . "Reply-To: Ada at home <ada@home.example.org>\r\n"
-    . "Subject: My order\r\n"
-    . "\r\n"
-    . "Please answer me at home."
+        . "Reply-To: Ada at home <ada@home.example.org>\r\n"
+        . "Subject: My order\r\n"
+        . "\r\n"
+        . 'Please answer me at home.',
 );
 
 // `from` returns the address of the `From` header.

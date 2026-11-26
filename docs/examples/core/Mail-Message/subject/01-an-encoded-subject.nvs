@@ -7,9 +7,9 @@ use Core\Mail\Message;
 // An encoded word is the way a header writes text that is not ASCII.
 Message $mail = Message::parse(
     "From: ada@example.org\r\n"
-    . "Subject: =?UTF-8?Q?Cr=C3=A8me_br=C3=BBl=C3=A9e_for_4?=\r\n"
-    . "\r\n"
-    . "Can I order it for Saturday?"
+        . "Subject: =?UTF-8?Q?Cr=C3=A8me_br=C3=BBl=C3=A9e_for_4?=\r\n"
+        . "\r\n"
+        . 'Can I order it for Saturday?',
 );
 
 // This prints `Crème brûlée for 4`.

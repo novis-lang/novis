@@ -6,10 +6,10 @@ use Core\Mail\Message;
 
 Message $reply = Message::parse(
     "From: Ada Lovelace <ada@example.org>\n"
-    . "To: Shop <shop@example.com>, orders@example.com\n"
-    . "Subject: Re: Your order\n"
-    . "\n"
-    . "Thank you!\n"
+        . "To: Shop <shop@example.com>, orders@example.com\n"
+        . "Subject: Re: Your order\n"
+        . "\n"
+        . "Thank you!\n",
 );
 
 // `from()` returns `null` when the message has no `From` address. This prints `ada@example.org`.

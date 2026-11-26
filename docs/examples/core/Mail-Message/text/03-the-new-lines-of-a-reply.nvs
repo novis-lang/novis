@@ -5,13 +5,13 @@ use Core\Mail\Message;
 
 Message $reply = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "Subject: Re: Ticket 7\n"
-    . "\n"
-    . "The printer works again.\n"
-    . "Thank you!\n"
-    . "\n"
-    . "> Please restart the printer.\n"
-    . "> Does it work now?\n"
+        . "Subject: Re: Ticket 7\n"
+        . "\n"
+        . "The printer works again.\n"
+        . "Thank you!\n"
+        . "\n"
+        . "> Please restart the printer.\n"
+        . "> Does it work now?\n",
 );
 
 // A mail program puts `>` in front of each line it quotes. This loop skips those lines.

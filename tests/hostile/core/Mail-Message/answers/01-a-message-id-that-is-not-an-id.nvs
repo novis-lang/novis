@@ -26,16 +26,16 @@ class Show
 Show::answers('1', "In-Reply-To: <a@example.com>\r\nBcc: victim@example.org\r\n\r\nHi.\n");
 
 // 2. An `In-Reply-To` of one million characters.
-Show::answers('2', "In-Reply-To: <" . Str::repeat('a', 1000000) . "@example.com>\n\nHi.\n");
+Show::answers('2', 'In-Reply-To: <' . Str::repeat('a', 1000000) . "@example.com>\n\nHi.\n");
 
 // 3. 100,000 `References` entries.
-Show::answers('3', "References: " . Str::repeat("<r@example.com> ", 100000) . "\n\nHi.\n");
+Show::answers('3', 'References: ' . Str::repeat('<r@example.com> ', 100000) . "\n\nHi.\n");
 
 // 4. An empty `In-Reply-To` and empty brackets.
 Show::answers('4', "In-Reply-To: <>\nReferences: <>\n\nHi.\n");
 
 // 5. A bounce whose returned headers have no `Message-ID`.
-Show::answers('5', Show::bounce("Subject: no id"));
+Show::answers('5', Show::bounce('Subject: no id'));
 
 // 6. A bounce whose returned headers are not headers at all.
 Show::answers('6', Show::bounce(Str::repeat("\x00\x01<>:;", 100000)));

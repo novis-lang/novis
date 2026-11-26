@@ -24,7 +24,7 @@ class Sample
     public static function report(string $type, string $part): string
     {
         return "From: mailer-daemon@mx.example.net\nSubject: Report\n"
-            . "Content-Type: multipart/report; report-type=" . $type . "; boundary=\"b\"\n\n"
+            . 'Content-Type: multipart/report; report-type=' . $type . "; boundary=\"b\"\n\n"
             . "--b\n" . $part . "--b--\n";
     }
 

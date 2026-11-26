@@ -18,7 +18,7 @@ class Count
 // This message only looks like a bounce. It is not a delivery report.
 Message $fake = Message::parse(
     "From: mailer-daemon@example.net\nSubject: Undelivered Mail\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n",
 );
 echo 'has a report: ', $fake->report() == null ? 'no' : 'yes', "\n";
 echo 'recipients: ', Count::recipients($fake), "\n";
@@ -26,11 +26,11 @@ echo 'recipients: ', Count::recipients($fake), "\n";
 // A real report, with one recipient.
 Message $bounce = Message::parse(
     "From: mailer-daemon@mx.example.net\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
-    . "--b--\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+        . "--b--\n",
 );
 echo 'has a report: ', $bounce->report() == null ? 'no' : 'yes', "\n";
 echo 'recipients: ', Count::recipients($bounce), "\n";

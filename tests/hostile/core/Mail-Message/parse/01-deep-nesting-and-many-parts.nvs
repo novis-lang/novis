@@ -38,8 +38,10 @@ while ($i < 100000) {
         . "Content-Disposition: attachment; filename=\"f{$i}.bin\"\r\n\r\nx\r\n";
     $i = $i + 1;
 }
-Message $many = Message::parse("Subject: many\r\nContent-Type: multipart/mixed; boundary=\"x\"\r\n\r\n"
-    . Core\Str::join($files, '') . "--x--\r\n");
+Message $many = Message::parse(
+    "Subject: many\r\nContent-Type: multipart/mixed; boundary=\"x\"\r\n\r\n"
+        . Core\Str::join($files, '') . "--x--\r\n",
+);
 echo '3 ', $many->subject(), ' ', Core\Arr::count($many->attachments()), "\n";
 
 // 4. 100,000 header lines, then a subject. Only the first 1,000 lines are read, so the subject is empty.

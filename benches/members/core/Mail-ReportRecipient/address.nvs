@@ -12,13 +12,13 @@ class Bench
     {
         Message $message = Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\n\n"
-            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\n"
-            . "Final-Recipient: rfc822; bob@example.org\nAction: failed\n\n"
-            . "Final-Recipient: rfc822; carol@example.org\nAction: failed\n"
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . "Final-Recipient: rfc822; ada@example.org\nAction: failed\n\n"
+                . "Final-Recipient: rfc822; bob@example.org\nAction: failed\n\n"
+                . "Final-Recipient: rfc822; carol@example.org\nAction: failed\n"
+                . "--b--\n",
         );
         array<ReportRecipient> $recipients = $message->report()?->recipients() ?? [];
         uint $total = 0;

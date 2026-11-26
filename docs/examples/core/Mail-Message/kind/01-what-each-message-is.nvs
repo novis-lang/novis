@@ -21,12 +21,12 @@ class Label
 array<string> $raw = [
     // This message is a delivery report. The address ada@example.org does not exist.
     "From: mailer-daemon@mx.example.net\n"
-    . "Subject: Undelivered Mail\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
-    . "--b--\n",
+        . "Subject: Undelivered Mail\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+        . "--b--\n",
     // This message is an out-of-office reply. `Auto-Submitted` says that a program wrote it.
     "From: bo@example.org\nAuto-Submitted: auto-replied\nSubject: Away until Monday\n\nI am away.\n",
     // A person answers the order confirmation.

@@ -16,7 +16,8 @@ if ($mail->kind() == Message::Kind::Bounce) {
     // `report()` lists each recipient with its action and its status code.
     foreach ($mail->report()?->recipients() ?? [] as ReportRecipient $recipient) {
         ReportRecipient::Action $action = $recipient->action();
-        string $what = $action == ReportRecipient::Action::Failed ? 'failed'
+        string $what = $action == ReportRecipient::Action::Failed
+            ? 'failed'
             : ($action == ReportRecipient::Action::Delayed ? 'delayed' : 'other');
         // `isPermanent()` is `true` for a status that starts with 5.
         string $retry = $recipient->isPermanent() ? 'do not send again' : 'may arrive later';

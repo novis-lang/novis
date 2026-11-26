@@ -5,9 +5,9 @@ use Core\Mail\Message;
 
 Message $order = Message::parse(
     "From: Ada <ada@example.org>\n"
-    . "X-Order: 1042\n"
-    . "\n"
-    . "Please send the invoice again.\n"
+        . "X-Order: 1042\n"
+        . "\n"
+        . "Please send the invoice again.\n",
 );
 
 // Upper and lower case in the name are the same. This prints `1042` two times.

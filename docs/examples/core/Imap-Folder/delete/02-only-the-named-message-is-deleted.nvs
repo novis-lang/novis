@@ -1,8 +1,8 @@
 <?nvs
 // Shows that `delete` deletes only the message you name, even when another message is marked for deletion.
 
-use Core\Imap;
 use Core\IO;
+use Core\Imap;
 
 // A `directory` block is a folder on disk that works like a mailbox, for tests and local work.
 // In such a block, each message is a file. This line adds a message with the UID 3.

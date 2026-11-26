@@ -6,14 +6,14 @@ use Core\Mail\ReportRecipient;
 
 Message $notice = Message::parse(
     "From: mailer-daemon@mx.example.net\nSubject: Delivery Status Notification\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: text/plain\n\nSome recipients did not get your mail.\n"
-    . "--b\nContent-Type: message/delivery-status\n\n"
-    . "Reporting-MTA: dns; mx.example.net\n\n"
-    . "Final-Recipient: rfc822; old-address@example.org\nAction: failed\nStatus: 5.1.1\n\n"
-    . "Final-Recipient: rfc822; busy@example.net\nAction: delayed\nStatus: 4.2.2\n\n"
-    . "Final-Recipient: rfc822; fine@example.com\nAction: delivered\nStatus: 2.0.0\n"
-    . "--b--\n"
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: text/plain\n\nSome recipients did not get your mail.\n"
+        . "--b\nContent-Type: message/delivery-status\n\n"
+        . "Reporting-MTA: dns; mx.example.net\n\n"
+        . "Final-Recipient: rfc822; old-address@example.org\nAction: failed\nStatus: 5.1.1\n\n"
+        . "Final-Recipient: rfc822; busy@example.net\nAction: delayed\nStatus: 4.2.2\n\n"
+        . "Final-Recipient: rfc822; fine@example.com\nAction: delivered\nStatus: 2.0.0\n"
+        . "--b--\n",
 );
 
 // `?->` calls the method only when the value is not `null`.

@@ -12,12 +12,12 @@ class Bench
         string $groups = "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.net\n\n";
         array<string> $messages = [
             "From: mailer-daemon@mx.example.net\nSubject: Undelivered Mail\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . $groups . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
-            . "--b\nContent-Type: text/rfc822-headers\n\nMessage-ID: <order-42@example.com>\n\n--b--\n",
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . $groups . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+                . "--b\nContent-Type: text/rfc822-headers\n\nMessage-ID: <order-42@example.com>\n\n--b--\n",
             "From: mailer-daemon@mx.example.net\nSubject: Delayed Mail\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . $groups . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n--b--\n",
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . $groups . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n--b--\n",
             "From: cy@example.org\nSubject: Re: Your order\nIn-Reply-To: <order-43@example.com>\n\nThank you.\n",
         ];
         uint $total = 0;

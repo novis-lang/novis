@@ -7,13 +7,13 @@ use Core\Mail\Message;
 // and a line that ends with `=` continues on the next line.
 Message $newsletter = Message::parse(
     "From: News <news@example.com>\n"
-    . "Subject: Spring sale\n"
-    . "MIME-Version: 1.0\n"
-    . "Content-Type: text/html; charset=utf-8\n"
-    . "Content-Transfer-Encoding: quoted-printable\n"
-    . "\n"
-    . "<p>Our <a href=3D\"https://example.com/sale\">spring sale</a> starts to=\n"
-    . "day.</p>\n"
+        . "Subject: Spring sale\n"
+        . "MIME-Version: 1.0\n"
+        . "Content-Type: text/html; charset=utf-8\n"
+        . "Content-Transfer-Encoding: quoted-printable\n"
+        . "\n"
+        . "<p>Our <a href=3D\"https://example.com/sale\">spring sale</a> starts to=\n"
+        . "day.</p>\n",
 );
 
 // `html()` returns the decoded HTML. This prints the link with `=` and the word `today`.

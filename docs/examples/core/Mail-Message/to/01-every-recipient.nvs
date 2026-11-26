@@ -6,10 +6,10 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "From: ada@example.org\r\n"
-    . "To: Sales <sales@example.com>, billing@example.com\r\n"
-    . "Subject: A quote for 40 chairs\r\n"
-    . "\r\n"
-    . "Please send me a quote."
+        . "To: Sales <sales@example.com>, billing@example.com\r\n"
+        . "Subject: A quote for 40 chairs\r\n"
+        . "\r\n"
+        . 'Please send me a quote.',
 );
 
 // `to` returns one address for each recipient, in the order of the header.

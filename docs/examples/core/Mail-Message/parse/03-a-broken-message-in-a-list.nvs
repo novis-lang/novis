@@ -6,7 +6,7 @@ use Core\Mail\Message;
 // The second message has no headers, and the third one has a date that is not a date.
 array<string> $inbox = [
     "From: ada@example.org\r\nSubject: Invoice question\r\nDate: 3 Nov 2026 10:00 +0000\r\n\r\nHello.",
-    "this is not an email",
+    'this is not an email',
     "From: bo@example.org\r\nSubject: Opening hours\r\nDate: someday\r\n\r\nHi.",
 ];
 

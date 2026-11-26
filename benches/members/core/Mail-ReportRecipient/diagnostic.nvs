@@ -12,15 +12,15 @@ class Bench
     {
         Message $bounce = Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\n\n"
-            . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
-            . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
-            . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n\n"
-            . "Final-Recipient: rfc822; cy@example.org\nAction: failed\nStatus: 5.2.2\n"
-            . "Diagnostic-Code: smtp; 552 5.2.2 Mailbox full\n"
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . "Final-Recipient: rfc822; ada@example.org\nAction: failed\nStatus: 5.1.1\n"
+                . "Diagnostic-Code: smtp; 550 5.1.1 User unknown\n\n"
+                . "Final-Recipient: rfc822; bo@example.org\nAction: delayed\nStatus: 4.4.1\n\n"
+                . "Final-Recipient: rfc822; cy@example.org\nAction: failed\nStatus: 5.2.2\n"
+                . "Diagnostic-Code: smtp; 552 5.2.2 Mailbox full\n"
+                . "--b--\n",
         );
         array<ReportRecipient> $recipients = $bounce->report()?->recipients() ?? [];
         uint $total = 0;

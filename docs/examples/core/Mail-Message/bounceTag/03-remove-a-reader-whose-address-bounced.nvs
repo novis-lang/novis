@@ -12,9 +12,9 @@ array<string> $readers = [
 
 array<string> $bounces = [
     "Delivered-To: news+reader-2@example.com\nFrom: mailer-daemon@mx.example.org\nSubject: Undeliverable\n"
-    . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-    . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.org\n\n"
-    . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.1.1\n--b--\n",
+        . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+        . "--b\nContent-Type: message/delivery-status\n\nReporting-MTA: dns; mx.example.org\n\n"
+        . "Final-Recipient: rfc822; bo@example.org\nAction: failed\nStatus: 5.1.1\n--b--\n",
     // This message has a tag that the newsletter never sent. Somebody wrote this address by hand.
     "Delivered-To: news+reader-99@example.com\nFrom: someone@example.net\nSubject: Hello\n\nHi.\n",
 ];

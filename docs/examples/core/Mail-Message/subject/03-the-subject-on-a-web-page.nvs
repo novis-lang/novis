@@ -6,9 +6,9 @@ use Core\Mail\Message;
 
 Message $mail = Message::parse(
     "From: ada@example.org\r\n"
-    . "Subject: <img src=x onerror=alert(1)> Refund\r\n"
-    . "\r\n"
-    . "I would like a refund."
+        . "Subject: <img src=x onerror=alert(1)> Refund\r\n"
+        . "\r\n"
+        . 'I would like a refund.',
 );
 
 // The subject is tainted, because the sender wrote it. You must escape it before you show it.

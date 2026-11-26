@@ -15,11 +15,11 @@ class Forged
     {
         return Message::parse(
             "From: mailer-daemon@mx.example.net\n"
-            . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n"
-            . "Reporting-MTA: dns; mx.example.net\n\n"
-            . $groups
-            . "--b--\n"
+                . "Content-Type: multipart/report; report-type=delivery-status; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n"
+                . "Reporting-MTA: dns; mx.example.net\n\n"
+                . $groups
+                . "--b--\n",
         );
     }
 
@@ -42,8 +42,8 @@ class RecipientsAttackTest
         // 2. The report part is in a message that does not say it is a delivery report.
         Message $mixed = Message::parse(
             "From: mailer-daemon@example.net\n"
-            . "Content-Type: multipart/mixed; boundary=\"b\"\n\n"
-            . "--b\nContent-Type: message/delivery-status\n\n" . $lines . "--b--\n"
+                . "Content-Type: multipart/mixed; boundary=\"b\"\n\n"
+                . "--b\nContent-Type: message/delivery-status\n\n" . $lines . "--b--\n",
         );
         Test::assertNull($mixed->report());
         Test::assertTrue($mixed->kind() == Message::Kind::Other);

@@ -6,11 +6,11 @@ use Core\Mail\Message;
 
 // 1. A body in a character set that does not exist.
 Message $unknown = Message::parse("Content-Type: text/plain; charset=no-such-set\n\nHello");
-echo "1 ", Core\Str::length($unknown->text() ?? ''), "\n";
+echo '1 ', Core\Str::length($unknown->text() ?? ''), "\n";
 
 // 2. A base64 body with characters that are not base64.
 Message $broken = Message::parse("Content-Type: text/plain\nContent-Transfer-Encoding: base64\n\n@@@!!!===SGVsbG8\n");
-echo "2 ", Core\Str::length($broken->text() ?? ''), "\n";
+echo '2 ', Core\Str::length($broken->text() ?? ''), "\n";
 
 // 3. A text part is inside 40 levels of nested parts. Only 16 levels are read, so `text()` should return `null`.
 string $open = '';
@@ -22,8 +22,8 @@ while ($level < 40) {
     $level = $level + 1;
 }
 Message $deep = Message::parse($open . "Content-Type: text/plain\n\ndeep text" . $close);
-echo "3 ", $deep->text() ?? 'null', "\n";
+echo '3 ', $deep->text() ?? 'null', "\n";
 
 // 4. A body of 8 MB.
 Message $large = Message::parse("Content-Type: text/plain\n\n" . Core\Str::repeat('A', 8388608));
-echo "4 ", Core\Str::length($large->text() ?? ''), "\n";
+echo '4 ', Core\Str::length($large->text() ?? ''), "\n";
