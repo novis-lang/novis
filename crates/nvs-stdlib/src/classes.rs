@@ -108,6 +108,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::mail::CLASS,
     crate::mail::ADDRESS,
     crate::mail::ATTACHMENT,
+    crate::mail::PREVIEW,
     crate::storage::CLASS,
     crate::cldr::CLASS,
     crate::password::CLASS,

@@ -86,6 +86,11 @@
 //! are [`parts::ATTACHMENT`] values, and [`compose`](fn@compose) nests them `multipart/mixed` >
 //! `multipart/related` > `multipart/alternative`, each level only when it is needed.
 //!
+//! The CSS of an HTML body is always inlined: [`css`] copies each `<style>` rule onto the
+//! elements it matches, because most mail programs drop a `<style>` element and none loads a
+//! stylesheet. `preview` reads a body through the same [`message_of`] as `send`, so what it
+//! returns is what `send` sends.
+//!
 //! # A block's session is kept for its next send
 //!
 //! Over TLS, each new connection pays a handshake, two `EHLO`s and `AUTH` before the envelope.
@@ -96,14 +101,17 @@
 //! # Where each part lives
 //!
 //! This file has the class row, the reading of `[mail.<name>]` and `send`. [`compose`](mod@compose) writes the
-//! message, [`smtp`] is the session that delivers it, and [`pool`] keeps that session open for the
+//! message, [`parts`] the attachments and the plain text, [`css`] the inlining and `preview`'s
+//! value, [`smtp`] is the session that delivers it, and [`pool`] keeps that session open for the
 //! block's next send.
 
 mod compose;
+mod css;
 mod parts;
 mod pool;
 mod smtp;
 
+pub(crate) use css::PREVIEW;
 pub(crate) use parts::ATTACHMENT;
 
 use std::cell::Cell;
@@ -247,6 +255,63 @@ const OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `preview`'s `$body`. The `string` is a sink, unlike `send`'s: `Core\Mail\Preview::text()`
+/// returns it as untainted text, so a `tainted` one is refused where it is written.
+const PREVIEW_BODY_TY: CoreTy = CoreTy::Union(&[
+    CoreTy::Text(Qual::Sink),
+    CoreTy::Instance(crate::html::MARKUP_NAME),
+]);
+
+/// `preview`'s bag: the two options of `send` that change the body. `text` is a sink for
+/// [`PREVIEW_BODY_TY`]'s reason.
+const PREVIEW_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "text",
+        ty: CoreTy::Text(Qual::Sink),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "attachments",
+        ty: CoreTy::Array(&CoreTy::Instance(parts::ATTACHMENT_NAME)),
+        default: Const::EmptyArray,
+    },
+];
+
+/// `Core\Mail::preview`'s reference card — `rule:core-api/reference-card`.
+const PREVIEW_DOC: MethodDoc = MethodDoc {
+    short: "Returns the body of a message exactly as `send` would send it, and sends nothing. \
+            You can show it on a page, or check it in a test. It needs no `[mail.<name>]` \
+            block.",
+    params: &[
+        ParamDoc {
+            name: "body",
+            desc: "The message, as for `send`. In a `Core\\Html\\Markup` body, each CSS rule of a \
+                   `<style>` element is copied into the `style` attribute of each element it \
+                   matches. A string from the request does not compile here.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "text",
+            desc: "The plain-text version of an HTML body, as for `send`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "attachments",
+            desc: "The attachments, as for `send`. Each inline image needs its `src()` in the \
+                   HTML, and each `cid:` URL in the HTML needs its inline image.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Mail\\Preview` with the HTML and the plain text that `send` would send, and \
+          the CSS rules that stay in a `<style>` element.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The body or the attachments have a mistake that `send` throws for. For example, \
+               the HTML has a `<link rel=\"stylesheet\">`. A mail cannot load a stylesheet, so \
+               put the CSS in a `<style>` element.",
+    }],
+};
+
 /// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
 ///
 /// The SMTP class, and `rule:programs/framework-core-half`'s transport half. Registered on its own
@@ -258,24 +323,36 @@ const OPTIONS: &[CoreOption] = &[
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
-    methods: &[CoreMethod {
-        name: "send",
-        names: &["endpoint", "to", "subject", "body"],
-        params: &[
-            CoreTy::Text(Qual::Sink),
-            CoreTy::Array(&RECIPIENT),
-            CoreTy::Text(Qual::Neutral),
-            BODY_TY,
-            CoreTy::Options(OPTIONS),
-        ],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        text: TextOrigin::Clean(
-            "The message id is random hex digits and the domain of the operator's `from`.",
-        ),
-        symbol: "nvs_core_mail_send",
-        doc: Some(&SEND_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "send",
+            names: &["endpoint", "to", "subject", "body"],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&RECIPIENT),
+                CoreTy::Text(Qual::Neutral),
+                BODY_TY,
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The message id is random hex digits and the domain of the operator's `from`.",
+            ),
+            symbol: "nvs_core_mail_send",
+            doc: Some(&SEND_DOC),
+        },
+        CoreMethod {
+            name: "preview",
+            names: &["body"],
+            params: &[PREVIEW_BODY_TY, CoreTy::Options(PREVIEW_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(css::PREVIEW_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_mail_preview",
+            doc: Some(&PREVIEW_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -391,9 +468,13 @@ const SEND_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "body",
-            desc: "The message. A `string` is sent as plain text. A `Core\\Html\\Markup` is sent \
-                   as HTML, together with a plain-text version made from it. A string from the \
-                   request is always sent as plain text, so it cannot add HTML to a message.",
+            desc: "The message. In a `Core\\Html\\Markup` body, each CSS rule of a `<style>` \
+                   element is copied into the `style` attribute of each element it matches. \
+                   Most mail programs ignore a `<style>` element. A `string` is sent as \
+                   plain text. A `Core\\Html\\Markup` is sent as HTML, together with a \
+                   plain-text version made from it. A string from the request is always sent \
+                   as plain text, so it cannot add HTML to a message. `preview` returns the \
+                   result without sending it.",
             shape: &[],
         },
         ParamDoc {
@@ -481,7 +562,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    `unsubscribe` is not an `https://` URL. Or `bounceTag` has a character that \
                    is not allowed. Or `text` is given with a `string` body. Or the HTML uses \
                    a `cid:` URL that no inline attachment has, or an inline attachment is not \
-                   used in the HTML. Each of these is a mistake in the settings or the call, not a \
+                   used in the HTML. Or the HTML has a `<link rel=\"stylesheet\">`. A mail cannot \
+                   load a stylesheet, so put the CSS in a `<style>` element. Each of these is a mistake in the settings or the call, not a \
                    failed send.",
         },
         ErrorDoc {
@@ -504,7 +586,8 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_mail_send" => (nvs_core_mail_send as *const ()).cast(),
         "nvs_core_mail_address_of" => (nvs_core_mail_address_of as *const ()).cast(),
-        _ => return parts::address(symbol),
+        "nvs_core_mail_preview" => (nvs_core_mail_preview as *const ()).cast(),
+        _ => return parts::address(symbol).or_else(|| css::address(symbol)),
     }))
 }
 
@@ -804,28 +887,67 @@ fn optional_of(args: &[Value], slot: usize) -> Option<&str> {
     args[slot].as_text()
 }
 
-/// What `$body` and the `text` option make: the plain text, the HTML, and the `cid:` URLs the
-/// HTML uses.
+/// What `$body` and the `text` option make: the plain text and the HTML as they are sent.
 struct Body {
     /// The plain text: a `string` body, the `text` option, or what [`parts::read_html`] built.
     text: String,
-    /// The HTML of a `Core\Html\Markup` body.
+    /// The HTML of a `Core\Html\Markup` body, with its CSS inlined by [`css::inline`].
     html: Option<String>,
-    /// Every `cid:` URL in the HTML, without `cid:`.
-    cids: Vec<String>,
 }
 
-/// `$body` read: a `string` is the plain text, and a `Core\Html\Markup` is the HTML, with the
-/// `text` option or the text built from it.
+/// Where a member's arguments have the body, the `text` option and the `attachments` option.
+struct BodySlots {
+    /// `$body`.
+    body: usize,
+    /// The `text` option.
+    text: usize,
+    /// The `attachments` option.
+    attachments: usize,
+}
+
+/// `send`'s [`BodySlots`].
+const SEND_BODY: BodySlots = BodySlots {
+    body: BODY,
+    text: TEXT,
+    attachments: ATTACHMENTS,
+};
+
+/// `preview`'s [`BodySlots`].
+const PREVIEW_BODY: BodySlots = BodySlots {
+    body: 0,
+    text: 1,
+    attachments: 2,
+};
+
+/// The body and the attachments of a message, read and checked. `send` and `preview` both call
+/// this, so a preview cannot differ from what is sent.
+///
+/// # Errors
+///
+/// [`body_of`]'s, [`attachments_of`]'s and [`parts::check_cids`]'s.
+fn message_of(
+    args: &[Value],
+    slots: &BodySlots,
+    member: &str,
+) -> Result<(Body, Vec<parts::Part>), Fault> {
+    let (body, cids) = body_of(args, slots, member)?;
+    let attachments = attachments_of(args, slots.attachments, member)?;
+    parts::check_cids(&cids, &attachments, member)?;
+    Ok((body, attachments))
+}
+
+/// `$body` read: a `string` is the plain text, and a `Core\Html\Markup` is the HTML, its CSS
+/// inlined, with the `text` option or the text built from it. The second value is every `cid:`
+/// URL the HTML uses, without `cid:`.
 ///
 /// # Errors
 ///
 /// A catchable `RuntimeError` for a `text` option beside a `string` body, which would be a second
-/// plain text with nothing to choose between the two, and a [`Fault::fatal`] for a value
-/// [`BODY_TY`] rules out from source.
-fn body_of(args: &[Value], member: &str) -> Result<Body, Fault> {
-    let text = optional_of(args, TEXT);
-    if let Some(body) = args[BODY].as_text() {
+/// plain text with nothing to choose between the two, [`css::inline`]'s, and a [`Fault::fatal`]
+/// for a value [`BODY_TY`] rules out from source.
+fn body_of(args: &[Value], slots: &BodySlots, member: &str) -> Result<(Body, Vec<String>), Fault> {
+    let text = optional_of(args, slots.text);
+    if let Some(body) = args[slots.body].as_text() {
         if text.is_some() {
             return Err(Fault::thrown(format!(
                 "{member}: `text` replaces the plain text made from an HTML body, and this body \
@@ -833,24 +955,25 @@ fn body_of(args: &[Value], member: &str) -> Result<Body, Fault> {
                  `Core\\Html\\Markup`."
             )));
         }
-        return Ok(Body {
+        let body = Body {
             text: body.to_owned(),
             html: None,
-            cids: Vec::new(),
-        });
+        };
+        return Ok((body, Vec::new()));
     }
-    let markup = crate::html::markup_slot(args[BODY], "body")?;
+    let markup = crate::html::markup_slot(args[slots.body], "body")?;
     let Some(html) = markup.as_text() else {
         return Err(Fault::fatal(format!(
             "{member} expected text in the `Core\\Html\\Markup` for `body`"
         )));
     };
     let read = parts::read_html(html);
-    Ok(Body {
+    let inlined = css::inline(html, &read, member)?;
+    let body = Body {
         text: text.map_or(read.text, str::to_owned),
-        html: Some(html.to_owned()),
-        cids: read.cids,
-    })
+        html: Some(inlined),
+    };
+    Ok((body, read.cids))
 }
 
 /// Every [`parts::ATTACHMENT`] in the `attachments` option, read back and checked again.
@@ -858,12 +981,12 @@ fn body_of(args: &[Value], member: &str) -> Result<Body, Fault> {
 /// # Errors
 ///
 /// [`parts::part_of`]'s, and a [`Fault::fatal`] for an argument that is not an array.
-fn attachments_of(args: &[Value], member: &str) -> Result<Vec<parts::Part>, Fault> {
-    let Some(array) = args[ATTACHMENTS].array_ptr() else {
+fn attachments_of(args: &[Value], slot: usize, member: &str) -> Result<Vec<parts::Part>, Fault> {
+    let Some(array) = args[slot].array_ptr() else {
         return Err(Fault::fatal(format!(
             "{member} expected {:?} for `attachments`, got tag {}",
             Tag::Array,
-            args[ATTACHMENTS].tag_byte()
+            args[slot].tag_byte()
         )));
     };
     crate::str::Elements::of(array)
@@ -907,6 +1030,17 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Mail::preview(string|Core\Html\Markup $body, {text?, attachments?}):
+    /// Core\Mail\Preview` — the body `send` would send, through the same [`message_of`], with
+    /// nothing sent and no block read.
+    fn nvs_core_mail_preview(_ctx, args: [3]) {
+        let member = format!("{NAME}::preview");
+        let (body, _attachments) = message_of(args, &PREVIEW_BODY, &member)?;
+        Ok(css::preview(body.html.as_deref(), &body.text))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Mail\Address::of(string $address, string $name): Core\Mail\Address` — a recipient
     /// with a display name. The address is checked here, so a wrong one throws where it was
     /// written, and checked again by `send`.
@@ -946,9 +1080,7 @@ fn send(
         Some(mailbox_of(args[REPLY_TO], "replyTo", member)?)
     };
     let subject = text_of(args, SUBJECT, "subject", member)?;
-    let body = body_of(args, member)?;
-    let attachments = attachments_of(args, member)?;
-    parts::check_cids(&body.cids, &attachments, member)?;
+    let (body, attachments) = message_of(args, &SEND_BODY, member)?;
     let in_reply_to = match optional_of(args, IN_REPLY_TO) {
         Some(id) => Some(compose::message_id_of(id, "inReplyTo", member)?),
         None => None,
@@ -1302,7 +1434,8 @@ mod tests {
     #[test]
     fn a_markup_body_sends_html_and_generated_text() {
         let (mut ctx, records) = kept_site(None);
-        let html = "<p>Hello <b>Ada</b>.</p><p><a href=\"https://example.com/o/1\">Your order</a></p>";
+        let html =
+            "<p>Hello <b>Ada</b>.</p><p><a href=\"https://example.com/o/1\">Your order</a></p>";
         let args = send_args(markup(html), Value::null(), Vec::new());
         let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
         {
@@ -1333,6 +1466,73 @@ mod tests {
         assert!(nvs_runtime::call(nvs_core_mail_send, &mut ctx, &both).is_err());
         assert_eq!(records.sent().len(), 1, "a refused send keeps nothing");
         release(args.into_iter().chain(both).chain([sent]));
+    }
+
+    /// `preview` returns the HTML and the plain text `send` sends, its CSS inlined, and the rules
+    /// left in `<style>`. A string body has no HTML, and a stylesheet `<link>` throws in both.
+    // covers: Core\Mail::preview, Core\Mail::send
+    #[test]
+    fn preview_returns_what_send_puts_in_the_message() {
+        let (mut ctx, records) = kept_site(None);
+        let html = "<style>p { color: red } a:hover { color: blue }</style>\
+                    <p>Hello <a href=\"https://example.com\">Ada</a>.</p>";
+        let args = send_args(markup(html), Value::null(), Vec::new());
+        let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
+        let shown = [
+            markup(html),
+            Value::null(),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        let preview =
+            nvs_runtime::call(nvs_core_mail_preview, &mut ctx, &shown).expect("a preview");
+        let mut read = |helper: usize| {
+            nvs_runtime::call(css::HELPERS[helper], &mut ctx, &[preview]).expect("a reader")
+        };
+        let (html_of, text_of, kept_of) = (read(0), read(1), read(2));
+        {
+            let kept = &records.sent()[0];
+            let inlined = crate::html::markup_slot(html_of, "html").expect("a Markup");
+            assert_eq!(inlined.as_text(), kept.html.as_deref());
+            assert!(
+                kept.html
+                    .as_deref()
+                    .is_some_and(|sent| sent.contains("color: red"))
+            );
+            assert_eq!(text_of.as_text(), Some(kept.text.as_str()));
+            let rules: Vec<_> = crate::str::Elements::of(kept_of.array_ptr().expect("a list"))
+                .map(|rule| rule.as_text().expect("a rule").to_owned())
+                .collect();
+            assert_eq!(rules, ["a:hover { color: blue; }"]);
+        }
+
+        let plain = [
+            Value::text("Hi"),
+            Value::null(),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        let text_only =
+            nvs_runtime::call(nvs_core_mail_preview, &mut ctx, &plain).expect("a preview");
+        let none = nvs_runtime::call(css::HELPERS[0], &mut ctx, &[text_only]).expect("a reader");
+        assert_eq!(none.tag(), Some(Tag::Null));
+
+        let linked = "<link rel=\"stylesheet\" href=\"a.css\"><p>Hi</p>";
+        let refused = send_args(markup(linked), Value::null(), Vec::new());
+        assert!(nvs_runtime::call(nvs_core_mail_send, &mut ctx, &refused).is_err());
+        let refused_preview = [
+            markup(linked),
+            Value::null(),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        assert!(nvs_runtime::call(nvs_core_mail_preview, &mut ctx, &refused_preview).is_err());
+        assert_eq!(records.sent().len(), 1, "a refused send keeps nothing");
+        release(
+            args.into_iter()
+                .chain(shown)
+                .chain(plain)
+                .chain(refused)
+                .chain(refused_preview)
+                .chain([sent, preview, html_of, text_of, kept_of, text_only, none]),
+        );
     }
 
     /// The `text` option replaces the plain text built from the HTML.
@@ -1373,12 +1573,8 @@ mod tests {
         .expect("a granted file");
         let name = Value::text("notes.txt");
         let data = Value::text("hello");
-        let bytes = nvs_runtime::call(
-            parts::HELPERS[1],
-            &mut ctx,
-            &[name, data, Value::null()],
-        )
-        .expect("bytes with a name");
+        let bytes = nvs_runtime::call(parts::HELPERS[1], &mut ctx, &[name, data, Value::null()])
+            .expect("bytes with a name");
         let stray = Value::text(&outside.to_string_lossy());
         assert!(
             nvs_runtime::call(
@@ -1394,7 +1590,10 @@ mod tests {
             parts::part_of(file, "send").expect("an attachment"),
             parts::part_of(bytes, "send").expect("an attachment"),
         ];
-        assert_eq!(parts[0].name, "report.csv", "the name is the path's last part");
+        assert_eq!(
+            parts[0].name, "report.csv",
+            "the name is the path's last part"
+        );
         assert_eq!(parts[0].media_type, "text/csv");
         assert_eq!(parts[0].data, b"day,total\n");
         let message = compose(
@@ -1437,12 +1636,8 @@ mod tests {
         let (mut ctx, records) = kept_site(None);
         let name = Value::text("logo.png");
         let data = Value::text("\u{89}PNG");
-        let logo = nvs_runtime::call(
-            parts::HELPERS[3],
-            &mut ctx,
-            &[name, data, Value::null()],
-        )
-        .expect("an inline image");
+        let logo = nvs_runtime::call(parts::HELPERS[3], &mut ctx, &[name, data, Value::null()])
+            .expect("an inline image");
         let src = nvs_runtime::call(parts::HELPERS[4], &mut ctx, &[logo])
             .expect("an inline image has a src");
         let src_text = src.as_text().expect("a string").to_owned();
@@ -1452,7 +1647,10 @@ mod tests {
             .expect("an inline image has a Content-ID");
         assert_eq!(src_text, format!("cid:{id}"));
 
-        #[expect(unsafe_code, reason = "the message's array takes one reference to `logo`")]
+        #[expect(
+            unsafe_code,
+            reason = "the message's array takes one reference to `logo`"
+        )]
         // SAFETY: `logo` is live, and the extra reference is released with `args`.
         unsafe {
             logo.retain();
@@ -1465,12 +1663,8 @@ mod tests {
         let sent = nvs_runtime::call(nvs_core_mail_send, &mut ctx, &args).expect("a kept send");
         assert_eq!(records.sent()[0].text, "Logo\n");
 
-        let plain = nvs_runtime::call(
-            parts::HELPERS[1],
-            &mut ctx,
-            &[name, data, Value::null()],
-        )
-        .expect("an attachment");
+        let plain = nvs_runtime::call(parts::HELPERS[1], &mut ctx, &[name, data, Value::null()])
+            .expect("an attachment");
         assert!(nvs_runtime::call(parts::HELPERS[4], &mut ctx, &[plain]).is_err());
         release(args.into_iter().chain([sent, name, data, logo, src, plain]));
     }

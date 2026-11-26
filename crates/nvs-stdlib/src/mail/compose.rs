@@ -1082,10 +1082,15 @@ mod tests {
                 "application/pdf",
             ]
         );
-        assert!(message.contains("Content-ID: <0a@inline>\r\nContent-Disposition: inline; filename=\"logo.png\"\r\n"));
+        assert!(message.contains(
+            "Content-ID: <0a@inline>\r\nContent-Disposition: inline; filename=\"logo.png\"\r\n"
+        ));
         assert!(message.contains("Content-Disposition: attachment; filename=\"report.pdf\"\r\n"));
         for boundary in [MIXED, RELATED, ALTERNATIVE] {
-            assert!(message.contains(&format!("\r\n--{boundary}--\r\n")), "{boundary}");
+            assert!(
+                message.contains(&format!("\r\n--{boundary}--\r\n")),
+                "{boundary}"
+            );
         }
 
         let no_inline = Body {

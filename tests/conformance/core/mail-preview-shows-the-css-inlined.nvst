@@ -1,0 +1,41 @@
+--TEST--
+`Core\Mail::preview` returns the body `Core\Mail::send` would send: each `<style>` rule is copied into the elements it matches, and the rules that stay in `<style>` are listed
+--FILE--
+<?nvs
+// covers: Core\Mail::preview
+// This program shows how the CSS of an HTML mail is copied into its elements.
+Core\Mail\Preview $mail = Core\Mail::preview(html`<html><head><style>
+p { color: #333; margin: 0 0 12px }
+.button { background: #0a5; color: white }
+a:hover { text-decoration: underline }
+[data-ogsc] .button { background: #084 }
+</style></head><body>
+<p>Your order has shipped.</p>
+<p><a class="button" href="https://example.com/orders/7">Track it</a></p>
+</body></html>`);
+
+// The rules for `p` and `.button` are now in each element's `style` attribute.
+echo $mail->html(), "\n";
+
+// `a:hover` and the rule for Outlook's `[data-ogsc]` stay in the `<style>` element.
+foreach ($mail->keptCss() as string $rule) {
+    echo "kept: ", $rule, "\n";
+}
+
+// The `[data-ogsc]` rule matches no element now. Outlook adds that attribute later.
+foreach ($mail->unusedCss() as string $rule) {
+    echo "unused: ", $rule, "\n";
+}
+echo $mail->text();
+--EXPECT--
+<html><head><style>a:hover { text-decoration: underline; }
+[data-ogsc] .button { background: #084; }</style></head><body>
+<p style="color: #333;margin: 0 0 12px;">Your order has shipped.</p>
+<p style="color: #333;margin: 0 0 12px;"><a class="button" href="https://example.com/orders/7" style="background: #0a5;color: white;">Track it</a></p>
+</body></html>
+kept: a:hover { text-decoration: underline; }
+kept: [data-ogsc] .button { background: #084; }
+unused: [data-ogsc] .button { background: #084; }
+Your order has shipped.
+
+Track it (https://example.com/orders/7)

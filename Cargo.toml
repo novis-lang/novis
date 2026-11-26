@@ -1059,6 +1059,16 @@ html5ever = "0.40"
 idna = "1"
 idna_adapter = "~1.1"
 
+# --- CSS inlining (`Core\Mail`) ---
+# `css-inline`, MIT, pure Rust: copies each `<style>` rule of an HTML mail onto
+# the elements it matches, by the cascade. It parses with `html5ever`, the
+# patched copy below, and matches with Servo's `cssparser` and `selectors`, the
+# parser and matcher Firefox uses. Its default features are off: `http`, `file`,
+# `cli` and the stylesheet cache, so it reads nothing from the network or the
+# disk and holds no state between calls. A matcher of our own is declined: a
+# specificity mistake would be silent.
+css-inline = { version = "0.25", default-features = false }
+
 # --- Markdown (`Core\Markdown`, `rule:core-classes/markdown-to-html`) ---
 # `pulldown-cmark`, MIT, pure Rust. Its build script compiles to an empty
 # `main` unless the `gen-tests` feature is on, which this row never turns on.

@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/mime.rs, crates/nvs-stdlib/src/registry.rs]
   - id: 5
     title: "a mail's CSS is inlined, Core\\Mail::preview returns what send would send, and a stylesheet link throws an error that names the fix"
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-stdlib/Cargo.toml]
   - id: 6
     title: "a block signs in with XOAUTH2, its token fetched by the host and reused until it expires"
@@ -323,6 +323,28 @@ exists and how to use it.
   `keptCss(): array<string>` (the rules left in `<style>`) and `unusedCss(): array<string>` (the
   kept rules that matched nothing). It is what an example prints to show the inlined result, what a
   "view this mail in your browser" page returns, and what a test checks without sending.
+- Built in stage 5 (session's choices), in `crates/nvs-stdlib/src/mail/css.rs`:
+  - **`preview` takes no `$subject`.** Nothing it returns depends on the subject, and a reader that
+    returned it would make a `tainted` subject untainted. The call is
+    `Core\Mail::preview(string|Core\Html\Markup $body, {text, attachments})`.
+  - **`preview`'s `string` body and its `text` option are sinks**, unlike `send`'s: `text()`
+    returns them as untainted text, so a `tainted` one does not compile there. `html()` returns
+    `?Core\Html\Markup`, `null` for a `string` body.
+  - **A kept rule stays in the `<style>` element it was written in**, not one moved to `<head>`.
+    That is what `css-inline`'s `remove_inlined_selectors` does, and it keeps the author's order.
+    A `<style>` element with no rule left is removed. The fallback split with `cssparser` was not
+    needed.
+  - **`unusedCss()` lists the kept style rules with no `:` outside brackets**: no pseudo-class and
+    no pseudo-element, so each one could have matched an element and did not. An at-rule is never
+    in it. `preview` reads both lists from one more parse of the inlined HTML.
+  - **A body with no `<style>` element is sent as written**, with no second parse. A body with one
+    is handed to `css-inline` as `crate::html::source` writes the capped stage-4 tree, never as the
+    program's text, so the engine's uncapped parse sees a tree as deep as ours. Its serializer
+    recurses once per level, so a styled body deeper than `css::DEPTH`, 256 elements, throws a
+    `RuntimeError`. The plain text and the `cid:` URLs are read from the stage-4 parse of the
+    original: inlining moves CSS into `style` attributes and changes neither.
+  - The stylesheet `<link>` is found by that same stage-4 walk (`rel` has the token
+    `stylesheet`, any case), and `css-inline` runs with `load_remote_stylesheets(false)`.
 - **Where a developer learns it.** The `send` and `preview` reference cards say it in the first
   sentence of `$body`. The `about.md` of `send` has a section with an example whose `.out` shows the
   inlined HTML. The website's new how-to page has a "Styling an HTML mail" section with the same
@@ -472,16 +494,16 @@ because they share `compose.rs` and `smtp.rs`.
 
 ### 5. a mail's CSS is inlined, Core\Mail::preview returns what send would send, and a stylesheet link throws an error that names the fix
 
-- [ ] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `css-inline = { version = "0.25",
+- [x] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `css-inline = { version = "0.25",
   default-features = false }`; `cargo tree -i html5ever` shows one version.
-- [ ] `crates/nvs-stdlib/src/mail/css.rs:1` (new): the inliner with the rules of § *CSS inlining*,
+- [x] `crates/nvs-stdlib/src/mail/css.rs:1` (new): the inliner with the rules of § *CSS inlining*,
   the `<link>` error, and the kept and unused lists.
-- [ ] `crates/nvs-stdlib/src/mail.rs:179`: `preview` and `Core\Mail\Preview` with its four readers;
+- [x] `crates/nvs-stdlib/src/mail.rs:179`: `preview` and `Core\Mail\Preview` with its four readers;
   `send` and `preview` share one function, so they cannot differ.
-- [ ] `crates/nvs-stdlib/src/mail.rs:211` (`SEND_DOC`): `$body`'s first sentence says the CSS is
+- [x] `crates/nvs-stdlib/src/mail.rs:211` (`SEND_DOC`): `$body`'s first sentence says the CSS is
   inlined; `preview`'s card says what it is for.
-- [ ] `tests/conformance/core/mail-preview-shows-the-css-inlined.nvst:1` (new).
-- [ ] The ten tests of the check `css`, then `cargo test --lib mail::` once.
+- [x] `tests/conformance/core/mail-preview-shows-the-css-inlined.nvst:1` (new).
+- [x] The ten tests of the check `css`, then `cargo test --lib mail::` once.
 
 ### 6. a block signs in with XOAUTH2, its token fetched by the host and reused until it expires
 
@@ -557,38 +579,35 @@ are written, and the how-to page to a second; their files are disjoint. Each bri
 The user chose `Core` composing the message, CSS inlining, `Auto-Submitted` on by default and
 `return_path` with `bounceTag`; every other choice under § *Standing decisions* is a session's.
 
-Stages 1 to 4 are done. `cargo test --lib mail::` runs 47 green, with the eleven `parts` tests, and
-the case `mail-a-tainted-string-is-sent-as-plain-text` passes (`1932603b0d`). `mail/parts.rs` holds
-`Core\Mail\Attachment` (its helpers reach `mod.rs`'s tests through `parts::HELPERS`), `part_of`,
-`parameter` (RFC 2231), `check_cids` and `read_html` (plain text and `cid:` URLs from one parse).
-`compose` takes a `compose::Body` and nests through `entity`, `leaf` and `multipart`. `send` reads
-`$body` with `body_of` and the attachments with `attachments_of`. `KeptMail` is unchanged: `text`
-is the sent plain text and `html` the Markup's source; attachments reach it in stage 8.
-The nightly failures of run 45609291264 that the sweep listed are all fixed on disk (by
-`1c3196b0e8` and `c115a735a1`); nothing was left to do for them. `smtp.rs` has `open` (greeting, TLS, `authenticate`, the
-`EHLO` extensions kept on the `Session`), `reset` (`RSET`) and `transact` (`SIZE`, envelope,
-`DATA`); `deliver` runs both halves for `pool = false`. `mail/pool.rs` `deliver` takes a `Lease`
-from `mod.rs` `lease_for` and keeps the session in `nvs_runtime::pool`. `[mail.<name>.pool]` is
-read by `nvs_config::mail::pool_for` over `POOL_DEFAULTS`. The fake server in `smtp.rs`'s tests
-has `serve` (one connection) and `serve_many` (one thread per connection, ended by `Many::stop`).
+Stages 1 to 5 are done. `cargo test --lib mail::` runs 59 green, and the cases
+`mail-a-tainted-string-is-sent-as-plain-text` and `mail-preview-shows-the-css-inlined` pass.
+Stage 5: `mail/css.rs` has `inline` (run by `body_of` after `parts::read_html`, which now also
+returns the tree, `styled`, `linked` and `depth`), `report` (the kept and unused rules),
+`Core\Mail\Preview` (`PREVIEW`, rank 883, readers through `css::HELPERS`) and its tests.
+`mod.rs` `message_of` reads the body and the attachments for both `send` and `preview` over a
+`BodySlots`; `preview` is the second row of `CLASS`. The stage's choices are under § *CSS
+inlining*'s "Built in stage 5". `THIRD-PARTY-LICENSES.txt` is regenerated for the new crates.
+`KeptMail.html` is the inlined HTML. `smtp.rs` has `open`, `reset` and `transact`, and
+`authenticate` picks the mechanism. `mail/pool.rs` keeps sessions in `nvs_runtime::pool`. The fake
+server in `smtp.rs`'s tests has `serve` and `serve_many`.
 
-CI: run 45609291264 was fixed by `1c3196b0e8`. Run 45749655184 failed three other ways. The four
-Miri zone tests are fixed by `c115a735a1`. The uuid `Parses` case was fixed by `2f3d849a52`. The
-stack-page test is in § *Backlog*.
+CI: the nightly failures of run 45609291264 that the sweep listed were fixed by `1c3196b0e8` and
+`c115a735a1`. The stack-page test of run 45749655184 is in § *Backlog*.
 
 ### Next
 
-Stage 5, CSS inlining. Start with `css-inline` 0.25 (`default-features = false`) in the workspace
-`Cargo.toml` and `crates/nvs-stdlib/Cargo.toml`, and check `cargo tree -i html5ever` shows one
-version. Then the new `crates/nvs-stdlib/src/mail/css.rs`, called from `body_of`
-(`crates/nvs-stdlib/src/mail/mod.rs`, `fn body_of`) before `parts::read_html`, so the plain text
-and the `cid:` scan read the inlined HTML. `preview` shares `body_of`, `attachments_of` and
-`compose::entity` with `send`. The stage's anchors still say `mail.rs`; read them as `mail/mod.rs`.
+Stage 6, XOAUTH2. Start with the `oauth_*` keys in `MailEndpoint` (`crates/nvs-config/src/tree.rs`,
+`struct MailEndpoint`) and `[mail.default]` in `default.toml`, with their refusals in
+`crates/nvs-config/src/mail.rs` (`validate`, `auth_from`). Then the new
+`crates/nvs-stdlib/src/mail/oauth.rs` and its `AUTH XOAUTH2` arm in `smtp.rs` `authenticate`. The
+fake SMTP server is `serve` in `smtp.rs`'s tests; the token server needs a fake HTTPS server, so
+look first for one the `Core\Http` client tests already have.
 
 Expected red until stage 9: `bun nv site --check stale` and `proofs` for `Core\Mail::send`,
-`Core\Mail\Address::of` and the five `Core\Mail\Attachment` members (no `about.md`, examples,
-bench, attack or website page yet), and the reference-card review for `send`, whose `body`,
-`text`, `attachments` and `RuntimeError` texts changed. The examples under
+`Core\Mail::preview`, `Core\Mail\Address::of`, the five `Core\Mail\Attachment` members and the four
+`Core\Mail\Preview` readers (no `about.md`, examples, bench, attack or website page yet), and the
+reference-card review for `send`, whose `body`, `text`, `attachments` and `RuntimeError` texts
+changed, and for the new `preview` and `Core\Mail\Preview` cards. The examples under
 `docs/examples/core/Test-SentMail/html/` changed, so their members are stale too. No unit test or
 conformance case is expected red: the rewritten examples, cases and attacks each passed once.
 

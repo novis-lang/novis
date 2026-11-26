@@ -451,6 +451,16 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
             CoreTy::Nullable(&CoreTy::Str),
         ]),
     ),
+    // `preview` builds it, and each slot is read back as it is.
+    (
+        &crate::mail::PREVIEW,
+        Slots::Typed(&[
+            CoreTy::Nullable(&CoreTy::Instance(crate::html::MARKUP_NAME)),
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Array(&CoreTy::Str),
+        ]),
+    ),
     // `echo` writes `text` to the terminal as it is.
     (&crate::cli::TEXT, Slots::NotReadBack(TRUSTED_TEXT)),
     // An unknown kind reads as an index, and each channel is masked.

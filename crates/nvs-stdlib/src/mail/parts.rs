@@ -362,9 +362,9 @@ pub(super) fn name_of(name: &str, member: &str) -> Result<String, Fault> {
 pub(super) fn type_of(written: &str, member: &str) -> Result<String, Fault> {
     let name = |part: &str| {
         !part.is_empty()
-            && part.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || b"!#$&^_.+-".contains(&byte)
-            })
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"!#$&^_.+-".contains(&byte))
     };
     match written.split_once('/') {
         Some((kind, sub)) if written.len() <= LONGEST_TYPE && name(kind) && name(sub) => {
@@ -599,6 +599,14 @@ pub(super) struct Html {
     pub text: String,
     /// Every `cid:` URL the HTML uses, without `cid:`, in document order.
     pub cids: Vec<String>,
+    /// The parse itself, which [`super::css::inline`] writes out again when [`Self::styled`].
+    pub tree: Parsed,
+    /// Whether the HTML has a `<style>` element, so there is CSS to inline.
+    pub styled: bool,
+    /// Whether the HTML has a `<link>` whose `rel` names `stylesheet`.
+    pub linked: bool,
+    /// How many elements deep the tree is at its deepest.
+    pub depth: usize,
 }
 
 /// The widest line of the plain text, in characters. A word longer than this, such as a URL, is
@@ -932,20 +940,27 @@ fn css_cids(css: &str, found: &mut Vec<String>) {
 /// already decoded every entity. Every line but one in `<pre>` is wrapped at [`WIDTH`].
 ///
 /// The walk keeps its own stack, so a deeply nested document cannot overflow the thread's.
+///
+/// The same walk notes what [`super::css`] needs: a `<style>` element, a stylesheet `<link>` and
+/// the deepest nesting. Inlining moves CSS into `style` attributes and nothing else, so the plain
+/// text and the `cid:` URLs read here are the same as those of the inlined HTML.
 pub(super) fn read_html(html: &str) -> Html {
     enum Step<'a> {
-        Enter(&'a Parsed),
+        Enter(&'a Parsed, usize),
         Leave(&'a Parsed),
     }
     let tree = crate::html::parse(html);
     let mut plain = Plain::default();
     let mut cids = Vec::new();
-    let mut stack = vec![Step::Enter(&tree)];
+    let (mut styled, mut linked, mut depth) = (false, false, 0);
+    let mut stack = vec![Step::Enter(&tree, 0)];
     while let Some(step) = stack.pop() {
         match step {
-            Step::Enter(node) => match node.kind {
+            Step::Enter(node, level) => match node.kind {
                 Kind::Text => plain.text(&node.text),
                 Kind::Element => {
+                    let level = level + 1;
+                    depth = depth.max(level);
                     for (key, value) in &node.attributes {
                         let value = value.trim();
                         if value.len() > 4 && value[..4].eq_ignore_ascii_case("cid:") {
@@ -955,15 +970,29 @@ pub(super) fn read_html(html: &str) -> Html {
                         }
                     }
                     if node.name == "style" {
+                        styled = true;
                         for child in &node.children {
                             css_cids(&child.text, &mut cids);
                         }
                     }
+                    if node.name == "link" && stylesheet_link(node) {
+                        linked = true;
+                    }
                     plain.enter(node);
                     stack.push(Step::Leave(node));
-                    stack.extend(node.children.iter().rev().map(Step::Enter));
+                    stack.extend(
+                        node.children
+                            .iter()
+                            .rev()
+                            .map(|child| Step::Enter(child, level)),
+                    );
                 }
-                Kind::Document => stack.extend(node.children.iter().rev().map(Step::Enter)),
+                Kind::Document => stack.extend(
+                    node.children
+                        .iter()
+                        .rev()
+                        .map(|child| Step::Enter(child, level)),
+                ),
                 Kind::Comment | Kind::ProcessingInstruction => {}
             },
             Step::Leave(node) => plain.leave(node),
@@ -972,7 +1001,21 @@ pub(super) fn read_html(html: &str) -> Html {
     Html {
         text: plain.written(),
         cids,
+        tree,
+        styled,
+        linked,
+        depth,
     }
+}
+
+/// Whether a `<link>` loads a stylesheet: its `rel` has the token `stylesheet`, in any case.
+fn stylesheet_link(link: &Parsed) -> bool {
+    link.attributes.iter().any(|(key, value)| {
+        key.eq_ignore_ascii_case("rel")
+            && value
+                .split_ascii_whitespace()
+                .any(|token| token.eq_ignore_ascii_case("stylesheet"))
+    })
 }
 
 #[cfg(test)]
