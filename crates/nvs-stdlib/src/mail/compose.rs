@@ -109,8 +109,15 @@ fn subject_line(text: &str) -> String {
     if plain && let Some(folded) = folded(NAME.len(), text) {
         return format!("{NAME}{folded}\r\n");
     }
-    let mut out = String::with_capacity(NAME.len() + text.len() / 3 * 5 + 16);
-    out.push_str(NAME);
+    format!("{NAME}{}\r\n", encoded_words(text))
+}
+
+/// `text` as RFC 2047 `=?UTF-8?B?...?=` encoded words of [`WORD_BYTES`] each, joined by a fold.
+///
+/// A word never splits a character, and each one is a single header token, so nothing in `text`
+/// can end the header line. The result has no `\r\n` at its end.
+fn encoded_words(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() / 3 * 5 + 16);
     let mut rest = text;
     loop {
         let mut end = rest.len().min(WORD_BYTES);
@@ -120,13 +127,135 @@ fn subject_line(text: &str) -> String {
         let (word, after) = rest.split_at(end);
         out.push_str("=?UTF-8?B?");
         out.push_str(&STANDARD.encode(word.as_bytes()));
-        out.push_str("?=\r\n");
+        out.push_str("?=");
         rest = after;
         if rest.is_empty() {
             return out;
         }
-        out.push(' ');
+        out.push_str("\r\n ");
     }
+}
+
+/// `name: ` and `address` in angle brackets, with `display` before it when there is one, as
+/// header lines ending `\r\n`.
+///
+/// A display name of printable ASCII with no `"` and no `\` is written as a quoted string. Any
+/// other name is written as [`encoded_words`], so a quote, a line break or a non-ASCII letter in
+/// it is content and never structure. An empty name is no name.
+fn named_line(name: &str, display: Option<&str>, address: &str) -> String {
+    let Some(display) = display.filter(|display| !display.is_empty()) else {
+        return format!("{name}: <{address}>\r\n");
+    };
+    let quotable = display
+        .bytes()
+        .all(|byte| (0x20..0x7f).contains(&byte) && byte != b'"' && byte != b'\\');
+    if quotable && let Some(folded) = folded(name.len() + 2, &format!("\"{display}\" <{address}>"))
+    {
+        return format!("{name}: {folded}\r\n");
+    }
+    format!("{name}: {}\r\n <{address}>\r\n", encoded_words(display))
+}
+
+/// The bytes [`message_id_of`] refuses in a message id, beside every control byte and every byte
+/// that is not ASCII. Each one ends the id, starts a comment or a list, or quotes, in a header a
+/// mail reader parses.
+const NOT_IN_A_MESSAGE_ID: &[u8] = b"<>()[]\",;:\\ ";
+
+/// The longest message id [`message_id_of`] takes, so that `In-Reply-To: <id>` fits on one line
+/// under [`LONGEST_LINE`].
+const LONGEST_MESSAGE_ID: usize = 250;
+
+/// `text` as a message id for `In-Reply-To` or `References`: `local@domain`, written without its
+/// angle brackets, as [`super`]'s `send` returns it.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` naming `what` for an empty id, one longer than
+/// [`LONGEST_MESSAGE_ID`], one with a byte [`NOT_IN_A_MESSAGE_ID`] names or a byte outside
+/// printable ASCII, and one that is not `local@domain` with a single `@`.
+pub(super) fn message_id_of(text: &str, what: &str, member: &str) -> Result<String, Fault> {
+    let refuse = |why: &str| {
+        Err(Fault::thrown(format!(
+            "{member}: `{what}` takes message ids, and `{text}` is not one. {why} Pass the id \
+             `send` returned, without angle brackets."
+        )))
+    };
+    if text.is_empty() || text.len() > LONGEST_MESSAGE_ID {
+        return refuse("A message id has 1 to 250 characters.");
+    }
+    if text
+        .bytes()
+        .any(|byte| !(0x21..0x7f).contains(&byte) || NOT_IN_A_MESSAGE_ID.contains(&byte))
+    {
+        return refuse(
+            "It contains a space, a control character, a character that is not ASCII or one of \
+             `< > ( ) [ ] \" , ; : \\`.",
+        );
+    }
+    match text.split_once('@') {
+        Some((local, domain))
+            if !local.is_empty() && !domain.is_empty() && !domain.contains('@') =>
+        {
+            Ok(text.to_owned())
+        }
+        _ => refuse("A message id is `local@domain`."),
+    }
+}
+
+/// The longest `unsubscribe` URL [`unsubscribe_of`] takes, so that `List-Unsubscribe: <url>` fits
+/// on one line under [`LONGEST_LINE`]. A URL cannot be folded.
+const LONGEST_UNSUBSCRIBE: usize = LONGEST_LINE - "List-Unsubscribe: <>".len();
+
+/// `text` as the one-click unsubscribe URL of RFC 8058.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` for a URL that does not start with `https://` and name a host, that
+/// contains a space, a control character, `<`, `>` or a character that is not ASCII, or that is
+/// longer than [`LONGEST_UNSUBSCRIBE`].
+pub(super) fn unsubscribe_of(text: &str, member: &str) -> Result<String, Fault> {
+    let refuse = |why: &str| {
+        Err(Fault::thrown(format!(
+            "{member}: `unsubscribe` is not a one-click unsubscribe URL. {why}"
+        )))
+    };
+    let Some(rest) = text.strip_prefix("https://") else {
+        return refuse("It must start with `https://`. Mail programs send the click as a POST.");
+    };
+    if rest.is_empty() || rest.starts_with('/') {
+        return refuse("It names no host.");
+    }
+    if text.len() > LONGEST_UNSUBSCRIBE {
+        return refuse("It is longer than 976 characters.");
+    }
+    if text
+        .bytes()
+        .any(|byte| !(0x21..0x7f).contains(&byte) || byte == b'<' || byte == b'>')
+    {
+        return refuse(
+            "It contains a space, a control character, `<`, `>` or a character that is not \
+             ASCII. Percent-encode it.",
+        );
+    }
+    Ok(text.to_owned())
+}
+
+/// The id [`Headers::message_id`] is built from: `random` as 32 lowercase hex digits, `@`, and
+/// the domain of the block's `from`.
+///
+/// The domain is the operator's, so a reply or a bounce names the deployment that sent the
+/// message. The 128 random bits are what make the id unique without a counter.
+pub(super) fn message_id(random: [u8; 16], from: &str) -> String {
+    let domain = from
+        .rsplit_once('@')
+        .map_or("localhost", |(_, domain)| domain);
+    let mut out = String::with_capacity(32 + 1 + domain.len());
+    for byte in random {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out.push('@');
+    out.push_str(domain);
+    out
 }
 
 /// `text`, already a valid header value, with `\r\n` put before a space
@@ -230,29 +359,78 @@ fn rfc5322_date(now: SystemTime) -> String {
     format!("{weekday}, {day:02} {month_name} {year} {hour:02}:{minute:02}:{second:02} +0000")
 }
 
+/// Every header value one message has, each already checked by the function that read it.
+pub(super) struct Headers<'a> {
+    /// The block's `from`, through [`address_of`].
+    pub from: &'a str,
+    /// The display name for `from`: the call's `fromName`, else the block's `from_name`.
+    pub from_name: Option<&'a str>,
+    /// The `to` addresses, through [`address_of`].
+    pub to: &'a [String],
+    /// The `cc` addresses, through [`address_of`].
+    pub cc: &'a [String],
+    /// The `replyTo` address, through [`address_of`].
+    pub reply_to: Option<&'a str>,
+    /// The subject, any text. [`subject_line`] encodes it.
+    pub subject: &'a str,
+    /// What [`message_id`] built.
+    pub message_id: &'a str,
+    /// The `inReplyTo` id, through [`message_id_of`].
+    pub in_reply_to: Option<&'a str>,
+    /// The `references` ids, through [`message_id_of`].
+    pub references: &'a [String],
+    /// The `unsubscribe` URL, through [`unsubscribe_of`].
+    pub unsubscribe: Option<&'a str>,
+    /// Whether `Auto-Submitted: auto-generated` is written.
+    pub auto_submitted: bool,
+    /// The `Date:` header's time.
+    pub now: SystemTime,
+}
+
 /// The message `DATA` carries — every header this class writes, then the body.
 ///
 /// The **only** place a `\r\n` is produced. Every value reaching it has been
-/// through [`subject_line`] or [`address_of`], so there is no path from an
-/// argument to a line break here, which is the property the module doc's first
-/// section names.
-pub(super) fn compose(
-    from: &str,
-    to: &[String],
-    cc: &[String],
-    subject: &str,
-    text: &str,
-    html: Option<&str>,
-    now: SystemTime,
-) -> String {
+/// through [`subject_line`], [`named_line`], [`address_of`], [`message_id_of`] or
+/// [`unsubscribe_of`], so there is no path from an argument to a line break here,
+/// which is the property the module doc's first section names.
+///
+/// `Auto-Submitted: auto-generated` (RFC 3834) tells an out-of-office responder not to answer.
+/// It is on unless the program turns it off for mail a person wrote.
+pub(super) fn compose(headers: &Headers<'_>, text: &str, html: Option<&str>) -> String {
     let mut out = String::new();
-    out.push_str(&format!("Date: {}\r\n", rfc5322_date(now)));
-    out.push_str(&format!("From: <{from}>\r\n"));
-    out.push_str(&address_line("To", to));
-    if !cc.is_empty() {
-        out.push_str(&address_line("Cc", cc));
+    out.push_str(&format!("Date: {}\r\n", rfc5322_date(headers.now)));
+    out.push_str(&format!("Message-ID: <{}>\r\n", headers.message_id));
+    out.push_str(&named_line("From", headers.from_name, headers.from));
+    out.push_str(&address_line("To", headers.to));
+    if !headers.cc.is_empty() {
+        out.push_str(&address_line("Cc", headers.cc));
     }
-    out.push_str(&subject_line(subject));
+    if let Some(reply_to) = headers.reply_to {
+        out.push_str(&format!("Reply-To: <{reply_to}>\r\n"));
+    }
+    out.push_str(&subject_line(headers.subject));
+    if let Some(id) = headers.in_reply_to {
+        out.push_str(&format!("In-Reply-To: <{id}>\r\n"));
+    }
+    if !headers.references.is_empty() {
+        // Each id is at most `LONGEST_MESSAGE_ID` long and has no space, so `folded` always
+        // finds a place to break between two of them.
+        let list = headers
+            .references
+            .iter()
+            .map(|id| format!("<{id}>"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let folded = folded("References: ".len(), &list).unwrap_or(list);
+        out.push_str(&format!("References: {folded}\r\n"));
+    }
+    if let Some(url) = headers.unsubscribe {
+        out.push_str(&format!("List-Unsubscribe: <{url}>\r\n"));
+        out.push_str("List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n");
+    }
+    if headers.auto_submitted {
+        out.push_str("Auto-Submitted: auto-generated\r\n");
+    }
     out.push_str("MIME-Version: 1.0\r\n");
 
     match html {
@@ -425,17 +603,211 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn a_bcc_recipient_is_in_no_header() {
+        let to = ["to@example.com".to_owned()];
+        let cc = ["cc@example.com".to_owned()];
         let message = compose(
-            "noreply@example.com",
-            &["to@example.com".to_owned()],
-            &["cc@example.com".to_owned()],
-            "Hello",
+            &Headers {
+                to: &to,
+                cc: &cc,
+                ..headers()
+            },
             "body",
             None,
-            UNIX_EPOCH,
         );
         assert!(message.contains("To: <to@example.com>\r\n"));
         assert!(message.contains("Cc: <cc@example.com>\r\n"));
         assert!(!message.contains("bcc@example.com"));
+    }
+
+    /// The headers of a message from `noreply@example.com`, with no recipient and nothing
+    /// optional. Each test sets the field it is about.
+    fn headers() -> Headers<'static> {
+        Headers {
+            from: "noreply@example.com",
+            from_name: None,
+            to: &[],
+            cc: &[],
+            reply_to: None,
+            subject: "Hello",
+            message_id: "0123456789abcdef0123456789abcdef@example.com",
+            in_reply_to: None,
+            references: &[],
+            unsubscribe: None,
+            auto_submitted: true,
+            now: UNIX_EPOCH,
+        }
+    }
+
+    /// The header part of `message`, unfolded, one header per entry.
+    fn header_lines(message: &str) -> Vec<String> {
+        let head = message.split("\r\n\r\n").next().unwrap_or_default();
+        head.replace("\r\n ", " ")
+            .split("\r\n")
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Every message has a `Message-ID` header: 32 hex digits from the random bytes, then the
+    /// domain of `from`.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_message_has_a_message_id_on_the_from_domain() {
+        let random = [0xab_u8; 16];
+        let id = message_id(random, "noreply@mail.example.com");
+        assert_eq!(id, format!("{}@mail.example.com", "ab".repeat(16)));
+        assert!(message_id_of(&id, "inReplyTo", "Core\\Mail::send").is_ok());
+
+        let message = compose(
+            &Headers {
+                message_id: &id,
+                ..headers()
+            },
+            "body",
+            None,
+        );
+        assert!(
+            header_lines(&message).contains(&format!("Message-ID: <{id}>")),
+            "{message}"
+        );
+    }
+
+    /// A display name is quoted when it is plain and encoded when it is not, and the address in
+    /// `From:` is always the block's `from`.
+    // covers: Core\Mail::send
+    #[test]
+    fn the_from_name_is_encoded_and_the_address_is_the_blocks() {
+        let from = |name: &str| {
+            let message = compose(
+                &Headers {
+                    from_name: Some(name),
+                    ..headers()
+                },
+                "body",
+                None,
+            );
+            header_lines(&message)
+                .into_iter()
+                .find(|line| line.starts_with("From: "))
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            from("Example Shop"),
+            "From: \"Example Shop\" <noreply@example.com>"
+        );
+        assert_eq!(from(""), "From: <noreply@example.com>");
+
+        for name in [
+            "Jürgen",
+            "Shop\r\nBcc: attacker@example.com",
+            "Shop\" <attacker@example.com>",
+            "Back\\slash",
+        ] {
+            let line = from(name);
+            assert!(
+                line.starts_with("From: =?UTF-8?B?") && line.ends_with(" <noreply@example.com>"),
+                "{name:?} gave {line:?}"
+            );
+            assert!(!line.contains("attacker"), "{line:?}");
+        }
+    }
+
+    /// `In-Reply-To` and `References` carry message ids in angle brackets. A value that is not
+    /// `local@domain`, or that has a byte that would end the id, throws.
+    // covers: Core\Mail::send
+    #[test]
+    fn in_reply_to_and_references_take_only_message_ids() {
+        let member = "Core\\Mail::send";
+        for good in ["abc@example.com", "CAF+x=y.z$1@mail.example.com"] {
+            assert_eq!(
+                message_id_of(good, "inReplyTo", member).ok().as_deref(),
+                Some(good)
+            );
+        }
+        for bad in [
+            "",
+            "<abc@example.com>",
+            "abc",
+            "abc@",
+            "@example.com",
+            "a@b@example.com",
+            "abc@example.com\r\nBcc: x@example.com",
+            "abc @example.com",
+            "abc(comment)@example.com",
+            "jürgen@example.com",
+        ] {
+            assert!(
+                message_id_of(bad, "references", member).is_err(),
+                "`{bad}` was taken as a message id"
+            );
+        }
+
+        let references = ["one@example.com".to_owned(), "two@example.com".to_owned()];
+        let message = compose(
+            &Headers {
+                in_reply_to: Some("two@example.com"),
+                references: &references,
+                ..headers()
+            },
+            "body",
+            None,
+        );
+        let lines = header_lines(&message);
+        assert!(lines.contains(&"In-Reply-To: <two@example.com>".to_owned()));
+        assert!(lines.contains(&"References: <one@example.com> <two@example.com>".to_owned()));
+    }
+
+    /// `unsubscribe` writes `List-Unsubscribe` and `List-Unsubscribe-Post` (RFC 8058), and only an
+    /// `https://` URL is taken.
+    // covers: Core\Mail::send
+    #[test]
+    fn unsubscribe_writes_both_headers_and_takes_only_https() {
+        let member = "Core\\Mail::send";
+        let url = "https://example.com/unsubscribe?u=42&t=abc";
+        assert_eq!(unsubscribe_of(url, member).ok().as_deref(), Some(url));
+        for bad in [
+            "http://example.com/unsubscribe",
+            "mailto:unsubscribe@example.com",
+            "https://",
+            "https:///path",
+            "https://example.com/a b",
+            "https://example.com/>\r\nBcc: x@example.com",
+            "HTTPS://example.com/",
+        ] {
+            assert!(
+                unsubscribe_of(bad, member).is_err(),
+                "`{bad}` was taken as an unsubscribe URL"
+            );
+        }
+
+        let message = compose(
+            &Headers {
+                unsubscribe: Some(url),
+                ..headers()
+            },
+            "body",
+            None,
+        );
+        let lines = header_lines(&message);
+        assert!(lines.contains(&format!("List-Unsubscribe: <{url}>")));
+        assert!(lines.contains(&"List-Unsubscribe-Post: List-Unsubscribe=One-Click".to_owned()));
+        let plain = compose(&headers(), "body", None);
+        assert!(!plain.contains("List-Unsubscribe"));
+    }
+
+    /// `Auto-Submitted: auto-generated` is on every message unless `autoSubmitted` is `false`.
+    // covers: Core\Mail::send
+    #[test]
+    fn auto_submitted_is_written_unless_turned_off() {
+        let on = compose(&headers(), "body", None);
+        assert!(header_lines(&on).contains(&"Auto-Submitted: auto-generated".to_owned()));
+        let off = compose(
+            &Headers {
+                auto_submitted: false,
+                ..headers()
+            },
+            "body",
+            None,
+        );
+        assert!(!off.contains("Auto-Submitted"));
     }
 }

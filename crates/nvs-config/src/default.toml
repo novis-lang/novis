@@ -871,6 +871,8 @@
 #host = "smtp.example.com"            # example
 #port = 25                            # default
 #from = "noreply@example.com"         # example
+# The name a mail program shows for the sender. A call's `fromName` replaces it, and never `from`.
+#from_name = "Example Shop"           # default: the address alone
 #timeout = "30s"                      # default
 # `user` and `password` are the pair that asks for TLS: a block naming them is sent through
 # `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in the

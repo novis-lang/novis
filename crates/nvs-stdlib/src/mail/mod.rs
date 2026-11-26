@@ -140,6 +140,16 @@ const BCC: usize = 5;
 const REPLY_TO: usize = 6;
 /// See [`ENDPOINT`].
 const HTML: usize = 7;
+/// See [`ENDPOINT`].
+const FROM_NAME: usize = 8;
+/// See [`ENDPOINT`].
+const IN_REPLY_TO: usize = 9;
+/// See [`ENDPOINT`].
+const REFERENCES: usize = 10;
+/// See [`ENDPOINT`].
+const UNSUBSCRIBE: usize = 11;
+/// See [`ENDPOINT`].
+const AUTO_SUBMITTED: usize = 12;
 
 /// [`send`](CLASS)'s trailing shape — the four headers a program may set that
 /// are not required to have a message at all.
@@ -170,6 +180,31 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },
+    CoreOption {
+        name: "fromName",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "inReplyTo",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "references",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::EmptyArray,
+    },
+    CoreOption {
+        name: "unsubscribe",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "autoSubmitted",
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
 ];
 
 /// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
@@ -194,8 +229,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             CoreTy::Options(OPTIONS),
         ],
         defaults: &[],
-        return_ty: CoreTy::Void,
-        text: TextOrigin::Unmarked,
+        return_ty: CoreTy::Str,
+        text: TextOrigin::Clean(
+            "The message id is random hex digits and the domain of the operator's `from`.",
+        ),
         symbol: "nvs_core_mail_send",
         doc: Some(&SEND_DOC),
     }],
@@ -264,16 +301,50 @@ const SEND_DOC: MethodDoc = MethodDoc {
                    `multipart/alternative` and both versions are sent.",
             shape: &[],
         },
+        ParamDoc {
+            name: "fromName",
+            desc: "The sender name that mail programs show, such as `Example Shop`. It replaces \
+                   `from_name` of the block. The sender address is always `from` of the block.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "inReplyTo",
+            desc: "The message id of the message this one answers. Mail programs then show both \
+                   in one thread. Pass the id that `send` returned, without angle brackets.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "references",
+            desc: "The message ids of the earlier messages in the thread, oldest first. Each \
+                   one is a message id, as `send` returns it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unsubscribe",
+            desc: "An `https://` URL that unsubscribes the recipient with one click. Mail \
+                   programs show an unsubscribe button and send a POST request to this URL.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "autoSubmitted",
+            desc: "Whether the message has the header `Auto-Submitted: auto-generated`. It is \
+                   `true` by default, and then automatic replies such as out-of-office messages \
+                   are not sent back. Use `false` for a message that a person wrote.",
+            shape: &[],
+        },
     ],
-    ret: "Nothing. The mail server accepted the message. Delivery after that is the mail \
-          server's job.",
+    ret: "The message id, such as `3f2a…@example.com`, without angle brackets. The mail server \
+          accepted the message. Store the id to match a reply or a bounce to the message, or to \
+          pass it to `inReplyTo` later.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "The capability `mail.send` does not allow `$endpoint`. Or no `[mail.<name>]` \
                    block with that name sets `host` or `from`. Or the block sets only one \
-                   of `user` and `password`. Or an address is not a valid address. Each of these \
-                   is a mistake in the settings or the call, not a failed send.",
+                   of `user` and `password`. Or an address is not a valid address. Or \
+                   `inReplyTo` or `references` has a value that is not a message id. Or \
+                   `unsubscribe` is not an `https://` URL. Each of these is a mistake in the \
+                   settings or the call, not a failed send.",
         },
         ErrorDoc {
             error: "IOError",
@@ -304,6 +375,8 @@ struct Endpoint {
     port: u16,
     /// `from` — the envelope sender and the `From:` header, both.
     from: String,
+    /// `from_name` — the display name `From:` writes, unless a call's `fromName` replaces it.
+    from_name: Option<String>,
     /// `timeout`, or [`DEFAULT_TIMEOUT`].
     timeout: Duration,
     /// `user` and `password`, both or neither — the credential `AUTH PLAIN`
@@ -412,6 +485,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
         host,
         port,
         from,
+        from_name: configured(ctx, endpoint, "from_name"),
         timeout,
         credential,
     })
@@ -458,6 +532,19 @@ fn addresses_of(
     what: &str,
     member: &str,
 ) -> Result<Vec<String>, Fault> {
+    texts_of(args, slot, what, member)?
+        .iter()
+        .map(|text| address_of(text, what, member))
+        .collect()
+}
+
+/// Every `string` in the `array<string>` at `slot`, in order.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument or element that is not what the row
+/// declared, which the `array<string>` rules out from source.
+fn texts_of(args: &[Value], slot: usize, what: &str, member: &str) -> Result<Vec<String>, Fault> {
     let Some(array) = args[slot].array_ptr() else {
         return Err(Fault::fatal(format!(
             "{member} expected {:?} for `{what}`, got tag {}",
@@ -473,7 +560,7 @@ fn addresses_of(
                 value.tag_byte()
             ))
         })?;
-        found.push(address_of(text, what, member)?);
+        found.push(text.to_owned());
     }
     Ok(found)
 }
@@ -501,8 +588,9 @@ fn optional_of(args: &[Value], slot: usize) -> Option<&str> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Mail::send(string $endpoint, array<string> $to, string $subject,
-    /// string $text, {cc?, bcc?, replyTo?, html?}): void` — `rule:programs/framework-core-half`'s
-    /// transport half, replacing `mail()`.
+    /// string $text, {cc?, bcc?, replyTo?, html?, fromName?, inReplyTo?, references?,
+    /// unsubscribe?, autoSubmitted?}): string` — `rule:programs/framework-core-half`'s transport
+    /// half, replacing `mail()`. It returns the `Message-ID` it wrote, without angle brackets.
     ///
     /// The order below is the whole security argument, and it is the order the
     /// module doc's second section gives: the grant is asked about `$endpoint`
@@ -513,7 +601,7 @@ nvs_runtime::nvs_helper! {
     /// A recorded request files one `mail` event for the call
     /// (`rule:observability/trace-events-carry-a-kind`), with the number of recipients and
     /// whether the send returned, and never an address, the subject or the body.
-    fn nvs_core_mail_send(ctx, args: [8]) {
+    fn nvs_core_mail_send(ctx, args: [13]) {
         let member = format!("{NAME}::send");
         let recipients = Cell::new(None);
         crate::site::watched_with(
@@ -557,8 +645,30 @@ fn send(
     let subject = text_of(args, SUBJECT, "subject", member)?;
     let text = text_of(args, TEXT, "text", member)?;
     let html = optional_of(args, HTML);
+    let in_reply_to = match optional_of(args, IN_REPLY_TO) {
+        Some(id) => Some(compose::message_id_of(id, "inReplyTo", member)?),
+        None => None,
+    };
+    let references = texts_of(args, REFERENCES, "references", member)?
+        .iter()
+        .map(|id| compose::message_id_of(id, "references", member))
+        .collect::<Result<Vec<_>, _>>()?;
+    let unsubscribe = match optional_of(args, UNSUBSCRIBE) {
+        Some(url) => Some(compose::unsubscribe_of(url, member)?),
+        None => None,
+    };
+    let auto_submitted = args[AUTO_SUBMITTED].as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{member} expected a `bool` for `autoSubmitted`, got tag {}",
+            args[AUTO_SUBMITTED].tag_byte()
+        ))
+    })?;
 
     let configured = endpoint_of(ctx, endpoint, member)?;
+    let from_name = optional_of(args, FROM_NAME).or(configured.from_name.as_deref());
+    let mut random = [0_u8; 16];
+    crate::random::draw(ctx, |rng| rand::Rng::fill_bytes(rng, &mut random));
+    let message_id = compose::message_id(random, &configured.from);
 
     // Under `nvs test`, the message is kept for `Core\Test::sentMail` and no connection is
     // opened, so a test never reaches a real person
@@ -575,21 +685,27 @@ fn send(
             reply_to,
             html: html.map(str::to_owned),
         });
-        return Ok(Value::null());
+        return Ok(Value::text(&message_id));
     }
 
-    let mut message = compose(
-        &configured.from,
-        &to,
-        &cc,
-        subject,
+    let message = compose(
+        &compose::Headers {
+            from: &configured.from,
+            from_name,
+            to: &to,
+            cc: &cc,
+            reply_to: reply_to.as_deref(),
+            subject,
+            message_id: &message_id,
+            in_reply_to: in_reply_to.as_deref(),
+            references: &references,
+            unsubscribe: unsubscribe.as_deref(),
+            auto_submitted,
+            now: SystemTime::now(),
+        },
         text,
         html,
-        SystemTime::now(),
     );
-    if let Some(reply_to) = &reply_to {
-        message.insert_str(0, &format!("Reply-To: <{reply_to}>\r\n"));
-    }
 
     // Bcc reaches the envelope and no header, which is the whole of what
     // makes it blind — the header set above never names it.
@@ -606,7 +722,7 @@ fn send(
     resolve(&configured, member, lookup_until).and_then(|address| {
         smtp::deliver(address, &configured, until, &envelope, &message, member)
     })?;
-    Ok(Value::null())
+    Ok(Value::text(&message_id))
 }
 
 #[cfg(test)]

@@ -973,6 +973,9 @@ pub struct MailEndpoint {
     /// The envelope sender and the `From:` header, both. There is no call-site override: domain
     /// alignment is a fact about the deployment.
     pub from: Option<String>,
+    /// The display name the `From:` header writes before `from`. A call's `fromName` replaces the
+    /// name and never the address, so a tainted name cannot change the domain a reader checks.
+    pub from_name: Option<String>,
     /// The submission user. Set with `password` or not at all — half a credential is refused, and a
     /// `password_file` is that half arriving as a file.
     pub user: Option<String>,
