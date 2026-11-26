@@ -14,11 +14,11 @@ stages:
     context: [crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-stdlib/src/ldap/mod.rs, crates/nvs-ldap/src/conn.rs, crates/nvs-cli/tests/live_config.rs]
   - id: 3
     title: "the rule, the settings docs, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [crates/nvs-config/src/default.toml, docs/examples/config/tls-client/about.md, website/src/data/changes.json]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rename
@@ -196,64 +196,44 @@ call per crate.
   example's `nvs.toml` and `.nvs` and two more attacks still name `http.client.tls`:
   `tests/hostile/config/http-client-socket/01-removing-the-one-bound-a-request-is-allowed-to-set.nvs:73`
   and `tests/hostile/config/http/01-bending-the-response-policy-from-inside-a-request.nvs:36`, `:91`.
-- [ ] `website/src/data/changes.json:1`: the entry of § *Website*. Then `bun nv site --check stale`,
+- [x] `website/src/data/changes.json:1`: the entry of § *Website*. Then `bun nv site --check stale`,
   `changes` and `review` are green.
   - [x] the entry is written, and `site --check changes` is green
   - [x] the newcomer review of the 14 texts ran, and the TLS texts' findings are fixed
-  - [ ] the remaining findings are fixed, and the 14 review keys are stamped
-  - [ ] the 20 stale texts are reread and stamped, and `site --check stale` is green
+  - [x] the remaining findings are fixed, and the 14 review keys are stamped
+  - [x] the 20 stale texts are reread and stamped, and `site --check stale` is green
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's first three items landed, and the check `rules` is green:
+Every stage is done, and the goal is reached. The checks `rename`, `every-client` and `rules` are
+green, and `bun nv close --goal tls-client-block` is green.
 
-- `ddf5d3e031`: the rule is `docs/rules/security/the-client-trust-roots-are-the-operators.md`,
-  naming every client, `tls_ca_file` replacing `roots`, the two hints and the Declined list. Its
-  metadata moved to `data/rules/security/`, and every citation follows.
-- `3670009ee1`: `default.toml` has its own `[tls.client]` section before `[http.*]`, and every
-  `tls_ca_file` doc (the file, `tree.rs`, the four `nvs-db` drivers) says `[tls.client] roots`.
-- `4a75c2a147`: the example and attack live under `docs/examples/config/tls-client/` and
-  `tests/hostile/config/tls-client/`; the two other attacks name `tls.client.*`. All three
-  directives' proofs run green (`proofs --run --id`).
-- `f71aa0f99f`: the breaking `changes.json` entry (`site --check changes` green), the HTTP help's
-  `tlsCa` and returns text, and the mail guide's `tls_ca_file` line name `[tls.client] roots`.
-
-The newcomer review ran over the 14 keys `bun nv site --review` listed (saved list:
-`help:Core\Http\Client::{delete,get,head,openSocket,openStream,patch,post,put,request}`, the three
-`tls-client` texts, `sending-mail.mdx` and `changes.json`). The TLS texts' findings are fixed. No key
-is stamped yet.
+- Stages 1 to 3 landed in `ddf5d3e031`..`f71aa0f99f` and this session's commits.
+- `crates/nvs-stdlib/src/http.rs`: each `Core\Http\Client` help card says only what is true for its
+  method. `request_errors!` builds the shared `RuntimeError`, and `request` and `openStream` add
+  their own sentences. `head` has `HEAD_RET`, and `openStream` has its own `deadline` and
+  `TimeoutError` texts.
+- The 14 review keys and the 20 stale texts are stamped. The 28 `Core\Http*` perf figures are
+  measured again. The 12 pages' search questions are stamped, and `/reference/config/tls/` has its
+  own, with the CA question moved there from `/reference/config/http/`.
+- Every decision has a home outside this file: the rule
+  `docs/rules/security/the-client-trust-roots-are-the-operators.md` (names, hints, Declined list)
+  and the module doc of `crates/nvs-cli/tests/client_roots.rs` (the tests run `nvs` as a child).
 
 The nightly sweep's nine failures (run 45813627231) tested `4e43e1fa2e`, older than both fixes:
 `c115a735a1` (Miri) and `28a4d7a6bf` (conformance). Nothing to do.
 
 ### Next
 
-Stage 3's last item, then stage 4.
+Nothing. The goal is reached, and the full gate runs at a later goal of the chain.
 
-1. The review's remaining findings, all in text this goal did not write: the HTTP client help cards'
-   shared params and throws blocks (`crates/nvs-stdlib/src/http.rs`, from `:2300`): the `request`
-   sentence that appears on every member, "A body that is not text does not cause this error", the
-   `openStream` sentence on other members, "`1` is the same as the default", "pinned address",
-   `head`'s returns saying "body", and `openStream`'s `deadline` text contradicting the shared one.
-   And `sending-mail.mdx`: "nothing else", "token", the `.note` and `unusedCss()` pair, and
-   `inReplyTo` not saying it takes message ids. Fix each, rebuild, then
-   `bun nv site --review --stamp <the 14 keys>`. The `help.patch`-style edit goes through
-   `bun nv splice`.
-2. `bun nv site --check stale` names 20 texts (the `Core\Http\Client` about.md files,
-   `Core\Mail::send`, `directive:http`, `http.client.proxy`, `http.client.socket`,
-   `directive:tls.client`). None mentions TLS trust; reread each and `bun nv site --stamp` it.
-3. `bun nv proofs --owed --goal tls-client-block` then owes `perf` (stale) for 28 `Core\Http*`
-   members, because `http.rs` changed. Re-measure them as `proofs --id` says, and per the playbook,
-   run `bun nv scaling --budget` before any `--write`.
-4. Stage 4: `bun nv close --goal tls-client-block`.
-
-Expected red: none in tests. `site --check stale` and `review` stay red until 1 and 2.
+Expected red: none.
 
 ### Backlog
