@@ -1,0 +1,25 @@
+# Two scheduled jobs run once when the server starts. The second job throws an error.
+[server]
+workers = 1
+
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+[capabilities.db]
+connect = ["shop"]
+
+[[schedule]]
+name = "import-orders"
+on = "start"
+script = "jobs/import-orders.nvs"
+scope = "host"
+
+[schedule.grants.db]
+connect = ["shop"]
+
+[[schedule]]
+name = "send-receipts"
+on = "start"
+script = "jobs/send-receipts.nvs"
+scope = "host"
