@@ -35,6 +35,7 @@ import { Method, Status } from "../ui/badges.tsx";
 import { Empty } from "../ui/empty.tsx";
 import { addCommands } from "../ui/palette.tsx";
 import { Site } from "../ui/site.tsx";
+import { Stack } from "../ui/stack.tsx";
 import { type Tab, Tabs } from "../ui/tabs.tsx";
 import { Meter, Tile } from "../ui/tile.tsx";
 import { toast } from "../ui/toast.tsx";
@@ -426,6 +427,7 @@ function ExceptionPanel(props: { detail: RequestDetail }) {
           <p class="site exc-site">
             Thrown at <Site site={exc()} />
           </p>
+          <Stack stack={exc()} />
         </section>
       )}
     </Show>

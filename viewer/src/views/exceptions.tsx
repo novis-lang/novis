@@ -25,6 +25,7 @@ import { navigate, requestLink } from "../router.ts";
 import { Empty } from "../ui/empty.tsx";
 import { List, type RowKey } from "../ui/list.tsx";
 import { Site } from "../ui/site.tsx";
+import { Stack } from "../ui/stack.tsx";
 import { Spark } from "../ui/tile.tsx";
 import { isMarked, MarkState, openLink, toggleMark } from "./compare.tsx";
 import { createNow, REQUEST_ROW, RequestCells, RequestColumns } from "./requests.tsx";
@@ -294,6 +295,7 @@ function GroupView(props: { key: ExceptionKey }) {
               <Show when={g().sampled}>
                 <p class="note">The chart and the routes count only the 1000 most recent throws.</p>
               </Show>
+              <Show when={live.page()?.latest}>{(latest) => <Stack stack={latest()} />}</Show>
             </>
           )}
         </Show>

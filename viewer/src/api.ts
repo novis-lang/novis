@@ -181,8 +181,37 @@ export interface Health {
 /** Any JSON value. A dump's tree and a log line's fields are in the JSON rendering of a value. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
-/** An uncaught exception: its class, its message and the site of its `throw`. */
-export interface Exception extends Threw {
+/** One frame of a recorded stack: the function and, when it has one, its site. Never a value. */
+export interface Frame {
+  function: string;
+  file?: string;
+  line?: number;
+}
+
+/** One exception of a `previous` chain: its class, message, site and frames. */
+export interface Cause {
+  class: string;
+  message: string;
+  file?: string;
+  line?: number;
+  frames?: Frame[];
+  /** Whether its frames were cut to the innermost 64. */
+  frames_cut?: boolean;
+}
+
+/** An exception's frames, innermost first, and its `previous` chain, nearest first. A field the
+ *  record does not have is left out. */
+export interface Stack {
+  frames?: Frame[];
+  /** Whether the frames were cut to the innermost 64. */
+  frames_cut?: boolean;
+  previous?: Cause[];
+  /** Whether the chain was cut to the nearest 8. */
+  previous_cut?: boolean;
+}
+
+/** An uncaught exception: its class, its message, the site of its `throw`, and its stack. */
+export interface Exception extends Threw, Stack {
   message: string;
 }
 
@@ -546,6 +575,8 @@ export type ExceptionKey = Threw;
 export interface ExceptionRequests {
   watermark: number;
   group: ExceptionGroup;
+  /** The frames and the chain of the group's latest throw. */
+  latest: Stack;
   requests: RequestRow[];
   /** The `before` of the next page, or `null` when this page has the oldest request. */
   older: number | null;

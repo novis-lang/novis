@@ -190,6 +190,17 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     await tab.go("?tab=exception", `document.querySelector(".exception .exc-head") !== null`);
     expect(await tab.eval(`document.querySelector(".exception .exc-head").textContent`)).toBe("Shop\\OutOfStock: item 7 is out of stock");
     expect(await tab.eval(`document.querySelector(".exception .exc-site").textContent`)).toBe("Thrown at src/Shop/Orders.nvs:42");
+    // The stack lists each frame, innermost first: the program's own in full weight and `Core`'s dimmed.
+    expect(await tab.eval(`[...document.querySelectorAll(".exception > .stack > .frames .frame")].map((f) => f.className + " " + f.textContent)`)).toEqual([
+      "frame frame-own Shop\\Stock::takesrc/Shop/Stock.nvs:18",
+      "frame frame-own Shop\\Orders::createsrc/Shop/Orders.nvs:42",
+      "frame frame-core Core\\Http\\Router::dispatch",
+    ]);
+    // The previous chain is below it, with its own message, site and frames.
+    expect(await tab.eval(`document.querySelector(".cause .exc-head").textContent`)).toBe("Shop\\StockError: no row for item 7");
+    expect(await tab.eval(`document.querySelector(".cause .exc-site").textContent`)).toBe("Thrown at src/Shop/Stock.nvs:11");
+    expect(await tab.eval(`document.querySelectorAll(".cause .frame").length`)).toBe(1);
+    expect(await tab.eval(`document.querySelectorAll(".exception .cut-note").length`)).toBe(0);
     await tab.go("?tab=logs", `document.querySelector("#log-1 .log-message") !== null`);
     expect(await tab.eval(`document.querySelector("#log-1 .log-message").textContent`)).toBe("stock is empty");
     await tab.close();

@@ -128,6 +128,39 @@
   color: var(--muted);
 }
 
+/* An exception's stack and its chain (`ui/stack.tsx`), on the request page and a group's page. */
+.stack-title {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.frames {
+  margin: 0;
+  padding-left: 2rem;
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.frame {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+}
+
+.frame-own .frame-fn {
+  font-weight: 600;
+}
+
+.frame-core {
+  color: var(--muted);
+}
+
+.cause .exc-head,
+.cause .exc-site {
+  margin: 0;
+}
+
 /* A request's log lines. */
 .log-list {
   list-style: none;

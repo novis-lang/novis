@@ -195,6 +195,12 @@ describe.skipIf(!EXE)("the exceptions view in Chromium", () => {
     expect(await tab.eval(`document.querySelector(".exc-summary .title").textContent`)).toBe(GROUP.group.class);
     expect(await tab.eval(`document.querySelector(".exc-summary .exc-count").textContent`)).toBe(String(GROUP.group.count));
     expect(await tab.eval(`document.querySelector(".exc-summary .site a").getAttribute("href")`)).toBe("vscode://file/src/Shop/Orders.nvs:42:1");
+    // The group shows its latest throw's stack, and a frame's site is a link to the editor.
+    expect(await tab.eval(`[...document.querySelectorAll(".exc-summary .frame-fn")].map((f) => f.textContent)`)).toEqual(
+      (GROUP.latest.frames ?? []).map((frame) => frame.function),
+    );
+    expect(await tab.eval(`document.querySelector(".exc-summary .frame-own a").getAttribute("href")`)).toBe("vscode://file/src/Shop/Orders.nvs:42:1");
+    expect(await tab.eval(`document.querySelectorAll(".exc-summary .frame-core").length`)).toBe(1);
 
     // Enter opens the selected request at its exception.
     const row = GROUP.requests[1]!;
