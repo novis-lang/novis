@@ -344,13 +344,13 @@
   },
   "/guides/how-to-use/sending-mail/": {
     "feature": "guides/how-to-use/sending-mail.mdx",
-    "hash": "1f6357b4671a3656",
+    "hash": "de7d8b61b21b0133",
     "questions": [
       "Step by step guide to sending email from my app",
-      "Why does Gmail ignore the CSS in my email?",
+      "Set up an SMTP server and its password in nvs.toml",
       "Show a company logo inside an HTML email",
-      "Put a reply in the same email thread",
       "Add a one-click unsubscribe button to a newsletter",
+      "Send an email without making the visitor wait for the page",
       "See the emails my app sent on my own computer"
     ]
   },
@@ -1331,14 +1331,14 @@
   },
   "/reference/cli/nvs-debug/": {
     "feature": "tools:cli/nvs-debug",
-    "hash": "a30ecf2f5a3c19ee",
+    "hash": "8b9d013528f1c242",
     "questions": [
       "Read the saved request records into a database I can search",
       "Read a JSON log file into the same database as the requests",
-      "Collect request records on a production host",
       "Read the waiting request records once and exit, for a cron job",
       "Why does a second nvs debug exit with status 1?",
-      "Is a password from a login form saved in the request record?"
+      "Is a password from a login form saved in the request record?",
+      "Does nvs debug keep reading a log file after it is rotated?"
     ]
   },
   "/reference/cli/nvs-debug-link/": {
@@ -1587,14 +1587,14 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "fa7255d58ffae6c7",
+    "hash": "2936946e7b532ea0",
     "questions": [
-      "How do I look at the requests my development server recorded?",
       "Which keys and pages does the debug viewer have?",
       "Why does the debug viewer only open from the link nvs debug prints?",
-      "See how much memory each request used against its limit",
-      "List my scheduled jobs and queue jobs with their outcome",
-      "Use the debug viewer when my server runs in a Docker container"
+      "Use the debug viewer when my server runs in a Docker container",
+      "Open a file and line from the debug viewer in my editor",
+      "Why does my browser show a certificate warning for the debug viewer?",
+      "Filter recorded requests by status code such as 5xx"
     ]
   },
   "/reference/cli/the-vs-code-extension/": {
@@ -1659,14 +1659,14 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "3805b9ab0f3d8137",
+    "hash": "919fdbc94a56d7bd",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show my debug dumps at the bottom of the HTML page",
-      "Save a record of every request so I can look at it later",
-      "Limit the disk space and the age of saved request records",
-      "Change the address and port of the debug viewer",
-      "Count which lines each request runs on my development server"
+      "How long are saved request records kept before they are deleted?",
+      "Set the largest size of the database of recorded requests",
+      "Use my own certificate and token for the debug viewer",
+      "Limit the size of the folder where request records wait"
     ]
   },
   "/reference/config/deferred/": {
@@ -1887,14 +1887,14 @@
   },
   "/reference/config/secrets-from-files/": {
     "feature": "tools:config/secrets-from-files",
-    "hash": "ccf4a00ad91e419c",
+    "hash": "a29111354749cebf",
     "questions": [
       "How do I keep the database password out of the config file?",
       "Read a password from a Docker or Kubernetes secret",
+      "Read the OAuth refresh token for my mail server from a file",
       "Use SOPS or Vault to provide credentials",
-      "Can I use environment variables in the configuration?",
       "Why does the server warn about a space in my password?",
-      "Where do I put the OAuth client secret of a mail server?"
+      "Why does the server stop when other users can write my secret file?"
     ]
   },
   "/reference/config/server/": {
@@ -1923,14 +1923,14 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "0cff1801ec8fa3a9",
+    "hash": "79e731c018e477e8",
     "questions": [
       "Which sections can I write in the configuration file?",
-      "Configure a database connection or mail server",
-      "Which block turns off slow backtracking in regular expressions?",
+      "Which keys does a mail server section accept?",
+      "Sign outgoing mail with DKIM in the configuration file",
+      "Turn on TLS and OAuth login for an SMTP server",
       "What does error E0601 mean in my configuration?",
-      "What does warning W1024 mean for an empty unknown section?",
-      "Can I put a setting outside any section in nvs.toml?"
+      "Turn off the database connection pool for every connection"
     ]
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
@@ -8127,16 +8127,209 @@
       "Send an email with a PDF file attached"
     ]
   },
+  "/reference/core/mail/preview/": {
+    "feature": "Core\\Mail::preview",
+    "hash": "bcb78f5bb6d0bf2a",
+    "questions": [
+      "See what an email looks like without sending it",
+      "Show an email on an admin page before it goes out",
+      "Check the final HTML of an email in a test",
+      "Render an email template without a mail server",
+      "Build the body of an email but send nothing"
+    ]
+  },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "de56a0eecd56951c",
+    "hash": "fd47f3410006b16e",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
       "Add hidden copy recipients to an email",
-      "What happens when the mail server cannot be reached?",
-      "Why does an email address with a line break throw an error?",
+      "Change the sender name shown in the inbox for one email",
+      "Make my reply show in the same conversation as the first email",
       "Get the message id of an email I sent"
+    ]
+  },
+  "/reference/core/mail-address/": {
+    "feature": "Core\\Mail\\Address",
+    "hash": "1094e70d59e3be35",
+    "questions": [
+      "Show a person's name next to the email address",
+      "An email address together with a display name",
+      "What can I pass as a recipient besides an address string?",
+      "Use a name for the cc, bcc or reply address"
+    ]
+  },
+  "/reference/core/mail-address/of/": {
+    "feature": "Core\\Mail\\Address::of",
+    "hash": "0b49edc61b489337",
+    "questions": [
+      "How do I send to \"Ada Lovelace\" <ada@example.com>?",
+      "Why does 'Name <address>' as one string throw an error?",
+      "Can a name typed by a user add another recipient to an email?",
+      "Make a recipient with a name from a sign-up form",
+      "Send to an address with a domain that is not in English letters"
+    ]
+  },
+  "/reference/core/mail-attachment/": {
+    "feature": "Core\\Mail\\Attachment",
+    "hash": "a7a89573bb8e52e6",
+    "questions": [
+      "How do I add a file to an email?",
+      "Send a file or picture together with a mail",
+      "What can I pass in the attachments option of a mail?",
+      "Two kinds of email attachments: download or shown in the message",
+      "Object for a file that goes with an email"
+    ]
+  },
+  "/reference/core/mail-attachment/bytes/": {
+    "feature": "Core\\Mail\\Attachment::bytes",
+    "hash": "6e5405f02c170a54",
+    "questions": [
+      "Read the content of an email attachment",
+      "Get the size of an attached file before sending",
+      "Test the content of a CSV file sent by mail",
+      "How much memory does a large mail attachment use?"
+    ]
+  },
+  "/reference/core/mail-attachment/frombytes/": {
+    "feature": "Core\\Mail\\Attachment::fromBytes",
+    "hash": "54d18cf9686ee529",
+    "questions": [
+      "Attach a CSV export made in memory to an email",
+      "Send content from a string as an email file",
+      "Attach a generated report without saving it to disk",
+      "Why does my attached CSV get application/octet-stream?",
+      "File name with a line break throws an error in mail"
+    ]
+  },
+  "/reference/core/mail-attachment/fromfile/": {
+    "feature": "Core\\Mail\\Attachment::fromFile",
+    "hash": "faedbdb1e47270cc",
+    "questions": [
+      "Attach a file from the disk to an email",
+      "Send a PDF from a folder as an email attachment",
+      "Give an attached file a different name than on disk",
+      "Why does attaching a missing file throw an error?",
+      "Which permission do I need to attach a file from disk?"
+    ]
+  },
+  "/reference/core/mail-attachment/inlinebytes/": {
+    "feature": "Core\\Mail\\Attachment::inlineBytes",
+    "hash": "fa9f3ab8602b9f34",
+    "questions": [
+      "Show an image from the database inside an email",
+      "Embed a picture from memory in an HTML mail",
+      "One image for each product in an email",
+      "Embed an SVG image in an email body",
+      "Show a generated chart image inside a mail"
+    ]
+  },
+  "/reference/core/mail-attachment/inlinefile/": {
+    "feature": "Core\\Mail\\Attachment::inlineFile",
+    "hash": "8dd359e64a9d271a",
+    "questions": [
+      "Show a logo image inside an HTML email",
+      "Embed a picture from a file in the email body",
+      "Put an image in a mail without loading it from the internet",
+      "Error: inline image is not used in the HTML",
+      "Send a welcome email with a company logo"
+    ]
+  },
+  "/reference/core/mail-attachment/isinline/": {
+    "feature": "Core\\Mail\\Attachment::isInline",
+    "hash": "9e19dfeea27476a1",
+    "questions": [
+      "Is this attachment shown in the email or downloaded?",
+      "Tell an embedded image from a file to download",
+      "Test that a logo is shown inside the mail",
+      "Avoid an error from src on a normal attachment"
+    ]
+  },
+  "/reference/core/mail-attachment/name/": {
+    "feature": "Core\\Mail\\Attachment::name",
+    "hash": "70b97a87772ab33a",
+    "questions": [
+      "Get the file name the recipient sees for an attachment",
+      "List the names of all files in an email",
+      "Check the attachment file name in a mail test",
+      "Is the attachment file name safe to put into HTML?"
+    ]
+  },
+  "/reference/core/mail-attachment/src/": {
+    "feature": "Core\\Mail\\Attachment::src",
+    "hash": "2f23c8055e2db25e",
+    "questions": [
+      "What URL do I put in img src for an embedded email image?",
+      "What is a cid: URL in an email?",
+      "Get the address of an image inside the same mail",
+      "Error: cid URL has no image in the mail",
+      "Build the HTML of a mail before sending it with images"
+    ]
+  },
+  "/reference/core/mail-attachment/type/": {
+    "feature": "Core\\Mail\\Attachment::type",
+    "hash": "d9c09bf837feed47",
+    "questions": [
+      "Get the media type of an email attachment",
+      "Which content type was detected for an attached file?",
+      "Check that an attachment is a PDF in a test",
+      "Why is charset not allowed in an attachment type?",
+      "Set text/csv as the type of a mail file"
+    ]
+  },
+  "/reference/core/mail-preview/": {
+    "feature": "Core\\Mail\\Preview",
+    "hash": "18a809d284496b25",
+    "questions": [
+      "What does Core\\Mail::preview return?",
+      "The finished body of an email before it is sent",
+      "Which parts of an email preview can I read?",
+      "Read the HTML and plain text of a mail preview"
+    ]
+  },
+  "/reference/core/mail-preview/html/": {
+    "feature": "Core\\Mail\\Preview::html",
+    "hash": "44c9b5931d2f0fac",
+    "questions": [
+      "Why does Gmail ignore the CSS in my email?",
+      "Copy CSS from a style tag into each element's style attribute",
+      "Which CSS rule wins when two rules style the same element in an email?",
+      "A preview of a plain text email has no HTML",
+      "Get the HTML of an email with inline styles"
+    ]
+  },
+  "/reference/core/mail-preview/keptcss/": {
+    "feature": "Core\\Mail\\Preview::keptCss",
+    "hash": "12f42dbc6c50ce8e",
+    "questions": [
+      "Which CSS rules stay in the style tag of my email?",
+      "Does a @media rule work in an HTML email?",
+      "Why is my hover style not copied into the email elements?",
+      "Make an email look right on a small phone screen",
+      "Test that every CSS rule of an email template was inlined"
+    ]
+  },
+  "/reference/core/mail-preview/text/": {
+    "feature": "Core\\Mail\\Preview::text",
+    "hash": "19dcd15198ba8fc5",
+    "questions": [
+      "What plain text version does my HTML email get?",
+      "How are links written in the plain text part of an email?",
+      "Email text for mail programs that do not show HTML",
+      "At how many characters does the plain text of an email wrap?",
+      "How does a table look in the plain text of an email?"
+    ]
+  },
+  "/reference/core/mail-preview/unusedcss/": {
+    "feature": "Core\\Mail\\Preview::unusedCss",
+    "hash": "9877b3764ecd83b3",
+    "questions": [
+      "Find CSS rules in an email that match no element",
+      "Find a typo in a CSS class name of my email template",
+      "Why does a dark mode rule for Outlook match nothing?",
+      "Test an email template for CSS it never uses",
+      "List the unused CSS selectors in an email"
     ]
   },
   "/reference/core/markdown/": {
@@ -15044,13 +15237,14 @@
   },
   "/reference/core/test/sentmail/": {
     "feature": "Core\\Test::sentMail",
-    "hash": "6eb2017324e77d19",
+    "hash": "6d182b3a763a1808",
     "questions": [
       "How do I check which emails my code sent in a test?",
-      "Does CoreMail::send reach a real person under nvs test?",
-      "Test the subject and recipients of a sent email",
-      "Read the mail a request sent during a test",
-      "Test email sending without a mail server"
+      "Does my test send email to a real person?",
+      "Get the list of emails sent during the current test",
+      "Test email sending without a mail server",
+      "Check that a form with an error sends no email",
+      "Read the mail a request sent during a test"
     ]
   },
   "/reference/core/test/sentsocket/": {
@@ -15350,6 +15544,28 @@
       "Check the files attached to an email in a test"
     ]
   },
+  "/reference/core/test-sentmail/attachments/": {
+    "feature": "Core\\Test\\SentMail::attachments",
+    "hash": "000819dc8ba7cbd9",
+    "questions": [
+      "How do I check the files attached to an email in a test?",
+      "Test that an invoice email has the right CSV file",
+      "Read the name and content of an email attachment in a test",
+      "Does the attachment list include inline images in the HTML?",
+      "Check that an email was sent with no attachments"
+    ]
+  },
+  "/reference/core/test-sentmail/autosubmitted/": {
+    "feature": "Core\\Test\\SentMail::autoSubmitted",
+    "hash": "72927eafbcce1ef4",
+    "questions": [
+      "How do I check that a program sent an email automatically in a test?",
+      "Test that a reply written by a person is sent as a normal mail",
+      "Read the Auto-Submitted header of a sent email",
+      "Stop out-of-office replies to my automatic emails",
+      "Is an email automatic when the code does not say?"
+    ]
+  },
   "/reference/core/test-sentmail/bcc/": {
     "feature": "Core\\Test\\SentMail::bcc",
     "hash": "a2027e95148b8cd3",
@@ -15358,6 +15574,17 @@
       "Test that a mail was sent as a blind copy",
       "Read the bcc addresses of a sent email",
       "Is bcc empty when the mail had no hidden recipients?"
+    ]
+  },
+  "/reference/core/test-sentmail/bouncetag/": {
+    "feature": "Core\\Test\\SentMail::bounceTag",
+    "hash": "5c8eb5f7b648e3bc",
+    "questions": [
+      "How do I check the bounce tag of an email in a test?",
+      "Find out which email could not be delivered",
+      "Test that each newsletter reader gets their own bounce tag",
+      "Where does a bounce go when the email has a tag?",
+      "What does bounceTag return when no tag was given?"
     ]
   },
   "/reference/core/test-sentmail/cc/": {
@@ -15380,15 +15607,57 @@
       "Which value does endpoint return for a sent email?"
     ]
   },
+  "/reference/core/test-sentmail/fromname/": {
+    "feature": "Core\\Test\\SentMail::fromName",
+    "hash": "53a22b73055421ec",
+    "questions": [
+      "How do I check the sender name of an email in a test?",
+      "Test that a support reply shows the agent's name as sender",
+      "Which sender name does a mail use when the code gives none?",
+      "Read the From name that a mail program shows"
+    ]
+  },
   "/reference/core/test-sentmail/html/": {
     "feature": "Core\\Test\\SentMail::html",
-    "hash": "86ceb5c4be57617f",
+    "hash": "07bfaae5b5de00cb",
     "questions": [
       "How do I check the HTML body of an email in a test?",
       "Test the HTML version of a sent mail",
       "What does html return for a plain text email?",
-      "Read the HTML part my code sent in a test",
-      "Is the CSS already copied into the HTML a test reads?"
+      "Is the CSS already copied into the HTML a test reads?",
+      "Test that a name from a form is escaped in the email HTML"
+    ]
+  },
+  "/reference/core/test-sentmail/inreplyto/": {
+    "feature": "Core\\Test\\SentMail::inReplyTo",
+    "hash": "0c3e67751f7705f7",
+    "questions": [
+      "How do I check which message an email replies to in a test?",
+      "Test that a reply belongs to the right email thread",
+      "Read the In-Reply-To header of a sent email",
+      "What is the reply id of a new email that starts a thread?"
+    ]
+  },
+  "/reference/core/test-sentmail/messageid/": {
+    "feature": "Core\\Test\\SentMail::messageId",
+    "hash": "8f83bcba4294156e",
+    "questions": [
+      "How do I get the message id of an email in a test?",
+      "Test that my code stored the id of the email it sent",
+      "Does the test see the same id that the send function returned?",
+      "What does an email message id look like?",
+      "Check that two sent emails have different ids"
+    ]
+  },
+  "/reference/core/test-sentmail/references/": {
+    "feature": "Core\\Test\\SentMail::references",
+    "hash": "8a7f5fbf37f052f8",
+    "questions": [
+      "How do I check the earlier messages of an email thread in a test?",
+      "Read the References header of a sent email",
+      "Test that a new message lists the whole thread",
+      "In which order are the thread message ids listed?",
+      "Is the list of thread ids empty for a password reset mail?"
     ]
   },
   "/reference/core/test-sentmail/replyto/": {
@@ -15413,12 +15682,13 @@
   },
   "/reference/core/test-sentmail/text/": {
     "feature": "Core\\Test\\SentMail::text",
-    "hash": "0593d5c929ea5ef8",
+    "hash": "5230f69644ba6952",
     "questions": [
-      "How do I check the text of an email in a test?",
+      "How do I check the plain text of an email in a test?",
       "Test that a mail contains a reset link",
       "Read the plain text body of a sent email",
-      "Check the body of a mail without a mail server"
+      "What text does a test see when I send an HTML email?",
+      "Check that an email does not contain the user's password"
     ]
   },
   "/reference/core/test-sentmail/to/": {
@@ -15429,6 +15699,17 @@
       "Test the recipients of a sent mail",
       "Read the to addresses of an email in a test",
       "Check that a mail went to the user who signed up"
+    ]
+  },
+  "/reference/core/test-sentmail/unsubscribe/": {
+    "feature": "Core\\Test\\SentMail::unsubscribe",
+    "hash": "5bba45bec8af2dd8",
+    "questions": [
+      "How do I check the unsubscribe link of a newsletter in a test?",
+      "Test that each reader gets their own unsubscribe URL",
+      "Read the List-Unsubscribe header of a sent email",
+      "Does an order email have no unsubscribe link?",
+      "Why must the unsubscribe URL start with https?"
     ]
   },
   "/reference/core/test-sentrequest/": {
@@ -19642,12 +19923,12 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "036e438ed92e19b5",
+    "hash": "2f5c643acd0140cc",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",
-      "See the stack of an uncaught exception without its argument values",
-      "Open the request of the page I see in the debug viewer",
+      "See the emails my program sent during development without sending them",
+      "Preview the HTML of an email and find CSS rules that match nothing",
       "Why did my scheduled job fail, and which functions did it call?",
       "Send a recorded request to my server again, or make a test from it"
     ]
