@@ -13,7 +13,7 @@ stages:
     status: done
   - id: 3
     title: "Core\\Imap opens an operator-named block, lists folders, searches and fetches a parsed message"
-    status: open
+    status: done
     context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/default.toml, crates/nvs-stdlib/src/mail/smtp.rs, crates/nvs-stdlib/src/mail/oauth.rs, crates/nvs-host/src/tls.rs]
   - id: 4
     title: "Core\\Imap moves, flags and deletes, and a directory block serves tests and local work"
@@ -267,20 +267,20 @@ Gate: `docs/goals/mail-complete.md` does not exist.
   - [x] The three secret pairs, the defaults rows and `default.toml`'s blocks.
   - [x] The census tests, the secret fixture and the LSP's `NAMED`.
 - [x] `Cargo.toml:1` and `crates/nvs-stdlib/Cargo.toml:1`: `imap-codec = "1"`.
-- [ ] `crates/nvs-stdlib/src/imap/mod.rs:1` and `session.rs:1` (new): the class rows, `open`, TLS,
+- [x] `crates/nvs-stdlib/src/imap/mod.rs:1` and `session.rs:1` (new): the class rows, `open`, TLS,
   sign-in over `mail/oauth.rs`, `folders`, `folder`, `uidValidity`, `search`, `fetch`.
   - [x] `session.rs`: the protocol over `imap-codec`, TLS, `STARTTLS`, the three sign-ins,
     `folders`, `select`, `search`, `fetch` and modified UTF-7.
-  - [ ] `mod.rs`: the block read, the grant, `open`, `Mailbox`, `Folder` and their class rows.
+  - [x] `mod.rs`: the block read, the grant, `open`, `Mailbox`, `Folder` and their class rows.
   - [x] `oauth::grant_of` takes the block's family.
-  - [ ] `receive::message_of` gives `uid()`.
-  - [ ] The roster rows of each new class, and their tests run by name.
-- [ ] The ten tests of the check `imap-read` against a fake IMAP server in the test module, then
+  - [x] `receive::message_of` gives `uid()`.
+  - [x] The roster rows of each new class, and their tests run by name.
+- [x] The ten tests of the check `imap-read` against a fake IMAP server in the test module, then
   `cargo test --lib imap::` once.
   - [x] The fake server in `imap/session/tests.rs`, and the eight tests that need only the session.
-  - [ ] `fetch_returns_a_parsed_message_with_its_uid` and
+  - [x] `fetch_returns_a_parsed_message_with_its_uid` and
     `the_session_closes_when_the_request_ends`, over the class rows.
-  - [ ] `cargo test --lib imap::` once, green.
+  - [x] `cargo test --lib imap::` once, green.
 
 ### 4. Core\Imap moves, flags and deletes, and a directory block serves tests and local work
 
@@ -325,49 +325,39 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has its block and grant (`2f32e146ec`) and `imap-codec`
-(`20168f371c`). `imap/session.rs` (`b6cb065892`) is the whole protocol with no configuration:
-`Session::open(address, &Server, &SignIn, until, member)`, `folders`, `select` (`UIDVALIDITY`),
-`search(&Filter)` and `fetch(uid, ceiling)`. `imap/mod.rs` has an `expect(dead_code)` the class
-rows remove. `imap/session/tests.rs` (`36c195145b`) is a fake server and eight `imap-read` tests,
-green by name. The codec quotes a search date (`SINCE "01-Feb-2026"`) and sends a non-ASCII or
-CRLF search text as a literal; a folder name is always quoted, since `utf7::encode` leaves only
-printable ASCII. `db0932824a`: `mail::oauth` is `pub(crate)`, `grant_of` takes the family, the
-token cache is keyed `mail.<name>` or `imap.<name>`, and `mail::configured_in` reads any block.
-Nightly 45813627231 ran on `4e43e1fa2e`, before `c115a735a1` and `28a4d7a6bf` fixed it; only the
-serve stack test in the backlog is left.
+Stages 1, 2 and 3 are done. `imap/mod.rs` has `Core\Imap::open` (`block_of` after
+`Cap::ImapConnect`, a password or `xoauth2` sign-in, a `Held` filed with
+`hold_open_connection(None, None, ..)`), `Mailbox` (`folders`, `folder`) and `Folder`
+(`uidValidity`, `search`, `fetch`). `Held` keeps the selected folder and selects again on
+demand; a changed `UIDVALIDITY` is an `IOError`. Its `Drop` sends `LOGOUT` with a deadline of
+now. A `directory` block throws in `block_of` until stage 4. `Core\Mail\Message` has `uid(): ?int`
+(`receive::fetched_message`). The roster rows are in `classes.rs`, `lib.rs`, `registry.rs`,
+`instance.rs`, `added_slot.rs`, `core_lib.rs` and `tests/ext_world.rs`. The ten `imap-read`
+tests, the `registry::` tests, three new `imap-open-*.nvst` cases and three `mail-message-*`
+cases that check `uid()` are green.
 
-Expected red until stage 5: the proof checks over every new member (`Core\Mail\Message::*`,
-`Core\Mail\Report::recipients`, `Core\Mail\ReportRecipient::*`, `Core\Mail\Address::address` and
-`::name`) and the changed `Core\Mail\Attachment::name` and `::bytes`, which have no `about.md`,
-help, examples, bench or attack yet. `bun nv rules --check` may name
-`rule:core-classes/mail-receive`, which `receive.rs` and the new conformance cases cite, and
-`rule:core-classes/imap`, which `tree.rs` and `capability.rs` cite. Stage 5 writes both. `site --check stale` and `changes` will name the attachment members. `site --check
-shots` may name the debug-viewer shots: the viewer has a new "Mail" tab, and only `run.shot` and
-`runs.shot` were shot again.
+Expected red until stage 4: both `conformance_coverage` tests, for the five `Mailbox` and
+`Folder` members, which only a directory block can reach in a case. `ext_world`,
+`tier_boundary` and `taint_signatures` were not run yet. Expected red until stage 5: the proof
+checks over every new member (`Core\Mail\Message::*`, `Core\Imap*`, `Core\Mail\Report*`,
+`Core\Mail\Address::address` and `::name`, `Core\Mail\Attachment::name` and `::bytes`),
+`rules --check` on `rule:core-classes/mail-receive` and `/imap`, and `site --check stale`,
+`changes` and `shots`.
 
 ### Next
 
-Stage 3 from the third item's `mod.rs` checkpoint: `Core\Imap` in `imap/mod.rs`, per
-§ *`Core\Imap`*. The grant to ask is `nvs_config::Cap::ImapConnect` at `Scope::Name`, as
-`mail/mod.rs` `endpoint_of` asks `MailSend`. Read each key with
-`crate::mail::configured_in(ctx, "imap", name, key)`, and `nvs_config::imap::tls_from` for
-`tls`. For `auth = "xoauth2"`, `crate::mail::oauth::grant_of(ctx, "imap", name, member)`, then
-`oauth::token(&grant, &format!("imap.{name}"), until, member)`, passed as `SignIn::Token`; on a
-refused sign-in, `oauth::forget` with the same label. A fetched message is
-`receive::message_of(raw)`, and it needs a `uid` slot (`receive.rs` `SLOTS`) and a `uid()` reader.
-The ceiling `fetch` takes is the request's remaining memory. Keep the session in the `Mailbox`
-instance so it closes when the request ends. Each new class needs the roster rows the mail
-classes have (capability or NEEDS_NONE, added_slot, ext_world, core_lib's tainted roster,
-conformance floor); grep `nvs_core_mail_message_parse` across `crates/` for each list. Run those
-tests by name after the build, because CI fails on them and the chain gate does not run them.
-
-Then the last two `imap-read` tests in `imap/session/tests.rs` or a `imap/tests.rs`, over the
-fake's `serve`: `fetch_returns_a_parsed_message_with_its_uid` and
-`the_session_closes_when_the_request_ends` (the fake sees `LOGOUT` or a close once the request's
-`Ctx` drops). Then `cargo test --lib imap::` once. None of the tests has a `// covers:` line yet,
-because the `Core\Imap` members do not exist: add `// covers: Core\Imap::open` and the rest with
-the class rows.
+First: `cargo test --test ext_world --test tier_boundary --test taint_signatures`, and fix any red.
+Then stage 4. `move`, `markSeen`, `markUnseen`, `flag`, `unflag` and `delete` on
+`FOLDER_CLASS` in `imap/mod.rs`, over new `Session` commands in `imap/session.rs` (`UID MOVE`
+when `MOVE` is offered, else `UID COPY` and `UID EXPUNGE`; `UID STORE` for flags; `delete`
+stores `\Deleted` and runs `UID EXPUNGE` of that one UID). Each needs the fake's answers in
+`imap/session/tests.rs` `converse` and the four `imap-write` server tests. Then the directory
+block: replace the `directory` throw in `block_of` with a second kind of `Held` (an enum over
+the session and a directory) under `fs.read` and `fs.write`, and the two directory tests. Then
+the `imap-novis` case `tests/conformance/core/imap-a-directory-mailbox-is-read-classified-and-moved.nvst`
+and enough directory cases to give every `Mailbox` and `Folder` member three cases, which
+closes the `conformance_coverage` reds. Add every new member to the same roster lists (they are
+instance members, so only `core_lib` and the conformance floor change).
 
 ### Backlog
 
