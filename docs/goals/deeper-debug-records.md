@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/host.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-server/src/serve.rs, crates/nvs-cli/src/debug/ingest.rs, docs/agent/coding.md]
   - id: 3
     title: an uncaught exception is recorded with its stack frames and its previous chain
-    status: open
+    status: done
     context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/host.rs, crates/nvs-runtime/src/throwable.rs, crates/nvs-cli/src/debug/exceptions.rs, viewer/src/views/exceptions.tsx]
   - id: 4
     title: a cache, HTTP, file and process event carries its outcome
@@ -174,6 +174,14 @@ and `None` with no ceiling. The facts cross on `Completion::recorded` and the do
 `spooled::Ran`, built only when `store` is on, so a request with it off allocates nothing more.
 The list's memory filter is `min_memory`, in bytes, beside `min_us`.
 
+**Stage 3 settled the stack's shape.** The spool's `Exception` carries a flattened `Stack`
+(`frames`, `frames_cut`, `previous`, `previous_cut`), one type shared by the line, `Failure` (boxed,
+`None` with `store` off) and the API. A frame's and a link's `file` and `line` are optional,
+because a `Core` frame and a raise with no site have none. The index keeps the frames and the chain
+in two JSON columns, as the rule's row names them, and does not search them. A group's page shows
+its latest throw's stack (`latest` on `GET /api/exceptions?class=&file=&line=`), one indexed read.
+A `Core` frame is one whose function starts with `Core\`.
+
 **What stops the goal.** One attempt per item and two sessions per stage. The count that decides:
 a recorded request with `store` on writes at most one line more than today (the `run` line is in
 place of none, and no stage adds a line per request). A stage that would add one stops and says so.
@@ -225,17 +233,27 @@ handler, as `file.rs:NN` and one line.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/host.rs:400`: `Failure` gains the frames and the chain, filled at
+- [x] `crates/nvs-runtime/src/host.rs:400`: `Failure` gains the frames and the chain, filled at
   `crates/nvs-host/src/isolate.rs:1575` under the two bounds.
-- [ ] `crates/nvs-runtime/src/spool.rs:223` and `crates/nvs-server/src/spooled.rs:126`: `Exception`
+  - [x] `Thrown::stack()` walks the backtrace and the `previous` chain under 64 and 8
+  - [x] `Failure::stack` is filled under the store gate alone
+- [x] `crates/nvs-runtime/src/spool.rs:223` and `crates/nvs-server/src/spooled.rs:126`: `Exception`
   carries them.
-- [ ] `crates/nvs-cli/src/debug/index.rs:222`: `exceptions` gains a JSON column of the frames and the
+  - [x] `Stack`, `Frame` and `Link` in the spool, optional on read
+  - [x] the sample spool has a stack and is rewritten
+- [x] `crates/nvs-cli/src/debug/index.rs:222`: `exceptions` gains a JSON column of the frames and the
   chain. The group stays a class and a throw site.
-- [ ] The viewer's Exception tab and the group page: the frames as a list, each a site link, with
+  - [x] schema 12, `frames`, `frames_cut`, `previous`, `previous_cut`
+  - [x] the request API and a group's `latest` give them
+- [x] The viewer's Exception tab and the group page: the frames as a list, each a site link, with
   the program's own frames first in weight and `Core` frames dimmed, and the chain below.
-- [ ] `nvs debug to-test` is unchanged, and a test says so.
-- [ ] Tests: a three-deep throw records three frames, a chain of two records both, and 65 frames
+  - [x] `viewer/src/ui/stack.tsx` and its styles
+  - [x] the request and exceptions browser tests check it
+- [x] `nvs debug to-test` is unchanged, and a test says so.
+  - [x] `an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged`
+- [x] Tests: a three-deep throw records three frames, a chain of two records both, and 65 frames
   record 64 and the cut.
+  - [x] three unit tests in `throwable.rs`
 
 ### 4. a cache, HTTP, file and process event carries its outcome
 
@@ -310,33 +328,35 @@ records whose trace id has no `request` line, and where a queue worker ends a jo
 
 ### State
 
-Stage 2 is done. The runtime, index and API items landed in `0435144eae` and `5e1b828972`, and
-this session landed the viewer: `RequestRow` and `RequestFilter.min_memory` in `viewer/src/api.ts`,
-a Memory column, a *Memory over* filter chip, `size()`, `memoryTitle()` and `MemoryTile` (a peak
-with a meter against the limit, warning colours `.k-memory-high` and `.k-memory-full` in
-`viewer/src/styles/ui.css`) in `viewer/src/views/requests.tsx`, and on the request page
-(`viewer/src/views/request.tsx`) the handler's name in the crumb, the memory tile and a *Response
-size* tile with the bytes read. The index rule's `requests` row no longer says "from goal".
+Stage 3 is done, in two commits. `aa030d1b55` is the runtime, index and API part:
+`Thrown::stack()` in `crates/nvs-runtime/src/throwable.rs` (bounded by `spool::FRAMES_MAX` and
+`spool::PREVIOUS_MAX`), `Failure::stack` filled in `crates/nvs-host/src/isolate.rs` under the store
+gate, `spool::Stack`, `Frame` and `Link` flattened into `spool::Exception`, index schema 12 with
+`frames`, `frames_cut`, `previous` and `previous_cut` on `exceptions`, `api::stack()` for the request
+API, and `latest` on one group's page in `crates/nvs-cli/src/debug/exceptions.rs`. `fa269106ff`
+is the viewer: `viewer/src/ui/stack.tsx`, used by the Exception tab and the group page, with its
+styles in `viewer/src/styles/request.css`. The two rules' "from goal" wording for the exception
+fields is now present tense.
 
-`search.json` and `exception.json` under `viewer/test/fixtures/` were rewritten by their two
-`debug_api` tests and are committed. `bun nv viewer --verify` is green, and the request, request
-list and exception browser tests are green (26), with a new one for the memory column and filter.
-The check `lines` was green at the stage's runtime commit and nothing it reads changed since. No
-test is expected to go red.
+Tests that ran, each green: three unit tests in `throwable.rs` (`a_three_deep_throw_…`,
+`a_chain_of_two_…`, `a_stack_past_its_bounds_is_cut`), `the_sample_spool_is_what_the_writer_writes`
+(it rewrote `one-of-each.spool`), the new
+`an_exceptions_frames_and_chain_reach_its_row_and_to_test_is_unchanged` in `debug_ingest.rs`, the
+whole `debug_api` suite (it rewrote `request.json` and `exception.json`, then passed), `bun nv viewer
+--verify`, and the request and exceptions browser tests (12). No test is expected to go red.
 
 The nightly failures the sweep listed were from run `45609291264` on `53e94a9181`, and were
-already fixed by `1c3196b0e8` and `8ca2f09e1b`.
+already fixed by `1c3196b0e8` and `8ca2f09e1b`, which are on `main` after it.
 
 ### Next
 
-Stage 3, an uncaught exception's frames and its previous chain. `Failure` is at
-`crates/nvs-runtime/src/host.rs:400`, `Throwable::frames()` at
-`crates/nvs-runtime/src/throwable.rs:831`, the spool's `Exception` at
-`crates/nvs-runtime/src/spool.rs:239`, the door's `exception()` at
-`crates/nvs-server/src/spooled.rs:164`, and the `exceptions` table at
-`crates/nvs-cli/src/debug/index.rs:274` (the schema goes to 12). The viewer's part is the Exception
-tab of the request page and `viewer/src/views/exceptions.tsx`. Each `debug_api` test that writes a
-viewer fixture fails once when its fixture changes and passes on the next run.
+Stage 4, an event's outcome. The spool's `Event` is at `crates/nvs-runtime/src/spool.rs:614`,
+the `events` table at `crates/nvs-cli/src/debug/index.rs:168` (the schema goes to 13) and its
+insert at `crates/nvs-cli/src/debug/ingest.rs:541`. The members are the stage's own anchors:
+`cache.rs:2860`, `http.rs:4651`, `io.rs:2321` and `process.rs:1713` under `crates/nvs-stdlib/src/`.
+Stage 1 settled the field names: `http_status` and not `status`, and one nullable JSON `outcome`
+column in the index. The `debug_api` tests that write a viewer fixture fail once when it changes
+and pass on the next run.
 
 ### Backlog
 

@@ -64,9 +64,9 @@ missing optional field as absent, so a field added later still reads an older sp
 | `run` | from goal `deeper-debug-records`: `of` (`schedule`, `queue` or `command`), `name`, `start_us`, `duration_us`, `outcome` (`ok`, `failed` or `cancelled`); optional `memory_peak`, `memory_limit` and `exception` (`rule:testing/a-run-is-recorded-like-a-request`) |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
-An *exception* has `class`, `message`, `file` and `line`. From goal `deeper-debug-records` it also
-has optional `frames` (each with `function`, `file` and `line`), `previous` (each link with `class`,
-`message`, `file`, `line` and `frames`), `frames_cut` and `previous_cut`
+An *exception* has `class`, `message`, `file` and `line`. It also has optional `frames` (each with
+`function`, `file` and `line`), `previous` (each link with `class`, `message`, `file`, `line`,
+`frames` and `frames_cut`), `frames_cut` and `previous_cut`
 (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`).
 
 **What a field never holds.** Every field above is a name, a count, a size, a time or a site, so

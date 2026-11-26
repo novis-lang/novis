@@ -1,5 +1,6 @@
 // The exceptions view: `/exceptions` lists the groups of uncaught throws, one class at one site.
-// `/exceptions?class=&file=&line=` shows one group and its requests, newest first.
+// `/exceptions?class=&file=&line=` shows one group, the stack of its latest throw (`ui/stack.tsx`),
+// and its requests, newest first.
 // Both lists are the shared `List` (`ui/list.tsx`). They do not follow or pause: each new watermark
 // loads their first page again, through `livePages` below.
 // In one group's list, `m` or the Mark button marks a request to compare, as in the request list.

@@ -14,7 +14,7 @@ index_max`, the oldest request first.
 | `coverage` | `coverage` line: trace id, span, each file's lines and counts as JSON | the lines a request ran |
 | `copies` | one copy site of a `copies` line: trace id, span, file, line, file hash, reason, copies, units; indexed on `copies_site` (file hash, line) | a request's copies, and the copies at one site |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
-| `exceptions` | uncaught exception: trace id, class, message, file, line, group; from goal `deeper-debug-records`, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`, and a nullable `run` beside the now nullable `request`, so one names its request or its run | a request's or a run's error and its stack (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`) |
+| `exceptions` | uncaught exception: trace id, class, message, file, line, group, nullable `frames` and `previous` as JSON with `frames_cut` and `previous_cut`; from goal `deeper-debug-records`, a nullable `run` beside the now nullable `request`, so one names its request or its run | a request's or a run's error and its stack (`rule:testing/a-recorded-exception-keeps-its-frames-and-never-a-value`) |
 | `exception_groups` | class and throw site: count, first seen, last seen | grouped exceptions |
 | `search` | searchable text of one row above, with its table and row id | full-text search |
 | `dropped` | `dropped` line: the records and files a writer's share of the spool cap deleted | what was lost before it was read |
