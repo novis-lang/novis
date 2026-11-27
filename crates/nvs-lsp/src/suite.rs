@@ -703,8 +703,9 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
 ///
 /// The reference index is built only when the cursor is on a parameter type
 /// [`crate::typed_parameter`] answers from, or on a declaration's name
-/// [`crate::delete`] may offer to delete, so every other case costs what it
-/// did.
+/// [`crate::delete`] may offer to delete or [`crate::inline`] to inline, or on
+/// a method call [`crate::inline`] may inline, so every other case costs what
+/// it did.
 fn code_action(
     analysed: &Analysed,
     documents: &Documents,
@@ -713,7 +714,8 @@ fn code_action(
     offset: BytePos,
 ) -> Response {
     let index = (crate::typed_parameter::wanted(analysed, offset)
-        || crate::delete::wanted(analysed, offset))
+        || crate::delete::wanted(analysed, offset)
+        || crate::inline::wanted(analysed, offset))
     .then(|| crate::server::index_of_case(documents, root));
     let end = case
         .selection_end

@@ -1,5 +1,5 @@
 --TEST--
-a call that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+a call that resolved carries no diagnostic, so no fix is offered on it, only the refactoring that inlines the call, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 --FILE--
 <?nvs
 class User
@@ -15,4 +15,4 @@ echo $u->gre<|>et();
 --REQUEST--
 codeAction
 --EXPECT--
-none
+11:6-11:17 refactor.inline Inline this call to `greet` -> ""hi""

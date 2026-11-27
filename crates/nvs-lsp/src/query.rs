@@ -498,6 +498,76 @@ pub fn extract(
         .map_err(|broken| broken.refusal())
 }
 
+/// What `nvs code inline` inlines: a method by name, or whatever a position
+/// is on.
+#[derive(Clone, Debug)]
+pub enum Inlined<'a> {
+    /// Every call of a method, which is then deleted.
+    Method(&'a str),
+    /// A position, a line and a column from 1 with the column in characters:
+    /// a local, one call of a method, or a method's name.
+    At(&'a Path, u32, u32),
+}
+
+/// The edits that inline `target`, through the functions the editor's
+/// `refactor.inline` actions share ([`crate::inline`]). Each edit is checked
+/// before it is returned
+/// (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`).
+///
+/// # Errors
+///
+/// Returns why nothing is inlined.
+pub fn inline(workspace: &Workspace, target: &Inlined<'_>) -> Result<Vec<Rewrite>, String> {
+    let documents = workspace.documents();
+    let index = workspace.index();
+    let (path, line, column) = match target {
+        Inlined::Method(symbol) => return crate::inline::method(documents, index, symbol, None),
+        Inlined::At(path, line, column) => (*path, *line, *column),
+    };
+    let not_held = || format!("`{}` is not a file of this project.", path.display());
+    if !index.holds(path) {
+        return Err(not_held());
+    }
+    let analysed = analyse_file(documents, path, 0).ok_or_else(not_held)?;
+    let file = analysed.map.file(analysed.entry);
+    let position = lsp_types::Position {
+        line: line.saturating_sub(1),
+        character: column.saturating_sub(1),
+    };
+    let offset = offset_at(file, position, PositionEncoding::Utf32);
+    if let Some(used) = index.occurrences_in(path).iter().find(|used| {
+        used.site.start <= offset
+            && offset <= used.site.end
+            && index
+                .declaration(&used.symbol)
+                .is_some_and(|declared| declared.kind == crate::index::DeclKind::Method)
+    }) {
+        return crate::inline::method(documents, index, &used.symbol, Some(&used.site));
+    }
+    if let Some((symbol, _)) = crate::index::declared_at(&analysed, offset)
+        && index
+            .declaration(&symbol)
+            .is_some_and(|declared| declared.kind == crate::index::DeclKind::Method)
+    {
+        return crate::inline::method(documents, index, &symbol, None);
+    }
+    let edits = crate::inline::local(&analysed, documents, offset)?;
+    let rewrites = edits
+        .into_iter()
+        .map(|(span, text)| Rewrite {
+            site: Site {
+                path: path.to_owned(),
+                start: span.start,
+                end: span.end,
+            },
+            text,
+        })
+        .collect();
+    crate::refactor::checked(documents, index, rewrites, &[])
+        .map(|checked| checked.rewrites)
+        .map_err(|broken| broken.refusal())
+}
+
 /// The edits that write every method the class `symbol` owes, through the
 /// function the editor's *Implement the missing methods* fix shares
 /// ([`crate::generate::implement_class`]).

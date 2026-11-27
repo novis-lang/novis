@@ -1329,6 +1329,14 @@ branch of `?:` or `match`, and after `?->`. Both refuse an assignment's target, 
 the operand of `isset`, `empty` and `unset`, and a bare variable. Each analysis is of the editor's own
 graph and runs only while a selection covers exactly one expression or run of statements.
 
+Inline, three `refactor.inline` code actions (`crates/nvs-lsp/src/inline.rs`): *Inline variable* on a
+local, *Inline this call* on a call of a project method, and *Inline method* on a method's name when
+every call is in the document. Each writes only text the program already has, a value or a method's
+body with each argument in place of its parameter, so it never writes a name and never an alias. Each
+is refused wherever the inlined code would run in another order or another number of times, as
+[`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project) lists, and is offered only once the document it
+writes analyses with no error.
+
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-a-refactoring-checks-its-edit-before-it-writes"></a>

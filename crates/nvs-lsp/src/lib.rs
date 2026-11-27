@@ -124,6 +124,7 @@ pub mod hover;
 pub mod html_template;
 pub mod imports;
 pub mod index;
+pub mod inline;
 mod lens_rows;
 pub mod links;
 mod locals;

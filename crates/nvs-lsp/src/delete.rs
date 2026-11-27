@@ -221,9 +221,11 @@ fn refuse_used(
         declared.kind,
         DeclKind::Extend | DeclKind::Attribute | DeclKind::Field
     ) {
-        return Err("You can delete a class, an interface, an enum, a type alias, a method, a \
+        return Err(
+            "You can delete a class, an interface, an enum, a type alias, a method, a \
                     property, a constant or an enum case."
-            .to_owned());
+                .to_owned(),
+        );
     }
     let used = |site: &Site, how: &str| {
         format!(
@@ -348,9 +350,13 @@ const fn is_type(kind: DeclKind) -> bool {
 /// The bytes to delete for a declaration written from `start` to `end`: its
 /// whole lines, the `///` and `#[` lines above it, and one blank line beside
 /// it. A declaration that shares a line with other code is deleted alone.
-fn removed(text: &str, start: usize, end: usize) -> (usize, usize) {
+pub(crate) fn removed(text: &str, start: usize, end: usize) -> (usize, usize) {
     let line_start = |at: usize| text[..at].rfind('\n').map_or(0, |found| found + 1);
-    let line_end = |at: usize| text[at..].find('\n').map_or(text.len(), |found| at + found + 1);
+    let line_end = |at: usize| {
+        text[at..]
+            .find('\n')
+            .map_or(text.len(), |found| at + found + 1)
+    };
     let mut from = line_start(start);
     let to_line = line_end(end);
     if !text[from..start].trim().is_empty() || !text[end..to_line].trim().is_empty() {

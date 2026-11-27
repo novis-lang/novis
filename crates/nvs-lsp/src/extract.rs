@@ -790,7 +790,7 @@ fn push_once(names: &mut Vec<String>, name: &str) {
 /// The local an assignment to `target` changes: the variable itself, or the
 /// variable an offset is written into. An array is a value, so writing one of
 /// its offsets changes the local.
-fn root<'a>(target: &Node, source: &'a str) -> Option<&'a str> {
+pub(crate) fn root<'a>(target: &Node, source: &'a str) -> Option<&'a str> {
     match target.kind {
         "Variable" => target.name.and_then(|span| source.get(span.range())),
         "Index" => root(target.children.first()?, source),
@@ -800,7 +800,7 @@ fn root<'a>(target: &Node, source: &'a str) -> Option<&'a str> {
 
 /// Whether `child`, inside `ancestor`, is a place the program writes to or
 /// only tests, which a variable or a call cannot replace.
-fn written_to(ancestor: &Node, child: &Node) -> bool {
+pub(crate) fn written_to(ancestor: &Node, child: &Node) -> bool {
     let first = ancestor
         .children
         .first()
@@ -813,7 +813,7 @@ fn written_to(ancestor: &Node, child: &Node) -> bool {
 }
 
 /// Whether `child` runs every time `ancestor` does, and before the rest of it.
-fn runs_first(ancestor: &Node, child: &Node, source: &str) -> bool {
+pub(crate) fn runs_first(ancestor: &Node, child: &Node, source: &str) -> bool {
     let first = ancestor
         .children
         .first()
@@ -898,7 +898,7 @@ fn writes(source: &str, name: &str, variable: bool) -> bool {
 
 /// `text` with every line after the first moved from the indentation `from`
 /// to `to`. A blank line stays blank.
-fn reindented(text: &str, from: &str, to: &str) -> String {
+pub(crate) fn reindented(text: &str, from: &str, to: &str) -> String {
     let mut lines = text.split('\n');
     let mut out = lines.next().unwrap_or_default().to_owned();
     for line in lines {

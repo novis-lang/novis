@@ -8,8 +8,8 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename`, `move`, `delete`, `extract`, `implement` and `order`
-//! write**, through [`planned`] and [`committed`], the one write path: it
+//! **Only `rename`, `move`, `delete`, `extract`, `implement`, `inline` and
+//! `order` write**, through [`planned`] and [`committed`], the one write path: it
 //! writes and deletes only inside the project root, and only files whose
 //! bytes have not changed since this call first read them. [`write_out`]
 //! prints what every write verb but `order` wrote, and [`order()`] prints what
@@ -328,6 +328,32 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Replace a variable or a method call with its value, and save the
+    /// changed files.
+    ///
+    /// A position on a local variable replaces each read of the variable
+    /// with its value, and deletes the variable. A method name, or a
+    /// position on the method's name, replaces every call with the body of
+    /// the method, and deletes the method. A position on one call replaces
+    /// only that call, and keeps the method. This is the same change as the
+    /// editor's "Inline" actions.
+    ///
+    /// The command does not inline when the code would run in another
+    /// order, or run a different number of times. For example, each
+    /// argument of an inlined call must be a variable or a literal. The
+    /// command prints the changed files. If the change is not possible, it
+    /// prints why, changes nothing and fails.
+    Inline {
+        /// What to inline, as `Shop\Cart::total` or `src/Cart.nvs:12:9`.
+        target: String,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the methods that call a method, and the methods it calls.
     ///
     /// The callers come first. Each method has its own line, with `caller`
@@ -478,6 +504,11 @@ impl Args {
                 dry_run,
                 json,
             } => implement(&class, dry_run, json),
+            Command::Inline {
+                target,
+                dry_run,
+                json,
+            } => inline(&target, dry_run, json),
             Command::Calls { symbols, json } => calls(&symbols, json),
             Command::Reach { symbols, json } => reach(&symbols, json),
         }
@@ -1166,6 +1197,41 @@ pub(crate) fn implement(class: &str, dry_run: bool, json: bool) -> ExitCode {
         );
     }
     match query::implement(&project.workspace, class) {
+        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `nvs code inline`: the editor's inline of a local, a call or a method
+/// ([`query::inline`]), written to disk through [`write_out`], or printed with
+/// `--dry-run`. A target that cannot be inlined fails with the reason.
+pub(crate) fn inline(target: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let inlined = if let Some((file, line, column)) = split_position(target) {
+        let Some(path) = project.file(file) else {
+            let nearest = project.nearest_files(file);
+            return unknown(
+                &format!("no file `{}` in this project", escaped(file)),
+                &nearest,
+                json,
+            );
+        };
+        query::inline(&project.workspace, &query::Inlined::At(&path, line, column))
+    } else {
+        if project.workspace.index().declaration(target).is_none() {
+            let nearest = project.nearest_names(target);
+            return unknown(
+                &format!("no name `{}` in this project", escaped(target)),
+                &nearest,
+                json,
+            );
+        }
+        query::inline(&project.workspace, &query::Inlined::Method(target))
+    };
+    match inlined {
         Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
         Err(message) => unknown(&escaped(&message), &[], json),
     }

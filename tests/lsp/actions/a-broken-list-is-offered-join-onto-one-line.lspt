@@ -12,4 +12,5 @@ echo $sizes[0];
 --REQUEST--
 codeAction
 --EXPECT--
+3:1-4:1 refactor.inline Inline variable `$large` -> "" + 6:5-6:11 -> "30"
 4:21-7:2 refactor.rewrite Join onto one line -> "[$small, $large]"

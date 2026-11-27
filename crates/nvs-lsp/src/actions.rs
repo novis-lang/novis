@@ -18,10 +18,11 @@
 //! so there is nothing here for it to be translated *from*, and it is offered
 //! by nothing rather than refused by a list.
 //!
-//! Three kinds of action are not fixes. [`crate::html_template`]'s refactor
+//! Four kinds of action are not fixes. [`crate::html_template`]'s refactor
 //! rewrites a string as an html template, [`crate::split_join`]'s puts a list
-//! on separate lines or joins it onto one, and [`crate::extract`]'s move a
-//! selection into a variable or a method. Each is appended to the quick fixes
+//! on separate lines or joins it onto one, [`crate::extract`]'s move a
+//! selection into a variable or a method, and [`crate::inline`]'s replace a
+//! local's reads or a method's call with what they are. Each is appended to the quick fixes
 //! under its own kind and never to a fix-all: the first changes what the line
 //! prints, and the others change a layout or a structure that is the author's
 //! choice.
@@ -273,6 +274,9 @@ pub fn at(
                 analysed, documents, index, start, encoding,
             ));
         }
+        offered.extend(crate::inline::at(
+            analysed, documents, index, start, encoding,
+        ));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     if kind == Kind::FixAll {

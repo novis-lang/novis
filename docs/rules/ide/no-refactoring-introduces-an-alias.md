@@ -57,3 +57,11 @@ statement changes when it runs — a loop condition, an `elseif`, the right side
 branch of `?:` or `match`, and after `?->`. Both refuse an assignment's target, an increment's operand,
 the operand of `isset`, `empty` and `unset`, and a bare variable. Each analysis is of the editor's own
 graph and runs only while a selection covers exactly one expression or run of statements.
+
+Inline, three `refactor.inline` code actions (`crates/nvs-lsp/src/inline.rs`): *Inline variable* on a
+local, *Inline this call* on a call of a project method, and *Inline method* on a method's name when
+every call is in the document. Each writes only text the program already has, a value or a method's
+body with each argument in place of its parameter, so it never writes a name and never an alias. Each
+is refused wherever the inlined code would run in another order or another number of times, as
+`rule:tooling/nvs-code-answers-about-the-project` lists, and is offered only once the document it
+writes analyses with no error.

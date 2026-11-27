@@ -1,5 +1,5 @@
 --TEST--
-a static call that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+a static call that resolved carries no diagnostic, so no fix is offered on it, only the refactoring that inlines the call, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 --FILE--
 <?nvs
 class Counter
@@ -11,4 +11,4 @@ Counter::re<|>set();
 --REQUEST--
 codeAction
 --EXPECT--
-none
+7:1-8:1 refactor.inline Inline this call to `reset` -> ""

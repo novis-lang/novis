@@ -1,5 +1,5 @@
 --TEST--
-a local written in the casing the rule asks for carries no violation, so a read of it is offered nothing, `rule:core-api/identifier-casing`
+a local written in the casing the rule asks for carries no violation, so a read of it is offered no fix, only the refactoring that inlines the variable, `rule:core-api/identifier-casing`
 --FILE--
 <?nvs
 var $total = 3;
@@ -7,4 +7,4 @@ echo $to<|>tal;
 --REQUEST--
 codeAction
 --EXPECT--
-none
+2:1-3:1 refactor.inline Inline variable `$total` -> "" + 3:6-3:12 -> "3"

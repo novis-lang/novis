@@ -1,0 +1,23 @@
+--TEST--
+a call of a method whose body is one return is inlined, with each argument in place of its parameter
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $price): int
+    {
+        return $this-><|>taxed($price) - 1;
+    }
+
+    private function taxed(int $amount, int $rate = 3): int
+    {
+        return $amount * $rate;
+    }
+}
+
+echo new Shop()->total(2);
+--REQUEST--
+codeAction
+--EXPECT--
+6:16-6:36 refactor.inline Inline this call to `taxed` -> "($price * 3)"
+6:36-6:39 refactor.rewrite Put on separate lines -> "\n            - "

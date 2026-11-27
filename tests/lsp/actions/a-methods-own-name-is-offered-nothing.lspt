@@ -1,5 +1,5 @@
 --TEST--
-a method declared in the casing the rule asks for carries no violation, so its name is offered nothing, `rule:core-api/identifier-casing`
+a method declared in the casing the rule asks for carries no violation, so its name is offered no fix, only the refactoring that inlines the method, `rule:core-api/identifier-casing`
 --FILE--
 <?nvs
 class User
@@ -14,4 +14,4 @@ echo (new User())->greet();
 --REQUEST--
 codeAction
 --EXPECT--
-none
+4:1-8:1 refactor.inline Inline method `greet` -> "" + 10:6-10:27 -> ""hi""

@@ -8,6 +8,7 @@ echo $n ?? $<|>m + 10;
 --REQUEST--
 codeAction
 --EXPECT--
+3:1-4:1 refactor.inline Inline variable `$m` -> "" + 4:12-4:14 -> "0"
 4:6-4:19 quickfix apply `??` first: `($n ?? $m) + 10` -> "($n ?? $m) + 10"
 4:12-4:19 quickfix keep the current meaning: `$n ?? ($m + 10)` -> "($m + 10)"
 4:14-4:17 refactor.rewrite Put on separate lines -> "\n    + "

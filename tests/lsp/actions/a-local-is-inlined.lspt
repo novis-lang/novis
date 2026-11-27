@@ -1,0 +1,18 @@
+--TEST--
+a local read twice is inlined at both reads, and the second is put in parentheses
+--FILE--
+<?nvs
+class Shop
+{
+    public function total(int $price, int $count): int
+    {
+        int <|>$sum = $price * $count;
+        return $sum + $sum;
+    }
+}
+
+echo new Shop()->total(2, 3);
+--REQUEST--
+codeAction
+--EXPECT--
+6:1-7:1 refactor.inline Inline variable `$sum` -> "" + 7:16-7:20 -> "($price * $count)" + 7:23-7:27 -> "($price * $count)"

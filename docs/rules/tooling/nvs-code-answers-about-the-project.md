@@ -1,7 +1,7 @@
-`nvs code` has fifteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
+`nvs code` has sixteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
 `find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
-Six write: `rename`, `move`, `delete`, `extract`, `implement` and `order`.
+Seven write: `rename`, `move`, `delete`, `extract`, `implement`, `inline` and `order`.
 
 **`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
 (`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
@@ -38,6 +38,29 @@ file already writes, is refused. **`implement`** takes a class name and writes e
 class's interfaces and `abstract` parents leave without a body, as the editor's *Implement the
 missing methods* fix writes it on `E0449` (`nvs_lsp::generate::implement_class`); a class that owes
 none is refused. Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.
+
+**`inline`** takes a method's name, or a position, `path:line:column`, on a local, a call or a
+method's name, from `nvs_lsp::query::inline`, the function the editor's three `refactor.inline`
+actions share (`crates/nvs-lsp/src/inline.rs`). A local declared once with a value and only read
+after it has each read replaced by the value, and its declaration deleted. A value with no call,
+`new`, assignment, increment or property read replaces every read while no local it reads is
+written between the declaration and the last read, or the end of a loop a read is in. Any other
+value replaces one read only, in the next statement, where nothing before it in that statement runs
+code and it runs every time the statement does. A typed declaration is inlined only where the value
+has the same type. A method's name inlines every call and deletes the method; a position on one call
+inlines that call and keeps it. The body must be one `return <expression>;`, or a `void` body with no
+`return` and no variable it declares at a call that is a statement. Refused: a method with an
+attribute (the inlined code would run without it), an abstract one, one that overrides or is
+overridden, is taken as a callable value or calls itself, a body that changes a parameter or writes
+`static::` or `parent::`, a `self::` where the call is in another class, a `$this` where the receiver
+is no variable, a call with a diagnostic on it (a `[[restrict]]` entry's included, so inlining never
+moves a restricted body to a place the entry forbids), and an argument, or a default filling a
+missing one, that is not a variable or a literal, since it could run twice or not at all. Each read
+or call is put in parentheses where the place it lands needs them, and each edit passes
+`rule:ide/a-refactoring-checks-its-edit-before-it-writes`. **Cost:** tooling only: one walk of the
+local's file and one analysis when its declaration writes a type, or one analysis of the method's
+file and of each calling file, and the check. In the editor, each action analyses the rewritten
+document once more, and is computed only with the cursor on a variable or a method's name.
 **Cost:** tooling only: the editor's analyses for the action, then the check.
 
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,

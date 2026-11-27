@@ -2456,3 +2456,154 @@ fn code_implement_writes_every_missing_method() {
     assert!(!ok, "{out}");
     assert!(err.contains("already has every method"), "{out}{err}");
 }
+
+/// A class whose `gross` declares `$sum` on line 10, whose `label` writes
+/// `$text` twice on lines 15 and 16, and whose `taxed` is called on line 6,
+/// column 23, and on line 11.
+const TAXED: &str = "<?nvs\nnamespace Shop;\n\nclass Order {\n    \
+                     public function net(int $gross): int {\n        \
+                     return $this->taxed($gross, 2) - 1;\n    }\n\n    \
+                     public function gross(int $amount): int {\n        \
+                     int $sum = $amount + 1;\n        \
+                     return $this->taxed($sum) + $sum;\n    }\n\n    \
+                     public function label(): string {\n        \
+                     var $text = 'items';\n        $text = 'item';\n        \
+                     return $text;\n    }\n\n    \
+                     private function taxed(int $amount, int $rate = 3): int {\n        \
+                     return $amount * $rate;\n    }\n}\n";
+
+/// An entry point that prints `net(10) + gross(2)`, which is `31`.
+const ORDERS_ENTRY: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Order;\n\n\
+                            var $order = new Order();\n\
+                            echo $order->net(10) + $order->gross(2);\n";
+
+/// The `Shop` project with `order` as `src/Order.nvs` and an entry point
+/// that calls it.
+fn order_entry_project(name: &str, order: &str) -> nvs_repo::Scratch {
+    project(
+        name,
+        &[
+            ("src/Order.nvs", order),
+            ("public/orders.nvs", ORDERS_ENTRY),
+        ],
+    )
+}
+
+/// Runs the entry point of an [`order_entry_project`] and checks it prints
+/// what it printed before the edit.
+fn still_prints_31(dir: &Path) {
+    let (out, err, ok) = run(dir, "run", &["public/orders.nvs"]);
+    assert!(ok, "the inlined project still runs: {err}");
+    assert_eq!(out, "31");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_replaces_each_read_of_a_local_and_deletes_it() {
+    let dir = order_entry_project("inline-local", TAXED);
+    let (out, err, ok) = code(&dir, &["inline", "src/Order.nvs:10:13"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Order.nvs"), "{out}");
+    let order = read(&dir, "src/Order.nvs");
+    assert!(!order.contains("$sum"), "{order}");
+    // The second read is part of a sum, so it is put in parentheses.
+    assert!(
+        order.contains(
+            "    public function gross(int $amount): int {\n        \
+             return $this->taxed($amount + 1) + ($amount + 1);\n    }\n"
+        ),
+        "{order}"
+    );
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_refuses_a_local_written_twice() {
+    let dir = order_entry_project("inline-written-twice", TAXED);
+    let (out, err, ok) = code(&dir, &["inline", "src/Order.nvs:15:13"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("`$text` is changed on line 16"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Order.nvs"), TAXED);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_of_a_method_inlines_every_call_and_deletes_it() {
+    let dir = order_entry_project("inline-method", TAXED);
+    let (out, err, ok) = code(&dir, &["inline", r"Shop\Order::taxed", "--json"]);
+    assert!(ok, "{err}");
+    assert_eq!(parsed(&out)["written"], true, "{out}");
+    let order = read(&dir, "src/Order.nvs");
+    // The missing `$rate` takes its default, `3`.
+    assert!(
+        order.contains("        return ($gross * 2) - 1;\n"),
+        "{order}"
+    );
+    assert!(
+        order.contains("        return ($sum * 3) + $sum;\n"),
+        "{order}"
+    );
+    assert!(!order.contains("taxed"), "{order}");
+    assert!(
+        order.ends_with("        return $text;\n    }\n}\n"),
+        "{order}"
+    );
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_at_one_call_keeps_the_method() {
+    let dir = order_entry_project("inline-one-call", TAXED);
+    let (_, err, ok) = code(&dir, &["inline", "src/Order.nvs:6:23"]);
+    assert!(ok, "{err}");
+    let order = read(&dir, "src/Order.nvs");
+    assert!(
+        order.contains("        return ($gross * 2) - 1;\n"),
+        "{order}"
+    );
+    assert!(
+        order.contains("return $this->taxed($sum) + $sum;"),
+        "{order}"
+    );
+    assert!(order.contains("private function taxed("), "{order}");
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_refuses_an_overridden_method() {
+    let fee = "<?nvs\nnamespace Shop;\n\nclass Fee {\n    \
+               public function rate(): int {\n        return 2;\n    }\n}\n";
+    let flat = "<?nvs\nnamespace Shop;\n\nclass FlatFee extends Fee {\n    \
+                public function rate(): int {\n        return 3;\n    }\n}\n";
+    let entry = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Fee;\n\n\
+                 echo (new Fee())->rate();\n";
+    let dir = project(
+        "inline-overridden",
+        &[
+            ("src/Fee.nvs", fee),
+            ("src/FlatFee.nvs", flat),
+            ("public/fees.nvs", entry),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["inline", r"Shop\Fee::rate"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("is overridden"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Fee.nvs"), fee);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_inline_refuses_an_argument_that_is_not_a_variable_or_a_literal() {
+    let order = TAXED.replace("$this->taxed($gross, 2)", "$this->taxed($gross + 1, 2)");
+    let dir = order_entry_project("inline-argument", &order);
+    let (out, err, ok) = code(&dir, &["inline", r"Shop\Order::taxed"]);
+    assert!(!ok, "{out}");
+    assert!(
+        err.contains("`$gross + 1` on line 6 is not a variable or a literal"),
+        "{out}{err}"
+    );
+    assert_eq!(read(&dir, "src/Order.nvs"), order);
+}

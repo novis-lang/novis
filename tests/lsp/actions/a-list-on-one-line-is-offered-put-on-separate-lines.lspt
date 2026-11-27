@@ -16,4 +16,5 @@ echo Shop::place($customer, $bas<|>ket);
 --REQUEST--
 codeAction
 --EXPECT--
+11:1-12:1 refactor.inline Inline variable `$basket` -> "" + 12:29-12:36 -> "20"
 12:17-12:37 refactor.rewrite Put on separate lines -> "(\n    $customer,\n    $basket,\n)"
