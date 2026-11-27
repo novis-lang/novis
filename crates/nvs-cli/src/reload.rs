@@ -1060,7 +1060,8 @@ impl Reports {
 }
 
 /// The record of one program a check swapped or found broken. A swap names
-/// the entry file and its new program digest. A failure names the entry file
+/// the entry file, its new program digest, and the work of the compile: files
+/// checked, functions compiled and reused, entries written. A failure names the entry file
 /// and its first error's file, line and message, where it has a place.
 fn program_record(found: &crate::script::Rechecked) -> Record {
     use crate::script::Rechecked;
@@ -1071,6 +1072,7 @@ fn program_record(found: &crate::script::Rechecked) -> Record {
             checked,
             compiled,
             reused,
+            written,
         } => {
             let count =
                 |n: &usize| Node::Scalar(Scalar::Uint(u64::try_from(*n).unwrap_or(u64::MAX)));
@@ -1082,6 +1084,7 @@ fn program_record(found: &crate::script::Rechecked) -> Record {
                 ("checked".to_string(), count(checked)),
                 ("compiled".to_string(), count(compiled)),
                 ("reused".to_string(), count(reused)),
+                ("written".to_string(), count(written)),
             ];
             record
         }

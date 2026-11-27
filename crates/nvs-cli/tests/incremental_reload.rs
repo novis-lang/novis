@@ -46,11 +46,18 @@ struct Served {
 }
 
 impl Served {
-    /// Starts the server in a fresh directory named for `case`, with `config` as its
-    /// `nvs.toml`, and waits until it listens.
+    /// Starts the server over [`A`], [`B`] and [`APP`] in a fresh directory named for `case`,
+    /// with `config` as its `nvs.toml`, and waits until it listens.
     fn start(case: &str, config: &str) -> Self {
+        let files = [("a.nvs", A), ("b.nvs", B), ("app.nvs", APP)]
+            .map(|(name, text)| (name.to_owned(), text.to_owned()));
+        Self::start_over(case, config, &files)
+    }
+
+    /// Starts the server over `files`, each a name and its text, whose entry is `app.nvs`.
+    fn start_over(case: &str, config: &str, files: &[(String, String)]) -> Self {
         let dir = scratch(case);
-        for (name, text) in [("a.nvs", A), ("b.nvs", B), ("app.nvs", APP)] {
+        for (name, text) in files {
             write_file(&dir.join(name), text);
         }
         std::fs::write(dir.join("nvs.toml"), config).expect("the case's directory takes a file");
@@ -311,4 +318,59 @@ fn the_reload_record_counts_compiled_and_reused_functions() {
     let again = served.edit_and_reload("a.nvs", &A_BODY.replace("uno", "eins"));
     assert_eq!(count(&again, "compiled"), 1, "the record: {again}");
     assert_eq!(count(&again, "reused"), reused, "the record: {again}");
+}
+
+/// Library file `n` of a generated program: one class with one method that returns `n`.
+fn generated_class(n: usize, value: usize) -> String {
+    format!(
+        "<?nvs\nclass C{n} {{\n    public static function value(): int {{\n        return {value};\n    }}\n}}\n"
+    )
+}
+
+/// A program of `size` library files and the entry that requires each and calls its method.
+fn generated_program(size: usize) -> Vec<(String, String)> {
+    let mut files: Vec<(String, String)> = (0..size)
+        .map(|n| (format!("c{n}.nvs"), generated_class(n, n)))
+        .collect();
+    let mut app = String::from("<?nvs\n");
+    for n in 0..size {
+        app.push_str(&format!("require './c{n}.nvs';\n"));
+    }
+    app.push_str("int $sum = 0;\n");
+    for n in 0..size {
+        app.push_str(&format!("$sum += C{n}::value();\n"));
+    }
+    app.push_str("echo $sum;\n");
+    files.push(("app.nvs".to_owned(), app));
+    files
+}
+
+/// The work of a reload after a body edit does not grow with the program: at 110, 220 and 440
+/// files, it checks one file, compiles one function and writes one source-file entry.
+// covers: tools:server/nvs-reload
+#[test]
+fn a_body_edit_costs_the_same_work_at_every_program_size() {
+    for size in [110, 220, 440] {
+        let served = Served::start_over(
+            &format!("size-{size}"),
+            &development(),
+            &generated_program(size),
+        );
+        // `C7::value` returns 7, and the edit makes it return 9: the same lines, a new body.
+        let record = served.edit_and_reload("c7.nvs", &generated_class(7, 9));
+        let work = [
+            count(&record, "checked"),
+            count(&record, "compiled"),
+            count(&record, "written"),
+        ];
+        assert_eq!(
+            work,
+            [1, 1, 1],
+            "checked, compiled and written at {size} files: {record}"
+        );
+        assert!(
+            count(&record, "reused") > size,
+            "every other function is reused at {size} files: {record}"
+        );
+    }
 }

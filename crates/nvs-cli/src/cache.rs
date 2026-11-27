@@ -1114,6 +1114,7 @@ pub(crate) fn unit_for_kept(
             let work = Work {
                 compiled: before + program.functions.len(),
                 reused: 0,
+                written: 0,
             };
             (unit, Provenance::Compiled, work, None)
         })
@@ -1150,6 +1151,7 @@ pub(crate) fn unit_for_kept(
         let work = Work {
             compiled: 0,
             reused,
+            written: 0,
         };
         return Ok((unit, Provenance::Loaded, work, kept));
     }
@@ -2176,6 +2178,7 @@ mod tests {
             Work {
                 compiled: 1,
                 reused: edited.functions.len() - 1,
+                written: 0,
             },
             "a body edit compiles its own function, and the rest comes from memory"
         );

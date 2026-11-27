@@ -68,13 +68,18 @@ const LIST_MAGIC: [u8; 4] = *b"NVSL";
 /// The magic a hint opens with.
 const HINT_MAGIC: [u8; 4] = *b"NVSH";
 
-/// What one call of [`super::unit_for_counted`] did: functions compiled and functions reused.
+/// What one call of [`super::unit_for_counted`] did: functions compiled and reused, and source-file
+/// entries written to the store.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Work {
     /// Functions Cranelift compiled in this call.
     pub(crate) compiled: usize,
     /// Functions placed from the store without a compile.
     pub(crate) reused: usize,
+    /// Source-file entries this call published: one per file whose functions' keys moved. An
+    /// entry the store already has is not written again, and neither is the list or the hint
+    /// counted here.
+    pub(crate) written: usize,
 }
 
 /// Each function's relocatable code for one program's unit in force, by its key: what a serving
@@ -715,12 +720,13 @@ pub(crate) fn compile_and_store(
     let loaded = place(&functions, &literals, &this_process(&descriptors)).map_err(|_| done)?;
 
     // Only placed code is stored, so the store never holds an entry this loader refuses.
-    if let Some(Store { cache, key, hint }) = store_in {
-        store(cache, program, &compiled, &all, key, hint);
-    }
+    let written = store_in.map_or(0, |Store { cache, key, hint }| {
+        store(cache, program, &compiled, &all, key, hint)
+    });
     let work = Work {
         compiled: done,
         reused: owned.len() - done,
+        written,
     };
     let provenance = if done == 0 {
         Provenance::Loaded
@@ -731,8 +737,9 @@ pub(crate) fn compile_and_store(
     Ok((unit, provenance, work, keep.then(|| Kept::of(owned))))
 }
 
-/// Writes each source file's entry whose key is new, the list under `key`, and the hint. A write
-/// that fails is a cache that stays cold, and nothing else.
+/// Writes each source file's entry whose key is new, the list under `key`, and the hint, and
+/// returns how many entries it published. A write that fails is a cache that stays cold, and
+/// nothing else.
 fn store(
     cache: &Cache,
     program: &nvs_ir::Program,
@@ -740,7 +747,7 @@ fn store(
     pieces: &[&Piece],
     key: Digest,
     hint: Digest,
-) {
+) -> usize {
     let mut files: Vec<Vec<&Piece>> = Vec::new();
     let mut by_file = FxHashMap::default();
     for (function, piece) in program.functions.iter().zip(pieces) {
@@ -752,26 +759,29 @@ fn store(
         files[at].push(*piece);
     }
     let mut list = Vec::with_capacity(files.len());
+    let mut written = 0;
     for file in &files {
         let entry = entry_key(file.iter().map(|piece| &piece.key), cache.env());
         if !cache.path(entry).exists() {
             let Some(payload) = encode_entry(file, &compiled.literals_for(file)) else {
-                return;
+                return written;
             };
             if cache.publish(entry, &payload).is_err() {
-                return;
+                return written;
             }
+            written += 1;
         }
         list.push(entry);
     }
     let Some(payload) = encode_list(&list) else {
-        return;
+        return written;
     };
     if cache.publish(key, &payload).is_err() {
-        return;
+        return written;
     }
     drop(cache.replace(hint, &encode_hint(key)));
     cache.maybe_gc();
+    written
 }
 
 /// Every entry key a list among `payloads` names: what eviction keeps.

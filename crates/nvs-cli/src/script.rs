@@ -474,14 +474,16 @@ struct Failure {
 pub(crate) enum Rechecked {
     /// The path serves a new unit now, and `program` is its whole-program
     /// digest. `checked` counts the files whose bodies the compile that built
-    /// it checked, and `compiled` and `reused` the functions it compiled and
-    /// took without a compile.
+    /// it checked, `compiled` and `reused` the functions it compiled and
+    /// took without a compile, and `written` the source-file entries it
+    /// stored.
     Swapped {
         entry: PathBuf,
         program: Digest,
         checked: usize,
         compiled: usize,
         reused: usize,
+        written: usize,
     },
     /// The program on disk does not compile, and a request of the path fails
     /// with `message`. `first` is its first error, where it has a place in a
@@ -829,6 +831,7 @@ impl Compiler {
                     checked,
                     compiled: work.compiled,
                     reused: work.reused,
+                    written: work.written,
                 }
             }),
         }

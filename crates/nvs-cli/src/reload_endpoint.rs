@@ -531,6 +531,7 @@ mod tests {
                     checked: 1,
                     compiled: 1,
                     reused: 2,
+                    written: 1,
                 },
                 Rechecked::Failed {
                     entry: PathBuf::from("b.nvs"),
