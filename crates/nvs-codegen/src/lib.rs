@@ -271,7 +271,11 @@
 //! measured program whose resumes or `switch` show up in a profile.
 
 mod emit;
+mod pool;
 mod ty;
+
+#[doc(hidden)]
+pub use pool::{compile_thread_priorities, current_thread_priority, with_compile_threads};
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -1464,7 +1468,7 @@ pub fn function_code_hashes(
         unit.literals.restart();
         unit.hash = Some(blake3::Hasher::new());
         unit.literals.record = Some(Vec::new());
-        unit.compile_function(function, 0, 0, 0, 0)?;
+        unit.compile_function(function, Base::default())?;
         let mut hasher = unit.hash.take().unwrap_or_default();
         for data in unit.literals.record.take().unwrap_or_default() {
             hasher.update(data.as_bytes());
@@ -1739,6 +1743,12 @@ struct UnitBuilder<M> {
     module: M,
     ctx: codegen::Context,
     fn_ctx: FunctionBuilderContext,
+    /// Cleared contexts a parallel [`Self::compile_all`] reuses, at most two
+    /// per code-generation thread ([`pool`]).
+    spare: Vec<codegen::Context>,
+    /// The ISA the module compiles for, shared with the code-generation
+    /// threads, which compile without touching the module.
+    isa: codegen::isa::OwnedTargetIsa,
     sigs: Signatures,
     /// Every function this unit defines, by its Novis name — the table
     /// `nvs_ir::ir::InstKind::Call`'s `"Class::method"` target is resolved
@@ -2829,7 +2839,8 @@ impl UnitBuilder<JitPages> {
     /// every symbol it names resolved to an address before it is ever called.
     fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
         let isa = host_isa(opt_level())?;
-        let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
+        let mut builder =
+            JITBuilder::with_isa(isa.clone(), cranelift_module::default_libcall_names());
         // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
         // helpers, and every Tier 0 `Core` member. Both have `rule:errors/propagation`'s one
         // helper signature, and `nvs_stdlib`'s own docs own why a `Core` call
@@ -2867,7 +2878,12 @@ impl UnitBuilder<JitPages> {
         }));
 
         // The pages are owned from here on, so a compile that stops early frees them.
-        Ok(Self::around(JitPages::new(builder), desc_symbols, disasm))
+        Ok(Self::around(
+            JitPages::new(builder),
+            isa,
+            desc_symbols,
+            disasm,
+        ))
     }
 }
 
@@ -2888,13 +2904,18 @@ impl UnitBuilder<ObjectModule> {
         let isa = host_isa(opt_level())?;
         // The object's own name is metadata: a cached artifact is addressed by
         // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key, which the file's contents cannot contribute to.
-        let builder = ObjectBuilder::new(isa, "nvs", cranelift_module::default_libcall_names())
-            .map_err(|source| CodegenError::Cranelift {
-                function: "<unit>".to_owned(),
-                source: Box::new(source),
-            })?;
+        let builder = ObjectBuilder::new(
+            isa.clone(),
+            "nvs",
+            cranelift_module::default_libcall_names(),
+        )
+        .map_err(|source| CodegenError::Cranelift {
+            function: "<unit>".to_owned(),
+            source: Box::new(source),
+        })?;
         Ok(Self::around(
             ObjectModule::new(builder),
+            isa,
             Arc::default(),
             None,
         ))
@@ -2914,11 +2935,75 @@ impl UnitBuilder<ObjectModule> {
     }
 }
 
+/// Where one function's numbers start in the program-wide tables: its index,
+/// and the count of statements, conditional edges and query sites in every
+/// function before it in `program.functions`. That is the order
+/// `nvs_ir::Program::stmt_spans`, `edge_spans` and `query_sites` list them in.
+#[derive(Clone, Copy, Debug, Default)]
+struct Base {
+    index: u32,
+    stmt: u32,
+    edge: u32,
+    query: u32,
+}
+
+impl Base {
+    /// Every function's base, in the program's function order.
+    fn all(program: &Program) -> Result<Vec<Self>, CodegenError> {
+        let mut next = Self::default();
+        let mut bases = Vec::with_capacity(program.functions.len());
+        for (index, function) in program.functions.iter().enumerate() {
+            next.index = u32::try_from(index)
+                .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
+            bases.push(next);
+            next.query = u32::try_from(function.query_sites().count())
+                .ok()
+                .and_then(|count| next.query.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 query sites"))?;
+            next.stmt = u32::try_from(function.stmt_spans.len())
+                .ok()
+                .and_then(|count| next.stmt.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
+            next.edge = u32::try_from(function.edge_spans.len())
+                .ok()
+                .and_then(|count| next.edge.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 conditional edges"))?;
+        }
+        Ok(bases)
+    }
+}
+
+/// One function's emitted Cranelift IR on its way to a code-generation
+/// thread and back.
+struct Emitted<'p> {
+    name: &'p str,
+    id: cranelift_module::FuncId,
+    ctx: codegen::Context,
+}
+
+/// Cranelift's compile of the IR in `ctx` into machine code, which stays in
+/// `ctx` for [`UnitBuilder::define_compiled`]. It reads nothing but `ctx` and
+/// the ISA, so it runs on any thread. `name` names the function in an error.
+fn compile_body(
+    isa: &dyn codegen::isa::TargetIsa,
+    ctx: &mut codegen::Context,
+    name: &str,
+) -> Result<(), CodegenError> {
+    let mut control = codegen::control::ControlPlane::default();
+    ctx.compile(isa, &mut control)
+        .map(|_| ())
+        .map_err(|error| CodegenError::Cranelift {
+            function: name.to_owned(),
+            source: Box::new(ModuleError::from(error)),
+        })
+}
+
 impl<M: Backend> UnitBuilder<M> {
     /// The tables every backend shares, around a module only that backend's
     /// own constructor knows how to build.
     fn around(
         mut module: M,
+        isa: codegen::isa::OwnedTargetIsa,
         desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
         disasm: Option<String>,
     ) -> Self {
@@ -2926,6 +3011,8 @@ impl<M: Backend> UnitBuilder<M> {
         Self {
             ctx: module.module().make_context(),
             fn_ctx: FunctionBuilderContext::new(),
+            spare: Vec::new(),
+            isa,
             module,
             sigs,
             functions: FxHashMap::default(),
@@ -2956,32 +3043,90 @@ impl<M: Backend> UnitBuilder<M> {
     /// against. Cranelift is fine with a call to a declared-but-not-yet-
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
+    ///
+    /// The emit of each body runs on this thread, and Cranelift's compile of
+    /// it on [`pool`]'s threads. Each result is defined into the module in
+    /// the program's function order, so the module holds the bytes a single
+    /// thread writes, and the first function that fails in that order is the
+    /// error, whichever thread finished first.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.declare_all(program)?;
-        let mut stmt_base = 0_u32;
-        let mut edge_base = 0_u32;
-        let mut query_base = 0_u32;
-        for (index, function) in program.functions.iter().enumerate() {
-            let index = u32::try_from(index)
-                .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
-            self.compile_function(function, index, stmt_base, edge_base, query_base)?;
-            #[cfg(test)]
-            if index == 0 {
-                failpoint::hit()?;
+        let bases = Base::all(program)?;
+        let threads = pool::threads(program.functions.len());
+        if threads == 1 {
+            for (index, function) in program.functions.iter().enumerate() {
+                let base = bases[index];
+                self.compile_function(function, base)?;
+                #[cfg(test)]
+                if index == 0 {
+                    failpoint::hit()?;
+                }
             }
-            query_base = u32::try_from(function.query_sites().count())
-                .ok()
-                .and_then(|count| query_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 query sites"))?;
-            stmt_base = u32::try_from(function.stmt_spans.len())
-                .ok()
-                .and_then(|count| stmt_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
-            edge_base = u32::try_from(function.edge_spans.len())
-                .ok()
-                .and_then(|count| edge_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 conditional edges"))?;
+            return Ok(());
         }
+        let isa = self.isa.clone();
+        pool::run(
+            threads,
+            |mut job: Emitted<'_>| {
+                let compiled = compile_body(&*isa, &mut job.ctx, job.name);
+                (job, compiled)
+            },
+            |lanes| {
+                let mut defined = 0;
+                let mut stopped = None;
+                for (index, function) in program.functions.iter().enumerate() {
+                    while lanes.full() {
+                        self.define_next(lanes, &mut defined)?;
+                    }
+                    let mut ctx = self
+                        .spare
+                        .pop()
+                        .unwrap_or_else(|| self.module.module().make_context());
+                    match self.emit_body(function, bases[index], &mut ctx) {
+                        Ok(id) => lanes.submit(
+                            index,
+                            Emitted {
+                                name: &function.name,
+                                id,
+                                ctx,
+                            },
+                        ),
+                        Err(error) => {
+                            stopped = Some((index, error));
+                            break;
+                        }
+                    }
+                }
+                let end = stopped
+                    .as_ref()
+                    .map_or(program.functions.len(), |(at, _)| *at);
+                while defined < end {
+                    self.define_next(lanes, &mut defined)?;
+                }
+                stopped.map_or(Ok(()), |(_, error)| Err(error))
+            },
+        )
+    }
+
+    /// Waits for the compile of function `*defined`, defines it into the
+    /// module and counts it.
+    fn define_next<'p>(
+        &mut self,
+        lanes: &mut pool::Lanes<Emitted<'p>, (Emitted<'p>, Result<(), CodegenError>)>,
+        defined: &mut usize,
+    ) -> Result<(), CodegenError> {
+        let (mut job, compiled) = lanes
+            .take(*defined)
+            .ok_or_else(|| emit::internal("a code-generation job that was never submitted"))?;
+        let result = compiled.and_then(|()| self.define_compiled(job.name, job.id, &job.ctx));
+        self.module.module().clear_context(&mut job.ctx);
+        self.spare.push(job.ctx);
+        result?;
+        #[cfg(test)]
+        if *defined == 0 {
+            failpoint::hit()?;
+        }
+        *defined += 1;
         Ok(())
     }
 
@@ -3090,20 +3235,37 @@ impl<M: Backend> UnitBuilder<M> {
         self.debug_functions = program.functions.iter().map(|f| f.name.clone()).collect();
     }
 
-    /// Emits one already-declared function's body. `stmt_base` is the
-    /// program-wide number of the function's first statement: the count of
-    /// statements in every function before it in `program.functions`, which is
-    /// the order `nvs_ir::Program::stmt_spans` lists them in. `edge_base` is
-    /// the same count for conditional edges and `nvs_ir::Program::edge_spans`,
-    /// and `query_base` for query sites and `nvs_ir::Program::query_sites`.
+    /// Emits, compiles and defines one already-declared function on this
+    /// thread, which is what [`Self::compile_all`] does for each function when
+    /// it generates code on one thread.
     fn compile_function(
         &mut self,
         function: &nvs_ir::Function,
-        index: u32,
-        stmt_base: u32,
-        edge_base: u32,
-        query_base: u32,
+        base: Base,
     ) -> Result<(), CodegenError> {
+        let mut ctx = std::mem::replace(&mut self.ctx, codegen::Context::new());
+        let result = self.emit_body(function, base, &mut ctx).and_then(|id| {
+            compile_body(&*self.isa, &mut ctx, &function.name)?;
+            self.define_compiled(&function.name, id, &ctx)
+        });
+        self.module.module().clear_context(&mut ctx);
+        self.ctx = ctx;
+        result
+    }
+
+    /// Emits one already-declared function's body into `ctx` as Cranelift IR,
+    /// and returns the function's id. `base` numbers the function's first
+    /// statement, conditional edge and query site program-wide ([`Base`]).
+    ///
+    /// This half writes the unit's literals and reads its declarations, so it
+    /// runs on the compiling thread. [`compile_body`] is the half that may run
+    /// on another. On an error `ctx` is cleared.
+    fn emit_body(
+        &mut self,
+        function: &nvs_ir::Function,
+        base: Base,
+        ctx: &mut codegen::Context,
+    ) -> Result<cranelift_module::FuncId, CodegenError> {
         let id =
             *self
                 .functions
@@ -3113,13 +3275,13 @@ impl<M: Backend> UnitBuilder<M> {
                     target: function.name.clone(),
                 })?;
 
-        self.ctx.func.signature = self.sigs.helper.clone();
+        ctx.func.signature = self.sigs.helper.clone();
         // Must be set per function: `Module::clear_context` resets it along
         // with the rest of the context.
-        self.ctx.set_disasm(self.disasm.is_some());
+        ctx.set_disasm(self.disasm.is_some());
         let result = emit::emit_function(
             self.module.module(),
-            &mut self.ctx,
+            ctx,
             &mut self.fn_ctx,
             emit::UnitTables {
                 sigs: &self.sigs,
@@ -3127,51 +3289,76 @@ impl<M: Backend> UnitBuilder<M> {
                 classes: &self.classes,
                 statics: &self.statics,
                 literals: &mut self.literals,
-                stmt_base,
-                edge_base,
-                query_base,
-                function_index: index,
+                stmt_base: base.stmt,
+                edge_base: base.edge,
+                query_base: base.query,
+                function_index: base.index,
             },
             function,
         );
         if let Err(error) = result {
-            self.module.module().clear_context(&mut self.ctx);
+            self.module.module().clear_context(ctx);
             return Err(error);
         }
+        self.collect_clif(&function.name, ctx);
+        Ok(id)
+    }
 
-        self.collect_clif(&function.name);
+    /// Defines the machine code [`compile_body`] left in `ctx` as function
+    /// `id`, with its relocations, and records what a disassembly or a hash
+    /// asked for. The bytes, alignment and relocations are the ones
+    /// `Module::define_function` would define after compiling `ctx` itself.
+    fn define_compiled(
+        &mut self,
+        name: &str,
+        id: cranelift_module::FuncId,
+        ctx: &codegen::Context,
+    ) -> Result<(), CodegenError> {
+        let code = ctx
+            .compiled_code()
+            .ok_or_else(|| emit::internal("a function defined before it was compiled"))?;
+        let relocs: Vec<cranelift_module::ModuleReloc> = code
+            .buffer
+            .relocs()
+            .iter()
+            .map(|reloc| cranelift_module::ModuleReloc::from_mach_reloc(reloc, &ctx.func, id))
+            .collect();
         self.module
             .module()
-            .define_function(id, &mut self.ctx)
+            .define_function_bytes(
+                id,
+                u64::from(code.buffer.min_alignment),
+                code.buffer.data(),
+                &relocs,
+            )
             .map_err(|source| CodegenError::Cranelift {
-                function: function.name.clone(),
+                function: name.to_owned(),
                 source: Box::new(source),
             })?;
-        self.collect_disasm(&function.name);
-        self.hash_compiled();
-        self.module.module().clear_context(&mut self.ctx);
-        self.entries.push((function.name.clone(), id));
+        self.collect_disasm(name, ctx);
+        self.hash_compiled(ctx);
+        self.entries.push((name.to_owned(), id));
         Ok(())
     }
 
     /// Appends the just-emitted function's Cranelift IR, if one was asked for.
     ///
-    /// Called before `define_function`, which is what turns that IR into
-    /// machine code: what this renders is the shape the emitter wrote.
-    fn collect_clif(&mut self, name: &str) {
+    /// Called before the compile, which is what turns that IR into machine
+    /// code: what this renders is the shape the emitter wrote.
+    fn collect_clif(&mut self, name: &str, ctx: &codegen::Context) {
         let Some(buffer) = self.clif.as_mut() else {
             return;
         };
         buffer.push_str("; ");
         buffer.push_str(name);
         buffer.push('\n');
-        buffer.push_str(&self.ctx.func.to_string());
+        buffer.push_str(&ctx.func.to_string());
         buffer.push('\n');
         // Cranelift prints an import as `fn3 = u0:17`, so each one's symbol
         // follows on a `;; fn3 = nvs_str_retain` line. A test can then check
         // which runtime entries a function calls. The doubled `;` keeps the
         // line apart from the `; <name>` head of the next function.
-        let func = &self.ctx.func;
+        let func = &ctx.func;
         for (fref, data) in func.dfg.ext_funcs.iter() {
             let codegen::ir::ExternalName::User(user) = &data.name else {
                 continue;
@@ -3199,17 +3386,17 @@ impl<M: Backend> UnitBuilder<M> {
     /// [`Self::hash`], if a hash was asked for. A relocation is fed by its
     /// offset, kind, addend and the *name* of its target, so two compiles in
     /// two modules compare equal when they call the same functions.
-    fn hash_compiled(&mut self) {
+    fn hash_compiled(&mut self, ctx: &codegen::Context) {
         let Some(hasher) = self.hash.as_mut() else {
             return;
         };
-        let Some(code) = self.ctx.compiled_code() else {
+        let Some(code) = ctx.compiled_code() else {
             return;
         };
         let bytes = code.buffer.data();
         hasher.update(&(bytes.len() as u64).to_le_bytes());
         hasher.update(bytes);
-        let params = &self.ctx.func.params;
+        let params = &ctx.func.params;
         let module = self.module.module();
         let declarations = module.declarations();
         for reloc in code.buffer.relocs() {
@@ -3244,16 +3431,13 @@ impl<M: Backend> UnitBuilder<M> {
 
     /// Appends the just-compiled function's disassembly, if one was asked for.
     ///
-    /// Called between `define_function` and `clear_context`, which is the only
+    /// Called between the definition and `clear_context`, which is the only
     /// window the compiled code is still attached to the context.
-    fn collect_disasm(&mut self, name: &str) {
+    fn collect_disasm(&mut self, name: &str, ctx: &codegen::Context) {
         let Some(buffer) = self.disasm.as_mut() else {
             return;
         };
-        let vcode = self
-            .ctx
-            .compiled_code()
-            .and_then(|code| code.vcode.as_deref());
+        let vcode = ctx.compiled_code().and_then(|code| code.vcode.as_deref());
         buffer.push_str("; ");
         buffer.push_str(name);
         buffer.push('\n');
@@ -4519,10 +4703,19 @@ echo $total;
     }
 
     /// Compiles a small program that stops at the failpoint after its first
-    /// function, and checks the unit's pages are counted while it is built and
-    /// freed once the compile has ended.
+    /// function, on one code-generation thread and then on four, and checks
+    /// the unit's pages are counted while it is built and freed once the
+    /// compile has ended.
     fn stops_and_unmaps(stop: failpoint::Stop) {
-        let program = lower("<?nvs\nint $x = 1;\necho $x;\n");
+        for threads in [1, 4] {
+            pool::with_compile_threads(threads, || stops_and_unmaps_on(stop));
+        }
+    }
+
+    fn stops_and_unmaps_on(stop: failpoint::Stop) {
+        let program = lower(
+            "<?nvs\nclass Pair {\n    public static function a(): int {\n        return 1;\n    }\n    public static function b(): int {\n        return 2;\n    }\n}\necho Pair::a() + Pair::b();\n",
+        );
         let before = failpoint::MAPPED_HERE.with(std::cell::Cell::get);
         failpoint::SEEN.with(|seen| seen.set(None));
         failpoint::STOP.with(|s| s.set(Some(stop)));

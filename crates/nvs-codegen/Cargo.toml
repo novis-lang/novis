@@ -33,6 +33,18 @@ rustc-hash.workspace = true
 thiserror.workspace = true
 wasmtime-internal-jit-icache-coherence.workspace = true
 
+# `src/pool.rs`: each code-generation thread lowers its own scheduling priority,
+# so a compile never takes CPU from a server's request workers. `std` spells
+# that call on no platform: `setpriority` on the thread id on Linux,
+# `pthread_set_qos_class_self_np` on macOS and `SetThreadPriority` on Windows.
+# The only argument is the calling thread itself, and both crates are already in
+# this lock file.
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 [dev-dependencies]
 object.workspace = true
 nvs-syntax.workspace = true
