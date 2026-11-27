@@ -64959,9 +64959,11 @@ the text and in the JSON. So the bytes of a file are never sent to the terminal 
 
 ### The compile cache
 
-A compiled unit is stored on disk under a name derived from the hash of its source and of the build
-environment — so an entry is never stale and never needs clearing. `nvs run` and `nvs serve` both
-read and write it.
+Compiled code is stored on disk with one entry for each source file. An entry has the code of each
+function in that file. Its name is a hash of the code of those functions and of the build
+environment. A changed function gives a new name, so an entry is never stale and never needs
+clearing. `nvs run` and `nvs serve` both read and write it.
+After an edit inside one function, only that function is compiled again.
 
 `[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
 off. With no directory named, the cache is the `cache` folder in the data folder. `[cache] dir` is
@@ -64983,7 +64985,8 @@ permissions that pass.
     nvs cache gc [--json]
     nvs cache clear [--json]
 
-`nvs cache gc` checks the size of the compile cache. If the cache is larger than
+`nvs cache gc` first deletes the entries that no compiled program uses, such as the code of a file
+before you edited it. Then it checks the size of the compile cache. If the cache is larger than
 `[opcache] file_cache_max_size`, it deletes the oldest entries until the cache is at 80% of that
 size. If the cache is not larger, it deletes nothing. The default size is 256 MB.
 
@@ -66480,7 +66483,9 @@ A running server takes a change without a restart, except a change to four keys.
 **A code change.** The server checks every file a program has loaded once per `[opcache]
 revalidate_freq`, off the request path. When a file changed, the server waits until no file of the
 program has changed for `[opcache] settle`: `1s` in production, `100ms` in development. Then it
-compiles the whole program again, and the next request runs the new code. A request that is already
+compiles the program again, and the next request runs the new code. Only the functions that changed
+are compiled. With `[opcache] incremental`, which is `true` in development, only the files that
+changed are checked. A request that is already
 running finishes on the code it started with. A file added where the program looks for one, or a
 file removed, is a change too. This works in every mode, so a deploy needs no step after it.
 `nvs reload` makes the change take effect at once.
@@ -66518,6 +66523,7 @@ key, the running value and the new one. The shipped `nvs.toml` ends each of thes
 [opcache]
 #revalidate_freq = "2s"               # how often the server checks the files a program loaded
 #settle = "1s"                        # how long they must stay unchanged before a compile
+#incremental = false                  # keep checked files and compiled functions between compiles
 ```
 
 #### Deploying
@@ -66594,7 +66600,20 @@ revalidate_freq = "1h"
 ```
 
 Each program a reload replaces writes one `program reloaded` line to the log. Each program that does
-not compile writes one `program reload failed` line, with the first error. A `[[schedule]]` entry
+not compile writes one `program reload failed` line, with the first error. A `program reloaded`
+line has four counts:
+
+| Field | What it counts |
+|---|---|
+| `checked` | the source files whose code was checked |
+| `compiled` | the functions compiled to machine code |
+| `reused` | the functions whose saved machine code was used again |
+| `written` | the files written to the compile cache |
+
+A reload compiles only the functions that changed. With `[opcache] incremental`, the server also
+checks only the files that changed. Its default is `true` in development and `false` in
+production. After an edit inside one function, `checked`, `compiled` and `written` are each `1`,
+at any program size. A `[[schedule]]` entry
 with `on = "reload"` runs after a reload, and its arguments include `programs` and `failed`.
 
 ### Stopping and reloading: the drain

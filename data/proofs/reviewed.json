@@ -2458,6 +2458,7 @@
   "website/snippets/tools/debug-viewer/run/jobs/import-orders.nvs": "39185517342c61ad",
   "website/snippets/tools/debug-viewer/run/jobs/send-receipts.nvs": "beeb704540442cd6",
   "website/snippets/tools/debug-viewer/run/public/index.nvs": "999973f9b89a4385",
+  "website/snippets/tools/debug-viewer/runs/jobs/alert-team.nvs": "a7e787396c721724",
   "website/snippets/tools/debug-viewer/runs/jobs/import-orders.nvs": "39185517342c61ad",
   "website/snippets/tools/debug-viewer/runs/jobs/send-receipts.nvs": "beeb704540442cd6",
   "website/snippets/tools/debug-viewer/runs/public/index.nvs": "999973f9b89a4385",
@@ -2522,7 +2523,7 @@
   "website/src/content/docs/syntax/values/enums.mdx": "6b9b1d6639445286",
   "website/src/content/docs/tools/api-document/index.mdx": "3f87a1064fddeacd",
   "website/src/content/docs/tools/cli/index.mdx": "b70d89d5165f58ac",
-  "website/src/content/docs/tools/debug-viewer/index.mdx": "4d2a5b06494874fc",
+  "website/src/content/docs/tools/debug-viewer/index.mdx": "5b0d4846c521bf88",
   "website/src/content/docs/tools/editor/index.mdx": "abd56576985f08ce",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
   "website/src/data/changes.json": "bcc4eb777b49c9ed"

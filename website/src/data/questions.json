@@ -20488,7 +20488,7 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "8a6d10eaefdf05c8",
+    "hash": "8f291fc12ad5de5e",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",

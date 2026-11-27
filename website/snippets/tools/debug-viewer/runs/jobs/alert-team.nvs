@@ -1,6 +1,8 @@
 <?nvs
-// A scheduled job that runs after another job fails.
-// It saves one alert for each person on the team and reads the alerts back.
+// A scheduled job that runs after another scheduled job fails.
+// `on = "failed"` in `nvs.toml` starts it.
+// It writes one row for each person on the team into a database table.
+// Then it reads the rows back.
 
 var $db = Core\Db::connect('team');
 $db->execute('create table alerts (id integer primary key, person text not null)', []);
