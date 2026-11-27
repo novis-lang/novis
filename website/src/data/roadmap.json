@@ -3,18 +3,17 @@
   "internal": [],
   "themes": [
     {
-      "title": "Test code and types that say what they mean",
-      "text": "`#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.",
-      "goals": [
-        "test-only",
-        "narrowed-static"
-      ]
-    },
-    {
       "title": "A reload compiles only the code you changed",
       "text": "When you save a file, the running program compiles only the functions your edit changed. The machine code of every other function is reused from the cache, so a reload of a large program is fast.",
       "goals": [
         "incremental-reload"
+      ]
+    },
+    {
+      "title": "Test code and types that say what they mean",
+      "text": "`#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.",
+      "goals": [
+        "narrowed-static"
       ]
     },
     {
