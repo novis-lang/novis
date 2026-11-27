@@ -154,9 +154,8 @@ pub fn checked(
             .unwrap_or_default();
         let at = now(entry);
         let planned: Vec<PathBuf> = places.values().cloned().collect();
-        let after = nvs_hir::requires::with_planned(planned, || {
-            analyse_with(documents, &after_reads, &at)
-        });
+        let after =
+            nvs_hir::requires::with_planned(planned, || analyse_with(documents, &after_reads, &at));
         let Some(after) = after else {
             continue;
         };

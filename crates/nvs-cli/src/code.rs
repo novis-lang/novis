@@ -146,6 +146,10 @@ enum Command {
     /// its name also gets a new file name. A type alias that a class declares
     /// is renamed by its full name, as `Shop\Order::Total`.
     ///
+    /// A class can also get a new namespace. Write its full new name, as
+    /// `Shop\Billing\Cart`. The command changes every `use` line and moves the
+    /// file to the folder that `autoload` reads for the new name.
+    ///
     /// The command prints one line for each changed file. If the rename is
     /// not possible, it prints why, changes nothing and fails.
     Rename {
@@ -154,7 +158,8 @@ enum Command {
         /// outside its function, so use its position.
         target: String,
         /// The new name, as `addProduct`. For a variable or a property, the
-        /// `$` is optional.
+        /// `$` is optional. For a class, a full name, as `Shop\Billing\Cart`,
+        /// moves it to that namespace.
         new_name: String,
         /// Print each change, and save nothing. Each line has the position,
         /// the old text and the new text.
@@ -1711,6 +1716,24 @@ fn committed(
         done.push(project.shown(&change.path));
     }
     for (from, to) in moves {
+        // A type moved to another namespace may move into a directory that
+        // does not exist yet. Each one is judged inside the root before it is
+        // created. `nvs code move` refuses a missing directory before this.
+        if let Some(parent) = to.parent()
+            && !parent.is_dir()
+        {
+            if !inside(project.workspace.root(), parent) {
+                let what = format!(
+                    "`{}` is outside the project, so it was not created.",
+                    project.shown(parent)
+                );
+                return Err(partly(what, &done));
+            }
+            if let Err(err) = std::fs::create_dir_all(parent) {
+                let what = format!("`{}` cannot be created: {err}.", project.shown(parent));
+                return Err(partly(what, &done));
+            }
+        }
         if let Err(err) = std::fs::rename(from, to) {
             let what = format!(
                 "`{}` cannot be moved to `{}`: {err}.",

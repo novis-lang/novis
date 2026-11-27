@@ -799,8 +799,8 @@ pub fn canonicalize(path: &Path) -> Option<PathBuf> {
 }
 
 thread_local! {
-    /// The paths [`with_planned`] says exist, each as its parent's canonical
-    /// form joined with its file name. Empty outside a call of it.
+    /// The paths [`with_planned`] says exist, each as its [`planned_key`].
+    /// Empty outside a call of it.
     static PLANNED: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
@@ -811,8 +811,8 @@ thread_local! {
 /// with the moved text overlaid at the new path
 /// (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`). The file is
 /// not there yet, so an `autoload` probe for the new name would miss it and
-/// refuse a correct edit. Each path is its parent's canonical form joined with
-/// its file name, the key the overlay uses. A missing path costs one look at
+/// refuse a correct edit. Each path is its [`planned_key`], the key the
+/// overlay uses. A missing path costs one look at
 /// an empty list, and nothing is kept after `run` returns.
 pub fn with_planned<T>(paths: Vec<PathBuf>, run: impl FnOnce() -> T) -> T {
     struct Restore(Vec<PathBuf>);
@@ -834,9 +834,32 @@ fn planned(path: &Path) -> Option<PathBuf> {
         if planned.is_empty() {
             return None;
         }
-        let key = path.parent()?.canonicalize().ok()?.join(path.file_name()?);
+        let key = planned_key(path)?;
         planned.contains(&key).then_some(key)
     })
+}
+
+/// The key a path that may not exist yet is compared under: its nearest
+/// ancestor that exists in its canonical form, joined with the parts below it.
+///
+/// A refactoring that moves a type to another namespace may move its file into
+/// a directory that does not exist yet
+/// (`rule:ide/a-type-moves-with-its-namespace`), so the parent alone is not
+/// enough. A `.` or `..` part below the existing ancestor gives `None`, so the
+/// key never leads out of that ancestor.
+#[must_use]
+pub fn planned_key(path: &Path) -> Option<PathBuf> {
+    let mut below = Vec::new();
+    let mut at = path;
+    loop {
+        let name = at.file_name()?;
+        below.push(name);
+        at = at.parent()?;
+        if let Ok(mut key) = at.canonicalize() {
+            key.extend(below.iter().rev());
+            return Some(key);
+        }
+    }
 }
 
 /// Reports a `require` whose literal path resolved only because the

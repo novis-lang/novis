@@ -109,6 +109,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Component, Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceId, SourceMap, Span, canonical_key};
+use nvs_hir::QName;
 use nvs_syntax::ast::{
     CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, MemberName, Stmt, StmtKind,
 };
@@ -202,6 +203,16 @@ fn planned(
     new_name: &str,
 ) -> Result<Renamed, String> {
     let subject = subject(index, analysed, offset)?;
+    if new_name.contains('\\') {
+        let What::Type { symbol, old, sites } = subject.what else {
+            return Err(
+                "Only a class, an interface, an enum or a type alias can take a name with a \
+                 namespace."
+                    .to_owned(),
+            );
+        };
+        return namespaced(documents, index, &symbol, &old, new_name, &sites);
+    }
     let new = new_name.strip_prefix('$').unwrap_or(new_name);
     if !is_identifier(new) {
         return Err(format!("`{new_name}` is not a valid name."));
@@ -1022,6 +1033,76 @@ fn types(
     }
 
     let mut texts = Texts::new(documents);
+    written_already(&mut texts, symbol, new, sites)?;
+    missed_sites(&mut texts, index, symbol, old, sites)?;
+
+    let mut rewrites = Vec::new();
+    for site in sites {
+        let written = texts
+            .text(site)
+            .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
+        let text = if written == old {
+            new.to_owned()
+        } else if let Some(prefix) = written.strip_suffix(old).filter(|it| it.ends_with('\\')) {
+            format!("{prefix}{new}")
+        } else {
+            return Err(cannot_change(symbol, &site.path));
+        };
+        rewrites.push(Rewrite {
+            site: site.clone(),
+            text,
+        });
+    }
+
+    let file = named_after(index, symbol, old).map(|from| {
+        let to = from.with_file_name(format!("{new}.nvs"));
+        (from, to)
+    });
+    if let Some((from, to)) = &file {
+        refuse_taken(from, to, symbol, new)?;
+        rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
+        rewrites.sort();
+        rewrites.dedup();
+    }
+    Ok(Renamed { rewrites, file })
+}
+
+/// The refusal for a site whose text is neither the old name nor a qualified
+/// name that ends with it.
+fn cannot_change(symbol: &str, path: &Path) -> String {
+    format!(
+        "`{symbol}` is written in `{}` in a way that rename cannot change, so it cannot be \
+         renamed.",
+        plain(path).display()
+    )
+}
+
+/// Refuses a move of `from` to `to` while another file is at `to`.
+fn refuse_taken(from: &Path, to: &Path, symbol: &str, new: &str) -> Result<(), String> {
+    // `User.nvs` to `user.nvs` names the same file on a disk that ignores
+    // case, and that file is the one being moved.
+    let same_file = from.parent() == to.parent()
+        && from
+            .file_name()
+            .zip(to.file_name())
+            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right));
+    if to.exists() && !same_file {
+        return Err(format!(
+            "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
+            plain(to).display()
+        ));
+    }
+    Ok(())
+}
+
+/// Refuses a type's new short name `new` while a file with a site of it
+/// already writes that name, since a site there would then name two things.
+fn written_already(
+    texts: &mut Texts,
+    symbol: &str,
+    new: &str,
+    sites: &[Site],
+) -> Result<(), String> {
     let touched: BTreeSet<&Path> = sites.iter().map(|site| site.path.as_path()).collect();
     for path in &touched {
         let file = texts
@@ -1038,6 +1119,19 @@ fn types(
             ));
         }
     }
+    Ok(())
+}
+
+/// Refuses a type's rename while any file the index holds writes its short
+/// name `old`, as a name or at the end of a string, where the index holds no
+/// site: the edits would miss that place.
+fn missed_sites(
+    texts: &mut Texts,
+    index: &SymbolIndex,
+    symbol: &str,
+    old: &str,
+    sites: &[Site],
+) -> Result<(), String> {
     for path in index.files() {
         let Some(file) = texts.file(path) else {
             continue;
@@ -1071,51 +1165,521 @@ fn types(
             ));
         }
     }
+    Ok(())
+}
 
-    let mut rewrites = Vec::new();
+/// The edits that move `symbol`, a type whose short name is `old`, to the
+/// namespace `written` names, and the move of its file
+/// (`rule:ide/a-type-moves-with-its-namespace`).
+///
+/// `written` is a qualified name, `Billing\Cart` or `\Billing\Invoice`. A name
+/// in the type's own namespace is an ordinary rename. Only a type that is its
+/// file's sole declaration moves. Its file moves to the path that the
+/// `autoload` map of every program that loads it gives the new name
+/// ([`autoloaded_path`]), and a file only a `require` reaches keeps its path.
+///
+/// Each `use` line of the type names the new name, and one in a file of the
+/// new namespace is deleted. A qualified site names the new name. A file that
+/// wrote the bare name through the old namespace gets a `use` line. Inside the
+/// moved file, the `namespace` line names the new namespace, each type of the
+/// old namespace it wrote bare gets a `use` line, and each `use` line that
+/// names the new namespace is deleted. Every `use` block an edit touches is
+/// sorted as `nvs fmt` sorts it ([`headed`]).
+fn namespaced(
+    documents: &Documents,
+    index: &SymbolIndex,
+    symbol: &str,
+    old: &str,
+    written: &str,
+    sites: &[Site],
+) -> Result<Renamed, String> {
+    let full = written.strip_prefix('\\').unwrap_or(written);
+    if full.split('\\').any(|segment| !is_identifier(segment)) {
+        return Err(format!("`{written}` is not a valid name."));
+    }
+    let old_space = namespace_of(symbol);
+    let (space, new) = full.rsplit_once('\\').unwrap_or(("", full));
+    if space == old_space {
+        if new == old {
+            return Err("The new name is the same as the old one.".to_owned());
+        }
+        return types(documents, index, symbol, old, new, sites);
+    }
+    if space.is_empty() || old_space.is_empty() {
+        return Err(format!(
+            "A type can only move from one namespace to another, so `{symbol}` cannot be \
+             renamed to `{written}`."
+        ));
+    }
+    if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
+        return Err(format!(
+            "`{new}` is a built-in type, so a type cannot be renamed to it."
+        ));
+    }
+    if let Some(clash) = index
+        .all_declarations()
+        .find(|declared| declared.symbol.eq_ignore_ascii_case(full))
+    {
+        return Err(format!(
+            "`{}` already exists, so `{symbol}` cannot be renamed to `{full}`.",
+            clash.symbol
+        ));
+    }
+    let declared = index
+        .declaration(symbol)
+        .ok_or_else(|| outside(index, symbol))?;
+    let path = declared.site.path.clone();
+    if !index.sole_kinds().any(|(file, _)| file == path) {
+        return Err(format!(
+            "`{symbol}` is not the only declaration in `{}`. Move it to its own file first.",
+            plain(&path).display()
+        ));
+    }
+    let to = autoloaded_path(documents, index, &path, symbol, full)?;
+    if let Some(to) = &to {
+        refuse_taken(&path, to, symbol, full)?;
+    }
+
+    let mut texts = Texts::new(documents);
+    if new != old {
+        written_already(&mut texts, symbol, new, sites)?;
+    }
+    missed_sites(&mut texts, index, symbol, old, sites)?;
+
+    let imports = index.imports_of(symbol);
+    // The edits to `use` and `namespace` lines, which [`headed`] sorts, and
+    // every other edit.
+    let mut heads: Vec<Rewrite> = Vec::new();
+    let mut rewrites: Vec<Rewrite> = Vec::new();
+    // Each file that needs `use` lines: the first place it needs one, and the
+    // names.
+    let mut wanted: BTreeMap<PathBuf, (BytePos, BTreeSet<String>)> = BTreeMap::new();
     for site in sites {
-        let written = texts
+        let text = texts
             .text(site)
             .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
-        let text = if written == old {
-            new.to_owned()
-        } else if let Some(prefix) = written.strip_suffix(old).filter(|it| it.ends_with('\\')) {
-            format!("{prefix}{new}")
-        } else {
-            return Err(format!(
-                "`{symbol}` is written in `{}` in a way that rename cannot change, so it cannot be \
-                 renamed.",
-                plain(&site.path).display()
-            ));
-        };
-        rewrites.push(Rewrite {
+        let replace = |text: String| Rewrite {
             site: site.clone(),
             text,
+        };
+        if *site == declared.site {
+            if new != old {
+                rewrites.push(replace(new.to_owned()));
+            }
+            continue;
+        }
+        if imports.iter().any(|import| import.site == *site) {
+            let file = texts
+                .file(&site.path)
+                .ok_or_else(|| format!("`{}` could not be read.", plain(&site.path).display()))?;
+            let shape = Shape::of(file);
+            if shape.namespace_at(site.start) == space {
+                if let Some(line) = shape.uses.iter().find(|line| line.covers(site.start)) {
+                    heads.push(line.deletion(&site.path));
+                }
+            } else {
+                let lead = if text.starts_with('\\') { "\\" } else { "" };
+                heads.push(replace(format!("{lead}{full}")));
+            }
+            continue;
+        }
+        if text.contains('\\') {
+            // A name with a `\` always starts at the root, so it is the full
+            // name, as a `@see` target or an `@throws` name is too.
+            let lead = if text.starts_with('\\') { "\\" } else { "" };
+            rewrites.push(replace(format!("{lead}{full}")));
+            continue;
+        }
+        if text != old {
+            return Err(cannot_change(symbol, &site.path));
+        }
+        if new != old {
+            rewrites.push(replace(new.to_owned()));
+        }
+        if site.path == path || imports.iter().any(|import| import.site.path == site.path) {
+            continue;
+        }
+        let entry = wanted
+            .entry(site.path.clone())
+            .or_insert_with(|| (site.start, BTreeSet::new()));
+        entry.0 = entry.0.min(site.start);
+        entry.1.insert(full.to_owned());
+    }
+
+    // The moved file: its `namespace` line, its old neighbours, and each `use`
+    // line that now names its own namespace.
+    let neighbours: Vec<(String, Site)> = index
+        .occurrences_in(&path)
+        .iter()
+        .map(|used| (used.symbol.clone(), used.site.clone()))
+        .chain(
+            index
+                .mentions_in(&path)
+                .iter()
+                .map(|mentioned| (mentioned.symbol.clone(), mentioned.site.clone())),
+        )
+        .filter(|(named, _)| {
+            !named.contains("::")
+                && named != symbol
+                && namespace_of(named) == old_space
+                && index.declaration(named).is_some()
+        })
+        .collect();
+    let mut bare: BTreeSet<String> = BTreeSet::new();
+    for (named, site) in neighbours {
+        if texts.text(&site).is_some_and(|text| !text.contains('\\')) {
+            bare.insert(named);
+        }
+    }
+    let file = texts
+        .file(&path)
+        .ok_or_else(|| format!("`{}` could not be read.", plain(&path).display()))?;
+    let shape = Shape::of(file);
+    let line = shape
+        .spaces
+        .iter()
+        .find(|it| it.start <= declared.site.start && declared.site.start < it.end)
+        .and_then(|it| it.name.as_ref())
+        .ok_or_else(|| {
+            format!(
+                "`{}` has no `namespace` line, so `{symbol}` cannot move.",
+                plain(&path).display()
+            )
+        })?;
+    heads.push(Rewrite {
+        site: Site {
+            path: path.clone(),
+            start: line.1.start,
+            end: line.1.end,
+        },
+        text: space.to_owned(),
+    });
+    for line in &shape.uses {
+        bare.remove(&line.name);
+        if namespace_of(&line.name) == space {
+            heads.push(line.deletion(&path));
+        }
+    }
+    if !bare.is_empty() {
+        let entry = wanted
+            .entry(path.clone())
+            .or_insert_with(|| (declared.site.start, BTreeSet::new()));
+        entry.0 = entry.0.min(declared.site.start);
+        entry.1.extend(bare);
+    }
+
+    for (file_path, (at, names)) in wanted {
+        let file = texts
+            .file(&file_path)
+            .ok_or_else(|| format!("`{}` could not be read.", plain(&file_path).display()))?;
+        let stmts = parse_file(file, &mut Diagnostics::new());
+        let place = nvs_hir::import_site(&stmts, file, at).ok_or_else(|| {
+            format!(
+                "`{}` has no place for a `use` line, so `{symbol}` cannot move.",
+                plain(&file_path).display()
+            )
+        })?;
+        let names: Vec<QName> = names.iter().map(|name| QName::parse(name)).collect();
+        heads.push(Rewrite {
+            site: Site {
+                path: file_path,
+                start: place.at,
+                end: place.at,
+            },
+            text: place.use_lines(names.iter()),
         });
     }
 
-    let file = named_after(index, symbol, old).map(|from| {
-        let to = from.with_file_name(format!("{new}.nvs"));
-        (from, to)
-    });
+    rewrites.extend(headed(&mut texts, heads)?);
+    let file = to.map(|to| (path, to));
     if let Some((from, to)) = &file {
-        // `User.nvs` to `user.nvs` names the same file on a disk that ignores
-        // case, and that file is the one being moved.
-        let same_file = from
-            .file_name()
-            .zip(to.file_name())
-            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right));
-        if to.exists() && !same_file {
-            return Err(format!(
-                "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
-                plain(to).display()
-            ));
-        }
         rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
-        rewrites.sort();
-        rewrites.dedup();
     }
+    rewrites.sort();
+    rewrites.dedup();
     Ok(Renamed { rewrites, file })
+}
+
+/// The namespace of `symbol`, a fully-qualified name, and `""` for the global
+/// namespace.
+fn namespace_of(symbol: &str) -> &str {
+    symbol.rsplit_once('\\').map_or("", |(space, _)| space)
+}
+
+/// The path the `autoload` map of every program that loads `path` gives
+/// `full`, the first root of its longest prefix, or `None` where no program
+/// loads `path` through its map, since only a `require` reaches that file.
+///
+/// Each entry point that read `path` is analysed once.
+///
+/// # Errors
+///
+/// A program that would lose the type, because no root of its map reaches the
+/// new name, and programs whose maps give different paths.
+fn autoloaded_path(
+    documents: &Documents,
+    index: &SymbolIndex,
+    path: &Path,
+    symbol: &str,
+    full: &str,
+) -> Result<Option<PathBuf>, String> {
+    let name = QName::parse(full);
+    let mut found: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
+    for entry in index.readers(path) {
+        let Some(analysed) = analyse_file(documents, &entry, 0) else {
+            continue;
+        };
+        if !analysed.autoload.claims(path) {
+            continue;
+        }
+        let probe = analysed.autoload.resolve(&name);
+        let Some(to) = probe.tried.first() else {
+            return Err(format!(
+                "No `autoload` root of `{}` reaches `{full}`, so that program would lose \
+                 `{symbol}`.",
+                plain(&entry).display()
+            ));
+        };
+        found.entry(new_key(to)).or_default().push(entry);
+    }
+    if found.len() > 1 {
+        let programs: Vec<String> = found
+            .values()
+            .flatten()
+            .map(|entry| format!("`{}`", plain(entry).display()))
+            .collect();
+        return Err(format!(
+            "The programs that load `{symbol}` would find `{full}` at different paths: {}.",
+            programs.join(", ")
+        ));
+    }
+    Ok(found.into_keys().next())
+}
+
+/// `heads`, the edits to the `use` and `namespace` lines of each file, as one
+/// edit per file whose `use` block is then sorted with `nvs fmt`'s sort, so a
+/// format after the rename moves nothing.
+///
+/// An insertion that falls inside a deleted line goes where that line was. A
+/// file that does not parse after the edits is left unsorted, and the check
+/// that follows names its error.
+fn headed(texts: &mut Texts, mut heads: Vec<Rewrite>) -> Result<Vec<Rewrite>, String> {
+    heads.sort();
+    heads.dedup();
+    let mut out = Vec::new();
+    for group in heads.chunk_by(|a, b| a.site.path == b.site.path) {
+        let path = &group[0].site.path;
+        let file = texts
+            .file(path)
+            .ok_or_else(|| format!("`{}` could not be read.", plain(path).display()))?;
+        let before = file.text().to_owned();
+        let name = file.name().to_owned();
+        let mut edits: Vec<(usize, usize, String)> = group
+            .iter()
+            .map(|it| {
+                (
+                    it.site.start as usize,
+                    it.site.end as usize,
+                    it.text.clone(),
+                )
+            })
+            .collect();
+        // An insertion goes after a `use` line. When that line is deleted, the
+        // inserted lines replace it, after the line breaks it was deleted
+        // with, so the blank lines around the block stay as they were.
+        let inserted: Vec<usize> = (0..edits.len())
+            .filter(|&at| edits[at].0 == edits[at].1)
+            .collect();
+        for at in inserted {
+            let place = edits[at].0;
+            let Some(gone) = (0..edits.len()).find(|&other| {
+                let (start, end, text) = &edits[other];
+                text.is_empty() && *start < place && place <= *end
+            }) else {
+                continue;
+            };
+            let (start, end) = (edits[gone].0, edits[gone].1);
+            let breaks = before[start..end]
+                .bytes()
+                .take_while(|byte| matches!(byte, b'\n' | b'\r'))
+                .count();
+            let lines = edits[at].2.trim_start_matches(['\n', '\r']).to_owned();
+            edits[gone].2 = format!("{}{lines}", &before[start..start + breaks]);
+            edits[at].2.clear();
+        }
+        edits.retain(|(start, end, text)| start != end || !text.is_empty());
+        edits.sort_by_key(|(start, end, _)| (*start, *end));
+        let mut after = String::with_capacity(before.len());
+        let mut at = 0;
+        for (start, end, text) in edits {
+            let piece = before.get(at..start).ok_or_else(|| {
+                format!(
+                    "Two edits overlap in `{}`, so nothing was changed.",
+                    plain(path).display()
+                )
+            })?;
+            after.push_str(piece);
+            after.push_str(&text);
+            at = end;
+        }
+        after.push_str(before.get(at..).unwrap_or_default());
+        let mut map = SourceMap::new();
+        let id = map.add(name, after);
+        let sorted = match nvs_fmt::sorted_imports(map.file(id)) {
+            Ok(Some(sorted)) => sorted,
+            _ => map.file(id).text().to_owned(),
+        };
+        if sorted == before {
+            continue;
+        }
+        let (start, end) = crate::organize::changed(&before, &sorted);
+        let to = |at: usize| BytePos::try_from(at).unwrap_or(BytePos::MAX);
+        out.push(Rewrite {
+            site: Site {
+                path: path.clone(),
+                start: to(start),
+                end: to(end),
+            },
+            text: sorted[start..sorted.len() - (before.len() - end)].to_owned(),
+        });
+    }
+    Ok(out)
+}
+
+/// The `namespace` and `use` lines of one file, read off its statements.
+struct Shape {
+    /// Each namespace declaration: where it is in force and its name.
+    spaces: Vec<Space>,
+    /// Each `use` line, at the top level and in a bracketed namespace.
+    uses: Vec<UseLine>,
+}
+
+/// One namespace declaration.
+struct Space {
+    /// Where it is in force: a bracketed block, or from a statement to the next
+    /// statement-form declaration.
+    start: BytePos,
+    end: BytePos,
+    /// Its name and the span of the name, or `None` for the global form.
+    name: Option<(String, Span)>,
+}
+
+/// One `use` line.
+struct UseLine {
+    /// The name it imports, without a leading `\`.
+    name: String,
+    /// The statement's bytes.
+    start: BytePos,
+    end: BytePos,
+    /// The bytes that delete it: the statement and the line break before it.
+    gone: (BytePos, BytePos),
+}
+
+impl UseLine {
+    fn covers(&self, at: BytePos) -> bool {
+        self.start <= at && at < self.end
+    }
+
+    fn deletion(&self, path: &Path) -> Rewrite {
+        Rewrite {
+            site: Site {
+                path: path.to_path_buf(),
+                start: self.gone.0,
+                end: self.gone.1,
+            },
+            text: String::new(),
+        }
+    }
+}
+
+impl Shape {
+    fn of(file: &SourceFile) -> Self {
+        let stmts = parse_file(file, &mut Diagnostics::new());
+        let mut shape = Self {
+            spaces: Vec::new(),
+            uses: Vec::new(),
+        };
+        for stmt in &stmts {
+            match &stmt.kind {
+                StmtKind::NamespaceDecl(decl) => {
+                    let name = decl
+                        .name
+                        .as_ref()
+                        .map(|name| (text_of(file, name.span).to_owned(), name.span));
+                    if let Some(open) = shape.spaces.last_mut().filter(|it| it.end == BytePos::MAX)
+                    {
+                        open.end = stmt.span.start;
+                    }
+                    match &decl.body {
+                        Some(block) => {
+                            shape.spaces.push(Space {
+                                start: block.span.start,
+                                end: block.span.end,
+                                name,
+                            });
+                            for inner in &block.stmts {
+                                if let StmtKind::UseDecl(used) = &inner.kind {
+                                    shape.uses.push(UseLine::of(file, used));
+                                }
+                            }
+                        }
+                        None => shape.spaces.push(Space {
+                            start: stmt.span.start,
+                            end: BytePos::MAX,
+                            name,
+                        }),
+                    }
+                }
+                StmtKind::UseDecl(used) => shape.uses.push(UseLine::of(file, used)),
+                _ => {}
+            }
+        }
+        shape
+    }
+
+    /// The namespace in force at `at`, and `""` for the global namespace.
+    fn namespace_at(&self, at: BytePos) -> &str {
+        self.spaces
+            .iter()
+            .find(|it| it.start <= at && at < it.end)
+            .and_then(|it| it.name.as_ref())
+            .map_or("", |(name, _)| name.trim_start_matches('\\'))
+    }
+}
+
+impl UseLine {
+    fn of(file: &SourceFile, used: &nvs_syntax::ast::UseDecl) -> Self {
+        let text = file.text().as_bytes();
+        let (start, end) = (used.span.start, used.span.end);
+        let line_break_before = |at: usize| -> Option<usize> {
+            if at >= 2 && text.get(at - 2..at) == Some(b"\r\n") {
+                Some(at - 2)
+            } else if at >= 1 && text.get(at - 1) == Some(&b'\n') {
+                Some(at - 1)
+            } else {
+                None
+            }
+        };
+        let after = text.get(end as usize..).unwrap_or_default();
+        let blank_after =
+            after.is_empty() || after.starts_with(b"\n\n") || after.starts_with(b"\r\n\r\n");
+        let at = start as usize;
+        let from = match line_break_before(at) {
+            // A line alone between two blank lines takes one of them with it,
+            // so no two blank lines are left.
+            Some(before) if blank_after => line_break_before(before).unwrap_or(before),
+            Some(before) => before,
+            None => at,
+        };
+        Self {
+            name: text_of(file, used.path.span)
+                .trim_start_matches('\\')
+                .to_owned(),
+            start,
+            end,
+            gone: (BytePos::try_from(from).unwrap_or(start), end),
+        }
+    }
 }
 
 /// The edits that rename `symbol`, an alias or an enum that `owner` declares,
@@ -1439,13 +2003,11 @@ fn is_identifier(name: &str) -> bool {
         && chars.all(|rest| rest == '_' || rest.is_alphanumeric())
 }
 
-/// The key a path that may not exist yet is compared under: its directory as
-/// [`canonical_key`] spells it, and its own name.
+/// The key a path that may not exist yet is compared under: its nearest
+/// existing ancestor as [`canonical_key`] spells it, and the parts below it
+/// ([`nvs_hir::requires::planned_key`]).
 pub(crate) fn new_key(path: &Path) -> PathBuf {
-    match (path.parent(), path.file_name()) {
-        (Some(parent), Some(name)) => canonical_key(parent).join(name),
-        _ => path.to_path_buf(),
-    }
+    nvs_hir::requires::planned_key(path).unwrap_or_else(|| path.to_path_buf())
 }
 
 /// `written`, a `require` literal in the file that will be at `from`, written

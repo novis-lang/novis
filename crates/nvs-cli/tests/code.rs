@@ -628,6 +628,172 @@ fn code_rename_renames_a_type_and_moves_the_file_named_after_it() {
     );
 }
 
+/// A second entry point that writes `Wishlist` with its full name.
+const LIST: &str = "<?nvs\nautoload 'Shop' from '../src';\n\n\
+                    var $wish = new Shop\\Wishlist();\necho $wish->addItem(1);\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_moves_a_type_to_another_namespace_and_rewrites_every_use() {
+    let dir = project("rename-namespace", &[("public/list.nvs", LIST)]);
+    let (out, err, ok) = code(
+        &dir,
+        &["rename", r"Shop\Wishlist", r"Shop\Billing\Wishlist"],
+    );
+    assert!(ok, "{err}");
+    assert!(!dir.join("src/Wishlist.nvs").exists(), "{out}");
+    let moved = read(&dir, "src/Billing/Wishlist.nvs");
+    assert!(moved.contains("namespace Shop\\Billing;"), "{moved}");
+    assert!(moved.contains("class Wishlist"), "{moved}");
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("use Shop\\Billing\\Wishlist;"), "{index}");
+    assert!(!index.contains("use Shop\\Wishlist;"), "{index}");
+    let list = read(&dir, "public/list.nvs");
+    assert!(list.contains("new Shop\\Billing\\Wishlist()"), "{list}");
+    assert!(
+        out.contains("moved src/Wishlist.nvs -> src/Billing/Wishlist.nvs"),
+        "{out}"
+    );
+    for entry in ["public/index.nvs", "public/list.nvs"] {
+        let (_, err, ok) = run(&dir, "check", &[entry]);
+        assert!(ok, "{entry} still checks: {err}");
+    }
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_adds_a_use_line_where_a_bare_name_relied_on_the_old_namespace() {
+    let dir = project("rename-namespace-bare", &[]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Cart", r"Shop\Billing\Cart"]);
+    assert!(ok, "{err}");
+    // `GiftCart` is in `Shop` and wrote `Cart` with no `use` line.
+    let gift = read(&dir, "src/GiftCart.nvs");
+    assert!(
+        gift.contains("namespace Shop;\n\nuse Shop\\Billing\\Cart;\n"),
+        "{out}\n{gift}"
+    );
+    assert!(gift.contains("extends Cart"), "{gift}");
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the moved project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_adds_use_lines_inside_the_moved_file_for_its_old_neighbours() {
+    let dir = project("rename-namespace-neighbours", &[]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Cart", r"Shop\Billing\Cart"]);
+    assert!(ok, "{err}");
+    // `Cart` wrote `Priced` with no `use` line, because both were in `Shop`.
+    let cart = read(&dir, "src/Billing/Cart.nvs");
+    assert!(
+        cart.contains("namespace Shop\\Billing;\n\nuse Shop\\Priced;\n"),
+        "{out}\n{cart}"
+    );
+    assert!(cart.contains("class Cart implements Priced"), "{cart}");
+}
+
+/// A class in `Shop\Billing`.
+const INVOICE: &str = "<?nvs\nnamespace Shop\\Billing;\n\nclass Invoice {\n    \
+                       public int $total = 0;\n}\n";
+
+/// A class in `Shop\Billing` that imports `Wishlist` from `Shop`.
+const REFUND: &str = "<?nvs\nnamespace Shop\\Billing;\n\nuse Shop\\Wishlist;\n\n\
+                      class Refund {\n    public function list(): Wishlist {\n        \
+                      return new Wishlist();\n    }\n}\n";
+
+/// `Wishlist`, importing `Invoice` from `Shop\Billing`.
+const WISHLIST_INVOICE: &str = "<?nvs\nnamespace Shop;\n\nuse Shop\\Billing\\Invoice;\n\n\
+                                class Wishlist {\n    \
+                                public function addItem(int $n): int {\n        \
+                                return $n;\n    }\n\n    \
+                                public function invoice(): Invoice {\n        \
+                                return new Invoice();\n    }\n}\n";
+
+/// An entry point that loads `Refund`.
+const REFUNDS: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Billing\\Refund;\n\n\
+                       echo (new Refund())->list()->addItem(2);\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_deletes_a_use_line_that_names_its_own_namespace() {
+    let dir = project(
+        "rename-namespace-own",
+        &[
+            ("src/Wishlist.nvs", WISHLIST_INVOICE),
+            ("src/Billing/Invoice.nvs", INVOICE),
+            ("src/Billing/Refund.nvs", REFUND),
+            ("public/refunds.nvs", REFUNDS),
+        ],
+    );
+    let (out, err, ok) = code(
+        &dir,
+        &["rename", r"Shop\Wishlist", r"Shop\Billing\Wishlist"],
+    );
+    assert!(ok, "{err}");
+    // `Refund` is in the new namespace, so it needs no `use` line for it, and
+    // the blank line after the `namespace` line stays one line.
+    let refund = read(&dir, "src/Billing/Refund.nvs");
+    assert_eq!(
+        refund,
+        REFUND.replace("use Shop\\Wishlist;\n\n", ""),
+        "{out}"
+    );
+    // The moved file is now in `Invoice`'s namespace.
+    let moved = read(&dir, "src/Billing/Wishlist.nvs");
+    assert_eq!(
+        moved,
+        WISHLIST_INVOICE
+            .replace("namespace Shop;", "namespace Shop\\Billing;")
+            .replace("use Shop\\Billing\\Invoice;\n\n", ""),
+    );
+    for entry in ["public/index.nvs", "public/refunds.nvs"] {
+        let (_, err, ok) = run(&dir, "check", &[entry]);
+        assert!(ok, "{entry} still checks: {err}");
+    }
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_creates_the_new_namespace_directory_under_its_root() {
+    let dir = project("rename-namespace-directory", &[]);
+    assert!(!dir.join("src/Billing").exists());
+    let (out, err, ok) = code(
+        &dir,
+        &["rename", r"Shop\Wishlist", r"Shop\Billing\Lists\Wishlist"],
+    );
+    assert!(ok, "{err}");
+    assert!(
+        dir.join("src/Billing/Lists/Wishlist.nvs").is_file(),
+        "{out}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the moved project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_namespace_no_autoload_root_reaches() {
+    let dir = project("rename-namespace-unreached", &[]);
+    let before = files(&dir);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Wishlist", r"Billing\Wishlist"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("autoload"), "{out}{err}");
+    assert_eq!(files(&dir), before);
+}
+
+/// A file that declares two classes, which only a `require` could load.
+const LABELS: &str = "<?nvs\nnamespace Shop\\Tools;\n\nclass Label {\n}\n\nclass Tag {\n}\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_to_move_a_type_that_shares_its_file() {
+    let dir = project("rename-namespace-shared", &[("lib/labels.nvs", LABELS)]);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Tools\Label", r"Shop\Other\Label"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("own file"), "{out}{err}");
+    assert_eq!(read(&dir, "lib/labels.nvs"), LABELS);
+}
+
 /// A class with a type alias it uses by its bare name, and a constant.
 const ORDER: &str = "<?nvs\nnamespace Shop;\n\nfinal class Order {\n    \
                      public const int LIMIT = 10;\n\n    type Total = int;\n\n    \
@@ -868,8 +1034,10 @@ fn code_refs_of_a_lateinit_property_lists_the_compared_name() {
     // Line 10 is `        if ($name == 'views') {`, and column 23 is the
     // first letter between the quotes.
     assert!(
-        lines.iter().any(|line| line[..2] == ["src/Page.nvs:10:23", "use"]
-            && line[2..].join(" ") == "if ($name == 'views') {"),
+        lines
+            .iter()
+            .any(|line| line[..2] == ["src/Page.nvs:10:23", "use"]
+                && line[2..].join(" ") == "if ($name == 'views') {"),
         "{out}"
     );
     assert!(
