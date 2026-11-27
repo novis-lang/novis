@@ -1856,7 +1856,8 @@ class SystemClock implements Clock
 
 class Shop
 {
-    public function constructor(private Clock $clock) {}
+    public function constructor(private Clock $clock)
+    {}
 
     public function isOpen(): bool
     {
@@ -1869,7 +1870,8 @@ class Shop
 #[TestOnly]
 class FakeClock implements Clock
 {
-    public function constructor(private int $hour) {}
+    public function constructor(private int $hour)
+    {}
 
     public function hour(): int
     {
@@ -1963,7 +1965,8 @@ use Core\TestOnly;
 
 class Product
 {
-    public function constructor(public string $name, public int $cents) {}
+    public function constructor(public string $name, public int $cents)
+    {}
 }
 
 class Cart

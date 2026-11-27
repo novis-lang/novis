@@ -1985,6 +1985,7 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "cranelift-object",
+ "libc",
  "memmap2",
  "nvs-diagnostics",
  "nvs-ir",
@@ -1993,6 +1994,7 @@ dependencies = [
  "rustc-hash",
  "thiserror 2.0.21",
  "wasmtime-internal-jit-icache-coherence",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

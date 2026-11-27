@@ -4134,7 +4134,7 @@
     "lang:testing/test-options": "4d00d1a295c9d8b4"
   },
   "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/about.md": {
-    "lang:testing/testonly-code-that-only-tests-can-use": "f6e39821390bb1d5"
+    "lang:testing/testonly-code-that-only-tests-can-use": "9027b067c7f4f057"
   },
   "docs/examples/lang/types/a-member-every-class-of-a-union-declares/about.md": {
     "lang:types/a-member-every-class-of-a-union-declares": "36f4cad317cb8424"
@@ -10353,7 +10353,7 @@
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/core-test-testwith-data-rows": "25f00bb18f049d76",
     "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "49a9e27ffde7d5cf",
-    "lang:testing/testonly-code-that-only-tests-can-use": "ee2e5a8453a9cbd5"
+    "lang:testing/testonly-code-that-only-tests-can-use": "9970c66e5b087d9c"
   },
   "syntax/testing/writing-tests.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",

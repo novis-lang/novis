@@ -3748,21 +3748,22 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 Four return types say something an ordinary type cannot.
 
-`void` means the method returns no value. You call it as a statement of its own. You cannot print
-the result, store it in a variable or pass it to another method.
+`void` means the method returns no value. You call it as a statement of its own, and you cannot use
+the result.
 
 `never` means the method does not return to its caller. It always throws an error or ends the
 program.
 
 `self` and `static` both name a class. `self` is the class the method is written in. `static` is the
 class the call names. So a method in a base class can return an instance of the child class it was
-called on, and the caller gets that child class.
+called on, and the caller gets that child class. `$o is static` checks whether `$o` is an object of
+that class.
 
 The examples show a method called only for what it does, a chain of calls on one object, and a base
-class that creates an instance of whichever child class the call names. Example 04 shows that a
-`void` result cannot be printed. Example 05 shows that a call to a `never` method ends the caller's
-path. Example 06 shows a parameter of type `callable(static)`. This parameter
-takes a function for the class the call names.
+class that creates an instance of the child class the call names. Example 04 shows that a `void`
+result cannot be printed. Example 05 shows that a `never` call ends the caller's path. Example 06
+shows a parameter of type `callable(static)`. Example 07 shows a finder that returns only objects of
+the class the call names.
 
 `void` and `never` are allowed only as a return type. A parameter or a variable of type `void` or
 `never` is the error `E0742`. `var $x = Helper::nothing();` is `E0742` too, because the
@@ -3790,6 +3791,18 @@ error `E1015`. If the method stores `$rule` or passes it to another function, th
 
 A method that returns `static` must return `$this` or `new static(...)`. `return new self();` is
 `E0741`, because a child class may be the class the call names.
+
+`$o is static` checks the class the call names when the program runs. In `Model`, called as
+`Order::findAll()`, it is `true` for an `Order` and `false` for a `Customer`. Inside
+`if ($o is static)`, the method may return `$o` as `static`. After a write to `$o`, it may not.
+`static` inside a larger tested type, such as `$xs is array<static>`, is the error `E1021`. Test each
+element with `is static` instead. Inside an anonymous function, `is static` is the error `E0834`.
+
+A variable may also have `static` in its type, such as `array<static> $found = [];`. The method may
+return it. Each value written to it must be `$this`, `new static(...)`, `null`, a variable inside
+`if ($x is static)`, or a call that returns `static`. Any other value is the error `E1022`. Passing
+the variable to an `inout` parameter is `E1022` too, because that method may write any object to it.
+In a `final` class, `static` is that class, so these variables accept any object of it.
 
 `self` and `static` are not values. `return self;` is the error `E0321`. To use a member of the
 class, write `self::` and the member's name.
@@ -4051,6 +4064,84 @@ echo $order->describe(fn(Order $o): string => $o->id . ' costs ' . $o->total), "
 big order
 small order
 o-3 costs 120
+```
+
+#### Example 07: a finder that returns the class the call names
+
+```nvs
+<?nvs
+// One base class keeps every loaded object, and `Order::findAll()` returns only the orders.
+
+class Model
+{
+    private static array<Model> $loaded = [];
+
+    public function constructor(public string $id)
+    {}
+
+    // `new static($id)` creates an object of the class the call names.
+    public static function load(string $id): void
+    {
+        Model::$loaded[] = new static($id);
+    }
+
+    public static function findFirst(): ?static
+    {
+        foreach (Model::$loaded as Model $object) {
+            // `is static` checks if `$object` is of the class the call names.
+            // Inside this block, `$object` may be returned as `?static`.
+            if ($object is static) {
+                return $object;
+            }
+        }
+        return null;
+    }
+
+    public static function findAll(): array<static>
+    {
+        // `$found` only accepts objects of the called class, so it may be returned as `array<static>`.
+        array<static> $found = [];
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
+    }
+}
+
+final class Order extends Model
+{
+    public function label(): string
+    {
+        return 'order ' . $this->id;
+    }
+}
+
+final class Customer extends Model
+{}
+
+Customer::load('c-1');
+Order::load('o-1');
+Customer::load('c-2');
+Order::load('o-2');
+
+// `Order::findAll()` returns `array<Order>`, so the loop can call `label`.
+// Only `Order` has that method.
+foreach (Order::findAll() as Order $order) {
+    echo $order->label(), "\n";
+}
+
+// `Customer::findFirst()` returns the first customer, so this prints `c-1`.
+echo Customer::findFirst()?->id ?? 'none', "\n";
+echo Core\Arr::count(Model::findAll()), " objects in total\n";
+```
+
+```output
+order o-1
+order o-2
+c-1
+4 objects in total
 ```
 
 ### `type` aliases
@@ -14465,11 +14556,17 @@ result has the parent's type, so a method only the subclass has is the error `E0
 return type `static` to keep the subclass. `self` also works as a parameter type.
 
 A method that returns `static` may return `$this`, `new static(...)` or the result of a `static::`
-call. `new self()` or `new A()` there is the error `E0741`. `new self()` in a `static` method
-always creates the class the code is written in, even when the call was made on a subclass.
-`static::method()` reaches an `abstract static` method that a subclass writes.
+call. It may also return a variable inside `if ($x is static)`, or a variable declared with
+`static` in its type, such as `array<static> $found`. `new self()` or `new A()` there is the error
+`E0741`. `new self()` in a `static` method always creates the class the code is written in, even
+when the call was made on a subclass. `static::method()` reaches an `abstract static` method that a
+subclass writes.
 
-`static::` inside an anonymous function is the error `E0834`. `self::m()` and `parent::m()` inside
+`$o is static` checks whether `$o` is an object of the class the call names. A value written to a
+variable declared with `static` in its type must be such an object. Any other value is the error
+`E1022`.
+
+`static::` and `is static` inside an anonymous function are the error `E0834`. `self::m()` and `parent::m()` inside
 one call the class the function is written in.
 
 #### Example 01: an instance method and a static method
@@ -14672,7 +14769,7 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
 ...
 10 |         return new self();
    |                ^^^^^^^^^^ not the called class
-   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
+   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, a variable inside `if ($x is static)`, or a variable declared with `static` in its type. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -32960,7 +33057,8 @@ class SystemClock implements Clock
 
 class Shop
 {
-    public function constructor(private Clock $clock) {}
+    public function constructor(private Clock $clock)
+    {}
 
     public function isOpen(): bool
     {
@@ -32973,7 +33071,8 @@ class Shop
 #[TestOnly]
 class FakeClock implements Clock
 {
-    public function constructor(private int $hour) {}
+    public function constructor(private int $hour)
+    {}
 
     public function hour(): int
     {
@@ -33067,7 +33166,8 @@ use Core\TestOnly;
 
 class Product
 {
-    public function constructor(public string $name, public int $cents) {}
+    public function constructor(public string $name, public int $cents)
+    {}
 }
 
 class Cart

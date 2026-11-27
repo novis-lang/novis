@@ -6,7 +6,8 @@ use Core\TestOnly;
 
 class Product
 {
-    public function constructor(public string $name, public int $cents) {}
+    public function constructor(public string $name, public int $cents)
+    {}
 }
 
 class Cart

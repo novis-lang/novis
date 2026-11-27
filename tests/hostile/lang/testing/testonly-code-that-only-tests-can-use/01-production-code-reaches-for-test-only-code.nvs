@@ -46,14 +46,14 @@ try {
     $cache->clearAll();
     echo "step 1: clearAll ran\n";
 } catch (Throwable $error) {
-    echo "step 1: ", Reflect::forObject($error)->name(), "\n";
+    echo 'step 1: ', Reflect::forObject($error)->name(), "\n";
 }
-echo "step 1: items ", ($cache as Cache)->items, "\n";
+echo 'step 1: items ', ($cache as Cache)->items, "\n";
 
 // 2. Looks up the test-only class by its name.
-echo "step 2: ", Reflect::forClass('FakeClock') == null ? 'not found' : 'found', "\n";
+echo 'step 2: ', Reflect::forClass('FakeClock') == null ? 'not found' : 'found', "\n";
 
 // 3. Lists every class that implements `Clock`.
 foreach (Program::implementing<Clock>() as Clock $clock) {
-    echo "step 3: ", Reflect::forObject($clock)->name(), "\n";
+    echo 'step 3: ', Reflect::forObject($clock)->name(), "\n";
 }
