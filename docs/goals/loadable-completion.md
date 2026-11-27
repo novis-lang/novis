@@ -14,7 +14,7 @@ stages:
     context: [website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json, docs/rules/ide/check-scope-defaults-to-the-workspace.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: loadable
@@ -175,15 +175,20 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. The check `loadable` is green (ten of ten), and so is `proofs`. Every call
-under § *Standing decisions* is the session's, open until the user changes one.
+Every stage is done, and the goal is ready for its `DONE`. Stage 3 was a close: `cargo build`,
+`cargo clippy --all-targets -- -D warnings`, `cargo test --test loadable_completion` (ten of ten) and
+`requires::tests::the_map_says_which_indexed_file_it_loads` are green, and so is
+`bun nv close --goal loadable-completion`. Its one red was `site --check roadmap`: `file-transfer`
+was on the chain and in no theme. 7aaffedbcd gives it a theme of its own in
+`website/src/data/roadmap.json` and rewrites README.md's copy. Every call under § *Standing
+decisions* is the session's, open until the user changes one, and the rewritten rule holds each.
 
 - `AutoloadMap::loads_file` and `loads_nothing` (`crates/nvs-hir/src/autoload.rs`, beside `resolve`)
   share the prefix walk with `probe_entries`. Unit test:
@@ -195,19 +200,12 @@ under § *Standing decisions* is the session's, open until the user changes one.
   `data/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.json`.
 - The editor page's § *Completion and errors*, its questions and one `changes.json` entry say so.
   The newcomer review was done, and `site --check stale changes review questions` is green.
-- The nightly sweep's nine failures (run 45813627231) were fixed on `main` after that run, by
-  c115a735a1, 28a4d7a6bf and 544711a8fb. No test is expected to go red.
+- The nightly sweep's nine failures (run 45813627231, at 4e43e1fa2e) were fixed on `main` after
+  that run, by c115a735a1, 28a4d7a6bf and 544711a8fb. No test is expected to go red.
 
 ### Next
 
-Stage 3, a close (the full gate runs at a later goal on the chain):
-
-- `cargo build` and `cargo clippy --all-targets -- -D warnings`.
-- `cargo test --test loadable_completion` and
-  `cargo test --lib requires::tests::the_map_says_which_indexed_file_it_loads` (in `nvs-hir`; run it
-  with `--test`/`--lib` and never `-p`, or with `bun nv verify --fast -p nvs-hir`).
-- `bun nv close --goal loadable-completion`, and fix each red it names. No test is expected to go red.
-- Before `DONE`, move any decision only the goal's prose holds into the rule. The rewritten rule
-  already holds every Standing decision, so nothing else should need to move.
+Nothing in this goal. Its `DONE` runs `loadable`, `proofs` and `close` once, and the chain moves on
+to `test-only`. The full gate runs at a later goal on the chain.
 
 ### Backlog
