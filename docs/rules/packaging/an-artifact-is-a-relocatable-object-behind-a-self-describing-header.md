@@ -8,15 +8,18 @@ magic ("NVSC") | format_version: u16 | env_hash: 32 bytes
 `env_hash` is repeated here although it is already folded into the path — defense in depth against a
 BLAKE3 collision or a file placed at that path by hand, bought for the cost of one comparison.
 
-**The payload is one host-format relocatable object per unit**, what `nvs_codegen::compile_object`
-writes, not an image of the pages the JIT would have produced. It is the same `nvs_ir::Program`, walked
-by the same lowering, through a second `Module` that records a relocation everywhere the JIT resolves
-an address — so the two paths keep one semantics and the file carries no address the compiling process
-invented. Both modules compile under the same ISA flags, `is_pic` off included, so every reference in
-the payload is an absolute relocation and a warm hit runs the instructions a cold compile runs. The
-writer publishes a payload only when its own loader's checks read it. It defines the unit's own functions, one per IR function and named from its label, and leaves
-**undefined** exactly what belongs to a process rather than a program: every runtime helper, and every
-class descriptor as `nvs_class_desc_<escaped label>`. A payload cannot run where it lands;
+**The payload is relocatable code, not an image of pages.** A source file's entry holds one
+*piece* per function, what `nvs_codegen::compile_pieces` returns: its bytes, its alignment and its
+relocations (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` gives the three
+payloads). Each relocation names its target by what it is: another function by its Novis name, a
+literal by its digest, and anything else by its symbol. A piece is the same in every program that
+gives it the same key, so the file carries no address and no position the compiling process
+invented. Pieces compile under the JIT's ISA flags, `is_pic` off included, so every reference is
+an absolute relocation and a warm hit runs the instructions a cold compile runs. The writer
+publishes an entry only after its own placer placed the program. What belongs to a process rather
+than a program stays a symbol: every runtime helper, every class descriptor as
+`nvs_class_desc_<escaped label>`, and each function's statement, edge, query and index base. A
+payload cannot run where it lands;
 `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` makes it runnable.
 
 **It carries no class metadata at all.** A descriptor is built by the loading process out of the lowered
@@ -30,8 +33,11 @@ file becomes a plain miss rather than one relocated under yesterday's rules.
 - **A position-independent payload (`is_pic` on).** It reaches every symbol through a GOT cell, one more
   load per reference than the JIT's code. COFF also gives every such cell a section of its own, and
   COFF counts sections in 16 bits: a unit of about 4,000 functions passed 65,535 and never loaded on
-  Windows. The loader places and relocates the whole payload itself, so position independence buys
+  Windows. The placer places and relocates every piece itself, so position independence buys
   nothing here.
+- **A host-format object file as the payload.** One per program cannot reuse a function, and one
+  per source file needs a module that declares the whole program once per file. A piece is the
+  part of an object a placer reads.
 - **Class descriptors carried in the payload, so a warm hit skips the front end too.** It serialises a
   runtime type: a `nvs_runtime::ClassDesc` holds strings, codec field lists and pointers to other
   descriptors, so every future field of it becomes a `format_version` bump and a second, write-only

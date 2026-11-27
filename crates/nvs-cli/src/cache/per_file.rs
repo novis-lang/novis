@@ -31,8 +31,7 @@
 //! are placed as stored. A miss reads the hint's list and its entries, gives their keys to
 //! [`nvs_codegen::compile_pieces`] as the functions it need not compile, places every function,
 //! and only then writes each entry whose key is new, the list and the hint. A placement that fails
-//! writes nothing, so the writer never publishes code its own loader refuses ([`super::loadable`]'s
-//! rule, for this form).
+//! writes nothing, so the writer never publishes code its own loader refuses.
 //!
 //! **The placer** maps one private region, copies every function and each literal into it once,
 //! writes every relocation, and makes the region executable. A call to a runtime symbol goes

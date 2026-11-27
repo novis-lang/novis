@@ -1,5 +1,5 @@
 {
-  "title": "A compiled unit is one immutable file whose address is its content and its environment",
+  "title": "Machine code is stored one immutable file per source file under a program list, each addressed by its content and its environment",
   "status": "shipped",
   "seeAlso": [
     "config/the-extension-set-is-in-every-unit-key",

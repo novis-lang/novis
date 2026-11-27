@@ -79,7 +79,12 @@ still goes live within that interval.
 
 **Each program a check changes is one log record**, whether a timed pass or `nvs reload` ran the
 check (`rule:config/a-reload-names-what-it-could-not-apply`). A program that was already broken is
-not logged again, though every later reload reports it in its reply. Each check that swapped or broke a program,
+not logged again, though every later reload reports it in its reply. A `program reloaded` record
+names the `entry` and the `program`, and counts the compile's work: `checked`, the files whose
+bodies were checked, `compiled` and `reused`, the functions compiled and placed from earlier code,
+and `written`, the source-file entries the store published
+(`rule:config/an-edit-reaches-the-next-request-without-a-restart`). They are counts and never a
+clock, so a test and an operator read the same work on any machine. Each check that swapped or broke a program,
 and every `nvs reload`, is one reload outcome for `on = "reload"` entries
 (`rule:config/an-entry-runs-on-a-server-event`), and its `failed` count is every loaded program
 that does not compile now, so a program that stays broken keeps the outcome `refused`.

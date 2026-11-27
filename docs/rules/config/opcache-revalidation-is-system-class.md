@@ -17,6 +17,14 @@ row is chosen by root-owned configuration before any request exists, is never re
 mode flip, and stays unflippable from code. A `settle` written beside `mode = "development"` still
 wins, because the mode supplies a default and nothing more.
 
+`opcache.incremental` is `System`-class and a startup row too: `true` in `development`, `false`
+in `production`. With it `true`, a server keeps each loaded program's checked files and function
+code between compiles, so a reload after a body edit checks one file and compiles one function
+(`rule:config/an-edit-reaches-the-next-request-without-a-restart`). With it `false`, both are
+freed when a compile ends. A request that could turn it on would make the server hold memory no
+operator chose, and one that could turn it off would slow every later reload of a developer's
+program. A written value beside either mode wins, as `settle`'s does.
+
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
@@ -29,3 +37,8 @@ forgotten reload still goes live within the hour.
 - **Keeping `never` for operators who want it.** It is the outage a restart-free deploy removes, and
   the cost it saved is one background `stat` per file per window. A value kept for compatibility
   would keep that outage.
+- **One `incremental` default for both modes.** A developer's machine reloads after every save and
+  wants each reload small. A server is updated a few times a day and wants its memory back after
+  each compile. No one value serves both.
+- **A mode-five row for `incremental`.** A runtime mode flip would then make a running server keep
+  or free memory, which only the person who runs it may decide.

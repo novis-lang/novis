@@ -5,17 +5,42 @@
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
-## A compiled unit is one immutable file whose address is its content and its environment
+## Machine code is stored one immutable file per source file under a program list, each addressed by its content and its environment
 
 `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
 
-The on-disk artifact cache is a fan-out directory of immutable files, one per compiled unit:
+The on-disk artifact cache is a fan-out directory of content-addressed files:
 
 ```
 <cache_dir>/<key[0:2]>/<key[2:]>.nvsc
 ```
 
-where `key = BLAKE3(content_hash ‖ env_hash)` and `content_hash` is BLAKE3 over every file the program
+**The unit of code is a source file, under a small program list.** Three kinds of file share the
+path scheme, the header, the verify and the eviction:
+
+- **A source file's entry** holds the machine code of every function whose first statement is in
+  that file, each under its own key, and the literals they reach. Its key is
+  `BLAKE3(BLAKE3("nvs file entry" ‖ each function key) ‖ env_hash)`, so two programs that share a
+  file whose functions compile alike share its entry.
+- **The program list** is each entry's key in program order, under the unit's key, `key =
+  BLAKE3(content_hash ‖ env_hash)`.
+- **The hint** names the last list written for one program, under a key from its entry file's
+  path, its unit kind and its optimisation level. It is the one file the store replaces, by the
+  same rename, and it is how a process with nothing in memory reuses functions after an edit.
+
+**A function's key is BLAKE3 over the code it would compile to:** the target and its flags, its
+lowered Cranelift IR with each target renumbered by first use, and each target's name free of its
+position. A unit function is named by its Novis name and a literal by the digest of its contents.
+Every slot offset, static slot, literal and callee the emit read is an operand or a relocation
+in that IR, so the key moves exactly when the code would. A function's statement, edge, query and
+index numbers are relocations the placer writes, so its bytes do not depend on where it sits in
+the program. An edit writes the entry of the file it changed, a new list and the hint, and a warm
+hit compiles nothing: the list names every entry, and their code is placed as stored.
+
+A stale or missing hint costs reuse and never correctness: every function reused is found under
+its own key in an entry that passed its checksum.
+
+`content_hash` is BLAKE3 over every file the program
 reached, each as its name, its text and its folder. The name is there because a diagnostic and a
 throw's frame print it. The folder is there because a relative path given as a string literal compiles to an absolute
 path joined to it ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), so the same file in another
@@ -35,7 +60,8 @@ Both digests are cryptographic on purpose. One `nvs serve` shares one `env_hash`
 source, so a key a tenant could collide on purpose would hand their artifact to another tenant's
 request, and [`packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`](packaging.md#packaging-a-writer-publishes-by-one-atomic-rename-and-never-a-lock) is true only of a
 collision-resistant key. What a non-cryptographic hash would save is small, and it is spent off the
-request path. No shared index, no lock file and no manifest exist anywhere: every entry is
+request path. No shared index, no lock file and no manifest exist anywhere, and the hint is a
+pointer nothing trusts: every entry is
 independently creatable, verifiable and discardable, so a bug or an attack against one entry has a
 blast radius of exactly one entry. The store is read and written by independent processes that share
 no memory and no lock and may never overlap in time, so a design that needs a live coordinator does
@@ -54,12 +80,23 @@ storage is paid, not whether.
 - **A shared manifest or LRU index beside per-entry files.** It is a second shared-mutable structure
   every reader trusts and every writer keeps consistent, the shape the in-memory cache already rejects
   for a per-path pointer ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)).
+- **One file per program.** An edit to one function then compiles and writes the whole program
+  again, so a reload grows with the program and never with the edit.
+- **One file per function.** An object file's headers cost about 1 KB per function on disk, and a
+  hit opens one file per function.
+- **A relocatable object file per source file.** Each needs a Cranelift module of its own, which
+  declares the whole program once per file. A piece is the function's bytes, alignment and
+  relocations, and the store's own placer reads five relocation kinds; a function with any other
+  kind is never stored.
+- **A key from a list of the tables a function reads, kept beside the emit.** A table the list
+  forgot would reuse stale code, which is a security bug. The emitted IR is the record of what
+  the emit read, and it cannot forget one.
 
 <sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header).</sub>
 
 <a id="packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header"></a>
 
-## An artifact is a self-describing header over one relocatable object, and it carries no class metadata
+## An artifact is a self-describing header over relocatable code, and it carries no class metadata
 
 `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 
@@ -73,15 +110,18 @@ magic ("NVSC") | format_version: u16 | env_hash: 32 bytes
 `env_hash` is repeated here although it is already folded into the path — defense in depth against a
 BLAKE3 collision or a file placed at that path by hand, bought for the cost of one comparison.
 
-**The payload is one host-format relocatable object per unit**, what `nvs_codegen::compile_object`
-writes, not an image of the pages the JIT would have produced. It is the same `nvs_ir::Program`, walked
-by the same lowering, through a second `Module` that records a relocation everywhere the JIT resolves
-an address — so the two paths keep one semantics and the file carries no address the compiling process
-invented. Both modules compile under the same ISA flags, `is_pic` off included, so every reference in
-the payload is an absolute relocation and a warm hit runs the instructions a cold compile runs. The
-writer publishes a payload only when its own loader's checks read it. It defines the unit's own functions, one per IR function and named from its label, and leaves
-**undefined** exactly what belongs to a process rather than a program: every runtime helper, and every
-class descriptor as `nvs_class_desc_<escaped label>`. A payload cannot run where it lands;
+**The payload is relocatable code, not an image of pages.** A source file's entry holds one
+*piece* per function, what `nvs_codegen::compile_pieces` returns: its bytes, its alignment and its
+relocations ([`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file) gives the three
+payloads). Each relocation names its target by what it is: another function by its Novis name, a
+literal by its digest, and anything else by its symbol. A piece is the same in every program that
+gives it the same key, so the file carries no address and no position the compiling process
+invented. Pieces compile under the JIT's ISA flags, `is_pic` off included, so every reference is
+an absolute relocation and a warm hit runs the instructions a cold compile runs. The writer
+publishes an entry only after its own placer placed the program. What belongs to a process rather
+than a program stays a symbol: every runtime helper, every class descriptor as
+`nvs_class_desc_<escaped label>`, and each function's statement, edge, query and index base. A
+payload cannot run where it lands;
 [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable) makes it runnable.
 
 **It carries no class metadata at all.** A descriptor is built by the loading process out of the lowered
@@ -95,8 +135,11 @@ file becomes a plain miss rather than one relocated under yesterday's rules.
 - **A position-independent payload (`is_pic` on).** It reaches every symbol through a GOT cell, one more
   load per reference than the JIT's code. COFF also gives every such cell a section of its own, and
   COFF counts sections in 16 bits: a unit of about 4,000 functions passed 65,535 and never loaded on
-  Windows. The loader places and relocates the whole payload itself, so position independence buys
+  Windows. The placer places and relocates every piece itself, so position independence buys
   nothing here.
+- **A host-format object file as the payload.** One per program cannot reuse a function, and one
+  per source file needs a module that declares the whole program once per file. A piece is the
+  part of an object a placer reads.
 - **Class descriptors carried in the payload, so a warm hit skips the front end too.** It serialises a
   runtime type: a `nvs_runtime::ClassDesc` holds strings, codec field lists and pointers to other
   descriptors, so every future field of it becomes a `format_version` bump and a second, write-only
@@ -143,20 +186,34 @@ program loads, never with requests served.
 
 `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`
 
-A warm hit parses, checks and lowers the same source in full; only the Cranelift walk and the pages it
+A warm hit parses, checks and lowers the same source in full; only code generation and the pages it
 would have produced come off the disk instead. That is the direct consequence of
 [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header) carrying no class
-metadata: the loading process needs the lowered IR to build the descriptors the payload's undefined
-names resolve against, and to name a function it needs by position in that shared program.
+metadata: the loading process needs the lowered IR to build the descriptors the stored code's
+symbols resolve against, and to name each function it places.
+
+**A server that keeps its edit state skips the unchanged part of the front end too.** Under
+`[opcache] incremental` a recompile reuses each source file's checked result whose key did not
+move ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). That reuse is kept in the
+serving process's memory and never written to disk, so a process with nothing in memory still
+checks every file. A cold compile generates each function once: it compiles the functions the
+store misses, and places every function from the same pieces it stores.
 
 The cost is named rather than hidden, and it is judged by one number: the margin by which a warm hit
 beats the cold compile it replaces, with the front end inside neither arm. **A cache that does not beat
 compiling is a cache to delete.** The guard states the margin it holds the loader to, and a change that
-brought place-relocate-bind within that factor of codegen is the one thing that reopens the file
+brought placing and relocating within that factor of codegen is the one thing that reopens the file
 format — with an IR class list versioned alongside the file, never a serialised runtime type.
 
-A cold run pays its compile once per distinct (content, environment) pair, ever; every later run, in any
-process, is a read, a verify, a relocate and an `mprotect`.
+A cold run pays its compile once per distinct function and environment, ever; every later run, in
+any process, is a read, a verify, a placement, the relocations and an `mprotect`.
+
+**Declined:**
+- **A checked result written to disk, so a fresh process skips the front end.** It serialises the
+  checker's types, so every change to them becomes a format bump, and it buys the front end only
+  for the first compile of a process.
+- **A second walk through the JIT on a cold compile.** With function reuse the placer runs on every
+  compile anyway, and one walk halves a cold compile's code generation.
 
 <sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable).</sub>
 

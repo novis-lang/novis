@@ -20,6 +20,21 @@ single-flight machinery a cold compile uses, checks every file again, and throws
 retries if anything moved while it ran. Only then does it swap the pointer, publishing only if nobody
 moved it since. An idle server takes a change within `revalidate_freq` plus `settle`.
 
+**A recompile does the work the edit reached, not the program's.** Machine code is reused function
+by function from the store (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`):
+a function whose key did not move is placed as stored, in every mode. Under `[opcache]
+incremental`, `true` in `development` and `false` in `production`
+(`rule:config/a-startup-default-is-never-flipped`), the compile pool also keeps two things per
+written entry path: each function's code, so a reuse reads no disk, and each source file's checked
+result, keyed on its text and the declarations its last check read. A recompile then checks a file whose text moved and each file that reads a declaration
+whose signature moved, and no other. A body edit checks one file, compiles one function and
+writes one source-file entry at every program size. The `program reloaded` record carries those
+counts (`rule:config/a-reload-command-checks-now-and-waits`), and
+`benches/scaling/compiler/reload.nvs` holds them flat from 55 to 440 files. Two costs still grow
+with the program: every file is stamped or hashed, and the whole program's code is placed again.
+With `incremental` off, both are freed when the compile ends, so a production
+server's memory between deploys is its units alone.
+
 **An atomic deploy is atomic.** At the start of each compile the entry file's path is resolved
 through every symlink and junction once, and the program is read through the real directory that
 gives. After the compile the path is resolved again, and a different answer discards the compile, so
@@ -52,7 +67,11 @@ the price of seeing a change at all.
 - **Memory:** each unit keeps the list of files its compile read, with a stamp and a digest per
   file. The path pointer is a second map beside the content-keyed table, one entry per entry
   file. Beyond the two units each path keeps, an older unit is freed when the last request holding
-  it ends, so units stay in proportion to entry files, never to edits.
+  it ends, so units stay in proportion to entry files, never to edits. Under `incremental`, each
+  entry path also keeps its files' checked results and its functions' code for the unit in force
+  only: about what `nvs check` peaks at for the program plus its machine code, about 200 MiB at
+  440 files. It is per program, never per
+  request or per edit.
 
 **What is on disk.** All of it for the program. The quiet time is measured from the newest
 modification time among the files the program's last compile read. `nvs serve <file>` keeps its
@@ -77,5 +96,15 @@ switch does not reach a server that mounts one.
 - **Checking every file on the request path.** It is correct, and it puts the whole-program `stat`
   and every recompile in front of whichever request arrives first. A request that arrives during a
   `git pull` could also compile a program from half of the old tree and half of the new one.
+- **Compiling a function on its first call.** A recompile would then be one function's work, and
+  the cost moves onto whichever request calls it first. Every file a server serves is compiled
+  before its socket is bound, and nothing on the request path is made on first use.
+- **A file's checked result keyed on its own digest alone.** It cannot see a signature edit in
+  another file that this one reads. The key holds the declarations the last check read, which the
+  language server already records.
+- **Sharing unchanged code between unit versions, for now.** Placing the whole program again costs
+  29 MB at 440 files and about 1–2 s at 100 times that. Sharing needs every call between functions
+  to go through a table per version, one more load per call on the request path. It waits for a
+  measured program that needs it.
 - **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
   is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.

@@ -1,5 +1,5 @@
 {
-  "title": "An artifact is a self-describing header over one relocatable object, and it carries no class metadata",
+  "title": "An artifact is a self-describing header over relocatable code, and it carries no class metadata",
   "status": "shipped",
   "seeAlso": [
     "packaging/an-artifact-is-one-immutable-content-addressed-file",
