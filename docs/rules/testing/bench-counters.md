@@ -45,7 +45,9 @@ switch only where they wait. The attribute's options are
 `compile:` line before any run row: what each phase produced (`tokens`, `nodes`, `names`, `exprs`, and
 `ir` for a command that lowers), then `resolved` (paths made canonical), `read` (source files read),
 `listed` (directories listed), `settings` (configuration files read to be parsed) and `programs`
-(programs walked to find which one lends its `autoload` map). The language server's index sums the
+(programs walked to find which one lends its `autoload` map). `nvs run --count` adds what code
+generation did: `functions` (functions compiled) and `reused` (functions taken from the compile
+cache). The language server's index sums the
 same five per entry in its `Work`, beside the files it parsed and checked. Each is counted in the one
 function that does the work, on a thread-local counter, and the module doc of `nvs_diagnostics::work`
 names each site. A test reads a delta around its own work, so tests on several threads never share a

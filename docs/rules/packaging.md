@@ -77,7 +77,9 @@ BLAKE3 collision or a file placed at that path by hand, bought for the cost of o
 writes, not an image of the pages the JIT would have produced. It is the same `nvs_ir::Program`, walked
 by the same lowering, through a second `Module` that records a relocation everywhere the JIT resolves
 an address — so the two paths keep one semantics and the file carries no address the compiling process
-invented. It defines the unit's own functions, one per IR function and named from its label, and leaves
+invented. Both modules compile under the same ISA flags, `is_pic` off included, so every reference in
+the payload is an absolute relocation and a warm hit runs the instructions a cold compile runs. The
+writer publishes a payload only when its own loader's checks read it. It defines the unit's own functions, one per IR function and named from its label, and leaves
 **undefined** exactly what belongs to a process rather than a program: every runtime helper, and every
 class descriptor as `nvs_class_desc_<escaped label>`. A payload cannot run where it lands;
 [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable) makes it runnable.
@@ -90,6 +92,11 @@ payload leaves undefined, or to what a reader must do with them, is a `format_ve
 file becomes a plain miss rather than one relocated under yesterday's rules.
 
 **Declined:**
+- **A position-independent payload (`is_pic` on).** It reaches every symbol through a GOT cell, one more
+  load per reference than the JIT's code. COFF also gives every such cell a section of its own, and
+  COFF counts sections in 16 bits: a unit of about 4,000 functions passed 65,535 and never loaded on
+  Windows. The loader places and relocates the whole payload itself, so position independence buys
+  nothing here.
 - **Class descriptors carried in the payload, so a warm hit skips the front end too.** It serialises a
   runtime type: a `nvs_runtime::ClassDesc` holds strings, codec field lists and pointers to other
   descriptors, so every future field of it becomes a `format_version` bump and a second, write-only

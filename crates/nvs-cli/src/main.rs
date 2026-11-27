@@ -1023,6 +1023,22 @@ struct Checked {
     directory: bool,
 }
 
+/// `line`, [`Checked::count_line`]'s, with what code generation did:
+/// `functions=` is the number of functions compiled, and `reused=` the number
+/// taken from the compile cache. A unit is compiled or loaded whole, so one of
+/// the two is `functions` and the other is zero. The fields go on the
+/// `compile:` line itself, before a debug build's `phases:` line.
+fn with_codegen(mut line: String, provenance: cache::Provenance, functions: usize) -> String {
+    let (compiled, reused) = match provenance {
+        cache::Provenance::Compiled => (functions, 0),
+        cache::Provenance::Loaded => (0, functions),
+    };
+    let fields = format!(" functions={compiled} reused={reused}");
+    let end = line.find('\n').unwrap_or(line.len());
+    line.insert_str(end, &fields);
+    line
+}
+
 impl Checked {
     /// `--count`'s compile line: what each phase produced, each read as the
     /// length of that phase's finished output, so nothing is counted inside a
@@ -2203,12 +2219,14 @@ fn run_run(
     } else {
         crate::in_place::lower(lower)
     };
-    // The compile's own line, before the program runs, so it is printed
-    // whatever the program then does.
-    if count {
-        eprintln!("{}", checked.count_line(Some(&program)));
-    }
+    // The compile's own line, read here so that its file-system counts stop at
+    // the lowering. It is printed once the code is generated, with what code
+    // generation did, and before the program runs, whatever the program then does.
+    let count_line = count.then(|| checked.count_line(Some(&program)));
     if dump_ir {
+        if let Some(line) = &count_line {
+            eprintln!("{line}");
+        }
         for function in &program.functions {
             print!("{}", nvs_ir::print::print_function(function, src));
         }
@@ -2216,6 +2234,9 @@ fn run_run(
     }
 
     if dump_asm {
+        if let Some(line) = &count_line {
+            eprintln!("{line}");
+        }
         // Deliberately the same compile `run` performs, disassembled rather
         // than a second differently-configured one — see
         // `nvs_codegen::disassemble`. Like `--dump-ir`, it prints instead of
@@ -2277,7 +2298,7 @@ fn run_run(
     // half of every key. A pre-boot default for either would address an
     // artifact by an environment this run is not in, which is the one thing the
     // key exists to prevent.
-    let (unit, _) = match cache::unit_for(
+    let (unit, provenance) = match cache::unit_for(
         &program,
         cache::program_digest(&checked.program_files()),
         cache::from_config(&snapshot.config).as_ref(),
@@ -2288,6 +2309,12 @@ fn run_run(
             return ExitCode::FAILURE;
         }
     };
+    if let Some(line) = count_line {
+        eprintln!(
+            "{}",
+            with_codegen(line, provenance, program.functions.len())
+        );
+    }
     // Shared rather than owned outright, because `rule:testing/in-process-request`'s in-process
     // request runs this same unit's script frame as a child isolate and the
     // seam holding it outlives no part of this run — `runner::UnderTest` is the

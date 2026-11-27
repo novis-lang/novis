@@ -2765,21 +2765,22 @@ struct Signatures {
 ///
 /// `opt_level` is `level`, which both backends read from [`opt_level`].
 ///
-/// **`is_pic` is the only flag the backends disagree about**, and the
-/// disagreement is forced rather than a preference: a JIT owns the pages it
-/// writes into and resolves every call and every descriptor to an absolute
-/// address, while a relocatable object has no address to bake and every
-/// reference in it must be one a loader can place. Everything else is shared on
-/// purpose — an object emitted under different tuning would be evidence about
-/// some other compiler, not about the one whose output runs.
-fn host_isa(is_pic: bool, level: OptLevel) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
+/// **The two backends share every flag, `is_pic` included**, so a warm hit runs
+/// the instructions a cold compile runs. `is_pic` is off in both: every symbol
+/// is reached through an absolute address. The JIT resolves it before the code
+/// runs; the object records it as an absolute relocation its loader writes. An
+/// object compiled with `is_pic` on reaches every symbol through a GOT cell
+/// instead, which is one more load per reference, and COFF spells each cell as
+/// a section of its own: a unit of about 4,000 functions passed COFF's 65,535
+/// sections and could not be loaded on Windows.
+fn host_isa(level: OptLevel) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
     let mut flags = settings::builder();
     for (name, value) in [
         // A JIT resolves every call through an absolute address, and the
         // pages are its own — the configuration benches/abi-probe measures
         // Novis's costs under.
         ("use_colocated_libcalls", "false"),
-        ("is_pic", if is_pic { "true" } else { "false" }),
+        ("is_pic", "false"),
         // `none` only under `set_opt_level`, the differential check's
         // second half.
         ("opt_level", level.name()),
@@ -2827,7 +2828,7 @@ impl UnitBuilder<JitPages> {
     /// The in-process backend: code compiled into pages this process owns, with
     /// every symbol it names resolved to an address before it is ever called.
     fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
-        let isa = host_isa(false, opt_level())?;
+        let isa = host_isa(opt_level())?;
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
         // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
         // helpers, and every Tier 0 `Core` member. Both have `rule:errors/propagation`'s one
@@ -2875,15 +2876,16 @@ impl UnitBuilder<ObjectModule> {
     /// cache file some later process will load.
     ///
     /// What differs from [`UnitBuilder::new`] follows from the file outliving
-    /// the process that wrote it. `is_pic` is on, because
-    /// there is no address here to bake. And there is no symbol table of any
+    /// the process that wrote it. The ISA is the same one, `is_pic` off
+    /// included ([`host_isa`]), so every address the JIT would resolve is an
+    /// absolute relocation here. And there is no symbol table of any
     /// kind — no `builder.symbol` loop and no `symbol_lookup_fn` — because
     /// leaving every runtime helper and every `nvs_class_desc_*` undefined is
     /// precisely what makes the payload loadable somewhere else: an undefined
     /// symbol is a relocation record, and a resolved one is an address that was
     /// only ever true for the compiling process.
     fn for_object() -> Result<Self, CodegenError> {
-        let isa = host_isa(true, opt_level())?;
+        let isa = host_isa(opt_level())?;
         // The object's own name is metadata: a cached artifact is addressed by
         // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key, which the file's contents cannot contribute to.
         let builder = ObjectBuilder::new(isa, "nvs", cranelift_module::default_libcall_names())
@@ -4225,9 +4227,9 @@ echo $total;
     /// The other half of the keystone: not just that both backends *finish*,
     /// but that they were told the same thing on the way there.
     ///
-    /// Their machine code cannot be compared — `is_pic` differs, so the same
-    /// call is a different encoding — and comparing it would be the wrong claim
-    /// anyway. What must match is the walk's own output: every function and
+    /// Their machine code cannot be compared — the JIT's holds this process's
+    /// addresses where the object's holds zeroes and a relocation — and
+    /// comparing it would be the wrong claim anyway. What must match is the walk's own output: every function and
     /// every literal, under the same name and the same linkage, in one shared
     /// pass over [`BOTH_BACKENDS`].
     #[test]

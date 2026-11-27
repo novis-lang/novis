@@ -114,10 +114,16 @@
 //! defined-versus-undefined: a *call* needs a landing only when the symbol is undefined, because
 //! everything the payload defines is already inside the mapping, but a **GOT-relative** field needs
 //! one either way — the instruction loads through the address the field computes, so a payload's
-//! own literal reached that way needs a slot as much as an imported helper does. On Windows the
-//! area stays nearly empty — a COFF object reaches an import through a `.rdata$.refptr` cell of its
-//! own, which is the same indirection one layer up — and it is ELF's `PltRelative`/`GotRelative`
-//! pair the area exists for.
+//! own literal reached that way needs a slot as much as an imported helper does.
+//!
+//! **`nvs-codegen`'s own payloads need no landing at all.** Its object backend compiles with
+//! `is_pic` off, as its JIT does, so every reference in the payload is an absolute relocation of
+//! eight bytes, which already holds any address. The landings serve a PC-relative or GOT form,
+//! which an object compiled with `is_pic` on carries. Under `is_pic` on, COFF also gave every
+//! symbol reached through the GOT a `.rdata$.refptr` section of its own, and a unit of about 4,000
+//! functions passed COFF's limit of 65,535 sections. With it off, the payload has one `.text` and
+//! one `.rdata` at any size. [`loadable`] is the writer's check that the loader reads what it
+//! publishes.
 //!
 //! **Both architectures, and one place they differ.** [`HOST_ARCH`] names x86-64 and aarch64, which
 //! between them are every platform of CI's build matrix, and everything above is
@@ -363,13 +369,9 @@ impl Verified {
         &self,
         resolve: &dyn Fn(&str) -> Option<*const u8>,
     ) -> Result<Loaded, Unloadable> {
-        let payload = self.payload();
-        let object = object::File::parse(payload).map_err(|_| Unloadable::Unreadable)?;
-        if object.architecture() != HOST_ARCH {
-            return Err(Unloadable::ForeignArchitecture);
-        }
-
-        let layout = Layout::of(&object)?;
+        let (object, layout) = parse(self.payload())?;
+        // Read before the pages exist, so a payload with no entry maps nothing.
+        let (functions, entry) = layout.functions(&object)?;
         let mut pages = MmapOptions::new()
             .len(layout.len)
             .map_anon()
@@ -409,29 +411,6 @@ impl Verified {
             }
         }
 
-        // Every function this payload defines, by the name `nvs-codegen` gave it. The entry frame
-        // is one of them, and the rest are what the loader's binding step asks for by name once
-        // the pages are executable — one walk answers both questions, and neither is answerable later,
-        // since `object` borrows [`Verified`]'s buffer and [`Loaded`] does not hold it.
-        let mut functions = BTreeMap::new();
-        for symbol in object.symbols() {
-            if symbol.kind() != SymbolKind::Text {
-                continue;
-            }
-            let (Ok(name), Some(offset)) = (symbol.name(), layout.symbol_offset(&object, &symbol))
-            else {
-                continue;
-            };
-            functions.insert(linkage_name(layout.format, name).to_owned(), offset);
-        }
-        let entry = *functions
-            .iter()
-            .find(|(name, _)| {
-                nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
-            })
-            .map(|(_, offset)| offset)
-            .ok_or(Unloadable::NoEntry)?;
-
         // W^X, one way and once: nothing holds a writable view of these bytes after this line,
         // because [`nvs_codegen::make_executable`] consumes the `MmapMut` that was the only one.
         // That function rather than `make_exec` directly — publishing written bytes as code has a
@@ -445,6 +424,60 @@ impl Verified {
             functions,
         })
     }
+}
+
+/// The payload as an object this host's loader reads, and the placement of its sections.
+fn parse(payload: &[u8]) -> Result<(object::File<'_>, Layout), Unloadable> {
+    let object = object::File::parse(payload).map_err(|_| Unloadable::Unreadable)?;
+    if object.architecture() != HOST_ARCH {
+        return Err(Unloadable::ForeignArchitecture);
+    }
+    let layout = Layout::of(&object)?;
+    Ok((object, layout))
+}
+
+/// Whether [`Verified::relocate`] would load `payload` in this process, judged without mapping a
+/// page: every check of the read path that needs no address. The writer publishes a payload only
+/// when this passes, so it never writes a file its own loader refuses.
+///
+/// It also checks one thing the loader takes on trust: every function the payload defines, and
+/// every defined symbol a relocation names, lies in a section the layout placed. A container
+/// header that miscounts its sections can still parse, and this check finds it.
+///
+/// It does not judge a name this process cannot resolve: that depends on the process that loads
+/// the file, not on the file.
+///
+/// Cost: one parse of the object and one walk of its symbols and relocations, on a cold run that
+/// has just generated the unit's code twice.
+pub(crate) fn loadable(payload: &[u8]) -> Result<(), Unloadable> {
+    let (object, layout) = parse(payload)?;
+    let placed = |symbol: &object::read::Symbol<'_, '_>| {
+        symbol.is_undefined() || layout.symbol_offset(&object, symbol).is_some()
+    };
+    if !object
+        .symbols()
+        .filter(|symbol| symbol.kind() == SymbolKind::Text)
+        .all(|symbol| placed(&symbol))
+    {
+        return Err(Unloadable::Unreadable);
+    }
+    for section in object.sections() {
+        if !layout.sections.contains_key(&section.index().0) {
+            continue;
+        }
+        for (_, relocation) in section.relocations() {
+            let RelocationTarget::Symbol(index) = relocation.target() else {
+                continue;
+            };
+            let symbol = object
+                .symbol_by_index(index)
+                .map_err(|_| Unloadable::Unreadable)?;
+            if !placed(&symbol) {
+                return Err(Unloadable::Unreadable);
+            }
+        }
+    }
+    layout.functions(&object).map(drop)
 }
 
 /// The architecture this loader knows how to relocate for, or [`Architecture::Unknown`] on a host
@@ -769,6 +802,36 @@ impl Layout {
         }
     }
 
+    /// Every function this payload defines, by the name `nvs-codegen` gave it, and the entry
+    /// frame's offset. The entry is one of the functions, and the rest are what the loader's
+    /// binding step asks for by name once the pages are executable. One walk answers both, and
+    /// neither is answerable later, since `object` borrows [`Verified`]'s buffer and [`Loaded`]
+    /// does not hold it.
+    fn functions(
+        &self,
+        object: &object::File<'_>,
+    ) -> Result<(BTreeMap<String, usize>, usize), Unloadable> {
+        let mut functions = BTreeMap::new();
+        for symbol in object.symbols() {
+            if symbol.kind() != SymbolKind::Text {
+                continue;
+            }
+            let (Ok(name), Some(offset)) = (symbol.name(), self.symbol_offset(object, &symbol))
+            else {
+                continue;
+            };
+            functions.insert(linkage_name(self.format, name).to_owned(), offset);
+        }
+        let entry = *functions
+            .iter()
+            .find(|(name, _)| {
+                nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
+            })
+            .map(|(_, offset)| offset)
+            .ok_or(Unloadable::NoEntry)?;
+        Ok((functions, entry))
+    }
+
     /// Where a symbol defined by the payload landed, as an offset into the mapping.
     fn symbol_offset(
         &self,
@@ -946,18 +1009,19 @@ fn form_of(
 /// That exception is [`Reach::Got`]. Its slot is an *indirection the instruction performs*, not a
 /// way of reaching something far away: x86-64's `movq sym@GOTPCREL(%rip), %r` and aarch64's
 /// `adrp`/`ldr [x, #:got_lo12:]` pair both load eight bytes from wherever the field points.
-/// Cranelift emits that form for every non-`colocated` global, which is every literal
-/// `nvs-codegen` puts in a data section (see that crate's `clear_colocated`), so the payload's own
-/// `nvs_bytes_*` come through here defined and still needing a slot. Pointing such a field at the
-/// literal instead loads the literal's first eight bytes as an address — for an immortal
+/// Cranelift with `is_pic` on emits that form for every non-`colocated` global, a literal the
+/// payload defines included, and that literal needs a slot as much as an import does.
+/// `nvs-codegen` compiles with `is_pic` off, so its payloads never reach here. Pointing such a
+/// field at the literal instead loads the literal's first eight bytes as an address — for an immortal
 /// `StrHeader` that is `nvs_runtime::IMMORTAL_REFCOUNT`, and `echo` of it dereferences
 /// `usize::MAX`.
 ///
 /// **An `ADRP` pair naming a symbol the payload does not define is a miss, not a landing.** The
 /// pair computes an address rather than loading one, so there is nowhere to put an indirection the
 /// compiler did not emit — the same answer this function has always given a PC-relative field
-/// naming undefined *data*. Cranelift reaches an imported symbol through the GOT, so what would
-/// arrive here is a payload some other backend wrote.
+/// naming undefined *data*. Cranelift reaches an imported symbol through the GOT under `is_pic`,
+/// and through an absolute field without it, so what would arrive here is a payload some other
+/// backend wrote.
 fn landing_for(
     reach: Reach,
     form: Form,
@@ -1727,8 +1791,11 @@ pub(crate) fn unit_for(
     let unit = unit?;
     // The writer, once the JIT compile has succeeded, so no artifact is published for a program
     // the cold path refuses. A failure to publish is a cache that stays cold, which is the one
-    // thing this whole module promises can never be worse.
-    if let Some(payload) = payload {
+    // thing this whole module promises can never be worse. A payload this process's own loader
+    // would refuse is not published either ([`loadable`]): every later run would read it, refuse
+    // it and compile again, and the cache would stay cold for good, since a writer never replaces
+    // a file that exists.
+    if let Some(payload) = payload.filter(|payload| loadable(payload).is_ok()) {
         drop(cache.store(key, &payload));
     }
     Ok((unit, Provenance::Compiled))
@@ -2626,6 +2693,78 @@ mod tests {
             "`{wanted}` is defined by the artifact, so it carries an address from the compiling \
              process instead of a relocation"
         );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// The writer publishes only a payload its own loader reads ([`loadable`]). The object the
+    /// compiler writes passes, and the same object cut short, or with a header that counts one
+    /// section, does not.
+    ///
+    /// The number of sections in the object does not grow with the number of functions: a
+    /// program of one function and one of sixty give objects with the same sections. Each
+    /// function and each literal shares the one `.text` and the one read-only data section.
+    #[test]
+    #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+    fn the_writer_publishes_only_what_its_loader_reads() {
+        use object::Object as _;
+
+        let dir = scratch("loadable");
+        let object_of = |functions: usize| {
+            let mut source = String::from("<?nvs\nclass Many {\n");
+            for i in 0..functions {
+                source.push_str(&format!(
+                    "    public static function f{i}(): string {{ return \"s{i}\"; }}\n"
+                ));
+            }
+            source.push_str("}\n");
+            for i in 0..functions {
+                source.push_str(&format!("echo Many::f{i}();\n"));
+            }
+            let path = dir.join(format!("many-{functions}.nvs"));
+            fs::write(&path, source).expect("a scratch directory of this test's own is writable");
+            unit_of(&path).0
+        };
+
+        let one = object_of(1);
+        let sixty = object_of(60);
+        assert_eq!(loadable(&one), Ok(()), "the compiler's own object loads");
+        assert_eq!(loadable(&sixty), Ok(()), "the compiler's own object loads");
+        let sections = |payload: &[u8]| {
+            object::File::parse(payload)
+                .expect("a relocatable object")
+                .sections()
+                .count()
+        };
+        assert_eq!(
+            sections(&sixty),
+            sections(&one),
+            "sixty functions and their literals add no section"
+        );
+
+        assert!(
+            loadable(&sixty[..sixty.len() / 2]).is_err(),
+            "half an object is not published"
+        );
+        // A header that counts one section. Where a format's count is: COFF's 16-bit count at
+        // byte 2, and a 64-bit ELF header's at byte 60. Mach-O counts its sections per segment
+        // command, so only the cut above runs there.
+        let format = object::File::parse(&*sixty)
+            .expect("a relocatable object")
+            .format();
+        let count_at = match format {
+            object::BinaryFormat::Coff => Some(2),
+            object::BinaryFormat::Elf => Some(60),
+            _ => None,
+        };
+        if let Some(at) = count_at {
+            let mut miscounted = sixty.clone();
+            miscounted[at..at + 2].copy_from_slice(&1_u16.to_le_bytes());
+            assert!(
+                loadable(&miscounted).is_err(),
+                "an object whose header counts one section is not published ({format:?})"
+            );
+        }
 
         drop(fs::remove_dir_all(&dir));
     }

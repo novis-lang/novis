@@ -317,6 +317,91 @@ fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The `compile:` line of `nvs --config <config> run --count <program>`,
+/// asserting that the run succeeds.
+fn counted_run(config: &Path, program: &Path) -> String {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("--config")
+        .arg(config)
+        .args(["run", "--count"])
+        .arg(program)
+        .env_remove("NOVIS_NO_FILE_CACHE")
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "`nvs run --count` succeeds: {stderr}");
+    stderr
+        .lines()
+        .find(|line| line.starts_with("compile: "))
+        .unwrap_or_else(|| panic!("`--count` prints a `compile:` line: {stderr}"))
+        .to_owned()
+}
+
+/// A program of 8,000 functions, each with its own string literal, is stored
+/// on its first run and loaded on its second: the second run's `compile:` line
+/// reports every function reused and none compiled.
+///
+/// An object compiled with `is_pic` on gave each literal and each function a
+/// section of its own on Windows, about 72,000 for this program. A COFF object
+/// counts its sections in 16 bits, so that cache file could never load. The
+/// test runs on every platform the writer publishes on, because the object
+/// format is the host's.
+// covers: tools:cli/the-compile-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn a_unit_past_the_section_limit_loads_warm() {
+    const FUNCTIONS: usize = 8_000;
+    let dir = private_scratch("sections");
+    let cache = dir.join("artifacts");
+    std::fs::create_dir(&cache).expect("the cache directory");
+    let config = dir.join("nvs.toml");
+    std::fs::write(
+        &config,
+        format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display()),
+    )
+    .expect("the configuration is written");
+    let mut source = String::from("<?nvs\nclass Many {\n");
+    for i in 0..FUNCTIONS {
+        source.push_str(&format!(
+            "    public static function f{i}(int $x): int {{ echo \"s{i}\"; return $x + {i}; }}\n"
+        ));
+    }
+    source.push_str("}\n\nint $total = 0;\n");
+    for i in 0..FUNCTIONS {
+        source.push_str(&format!("$total = Many::f{i}($total);\n"));
+    }
+    source.push_str("echo \"\\n\", $total, \"\\n\";\n");
+    let program = dir.join("main.nvs");
+    std::fs::write(&program, source).expect("the program is written");
+
+    let cold = counted_run(&config, &program);
+    assert!(
+        cold.contains(" reused=0"),
+        "the first run compiles the program: {cold}"
+    );
+    assert_eq!(
+        artifacts(&cache).len(),
+        1,
+        "the first run stored the program"
+    );
+
+    let warm = counted_run(&config, &program);
+    assert!(
+        warm.contains(" functions=0 "),
+        "the second run loads the program and compiles no function: {warm}"
+    );
+    assert!(
+        !warm.contains(" reused=0"),
+        "the second run reuses the stored functions: {warm}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The attack under `tests/hostile/tools/cli/nvs-cache/`: each line its program prints is a file or
 /// a folder that looks like a cache entry. Running the program stores its own entry, and the test
 /// creates every forged path beside it. `nvs cache clear` exits `0`, deletes the real entry and the

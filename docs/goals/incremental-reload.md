@@ -6,7 +6,7 @@ context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs, docs/rules
 stages:
   - id: 1
     title: "a cache file past 65,535 sections loads warm on Windows"
-    status: open
+    status: done
     context: [docs/rules/packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header.md, crates/nvs-cli/tests/compile_cache.rs]
   - id: 2
     title: "code generation runs on every core, below the request workers' priority, with the bytes one thread writes"
@@ -156,6 +156,14 @@ form, whose section count is 32 bits, and teach the loader (`crates/nvs-cli/src/
 A file the loader cannot read stays a miss, never an error
 (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`), but it must no longer be written:
 the writer refuses to publish an object its own loader would refuse, and that is a test too.
+**Built (stage 1):** the sections were `.rdata$.refptr` cells, one per symbol the code reached
+through the GOT (every literal and every called function), which the `object` crate's COFF writer
+gives a section each. The object backend now compiles with `is_pic` off, as the JIT does: every
+reference is an absolute relocation, the object has one `.text` and one `.rdata` at any size, the
+file is 27% smaller at 1,000 functions, and a warm hit runs the JIT's instruction shapes. The
+loader's landing area (GOT slots, call stubs) is no longer reached by `nvs-codegen`'s payloads and
+stays for other forms. `cache::loadable` is the writer's check. `nvs run --count` already prints
+`functions=` and `reused=` (whole-unit today: one of them is zero), which the stage 1 test reads.
 
 **Stage 2: code generation on every core.** `emit::emit_function` stays on the compiling thread,
 because it writes the unit's literals and declarations. Cranelift's compile of each function's
@@ -235,13 +243,13 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### 1. a cache file past 65,535 sections loads warm on Windows
 
-- [ ] `crates/nvs-cli/tests/compile_cache.rs`: `a_unit_past_the_section_limit_loads_warm`, generating
+- [x] `crates/nvs-cli/tests/compile_cache.rs`: `a_unit_past_the_section_limit_loads_warm`, generating
   a program whose object passes 65,535 sections, running it twice, and checking the second run's
   provenance is `Loaded`. It is red on Windows before the fix.
-- [ ] `crates/nvs-codegen/src/lib.rs:2885`: the object writes fewer sections, or the big-object form
+- [x] `crates/nvs-codegen/src/lib.rs:2885`: the object writes fewer sections, or the big-object form
   (§ *Stage 1*).
-- [ ] `crates/nvs-cli/src/cache.rs:1749`: the writer does not publish an object its loader refuses.
-- [ ] `cargo test --test compile_cache` once.
+- [x] `crates/nvs-cli/src/cache.rs:1749`: the writer does not publish an object its loader refuses.
+- [x] `cargo test --test compile_cache` once.
 
 ### 2. code generation runs on every core, below the request workers' priority, with the bytes one thread writes
 
@@ -319,14 +327,26 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Written by an interactive session on 2026-11-27. The user made the calls under § *Standing
-decisions*; every other call there is the session's. Nothing is built. The measurements of § *Why*
-and § *How it scales* were taken that day on the release binary of `23ef06e3b7` with a generated
-program; the section count of each cache file was read from its COFF header.
+Stage 1 is done in one session (1 of 2). The object backend compiles with `is_pic` off, so a
+COFF object has two sections at any size (§ *Standing decisions*, *Built (stage 1)*). The writer
+publishes only what `cache::loadable` accepts. `nvs run --count` prints `functions=` and `reused=`
+at the end of the `compile:` line, before a debug build's `phases:` line, and the line is now
+printed after code generation. `a_unit_past_the_section_limit_loads_warm` (8,000 functions, about
+20 s in a debug build) and `cache::tests::the_writer_publishes_only_what_its_loader_reads` pass on
+Windows, and `cargo test --test compile_cache` is green.
+
+The nightly's nine failures (run 45813627231) were fixed on `main` before this session:
+`c115a735a1` (zone-database tests skip Miri), `28a4d7a6bf` (`Core\Uuid` is `Parses` at run time)
+and `544711a8fb` (the serve stack-page bound).
+
+Tests that may go red elsewhere: none expected. A test that reads the `compile:` line of `nvs run
+--count` sees two more fields, and a run that fails between lowering and code generation no
+longer prints that line.
 
 ### Next
 
-Stage 1 from its first item. The check `section-limit` is red until
-`a_unit_past_the_section_limit_loads_warm` exists, and red on Windows until the fix lands.
+Stage 2 from its first item: `compile_function` (`crates/nvs-codegen/src/lib.rs:3097`) splits into
+the emit and the Cranelift compile. Stage 4's `--count` item only needs `nvs check --count` and
+the per-function counts now; `with_codegen` in `crates/nvs-cli/src/main.rs` is the place.
 
 ### Backlog
