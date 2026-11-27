@@ -2567,9 +2567,24 @@ deliberate commit.
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
-`nvs code` has eleven verbs over one project. Eight read: `show`, `refs` and `impls` take a name,
+`nvs code` has twelve verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
-and `find` takes part of a name. Three write: `rename`, `move` and `order`.
+`find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
+Three write: `rename`, `move` and `order`.
+
+**`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
+(`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
+used when the index holds an occurrence of it, and also when the runtime or a tool may reach it with
+none: a route handler, a test, a matched test request's handler, a declaration with an attribute, a
+constructor, a method the call graph does not follow, a method of an override family where any method
+is used, a method of a class with a type above it outside the index (a `Core` interface the runtime
+calls), a public property (an encoder or a template reads it by name), a class with a type above it
+in a project that calls `Core\Program::implementing`, `implementingWith` or `constructors`, an enum
+case of an enum whose `cases` is called, a name a string literal or an `nvs.toml` writes, and a type
+with a used member. In a project with a `package.toml`, every `public` and `protected` declaration is
+the package's API and is never listed. Each doubtful case counts as a use, so a listed declaration is
+safe to delete. **Cost:** the index keeps each file's distinct string-literal words and one flag per
+declaration for an attribute, for as long as the file is indexed; a call reads each `nvs.toml` once.
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question
@@ -2615,19 +2630,47 @@ that may not compile.
   path and every moved file's target is judged inside the project root before anything is joined;
   each file is read again and one whose bytes changed since the call first read it fails, named;
   then each file is written with `fs::write`, as `nvs fmt` writes, and a type's file named after it
-  is moved last. Without `--dry-run` it prints one line per changed file with its number of edits
+  is moved last. A qualified new name, `Shop\Billing\Cart`, moves a type to that namespace with its
+  `use` lines and its file ([`ide/a-type-moves-with-its-namespace`](ide.md#ide-a-type-moves-with-its-namespace)), and the missing directories
+  of the file's new path are created just before the move, each judged inside the root first.
+  Without `--dry-run` it prints one line per changed file with its number of edits
   and one per moved file; with it, one line per edit with the position, the old text and the new
   text, and nothing is written. `--json` gives `edits`, `moved` and `written`. A debug build reads
   one test variable, `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, that changes a file between the two reads;
   a release build has no such hook.
-- **`move <from> <to>`** is the editor's file move, `rename::moved`, and writes through the same
-  path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
+- **`rename --from <file>`** applies a list of renames as one plan, `nvs_lsp::query::rename_all`
+  over `rename::renamed_all`, and conflicts with the two positional arguments. Each line of the
+  file is `<target> <new-name>`, the two separated by white space; a blank line and a line that
+  starts with `#` are skipped, and a line that names nothing fails the list with its number. Every
+  rename is computed against the one index, so each position is read in the files as they were.
+  A name another rename of the list takes away is free for the clash checks, so two names swap,
+  and two files that swap paths are each moved aside first. Two renames that give one new name,
+  or that edit one byte range, refuse the list and name both lines. The merged edit is checked
+  once ([`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes)) and written in one write. The
+  output and `--dry-run` are `rename`'s, and each `--json` edit carries `fromLine`, the line of
+  the list it came from, since `line` is its position's. A message about one rename starts with
+  `line N:`. **Cost:** tooling only, one plan per line and one check for the whole list.
+- **`move <from> <to>`** is the editor's file move, `rename::relocated`, and writes through the
+  same path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
   root, and a directory moves with every file under it. `<to>` is inside the root, does not exist,
   is not inside `<from>`, and its directory exists. Both are judged before anything is computed, and
   a failure writes nothing. Each `require` literal that names a moved file, or that a moved file
   writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
   move; a move that fails after the edits names the files already changed. The output and `--json`
   are `rename`'s, with the move as the one entry of `moved`.
+  - **A moved file takes the name its path gives.** Under an `autoload` root the path is the name
+    ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), so a move that kept the old name would
+    always break the program. For each moved `.nvs` file a program's map claims, the name that map
+    finds the new path by (`AutoloadMap::name_at`, the deepest root that holds it) is the name its
+    sole declaration takes, through the plan `rename --from` builds, with the file move already
+    decided. A new folder gives a new namespace, a new file name a new last segment, and a folder
+    moves every type under it in one plan, where two types that move into one namespace need no
+    `use` line for each other. A file only a `require` reaches keeps its names. An autoloaded file
+    that no root reaches at its new path is refused, and so are programs whose maps give it
+    different names. The editor's `workspace/willRenameFiles` returns the same plan, and only the
+    `require` edits where the plan is refused, because a drag cannot be refused; the diagnostics
+    then name what broke. **Cost:** tooling only, one analysis per program that reads a moved file
+    and one rename plan per renamed type.
 - **`order [paths...]`** is the editor's *Order class members* action, `nvs_lsp::order::of`, run
   over each file a path names (a file or a directory under the root) or every file of the project
   ([`tooling/class-members-have-one-order`](tooling.md#tooling-class-members-have-one-order)). Each changed file is one whole-file edit through the
@@ -2713,9 +2756,9 @@ reads each ignore file once and keeps its parsed patterns, a few KiB, until it e
 - **A journal or a staged write for `rename` and `move`.** A crash between two writes leaves the
   project half changed, and the next `nvs check` names every site that no longer resolves. `nvs fmt`
   writes the same way, and nothing on the request path is involved.
-- **`move` renaming the type a moved file declares, or creating a missing directory.** The editor's
-  file move does neither. A type is renamed with `rename`, which moves its file too, and after a
-  move `nvs check` names any other name that no longer resolves.
+- **`move` creating a missing directory.** The user types the new path, so a typo in it would
+  create a folder nobody asked for. `rename` to a full name creates the folders its new name needs,
+  because there the autoload map gives the path and nobody typed it.
 - **Trusting a file's size and modification time, as the editor does.** A stale editor answer lasts
   until the next keystroke, but a stale `nvs code` answer is acted on by an agent and outlives the
   call. Hashing every file is a fraction of a second on the workers.

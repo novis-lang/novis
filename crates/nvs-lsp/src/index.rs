@@ -295,6 +295,11 @@ pub struct Declaration {
     /// Whether this is a `#[Test]` method, read off the checker's own test
     /// table. [`crate::reach`] is the reader.
     pub test: bool,
+    /// Whether an attribute is written on the declaration. A `Core`
+    /// attribute such as `#[Command]` or `#[Fixture]` makes the runtime call
+    /// it with no use in the source, so [`SymbolIndex::unused`] counts any
+    /// attributed declaration as used.
+    pub attributed: bool,
     /// The bytes of the whole method, its attributes and its body included,
     /// and `None` for everything that is not a method.
     ///
@@ -415,6 +420,13 @@ pub(crate) struct Indexed {
     /// taken as a callable value, by its symbol, and a call by name that the
     /// checker did not resolve to one method, as `::` and the name.
     pub(crate) unfollowed: Vec<String>,
+    /// Every word a string literal here writes, each once and sorted: each
+    /// run of letters, digits and underscores that starts with a letter or an
+    /// underscore. [`SymbolIndex::unused`] counts a declaration whose name is
+    /// one of them as used, because a name in a string may be read by a tool
+    /// the index cannot follow. It costs one string per distinct word per
+    /// file, for as long as the file is indexed.
+    pub(crate) written: Vec<String>,
     /// Every call a recorded request can name by line (`nvs_types::core_records_site`), as the
     /// start and end of the call expression, in source order: the sites the recorded lens reads
     /// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
@@ -492,6 +504,52 @@ fn owner_of(name: &str) -> Option<&str> {
         .filter(|owner| !owner.is_empty())
 }
 
+/// What [`SymbolIndex::unused`] reads besides the index.
+#[derive(Debug, Default)]
+pub struct Unused {
+    /// Whether the project is a package, whose `public` and `protected`
+    /// declarations are its API and so are never listed.
+    pub api: bool,
+    /// Every word the project's `nvs.toml` files write. A declaration whose
+    /// own name is one of them is used.
+    pub configured: BTreeSet<String>,
+}
+
+impl Unused {
+    /// What the project at `root` adds: whether it has a `package.toml`, and
+    /// the words of each `nvs.toml` at the root or in a folder above an
+    /// indexed file, up to the root.
+    #[must_use]
+    pub fn of_project(root: &Path, index: &SymbolIndex) -> Self {
+        let root = canonical_key(root);
+        let mut folders = BTreeSet::from([root.clone()]);
+        for file in index.files() {
+            let mut folder = file.parent();
+            while let Some(at) = folder.filter(|at| at.starts_with(&root)) {
+                if !folders.insert(at.to_path_buf()) {
+                    break;
+                }
+                folder = at.parent();
+            }
+        }
+        let mut configured = BTreeSet::new();
+        for folder in &folders {
+            let Ok(text) = std::fs::read_to_string(folder.join("nvs.toml")) else {
+                continue;
+            };
+            configured.extend(
+                text.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                    .filter(|word| word.starts_with(|c: char| c.is_alphabetic() || c == '_'))
+                    .map(str::to_owned),
+            );
+        }
+        Self {
+            api: root.join("package.toml").is_file(),
+            configured,
+        }
+    }
+}
+
 /// What one [`SymbolIndex::refresh`] did.
 #[derive(Debug)]
 pub struct Refreshed {
@@ -536,6 +594,8 @@ pub struct SymbolIndex {
     by_request: Postings,
     /// Every entry of an indexed file's `unfollowed`, by what it names.
     by_unfollowed: Postings,
+    /// Every entry of an indexed file's `written`, by the word.
+    by_written: Postings,
     /// Every name an indexed file's check used ([`LookedUp::used`]), by the
     /// name, and a member's also by its class in `by_used_on`. A refresh reads
     /// them to find the files an edit reaches.
@@ -1741,13 +1801,148 @@ impl SymbolIndex {
     /// answer, and the caller is what holds the setting.
     #[must_use]
     pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
-        self.declarations_in(path)
+        self.unused(path, &Unused::default())
+            .into_iter()
+            .filter(|declared| declared.visibility == Visibility::Private)
+            .collect()
+    }
+
+    /// The declarations in `path` that nothing the index can see uses, in
+    /// source order (`rule:tooling/nvs-code-answers-about-the-project`).
+    ///
+    /// A declaration is used when the index holds an occurrence of it, and
+    /// also when the runtime or a tool may reach it with none:
+    ///
+    /// - it handles a route, is a test, is the handler a matched test request
+    ///   names, or carries an attribute, which `Core` reads;
+    /// - it is a constructor, a method the call graph does not follow
+    ///   ([`Self::unfollowed`]), a method of an override family where any
+    ///   method is used, or a method of a class with a type above it that the
+    ///   index does not hold, such as a `Core` interface the runtime calls;
+    /// - it is a public property, which an encoder or a template may read by
+    ///   name;
+    /// - it is a class with a type above it while the project calls
+    ///   `Core\Program::implementing`, `implementingWith` or `constructors`;
+    /// - it is an enum case and the project calls `cases` on its enum;
+    /// - a string literal of an indexed file, or a word in
+    ///   [`Unused::configured`], writes its own name;
+    /// - it is a type with a member that is used, since deleting the type
+    ///   deletes the member.
+    ///
+    /// Under [`Unused::api`] every `public` and `protected` declaration is
+    /// used, because a package's callers are outside the index. An `extend`
+    /// block, an `attribute` declaration and its fields are never listed.
+    /// Each doubtful case counts as a use: a declaration listed here must be
+    /// safe to delete.
+    #[must_use]
+    pub fn unused(&self, path: &Path, scope: &Unused) -> Vec<&Declaration> {
+        let scanned = ["implementing", "implementingWith", "constructors"]
+            .iter()
+            .any(|member| self.by_use.contains_key(&format!("Core\\Program::{member}")));
+        let decls = self.declarations_in(path);
+        decls
             .iter()
             .filter(|declared| {
-                declared.visibility == Visibility::Private
-                    && !self.by_use.contains_key(&declared.symbol)
+                if matches!(
+                    declared.kind,
+                    DeclKind::Extend | DeclKind::Attribute | DeclKind::Field
+                ) || (scope.api && declared.visibility != Visibility::Private)
+                {
+                    return false;
+                }
+                if self.used(declared, scope) {
+                    return false;
+                }
+                match declared.kind {
+                    DeclKind::Method => !self.reached_otherwise(declared),
+                    DeclKind::Property => declared.visibility != Visibility::Public,
+                    DeclKind::EnumCase => owner_of(&declared.symbol).is_none_or(|owner| {
+                        !self.by_use.contains_key(&format!("{owner}::cases"))
+                    }),
+                    DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias => {
+                        !(scanned && !declared.supertypes.is_empty())
+                            && !decls.iter().any(|member| {
+                                owner_of(&member.symbol) == Some(declared.symbol.as_str())
+                                    && (self.used(member, scope)
+                                        || (member.kind == DeclKind::Method
+                                            && self.reached_otherwise(member)))
+                            })
+                    }
+                    _ => true,
+                }
             })
             .collect()
+    }
+
+    /// Whether `declared` has an occurrence, an entry the runtime calls, or
+    /// a name a string or the configuration writes.
+    fn used(&self, declared: &Declaration, scope: &Unused) -> bool {
+        let name = own_name(&declared.symbol);
+        self.by_use.contains_key(&declared.symbol)
+            || self.entered(declared)
+            || self.by_written.contains_key(name)
+            || scope.configured.contains(name)
+    }
+
+    /// Whether the runtime calls `declared` with no use in the source: a
+    /// route handler, a test, a matched request's handler, or a declaration
+    /// with an attribute.
+    fn entered(&self, declared: &Declaration) -> bool {
+        !declared.routes.is_empty()
+            || declared.test
+            || declared.attributed
+            || self.by_request.contains_key(&declared.symbol)
+    }
+
+    /// Whether the method `declared` is reached with no occurrence of its
+    /// own: a constructor, a call the graph does not follow, a used method of
+    /// its override family, or a type above its class outside the index.
+    fn reached_otherwise(&self, declared: &Declaration) -> bool {
+        if own_name(&declared.symbol) == "constructor" || self.unfollowed(&declared.symbol) {
+            return true;
+        }
+        let Some(owner) = owner_of(&declared.symbol) else {
+            return true;
+        };
+        if self.above_outside(owner) {
+            return true;
+        }
+        let mut seen = FxHashSet::from_iter([declared.symbol.clone()]);
+        let mut pending = vec![declared.symbol.clone()];
+        while let Some(method) = pending.pop() {
+            for other in self.overridden(&method).into_iter().chain(self.overriders(&method)) {
+                if !seen.insert(other.symbol.clone()) {
+                    continue;
+                }
+                if self.by_use.contains_key(&other.symbol) || self.entered(other) {
+                    return true;
+                }
+                pending.push(other.symbol.clone());
+            }
+        }
+        false
+    }
+
+    /// Whether some type above `class`, at any depth, is one the index holds
+    /// no declaration for.
+    fn above_outside(&self, class: &str) -> bool {
+        let mut seen = FxHashSet::from_iter([class.to_owned()]);
+        let mut pending = vec![class.to_owned()];
+        while let Some(current) = pending.pop() {
+            let Some(declared) = self.declaration(&current) else {
+                continue;
+            };
+            for above in &declared.supertypes {
+                if !seen.insert(above.clone()) {
+                    continue;
+                }
+                if self.declaration(above).is_none() {
+                    return true;
+                }
+                pending.push(above.clone());
+            }
+        }
+        false
     }
 
     /// Every declaration in the index whose own name contains `query`, upper
@@ -2137,6 +2332,9 @@ impl SymbolIndex {
         for (at, named) in indexed.unfollowed.iter().enumerate() {
             add(&mut self.by_unfollowed, named, (Arc::clone(&key), at));
         }
+        for (at, word) in indexed.written.iter().enumerate() {
+            add(&mut self.by_written, word, (Arc::clone(&key), at));
+        }
         for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.used).enumerate() {
             add(&mut self.by_used, name, (Arc::clone(&key), at));
             if let Some(owner) = owner_of(name) {
@@ -2176,6 +2374,9 @@ impl SymbolIndex {
         }
         for (at, named) in indexed.unfollowed.iter().enumerate() {
             remove(&mut self.by_unfollowed, named, &(Arc::clone(&key), at));
+        }
+        for (at, word) in indexed.written.iter().enumerate() {
+            remove(&mut self.by_written, word, &(Arc::clone(&key), at));
         }
         for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.used).enumerate() {
             let posting = (Arc::clone(&key), at);
@@ -2401,6 +2602,7 @@ fn record(
         linked,
         requests: uses.requests,
         unfollowed: uses.unfollowed,
+        written: written_words(analysed.map.file(loaded.id)),
         queries: uses.queries,
         sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
             .map(|(_, kind)| DeclKind::of_symbol(kind)),
@@ -2415,6 +2617,26 @@ fn record(
         stamp,
         entry: entry.to_path_buf(),
     }
+}
+
+/// Every word the string literals of `file` write, each once and sorted, as
+/// [`Indexed::written`] keeps them.
+fn written_words(file: &SourceFile) -> Vec<String> {
+    let mut words = BTreeSet::new();
+    for token in tokenize(file, &mut Diagnostics::new()) {
+        if !matches!(
+            token.kind,
+            TokenKind::SingleQuotedString | TokenKind::StringPart
+        ) {
+            continue;
+        }
+        for word in text_of(file, token.span).split(|c: char| !(c.is_alphanumeric() || c == '_')) {
+            if word.starts_with(|c: char| c.is_alphabetic() || c == '_') {
+                words.insert(word);
+            }
+        }
+    }
+    words.into_iter().map(str::to_owned).collect()
 }
 
 /// Files `posting` under `symbol`.
@@ -2694,6 +2916,9 @@ fn declarations<'a>(
             parameters: Vec::new(),
             routes: Vec::new(),
             test: false,
+            attributed: declared.is_some_and(|(stmt, file)| {
+                attributed(file, stmt.span.start, symbol.decl_span.start)
+            }),
             extent: None,
         });
         if let Some(body) = declared_body(analysed, scope, &symbol.qname) {
@@ -2713,6 +2938,7 @@ fn declarations<'a>(
             parameters: Vec::new(),
             routes: Vec::new(),
             test: false,
+            attributed: false,
             extent: None,
         });
     }
@@ -2805,9 +3031,22 @@ fn members(
             },
             routes,
             test,
+            attributed: body
+                .members
+                .iter()
+                .find(|member| member.span.start <= name.start && name.end <= member.span.end)
+                .is_some_and(|member| attributed(body.file, member.span.start, name.start)),
             extent: if method { extent_of(body, name) } else { None },
         });
     }
+}
+
+/// Whether the text of `file` from `start` to `name`, a declaration up to its
+/// name, writes an attribute.
+fn attributed(file: &SourceFile, start: BytePos, name: BytePos) -> bool {
+    file.text()
+        .get(start as usize..name as usize)
+        .is_some_and(|head| head.contains("#["))
 }
 
 /// The bytes of the whole method `body` declares at `name`.

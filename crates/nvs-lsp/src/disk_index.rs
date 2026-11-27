@@ -78,7 +78,7 @@ const MAGIC: &[u8; 6] = b"NVSIDX";
 
 /// The layout's version. A change to what is written raises it, and a file of
 /// another version is discarded.
-pub(crate) const FORMAT: u32 = 5;
+pub(crate) const FORMAT: u32 = 6;
 
 /// The length of a digest on disk.
 const DIGEST: usize = 32;
@@ -475,6 +475,7 @@ impl Writer {
         }
         self.strs(&declared.routes)?;
         self.bool(declared.test);
+        self.bool(declared.attributed);
         match declared.extent {
             Some(extent) => {
                 self.u8(1);
@@ -535,6 +536,7 @@ impl Writer {
         }
         self.occurrences(&indexed.requests)?;
         self.strs(&indexed.unfollowed)?;
+        self.strs(&indexed.written)?;
         self.len(indexed.queries.len())?;
         for query in &indexed.queries {
             self.span(*query);
@@ -754,6 +756,7 @@ impl<'a> Reader<'a> {
         }
         let routes = self.strings()?;
         let test = self.bool()?;
+        let attributed = self.bool()?;
         let extent = if self.present()? {
             Some(self.span()?)
         } else {
@@ -769,6 +772,7 @@ impl<'a> Reader<'a> {
             parameters,
             routes,
             test,
+            attributed,
             extent,
         })
     }
@@ -839,6 +843,7 @@ impl<'a> Reader<'a> {
         }
         let requests = self.occurrences()?;
         let unfollowed = self.strings()?;
+        let written = self.strings()?;
         let n = self.count()?;
         let mut queries = Vec::with_capacity(n);
         for _ in 0..n {
@@ -856,6 +861,7 @@ impl<'a> Reader<'a> {
             linked,
             requests,
             unfollowed,
+            written,
             queries,
             sole,
             errors: self.bool()?,

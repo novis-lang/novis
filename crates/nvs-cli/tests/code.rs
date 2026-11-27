@@ -2163,3 +2163,94 @@ fn code_order_json_lists_every_class_and_note() {
     assert_eq!(parsed(&out)["written"], true, "{out}");
     assert_ne!(read(&dir, "src/Basket.nvs"), BASKET);
 }
+
+/// A program whose `Order` class has an unused private property, an unused
+/// constant and an unused method, beside a class nothing names.
+const ORDERS: &str = "<?nvs\nclass Order {\n    private int $count = 0;\n    \
+                      private int $spare = 0;\n    public const int MAX = 3;\n    \
+                      public const int MIN = 1;\n\n    \
+                      public function add(): int {\n        \
+                      $this->count = $this->count + 1;\n        return $this->count;\n    }\n\n    \
+                      public function clear(): void {}\n}\n\nclass Coupon {}\n\n\
+                      var $order = new Order();\necho $order->add() + Order::MAX;\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_unused_lists_every_declaration_nothing_uses() {
+    let dir = project("unused", &[("public/orders.nvs", ORDERS)]);
+    let (out, err, ok) = code(&dir, &["unused", "public/orders.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [
+            r"public/orders.nvs:4:17 property Order::$spare",
+            r"public/orders.nvs:6:22 constant Order::MIN",
+            r"public/orders.nvs:13:21 method Order::clear",
+            r"public/orders.nvs:16:7 class Coupon",
+        ],
+        "{out}"
+    );
+    let (out, err, ok) = code(&dir, &["unused", "public/orders.nvs", "--json"]);
+    assert!(ok, "{err}");
+    let declarations = parsed(&out)["declarations"].clone();
+    assert_eq!(declarations.as_array().map(Vec::len), Some(4), "{out}");
+    assert_eq!(declarations[3]["symbol"], "Coupon", "{out}");
+}
+
+/// A route, a test, an override reached through its parent, a `Core`
+/// interface's method and a name written in a string. Only `Pages::draft`
+/// is unused.
+const REACHED: &str = "<?nvs\nuse Core\\Test;\n\nclass Pages {\n    \
+                       #[Core\\Route(path: '/pages/{id}', method: Core\\Http\\Method::Get)]\n    \
+                       #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+                       public static function show(uint $id): string { return 'page'; }\n    \
+                       private function draft(): string { return 'unfinished'; }\n}\n\n\
+                       class PagesTest {\n    #[Test]\n    \
+                       public function showWorks(): void {\n        \
+                       Test::assertEquals('page', Pages::show(3));\n    }\n}\n\n\
+                       abstract class Shape {\n    abstract public function area(): int;\n}\n\n\
+                       class Square extends Shape {\n    \
+                       public function area(): int { return 4; }\n}\n\n\
+                       class Label implements Stringable {\n    \
+                       public function toString(): string { return 'label'; }\n}\n\n\
+                       class Hooks {\n    public function onSave(): void {}\n}\n\n\
+                       function measure(Shape $shape): int { return $shape->area(); }\n\n\
+                       echo measure(new Square());\necho new Label();\necho 'onSave';\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_unused_counts_routes_tests_overrides_and_strings_as_uses() {
+    let dir = project("unused-reached", &[("public/pages.nvs", REACHED)]);
+    let (out, err, ok) = code(&dir, &["unused", "public/pages.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [r"public/pages.nvs:8:22 method Pages::draft"],
+        "{out}"
+    );
+}
+
+/// A package's class: a public method nothing calls and a private one.
+const LIBRARY: &str = "<?nvs\nnamespace Acme;\n\nclass Ledger {\n    \
+                       public function total(): int { return 0; }\n    \
+                       protected function base(): int { return 0; }\n    \
+                       private function spare(): int { return 0; }\n}\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_unused_skips_the_public_api_of_a_package() {
+    let dir = project(
+        "unused-package",
+        &[
+            ("package.toml", "[package]\nname = 'Acme\\Ledger'\n"),
+            ("src/Ledger.nvs", LIBRARY),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["unused", "src/Ledger.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        words(&out),
+        [r"src/Ledger.nvs:7:22 method Acme\Ledger::spare"],
+        "{out}"
+    );
+}

@@ -1,6 +1,21 @@
-`nvs code` has eleven verbs over one project. Eight read: `show`, `refs` and `impls` take a name,
+`nvs code` has twelve verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
-and `find` takes part of a name. Three write: `rename`, `move` and `order`.
+`find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
+Three write: `rename`, `move` and `order`.
+
+**`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
+(`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
+used when the index holds an occurrence of it, and also when the runtime or a tool may reach it with
+none: a route handler, a test, a matched test request's handler, a declaration with an attribute, a
+constructor, a method the call graph does not follow, a method of an override family where any method
+is used, a method of a class with a type above it outside the index (a `Core` interface the runtime
+calls), a public property (an encoder or a template reads it by name), a class with a type above it
+in a project that calls `Core\Program::implementing`, `implementingWith` or `constructors`, an enum
+case of an enum whose `cases` is called, a name a string literal or an `nvs.toml` writes, and a type
+with a used member. In a project with a `package.toml`, every `public` and `protected` declaration is
+the package's API and is never listed. Each doubtful case counts as a use, so a listed declaration is
+safe to delete. **Cost:** the index keeps each file's distinct string-literal words and one flag per
+declaration for an attribute, for as long as the file is indexed; a call reads each `nvs.toml` once.
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question

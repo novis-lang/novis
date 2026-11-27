@@ -47,7 +47,7 @@ use nvs_hir::members::edit_distance;
 use nvs_lsp::order;
 use nvs_lsp::query::{self, Outline};
 use nvs_lsp::rename::{self, Rewrite};
-use nvs_lsp::{DeclKind, Declaration, Site, Workspace};
+use nvs_lsp::{DeclKind, Declaration, Site, Unused, Workspace};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
 use serde_json::{Map, Value, json};
 
@@ -253,6 +253,25 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Print every class, method, property, constant and enum case that
+    /// nothing in the project uses.
+    ///
+    /// Each line has the position, the kind and the full name. Some code is
+    /// used without being named in the source, and it is not printed: a
+    /// route, a test, a constructor, a declaration with an attribute, a
+    /// method that implements an interface of `Core`, and a public property.
+    /// A name that is written in a string or in an `nvs.toml` file also
+    /// counts as used. In a package, every `public` and `protected`
+    /// declaration is used by the package's users, so only `private` ones
+    /// are printed. The command does not fail when it prints something.
+    Unused {
+        /// The files or directories to read, as `src/Cart.nvs` or `src`.
+        /// With no path, every `.nvs` file in the project is read.
+        paths: Vec<String>,
+        /// Print the result as one JSON document.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the methods that call a method, and the methods it calls.
     ///
     /// The callers come first. Each method has its own line, with `caller`
@@ -328,6 +347,7 @@ impl Args {
                 json,
             } => order(&paths, check, dry_run, json),
             Command::Find { query, json } => find(&query, json),
+            Command::Unused { paths, json } => unused(&paths, json),
             Command::Calls { symbols, json } => calls(&symbols, json),
             Command::Reach { symbols, json } => reach(&symbols, json),
         }
@@ -842,6 +862,63 @@ pub(crate) fn find(text: &str, json: bool) -> ExitCode {
             pretty(json!({
                 "schemaVersion": SCHEMA_VERSION,
                 "query": escaped(text),
+                "declarations": records,
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    let width = rows
+        .iter()
+        .map(|(_, place)| place.position().len())
+        .max()
+        .unwrap_or(0);
+    for (declared, place) in &rows {
+        println!(
+            "{:<width$}  {}  {}",
+            place.position(),
+            kind(declared.kind),
+            escaped(&declared.symbol)
+        );
+    }
+    ExitCode::SUCCESS
+}
+
+/// `nvs code unused`: every declaration in `paths` that nothing uses, as
+/// [`nvs_lsp::SymbolIndex::unused`] decides it, in path and source order.
+pub(crate) fn unused(paths: &[String], json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let files = match ordered_files(&project, paths) {
+        Ok(files) => files,
+        Err((message, nearest)) => return unknown(&message, &nearest, json),
+    };
+    let index = project.workspace.index();
+    let scope = Unused::of_project(project.workspace.root(), index);
+    let found: Vec<Declaration> = files
+        .iter()
+        .flat_map(|file| index.unused(file, &scope))
+        .cloned()
+        .collect();
+    let rows: Vec<(&Declaration, Place)> = found
+        .iter()
+        .map(|declared| (declared, project.place(&declared.site)))
+        .collect();
+    if json {
+        let records: Vec<Value> = rows
+            .iter()
+            .map(|(declared, place)| {
+                let mut record = place.json();
+                record.insert("symbol".into(), Value::from(escaped(&declared.symbol)));
+                record.insert("kind".into(), Value::from(kind(declared.kind)));
+                Value::Object(record)
+            })
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
                 "declarations": records,
             }))
         );
