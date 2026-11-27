@@ -2365,7 +2365,11 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "Miri's isolation refuses the working directory")]
     fn a_runs_files_are_written_relative_to_the_working_directory() {
-        let cwd = std::env::current_dir().expect("the working directory");
+        // The directory `anchor` writes relative to, as the process read it.
+        let cwd = super::working_dirs()
+            .first()
+            .cloned()
+            .expect("the working directory");
         let inside = cwd
             .join("jobs")
             .join("receipt.nvs")
