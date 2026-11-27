@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-lsp/src/extract.rs, crates/nvs-lsp/src/generate.rs]
   - id: 8
     title: "a local and a method are inlined"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/extract.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/capabilities.rs]
   - id: 9
     title: "a method's parameters change at every call and in every override, from nvs code"
@@ -350,6 +350,18 @@ action. The new kind is added to `capabilities.rs`.
   (`SymbolIndex::unfollowed`), recursive, a body reading a member the call site cannot see, a `$this`
   in the body where the receiver is not a variable, and an argument that is not a variable or a
   literal (it could run twice or not at all). A default value fills a missing argument.
+- **As built.** `crates/nvs-lsp/src/inline.rs`: `local` returns edits and `query::inline` checks
+  them; `method` checks its own. `query::Inlined` is a name or a position, and a position on a call
+  name inlines that call, on a method's name every call, else the local. Added as security calls:
+  a method with an attribute is refused (the inlined code would run without it), and so is a call
+  with any diagnostic on it, so a `[[restrict]]` body never moves to a place its entry forbids. A
+  property read counts as running code (a hook or an observer may run). A typed declaration is
+  inlined only where `var` gives the same type (one probe analysis). A default must be a literal,
+  `self::` is allowed only where every call is in the method's class, and `static::`, `parent::`, an
+  anonymous function in the body and a `void` body that declares a variable are refused. The editor
+  offers *Inline variable* on any read or the declaration, *Inline this call* on a call name and
+  *Inline method* on a declaration name when every call is in the document; the `.lspt` suite
+  builds an index for a call name (`inline::wanted`). An empty `void` body deletes the call's line.
 
 **What change of parameters allows** (stage 9). `nvs code signature <Class::method> '<parameter list>'
 [--value '$name=<expr>']...`. The list is the whole new list, as written in source, and parameters
@@ -556,16 +568,16 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 8. a local and a method are inlined
 
-- [ ] `crates/nvs-lsp/src/inline.rs:1` (new): inline a local and a method per § *What inline allows*,
+- [x] `crates/nvs-lsp/src/inline.rs:1` (new): inline a local and a method per § *What inline allows*,
   reusing `extract.rs:611` `runs_first`, through `refactor::checked`.
-- [ ] `crates/nvs-lsp/src/actions.rs:259` and `crates/nvs-lsp/src/capabilities.rs:96`: the
+- [x] `crates/nvs-lsp/src/actions.rs:259` and `crates/nvs-lsp/src/capabilities.rs:96`: the
   `refactor.inline` action and kind.
-- [ ] `crates/nvs-cli/src/code.rs:206`: the `Inline` verb with its help.
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `inline`. Then `cargo test
+- [x] `crates/nvs-cli/src/code.rs:206`: the `Inline` verb with its help.
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `inline`. Then `cargo test
   --test code code_inline` once.
-- [ ] `tests/lsp/actions/a-local-is-inlined.lspt:1` and `tests/lsp/actions/a-method-is-inlined.lspt:1`
+- [x] `tests/lsp/actions/a-local-is-inlined.lspt:1` and `tests/lsp/actions/a-method-is-inlined.lspt:1`
   (new), then `nvs lsp-test tests/lsp/actions/` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62` and
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62` and
   `docs/rules/ide/no-refactoring-introduces-an-alias.md:1`: inline in both lists.
 
 ### 9. a method's parameters change at every call and in every override, from nvs code
@@ -657,43 +669,41 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 7 are done. Stage 7 landed in one commit (3c3cb597dd): `nvs code extract variable`,
-`extract method` and `implement`, with `extract::reasoned`, `generate::implement_class`,
-`query::extract` and `query::implement`. `cargo test --test code code_extract` 3 of 3 and
-`code_implement` 1 of 1 pass, and clippy and rustfmt are clean. How it is built is § *Extract and
-implement on the command line*, its *As built* bullet. The `.lspt` extract cases were not run; a
-red there is a regression of `at`'s move onto `selected` and the `Result` steps.
-- **The nightly run 45813627231 (at 4e43e1fa2e) is fixed on `main`.** Its three causes:
-  the zone database under Miri (c115a735a1), the `Core\Uuid` passed as `Parses` at run time in the
-  conformance case `uuid-format-writes-each-byte-in-order-and-is-the-parses-method` (28a4d7a6bf),
-  and `serve`'s debug stack bound on aarch64 (544711a8fb). None was rerun here; the next nightly
-  confirms them.
-- Stages 3 to 7 are each standing decision's *As built* bullet. Stage 6's settle republish is
+Stages 1 to 8 are done. Stage 8 landed in b164bfa94a: `nvs code inline` and the editor's three
+`refactor.inline` actions, from `crates/nvs-lsp/src/inline.rs` through `query::inline`.
+`cargo test --test code code_inline` 6 of 6 and `nvs lsp-test tests/lsp/actions/` 117 of 117 pass,
+and clippy and rustfmt are clean (526746b33d formatted three files stage 6 left unformatted).
+- **Nightly 45813627231 ran before its fixes** (c115a735a1, 28a4d7a6bf, 544711a8fb).
+- Stages 3 to 8 are each standing decision's *As built* bullet. Stage 6's settle republish is
   `server.rs` `republish_dimming`, and its engine is `crates/nvs-lsp/src/delete.rs`.
+- **Ten `.lspt` action cases now show the inline offer** at their cursor, and their `--EXPECT--`
+  was rewritten to the answer. Four of them keep a file name that says "offered nothing"
+  (`a-method-call-`, `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`);
+  their titles say only the inline refactoring is offered. Stage 13 may rename the files.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
   next to an unrelated error. The `Move` help changed and `Unused` and `Delete` are new, so stage
   13's `site --check stale` and `questions` will name the `nvs code` pages. A server test in
   `crates/nvs-lsp/tests/` that reads a fixed sequence of `publishDiagnostics` may meet the extra
   publish `republish_dimming` sends at a settle, or a public hint it did not expect; the fix is a
-  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does. `Extract` and `Implement`
-  are new help too, and the `nvs code` overview's list of writing verbs changed.
+  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does. `Extract`, `Implement`
+  and `Inline` are new help too, and the `nvs code` overview's list of writing verbs changed. A new
+  code action kind, `refactor.inline`, is in `CODE_ACTION_KINDS`; a handshake or extension test that
+  pins the list of kinds would go red.
 
 ### Next
 
-Stage 8 (§ *What inline allows*).
-1. `crates/nvs-lsp/src/inline.rs` (new): a local and a method, through `refactor::checked`, reusing
-   `extract.rs:816` `runs_first` (make it `pub(crate)`). Return `Result<Vec<Rewrite>, String>` as
-   `query::extract` does (`crates/nvs-lsp/src/query.rs`, after `located`), so the CLI prints the
-   refusal.
-2. `crates/nvs-lsp/src/actions.rs:261` beside `extract::at`, and `crates/nvs-lsp/src/capabilities.rs:96`
-   `CODE_ACTION_KINDS`: the `refactor.inline` action and kind, and the count in the doc above it.
-3. `crates/nvs-cli/src/code.rs:320`: `Inline` beside `Implement`, with help; a target is a name or
-   `split_position`'s `path:l:c`. Write through `write_out` with `&[]` for moves and `deleted`.
-4. The six tests of the check `inline` at the end of `crates/nvs-cli/tests/code.rs`, then
-   `cargo test --test code code_inline` once.
-5. `tests/lsp/actions/a-local-is-inlined.lspt` and `a-method-is-inlined.lspt`, then
-   `nvs lsp-test tests/lsp/actions/` once.
-6. The tooling rule (one paragraph after `extract`/`implement`, verb count to sixteen) and
-   `docs/rules/ide/no-refactoring-introduces-an-alias.md`; `bun nv rules --render`.
+Stage 9 (§ *What change of parameters allows*).
+1. `crates/nvs-lsp/src/signature_change.rs` (new): read the override family as `rename.rs:1080`
+   `family` does and each call's arguments as `rename.rs:2362` `named_arguments` does. Reuse
+   `inline.rs`'s `path_to`, `RUNS_CODE` and `runs_code` (make them `pub(crate)`) for "an argument
+   may run code". Return `Result<Vec<Rewrite>, String>` through `refactor::checked`.
+2. `crates/nvs-lsp/src/query.rs:520` beside `inline`: `query::signature`.
+3. `crates/nvs-cli/src/code.rs:346`: `Signature` beside `Inline`, with `--value '$name=<expr>'`
+   repeatable, its help, and the dispatch beside `Command::Inline`; the function beside
+   `code.rs:1208` `inline`.
+4. The six tests of the check `signature` at the end of `crates/nvs-cli/tests/code.rs`, beside
+   the `TAXED` fixture, then `cargo test --test code code_signature` once.
+5. The tooling rule: one paragraph after `inline`, verb count to seventeen, `Eight write`;
+   `bun nv rules --render`.
 
 ### Backlog
