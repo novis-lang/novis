@@ -1,25 +1,26 @@
-# Two scheduled jobs run once when the server starts. The second job throws an error.
+# send-receipts runs once when the server starts, and it throws an error.
+# alert-team runs after a scheduled job fails.
 [server]
 workers = 1
 
-[db.shop]
+[db.team]
 driver = "sqlite"
 path = ":memory:"
 
 [capabilities.db]
-connect = ["shop"]
-
-[[schedule]]
-name = "import-orders"
-on = "start"
-script = "jobs/import-orders.nvs"
-scope = "host"
-
-[schedule.grants.db]
-connect = ["shop"]
+connect = ["team"]
 
 [[schedule]]
 name = "send-receipts"
 on = "start"
 script = "jobs/send-receipts.nvs"
 scope = "host"
+
+[[schedule]]
+name = "alert-team"
+on = "failed"
+script = "jobs/alert-team.nvs"
+scope = "host"
+
+[schedule.grants.db]
+connect = ["team"]

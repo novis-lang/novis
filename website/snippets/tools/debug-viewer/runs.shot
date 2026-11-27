@@ -1,4 +1,5 @@
 app .
 open /runs
 wait .runs .threw
+wait .runs .outcome.s2
 wait .runs .run-of

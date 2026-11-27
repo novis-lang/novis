@@ -1,0 +1,16 @@
+<?nvs
+// A scheduled job that runs after another job fails.
+// It saves one alert for each person on the team and reads the alerts back.
+
+var $db = Core\Db::connect('team');
+$db->execute('create table alerts (id integer primary key, person text not null)', []);
+array<string> $team = ['ana', 'ben', 'cleo'];
+foreach ($team as string $person) {
+    $db->execute('insert into alerts (person) values (?)', [$person]);
+}
+int $count = 0;
+foreach ($db->query('select id from alerts', []) as Core\Db\Row $row) {
+    $count++;
+}
+Core\Debug::dump(['alerts' => $count]);
+Core\Log::write(Core\Log::Level::Info, 'team alerted', ['count' => $count]);
