@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-lsp/tests/autoload.rs, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md]
   - id: 2
     title: "the rules, the editor page and the changelog say so"
-    status: open
+    status: done
     context: [website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json, docs/rules/ide/check-scope-defaults-to-the-workspace.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -165,13 +165,13 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### 2. the rules, the editor page and the changelog say so
 
-- [ ] `docs/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.md` rewritten whole
+- [x] `docs/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.md` rewritten whole
   and `docs/rules/ide/check-scope-defaults-to-the-workspace.md:4` per § *Rules*, then `bun nv rules`.
-- [ ] `website/src/content/docs/tools/editor/index.mdx:20`: the sentences of § *Website*, then
+- [x] `website/src/content/docs/tools/editor/index.mdx:20`: the sentences of § *Website*, then
   `bun nv site --stamp` on it.
-- [ ] `website/src/data/changes.json:1`: the `changed` entry, then `bun nv site --check stale`,
+- [x] `website/src/data/changes.json:1`: the `changed` entry, then `bun nv site --check stale`,
   `changes` and `review` green.
-- [ ] `bun nv proofs --owed --goal loadable-completion` names nothing.
+- [x] `bun nv proofs --owed --goal loadable-completion` names nothing.
 
 ### 3. the goal is verified once, and every failure is fixed
 
@@ -182,38 +182,32 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### State
 
-Stage 1 is done, and the check `loadable` is green (ten of ten). The user's idea was a namespace list
-per module, and the goal uses the module's `autoload` map as that list. Every call under
-§ *Standing decisions* is the session's, open until the user changes one.
+Stages 1 and 2 are done. The check `loadable` is green (ten of ten), and so is `proofs`. Every call
+under § *Standing decisions* is the session's, open until the user changes one.
 
 - `AutoloadMap::loads_file` and `loads_nothing` (`crates/nvs-hir/src/autoload.rs`, beside `resolve`)
-  share `longest_entry` and `candidate_at` with `probe_entries`. The roots and the index's paths are
-  both `std::fs::canonicalize` forms, so the comparison needs no conversion. Its unit test is
-  `requires::tests::the_map_says_which_indexed_file_it_loads`, beside the map's other tests.
-- `completion.rs`: `loadable(analysed, declared)` is the one test. `every_type` takes
-  `Option<&Analysed>` and returns `TypeRow`s with a `loads` flag. `in_reach` skips the rows it cannot
-  load, and `taken_among` reads every row. `under` and `unloaded_blocks` filter through `loadable`.
-- The source table in `tests/completion.rs` names the new call. `cargo test` over `completion`,
-  `completion_edits`, `autoload`, `reach`, `imports` and `see_targets`, and `nvs lsp-test
-  tests/lsp/completion` (118 cases), were green after the change. No other test is expected to go red.
+  share the prefix walk with `probe_entries`. Unit test:
+  `requires::tests::the_map_says_which_indexed_file_it_loads`.
+- `completion.rs`: `loadable(analysed, declared)` is the one test that `every_type`, `under` and
+  `unloaded_blocks` read. `taken_among` still reads every row.
+- The rule is rewritten whole. Its new title and its guard
+  `crates/nvs-lsp/tests/loadable_completion.rs` are in
+  `data/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.json`.
+- The editor page's § *Completion and errors*, its questions and one `changes.json` entry say so.
+  The newcomer review was done, and `site --check stale changes review questions` is green.
 - The nightly sweep's nine failures (run 45813627231) were fixed on `main` after that run, by
-  c115a735a1 (Miri zone tests), 28a4d7a6bf (the `Core\Uuid` `Parses` case) and 544711a8fb (the
-  aarch64 serve stack bound). Nothing more was needed.
-- `bun nv proofs --owed --goal loadable-completion` names nothing.
+  c115a735a1, 28a4d7a6bf and 544711a8fb. No test is expected to go red.
 
 ### Next
 
-Stage 2, in this order:
+Stage 3, a close (the full gate runs at a later goal on the chain):
 
-- `docs/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.md`: rewrite it whole
-  per § *Rules* (the loadable test, the links-only and empty map, a nested type tested by its class,
-  the fallback for two roots, the lists that stay workspace-wide, not a security boundary, and the
-  four Declined items). Then `docs/rules/ide/check-scope-defaults-to-the-workspace.md:4`, then
-  `bun nv rules`.
-- `website/src/content/docs/tools/editor/index.mdx:20` (§ *Completion and errors*): two or three
-  sentences per § *Website*, with neutral names only, then `bun nv site --stamp` on that page.
-- `website/src/data/changes.json:1`: one `changed` entry. Then `bun nv site --check stale`, `changes`,
-  `review` and `questions` (playbook: a page edit makes its questions stale).
-- `bun nv proofs --owed --goal loadable-completion` once more.
+- `cargo build` and `cargo clippy --all-targets -- -D warnings`.
+- `cargo test --test loadable_completion` and
+  `cargo test --lib requires::tests::the_map_says_which_indexed_file_it_loads` (in `nvs-hir`; run it
+  with `--test`/`--lib` and never `-p`, or with `bun nv verify --fast -p nvs-hir`).
+- `bun nv close --goal loadable-completion`, and fix each red it names. No test is expected to go red.
+- Before `DONE`, move any decision only the goal's prose holds into the rule. The rewritten rule
+  already holds every Standing decision, so nothing else should need to move.
 
 ### Backlog
