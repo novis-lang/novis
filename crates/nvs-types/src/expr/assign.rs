@@ -1143,6 +1143,31 @@ pub(crate) fn check_assign(
     if reject_this_write(target, env) {
         return infer(value, None, live, scope, ctx, env);
     }
+    // A write into a local whose declared type binds `static`, at any `[...]`
+    // depth and by any operator, takes only a value on E0741's list. The
+    // value's reads are recorded as it is checked, so it is judged after.
+    let static_local = scope.static_local_root(target, env);
+    let ty = check_assign_typed(op, span, target, value, live, scope, ctx, env);
+    if let Some(declared) = static_local {
+        crate::check::check_static_local_write(value, declared, scope, ctx, env);
+    }
+    ty
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the context [`check_assign`] states"
+)]
+fn check_assign_typed(
+    op: AssignOp,
+    span: Span,
+    target: &Expr,
+    value: &Expr,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
     if let Some(binop) = op.binary_op() {
         return check_compound_assign(
             binop,

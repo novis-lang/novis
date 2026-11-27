@@ -410,6 +410,11 @@ fn a_nested_static_return_must_be_the_called_class() {
         "public static function one(bool $b): ?static {\n    return $b ? new static() : null;\n  }"
     ));
     assert!(refused(
+        "public static function one(): ?static {\n    ?self $x = new static();\n    return $x;\n  }"
+    ));
+    // A local declared `?static` takes only the called class, so it may be
+    // returned (`tests/narrowed_static.rs`).
+    assert!(!refused(
         "public static function one(): ?static {\n    ?static $x = new static();\n    return $x;\n  }"
     ));
 }

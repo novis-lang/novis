@@ -220,6 +220,17 @@ pub(crate) struct LocalScope {
     /// writes, by name, with the signature its declaration wrote. An anonymous
     /// function's scope is a fresh one, so it never sees these.
     pub(crate) static_callbacks: FxHashMap<String, StaticCallback>,
+    /// Each local of this method whose declared type binds `static`, as
+    /// `?static $found` or `array<static> $all` does in a class that is not
+    /// `final`, by name, with the span of the type its declaration wrote.
+    ///
+    /// Its type is the declaring class's, as a `static` parameter's is inside
+    /// the body. Every write to it is held to E0741's list
+    /// ([`crate::check::check_static_local_write`]), so every read of it is on
+    /// that list too. An anonymous function's scope is a fresh one, so it never
+    /// sees these. One small record per such local, for one body, at check
+    /// time only.
+    static_locals: FxHashMap<String, Span>,
 }
 
 /// A `callable(static)` parameter, as the body that declares it records it
@@ -385,6 +396,28 @@ impl LocalScope {
     /// checked.
     pub(crate) fn read_the_called_class(&self, span: Span) -> bool {
         self.called_class_reads.borrow().contains(&span)
+    }
+
+    /// The span of the type `name`'s declaration wrote, when `name` is a local
+    /// of this body whose type binds `static` ([`Self::static_locals`]).
+    pub(crate) fn static_local(&self, name: &str) -> Option<Span> {
+        self.static_locals.get(name).copied()
+    }
+
+    /// The local whose storage a write to `target` changes, when that local's
+    /// declared type binds `static`: `$x`, and `$x[...]` or `$x[]` at any
+    /// depth. Answers the span of the type the declaration wrote. A property
+    /// write, `$x->p = ...`, changes the object and not the local, so it
+    /// answers `None`.
+    pub(crate) fn static_local_root(&self, target: &Expr, env: &Env<'_>) -> Option<Span> {
+        let mut root = target.unparenthesized();
+        while let ExprKind::Index { base, .. } = &root.kind {
+            root = base.unparenthesized();
+        }
+        let ExprKind::Variable(span) = &root.kind else {
+            return None;
+        };
+        self.static_local(strip_sigil(span_text(env.src, *span)))
     }
 
     /// What `name` was *declared* as, dropping any narrowing on it first —
@@ -1799,8 +1832,28 @@ pub(crate) fn check_stmt(
             crate::expr::check_foreach_value(&source, value_ty, value, literal_subject, env);
             if *value_inout {
                 crate::expr::check_foreach_inout(&source, subject, value_ty, value, env);
+                // An `inout` value writes each element of the subject, with
+                // any value of the element type.
+                if let Some(declared) = scope.static_local_root(subject, env) {
+                    crate::check::report_static_local_write(
+                        subject.span,
+                        declared,
+                        "the loop's `inout` value writes into this variable",
+                        env,
+                    );
+                }
             }
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
+            // A value binding that reuses a `static` local writes each element
+            // of the subject into it.
+            if let Some(declared) = scope.static_local(&value_name) {
+                crate::check::report_static_local_write(
+                    value.name,
+                    declared,
+                    "each element is written to this variable",
+                    env,
+                );
+            }
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
             // The header binds the key and the value again on every pass, and
             // an `inout` value writes into the subject.
@@ -2000,12 +2053,24 @@ pub(crate) fn check_stmt(
                     let written = lower_type(ty, ctx, env);
                     let declared_ty = reject_void_or_never_binding(written, ty.span, false, env);
                     declare_binding(scope, &name_str, declared_ty, *name, true, env);
+                    let fresh = scope
+                        .by_name
+                        .get(&name_str)
+                        .is_some_and(|info| info.declared_span == *name);
+                    if fresh && declares_a_static_local(ty, ctx, env) {
+                        scope.static_locals.insert(name_str.clone(), ty.span);
+                    }
                     if let Some(value) = value {
                         // A refused `void` or `never` binding is `mixed` from
                         // here on, and its value is checked against nothing:
                         // a `void` call there is the error already reported.
                         let expected = (declared_ty == written).then_some(declared_ty);
                         check_expr(value, expected, live, scope, ctx, env);
+                        if fresh && let Some(declared) = scope.static_local(&name_str) {
+                            crate::check::check_static_local_write(
+                                value, declared, scope, ctx, env,
+                            );
+                        }
                         crate::provenance::declared(*name, value.span, scope, env);
                         live.insert(name_str);
                     }
@@ -2082,6 +2147,21 @@ pub(crate) fn check_stmt(
         }
         _ => {}
     }
+}
+
+/// Whether a local declared with the written type `ty` is a `static` local
+/// ([`LocalScope::static_locals`]): it is in a method of a class that is not
+/// `final`, outside an anonymous function, and its type binds `static`
+/// outside a `property<…>`.
+fn declares_a_static_local(ty: &nvs_syntax::ast::Type, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+    let Some(class) = ctx.current_class else {
+        return false;
+    };
+    if ctx.in_anon_fn || crate::signatures::class_is_final(class, env.signatures) {
+        return false;
+    }
+    let used = crate::signatures::static_use(Some(ty), class, env.src, false);
+    used.binds && !used.in_key
 }
 
 /// The type `var` gives a bare array literal, `array<T>` when every element

@@ -380,7 +380,9 @@ fn infer_kind(
             }
             // A read under `is static`'s true edge is on E0741's list, which
             // is asked after the walk: `crate::check::yields_the_called_class`.
-            if scope.carries_called_class(name) {
+            // A local declared with a type that binds `static` takes only
+            // values on that list, so each read of it is on the list too.
+            if scope.carries_called_class(name) || scope.static_local(name).is_some() {
                 scope.note_called_class_read(expr.span);
             }
             ty

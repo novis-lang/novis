@@ -1705,9 +1705,15 @@ fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
 ///   the called class at run time. A write, or a loop that writes it, drops
 ///   the fact with the narrowing ([`crate::locals::Fact`]).
 ///
-/// Any other local variable is not on the list, so a `static[]` built up in a
-/// loop is refused: its type is the declaring class's array, and the checker
-/// does not keep `static` apart from that class inside the body.
+/// * a read of a local declared with a type that binds `static`, such as
+///   `?static $found` or `array<static> $all`
+///   ([`crate::locals::LocalScope::static_local`]): every write to it is held
+///   to this list ([`check_static_local_write`]), and an `inout` pass of it is
+///   refused.
+///
+/// Any other local variable is not on the list. Its type is the declaring
+/// class's, and the checker does not keep `static` apart from that class
+/// inside the body.
 ///
 /// An explicitly named class (`Base::make()`) is deliberately not on that
 /// list: naming a class *sets* the called class, so its answer is that class
@@ -1757,6 +1763,46 @@ fn reject_static_return_of_another_class(
             ),
         );
     }
+}
+
+/// A write of `value` into a local whose declared type, written at `declared`,
+/// binds `static`: the value must be on E0741's list
+/// ([`yields_the_called_class`]), or the write is `E1022`. `value` was checked
+/// in `scope` already, so a read under `is static` is known by its span.
+pub(crate) fn check_static_local_write(
+    value: &Expr,
+    declared: nvs_diagnostics::Span,
+    scope: &crate::locals::LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !yields_the_called_class(value, scope, ctx, env) {
+        report_static_local_write(value.span, declared, "not the called class", env);
+    }
+}
+
+/// `E1022` at `at`, a write into a local whose declared type, written at
+/// `declared`, binds `static` (`rule:statements/static-is-a-member-modifier`).
+/// `label` says what `at` writes.
+pub(crate) fn report_static_local_write(
+    at: nvs_diagnostics::Span,
+    declared: nvs_diagnostics::Span,
+    label: &str,
+    env: &mut Env<'_>,
+) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_STATIC_LOCAL_GETS_ANOTHER_CLASS,
+            "a variable declared `static` gets a value that is not the called class",
+        )
+        .with_primary(at, label.to_owned())
+        .with_secondary(declared, "declared `static` here")
+        .with_help(
+            "`static` is the class the call named, which a subclass may be. Write `$this`, \
+             `new static(...)`, `null`, or a variable inside `if ($x is static)`. Declare `self` \
+             if any object of the declaring class is meant",
+        ),
+    );
 }
 
 /// The parameters and return of the written signature `ty` is, through a

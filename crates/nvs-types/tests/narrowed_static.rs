@@ -8,6 +8,10 @@
 //! Inside an anonymous function no frame holds the called class, so the test
 //! is `E0834`. `tests/conformance/lang/is-static-tests-the-class-the-call-names.nvst`
 //! pins the run-time answer.
+//!
+//! A value narrowed by `is static`, and a local declared with a type that
+//! binds `static`, are on `E0741`'s list. Every write to such a local is held
+//! to that list (`E1022`), and an `inout` pass of it is refused.
 
 mod common;
 
@@ -246,5 +250,154 @@ fn a_negated_is_static_guard_clause_proves_the_rest() {
     }",
     );
     let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// How many `E1022` errors `diags` has.
+fn static_local_writes(diags: &nvs_diagnostics::Diagnostics) -> usize {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_STATIC_LOCAL_GETS_ANOTHER_CLASS))
+        .count()
+}
+
+/// A local declared `?static` or `array<static>` takes only values on E0741's
+/// list, so a read of it is on that list and may be returned as `static`.
+#[test]
+fn a_static_local_may_be_returned() {
+    let src = model(
+        "    public static function first(array<Model> $all): ?static {
+        ?static $found = null;
+        foreach ($all as Model $o) {
+            if ($o is static) {
+                $found = $o;
+            }
+        }
+        return $found;
+    }
+    public static function findAll(array<Model> $all): array<static> {
+        array<static> $own = [];
+        foreach ($all as Model $o) {
+            if ($o is static) {
+                $own[] = $o;
+            }
+        }
+        return $own;
+    }
+    public function me(): ?static {
+        ?static $me = $this;
+        return $me;
+    }",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The initializer and every plain or compound write must be on E0741's list.
+#[test]
+fn a_write_to_a_static_local_must_be_the_called_class() {
+    let src = model(
+        "    public static function initialized(Model $o): ?static {
+        ?static $found = $o;
+        return $found;
+    }
+    public static function assigned(Model $o): ?static {
+        ?static $found = null;
+        $found = $o;
+        return $found;
+    }
+    public static function coalesced(Model $o): ?static {
+        ?static $found = null;
+        $found ??= $o;
+        return $found;
+    }
+    public static function written(Model $o): ?static {
+        ?static $found = null;
+        if ($o is static) {
+            $found = $o;
+        }
+        return $found;
+    }",
+    );
+    let diags = check_src(&src);
+    assert_eq!(static_local_writes(&diags), 3, "{diags:?}");
+    assert_eq!(not_the_called_class(&diags), 0, "{diags:?}");
+}
+
+/// An append, an element write and a nested element write into an
+/// `array<static>` must be on E0741's list.
+#[test]
+fn an_element_write_to_a_static_array_must_be_the_called_class() {
+    let src = model(
+        "    public static function appended(Model $o): array<static> {
+        array<static> $own = [];
+        $own[] = $o;
+        $own['k'] = $o;
+        return $own;
+    }
+    public static function nested(Model $o): array<array<static>> {
+        array<array<static>> $groups = [];
+        $groups['a'][] = $o;
+        $groups['b'] = [$o];
+        return $groups;
+    }
+    public static function proven(Model $o): array<static> {
+        array<static> $own = [];
+        if ($o is static) {
+            $own[] = $o;
+            $own['k'] = $o;
+        }
+        return $own;
+    }",
+    );
+    let diags = check_src(&src);
+    assert_eq!(static_local_writes(&diags), 4, "{diags:?}");
+    assert_eq!(not_the_called_class(&diags), 0, "{diags:?}");
+}
+
+/// An `inout` parameter is the declaring class, and the method may write any
+/// value of it, so passing a `static` local there does not compile. A loop's
+/// `inout` value over a `static` array is the same write.
+#[test]
+fn a_static_local_cannot_be_passed_inout() {
+    let src = model(
+        "    public static function swap(inout ?Model $m, Model $other): void {
+        $m = $other;
+    }
+    public static function passed(Model $other): ?static {
+        ?static $found = null;
+        static::swap(inout $found, $other);
+        return $found;
+    }
+    public static function looped(Model $other): array<static> {
+        array<static> $own = [];
+        foreach ($own as inout Model $o) {
+            $o = $other;
+        }
+        return $own;
+    }",
+    );
+    let diags = check_src(&src);
+    assert_eq!(static_local_writes(&diags), 2, "{diags:?}");
+}
+
+/// In a `final` class `static` is that class, so a `static` local takes any
+/// value of it, as a `static` return does.
+#[test]
+fn a_static_local_in_a_final_class_is_any_value_of_it() {
+    let src = "<?nvs
+final class Order {
+    public static function first(array<Order> $all): ?static {
+        ?static $found = null;
+        foreach ($all as Order $o) {
+            $found = $o;
+        }
+        array<static> $own = $all;
+        $own[] = $all[0];
+        return $found;
+    }
+}
+";
+    let diags = check_src(src);
     assert!(!diags.has_errors(), "{diags:?}");
 }

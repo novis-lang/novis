@@ -243,6 +243,16 @@ fn check_arg_list(
         {
             note_write(&arg.value, scope, env);
             check_inout_arg(arg, actual, expected, env);
+            // The callee's parameter is the declaring class, and the callee
+            // may write any value of it.
+            if let Some(declared) = scope.static_local_root(&arg.value, env) {
+                crate::check::report_static_local_write(
+                    arg.value.span,
+                    declared,
+                    "passed to an `inout` parameter, which may write any value of the class",
+                    env,
+                );
+            }
         }
         // A Novis method's parameter declared bare `callable` or `mixed`: the
         // editor offers the type every caller passes there.

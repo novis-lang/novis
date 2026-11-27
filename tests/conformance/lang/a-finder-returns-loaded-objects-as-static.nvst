@@ -1,0 +1,55 @@
+--TEST--
+A finder in a base class returns the loaded objects of the class the call names, through a value narrowed by `is static` and through an `array<static>` local — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+// covers: lang:types/void-never-self-static
+class Model
+{
+    private static array<Model> $loaded = [];
+
+    public static function remember(Model $object): void
+    {
+        self::$loaded[] = $object;
+    }
+
+    public static function findFirst(): ?static
+    {
+        foreach (self::$loaded as Model $object) {
+            if ($object is static) {
+                return $object;
+            }
+        }
+        return null;
+    }
+
+    public static function findAll(): array<static>
+    {
+        array<static> $found = [];
+        foreach (self::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
+    }
+}
+
+final class Order extends Model
+{
+}
+
+final class Customer extends Model
+{
+}
+
+Model::remember(new Customer());
+Model::remember(new Order());
+?Order $order = Order::findFirst();
+array<Order> $orders = Order::findAll();
+echo $order == null ? 'none' : 'order', ' ', Core\Arr::count($orders), "\n";
+echo Core\Arr::count(Customer::findAll()), "\n";
+echo Core\Arr::count(Model::findAll()), "\n";
+--EXPECT--
+order 1
+1
+2

@@ -255,4 +255,20 @@ codes! {
          `$x is ?static`. These test the class that the method was called on. To test the \
          elements of an array, test each element with `is static` in a loop.",
     );
+
+    /// A write to a local variable whose declared type binds `static`, such as
+    /// `?static $found` or `array<static> $all`, in a class that is not
+    /// `final`, with a value that is not provably the called class
+    /// (`rule:statements/static-is-a-member-modifier`). The value must be one
+    /// `E0741`'s list accepts. An `inout` pass of such a variable is refused
+    /// too, because the method it is passed to may write any value of the
+    /// declaring class.
+    pub const E_STATIC_LOCAL_GETS_ANOTHER_CLASS: Code = Code::new("E1022").card(
+        "A variable declared with `static` in its type, such as `?static $found` or \
+         `array<static> $all`, may only contain objects of the class that the method was \
+         called on. So each value written to it must be `$this`, `new static()`, `null`, a \
+         call that returns `static`, or a variable tested with `if ($x is static)`. Such a \
+         variable cannot be passed to an `inout` parameter. Declare the variable with `self` \
+         to allow any object of the declaring class.",
+    );
 }
