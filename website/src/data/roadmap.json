@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Mail that a web app needs",
-      "text": "`Core\\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.",
-      "goals": [
-        "mail-receive"
-      ]
-    },
-    {
       "title": "One way to change your code safely",
       "text": "Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.",
       "goals": [

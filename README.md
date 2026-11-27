@@ -130,11 +130,10 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Mail that a web app needs.** *Working on it now.* `Core\Mail` sends attachments, images inside the HTML, styled HTML, sender names and replies in a thread, through every common mail server. A program can also read a mailbox over IMAP. It can tell whether a message is a bounce, an automatic reply or a reply to a mail it sent.
-2. **One way to change your code safely.** Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
-3. **Completion that offers only what your program can load.** Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.
-4. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
-5. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
+1. **One way to change your code safely.** *Working on it now.* Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.
+2. **Completion that offers only what your program can load.** Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.
+3. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
+4. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
 <!-- roadmap:end -->
 
 ## Contributing
