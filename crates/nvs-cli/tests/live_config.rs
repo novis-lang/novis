@@ -1811,8 +1811,13 @@ fn file_cache(extension: &str) -> String {
     format!("[opcache]\nrevalidate_freq = \"100ms\"\nfile_cache_dir = \"cache\"\n\n{extension}")
 }
 
-/// How many compiled programs `dir` holds, in its subdirectories.
+/// How many compiled units `dir` holds, in its subdirectories: each program
+/// list or whole object. A source file's entry (`NVSE`) and a hint (`NVSH`)
+/// are parts of a program, not programs, so they are not counted. A file that
+/// is still being written is skipped.
 fn artifacts(dir: &Path) -> usize {
+    /// The bytes of an artifact's header, before its payload's magic.
+    const HEADER_LEN: usize = 78;
     let Ok(shards) = std::fs::read_dir(dir) else {
         return 0;
     };
@@ -1822,6 +1827,13 @@ fn artifacts(dir: &Path) -> usize {
         .flatten()
         .filter_map(Result::ok)
         .filter(|file| file.path().extension().is_some_and(|ext| ext == "nvsc"))
+        .filter(|file| {
+            std::fs::read(file.path()).is_ok_and(|bytes| {
+                bytes
+                    .get(HEADER_LEN..HEADER_LEN + 4)
+                    .is_some_and(|magic| magic != b"NVSE" && magic != b"NVSH")
+            })
+        })
         .count()
 }
 

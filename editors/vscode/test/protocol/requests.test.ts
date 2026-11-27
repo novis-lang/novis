@@ -229,10 +229,15 @@ describe("the requests the client routes to nvs lsp", function () {
       range: published[0].range,
       context: { diagnostics: published },
     });
-    assert.equal(actions.length, 1, JSON.stringify(actions));
-    assert.equal(actions[0].kind, "quickfix");
-    assert.ok(actions[0].title.includes("UserAccount"), actions[0].title);
-    assert.ok(actions[0].edit, "the action carries no edit");
+    // A refactor the server computes from the cursor, such as extracting an interface from the
+    // class, may sit beside the fix. It is never a `quickfix`.
+    const fixes = actions.filter((action) => action.kind === "quickfix");
+    assert.equal(fixes.length, 1, JSON.stringify(actions));
+    assert.ok(fixes[0].title.includes("UserAccount"), fixes[0].title);
+    assert.ok(fixes[0].edit, "the action carries no edit");
+    for (const other of actions.filter((action) => action.kind !== "quickfix")) {
+      assert.ok(other.kind?.startsWith("refactor."), JSON.stringify(other));
+    }
   });
 
   it("answers nvs/redactions with the bytes of every secret literal", async () => {

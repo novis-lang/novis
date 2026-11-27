@@ -73,8 +73,15 @@ fn a_reference_to_the_units_own_data_is_not_colocated() {
          them differently now, and this test is checking nothing."
     );
     for (site, next) in sites {
+        // The call must clear the same function the site declared the data in.
+        let func = site
+            .split("declare_data_in_func(")
+            .nth(1)
+            .and_then(|args| args.split_once(", "))
+            .and_then(|(_, rest)| rest.split_once(')'))
+            .map(|(func, _)| func.trim());
         assert!(
-            next.contains(".func, global);") && next.contains("clear_colocated("),
+            func.is_some_and(|func| next.contains(&format!("clear_colocated({func}, global);"))),
             "nvs-codegen no longer clears `colocated` on a reference to one of the unit's own \
              data symbols: `{}` is not followed by the call. A string literal is \
              `Linkage::Local`, so it would be addressed PC-relative again, and a data \

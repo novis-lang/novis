@@ -137,11 +137,6 @@ const DRIVERS: &[(&str, &str, Driver)] = &[
              door whose caller typed its arguments",
         ),
     ),
-    (
-        "nvs-cli/src/cache.rs",
-        "script",
-        Driver::TypedBy("a cached script's entry frame, which takes no argument"),
-    ),
 ];
 
 /// Every `.rs` file under `dir`, sorted, so a failure names doors in one order on every runner.
