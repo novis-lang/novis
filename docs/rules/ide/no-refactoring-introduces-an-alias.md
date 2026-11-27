@@ -65,3 +65,14 @@ body with each argument in place of its parameter, so it never writes a name and
 is refused wherever the inlined code would run in another order or another number of times, as
 `rule:tooling/nvs-code-answers-about-the-project` lists, and is offered only once the document it
 writes analyses with no error.
+
+A type's rename to a qualified name moves it to that namespace
+(`rule:ide/a-type-moves-with-its-namespace`), and a moved file renames the type its new path names.
+Each `use` line either writes goes to `nvs_hir::import_site`, fully qualified, and a short name
+already taken in a file that needs the line refuses the move. *Delete unused …*, a
+`refactor.rewrite` action at a greyed declaration (`crates/nvs-lsp/src/delete.rs`), deletes text and
+writes none. The three refactorings the user drives through `workspace/executeCommand`, change
+parameters (`nvs.changeParameters`), move a member (`nvs.moveMember`) and extract an interface
+(`nvs.extractInterface`), write every type for the file it lands in: its short name with a new `use`
+line where that name is free there, and its fully-qualified name otherwise. Neither path is an alias.
+Each of them passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.

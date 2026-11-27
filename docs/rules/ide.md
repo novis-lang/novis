@@ -540,7 +540,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 
 <a id="ide-the-request-set-is-closed"></a>
 
-## The server answers seventeen standard requests and seven of Novis's own, each admitted because a structure already built is its answer, and a test keeps the list from growing
+## The server answers twenty-three standard requests and eight of Novis's own, each admitted because a structure already built is its answer, and a test keeps the list from growing
 
 `rule:ide/the-request-set-is-closed`
 
@@ -1283,6 +1283,16 @@ Applied once, the parameter is no longer bare, so a second application finds not
 it spends:** while compiling, one type for each argument at such a parameter; per request with the
 cursor on such a type, one analysis of each calling file and one of the edited document.
 
+Three refactorings need a choice, so none is an action that writes on its own: each is a refactoring
+the user drives. Change parameters, move a member and extract an interface are code actions that
+carry a command (`nvs.changeParameters`, `nvs.moveMember`, `nvs.extractInterface`,
+`crates/nvs-lsp/src/commands.rs`). The extension asks for the new parameter list, the class or the
+interface's name in the editor's own input box, prefilled with the current list, the member's class
+or the class's name followed by `Contract`, and the server computes the edit from that text with
+the engine `nvs code signature`, `nvs code move` and `nvs code extract interface` run. The other
+refactorings, rename, inline, delete unused and extract, write only text the program already has,
+and are listed in [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias).
+
 <sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
@@ -1358,6 +1368,17 @@ body with each argument in place of its parameter, so it never writes a name and
 is refused wherever the inlined code would run in another order or another number of times, as
 [`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project) lists, and is offered only once the document it
 writes analyses with no error.
+
+A type's rename to a qualified name moves it to that namespace
+([`ide/a-type-moves-with-its-namespace`](ide.md#ide-a-type-moves-with-its-namespace)), and a moved file renames the type its new path names.
+Each `use` line either writes goes to `nvs_hir::import_site`, fully qualified, and a short name
+already taken in a file that needs the line refuses the move. *Delete unused …*, a
+`refactor.rewrite` action at a greyed declaration (`crates/nvs-lsp/src/delete.rs`), deletes text and
+writes none. The three refactorings the user drives through `workspace/executeCommand`, change
+parameters (`nvs.changeParameters`), move a member (`nvs.moveMember`) and extract an interface
+(`nvs.extractInterface`), write every type for the file it lands in: its short name with a new `use`
+line where that name is free there, and its fully-qualified name otherwise. Neither path is an alias.
+Each of them passes [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes).
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 

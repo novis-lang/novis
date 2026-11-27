@@ -61,7 +61,7 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
 /// `.nvs` file in it is read. Only `rename`, `move`, `delete`, `extract`,
-/// `implement` and `order` change files.
+/// `implement`, `inline`, `signature` and `order` change files.
 ///
 /// The editor and `nvs code` share one index file in the data folder. The
 /// index lists every name in the project and every place it is used. A call

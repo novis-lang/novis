@@ -92,3 +92,13 @@ passes `mixed`. The document with the edit applied must report the diagnostics i
 Applied once, the parameter is no longer bare, so a second application finds nothing to offer. **What
 it spends:** while compiling, one type for each argument at such a parameter; per request with the
 cursor on such a type, one analysis of each calling file and one of the edited document.
+
+Three refactorings need a choice, so none is an action that writes on its own: each is a refactoring
+the user drives. Change parameters, move a member and extract an interface are code actions that
+carry a command (`nvs.changeParameters`, `nvs.moveMember`, `nvs.extractInterface`,
+`crates/nvs-lsp/src/commands.rs`). The extension asks for the new parameter list, the class or the
+interface's name in the editor's own input box, prefilled with the current list, the member's class
+or the class's name followed by `Contract`, and the server computes the edit from that text with
+the engine `nvs code signature`, `nvs code move` and `nvs code extract interface` run. The other
+refactorings, rename, inline, delete unused and extract, write only text the program already has,
+and are listed in `rule:ide/no-refactoring-introduces-an-alias`.
