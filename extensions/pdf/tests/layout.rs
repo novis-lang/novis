@@ -408,6 +408,55 @@ fn a_font_face_that_is_not_a_font_throws_naming_it() {
 }
 
 #[test]
+fn a_family_no_font_face_declares_is_listed_as_dropped() {
+    let html = "<style>@font-face { font-family: Brand; src: url(brand.ttf) }\n\
+                p { font-family: Brnad, \"Segoe UI\", Brand, serif, Later }\n\
+                h1 { font: bold 12pt Nowhere }\n\
+                div { font-family: NotUsed }\n\
+                @page { @top-center { content: 'x'; font-family: Margin } }</style>\
+                <p>Shop</p><p>Blog</p><h1 style='font-family: brand, Courier'>Title</h1>";
+    let rendered = render(&Document {
+        html: html.to_owned(),
+        assets: vec![Asset {
+            name: "brand.ttf".to_owned(),
+            data: SERIF.to_vec(),
+        }],
+        ..Document::default()
+    })
+    .unwrap();
+    let dropped: Vec<(&str, &str, &str, u64)> = rendered
+        .dropped
+        .iter()
+        .map(|d| {
+            (
+                d.property.as_str(),
+                d.value.as_str(),
+                d.selector.as_str(),
+                d.line,
+            )
+        })
+        .collect();
+    // Each unknown name once, though two paragraphs use the rule, and a name after a font that
+    // matched too. An overridden declaration, a rule no element matches, a registered family in
+    // another case and a known name are not listed.
+    assert_eq!(
+        dropped,
+        [
+            ("font-family", "Brnad", "p", 2),
+            ("font-family", "Segoe UI", "p", 2),
+            ("font-family", "Later", "p", 2),
+            ("font-family", "Margin", "@page @top-center", 5),
+        ],
+    );
+    let clean = render(&Document {
+        html: "<p style='font-family: Arial, sans-serif'>x</p><pre>y</pre>".to_owned(),
+        ..Document::default()
+    })
+    .unwrap();
+    assert!(clean.dropped.is_empty(), "{:?}", clean.dropped);
+}
+
+#[test]
 fn arial_helvetica_times_and_courier_map_to_liberation() {
     for (family, face) in [
         ("Arial", 0),

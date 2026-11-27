@@ -10,7 +10,7 @@ list is what turns it into a test. The same holds for content: an element the su
 (`<iframe>`, `<video>`, `<canvas>`, a form field) is listed and drawn as nothing, and `<script>` never
 runs and is not listed, because no program expects it to run in a document.
 
-Three other things a render cannot do are **reported, never thrown**, because the document is still
+Four other things a render cannot do are **reported, never thrown**, because the document is still
 correct apart from them and a throw would lose the whole file over one character:
 
 - a character no font in the chain has is drawn as the font's empty box and listed in
@@ -18,7 +18,9 @@ correct apart from them and a throw would lose the whole file over one character
 - markup in a margin, a header, a footer or a slot taller than its area is listed in
   `Rendered::overflows` with its page (`rule:core-classes/pdf-header-is-a-page-function`);
 - a declaration the subset lists with a value it does not take is dropped and listed like an unknown
-  one.
+  one;
+- a `font-family` name that names no font is listed in `Rendered::dropped` on its own, with the name
+  as the value (`rule:core-classes/pdf-default-fonts`).
 
 The component's fixtures owe a fixture using an unsupported property that renders with that property
 in the dropped list, and a clean fixture whose three lists are empty.

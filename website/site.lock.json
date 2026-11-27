@@ -4383,7 +4383,7 @@
     "Novis\\Pdf\\Document::fromHtml": "7028f3a84619d8e2"
   },
   "docs/examples/novis/Pdf-Document/render/about.md": {
-    "Novis\\Pdf\\Document::render": "12a4b233e830ab36"
+    "Novis\\Pdf\\Document::render": "e2b809626790a7f4"
   },
   "docs/examples/novis/Pdf-Document/withAsset/about.md": {
     "Novis\\Pdf\\Document::withAsset": "eedcb61e8ecc2530"
@@ -9510,7 +9510,7 @@
     "Novis\\Pdf\\Document::fromHtml": "5d531eebe51d547d"
   },
   "help:Novis\\Pdf\\Document::render": {
-    "Novis\\Pdf\\Document::render": "d23674bf4d679bb8"
+    "Novis\\Pdf\\Document::render": "a8396f694bc34698"
   },
   "help:Novis\\Pdf\\Document::Standard": {
     "Novis\\Pdf\\Document::Standard": "810c7e4b2918dc1a"

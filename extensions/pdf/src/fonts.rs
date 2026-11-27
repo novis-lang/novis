@@ -15,7 +15,8 @@
 //!
 //! [`Fonts::chain`] is a `font-family` list as the fonts a run tries in order: each name an
 //! `@font-face` rule registered, then the default its first generic or known name maps to, and
-//! Liberation Sans when no name maps to a default. A name that is neither is skipped.
+//! Liberation Sans when no name maps to a default. A name that is neither is skipped, and the
+//! cascade lists it in the dropped list (`crate::css`'s module doc).
 //!
 //! Memory: the default faces are part of the component's bytes and are never copied. The first
 //! SVG with `<text>` builds [`svg_database`]'s index of them once per instance. A render
@@ -193,6 +194,35 @@ pub fn context() -> FontContext {
 /// A face's bytes, shared by the font context and the writer.
 pub type FaceData = Arc<dyn AsRef<[u8]> + Send + Sync>;
 
+/// The descriptor `name` of an `@font-face` rule, the last one winning.
+fn descriptor<'a>(rule: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    rule.iter()
+        .rev()
+        .find(|(n, _)| n.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.as_str())
+}
+
+/// The family name an `@font-face` rule registers its font under, unquoted, and its first `src`
+/// URL. `None` when the rule has no family or no URL, and then it registers nothing.
+pub fn face_source(rule: &[(String, String)]) -> Option<(&str, String)> {
+    let family = descriptor(rule, "font-family")?
+        .trim()
+        .trim_matches(|c| c == '"' || c == '\'');
+    let url = components(descriptor(rule, "src")?)
+        .into_iter()
+        .flatten()
+        .find_map(|c| match c {
+            Comp::Url(url) => Some(url),
+            Comp::Function(name, args) if name == "url" => Some(
+                args.trim()
+                    .trim_matches(|c| c == '"' || c == '\'')
+                    .to_owned(),
+            ),
+            _ => None,
+        })?;
+    Some((family, url))
+}
+
 /// A render's fonts: the font context, and every face it can shape with, the twelve defaults
 /// first in [`FACES`]' order.
 pub struct Fonts {
@@ -210,25 +240,8 @@ impl Fonts {
         let mut faces: Vec<FaceData> = FACES.iter().map(|f| Arc::new(*f) as FaceData).collect();
         let mut families = Vec::new();
         for rule in font_faces {
-            let get = |name: &str| {
-                rule.iter()
-                    .rev()
-                    .find(|(n, _)| n.eq_ignore_ascii_case(name))
-                    .map(|(_, v)| v.as_str())
-            };
-            let (Some(family), Some(src)) = (get("font-family"), get("src")) else {
-                continue;
-            };
-            let family = family.trim().trim_matches(|c| c == '"' || c == '\'');
-            let Some(url) = components(src).into_iter().flatten().find_map(|c| match c {
-                Comp::Url(url) => Some(url),
-                Comp::Function(name, args) if name == "url" => Some(
-                    args.trim()
-                        .trim_matches(|c| c == '"' || c == '\'')
-                        .to_owned(),
-                ),
-                _ => None,
-            }) else {
+            let get = |name: &str| descriptor(rule, name);
+            let Some((family, url)) = face_source(rule) else {
                 continue;
             };
             let bytes = assets.resolve(&url)?.into_owned();

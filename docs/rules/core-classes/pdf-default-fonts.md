@@ -6,7 +6,11 @@ twelve files stand in for the standard-14 fonts when the image component rasteri
 (`rule:core-classes/pdf-page-is-an-image-source`), and live once in the tree under `extensions/fonts/`.
 
 **The font chain** of a run of text is the `@font-face` fonts its `font-family` names, from the asset
-map, then the default of its generic family. A character no font in the chain has is drawn as the
+map, then the default of its generic family. A name that is neither, a misspelt family or one a
+browser would find installed, is skipped and listed in `Rendered::dropped` with `font-family` as its
+property and the name as its value: with no system lookup it matches no font on any machine, and the
+text is drawn in another font. Every such name in a declaration is listed, after a name that matched
+too, and each once. A character no font in the chain has is drawn as the
 font's empty box and listed in `Rendered::missingGlyphs` with the chain it tried. It never throws: the
 rest of the document is right, and a program that must have every glyph asserts the list is empty. A
 font file that does not parse throws `ParseError` naming it. Every font is subset into the output, so
@@ -25,8 +29,9 @@ and no code under OFL-1.1 is admitted by it.
 The twelve files are under `extensions/fonts/` with their release recorded in `SOURCE.json`, and the
 image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the family names above to
 them, registers each `@font-face` font from the asset map, and builds the chain;
-`extensions/pdf/src/layout.rs` lists the missing glyphs, and `extensions/pdf/tests/layout.rs` holds
-the chain, the subsetting and the missing-glyph list.
+`extensions/pdf/src/css/mod.rs` lists a name the chain skips, `extensions/pdf/src/layout.rs` lists
+the missing glyphs, and `extensions/pdf/tests/layout.rs` holds the chain, the subsetting, the
+skipped names and the missing-glyph list.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
@@ -34,3 +39,8 @@ the chain, the subsetting and the missing-glyph list.
   asset.
 - **Throwing on a missing glyph.** One unknown character in a customer's name would lose the whole
   invoice.
+- **A separate list of missing fonts on `Rendered`.** It would add a constructor parameter and a
+  fourth list every check reads, for a fact `dropped` already carries with the declaration's line and
+  column. A test that asserts `dropped` is empty catches a misspelt family with no change.
+- **Listing only a name with no fallback after it.** A misspelt family before `sans-serif` is the
+  common mistake, and it would pass unseen.

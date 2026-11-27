@@ -2,11 +2,14 @@
 // Shows how to check what a render could not draw: CSS it does not support, and text without a font.
 use Novis\Pdf\Document;
 
-// `box-shadow` is not supported, and no font has the character `𓀀`.
-string $html = '<style>h1 { box-shadow: 2px 2px gray }</style><h1>Order 1042</h1><p>Gift note: 𓀀</p>';
+// `box-shadow` is not supported. `Arail` is a typo, so no font has that name.
+// No font has the character `𓀀`.
+string $html = '<style>h1 { box-shadow: 2px 2px gray } p { font-family: Arail, sans-serif }</style>'
+    . '<h1>Order 1042</h1><p>Gift note: 𓀀</p>';
 var $rendered = Document::fromHtml($html)->render();
 
 // `dropped` lists each CSS declaration the render left out, with its selector and its line.
+// It also lists each font name that has no font. The render uses the next name in the list.
 foreach ($rendered->dropped as var $css) {
     echo 'dropped ', $css->property, ': ', $css->value, ' in ', $css->selector, ' at line ', $css->line, "\n";
 }

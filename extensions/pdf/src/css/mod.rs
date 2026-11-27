@@ -17,7 +17,10 @@
 //! property outside it, and a value its property does not take are dropped and reported in
 //! [`Styles::dropped`] with the selector and the source position, never guessed at. A number that
 //! is not finite is a value no property takes, read as written or computed: `1e39px`, a `calc()`
-//! that overflows, or a font size that nested `em`s grow past the largest `f32`.
+//! that overflows, or a font size that nested `em`s grow past the largest `f32`. A `font-family`
+//! name that no `@font-face` rule registers and no default family maps (`crate::fonts`) is
+//! reported on its own, with `font-family` as the property and the name as the value, because
+//! the font chain skips it and the text is drawn in another font.
 //!
 //! [`USER_AGENT`] is read before the document's sheets and sorts below every one of them: it gives
 //! HTML's elements their `display`, their default margins and their fonts. An element the subset
@@ -951,6 +954,12 @@ fn computed(
         root_font_size: DEFAULT_FONT_SIZE,
         reported: BTreeSet::new(),
         dropped: Vec::new(),
+        families: collector
+            .font_faces
+            .iter()
+            .filter_map(|rule| crate::fonts::face_source(rule))
+            .map(|(family, _)| family.to_ascii_lowercase())
+            .collect(),
     };
     let mut styles = Styles {
         elements: vec![None; dom.nodes.len()],
@@ -1108,6 +1117,8 @@ struct Cascade<'d, 'r> {
     root_font_size: f32,
     reported: BTreeSet<(u64, u64, String)>,
     dropped: Vec<Dropped>,
+    /// The family names the `@font-face` rules register, in lower case.
+    families: BTreeSet<String>,
 }
 
 /// Where a declaration sorts: `!important`, then the document over the user-agent sheet, then a
@@ -1182,6 +1193,49 @@ impl<'r> Cascade<'_, 'r> {
                 line: decl.line,
                 column: decl.column,
             });
+        }
+    }
+
+    /// Reports each of `decl`'s `font-family` names that no `@font-face` registers and no
+    /// default maps, since the font chain skips it: the property is `font-family`, the name is
+    /// the value, and each name of a declaration is listed once.
+    ///
+    /// The parser gives an unquoted name in lower case, so the value is the name as the
+    /// declaration's text writes it, found in order, or the parsed name when the text spaces it
+    /// another way.
+    fn report_families(&mut self, decl: &Decl, selector: &str, names: &[String]) {
+        // A declaration without `var()` gives every element the same names, so it is read once.
+        if !decl.has_var
+            && !self
+                .reported
+                .insert((decl.line, decl.column, "font-family names".to_owned()))
+        {
+            return;
+        }
+        let text = decl.value.to_ascii_lowercase();
+        let mut from = 0;
+        for name in names {
+            let lower = name.to_ascii_lowercase();
+            let written = text[from..].find(&lower).map(|at| {
+                from += at + lower.len();
+                &decl.value[from - lower.len()..from]
+            });
+            if self.families.contains(&lower) || crate::fonts::Family::known(name).is_some() {
+                continue;
+            }
+            let name = written.unwrap_or(name);
+            if self
+                .reported
+                .insert((decl.line, decl.column, format!("font-family {name}")))
+            {
+                self.dropped.push(Dropped {
+                    property: "font-family".to_owned(),
+                    value: name.to_owned(),
+                    selector: selector.to_owned(),
+                    line: decl.line,
+                    column: decl.column,
+                });
+            }
         }
     }
 
@@ -1264,6 +1318,14 @@ impl<'r> Cascade<'_, 'r> {
                     self.report(decl, &selector);
                 }
             }
+        }
+        // A family name no `@font-face` registers and no default maps is skipped by the font
+        // chain, so it is reported on its own, once per declaration.
+        if let Some((Specified::Families(names), index)) = specified.get("font-family") {
+            let (key, decl) = &matched[*index];
+            let selector = selector_of(key);
+            let decl: &Decl = decl;
+            self.report_families(decl, &selector, names);
         }
 
         let mut style = Style {
@@ -1437,6 +1499,9 @@ impl<'r> Cascade<'_, 'r> {
                 Some(values) => {
                     let mut applied = true;
                     for (name, v) in values {
+                        if let Specified::Families(names) = &v {
+                            self.report_families(decl, selector, names);
+                        }
                         if self.apply(&mut style, &page, name, v, DEFAULT_FONT_SIZE) {
                             order.retain(|n| *n != name);
                             order.push(name);

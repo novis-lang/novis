@@ -3,7 +3,9 @@ Makes the PDF file of a document, and returns it with its page count.
 `render` returns a `Rendered`. `bytes` is the PDF file, which a program sends in a response, saves
 or attaches to an email. `pageCount` is the number of pages.
 
-The render also lists what it could not draw. `dropped` is the CSS it does not support, and
+The render also lists what it could not draw. `dropped` is the CSS it does not support. It also
+lists each name in `font-family` that has no font, such as a typo. The render looks for no fonts
+on the computer, so a font must come from `@font-face` or be one of the built-in fonts.
 `missingGlyphs` is the text that no font has. `overflows` is a header, a footer, a slot or an
 `@page` margin box, such as `@top-center`, that did not fit. A render does not throw for these, so check the lists in a test.
 
