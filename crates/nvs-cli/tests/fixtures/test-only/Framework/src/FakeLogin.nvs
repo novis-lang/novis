@@ -1,0 +1,13 @@
+<?nvs
+namespace Framework\Auth;
+
+use Core\TestOnly;
+
+#[TestOnly]
+class FakeLogin
+{
+    public static function signIn(string $user): Session
+    {
+        return new Session($user);
+    }
+}

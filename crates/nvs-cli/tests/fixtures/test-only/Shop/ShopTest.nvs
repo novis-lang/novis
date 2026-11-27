@@ -1,0 +1,25 @@
+<?nvs
+autoload 'Framework\Auth' from '../Framework/src';
+
+use Core\Test;
+use Framework\Auth\FakeLogin;
+use Framework\Auth\Session;
+
+class Checkout
+{
+    public static function canPay(Session $session): bool
+    {
+        return $session->isSignedIn();
+    }
+}
+
+class CheckoutTest
+{
+    #[Test]
+    public function aSignedInUserCanPay(): void
+    {
+        Test::assertSame(true, Checkout::canPay(FakeLogin::signIn('ada')));
+    }
+}
+
+echo Checkout::canPay(new Session()) ? 'can pay' : 'cannot pay', "\n";

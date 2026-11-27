@@ -946,9 +946,22 @@ enum Tests {
 }
 
 impl Tests {
-    /// Whether the method labelled `label` is lowered.
+    /// Whether the method or property hook labelled `label` is lowered. A label whose first
+    /// segment names a test-only type is left out with its type, which covers its hooks and the
+    /// methods of an enum it declares.
     fn lowers(self, exprs: &ExprTypeTable, label: &str) -> bool {
-        self == Self::Lower || !exprs.is_test_code(label)
+        self == Self::Lower
+            || !(exprs.is_test_code(label)
+                || label
+                    .split("::")
+                    .next()
+                    .is_some_and(|owner| exprs.is_test_only_type(owner)))
+    }
+
+    /// Whether the class, interface or enum labelled `label` gets a class row, a descriptor and
+    /// a layout: always under `nvs test`, and only when it is not `#[TestOnly]` otherwise.
+    fn keeps_type(self, exprs: &ExprTypeTable, label: &str) -> bool {
+        self == Self::Lower || !exprs.is_test_only_type(label)
     }
 }
 
@@ -1307,6 +1320,9 @@ fn lower_program_as(
                                         let Some(label) = exprs.method_label(hook.span) else {
                                             continue;
                                         };
+                                        if !tests.lowers(exprs, label) {
+                                            continue;
+                                        }
                                         let lowered = mutate::within(
                                             label,
                                             exprs.is_no_mutate(label),
@@ -1403,8 +1419,11 @@ fn lower_program_as(
     // Copied straight across rather than recomputed: `nvs-types` already
     // resolved the slot order and the supertype set against the class graph,
     // which this crate cannot see — see `crate::ir::Class`.
+    // A `#[TestOnly]` type has no row outside `nvs test`, so a lookup by its name finds
+    // nothing, as for a class the program never declared.
     let mut classes: Vec<crate::ir::Class> = layouts
         .iter()
+        .filter(|(label, _)| tests.keeps_type(exprs, label))
         .map(|(label, layout)| {
             let slots = field_slots(label, layout, layouts, exprs, checked_types, enums);
             crate::ir::Class {
@@ -1714,9 +1733,15 @@ fn lower_program_as(
     crate::ir::Program {
         functions,
         classes,
-        statics: static_props(layouts, exprs, checked_types),
+        statics: static_props(layouts, exprs, checked_types)
+            .into_iter()
+            .filter(|prop| tests.keeps_type(exprs, &prop.class))
+            .collect(),
         shape_codecs,
-        enums: enum_shapes(enums),
+        enums: enum_shapes(enums)
+            .into_iter()
+            .filter(|shape| tests.keeps_type(exprs, &shape.label))
+            .collect(),
         in_place: in_place_on(),
         cheaper_forms: cheaper_forms_on(),
         mutant_switch: false,

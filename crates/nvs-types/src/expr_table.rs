@@ -1774,6 +1774,9 @@ pub struct ExprTypeTable {
     properties: FxHashMap<String, Vec<crate::property::PropertyCase>>,
     test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
     test_code: FxHashSet<String>,
+    /// The labels of the classes, interfaces and enums that carry `#[TestOnly]`. See
+    /// [`Self::is_test_only_type`].
+    test_only_types: FxHashSet<String>,
     no_mutate: FxHashSet<String>,
     test_lineages: Vec<(String, Vec<String>)>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
@@ -1977,6 +1980,7 @@ impl ExprTypeTable {
             properties,
             test_hooks,
             test_code,
+            test_only_types,
             no_mutate,
             test_lineages,
             inline_snapshots,
@@ -2051,6 +2055,7 @@ impl ExprTypeTable {
         self.properties.extend(properties);
         self.test_hooks.extend(test_hooks);
         self.test_code.extend(test_code);
+        self.test_only_types.extend(test_only_types);
         self.no_mutate.extend(no_mutate);
         self.test_lineages.extend(test_lineages);
         self.inline_snapshots.extend(inline_snapshots);
@@ -2151,6 +2156,7 @@ impl ExprTypeTable {
         section("properties", sorted(&self.properties));
         section("test_hooks", sorted(&self.test_hooks));
         section("test_code", sorted(&self.test_code));
+        section("test_only_types", sorted(&self.test_only_types));
         section("no_mutate", sorted(&self.no_mutate));
         section("test_lineages", sorted(&self.test_lineages));
         section("inline_snapshots", sorted(&self.inline_snapshots));
@@ -2932,6 +2938,20 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_test_code(&self, label: &str) -> bool {
         self.test_code.contains(label)
+    }
+
+    /// Records that the class, interface or enum labelled `label` carries `#[TestOnly]`
+    /// (`rule:testing/a-test-only-declaration-is-test-code`).
+    pub(crate) fn record_test_only_type(&mut self, label: String) {
+        self.test_only_types.insert(label);
+    }
+
+    /// Whether the class, interface or enum labelled `label` carries `#[TestOnly]`, so `nvs run`
+    /// and `nvs build` give it no class row. Every method of it is test code as well
+    /// ([`Self::is_test_code`]).
+    #[must_use]
+    pub fn is_test_only_type(&self, label: &str) -> bool {
+        !self.test_only_types.is_empty() && self.test_only_types.contains(label)
     }
 
     /// Records that the class or method labelled `label` carries

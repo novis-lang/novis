@@ -137,6 +137,23 @@ pub(crate) fn refuse_type(span: Span, qname: &QName, env: &mut Env<'_>) {
     }
 }
 
+/// Records `qname` into the expression table when it is a test-only type, so the lowering of
+/// `nvs run` and `nvs build` gives it no class row.
+pub(crate) fn record_type(qname: &QName, env: &mut Env<'_>) {
+    if env.test_code.is_test_only_type(qname) {
+        env.exprs.record_test_only_type(qname.to_string());
+    }
+}
+
+/// The classes `Core\Program::implementing`, `implementingWith` and `constructors` list for
+/// `selector`: [`nvs_hir::implementors`] without the test-only ones, in every build. A program
+/// then lists the same classes under `nvs test` as in production.
+pub(crate) fn listed_implementors(selector: &QName, env: &Env<'_>) -> Vec<QName> {
+    let mut classes = nvs_hir::implementors(selector, env.graph);
+    classes.retain(|class| !env.test_code.is_test_only_type(class));
+    classes
+}
+
 /// Every class name written in `ty`, at any depth: a union's members, a type argument, a
 /// `class<T>`, a shape's fields and a callable's signature.
 fn named_types<'t>(ty: &'t Type, out: &mut Vec<&'t Name>) {

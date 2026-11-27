@@ -907,9 +907,11 @@ pub(crate) fn check_stmts(
                 record_property_defaults(&qname, env);
                 record_lateinit_properties(&qname, env);
                 record_static_properties(&qname, env);
+                crate::test_code::record_type(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                crate::test_code::record_type(&qname, env);
                 crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
                 crate::conformance::check_method_overrides(
                     &decl.members,
@@ -942,6 +944,7 @@ pub(crate) fn check_stmts(
             }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                crate::test_code::record_type(&qname, env);
                 let ctx = Ctx {
                     namespace: &current_ns,
                     imports: &current_imports,

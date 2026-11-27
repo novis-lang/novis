@@ -6460,17 +6460,33 @@ string $name = \"ci\" . \"ty\";
 
 /// `rule:testing/tests-never-reach-a-build`: the program `nvs run` lowers has no function and no
 /// method-table row for a `#[Test]`, a `#[Fixture]` or a class hook, and keeps every other method
-/// of the class that declares them. The program `nvs test` lowers has all of them.
+/// of the class that declares them. `rule:testing/a-test-only-declaration-is-test-code`: it has no
+/// function for a `#[TestOnly]` method, and no class row, static property or enum row for a
+/// `#[TestOnly]` type. The program `nvs test` lowers has all of them.
 #[test]
 fn a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it() {
     let src = "<?nvs
 use Core\\Test;
+use Core\\TestOnly;
 use Core\\Test\\Fixture;
 use Core\\Test\\AfterEachTest;
 
+interface Clock { public function now(): int; }
+
 final class Cart {
     public function total(): int { return 0; }
+    #[TestOnly]
+    public function empty(): void {}
 }
+
+#[TestOnly]
+final class FakeClock implements Clock {
+    public static int $made = 0;
+    public function now(): int { return 7; }
+}
+
+#[TestOnly]
+enum Sample { One, Two }
 
 final class CartTest {
     #[Fixture]
@@ -6517,20 +6533,25 @@ final class CartTest {
         "CartTest::cart",
         "CartTest::anEmptyCartCostsNothing",
         "CartTest::clean",
+        "Cart::empty",
+        "FakeClock::now",
     ];
+    let test_only_types = ["FakeClock", "Sample"];
     let kept = ["Cart::total", "CartTest::expected"];
+    let has_type = |program: &crate::ir::Program, label: &str| {
+        program.classes.iter().any(|c| c.label == label)
+            || program.enums.iter().any(|e| e.label == label)
+            || program.statics.iter().any(|s| s.class == label)
+    };
     let names = |program: &crate::ir::Program| -> Vec<String> {
         program.functions.iter().map(|f| f.name.clone()).collect()
     };
     let rows = |program: &crate::ir::Program| -> Vec<String> {
-        let class = program
+        assert!(program.classes.iter().any(|c| c.label == "CartTest"));
+        program
             .classes
             .iter()
-            .find(|c| c.label == "CartTest")
-            .expect("the test class has a layout");
-        class
-            .methods
-            .iter()
+            .flat_map(|class| &class.methods)
             .map(|(name, owner, ..)| format!("{owner}::{name}"))
             .collect()
     };
@@ -6546,8 +6567,15 @@ final class CartTest {
     for label in kept {
         assert!(names(&run).iter().any(|n| n == label), "{label} is missing");
     }
+    for label in test_only_types {
+        assert!(!has_type(&run, label), "{label} has a row in a run");
+    }
+    assert!(has_type(&run, "Clock") && has_type(&run, "Cart"));
 
     let test = lower(Tests::Lower);
+    for label in test_only_types {
+        assert!(has_type(&test, label), "{label} has no row under nvs test");
+    }
     for label in test_code.iter().chain(&kept) {
         assert!(
             names(&test).iter().any(|n| n == label),

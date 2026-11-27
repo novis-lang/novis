@@ -1,0 +1,12 @@
+<?nvs
+namespace Framework\Auth;
+
+class Session
+{
+    public function constructor(public string $user = '') {}
+
+    public function isSignedIn(): bool
+    {
+        return $this->user != '';
+    }
+}

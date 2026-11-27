@@ -1,0 +1,57 @@
+<?nvs
+use Core\Test;
+use Core\TestOnly;
+
+interface Clock
+{
+    public function now(): int;
+}
+
+class SystemClock implements Clock
+{
+    public function now(): int
+    {
+        return 1;
+    }
+}
+
+#[TestOnly]
+class FakeClock implements Clock
+{
+    public function now(): int
+    {
+        return 7;
+    }
+}
+
+class Clocks
+{
+    public static function listed(): string
+    {
+        var $names = '';
+        foreach (Core\Program::implementing<Clock>() as Clock $clock) {
+            $names .= Core\Reflect::forObject($clock)->name() . ' ';
+        }
+        return $names;
+    }
+}
+
+class ClockTest
+{
+    #[Test]
+    public function aFakeClockGivesItsOwnTime(): void
+    {
+        var $clock = new FakeClock();
+        Test::assertSame(7, $clock->now());
+    }
+
+    #[Test]
+    public function aTestListsTheClocksProductionLists(): void
+    {
+        Test::assertSame('SystemClock ', Clocks::listed());
+    }
+}
+
+echo Core\Reflect::forClass('FakeClock') == null ? 'no FakeClock' : 'FakeClock found', "\n";
+echo Core\Reflect::forClass('SystemClock') == null ? 'no SystemClock' : 'SystemClock found', "\n";
+echo 'listed: ', Clocks::listed(), "\n";

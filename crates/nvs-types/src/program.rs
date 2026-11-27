@@ -103,7 +103,7 @@ pub(crate) fn expand(
     let Some(selector) = selector_of(call, "implementing", want, env) else {
         return;
     };
-    let classes = nvs_hir::implementors(&selector, env.graph);
+    let classes = crate::test_code::listed_implementors(&selector, env);
     let Some(ctors) = constructors_of(&classes, &selector, call, live, scope, ctx, env) else {
         return;
     };
@@ -217,7 +217,7 @@ pub(crate) fn expand_with(
     });
     let computed_member = member_arg.is_some() && member_name.is_none();
 
-    let classes = nvs_hir::implementors(&selector, env.graph);
+    let classes = crate::test_code::listed_implementors(&selector, env);
     let Some(ctors) = constructors_of(&classes, &selector, call, live, scope, ctx, env) else {
         return env.interner.mixed();
     };
@@ -387,7 +387,7 @@ pub(crate) fn expand_constructors(
     if params.iter().any(|&param| env.interner.is_error(param)) {
         return answer;
     }
-    let classes = nvs_hir::implementors(&selector, env.graph);
+    let classes = crate::test_code::listed_implementors(&selector, env);
     let mut ctors = Vec::with_capacity(classes.len());
     let mut refused = false;
     for class in &classes {
