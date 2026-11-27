@@ -25,6 +25,8 @@ Core\Json\Derive struct    on class
   doc: ```nvs\nattribute Core\Json\Derive on class {}\n```\n\nGenerates the JSON encoder and decoder for this class. Every public property becomes a key.
 Core\Json\KeepKeyOrder struct    on class
   doc: ```nvs\nattribute Core\Json\KeepKeyOrder on class {\n    reason: string,\n}\n```\n\nKeeps the JSON keys of this class in the order its properties are written. `nvs code order` then does not move these properties. `reason` says who needs this order.
+Core\TestOnly struct    on class, interface, enum, method
+  doc: ```nvs\nattribute Core\TestOnly on class, interface, enum, method {}\n```\n\nSays that this code is only for tests. Only test code can use it. `nvs run` and `nvs build` leave it out.
 Core\Test\NoMutate struct    on class, method
   doc: ```nvs\nattribute Core\Test\NoMutate on class, method {\n    because: string,\n}\n```\n\nSays that `nvs test --mutate` does not change the code of this class or method. `because:` gives the reason, and it cannot be empty.
 Index   struct    repeatable, on class

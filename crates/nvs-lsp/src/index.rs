@@ -1805,7 +1805,7 @@ impl SymbolIndex {
     /// when this is asked is `rule:ide/check-scope-defaults-to-the-workspace`'s
     /// answer, and the caller is what holds the setting.
     #[must_use]
-    pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
+    fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
         self.unused(path, &Unused::default())
             .into_iter()
             .filter(|declared| declared.visibility == Visibility::Private)
@@ -1829,7 +1829,7 @@ impl SymbolIndex {
 
     /// The declarations in `path` an editor greys: [`unused`](Self::unused)
     /// over the project [`read_project`](Self::read_project) read, while no
-    /// entry waits, and [`unused_private`](Self::unused_private) otherwise.
+    /// entry waits, and the unused private declarations in `path` otherwise.
     ///
     /// A public declaration is greyed only over a settled index, since a
     /// waiting entry may hold its one use, and a doubtful case is a use.

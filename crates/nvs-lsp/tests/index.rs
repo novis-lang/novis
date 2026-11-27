@@ -269,7 +269,7 @@ fn every_reader_queries_the_one_index() {
             "textDocument/prepareTypeHierarchy",
             &["supertypes", "subtypes"],
         ),
-        ("unused-member dimming", &["unused_private"]),
+        ("unused-member dimming", &["dimmed", "project", "unused"]),
         ("nvs/fileKinds", &["sole_kinds", "declarations_in"]),
         ("workspace/symbol", &["matching"]),
         (

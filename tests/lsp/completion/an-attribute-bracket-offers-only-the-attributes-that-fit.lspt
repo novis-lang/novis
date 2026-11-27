@@ -37,6 +37,8 @@ Core\Route struct    repeatable, on method
   doc: ```nvs\nrepeatable attribute Core\Route on method {\n    path: string,\n    method: Core\Http\Method,\n    slotted?: bool,\n}\n```\n\nDeclares the HTTP path and method this method handles. Write it twice to handle two methods.
 Core\Test struct    on method
   doc: ```nvs\nattribute Core\Test on method {\n    skip?: string,\n    at?: string,\n    seed?: int,\n    db?: string,\n    server?: bool,\n    retries?: int,\n    because?: string,\n    timeout?: string,\n    tags?: array<string>,\n    env?: array<string>,\n}\n```\n\nSays that this method is a test. `nvs test` runs it and reports the result.
+Core\TestOnly struct    on class, interface, enum, method
+  doc: ```nvs\nattribute Core\TestOnly on class, interface, enum, method {}\n```\n\nSays that this code is only for tests. Only test code can use it. `nvs run` and `nvs build` leave it out.
 Core\Test\AfterClass struct    on method
   doc: ```nvs\nattribute Core\Test\AfterClass on method {}\n```\n\nSays that this static method runs once, after the last test of its class. It also runs when a test fails. Use it to delete what `#[BeforeClass]` created.
 Core\Test\AfterEachTest struct    on method
