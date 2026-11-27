@@ -6,7 +6,7 @@ context: [docs/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-acce
 stages:
   - id: 1
     title: "the map says whether it loads an indexed declaration, and every type list the editor offers asks it"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-lsp/tests/autoload.rs, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md]
   - id: 2
     title: "the rules, the editor page and the changelog say so"
@@ -92,7 +92,10 @@ a bare name, a `Ns\` list, `use` or `new`. The route argument of `Core\Router::u
 
 **A file with an empty map gets the whole list, as today.** That is a file no program loads, a new
 class file before any entry maps it, and a program that only uses `require`. An empty list there
-would offer nothing a developer can start from.
+would offer nothing a developer can start from. "Empty" means no ordinary entry
+(`AutoloadMap::loads_nothing`): a map of `autoload links` lines alone loads nothing, so it gets the
+whole list too. A type declared inside a class (`Shop\Cart::State`) is tested by its class's name,
+since it is loaded with that class.
 
 **No setting.** The map is the one statement of what a module may load. A second list would say the
 same thing twice and drift, and a blocklist would fail open for every module added later.
@@ -143,21 +146,21 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### 1. the map says whether it loads an indexed declaration, and every type list the editor offers asks it
 
-- [ ] `crates/nvs-hir/src/autoload.rs:596`: `AutoloadMap::loads_file` beside `resolve`, over the
+- [x] `crates/nvs-hir/src/autoload.rs:596`: `AutoloadMap::loads_file` beside `resolve`, over the
   ordinary entries only, sharing the prefix walk; with a unit test beside the map's own tests for a
   hit, a file under the wrong root, a longer prefix that wins, a links root and a `discover` root.
   `rule:programs/autoload`.
-- [ ] `crates/nvs-lsp/src/completion.rs:4530`: `every_type` takes the cursor's analysis and keeps a
+- [x] `crates/nvs-lsp/src/completion.rs:4530`: `every_type` takes the cursor's analysis and keeps a
   workspace declaration only when it is loadable, and only when the map is not empty; `Core` always.
   Its callers (`:4448`) pass it, and `taken_short_names` (`:4554`) keeps the whole list.
-- [ ] `crates/nvs-lsp/src/completion.rs:3172` and `:810`: `under` and `unloaded_blocks` apply the same
+- [x] `crates/nvs-lsp/src/completion.rs:3172` and `:810`: `under` and `unloaded_blocks` apply the same
   test. `prefixes` (`:1447`) does not change.
-- [ ] `crates/nvs-lsp/tests/loadable_completion.rs` (new, with its workspace set up as
+- [x] `crates/nvs-lsp/tests/loadable_completion.rs` (new, with its workspace set up as
   `crates/nvs-lsp/tests/autoload.rs` sets up a program and its map): a `Framework` folder, two modules
   `Shop` and `Blog` whose entries map `Framework` and their own `src`, a vendor package line, a links
   root, and one class file no program loads. The ten tests of the check `loadable`, then
   `cargo test --test loadable_completion` once.
-- [ ] Any existing completion test whose workspace now offers fewer types is updated in the same
+- [x] Any existing completion test whose workspace now offers fewer types is updated in the same
   slice; the session names each in the commit body.
 
 ### 2. the rules, the editor page and the changelog say so
@@ -179,14 +182,38 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### State
 
-Written by an interactive session on 2026-11-26 from the user's idea of a per-module namespace list.
-The user agreed that the module's `autoload` map is that list and asked for the goal. Every call under
-§ *Standing decisions* is the session's, open until the user changes one. Nothing is built. Every
-anchor was read on that day, while `mail-complete` ran.
+Stage 1 is done, and the check `loadable` is green (ten of ten). The user's idea was a namespace list
+per module, and the goal uses the module's `autoload` map as that list. Every call under
+§ *Standing decisions* is the session's, open until the user changes one.
+
+- `AutoloadMap::loads_file` and `loads_nothing` (`crates/nvs-hir/src/autoload.rs`, beside `resolve`)
+  share `longest_entry` and `candidate_at` with `probe_entries`. The roots and the index's paths are
+  both `std::fs::canonicalize` forms, so the comparison needs no conversion. Its unit test is
+  `requires::tests::the_map_says_which_indexed_file_it_loads`, beside the map's other tests.
+- `completion.rs`: `loadable(analysed, declared)` is the one test. `every_type` takes
+  `Option<&Analysed>` and returns `TypeRow`s with a `loads` flag. `in_reach` skips the rows it cannot
+  load, and `taken_among` reads every row. `under` and `unloaded_blocks` filter through `loadable`.
+- The source table in `tests/completion.rs` names the new call. `cargo test` over `completion`,
+  `completion_edits`, `autoload`, `reach`, `imports` and `see_targets`, and `nvs lsp-test
+  tests/lsp/completion` (118 cases), were green after the change. No other test is expected to go red.
+- The nightly sweep's nine failures (run 45813627231) were fixed on `main` after that run, by
+  c115a735a1 (Miri zone tests), 28a4d7a6bf (the `Core\Uuid` `Parses` case) and 544711a8fb (the
+  aarch64 serve stack bound). Nothing more was needed.
+- `bun nv proofs --owed --goal loadable-completion` names nothing.
 
 ### Next
 
-Stage 1 from its first item. The check `loadable` is red until
-`crates/nvs-lsp/tests/loadable_completion.rs` exists with its ten tests.
+Stage 2, in this order:
+
+- `docs/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.md`: rewrite it whole
+  per § *Rules* (the loadable test, the links-only and empty map, a nested type tested by its class,
+  the fallback for two roots, the lists that stay workspace-wide, not a security boundary, and the
+  four Declined items). Then `docs/rules/ide/check-scope-defaults-to-the-workspace.md:4`, then
+  `bun nv rules`.
+- `website/src/content/docs/tools/editor/index.mdx:20` (§ *Completion and errors*): two or three
+  sentences per § *Website*, with neutral names only, then `bun nv site --stamp` on that page.
+- `website/src/data/changes.json:1`: one `changed` entry. Then `bun nv site --check stale`, `changes`,
+  `review` and `questions` (playbook: a page edit makes its questions stale).
+- `bun nv proofs --owed --goal loadable-completion` once more.
 
 ### Backlog
