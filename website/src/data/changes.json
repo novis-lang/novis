@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "Novis\\Pdf\\Document::render"
+      ],
+      "text": "`Rendered->dropped` lists each name in `font-family` that has no font, such as a typo. The property is `font-family`, and the value is the name. So a test that checks that `dropped` is empty also finds a misspelt font."
+    },
+    {
       "kind": "new",
       "features": [
         "lang:testing/testonly-code-that-only-tests-can-use"
