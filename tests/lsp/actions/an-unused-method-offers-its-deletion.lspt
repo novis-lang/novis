@@ -1,0 +1,18 @@
+--TEST--
+a cursor on the name of a method nothing uses is offered Delete unused method, which deletes the method, its doc comment and one blank line, `rule:tooling/nvs-code-answers-about-the-project`
+--FILE--
+<?nvs
+class Cart {
+    public function total(): int {
+        return 1;
+    }
+
+    /// Clears the cart.
+    public function cle<|>ar(): void {}
+}
+
+echo (new Cart())->total();
+--REQUEST--
+codeAction
+--EXPECT--
+6:1-9:1 refactor.rewrite Delete unused method `Cart::clear` -> ""

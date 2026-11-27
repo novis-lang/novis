@@ -1,0 +1,17 @@
+--TEST--
+at workspace scope a public method that nothing in the workspace calls is greyed, and one the program calls is not, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Cart {
+    public function total(): int {
+        return 1;
+    }
+
+    public function clear(): void {}
+}
+
+echo (new Cart())->total();
+--REQUEST--
+diagnostics
+--EXPECT--
+7:21-7:26 hint - a method `Cart::clear` is not used anywhere in this workspace

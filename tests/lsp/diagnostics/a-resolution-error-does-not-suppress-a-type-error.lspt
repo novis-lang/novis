@@ -11,5 +11,7 @@ var $stray = $nope;
 --REQUEST--
 diagnostics
 --EXPECT--
+2:7-2:14 hint - a class `Greeter` is not used anywhere in this workspace
+3:21-3:26 hint - a method `Greeter::count` is not used anywhere in this workspace
 4:16-4:28 error E0403 this method declares `int` but returns `string`
 7:14-7:19 error E0301 `$nope` is not declared

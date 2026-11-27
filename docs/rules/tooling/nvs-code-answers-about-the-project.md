@@ -1,7 +1,7 @@
-`nvs code` has twelve verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
+`nvs code` has thirteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
 `find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
-Three write: `rename`, `move` and `order`.
+Four write: `rename`, `move`, `delete` and `order`.
 
 **`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
 (`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
@@ -16,6 +16,19 @@ with a used member. In a project with a `package.toml`, every `public` and `prot
 the package's API and is never listed. Each doubtful case counts as a use, so a listed declaration is
 safe to delete. **Cost:** the index keeps each file's distinct string-literal words and one flag per
 declaration for an attribute, for as long as the file is indexed; a call reads each `nvs.toml` once.
+
+**`delete`** takes a name and deletes that declaration, from `nvs_lsp::delete::delete`, the function
+the editor's *Delete unused …* action (`refactor.rewrite`) calls at a greyed name. It deletes only
+what `unused` lists, and refuses a declaration with an occurrence, a `@see` or `@throws` mention or
+an import, a method that overrides or is overridden (deleting it changes which body runs), and one
+that shares its statement with another. It removes the declaration's lines with its `///` and `#[`
+lines and one blank line beside it. A type whose file holds nothing else but its `namespace` and
+`use` lines deletes the file, refused while a `require` names it; the editor does not offer that
+case, since an action edits one document's text. The edit passes
+`rule:ide/a-refactoring-checks-its-edit-before-it-writes`, and the JSON lists each deleted file under
+`deleted`, a key every write verb's JSON has. **Cost:** tooling only: one analysis of the
+declaration's file, one of each reader of a deleted file, and the check.
+
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question

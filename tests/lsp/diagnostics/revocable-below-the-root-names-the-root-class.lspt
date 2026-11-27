@@ -12,4 +12,5 @@ class Post extends Storable implements Revocable {}
 --REQUEST--
 diagnostics
 --EXPECT--
+8:7-8:11 hint - a class `Blog\Post` is not used anywhere in this workspace
 8:40-8:49 error E1001 `Blog\Post` cannot implement `Revocable`, because its parent class `Blog\Storable` does not.

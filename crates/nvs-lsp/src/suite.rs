@@ -702,8 +702,9 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
 /// own request does.
 ///
 /// The reference index is built only when the cursor is on a parameter type
-/// [`crate::typed_parameter`] answers from it, so every other case costs what
-/// it did.
+/// [`crate::typed_parameter`] answers from, or on a declaration's name
+/// [`crate::delete`] may offer to delete, so every other case costs what it
+/// did.
 fn code_action(
     analysed: &Analysed,
     documents: &Documents,
@@ -711,8 +712,9 @@ fn code_action(
     case: &Case,
     offset: BytePos,
 ) -> Response {
-    let index = crate::typed_parameter::wanted(analysed, offset)
-        .then(|| crate::server::index_of_case(documents, root));
+    let index = (crate::typed_parameter::wanted(analysed, offset)
+        || crate::delete::wanted(analysed, offset))
+    .then(|| crate::server::index_of_case(documents, root));
     let end = case
         .selection_end
         .and_then(|end| BytePos::try_from(end).ok())

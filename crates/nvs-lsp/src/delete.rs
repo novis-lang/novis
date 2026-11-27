@@ -35,12 +35,14 @@
 
 use std::path::{Path, PathBuf};
 
-use nvs_diagnostics::canonical_key;
+use nvs_diagnostics::{BytePos, PositionEncoding, Span, canonical_key};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
 
-use crate::document::{Documents, analyse_file};
+use crate::document::{Analysed, Documents, analyse_file};
 use crate::index::{DeclKind, Declaration, Site, SymbolIndex, Unused};
+use crate::position::range_at;
 use crate::rename::Rewrite;
+use crate::render::Action;
 
 /// What a deletion changes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -123,7 +125,7 @@ pub fn delete(
             site: Site {
                 path: path.clone(),
                 start: 0,
-                end: at(text.len()),
+                end: byte(text.len()),
             },
             text: String::new(),
         };
@@ -137,8 +139,8 @@ pub fn delete(
     let rewrite = Rewrite {
         site: Site {
             path,
-            start: at(from),
-            end: at(to),
+            start: byte(from),
+            end: byte(to),
         },
         text: String::new(),
     };
@@ -147,6 +149,63 @@ pub fn delete(
     Ok(Deleted {
         rewrites: checked.rewrites,
         file: None,
+    })
+}
+
+/// The kind of the editor's *Delete unused …* action.
+pub const KIND: &str = "refactor.rewrite";
+
+/// Whether [`at`] could offer an action at `offset`: a declaration of the
+/// entry document writes its name there. The `.lspt` suite builds an index
+/// only for such a case.
+#[must_use]
+pub fn wanted(analysed: &Analysed, offset: BytePos) -> bool {
+    crate::index::declared_at(analysed, offset).is_some()
+}
+
+/// The editor's *Delete unused …* action at `offset` of the entry document of
+/// `analysed`, when `offset` is on the name of a declaration the editor greys
+/// ([`SymbolIndex::dimmed`]) and [`delete`] can delete it within the document.
+///
+/// The deletion of a whole file is not offered, since an action edits the
+/// text of one document: `nvs code delete` does that. Nothing is computed
+/// unless the cursor is on a greyed name, so the cost of [`delete`] is paid
+/// only there.
+#[must_use]
+pub fn at(
+    analysed: &Analysed,
+    documents: &Documents,
+    index: &SymbolIndex,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Action> {
+    let file = analysed.map.file(analysed.entry);
+    let path = canonical_key(file.path()?);
+    let declared = index
+        .dimmed(&path)
+        .into_iter()
+        .find(|declared| declared.site.start <= offset && offset <= declared.site.end)?;
+    let empty = Unused::default();
+    let project = index.project().unwrap_or(&empty);
+    let deleted = delete(documents, index, &declared.symbol, project).ok()?;
+    let [rewrite] = deleted.rewrites.as_slice() else {
+        return None;
+    };
+    if deleted.file.is_some() || rewrite.site.path != path {
+        return None;
+    }
+    let span = Span::new(analysed.entry, rewrite.site.start, rewrite.site.end);
+    let described = declared.kind.describe();
+    let noun = described
+        .strip_prefix("an ")
+        .or_else(|| described.strip_prefix("a "))
+        .unwrap_or(described);
+    Some(Action {
+        title: format!("Delete unused {noun} `{}`", declared.symbol),
+        kind: KIND.to_owned(),
+        range: range_at(file, span, encoding),
+        replacement: String::new(),
+        also: Vec::new(),
     })
 }
 
@@ -334,7 +393,7 @@ fn only_header(text: &str, from: usize, to: usize) -> bool {
 }
 
 /// A byte offset as a position.
-fn at(offset: usize) -> u32 {
+fn byte(offset: usize) -> u32 {
     u32::try_from(offset).unwrap_or(u32::MAX)
 }
 

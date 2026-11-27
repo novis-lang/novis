@@ -269,6 +269,9 @@ pub fn at(
             offered.extend(crate::typed_parameter::at(
                 analysed, documents, index, start, encoding,
             ));
+            offered.extend(crate::delete::at(
+                analysed, documents, index, start, encoding,
+            ));
         }
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));

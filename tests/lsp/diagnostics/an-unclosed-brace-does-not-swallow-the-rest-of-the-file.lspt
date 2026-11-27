@@ -9,5 +9,7 @@ var $total = ;
 --REQUEST--
 diagnostics
 --EXPECT--
+2:7-2:11 hint - a class `User` is not used anywhere in this workspace
+3:21-3:26 hint - a method `User::greet` is not used anywhere in this workspace
 5:1-5:4 error E0122 `var` is not a visibility, and a property declares its type
 6:1-6:1 error E0101 expected `}`

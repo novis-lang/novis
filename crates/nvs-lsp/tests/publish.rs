@@ -32,9 +32,11 @@ const CLEAN: &str = "<?nvs\nclass Typed {}\n";
 /// of this file says both what dimming reports and what it leaves alone.
 ///
 /// `$kept` is on line 2 and `$used` on line 3, counting the way the wire does.
+/// The file calls `total`, so the public method is used, and a publish before
+/// the index settles and one after it grey the same one property.
 const HOARD: &str = "<?nvs\nclass Hoard {\n    private int $kept = 0;\n    \
                      private int $used = 0;\n    public function total(): int {\n        \
-                     return $this->used;\n    }\n}\n";
+                     return $this->used;\n    }\n}\n\necho (new Hoard())->total();\n";
 
 /// A directory of this run's own, removed when the test that made it ends.
 ///
@@ -296,8 +298,8 @@ fn unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope(
                 "a property `Hoard::$kept` is private and nothing in this \
                  workspace uses it"
             ],
-            "`$used` is read by `total` and `total` is public, so exactly one \
-             declaration here is unreachable"
+            "`$used` is read by `total` and the file calls `total`, so exactly \
+             one declaration here is unused"
         );
 
         // On the name itself, which is what an editor fades: a whole-declaration

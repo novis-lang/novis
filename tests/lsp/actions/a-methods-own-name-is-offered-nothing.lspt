@@ -9,6 +9,8 @@ class User
         return "hi";
     }
 }
+
+echo (new User())->greet();
 --REQUEST--
 codeAction
 --EXPECT--

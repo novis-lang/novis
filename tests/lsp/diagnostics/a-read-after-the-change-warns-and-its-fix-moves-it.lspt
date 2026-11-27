@@ -19,3 +19,4 @@ final class Cart {
 diagnostics
 --EXPECT--
 6:9-6:23 warning W1032 this change copies the value, because the property is read after it
+11:21-11:24 hint - a method `Cart::put` is not used anywhere in this workspace

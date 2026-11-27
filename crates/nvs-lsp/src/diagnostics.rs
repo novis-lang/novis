@@ -480,15 +480,15 @@ pub fn dimming(
     unused
         .iter()
         .map(|declared| {
-            let private = if declared.visibility == crate::index::Visibility::Private {
-                "is private and "
+            let what = if declared.visibility == crate::index::Visibility::Private {
+                "is private and nothing in this workspace uses it"
             } else {
-                ""
+                "is not used anywhere in this workspace"
             };
             faded(
                 &declared.site,
                 format!(
-                    "{} `{}` {private}nothing in this workspace uses it",
+                    "{} `{}` {what}",
                     declared.kind.describe(),
                     declared.symbol
                 ),

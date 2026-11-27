@@ -1839,8 +1839,16 @@ its lenses per open document, freed when the document closes. `textDocument/type
 including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), which is
 where a reader most needs to see the shape rather than reconstruct it.
 
-The fifth is **unused-member dimming**: a private member or constant with no reference anywhere in
-the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
+The fifth is **unused-member dimming**: each declaration `SymbolIndex::unused` lists is a hint
+carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle. It is the function
+`nvs code unused` prints from ([`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project)), so a type, a
+method, a property, a constant and an enum case are greyed, public and protected ones included, and
+each doubtful case counts as a use. A public or protected declaration is greyed only once the index
+has settled, since an entry still waiting may hold its one use; until then only private ones are. The
+server reads the project's `nvs.toml` words and `package.toml` once per settle
+(`SymbolIndex::read_project`), and publishes each open document again from its kept analysis, so a
+hint does not wait for the next edit. **Cost:** per settle, one read of each `nvs.toml` and one pass
+over each open document's kept diagnostics. Nothing is analysed again.
 An unused `use` line is not dimmed here: it is the `W1026` warning of
 [`statements/an-unused-use-is-a-warning`](statements.md#statements-an-unused-use-is-a-warning), which carries the same tag.
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is

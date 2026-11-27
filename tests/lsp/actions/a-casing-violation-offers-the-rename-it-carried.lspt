@@ -7,4 +7,5 @@ var $u = new
 --REQUEST--
 codeAction
 --EXPECT--
+2:1-3:1 refactor.rewrite Delete unused class `user_account` -> ""
 2:7-2:19 quickfix rename to `UserAccount` -> "UserAccount"

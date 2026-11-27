@@ -25,3 +25,4 @@ class Order {}
 diagnostics
 --EXPECT--
 5:5-5:15 warning W1026 `Shop\Order` is imported, but this file never uses it
+8:21-8:26 hint - a method `Label::title` is not used anywhere in this workspace

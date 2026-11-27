@@ -25,3 +25,4 @@ final class Cart {
 diagnostics
 --EXPECT--
 6:9-6:23 warning W1033 this change copies the value, because a statement after it can throw an error
+17:21-17:24 hint - a method `Cart::put` is not used anywhere in this workspace

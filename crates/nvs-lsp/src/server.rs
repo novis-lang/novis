@@ -346,6 +346,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         if !more {
                             settled(
                                 connection,
+                                &documents,
                                 &mut index,
                                 &mut completion_files,
                                 &settings,
@@ -448,6 +449,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     index.settle(&documents);
                     settled(
                         connection,
+                        &documents,
                         &mut index,
                         &mut completion_files,
                         &settings,
@@ -830,6 +832,7 @@ fn log_panicked(connection: &Connection, index: &mut SymbolIndex) -> Result<(), 
 /// When the connection is gone.
 fn settled(
     connection: &Connection,
+    documents: &Documents,
     index: &mut SymbolIndex,
     completion_files: &mut CompletionFiles,
     settings: &Settings,
@@ -839,6 +842,14 @@ fn settled(
     if completion_files.check(index) {
         publish_completion_files(connection, completion_files, encoding)?;
     }
+    republish_dimming(
+        connection,
+        documents,
+        index,
+        completion_files,
+        settings.scope,
+        encoding,
+    )?;
     connection
         .sender
         .send(Notification::new(file_kinds::CHANGED.to_owned(), ()).into())?;
@@ -851,6 +862,46 @@ fn settled(
             )
             .into(),
         )?;
+    }
+    Ok(())
+}
+
+/// Publishes each open document again from the analysis it keeps, once the
+/// index has settled. The dimming greys a public declaration only over a
+/// settled index ([`SymbolIndex::dimmed`]), so without this a hint would wait
+/// for the next edit. Nothing is analysed: a document with no kept analysis of
+/// its version is skipped, and its next publish covers it. **Cost:** one pass
+/// over the kept diagnostics and one [`SymbolIndex::dimmed`] per open
+/// document, per settle.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn republish_dimming(
+    connection: &Connection,
+    documents: &Documents,
+    index: &SymbolIndex,
+    completion_files: &CompletionFiles,
+    scope: CheckScope,
+    encoding: PositionEncoding,
+) -> Result<(), ServerError> {
+    if scope != CheckScope::Workspace {
+        return Ok(());
+    }
+    let uris: Vec<Uri> = documents.iter().map(|document| document.uri().clone()).collect();
+    for uri in uris {
+        let Some(path) = path_of(&uri) else {
+            continue;
+        };
+        if documents.stubs().is_some_and(|stubs| stubs.holds(&path)) {
+            continue;
+        }
+        let Some(analysed) = documents.analysed(&uri) else {
+            continue;
+        };
+        let mut diagnostics = for_document(&analysed, completion_files, Phases::Gated, encoding);
+        diagnostics.extend(dimming(&index.dimmed(&path), scope, &analysed, encoding));
+        send(connection, &uri, Some(analysed.version), diagnostics)?;
     }
     Ok(())
 }
@@ -2818,7 +2869,9 @@ pub fn index_file_of(root: &Path) -> Option<PathBuf> {
 /// [`references_of_case`] builds its own.
 pub(crate) fn index_of_case(documents: &Documents, root: &Path) -> SymbolIndex {
     let settings = case_settings(root);
-    SymbolIndex::build(documents, settings.scope, settings.root.as_deref())
+    let mut index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    index.read_project(settings.root.as_deref());
+    index
 }
 
 fn case_settings(root: &Path) -> Settings {

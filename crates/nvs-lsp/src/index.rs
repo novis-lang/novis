@@ -1820,6 +1820,13 @@ impl SymbolIndex {
         self.project = root.map(|root| Unused::of_project(root, self));
     }
 
+    /// What [`dimmed`](Self::dimmed) reads besides the index, or `None` while
+    /// an entry waits and before [`read_project`](Self::read_project) ran.
+    #[must_use]
+    pub fn project(&self) -> Option<&Unused> {
+        self.project.as_ref().filter(|_| self.pending.is_empty())
+    }
+
     /// The declarations in `path` an editor greys: [`unused`](Self::unused)
     /// over the project [`read_project`](Self::read_project) read, while no
     /// entry waits, and [`unused_private`](Self::unused_private) otherwise.

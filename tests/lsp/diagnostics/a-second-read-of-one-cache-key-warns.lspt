@@ -11,4 +11,6 @@ final class Blog {
 --REQUEST--
 diagnostics
 --EXPECT--
+2:13-2:17 hint - a class `Blog` is not used anywhere in this workspace
+3:28-3:32 hint - a method `Blog::show` is not used anywhere in this workspace
 5:21-5:40 warning W1035 this reads cache key `post` again, and each read copies the whole value

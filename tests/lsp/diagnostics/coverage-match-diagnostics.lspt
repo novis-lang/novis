@@ -11,4 +11,5 @@ echo $label;
 --REQUEST--
 diagnostics
 --EXPECT--
+2:20-2:25 hint - an enum case `Size::Large` is not used anywhere in this workspace
 4:17-4:22 error E1016 this `match` does not handle `Size::Large`

@@ -12,6 +12,7 @@ class <|>Crate implements Box<int>
 }
 
 echo "ready";
+var $crate = new Crate();
 --REQUEST--
 codeAction
 --EXPECT--

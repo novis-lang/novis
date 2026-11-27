@@ -10,4 +10,6 @@ class Counter {
 --REQUEST--
 diagnostics
 --EXPECT--
+2:7-2:14 hint - a class `Counter` is not used anywhere in this workspace
+3:21-3:25 hint - a method `Counter::next` is not used anywhere in this workspace
 4:9-4:16 error E0822 `next` declares `int` but this `return` hands back nothing

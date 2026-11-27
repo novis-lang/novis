@@ -28,4 +28,5 @@ interface Priced
 --REQUEST--
 codeAction
 --EXPECT--
+8:1-12:1 refactor.rewrite Delete unused class `Shop\Pen` -> ""
 9:2-9:2 quickfix Implement the missing methods -> "\n    public function price(int $count): Catalog\Price\n    {\n        throw new LogicError("Pen::price is not implemented");\n    }" + 6:20-6:20 -> "\nuse LogicError;"
