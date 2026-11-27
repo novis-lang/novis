@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Test code and types that say what they mean",
-      "text": "`#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.",
-      "goals": [
-        "narrowed-static"
-      ]
-    },
-    {
       "title": "Read large folders and files in a loop",
       "text": "`Core\\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\\Path::matches` tests a path against a pattern.",
       "goals": [
