@@ -743,6 +743,11 @@ pub(crate) struct Env<'a> {
     /// deprecated declaration or a member of a deprecated class. Opened by
     /// [`crate::deprecated::window`].
     pub deprecated_uses: Option<crate::deprecated::Uses>,
+    /// Whether the body being checked is code that `nvs run` and `nvs build` compile, so a
+    /// type written in it may not name a `#[TestOnly]` type
+    /// (`rule:testing/a-test-only-declaration-is-test-code`). Set by
+    /// [`crate::deprecated::window`] for the length of one body, and false outside every body.
+    pub in_production_body: bool,
     /// What `static` names while an attribute declaration's fields are
     /// lowered (`rule:attributes/a-declaration-names-its-class-with-static`).
     /// A use sets it to the class the attribute is on for the length of one

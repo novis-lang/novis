@@ -211,9 +211,11 @@ pub(crate) struct Uses(FxHashSet<(Span, QName, Member)>);
 /// Checks one body with `W1003` switched on, unless `owner` is deprecated or
 /// `member` of it is: then nothing inside it warns. The table entries the body
 /// recorded are warned about when it is done. The same entries are where
-/// [`crate::test_code::refuse_calls`] finds a call into test code, and where
-/// [`crate::restrict::check_uses`] finds a restricted use. `namespace` is the
-/// namespace the body is written in.
+/// [`crate::test_code::refuse_calls`] finds a use of test code, and where
+/// [`crate::restrict::check_uses`] finds a restricted use. While the body is
+/// checked, [`Env::in_production_body`] says whether a type written in it may
+/// name a `#[TestOnly]` type. `namespace` is the namespace the body is written
+/// in.
 pub(crate) fn window<'e, R>(
     namespace: &[String],
     owner: Option<&QName>,
@@ -228,8 +230,11 @@ pub(crate) fn window<'e, R>(
                 .is_some_and(|member| env.deprecations.contains(owner, member))
     });
     let outer = std::mem::replace(&mut env.deprecated_uses, (!quiet).then(Uses::default));
+    let production = !env.test_code.is_test_body(owner, member.as_ref());
+    let outer_production = std::mem::replace(&mut env.in_production_body, production);
     let mark = env.exprs.len();
     let out = check(env);
+    env.in_production_body = outer_production;
     if env.deprecated_uses.is_some() {
         warn_uses(mark, env);
     }

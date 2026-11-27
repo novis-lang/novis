@@ -1136,16 +1136,19 @@ codes! {
          list of fields.",
     );
 
-    /// A call into test code from code that is not a test
-    /// (`rule:testing/tests-never-reach-a-build`). `nvs run` and `nvs build` compile no test
-    /// code, so the same program would call a method that one build has and the other does not.
-    /// Refused at compile time, under every command, so a program compiles the same way for
-    /// `nvs run` and for `nvs test`.
+    /// A use of test code from code that is not a test (`rule:testing/tests-never-reach-a-build`,
+    /// `rule:testing/a-test-only-declaration-is-test-code`): a call into a test-code method, or a
+    /// `new`, a static member, a constant or a written type that names a `#[TestOnly]` type.
+    /// `nvs run` and `nvs build` compile no test code, so the same program would name a
+    /// declaration that one build has and the other does not. Refused at compile time, under every
+    /// command, so a program compiles the same way for `nvs run` and for `nvs test`.
     pub const E_CALL_INTO_TEST_CODE: Code = Code::new("E0889").card(
         "A method with `#[Test]`, `#[Property]`, `#[Fixture]`, `#[BeforeClass]`, \
-         `#[AfterClass]` or `#[AfterEachTest]` is test code. Only `nvs test` compiles it, so only other test code \
-         can call it. Move the shared steps into a method without these attributes, and call \
-         that method from both places.",
+         `#[AfterClass]` or `#[AfterEachTest]` is test code. So is everything marked \
+         `#[TestOnly]`. Only `nvs test` compiles test code, so only other test code can use it. \
+         This includes a call, a `new` and a type in a signature. Move the shared steps into a \
+         method without these attributes, and call that method from both places. Or mark the \
+         code that uses it `#[TestOnly]` too.",
     );
 
     /// A `#[Property]` parameter whose declared type has no generator, a `gen:` entry that

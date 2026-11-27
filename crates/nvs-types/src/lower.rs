@@ -1258,12 +1258,14 @@ fn resolve_name_type(
         Some(sym) if sym.kind == SymbolKind::Enum => {
             env.uses.class(&qname);
             crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
+            crate::test_code::refuse_type(name.span, &qname, env);
             let backing = env.enums.backing_of(&qname);
             env.interner.enum_(qname, backing)
         }
         Some(_) => {
             env.uses.class(&qname);
             crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
+            crate::test_code::refuse_type(name.span, &qname, env);
             env.interner.class(qname)
         }
         // A `Core`-owned enum and a loaded extension's enum are in no symbol
@@ -1423,6 +1425,7 @@ mod tests {
             key_options: Vec::new(),
             secret_options: rustc_hash::FxHashSet::default(),
             deprecated_uses: None,
+            in_production_body: false,
             attribute_static: crate::lower::AttributeStatic::Declaration,
             in_attribute_body: false,
         };

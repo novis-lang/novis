@@ -30,8 +30,17 @@
 //! **Where `E0889` is raised.** [`crate::deprecated::window`] checks each body and then maps every
 //! expression table entry the body recorded to the declaration it names. [`refuse_calls`] reads
 //! the same entries. A call, a method reference or a class-reference call whose method resolves to
-//! test code is refused, unless the body is test code itself. A body is the whole method, so an
-//! anonymous function written inside a test is test code too.
+//! test code is refused, unless the body is test code itself. So is a `new`, a static property, a
+//! class constant, an enum case and a `Foo::class` reference whose type is test-only. A body is
+//! the whole method, so an anonymous function written inside a test is test code too.
+//!
+//! **A type that names a test-only type** is refused in two places, and both give the same
+//! diagnostic, so [`Diagnostics`] keeps one where both see it. [`refuse_type`] runs where a type
+//! is lowered inside a production body: a parameter, a return type, `is`, `catch`, `class<T>` and
+//! every type argument there. [`refuse_signatures`] reads the declarations a body never lowers: a
+//! property's type, a constant's type, a method with no body, and the type arguments of an
+//! `implements` clause. A production signature may not name a test-only type at all, because a
+//! build has no class for it.
 //!
 //! **Why a compile error and not a missing method at run time.** The same program compiles under
 //! `nvs run` and `nvs test`. Without the error, a call into test code would type-check under both
@@ -39,7 +48,9 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::{ClassGraph, QName};
-use nvs_syntax::ast::{AttributeGroup, ClassMember, ClassMemberKind, Name, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    AttributeGroup, ClassMember, ClassMemberKind, Name, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::deprecated::Member;
@@ -87,6 +98,138 @@ impl TestCode {
     pub(crate) fn is_test_only_type(&self, qname: &QName) -> bool {
         !self.only_types.is_empty() && self.only_types.contains(qname)
     }
+
+    /// Whether a body that is `member` of `owner` is test code: a test-code method, or any
+    /// member of a test-only type.
+    pub(crate) fn is_test_body(&self, owner: Option<&QName>, member: Option<&Member>) -> bool {
+        let Some(owner) = owner else {
+            return false;
+        };
+        self.is_test_only_type(owner)
+            || matches!(member, Some(Member::Method(name)) if self.contains(owner, name))
+    }
+
+    /// Whether the program has no test code at all, so no use can be refused.
+    fn is_empty(&self) -> bool {
+        self.methods.is_empty() && self.only_types.is_empty()
+    }
+}
+
+/// `E0889` for a use of test-only type `qname` at `span`. [`refuse_type`] and
+/// [`refuse_signatures`] both build it here, so the same use is one diagnostic.
+fn type_use(span: Span, qname: &QName) -> Diagnostic {
+    Diagnostic::error(
+        code::E_CALL_INTO_TEST_CODE,
+        format!("`{qname}` is test code, so only test code can use it"),
+    )
+    .with_primary(span, "this code is not a test")
+    .with_help(
+        "It is marked `#[TestOnly]`. Use it from a method with a testing attribute or from other \
+         `#[TestOnly]` code.",
+    )
+}
+
+/// `E0889` at a type written at `span` that names `qname`, when the body being checked is
+/// production code and `qname` is a test-only type.
+pub(crate) fn refuse_type(span: Span, qname: &QName, env: &mut Env<'_>) {
+    if env.in_production_body && env.test_code.is_test_only_type(qname) {
+        env.diags.report(type_use(span, qname));
+    }
+}
+
+/// Every class name written in `ty`, at any depth: a union's members, a type argument, a
+/// `class<T>`, a shape's fields and a callable's signature.
+fn named_types<'t>(ty: &'t Type, out: &mut Vec<&'t Name>) {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => named_types(inner, out),
+        TypeKind::Union(parts) | TypeKind::Intersection(parts) => {
+            for part in parts {
+                named_types(part, out);
+            }
+        }
+        TypeKind::Atom(atom) => match atom {
+            TypeAtom::Name(name, args) => {
+                out.push(name);
+                for arg in args {
+                    named_types(arg, out);
+                }
+            }
+            TypeAtom::Member(name, _) | TypeAtom::MemberCase(name, _, _) => out.push(name),
+            TypeAtom::Array(key, value) => {
+                for part in [key, value].into_iter().flatten() {
+                    named_types(part, out);
+                }
+            }
+            TypeAtom::ClassRef(inner)
+            | TypeAtom::PropertyKey(inner)
+            | TypeAtom::PropertyPath(inner)
+            | TypeAtom::StringHoles { key: inner, .. } => named_types(inner, out),
+            TypeAtom::Shape(fields) => {
+                for field in fields {
+                    named_types(&field.ty, out);
+                }
+            }
+            TypeAtom::CallableSig { params, ret, .. } => {
+                for param in params {
+                    named_types(param, out);
+                }
+                named_types(ret, out);
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+}
+
+/// `E0889` at every type written in a production declaration's signature that names a test-only
+/// type, where no body lowers it: see the module doc. With no `#[TestOnly]` type in the program
+/// it returns at once.
+pub(crate) fn refuse_signatures(
+    files: &[ProgramFile<'_>],
+    table: &TestCode,
+    diags: &mut Diagnostics,
+) {
+    if table.only_types.is_empty() {
+        return;
+    }
+    crate::deprecated::each_declaration(files, |stmt, src, current_ns, current_imports| {
+        let Some((name, _, members)) = type_parts(stmt) else {
+            return;
+        };
+        let owner = QName::join(current_ns, span_text(src, name.span));
+        if table.is_test_only_type(&owner) {
+            return;
+        }
+        let mut written: Vec<&Type> = Vec::new();
+        if let StmtKind::ClassDecl(d) = &stmt.kind {
+            written.extend(d.implements.iter().flat_map(|clause| &clause.type_args));
+        }
+        for member in members {
+            match &member.kind {
+                ClassMemberKind::Method(m) => {
+                    if table.contains(&owner, span_text(src, m.name)) {
+                        continue;
+                    }
+                    written.extend(m.params.iter().filter_map(|p| p.ty.as_ref()));
+                    written.extend(m.return_type.as_ref());
+                }
+                ClassMemberKind::Property(p) => written.push(&p.ty),
+                ClassMemberKind::Const(c) => written.extend(c.ty.as_ref()),
+                _ => {}
+            }
+        }
+        let mut names = Vec::new();
+        for ty in written {
+            named_types(ty, &mut names);
+        }
+        for name in names {
+            let resolved =
+                nvs_hir::resolve_ref(span_text(src, name.span), current_ns, current_imports);
+            if table.is_test_only_type(&resolved) {
+                diags.report(type_use(name.span, &resolved));
+            }
+        }
+    });
 }
 
 /// Whether one of `groups` names one of `wanted`, resolved in the scope the declaration is in.
@@ -263,28 +406,36 @@ pub(crate) fn refuse_calls(
     mark: usize,
     env: &mut Env<'_>,
 ) {
-    if env.test_code.methods.is_empty() {
+    if env.test_code.is_empty() || env.test_code.is_test_body(owner, member) {
         return;
     }
-    if let (Some(owner), Some(Member::Method(name))) = (owner, member)
-        && env.test_code.contains(owner, name)
-    {
-        return;
-    }
-    let mut found: Vec<(Span, QName, String)> = Vec::new();
+    let mut found: Vec<(Span, QName, Option<String>)> = Vec::new();
     for (span, info) in env.exprs.since_at(mark) {
-        let (ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call)) =
-            info
-        else {
-            continue;
-        };
-        let Some((declaring, _)) =
-            crate::signatures::resolve_method(&call.class, &call.method, env.signatures, env.graph)
-        else {
-            continue;
-        };
-        if env.test_code.contains(&declaring, &call.method) {
-            found.push((span, declaring, call.method.clone()));
+        match info {
+            ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
+                let Some((declaring, _)) = crate::signatures::resolve_method(
+                    &call.class,
+                    &call.method,
+                    env.signatures,
+                    env.graph,
+                ) else {
+                    continue;
+                };
+                if env.test_code.contains(&declaring, &call.method) {
+                    found.push((span, declaring, Some(call.method.clone())));
+                }
+            }
+            ExprInfo::New { class, .. }
+            | ExprInfo::StaticProperty { class, .. }
+            | ExprInfo::ClassConst { class, .. }
+            | ExprInfo::ClassConstLate { class, .. }
+            | ExprInfo::ClassRefConst { class }
+            | ExprInfo::EnumCase { enum_: class, .. }
+                if env.test_code.is_test_only_type(class) =>
+            {
+                found.push((span, class.clone(), None));
+            }
+            _ => {}
         }
     }
     let mut seen = FxHashSet::default();
@@ -292,16 +443,25 @@ pub(crate) fn refuse_calls(
         if !seen.insert(span) {
             continue;
         }
-        env.diags.report(
-            Diagnostic::error(
-                code::E_CALL_INTO_TEST_CODE,
-                format!("`{declaring}::{method}` is test code, so only a test can call it"),
-            )
-            .with_primary(span, "this code is not a test")
-            .with_help(
-                "`nvs run` and `nvs build` do not compile test code. Move the shared steps into \
-                 a method without a testing attribute, and call that method from both places",
-            ),
-        );
+        let diag = match method {
+            None => type_use(span, &declaring),
+            Some(method) => {
+                let only = env.test_code.is_test_only_method(&declaring, &method);
+                Diagnostic::error(
+                    code::E_CALL_INTO_TEST_CODE,
+                    format!("`{declaring}::{method}` is test code, so only test code can use it"),
+                )
+                .with_primary(span, "this code is not a test")
+                .with_help(if only {
+                    "It is marked `#[TestOnly]`. Call it from a method with a testing attribute \
+                     or from other `#[TestOnly]` code."
+                } else {
+                    "`nvs run` and `nvs build` do not compile test code. Move the shared steps \
+                     into a method without a testing attribute, and call that method from both \
+                     places."
+                })
+            }
+        };
+        env.diags.report(diag);
     }
 }

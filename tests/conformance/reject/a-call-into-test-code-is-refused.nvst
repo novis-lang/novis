@@ -46,10 +46,10 @@ echo (new CartTest())->helper()->total();
 error[E0401]: expected `string`, found `int`
    --> case.nvs:29:25
 %A
-error[E0889]: `CartTest::cart` is test code, so only a test can call it
+error[E0889]: `CartTest::cart` is test code, so only test code can use it
    --> case.nvs:35:16
 %A
-error[E0889]: `CartTest::prepare` is test code, so only a test can call it
+error[E0889]: `CartTest::prepare` is test code, so only test code can use it
    --> case.nvs:40:1
 %A
 error: aborting due to 3 errors
