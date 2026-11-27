@@ -888,7 +888,10 @@ fn republish_dimming(
     if scope != CheckScope::Workspace {
         return Ok(());
     }
-    let uris: Vec<Uri> = documents.iter().map(|document| document.uri().clone()).collect();
+    let uris: Vec<Uri> = documents
+        .iter()
+        .map(|document| document.uri().clone())
+        .collect();
     for uri in uris {
         let Some(path) = path_of(&uri) else {
             continue;
@@ -2952,12 +2955,7 @@ pub(crate) fn dimming_of_case(
     let settings = case_settings(root);
     let mut index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     index.read_project(settings.root.as_deref());
-    dimming(
-        &index.dimmed(&path),
-        settings.scope,
-        analysed,
-        encoding,
-    )
+    dimming(&index.dimmed(&path), settings.scope, analysed, encoding)
 }
 
 /// [`completion`] for one `.lspt` case, over an index built for that case
@@ -3856,12 +3854,7 @@ fn publish(
             for_document(&analysed, completion_files, Phases::Gated, encoding)
         };
         if let Some(path) = path_of(&uri).filter(|_| !stub) {
-            diagnostics.extend(dimming(
-                &index.dimmed(&path),
-                scope,
-                &analysed,
-                encoding,
-            ));
+            diagnostics.extend(dimming(&index.dimmed(&path), scope, &analysed, encoding));
         }
         // Asked again, immediately before the send: `analyse_current` refuses
         // to start a walk for a version already superseded, and this is the

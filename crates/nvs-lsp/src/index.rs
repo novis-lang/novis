@@ -1872,7 +1872,10 @@ impl SymbolIndex {
     pub fn unused(&self, path: &Path, scope: &Unused) -> Vec<&Declaration> {
         let scanned = ["implementing", "implementingWith", "constructors"]
             .iter()
-            .any(|member| self.by_use.contains_key(&format!("Core\\Program::{member}")));
+            .any(|member| {
+                self.by_use
+                    .contains_key(&format!("Core\\Program::{member}"))
+            });
         let decls = self.declarations_in(path);
         decls
             .iter()
@@ -1890,10 +1893,12 @@ impl SymbolIndex {
                 match declared.kind {
                     DeclKind::Method => !self.reached_otherwise(declared),
                     DeclKind::Property => declared.visibility != Visibility::Public,
-                    DeclKind::EnumCase => owner_of(&declared.symbol).is_none_or(|owner| {
-                        !self.by_use.contains_key(&format!("{owner}::cases"))
-                    }),
-                    DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias => {
+                    DeclKind::EnumCase => owner_of(&declared.symbol)
+                        .is_none_or(|owner| !self.by_use.contains_key(&format!("{owner}::cases"))),
+                    DeclKind::Class
+                    | DeclKind::Interface
+                    | DeclKind::Enum
+                    | DeclKind::TypeAlias => {
                         !(scanned && !declared.supertypes.is_empty())
                             && !decls.iter().any(|member| {
                                 owner_of(&member.symbol) == Some(declared.symbol.as_str())
@@ -1944,7 +1949,11 @@ impl SymbolIndex {
         let mut seen = FxHashSet::from_iter([declared.symbol.clone()]);
         let mut pending = vec![declared.symbol.clone()];
         while let Some(method) = pending.pop() {
-            for other in self.overridden(&method).into_iter().chain(self.overriders(&method)) {
+            for other in self
+                .overridden(&method)
+                .into_iter()
+                .chain(self.overriders(&method))
+            {
                 if !seen.insert(other.symbol.clone()) {
                     continue;
                 }

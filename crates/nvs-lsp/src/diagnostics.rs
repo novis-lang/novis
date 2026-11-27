@@ -487,11 +487,7 @@ pub fn dimming(
             };
             faded(
                 &declared.site,
-                format!(
-                    "{} `{}` {what}",
-                    declared.kind.describe(),
-                    declared.symbol
-                ),
+                format!("{} `{}` {what}", declared.kind.describe(), declared.symbol),
             )
         })
         .collect()
