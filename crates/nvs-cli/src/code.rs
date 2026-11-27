@@ -8,11 +8,11 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename`, `move` and `order` write**, through [`planned`] and
-//! [`committed`], the one write path: it writes only inside the project root,
-//! and only files whose bytes have not changed since this call first read
-//! them. [`write_out`] prints what `rename` and `move` wrote, and [`order()`]
-//! prints what it wrote by class.
+//! **Only `rename`, `move`, `delete` and `order` write**, through [`planned`]
+//! and [`committed`], the one write path: it writes and deletes only inside
+//! the project root, and only files whose bytes have not changed since this
+//! call first read them. [`write_out`] prints what `rename`, `move` and
+//! `delete` wrote, and [`order()`] prints what it wrote by class.
 //!
 //! A call loads the editor's index file for the project root from the data
 //! folder ([`nvs_lsp::index_file_of`]) and saves it again when it analysed
@@ -272,6 +272,28 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Delete a class, a method, a property, a constant or an enum case that
+    /// nothing in the project uses, and save the changed file.
+    ///
+    /// The command deletes the declaration with its `///` comment, its
+    /// attributes and one blank line. A class that is alone in its file
+    /// deletes the file. The command deletes only what `nvs code unused`
+    /// prints. A method that overrides another method, or that another
+    /// method overrides, is not deleted.
+    ///
+    /// The command prints the changed or deleted file. If the delete is not
+    /// possible, it prints why, changes nothing and fails.
+    Delete {
+        /// What to delete, as `Shop\Cart::oldTotal` or `Shop\OldCart`.
+        name: String,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the methods that call a method, and the methods it calls.
     ///
     /// The callers come first. Each method has its own line, with `caller`
@@ -348,6 +370,11 @@ impl Args {
             } => order(&paths, check, dry_run, json),
             Command::Find { query, json } => find(&query, json),
             Command::Unused { paths, json } => unused(&paths, json),
+            Command::Delete {
+                name,
+                dry_run,
+                json,
+            } => delete(&name, dry_run, json),
             Command::Calls { symbols, json } => calls(&symbols, json),
             Command::Reach { symbols, json } => reach(&symbols, json),
         }
@@ -940,6 +967,46 @@ pub(crate) fn unused(paths: &[String], json: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `nvs code delete`: the editor's deletion of a declaration nothing uses
+/// ([`nvs_lsp::delete::delete`]), written to disk through [`write_out`], or
+/// printed with `--dry-run`.
+pub(crate) fn delete(name: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    if project.workspace.index().declaration(name).is_none() {
+        let nearest = project.nearest_names(name);
+        return unknown(
+            &format!("no name `{}` in this project", escaped(name)),
+            &nearest,
+            json,
+        );
+    }
+    let scope = Unused::of_project(project.workspace.root(), project.workspace.index());
+    let deleted = nvs_lsp::delete::delete(
+        project.workspace.documents(),
+        project.workspace.index(),
+        name,
+        &scope,
+    );
+    match deleted {
+        Ok(deleted) => {
+            let files: Vec<PathBuf> = deleted.file.into_iter().collect();
+            write_out(
+                &mut project,
+                &deleted.rewrites,
+                &[],
+                &files,
+                None,
+                dry_run,
+                json,
+            )
+        }
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
 /// Whether the project declares `symbol` as a method, which is what the call
 /// graph answers about.
 fn method(project: &Project, symbol: &str) -> bool {
@@ -1232,7 +1299,7 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
     match renamed {
         Ok(renamed) => {
             let moves: Vec<(PathBuf, PathBuf)> = renamed.file.into_iter().collect();
-            write_out(&mut project, &renamed.rewrites, &moves, None, dry_run, json)
+            write_out(&mut project, &renamed.rewrites, &moves, &[], None, dry_run, json)
         }
         Err(message) => unknown(&escaped(&message), &[], json),
     }
@@ -1346,6 +1413,7 @@ pub(crate) fn rename_from(from: &str, dry_run: bool, json: bool) -> ExitCode {
         &mut project,
         &rewrites,
         &batch.moves,
+        &[],
         Some(&lines),
         dry_run,
         json,
@@ -1387,7 +1455,7 @@ pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> Exit
         Ok(checked) => checked.rewrites,
         Err(broken) => return unknown(&escaped(&broken.refusal()), &[], json),
     };
-    write_out(&mut project, &rewrites, &moves, None, dry_run, json)
+    write_out(&mut project, &rewrites, &moves, &[], None, dry_run, json)
 }
 
 /// `from` and `to` as the keys a move is made under, or the message and the
@@ -1550,7 +1618,7 @@ pub(crate) fn order(paths: &[String], check: bool, dry_run: bool, json: bool) ->
         Err(message) => return unknown(&message, &[], json),
     };
     let written = !check && !dry_run;
-    if written && let Err(message) = committed(&project, &changes, &[]) {
+    if written && let Err(message) = committed(&project, &changes, &[], &[]) {
         return unknown(&message, &[], json);
     }
     let status = if check && !moved.is_empty() {
@@ -1709,14 +1777,15 @@ struct Change {
     edits: usize,
 }
 
-/// The write path of `rename` and `move`, and what they print.
+/// The write path of `rename`, `move` and `delete`, and what they print.
 ///
 /// In this order: every edit is applied in memory, and a file that cannot be
 /// read or an edit that does not fit its file writes nothing. Every path and
 /// every move's target is checked to be inside the project root. Each file is
 /// read again, and one whose bytes differ from the bytes the edits were
-/// computed against writes nothing. Then each file is written, and each move
-/// is made after all of them. `--dry-run` stops before the second read.
+/// computed against writes nothing. Then each file is written, each file of
+/// `deleted` is removed, and each move is made after all of them. `--dry-run`
+/// stops before the second read.
 ///
 /// The bytes the edits were computed against are each file's first read in
 /// this call, which is right after the analysis. A crash between two writes
@@ -1730,6 +1799,7 @@ fn write_out(
     project: &mut Project,
     rewrites: &[Rewrite],
     moves: &[(PathBuf, PathBuf)],
+    deleted: &[PathBuf],
     lines: Option<&BTreeMap<Rewrite, u32>>,
     dry_run: bool,
     json: bool,
@@ -1741,6 +1811,26 @@ fn write_out(
         Ok(changes) => changes,
         Err(message) => return unknown(&message, &[], json),
     };
+    let mut gone: Vec<Change> = Vec::with_capacity(deleted.len());
+    for path in deleted {
+        if !inside(project.workspace.root(), path) {
+            let message = format!(
+                "`{}` is outside the project, so nothing was changed.",
+                project.shown(path)
+            );
+            return unknown(&message, &[], json);
+        }
+        match project.snapshot(path) {
+            Ok(before) => gone.push(Change {
+                path: path.clone(),
+                before: before.to_owned(),
+                after: String::new(),
+                edits: 0,
+            }),
+            Err(message) => return unknown(&message, &[], json),
+        }
+    }
+    let shown_deleted: Vec<String> = deleted.iter().map(|path| project.shown(path)).collect();
     let edits: Vec<(Place, String, String)> = rewrites
         .iter()
         .map(|rewrite| {
@@ -1757,7 +1847,7 @@ fn write_out(
         .iter()
         .map(|(from, to)| (project.shown(from), project.shown(to)))
         .collect();
-    if !dry_run && let Err(message) = committed(project, &changes, moves) {
+    if !dry_run && let Err(message) = committed(project, &changes, moves, &gone) {
         return unknown(&message, &[], json);
     }
     if json {
@@ -1784,6 +1874,7 @@ fn write_out(
                 "schemaVersion": SCHEMA_VERSION,
                 "edits": edits,
                 "moved": moved,
+                "deleted": shown_deleted,
                 "written": !dry_run,
             }))
         );
@@ -1801,6 +1892,9 @@ fn write_out(
         for (from, to) in &shown_moves {
             println!("move {from} -> {to}");
         }
+        for path in &shown_deleted {
+            println!("delete {path}");
+        }
         return ExitCode::SUCCESS;
     }
     for change in &changes {
@@ -1809,6 +1903,9 @@ fn write_out(
     }
     for (from, to) in &shown_moves {
         println!("moved {from} -> {to}");
+    }
+    for path in &shown_deleted {
+        println!("deleted {path}");
     }
     ExitCode::SUCCESS
 }
@@ -1890,12 +1987,14 @@ fn applied(text: &str, rewrites: &[&Rewrite]) -> Option<String> {
 #[cfg(debug_assertions)]
 const CHANGE_BEFORE_WRITE: &str = "NVS_TEST_CODE_CHANGE_BEFORE_WRITE";
 
-/// Writes `changes` once no file differs from the bytes they were computed
-/// against, and then makes `moves`.
+/// Writes `changes` once no file of them or of `gone` differs from the bytes
+/// they were computed against, then removes each file of `gone`, and then
+/// makes `moves`.
 fn committed(
     project: &Project,
     changes: &[Change],
     moves: &[(PathBuf, PathBuf)],
+    gone: &[Change],
 ) -> Result<(), String> {
     #[cfg(debug_assertions)]
     if let Some(path) = std::env::var_os(CHANGE_BEFORE_WRITE) {
@@ -1903,7 +2002,7 @@ fn committed(
         bytes.push(b'\n');
         let _ = std::fs::write(&path, bytes);
     }
-    for change in changes {
+    for change in changes.iter().chain(gone) {
         let now = std::fs::read(&change.path).unwrap_or_default();
         if now != change.before.as_bytes() {
             return Err(format!(
@@ -1936,6 +2035,16 @@ fn committed(
         if let Err(err) = std::fs::write(&change.path, &change.after) {
             let what = format!(
                 "`{}` cannot be written: {err}.",
+                project.shown(&change.path)
+            );
+            return Err(partly(what, &done));
+        }
+        done.push(project.shown(&change.path));
+    }
+    for change in gone {
+        if let Err(err) = std::fs::remove_file(&change.path) {
+            let what = format!(
+                "`{}` cannot be deleted: {err}.",
                 project.shown(&change.path)
             );
             return Err(partly(what, &done));

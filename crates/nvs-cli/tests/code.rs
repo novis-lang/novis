@@ -2254,3 +2254,73 @@ fn code_unused_skips_the_public_api_of_a_package() {
         "{out}"
     );
 }
+
+/// A class whose `clear` nothing calls, with a doc comment above it.
+const BOOK: &str = "<?nvs\nnamespace Shop;\n\nclass Book {\n    \
+                    public function total(): int {\n        return 1;\n    }\n\n    \
+                    /// Clears the book.\n    public function clear(): void {}\n}\n";
+
+/// `BOOK` once `clear` is deleted.
+const BOOK_CLEARED: &str = "<?nvs\nnamespace Shop;\n\nclass Book {\n    \
+                            public function total(): int {\n        return 1;\n    }\n}\n";
+
+/// An entry point that calls `Book::total`.
+const BOOKS: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Book;\n\n\
+                     echo (new Book())->total();\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_delete_deletes_an_unused_method_with_its_doc_comment() {
+    let dir = project(
+        "delete-method",
+        &[("src/Book.nvs", BOOK), ("public/books.nvs", BOOKS)],
+    );
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Book::clear", "--dry-run"]);
+    assert!(ok, "{err}");
+    assert_eq!(read(&dir, "src/Book.nvs"), BOOK, "{out}");
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Book::clear"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Book.nvs  1 edit"), "{out}");
+    assert_eq!(read(&dir, "src/Book.nvs"), BOOK_CLEARED, "{out}");
+    let (_, err, ok) = run(&dir, "check", &["public/books.nvs"]);
+    assert!(ok, "the program still checks: {err}");
+}
+
+/// A class alone in its file that nothing uses.
+const COUPON: &str = "<?nvs\nnamespace Shop;\n\n/// A discount.\nclass Coupon {\n    \
+                      public function percent(): int {\n        return 5;\n    }\n}\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_delete_deletes_the_file_of_an_unused_type() {
+    let dir = project("delete-type", &[("src/Coupon.nvs", COUPON)]);
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Coupon", "--dry-run"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("delete src/Coupon.nvs"), "{out}");
+    assert!(dir.join("src/Coupon.nvs").exists());
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Coupon", "--json"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["deleted"], serde_json::json!(["src/Coupon.nvs"]), "{out}");
+    assert_eq!(answer["written"], true, "{out}");
+    assert!(!dir.join("src/Coupon.nvs").exists());
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the program still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_delete_refuses_a_declaration_something_uses_and_writes_nothing() {
+    let dir = project("delete-refused", &[]);
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Cart::addItem"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("is used at index.nvs:9"), "{out}{err}");
+    // Nothing calls `Cart::price` itself, but it implements `Priced::price`
+    // and `GiftCart::price` overrides it, so another body would run.
+    let (out, err, ok) = code(&dir, &["delete", r"Shop\Cart::price"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("overrides a method"), "{out}{err}");
+    for (path, text) in [("src/Cart.nvs", CART), ("src/GiftCart.nvs", GIFT_CART)] {
+        assert_eq!(read(&dir, path), text);
+    }
+}

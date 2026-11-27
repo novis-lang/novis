@@ -107,6 +107,7 @@ pub mod completion_files;
 pub mod coverage;
 pub mod debug_viewer;
 pub mod definition;
+pub mod delete;
 pub mod diagnostics;
 pub mod directives;
 mod disk_index;
