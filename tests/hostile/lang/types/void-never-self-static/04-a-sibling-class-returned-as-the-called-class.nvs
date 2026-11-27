@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a call on `Order` tries to return a `Customer` typed as `Order`.
+// The program should not compile, because each method below can return an object of the wrong class.
+// hostile: expect-refusal
+
+class Model
+{
+    public static function swap(inout ?Model $slot, Model $other): void
+    {
+        $slot = $other;
+    }
+
+    // 1. Checks `$o is static`, then replaces `$o` with another object and returns it.
+    public static function replaced(Model $o, Model $other): ?static
+    {
+        if ($o is static) {
+            $o = $other;
+            return $o;
+        }
+        return null;
+    }
+
+    // 2. Stores an object that was never checked in a `?static` variable and returns it.
+    public static function stored(Model $other): ?static
+    {
+        ?static $found = null;
+        $found = $other;
+        return $found;
+    }
+
+    // 3. Appends an object that was never checked to an `array<static>` and returns the array.
+    public static function appended(Model $other): array<static>
+    {
+        array<static> $found = [];
+        $found[] = $other;
+        return $found;
+    }
+
+    // 4. Passes a `?static` variable as `inout` to a method that writes any `Model` into it.
+    public static function swapped(Model $other): ?static
+    {
+        ?static $found = null;
+        Model::swap(inout $found, $other);
+        return $found;
+    }
+
+    // 5. Uses `is static` inside an anonymous function, which has no called class.
+    public static function filtered(array<Model> $all): array<Model>
+    {
+        return Core\Arr::filter($all, fn(Model $o): bool => $o is static);
+    }
+
+    // 6. Checks a whole array with `is array<static>`.
+    public static function all(array<Model> $all): array<static>
+    {
+        if ($all is array<static>) {
+            return $all;
+        }
+        return [];
+    }
+}
+
+final class Order extends Model
+{
+    public int $total = 5;
+}
+
+final class Customer extends Model
+{}
+
+Customer $customer = new Customer();
+?Order $a = Order::replaced(new Order(), $customer);
+?Order $b = Order::stored($customer);
+array<Order> $c = Order::appended($customer);
+?Order $d = Order::swapped($customer);
+array<Model> $e = Order::filtered([$customer]);
+array<Order> $f = Order::all([$customer]);
+echo $a?->total ?? 0, $b?->total ?? 0, Core\Arr::count($c), $d?->total ?? 0, Core\Arr::count($e), Core\Arr::count($f), "\n";

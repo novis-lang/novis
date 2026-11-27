@@ -1,0 +1,66 @@
+<?nvs
+// One base class keeps every loaded object, and `Order::findAll()` returns only the orders.
+
+class Model
+{
+    private static array<Model> $loaded = [];
+
+    public function constructor(public string $id)
+    {}
+
+    // `new static($id)` creates an object of the class the call names.
+    public static function load(string $id): void
+    {
+        Model::$loaded[] = new static($id);
+    }
+
+    public static function findFirst(): ?static
+    {
+        foreach (Model::$loaded as Model $object) {
+            // `is static` checks if `$object` is of the class the call names.
+            // Inside this block, `$object` may be returned as `?static`.
+            if ($object is static) {
+                return $object;
+            }
+        }
+        return null;
+    }
+
+    public static function findAll(): array<static>
+    {
+        // `$found` only accepts objects of the called class, so it may be returned as `array<static>`.
+        array<static> $found = [];
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
+    }
+}
+
+final class Order extends Model
+{
+    public function label(): string
+    {
+        return 'order ' . $this->id;
+    }
+}
+
+final class Customer extends Model
+{}
+
+Customer::load('c-1');
+Order::load('o-1');
+Customer::load('c-2');
+Order::load('o-2');
+
+// `Order::findAll()` returns `array<Order>`, so the loop can call `label`.
+// Only `Order` has that method.
+foreach (Order::findAll() as Order $order) {
+    echo $order->label(), "\n";
+}
+
+// `Customer::findFirst()` returns the first customer, so this prints `c-1`.
+echo Customer::findFirst()?->id ?? 'none', "\n";
+echo Core\Arr::count(Model::findAll()), " objects in total\n";

@@ -1,0 +1,53 @@
+<?nvs
+// Measures `Order::findAll()` with `is static`, at growing numbers of loaded objects.
+// bench: start 256
+// bench: max 4096
+
+class Model
+{
+    private static array<Model> $loaded = [];
+
+    public static function remember(Model $object): void
+    {
+        Model::$loaded[] = $object;
+    }
+
+    public static function findAll(): array<static>
+    {
+        array<static> $found = [];
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
+    }
+}
+
+final class Order extends Model
+{}
+
+final class Customer extends Model
+{}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        uint $k = 0;
+        while ($k < $size) {
+            Model::remember(new Order());
+            Model::remember(new Customer());
+            $k = $k + 2;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 16) {
+            $total = $total + Core\Arr::count(Order::findAll());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

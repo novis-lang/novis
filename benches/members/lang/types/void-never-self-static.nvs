@@ -1,46 +1,53 @@
 <?nvs
-// Measures what a small family of record types costs. A class builds whichever
-// kind was named, methods return the object, and one method is called only for
-// what it does. Each round starts from the running total, so nothing is
-// computed ahead of time. One object is allocated per round.
-// bench: iterations 256
-// bench: allocations 1
-// bench: calls 5
-// bench: complexity constant
+// Filters loaded objects with `is static` into an `array<static>`, as `Order::findAll()` does in a base model class.
+// bench: iterations 256 -- one operation is now a whole finder call, which loops over the loaded objects
+// bench: allocations 2
+// bench: calls 2
+// bench: complexity linear
 
-class Row
+class Model
 {
-    public function constructor(public int $n)
-    {}
+    private static array<Model> $loaded = [];
 
-    public static function make(int $n): static
+    public static function remember(Model $object): void
     {
-        return new static($n);
+        Model::$loaded[] = $object;
     }
 
-    public function add(int $k): self
+    public static function findAll(): array<static>
     {
-        $this->n = $this->n + $k;
-        return $this;
+        array<static> $found = [];
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
     }
-
-    public static function seen(int $v): void
-    {}
 }
 
-final class Total extends Row
+final class Order extends Model
+{}
+
+final class Customer extends Model
 {}
 
 class Bench
 {
-    public static function run(uint $rounds): int
+    public static function run(uint $rounds): uint
     {
-        int $total = 0;
+        Model::remember(new Order());
+        Model::remember(new Customer());
+        uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Total $row = Total::make($total % 7); // chained: $total is last round's
-            $total = $total + $row->add(1)->add(2)->n;
-            Row::seen($total);
+            // The rounds call `Order::findAll()` and `Customer::findAll()` in turn.
+            // Each call returns an array with one object.
+            if ($total % 2 == 0) {
+                $total = $total + Core\Arr::count(Order::findAll());
+            } else {
+                $total = $total + Core\Arr::count(Customer::findAll());
+            }
             $i = $i + 1;
         }
         return $total;

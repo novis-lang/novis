@@ -1,6 +1,20 @@
 {
   "entries": [
     {
+      "kind": "fixed",
+      "features": [
+        "lang:types/void-never-self-static"
+      ],
+      "text": "`$o is static` checks the class the call names when the program runs. In a base class `Model`, called as `Order::findAll()`, it is `true` for an `Order` and `false` for a `Customer`. Inside an anonymous function, `is static` does not compile."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:types/void-never-self-static"
+      ],
+      "text": "A method that returns `static` may also return a variable inside `if ($o is static)`, or a variable declared with `static` in its type. Each value written to such a variable must be an object of the class the call names. Any other value is the error `E1022`."
+    },
+    {
       "kind": "new",
       "features": [
         "directive:opcache"

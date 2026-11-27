@@ -25,5 +25,17 @@ error `E1015`. If the method stores `$rule` or passes it to another function, th
 A method that returns `static` must return `$this` or `new static(...)`. `return new self();` is
 `E0741`, because a child class may be the class the call names.
 
+`$o is static` checks the class the call names when the program runs. In `Model`, called as
+`Order::findAll()`, it is `true` for an `Order` and `false` for a `Customer`. Inside
+`if ($o is static)`, the method may return `$o` as `static`. After a write to `$o`, it may not.
+`static` inside a larger tested type, such as `$xs is array<static>`, is the error `E1021`. Test each
+element with `is static` instead. Inside an anonymous function, `is static` is the error `E0834`.
+
+A variable may also have `static` in its type, such as `array<static> $found = [];`. The method may
+return it. Each value written to it must be `$this`, `new static(...)`, `null`, a variable inside
+`if ($x is static)`, or a call that returns `static`. Any other value is the error `E1022`. Passing
+the variable to an `inout` parameter is `E1022` too, because that method may write any object to it.
+In a `final` class, `static` is that class, so these variables accept any object of it.
+
 `self` and `static` are not values. `return self;` is the error `E0321`. To use a member of the
 class, write `self::` and the member's name.

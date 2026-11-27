@@ -644,11 +644,17 @@ result has the parent's type, so a method only the subclass has is the error `E0
 return type `static` to keep the subclass. `self` also works as a parameter type.
 
 A method that returns `static` may return `$this`, `new static(...)` or the result of a `static::`
-call. `new self()` or `new A()` there is the error `E0741`. `new self()` in a `static` method
-always creates the class the code is written in, even when the call was made on a subclass.
-`static::method()` reaches an `abstract static` method that a subclass writes.
+call. It may also return a variable inside `if ($x is static)`, or a variable declared with
+`static` in its type, such as `array<static> $found`. `new self()` or `new A()` there is the error
+`E0741`. `new self()` in a `static` method always creates the class the code is written in, even
+when the call was made on a subclass. `static::method()` reaches an `abstract static` method that a
+subclass writes.
 
-`static::` inside an anonymous function is the error `E0834`. `self::m()` and `parent::m()` inside
+`$o is static` checks whether `$o` is an object of the class the call names. A value written to a
+variable declared with `static` in its type must be such an object. Any other value is the error
+`E1022`.
+
+`static::` and `is static` inside an anonymous function are the error `E0834`. `self::m()` and `parent::m()` inside
 one call the class the function is written in.
 
 ## Example 01: an instance method and a static method
@@ -851,7 +857,7 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
 ...
 10 |         return new self();
    |                ^^^^^^^^^^ not the called class
-   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
+   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, a variable inside `if ($x is static)`, or a variable declared with `static` in its type. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -3834,7 +3834,7 @@
     "lang:classes/lateinit": "a08e8951000b1b85"
   },
   "docs/examples/lang/classes/methods-self-static-and-parent/about.md": {
-    "lang:classes/methods-self-static-and-parent": "bf1a9d643a5fdcef"
+    "lang:classes/methods-self-static-and-parent": "852af22c1f678513"
   },
   "docs/examples/lang/classes/nullable-objects-and/about.md": {
     "lang:classes/nullable-objects-and": "3d00be520cdd56ec"
@@ -4194,7 +4194,7 @@
     "lang:types/values-written-in-the-code": "bfac11b8c231eaec"
   },
   "docs/examples/lang/types/void-never-self-static/about.md": {
-    "lang:types/void-never-self-static": "8dc46785aadd95ca"
+    "lang:types/void-never-self-static": "9579f80d20f32b8a"
   },
   "docs/examples/lang/types/what-does-not-exist/about.md": {
     "lang:types/what-does-not-exist": "e7d199638c0afd7d"
@@ -10160,7 +10160,7 @@
   },
   "syntax/classes/methods-and-inheritance.mdx": {
     "lang:classes/inheritance": "3f22cc5b0d9c66bb",
-    "lang:classes/methods-self-static-and-parent": "7377a237cbc6f04d"
+    "lang:classes/methods-self-static-and-parent": "33a39b0359ee0cbd"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "33f2b2b1930580fe",
@@ -10305,7 +10305,7 @@
     "lang:expressions/calls": "52c9e75ff8e8f32d"
   },
   "syntax/functions/declaring.mdx": {
-    "lang:types/void-never-self-static": "871493aca6e496f7"
+    "lang:types/void-never-self-static": "5f5ba6cea296491a"
   },
   "syntax/functions/parameters.mdx": {
     "lang:types/parameters": "f31a899baabf5e73"

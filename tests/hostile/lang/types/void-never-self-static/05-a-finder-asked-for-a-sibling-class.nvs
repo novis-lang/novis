@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a finder on one class is called when only objects of another class are loaded.
+// Each call should return `null` or an empty array, and never an object of the wrong class.
+
+class Model
+{
+    private static array<Model> $loaded = [];
+
+    public static function remember(Model $object): void
+    {
+        Model::$loaded[] = $object;
+    }
+
+    public static function own(?Model $o): ?static
+    {
+        if ($o is ?static) {
+            return $o;
+        }
+        return null;
+    }
+
+    public static function findFirst(): ?static
+    {
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                return $object;
+            }
+        }
+        return null;
+    }
+
+    public static function findAll(): array<static>
+    {
+        array<static> $found = [];
+        foreach (Model::$loaded as Model $object) {
+            if ($object is static) {
+                $found[] = $object;
+            }
+        }
+        return $found;
+    }
+}
+
+class Order extends Model
+{
+    public int $total = 7;
+}
+
+final class BigOrder extends Order
+{
+    public int $extra = 9;
+}
+
+final class Customer extends Model
+{}
+
+// 1. Loads 100,000 customers and asks `Order` for its first and all of its objects.
+uint $i = 0;
+while ($i < 100000) {
+    Model::remember(new Customer());
+    $i = $i + 1;
+}
+?Order $first = Order::findFirst();
+echo $first == null ? 'no order' : 'FOUND AN ORDER', ' ', Core\Arr::count(Order::findAll()), "\n";
+
+// 2. Passes a `Customer` to `Order::own`, which returns it only if it is an `Order`.
+echo Order::own(new Customer()) == null ? 'null' : 'NOT NULL', "\n";
+
+// 3. Passes a plain `Order` to `BigOrder::own`. An `Order` is not a `BigOrder`.
+?BigOrder $big = BigOrder::own(new Order());
+echo $big?->extra ?? 'null', "\n";
+
+// 4. Loads one plain `Order` and asks `BigOrder` for its objects.
+Model::remember(new Order());
+?BigOrder $firstBig = BigOrder::findFirst();
+echo $firstBig?->extra ?? 'null', ' ', Core\Arr::count(BigOrder::findAll()), ' ', Core\Arr::count(Order::findAll()), "\n";
