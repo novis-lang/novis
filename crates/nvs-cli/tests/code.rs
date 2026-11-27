@@ -2767,3 +2767,177 @@ fn code_signature_refuses_removing_an_argument_that_runs_code() {
     assert!(err.contains("may run code"), "{out}{err}");
     assert_eq!(read(&dir, "src/Order.nvs"), order);
 }
+
+/// A class with a constant and a static method that reads it.
+const TAX: &str = "<?nvs\nnamespace Shop;\n\nclass Tax {\n    \
+                   public const int RATE = 20;\n\n    \
+                   /// The tax on an amount.\n    \
+                   public static function of(int $amount): int {\n        \
+                   return $amount * self::RATE;\n    }\n}\n";
+
+/// A class in another namespace that members of [`TAX`] move to.
+const MONEY: &str = "<?nvs\nnamespace Shop\\Util;\n\nclass Money {\n    \
+                     public static function zero(): int {\n        return 0;\n    }\n}\n";
+
+/// The entry point of a [`tax_project`], which prints `100`.
+const TAX_ENTRY: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Tax;\n\n\
+                         echo Tax::of(2) + Tax::of(3);\n";
+
+/// A project with [`TAX`] as written by `tax`, [`MONEY`] and [`TAX_ENTRY`].
+fn tax_project(name: &str, tax: &str) -> nvs_repo::Scratch {
+    project(
+        name,
+        &[
+            ("src/Tax.nvs", tax),
+            ("src/Util/Money.nvs", MONEY),
+            ("public/billing.nvs", TAX_ENTRY),
+        ],
+    )
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_member_moves_a_static_method_and_rewrites_every_call() {
+    let dir = tax_project("move-member-static", TAX);
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Tax::of", r"Shop\Util\Money"]);
+    assert!(ok, "{out}{err}");
+    let money = read(&dir, "src/Util/Money.nvs");
+    assert!(money.contains("use Shop\\Tax;"), "{money}");
+    assert!(money.contains("    /// The tax on an amount.\n    public static function of(int $amount): int {\n        return $amount * Tax::RATE;\n    }\n"), "{money}");
+    let tax = read(&dir, "src/Tax.nvs");
+    assert!(!tax.contains("function of"), "{tax}");
+    assert!(!tax.contains("The tax on"), "{tax}");
+    let entry = read(&dir, "public/billing.nvs");
+    assert!(entry.contains("use Shop\\Util\\Money;"), "{entry}");
+    assert!(
+        entry.contains("echo Money::of(2) + Money::of(3);"),
+        "{entry}"
+    );
+    let (out, err, ok) = run(&dir, "run", &["public/billing.nvs"]);
+    assert!(ok, "the changed project runs: {err}");
+    assert_eq!(out, "100");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_member_moves_a_constant_and_qualifies_its_self_reads() {
+    let dir = tax_project("move-member-constant", TAX);
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Tax::RATE", r"Shop\Util\Money"]);
+    assert!(ok, "{out}{err}");
+    let money = read(&dir, "src/Util/Money.nvs");
+    assert!(
+        money.contains("    public const int RATE = 20;\n"),
+        "{money}"
+    );
+    let tax = read(&dir, "src/Tax.nvs");
+    assert!(tax.contains("use Shop\\Util\\Money;"), "{tax}");
+    assert!(tax.contains("return $amount * Money::RATE;"), "{tax}");
+    assert!(!tax.contains("const int RATE"), "{tax}");
+    let (out, err, ok) = run(&dir, "run", &["public/billing.nvs"]);
+    assert!(ok, "the changed project runs: {err}");
+    assert_eq!(out, "100");
+}
+
+/// A parent class with one property and one method.
+const DOCUMENT: &str = "<?nvs\nnamespace Shop;\n\nclass Document {\n    \
+                        protected string $number = '7';\n\n    \
+                        public function stamp(): string {\n        return 'paid';\n    }\n}\n";
+
+/// A child of [`DOCUMENT`] with a method that reads the parent's property.
+const BILLED_INVOICE: &str = "<?nvs\nnamespace Shop;\n\nclass Invoice extends Document {\n    \
+                       public function title(): string {\n        \
+                       return 'Invoice ' . $this->number;\n    }\n}\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_member_pulls_an_instance_method_up_to_its_parent() {
+    let entry = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Invoice;\n\n\
+                 echo (new Invoice())->title();\n";
+    let dir = project(
+        "move-member-pull-up",
+        &[
+            ("src/Document.nvs", DOCUMENT),
+            ("src/Invoice.nvs", BILLED_INVOICE),
+            ("public/documents.nvs", entry),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Invoice::title", r"Shop\Document"]);
+    assert!(ok, "{out}{err}");
+    let document = read(&dir, "src/Document.nvs");
+    assert!(
+        document.contains("public function title(): string"),
+        "{document}"
+    );
+    assert!(
+        !read(&dir, "src/Invoice.nvs").contains("title"),
+        "the child no longer has it"
+    );
+    assert_eq!(
+        read(&dir, "public/documents.nvs"),
+        entry,
+        "a call on an object stays"
+    );
+    let (out, err, ok) = run(&dir, "run", &["public/documents.nvs"]);
+    assert!(ok, "the changed project runs: {err}");
+    assert_eq!(out, "Invoice 7");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_member_pushes_a_method_down_when_nothing_reaches_it_through_the_parent() {
+    let entry = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Invoice;\n\n\
+                 echo (new Invoice())->stamp();\n";
+    let dir = project(
+        "move-member-push-down",
+        &[
+            ("src/Document.nvs", DOCUMENT),
+            ("src/Invoice.nvs", BILLED_INVOICE),
+            ("public/documents.nvs", entry),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Document::stamp", r"Shop\Invoice"]);
+    assert!(ok, "{out}{err}");
+    assert!(
+        !read(&dir, "src/Document.nvs").contains("stamp"),
+        "the parent no longer has it"
+    );
+    let invoice = read(&dir, "src/Invoice.nvs");
+    assert!(
+        invoice.contains("public function stamp(): string"),
+        "{invoice}"
+    );
+    let (out, err, ok) = run(&dir, "run", &["public/documents.nvs"]);
+    assert!(ok, "the changed project runs: {err}");
+    assert_eq!(out, "paid");
+
+    // A sibling still calls it, so the same move is refused.
+    let receipt = "<?nvs\nnamespace Shop;\n\nclass Receipt extends Document {\n}\n";
+    let sibling = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Receipt;\n\n\
+                   echo (new Receipt())->stamp();\n";
+    let dir = project(
+        "move-member-push-down-sibling",
+        &[
+            ("src/Document.nvs", DOCUMENT),
+            ("src/Invoice.nvs", BILLED_INVOICE),
+            ("src/Receipt.nvs", receipt),
+            ("public/documents.nvs", sibling),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Document::stamp", r"Shop\Invoice"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("would not compile"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Document.nvs"), DOCUMENT);
+    assert_eq!(read(&dir, "src/Invoice.nvs"), BILLED_INVOICE);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_member_refuses_a_private_member_its_class_still_uses() {
+    let tax = TAX.replace("public const int RATE", "private const int RATE");
+    let dir = tax_project("move-member-private", &tax);
+    let (out, err, ok) = code(&dir, &["move", r"Shop\Tax::RATE", r"Shop\Util\Money"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("Make it public first"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Tax.nvs"), tax);
+    assert_eq!(read(&dir, "src/Util/Money.nvs"), MONEY);
+}

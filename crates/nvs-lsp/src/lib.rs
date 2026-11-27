@@ -129,6 +129,7 @@ pub mod inline;
 mod lens_rows;
 pub mod links;
 mod locals;
+pub mod move_member;
 pub mod narrow;
 pub mod order;
 pub mod organize;

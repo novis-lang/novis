@@ -593,6 +593,16 @@ pub fn signature(
     )
 }
 
+/// The edits that move the member `from`, written `Class::member`, into the
+/// class `to` ([`crate::move_member::moved_member`]).
+///
+/// # Errors
+///
+/// Returns why nothing is written.
+pub fn move_member(workspace: &Workspace, from: &str, to: &str) -> Result<Vec<Rewrite>, String> {
+    crate::move_member::moved_member(workspace.documents(), workspace.index(), from, to)
+}
+
 /// The edits that write every method the class `symbol` owes, through the
 /// function the editor's *Implement the missing methods* fix shares
 /// ([`crate::generate::implement_class`]).

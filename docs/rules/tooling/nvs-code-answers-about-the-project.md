@@ -82,6 +82,27 @@ call of the family, and a constructor, whose `new` calls the index records as us
 Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`. **Cost:** tooling only:
 one parse of each file that declares or calls a method of the family, then the check.
 
+**`move`** with a `from` that contains `::` moves that member into the class `to`, from
+`nvs_lsp::query::move_member` (`crates/nvs-lsp/src/move_member.rs`), the function the editor's *Move
+… to another class…* action runs through `workspace/executeCommand` (`nvs.moveMember`). No path
+contains `::`, so the two forms never meet. A static method, a static property, a constant, or a type
+alias or an enum a class declares moves to any class of the project: each `Old::member`, `self::`,
+`static::` and `parent::` that names it becomes the new class, with a `use` line where the file needs
+one, and inside the moved code each `self::` and `static::` that reads another member of the old class
+becomes the old class's name. A method or a property that is not static moves only to a class above
+its class or below it, and its uses, written on an object, do not change. The moved code keeps its
+`///` and `#[` lines, lands after the last member of its group (constants, then properties, then
+methods), and each type it writes by a short name gets a `use` line in the new file. Refused, since
+the checker cannot see each: a private or protected static member the old class still uses ("make it
+public first"), a property whose name a property callback compares as a string
+(`rule:classes/a-compared-property-name-is-a-use`), moved code that writes `parent` or a `self` or
+`static` not in front of `::`, a name the new class already has, a member that shares its declaration
+with another, and an enum case. The rest is the check's: a pull up whose body reads what the class
+above lacks, a push down that something still calls through the class above or a sibling, and a moved
+body that reads a private member of the old class each add an error, so each is refused with it
+(`rule:ide/a-refactoring-checks-its-edit-before-it-writes`). **Cost:** tooling only: one parse of each
+file with a use of the member, one tokenizing of the old file, then the check.
+
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
 `nvs_lsp::query`, so the command and the editor give one answer to one question

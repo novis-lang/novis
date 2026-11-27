@@ -1942,6 +1942,14 @@ fn autoloaded_path(
 /// An insertion that falls inside a deleted line goes where that line was. A
 /// file that does not parse after the edits is left unsorted, and the check
 /// that follows names its error.
+pub(crate) fn sorted_heads(
+    documents: &Documents,
+    heads: Vec<Rewrite>,
+) -> Result<Vec<Rewrite>, String> {
+    headed(&mut Texts::new(documents), heads)
+}
+
+/// [`sorted_heads`] over files already read into `texts`.
 fn headed(texts: &mut Texts, mut heads: Vec<Rewrite>) -> Result<Vec<Rewrite>, String> {
     heads.sort();
     heads.dedup();

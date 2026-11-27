@@ -184,10 +184,19 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Move a file or a directory, and change every `require` that names it.
+    /// Move a file or a directory, or move a member of a class to another
+    /// class.
     ///
-    /// This is the same file move that the editor does. A directory moves
-    /// with everything in it. The command does not create a directory.
+    /// `nvs code move src/Cart.nvs src/Basket.nvs` moves a file. Every
+    /// `require` that names it changes too. This is the same file move that
+    /// the editor does. A directory moves with everything in it. The command
+    /// does not create a directory.
+    ///
+    /// `nvs code move Shop\Cart::total Shop\Order` moves a member. A static
+    /// method, a static property or a constant can move to any class. Every
+    /// `Cart::total` becomes `Order::total`. A method or a property that is
+    /// not static can only move to a parent class or a child class. Its calls
+    /// do not change. If the new code would not compile, nothing is changed.
     ///
     /// The `autoload` setting finds a class by its path. So when a moved file
     /// is found that way, its class gets the name of the new path. A new
@@ -199,9 +208,11 @@ enum Command {
     /// fails.
     Move {
         /// The file or directory to move, as `src/Cart.nvs` or `src/Shop`.
+        /// Or the member to move, as `Shop\Cart::total`.
         from: String,
         /// The new path, as `src/Basket.nvs`. Nothing may exist there yet,
-        /// and its directory must exist.
+        /// and its directory must exist. For a member, the class it moves
+        /// to, as `Shop\Order`.
         to: String,
         /// Print each change and the move, and save nothing. Each line has
         /// the position, the old text and the new text.
@@ -497,6 +508,12 @@ impl Args {
                 // clap requires both positional arguments without `--from`.
                 (None, _, _) => ExitCode::FAILURE,
             },
+            Command::Move {
+                from,
+                to,
+                dry_run,
+                json,
+            } if from.contains("::") => move_member(&from, &to, dry_run, json),
             Command::Move {
                 from,
                 to,
@@ -1312,6 +1329,42 @@ pub(crate) fn change_signature(
         return unknown_method(&project, symbol, json);
     }
     match query::signature(&project.workspace, symbol, parameters, &pairs) {
+        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `nvs code move <Class::member> <Class>`: a member moved into another class
+/// ([`query::move_member`]), written to disk through [`write_out`], or printed
+/// with `--dry-run`.
+pub(crate) fn move_member(from: &str, to: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let index = project.workspace.index();
+    let property = from
+        .rsplit_once("::")
+        .map(|(class, name)| format!("{class}::${name}"));
+    if index.declaration(from).is_none()
+        && property.is_none_or(|property| index.declaration(&property).is_none())
+    {
+        let nearest = project.nearest_names(from);
+        return unknown(
+            &format!("no name `{}` in this project", escaped(from)),
+            &nearest,
+            json,
+        );
+    }
+    if index.declaration(to).is_none() {
+        let nearest = project.nearest_names(to);
+        return unknown(
+            &format!("no name `{}` in this project", escaped(to)),
+            &nearest,
+            json,
+        );
+    }
+    match query::move_member(&project.workspace, from, to) {
         Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
         Err(message) => unknown(&escaped(&message), &[], json),
     }
