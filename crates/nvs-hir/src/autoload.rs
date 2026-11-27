@@ -577,6 +577,41 @@ impl AutoloadMap {
             .any(|root| path.starts_with(root))
     }
 
+    /// The name this program's own declarations would find a file at `path`
+    /// by: [`Self::resolve`] read the other way, for a file that may not exist
+    /// yet. `path` is compared as given, so a caller passes it made canonical
+    /// the way the roots are.
+    ///
+    /// The deepest root that `path` is under answers: its prefix, each
+    /// directory under it and the file's stem. `None` when no root holds
+    /// `path`, when it is not a `.nvs` file, or when a directory or the stem
+    /// cannot be a namespace segment. A refactoring that moves a file reads it
+    /// to learn which name the moved file must declare.
+    #[must_use]
+    pub fn name_at(&self, path: &Path) -> Option<QName> {
+        let (entry, root) = self
+            .entries
+            .iter()
+            .filter(|entry| !entry.borrowed)
+            .flat_map(|entry| entry.roots.iter().map(move |root| (entry, root)))
+            .filter(|(_, root)| path.starts_with(root))
+            .max_by_key(|(_, root)| root.components().count())?;
+        let rest = path.strip_prefix(root).ok()?;
+        let stem = declared_stem(rest)?;
+        let mut segments = entry.segments.clone();
+        if let Some(parent) = rest.parent() {
+            for part in parent.components() {
+                let part = part.as_os_str().to_str()?;
+                if !is_namespace_segment(part) {
+                    return None;
+                }
+                segments.push(part.to_owned());
+            }
+        }
+        segments.push(stem);
+        Some(QName::from_segments(segments))
+    }
+
     /// Whether any declaration was collected at all — the fast exit for a
     /// program that never wrote one, which is every program until it needs a
     /// framework. A map with only `autoload links` entries is not empty: a

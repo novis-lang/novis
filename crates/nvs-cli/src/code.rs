@@ -185,8 +185,12 @@ enum Command {
     /// Move a file or a directory, and change every `require` that names it.
     ///
     /// This is the same file move that the editor does. A directory moves
-    /// with everything in it. The command does not rename a class or create
-    /// a directory.
+    /// with everything in it. The command does not create a directory.
+    ///
+    /// The `autoload` setting finds a class by its path. So when a moved file
+    /// is found that way, its class gets the name of the new path. A new
+    /// folder changes the namespace, and a new file name changes the class
+    /// name. If no `autoload` folder contains the new path, nothing is moved.
     ///
     /// The command prints one line for each changed file and one for the
     /// move. If the move is not possible, it prints why, changes nothing and
@@ -1271,17 +1275,18 @@ pub(crate) fn rename_from(from: &str, dry_run: bool, json: bool) -> ExitCode {
     )
 }
 
-/// `nvs code move`: the editor's file move of a file or a directory, with
-/// every `require` edit [`rename::moved`] gives, written to disk through
-/// [`write_out`], or printed with `--dry-run`.
+/// `nvs code move`: a file move of a file or a directory, with every edit
+/// [`rename::relocated`] gives, written to disk through [`write_out`], or
+/// printed with `--dry-run`.
 ///
 /// Both paths are judged before anything is computed: `from` exists and is
 /// inside the project root, and `to` is inside it too, does not exist, is not
 /// inside `from`, and has a directory that exists. A directory is not created
-/// and a type is not renamed, as the editor's move does neither (the rule's
-/// Declined list). The edits and the move are checked before anything is
-/// written ([`nvs_lsp::refactor::checked`]), and a move that would add an
-/// error writes nothing and prints that error.
+/// (the rule's Declined list). Each autoloaded type a moved file declares is
+/// renamed to the name its new path gives, and an autoloaded file no root
+/// reaches at its new path is refused. The edits and the move are checked
+/// before anything is written ([`nvs_lsp::refactor::checked`]), and a move
+/// that would add an error writes nothing and prints that error.
 pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> ExitCode {
     let mut project = match Project::open() {
         Ok(project) => project,
@@ -1292,7 +1297,10 @@ pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> Exit
         Err((message, nearest)) => return unknown(&message, &nearest, json),
     };
     let workspace = &project.workspace;
-    let rewrites = rename::moved(workspace.documents(), workspace.index(), &moves);
+    let rewrites = match rename::relocated(workspace.documents(), workspace.index(), &moves) {
+        Ok(rewrites) => rewrites,
+        Err(message) => return unknown(&escaped(&message), &[], json),
+    };
     let rewrites = match nvs_lsp::refactor::checked(
         workspace.documents(),
         workspace.index(),

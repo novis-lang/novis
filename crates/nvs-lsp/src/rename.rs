@@ -253,27 +253,82 @@ pub fn renamed_all(
     index: &SymbolIndex,
     requests: &[Request<'_>],
 ) -> Result<Batch, String> {
-    let labelled = |at: usize, message: String| {
-        if requests.len() > 1 {
-            format!("{}: {message}", requests[at].label)
-        } else {
-            message
-        }
-    };
     let mut subjects = Vec::with_capacity(requests.len());
     for (at, request) in requests.iter().enumerate() {
         let subject = subject(index, request.analysed, request.offset)
-            .map_err(|message| labelled(at, message))?;
+            .map_err(|message| labelled(requests, at, message))?;
         subjects.push(subject);
     }
     let freed = Freed::of(index, &subjects);
+    let named: Vec<Named<'_>> = requests
+        .iter()
+        .map(|request| Named {
+            new_name: request.new_name,
+            label: request.label,
+        })
+        .collect();
+    let batch = planned_all(documents, index, subjects, &named, &freed)?;
+    let plain_rewrites: Vec<Rewrite> = batch.rewrites.iter().map(|(_, it)| it.clone()).collect();
+    crate::refactor::checked(documents, index, plain_rewrites, &batch.moves)
+        .map_err(|broken| broken.refusal())?;
+    Ok(batch)
+}
+
+/// The new name and the label of one rename of a list, as [`planned_all`]
+/// reads them.
+#[derive(Clone, Copy)]
+struct Named<'a> {
+    /// The new name, as [`rename()`] takes it.
+    new_name: &'a str,
+    /// What a message calls this rename.
+    label: &'a str,
+}
+
+/// `message` about the rename at `at` of `named`, starting with its label
+/// when the list has more than one.
+fn labelled<T: Labelled>(named: &[T], at: usize, message: String) -> String {
+    if named.len() > 1 {
+        format!("{}: {message}", named[at].label())
+    } else {
+        message
+    }
+}
+
+/// Something with a label a message names it by.
+trait Labelled {
+    /// The label, as `line 3`.
+    fn label(&self) -> &str;
+}
+
+impl Labelled for Request<'_> {
+    fn label(&self) -> &str {
+        self.label
+    }
+}
+
+impl Labelled for Named<'_> {
+    fn label(&self) -> &str {
+        self.label
+    }
+}
+
+/// [`renamed_all`] of `subjects`, one for each of `named`, before its check:
+/// each subject planned with `freed`, the edits merged, and an overlap, a name
+/// given twice or a move onto a taken path refused.
+fn planned_all(
+    documents: &Documents,
+    index: &SymbolIndex,
+    subjects: Vec<Subject>,
+    named: &[Named<'_>],
+    freed: &Freed,
+) -> Result<Batch, String> {
     let mut given: BTreeMap<String, usize> = BTreeMap::new();
-    for (at, (subject, request)) in subjects.iter().zip(requests).enumerate() {
-        for name in subject.given(request.new_name) {
+    for (at, (subject, one)) in subjects.iter().zip(named).enumerate() {
+        for name in subject.given(one.new_name) {
             if let Some(first) = given.insert(name.to_lowercase(), at) {
                 return Err(format!(
                     "{} and {} both give the name `{name}`, so nothing was changed.",
-                    requests[first].label, request.label
+                    named[first].label, one.label
                 ));
             }
         }
@@ -281,12 +336,12 @@ pub fn renamed_all(
 
     let mut rewrites: Vec<(usize, Rewrite)> = Vec::new();
     let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
-    for (at, (subject, request)) in subjects.into_iter().zip(requests).enumerate() {
+    for (at, (subject, one)) in subjects.into_iter().zip(named).enumerate() {
         let Renamed {
             rewrites: planned,
             file,
-        } = planned(documents, index, subject, request.new_name, &freed)
-            .map_err(|message| labelled(at, message))?;
+        } = planned(documents, index, subject, one.new_name, freed)
+            .map_err(|message| labelled(named, at, message))?;
         rewrites.extend(planned.into_iter().map(|rewrite| (at, rewrite)));
         moves.extend(file);
     }
@@ -304,8 +359,8 @@ pub fn renamed_all(
                 .map_or(0, |file| file.line_col(later.site.start).0 + 1);
             return Err(format!(
                 "{} and {} both change `{}` on line {line}, so nothing was changed.",
-                requests[*first.min(second)].label,
-                requests[*first.max(second)].label,
+                named[*first.min(second)].label,
+                named[*first.max(second)].label,
                 plain(path).display()
             ));
         }
@@ -320,11 +375,137 @@ pub fn renamed_all(
             ));
         }
     }
-
-    let plain_rewrites: Vec<Rewrite> = rewrites.iter().map(|(_, it)| it.clone()).collect();
-    crate::refactor::checked(documents, index, plain_rewrites, &moves)
-        .map_err(|broken| broken.refusal())?;
     Ok(Batch { rewrites, moves })
+}
+
+/// Every edit that moving each `(old, new)` path makes necessary: the
+/// `require` edits [`moved`] gives, and the rename of each type whose new
+/// path gives it another name, as one plan, or the message that says why the
+/// move would lose a type.
+///
+/// Under an `autoload` root the path is the name
+/// (`rule:programs/one-declaration-per-autoloaded-file`). So for each moved
+/// `.nvs` file that a program's map claims, the name that map finds the new
+/// path by ([`nvs_hir::AutoloadMap::name_at`]) is the name its sole
+/// declaration takes: a new namespace for a new directory, a new last segment
+/// for a new file name. A directory moves every file under it in one plan. A
+/// file only a `require` reaches keeps its names. The edits are keyed by each
+/// file's current path, and the moves stay the caller's: no file moves twice.
+///
+/// The result is not checked: a caller runs [`crate::refactor::checked`] with
+/// `moves`, as for [`moved`].
+///
+/// **Cost:** tooling only. Each program that reads a moved file is analysed
+/// once, and each renamed type is planned as [`renamed_all`] plans it.
+///
+/// # Errors
+///
+/// A moved file no root of a program that autoloads it reaches at its new
+/// path, programs whose maps give it different names, and every refusal a
+/// type's rename gives.
+pub fn relocated(
+    documents: &Documents,
+    index: &SymbolIndex,
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<Vec<Rewrite>, String> {
+    let mut placed: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
+    for (old, new) in moves {
+        let (old, new) = (canonical_key(old), new_key(new));
+        for file in index.files() {
+            if let Ok(rest) = file.strip_prefix(&old)
+                && !rest.as_os_str().is_empty()
+            {
+                placed.insert(file.to_path_buf(), new.join(rest));
+            }
+        }
+        placed.insert(old, new);
+    }
+
+    let sole: BTreeSet<&Path> = index.sole_kinds().map(|(file, _)| file).collect();
+    let mut maps: BTreeMap<PathBuf, Option<nvs_hir::AutoloadMap>> = BTreeMap::new();
+    let mut subjects: Vec<Subject> = Vec::new();
+    let mut renames: Vec<(String, String)> = Vec::new();
+    for (file, to) in &placed {
+        if !sole.contains(file.as_path()) {
+            continue;
+        }
+        let Some(symbol) = index
+            .declarations_in(file)
+            .iter()
+            .find(|declared| !declared.symbol.contains("::"))
+            .map(|declared| declared.symbol.clone())
+        else {
+            continue;
+        };
+        // Each program that claims the file, and the name its map gives the
+        // new path.
+        let mut names: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+        for entry in index.readers(file) {
+            let map = maps.entry(entry.clone()).or_insert_with(|| {
+                analyse_file(documents, &entry, 0).map(|analysed| analysed.autoload.clone())
+            });
+            let Some(map) = map.as_ref().filter(|map| map.claims(file)) else {
+                continue;
+            };
+            let Some(name) = map.name_at(to) else {
+                return Err(format!(
+                    "No `autoload` root of `{}` reaches `{}`, so that program would lose \
+                     `{symbol}`. Nothing was changed.",
+                    plain(&entry).display(),
+                    plain(to).display()
+                ));
+            };
+            names.entry(name.to_string()).or_default().push(entry);
+        }
+        if names.len() > 1 {
+            let programs: Vec<String> = names
+                .values()
+                .flatten()
+                .map(|entry| format!("`{}`", plain(entry).display()))
+                .collect();
+            return Err(format!(
+                "The programs that load `{symbol}` would find `{}` under different names: {}.",
+                plain(to).display(),
+                programs.join(", ")
+            ));
+        }
+        let Some(name) = names.into_keys().next() else {
+            continue;
+        };
+        if name == symbol {
+            continue;
+        }
+        let declared = index
+            .declaration(&symbol)
+            .ok_or_else(|| outside(index, &symbol))?;
+        let subject = member(index, &symbol, declared.site.clone())?;
+        subjects.push(subject);
+        renames.push((name, format!("`{}`", plain(file).display())));
+    }
+
+    let mut rewrites = moved(documents, index, moves);
+    if renames.is_empty() {
+        return Ok(rewrites);
+    }
+    let named: Vec<Named<'_>> = renames
+        .iter()
+        .map(|(name, label)| Named {
+            new_name: name,
+            label,
+        })
+        .collect();
+    let mut freed = Freed::of(index, &subjects);
+    freed.placed = placed;
+    for (subject, (name, _)) in subjects.iter().zip(&renames) {
+        if let What::Type { symbol, .. } = &subject.what {
+            freed.renamed.insert(symbol.clone(), name.clone());
+        }
+    }
+    let batch = planned_all(documents, index, subjects, &named, &freed)?;
+    rewrites.extend(batch.rewrites.into_iter().map(|(_, rewrite)| rewrite));
+    rewrites.sort();
+    rewrites.dedup();
+    Ok(rewrites)
 }
 
 /// The names a list of renames takes away, which are free for each rename's
@@ -340,6 +521,13 @@ struct Freed {
     files: BTreeSet<PathBuf>,
     /// Each renamed local: its file, its name and the places it is written.
     locals: Vec<(PathBuf, String, Vec<Span>)>,
+    /// Each file the caller moves itself, and its new path ([`relocated`]).
+    /// A type declared in one moves with it: the plan adds no file move and
+    /// no `require` edit of its own, since the caller's move makes both.
+    placed: BTreeMap<PathBuf, PathBuf>,
+    /// Each type [`relocated`] renames, and its new full name. A type that
+    /// moves into the same namespace as another needs no `use` line for it.
+    renamed: BTreeMap<String, String>,
 }
 
 impl Freed {
@@ -1303,10 +1491,12 @@ fn types(
         });
     }
 
-    let file = named_after(index, symbol, old).map(|from| {
-        let to = from.with_file_name(format!("{new}.nvs"));
-        (from, to)
-    });
+    let file = named_after(index, symbol, old)
+        .filter(|from| !freed.placed.contains_key(from))
+        .map(|from| {
+            let to = from.with_file_name(format!("{new}.nvs"));
+            (from, to)
+        });
     if let Some((from, to)) = &file {
         refuse_taken(from, to, symbol, new, freed)?;
         rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
@@ -1498,7 +1688,12 @@ fn namespaced(
             "`{symbol}` is not the only declaration in its file. Move it to its own file first."
         ));
     }
-    let to = autoloaded_path(documents, index, &path, symbol, full)?;
+    // A file the caller moves is already where its new name puts it.
+    let to = if freed.placed.contains_key(&path) {
+        None
+    } else {
+        autoloaded_path(documents, index, &path, symbol, full)?
+    };
     if let Some(to) = &to {
         refuse_taken(&path, to, symbol, full, freed)?;
     }
@@ -1510,6 +1705,14 @@ fn namespaced(
     missed_sites(&mut texts, index, symbol, old, sites)?;
 
     let imports = index.imports_of(symbol);
+    // Whether the same plan moves `named` into `space` too, so a file of it
+    // needs no `use` line for this type, nor this file one for it.
+    let joins = |named: &str| {
+        freed
+            .renamed
+            .get(named)
+            .is_some_and(|to| namespace_of(to) == space)
+    };
     // The edits to `use` and `namespace` lines, which [`headed`] sorts, and
     // every other edit.
     let mut heads: Vec<Rewrite> = Vec::new();
@@ -1562,6 +1765,13 @@ fn namespaced(
         if site.path == path || imports.iter().any(|import| import.site.path == site.path) {
             continue;
         }
+        if index
+            .declarations_in(&site.path)
+            .iter()
+            .any(|declared| !declared.symbol.contains("::") && joins(&declared.symbol))
+        {
+            continue;
+        }
         let entry = wanted
             .entry(site.path.clone())
             .or_insert_with(|| (site.start, BTreeSet::new()));
@@ -1586,6 +1796,7 @@ fn namespaced(
                 && named != symbol
                 && namespace_of(named) == old_space
                 && index.declaration(named).is_some()
+                && !joins(named)
         })
         .collect();
     let mut bare: BTreeSet<String> = BTreeSet::new();
@@ -1628,7 +1839,12 @@ fn namespaced(
             .entry(path.clone())
             .or_insert_with(|| (declared.site.start, BTreeSet::new()));
         entry.0 = entry.0.min(declared.site.start);
-        entry.1.extend(bare);
+        // A neighbour the same plan moves elsewhere is imported by its new
+        // name.
+        entry.1.extend(
+            bare.into_iter()
+                .map(|named| freed.renamed.get(&named).cloned().unwrap_or(named)),
+        );
     }
 
     for (file_path, (at, names)) in wanted {

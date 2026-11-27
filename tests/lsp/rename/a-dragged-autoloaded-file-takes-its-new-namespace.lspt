@@ -1,0 +1,26 @@
+--TEST--
+dragging an autoloaded file into another folder renames its class to the name the new path gives: its `namespace` line and each `use` line, `rule:tooling/nvs-code-answers-about-the-project`
+--FILE--
+<?nvs
+autoload 'Shop' from 'src';
+
+use Shop\Cart;
+
+var $cart = new Cart();
+echo $cart->total();
+--FILE src/Cart.nvs--
+<?nvs
+namespace Shop;
+
+class Cart
+{
+    public function total(): int
+    {
+        return 0;
+    }
+}
+--REQUEST--
+willRenameFiles from=src/Cart.nvs to=src/Billing/Cart.nvs
+--EXPECT--
+case.nvs:4:10 Billing\
+src/Cart.nvs:2:15 \Billing

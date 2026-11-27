@@ -1849,8 +1849,22 @@ fn will_rename_files(
             Some((old, new))
         })
         .collect();
-    let rewrites = rename::moved(documents, index, &moves);
+    let rewrites = dragged(documents, index, &moves);
     (!rewrites.is_empty()).then(|| workspace_edit(located(documents, &rewrites, encoding)))
+}
+
+/// The edits a drag of each `(old, new)` path makes: [`rename::relocated`]'s
+/// plan, which renames each autoloaded type to the name its new path gives,
+/// or only the `require` edits of [`rename::moved`] where that plan is
+/// refused. A client cannot refuse a drag, so a refused plan leaves the
+/// diagnostics to name what broke.
+fn dragged(
+    documents: &Documents,
+    index: &SymbolIndex,
+    moves: &[(PathBuf, PathBuf)],
+) -> Vec<Rewrite> {
+    rename::relocated(documents, index, moves)
+        .unwrap_or_else(|_| rename::moved(documents, index, moves))
 }
 
 /// Every rewrite as a [`Location`] and its text, each file's positions counted
@@ -3014,7 +3028,7 @@ pub(crate) fn file_renames_of_case(
 ) -> Vec<(Location, String)> {
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
-    let rewrites = rename::moved(documents, &index, moves);
+    let rewrites = dragged(documents, &index, moves);
     located(documents, &rewrites, encoding)
 }
 

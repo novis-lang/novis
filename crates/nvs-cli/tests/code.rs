@@ -1487,6 +1487,132 @@ fn code_move_json_lists_every_edit_and_the_move() {
     assert!(dir.join("text/upper.nvs").exists());
 }
 
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_of_an_autoloaded_file_renames_its_type_to_the_new_namespace() {
+    let dir = project(
+        "move-namespace",
+        &[
+            ("src/Billing/Invoice.nvs", INVOICE),
+            ("public/list.nvs", LIST),
+        ],
+    );
+    let (out, err, ok) = code(
+        &dir,
+        &["move", "src/Wishlist.nvs", "src/Billing/Wishlist.nvs"],
+    );
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("moved src/Wishlist.nvs -> src/Billing/Wishlist.nvs"),
+        "{out}"
+    );
+    let moved = read(&dir, "src/Billing/Wishlist.nvs");
+    assert!(moved.contains("namespace Shop\\Billing;"), "{moved}");
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("use Shop\\Billing\\Wishlist;"), "{index}");
+    let list = read(&dir, "public/list.nvs");
+    assert!(list.contains("new Shop\\Billing\\Wishlist()"), "{list}");
+    for entry in ["public/index.nvs", "public/list.nvs"] {
+        let (_, err, ok) = run(&dir, "check", &[entry]);
+        assert!(ok, "{entry} still checks: {err}");
+    }
+}
+
+/// A class in `Shop\Billing` that writes its neighbour `Invoice` by its bare
+/// name, and imports `Wishlist` from `Shop`.
+const REFUND_INVOICE: &str = "<?nvs\nnamespace Shop\\Billing;\n\nuse Shop\\Wishlist;\n\n\
+                              class Refund {\n    public function list(): Wishlist {\n        \
+                              return new Wishlist();\n    }\n\n    \
+                              public function invoice(): Invoice {\n        \
+                              return new Invoice();\n    }\n}\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_of_a_directory_renames_the_namespace_of_every_type_under_it() {
+    let dir = project(
+        "move-namespace-directory",
+        &[
+            ("src/Billing/Invoice.nvs", INVOICE),
+            ("src/Billing/Refund.nvs", REFUND_INVOICE),
+            ("public/refunds.nvs", REFUNDS),
+        ],
+    );
+    let (out, err, ok) = code(&dir, &["move", "src/Billing", "src/Accounts"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("moved src/Billing -> src/Accounts"), "{out}");
+    assert_eq!(
+        read(&dir, "src/Accounts/Invoice.nvs"),
+        INVOICE.replace("Shop\\Billing", "Shop\\Accounts"),
+        "{out}"
+    );
+    // `Invoice` moved with `Refund`, so `Refund` still writes it with no `use`
+    // line.
+    assert_eq!(
+        read(&dir, "src/Accounts/Refund.nvs"),
+        REFUND_INVOICE.replace("Shop\\Billing", "Shop\\Accounts"),
+        "{out}"
+    );
+    let refunds = read(&dir, "public/refunds.nvs");
+    assert!(refunds.contains("use Shop\\Accounts\\Refund;"), "{refunds}");
+    let (_, err, ok) = run(&dir, "check", &["public/refunds.nvs"]);
+    assert!(ok, "the moved project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_to_a_new_file_name_renames_the_type() {
+    let dir = project("move-file-name", &[]);
+    let (out, err, ok) = code(&dir, &["move", "src/Wishlist.nvs", "src/Favourites.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        read(&dir, "src/Favourites.nvs"),
+        WISHLIST.replace("class Wishlist", "class Favourites"),
+        "{out}"
+    );
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("use Shop\\Favourites;"), "{index}");
+    assert!(index.contains("new Favourites()"), "{index}");
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the moved project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_refuses_an_autoloaded_file_no_root_reaches_at_its_new_path() {
+    let dir = move_project("move-namespace-unreached");
+    let before = move_files(&dir);
+    let (out, err, ok) = code(&dir, &["move", "src/Wishlist.nvs", "lib/Wishlist.nvs"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("autoload"), "{out}{err}");
+    assert_eq!(move_files(&dir), before);
+}
+
+/// A class only a `require` reaches, in a file not named after it.
+const LABEL: &str = "<?nvs\nnamespace Shop\\Tools;\n\nclass Label {\n    \
+                     public string $text = 'new';\n}\n";
+
+/// An entry point that requires [`LABEL`].
+const LABELLED: &str = "<?nvs\nrequire '../lib/label.nvs';\n\nuse Shop\\Tools\\Label;\n\n\
+                        echo (new Label())->text;\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_move_of_a_required_file_keeps_its_names() {
+    let dir = project(
+        "move-required",
+        &[("lib/label.nvs", LABEL), ("public/labels.nvs", LABELLED)],
+    );
+    let (out, err, ok) = code(&dir, &["move", "lib/label.nvs", "lib/Tag.nvs"]);
+    assert!(ok, "{err}");
+    assert_eq!(read(&dir, "lib/Tag.nvs"), LABEL, "{out}");
+    assert_eq!(
+        read(&dir, "public/labels.nvs"),
+        LABELLED.replace("label.nvs", "Tag.nvs")
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/labels.nvs"]);
+    assert!(ok, "the moved project still checks: {err}");
+}
+
 /// A route handler, the methods it calls and two tests: one sends a request
 /// to the route, and one calls a method directly. `Prices::base` is also
 /// taken as a callable value on the last line.
