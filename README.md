@@ -130,13 +130,12 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **A reload compiles only the code you changed.** *Working on it now.* When you save a file, the running program compiles only the functions your edit changed. The machine code of every other function is reused from the cache, so a reload of a large program is fast.
-2. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
-3. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
-4. **The same TLS settings for every client.** The database, LDAP, mail and Redis clients take the same TLS settings as `Core\Http\Client`. You can trust a private certificate for one host. Each setting needs a host entry under `[capabilities.tls]` in `nvs.toml`.
-5. **Send and receive files over FTP, FTPS and SFTP.** `Core\FileTransfer::open` connects to a server that the person who runs the program configures in `nvs.toml`. The same code works with FTP, FTPS, SFTP and a local folder. In tests, the folder replaces the server.
-6. **Write HTML attributes from a map.** `Core\Html::attributes` writes a map of attributes and escapes every value. A value that is `true` writes the bare name, and `false` or `null` leaves the attribute out. It leaves out an unsafe URL. `Core\Html::mergeAttributes` merges sets of attributes, and joins the `class` and `style` lists.
-7. **Read Outlook messages.** `Core\Mail\Message::parse` reads an Outlook `.msg` file, a `winmail.dat` attachment, signed S/MIME mail and uuencoded files. The result is the same `Core\Mail\Message` that an ordinary email gives.
+1. **Test code and types that say what they mean.** *Working on it now.* `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
+2. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
+3. **The same TLS settings for every client.** The database, LDAP, mail and Redis clients take the same TLS settings as `Core\Http\Client`. You can trust a private certificate for one host. Each setting needs a host entry under `[capabilities.tls]` in `nvs.toml`.
+4. **Send and receive files over FTP, FTPS and SFTP.** `Core\FileTransfer::open` connects to a server that the person who runs the program configures in `nvs.toml`. The same code works with FTP, FTPS, SFTP and a local folder. In tests, the folder replaces the server.
+5. **Write HTML attributes from a map.** `Core\Html::attributes` writes a map of attributes and escapes every value. A value that is `true` writes the bare name, and `false` or `null` leaves the attribute out. It leaves out an unsafe URL. `Core\Html::mergeAttributes` merges sets of attributes, and joins the `class` and `style` lists.
+6. **Read Outlook messages.** `Core\Mail\Message::parse` reads an Outlook `.msg` file, a `winmail.dat` attachment, signed S/MIME mail and uuencoded files. The result is the same `Core\Mail\Message` that an ordinary email gives.
 <!-- roadmap:end -->
 
 ## Contributing
