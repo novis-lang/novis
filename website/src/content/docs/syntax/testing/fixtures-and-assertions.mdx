@@ -1,7 +1,7 @@
 ---
 title: Fixtures, data rows and assertions
-covers: ['lang:testing/core-test-fixture-built-once-injected-by-type', 'lang:testing/core-test-testwith-data-rows', 'lang:testing/hooks-beforeclass-afterclass-and-aftereachtest', 'lang:testing/assertions', 'lang:testing/core-test-property-generated-inputs']
-description: How a test gets objects from a fixture, runs once per row of data with TestWith, cleans up with hooks, and checks values with the Core\Test assertions.
+covers: ['lang:testing/core-test-fixture-built-once-injected-by-type', 'lang:testing/core-test-testwith-data-rows', 'lang:testing/hooks-beforeclass-afterclass-and-aftereachtest', 'lang:testing/assertions', 'lang:testing/core-test-property-generated-inputs', 'lang:testing/testonly-code-that-only-tests-can-use']
+description: How a test gets objects from a fixture, runs once per row of data with TestWith, cleans up with hooks, checks values with the Core\Test assertions, and uses helpers marked TestOnly.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
@@ -15,6 +15,8 @@ assertion checks a value.
 <FeatureSection examples="lang/testing/hooks-beforeclass-afterclass-and-aftereachtest" heading="Hooks" id="hooks" />
 
 <FeatureSection examples="lang/testing/core-test-property-generated-inputs" heading="Generated inputs" id="generated-inputs" />
+
+<FeatureSection examples="lang/testing/testonly-code-that-only-tests-can-use" heading="Code that only tests can use" id="test-only" />
 
 <FeatureSection examples="lang/testing/assertions" heading="Assertions" id="assertions" />
 
@@ -42,4 +44,5 @@ Put slow setup, like building a schema, in a fixture. It then runs once per clas
 
 - Do write the value you check first: `assertSame($actual, $expected)`.
 - Do use a hook to delete a file or a table that a test leaves behind.
+- Do mark a fake class or a test helper with `#[TestOnly]`. `nvs run` and `nvs build` leave it out.
 - Don't catch `Failure` to hide it. The test fails anyway.

@@ -20309,13 +20309,13 @@
   },
   "/syntax/testing/fixtures-and-assertions/": {
     "feature": "syntax/testing/fixtures-and-assertions.mdx",
-    "hash": "1cbe196f023ef75c",
+    "hash": "640724954a1a81c4",
     "questions": [
       "How do I share setup objects between tests?",
       "Run the same test with several sets of input",
       "Which assertion methods can I use in a test?",
       "How do I check that a function throws an error?",
-      "Why does my test still fail after I catch the failure?",
+      "Keep a helper class for tests out of the production build",
       "Test a function with many generated inputs"
     ]
   },

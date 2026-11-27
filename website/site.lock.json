@@ -10352,7 +10352,8 @@
     "lang:testing/core-test-fixture-built-once-injected-by-type": "f27fceae303a8263",
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/core-test-testwith-data-rows": "25f00bb18f049d76",
-    "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "49a9e27ffde7d5cf"
+    "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "49a9e27ffde7d5cf",
+    "lang:testing/testonly-code-that-only-tests-can-use": "ee2e5a8453a9cbd5"
   },
   "syntax/testing/writing-tests.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",
