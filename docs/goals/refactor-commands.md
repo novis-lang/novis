@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/diagnostics.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/src/actions.rs, docs/rules/ide/five-features-are-one-reference-index.md]
   - id: 7
     title: "extract and implement are nvs code verbs"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/extract.rs, crates/nvs-lsp/src/generate.rs]
   - id: 8
     title: "a local and a method are inlined"
@@ -330,6 +330,12 @@ refused, since deleting it changes which body runs.
 The editor offers extract only when it works, so it has no message. `extract.rs` gains a reasoned form
 that returns why it cannot, and the CLI prints that reason. The editor's offers do not change. The
 default name is the one the editor writes (`extract.rs:635`, `:667`).
+- **As built.** `extract::reasoned` and `extract::at` share `selected` and the steps `probe`,
+  `variable` and `method`, which return `Result<_, Why>`; `at` drops each `Err`. The range's last
+  column is part of the selection, so the CLI passes `column + 1` as the end. A given `--name` that
+  is no identifier or that the file already writes is refused. `generate::implement_class` finds the
+  class by name and runs the fix's `implemented`, so no `E0449` is needed to reach it. Both edits go
+  through `query::extract` and `query::implement`, then `refactor::checked`.
 
 **What inline allows** (stage 8). `nvs code inline <name|path:l:c>` and a `refactor.inline` code
 action. The new kind is added to `capabilities.rs`.
@@ -537,16 +543,16 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 7. extract and implement are nvs code verbs
 
-- [ ] `crates/nvs-lsp/src/extract.rs:155`: a reasoned form that returns why a selection cannot be
+- [x] `crates/nvs-lsp/src/extract.rs:155`: a reasoned form that returns why a selection cannot be
   extracted; `at` keeps its offers.
-- [ ] `crates/nvs-lsp/src/generate.rs:178`: `implement` reachable by class name, through
+- [x] `crates/nvs-lsp/src/generate.rs:178`: `implement` reachable by class name, through
   `refactor::checked`.
-- [ ] `crates/nvs-cli/src/code.rs:206`: the `Extract` verb with `variable` and `method` (stage 12 adds
+- [x] `crates/nvs-cli/src/code.rs:206`: the `Extract` verb with `variable` and `method` (stage 12 adds
   `interface`), and the `Implement` verb, each with help. The range parser sits beside
   `split_position` (`code.rs:1462`).
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the four tests of the check `extract-implement`. Then `cargo
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the four tests of the check `extract-implement`. Then `cargo
   test --test code code_extract code_implement` once, as two runs.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the two verbs.
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the two verbs.
 
 ### 8. a local and a method are inlined
 
@@ -651,39 +657,43 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 landed in three commits: workspace dimming (4a33c149d1),
-`nvs code delete` (cbd71535ed) and the *Delete unused …* action with the settle republish
-(557d2b2059). `cargo test --test code code_unused` 3 of 3 and `code_delete` 3 of 3 pass,
-the `actions` and `diagnostics` `.lspt` folders and `publish.rs`'s dimming test are green, and
-clippy is clean. The nightly sweep's run 45813627231 predates its fixes on `main`.
-- **How stage 6 is built.** The classifier is § *What counts as a use*, its *As built* bullet.
-  `SymbolIndex::dimmed` reads `unused` over the `Unused` that `read_project` cached at the last
-  settle, and `unused_private` while an entry waits. The server calls `read_project` in `settled`,
-  in `start_index` when nothing waits, in `check_workspace` and in the `.lspt` index builders;
-  `settled` then republishes each open document from its kept analysis (`republish_dimming`).
-  `crates/nvs-lsp/src/delete.rs` is the engine (not `refactor.rs`); it deletes only what `unused`
-  lists. `write_out` and `committed` (`code.rs`) take deleted files, and every write verb's JSON has
-  a `deleted` key. Stages 3 to 5 are each standing decision's *As built* bullet.
-
+Stages 1 to 7 are done. Stage 7 landed in one commit (3c3cb597dd): `nvs code extract variable`,
+`extract method` and `implement`, with `extract::reasoned`, `generate::implement_class`,
+`query::extract` and `query::implement`. `cargo test --test code code_extract` 3 of 3 and
+`code_implement` 1 of 1 pass, and clippy and rustfmt are clean. How it is built is § *Extract and
+implement on the command line*, its *As built* bullet. The `.lspt` extract cases were not run; a
+red there is a regression of `at`'s move onto `selected` and the `Result` steps.
+- **The nightly run 45813627231 (at 4e43e1fa2e) is fixed on `main`.** Its three causes:
+  the zone database under Miri (c115a735a1), the `Core\Uuid` passed as `Parses` at run time in the
+  conformance case `uuid-format-writes-each-byte-in-order-and-is-the-parses-method` (28a4d7a6bf),
+  and `serve`'s debug stack bound on aarch64 (544711a8fb). None was rerun here; the next nightly
+  confirms them.
+- Stages 3 to 7 are each standing decision's *As built* bullet. Stage 6's settle republish is
+  `server.rs` `republish_dimming`, and its engine is `crates/nvs-lsp/src/delete.rs`.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
   next to an unrelated error. The `Move` help changed and `Unused` and `Delete` are new, so stage
   13's `site --check stale` and `questions` will name the `nvs code` pages. A server test in
   `crates/nvs-lsp/tests/` that reads a fixed sequence of `publishDiagnostics` may meet the extra
   publish `republish_dimming` sends at a settle, or a public hint it did not expect; the fix is a
-  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does.
+  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does. `Extract` and `Implement`
+  are new help too, and the `nvs code` overview's list of writing verbs changed.
 
 ### Next
 
-Stage 7 (§ *Extract and implement on the command line*).
-1. `crates/nvs-lsp/src/extract.rs:155`: a reasoned form that returns why a selection cannot be
-   extracted; `at` keeps its offers.
-2. `crates/nvs-lsp/src/generate.rs:178`: `implement` reachable by class name, through
-   `refactor::checked`.
-3. `crates/nvs-cli/src/code.rs`: `Extract` (`variable`, `method`) and `Implement` beside `Delete`,
-   each with help; the range parser beside `split_position`. Write through `write_out`, passing
-   `&[]` for `deleted`.
-4. The four tests of the check `extract-implement` at the end of `crates/nvs-cli/tests/code.rs`, then
-   `cargo test --test code code_extract` and `code_implement` once each.
-5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the two verbs; `bun nv rules --render`.
+Stage 8 (§ *What inline allows*).
+1. `crates/nvs-lsp/src/inline.rs` (new): a local and a method, through `refactor::checked`, reusing
+   `extract.rs:816` `runs_first` (make it `pub(crate)`). Return `Result<Vec<Rewrite>, String>` as
+   `query::extract` does (`crates/nvs-lsp/src/query.rs`, after `located`), so the CLI prints the
+   refusal.
+2. `crates/nvs-lsp/src/actions.rs:261` beside `extract::at`, and `crates/nvs-lsp/src/capabilities.rs:96`
+   `CODE_ACTION_KINDS`: the `refactor.inline` action and kind, and the count in the doc above it.
+3. `crates/nvs-cli/src/code.rs:320`: `Inline` beside `Implement`, with help; a target is a name or
+   `split_position`'s `path:l:c`. Write through `write_out` with `&[]` for moves and `deleted`.
+4. The six tests of the check `inline` at the end of `crates/nvs-cli/tests/code.rs`, then
+   `cargo test --test code code_inline` once.
+5. `tests/lsp/actions/a-local-is-inlined.lspt` and `a-method-is-inlined.lspt`, then
+   `nvs lsp-test tests/lsp/actions/` once.
+6. The tooling rule (one paragraph after `extract`/`implement`, verb count to sixteen) and
+   `docs/rules/ide/no-refactoring-introduces-an-alias.md`; `bun nv rules --render`.
 
 ### Backlog
