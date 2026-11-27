@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/ir.rs, docs/rules/packaging/an-artifact-is-one-immutable-content-addressed-file.md]
   - id: 4
     title: "machine code is stored one file per source file under a program list, and a cold compile generates each new function once"
-    status: open
+    status: done
     context: [docs/rules/packaging/a-warm-hit-skips-codegen-not-the-front-end.md, docs/rules/packaging/an-artifact-is-verified-whole-before-a-page-is-executable.md, crates/nvs-cli/tests/compile_cache.rs]
   - id: 5
     title: "a development server keeps each file's checked result and each function's code, and a production server frees both"
@@ -259,6 +259,22 @@ key, runs `compile_pieces` with that index as `reuse`, writes the entries whose 
 list, then the hint. It places every function and each literal once in one private mapping,
 relocates, protects, and builds the `Unit` from `Descriptors` and the placed addresses by Novis
 name.
+**Built (stage 4, the store):** `crates/nvs-cli/src/cache/per_file.rs` holds the three payloads
+(magics `NVSE`, `NVSL`, `NVSH`), the placer and both paths, and its module doc gives the format.
+A warm hit emits nothing: the list under the unit key names every entry, and its pieces are
+placed as stored. A miss compiles through `compile_pieces`, places the program first and stores
+afterwards, so the store never holds code its loader refuses. If the pieces cannot be compiled or
+placed, the program is compiled whole through the JIT, and the count includes both walks. A
+call to a runtime symbol goes through a stub beside the code. `unit_for` takes `impl
+Into<Source>`. `program_source` and `test_program_source` name the hint by the unit kind and the
+entry file's name and folder, and a bare `Digest` has no hint. `unit_for_counted` returns the
+`Work` that the `compile:` line prints. A function with no statement span, which the compiler
+adds, goes in an entry of its own, so a one-file program writes two entries. Eviction's
+`sweep_unnamed` reads every list, from any environment, without its checksum. It runs before
+the size check, on `nvs cache gc` and on the roll. No clock guards a writer whose list has not
+landed: if its entries are deleted, its next run misses and recompiles those files. The
+object-file loader (`Verified::relocate`, `Layout`, `loadable`) is reached only by
+`cache.rs`'s unit tests. A module-level `expect(dead_code)` stands until it is deleted.
 
 **Stage 5: the edit state.** A new directive, `[opcache] incremental`, `System`-class, boolean, with
 the startup default the mode chooses, exactly as `settle`'s is
@@ -337,20 +353,20 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 **Split:** the store and the walk share `cache.rs`, so one session after another.
 
-- [ ] `crates/nvs-cli/src/cache.rs:1652` and `:1695`: `unit_key` and `unit_for` read and write the
+- [x] `crates/nvs-cli/src/cache.rs:1652` and `:1695`: `unit_key` and `unit_for` read and write the
   program list and the source-file entries (§ *Stage 4*).
   - [x] `nvs_codegen::compile_pieces` compiles only the misses into position-free pieces.
-  - [ ] The entry, list and hint payloads encode and decode in `cache.rs`, each through
+  - [x] The entry, list and hint payloads encode and decode in `cache.rs`, each through
     `Cache::store` and `Cache::load`.
-  - [ ] The placer: every piece and literal in one private mapping, relocated, protected, bound.
-  - [ ] `unit_for` reads the list, falls back to the hint's list, compiles the misses, writes
+  - [x] The placer: every piece and literal in one private mapping, relocated, protected, bound.
+  - [x] `unit_for` reads the list, falls back to the hint's list, compiles the misses, writes
     entries, list and hint.
-- [ ] `crates/nvs-cli/src/cache.rs:1749`: `compile_beside_object` is gone; a miss compiles objects
+- [x] `crates/nvs-cli/src/cache.rs:1749`: `compile_beside_object` is gone; a miss compiles objects
   only, and the unit is placed from the list.
-- [ ] `crates/nvs-cli/src/cache.rs:1386`: eviction removes an entry no program list names, on the
+- [x] `crates/nvs-cli/src/cache.rs:1386`: eviction removes an entry no program list names, on the
   roll it already rides.
-- [ ] The `compile:` line's `functions=` and `reused=` (`crates/nvs-cli/src/main.rs:1051`).
-- [ ] The five tests of the check `per-file-store`.
+- [x] The `compile:` line's `functions=` and `reused=` (`crates/nvs-cli/src/main.rs:1051`).
+- [x] The five tests of the check `per-file-store`.
 
 ### 5. a development server keeps each file's checked result and each function's code, and a production server frees both
 
@@ -395,32 +411,32 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4 has had one session of its two. It built
-`nvs_codegen::compile_pieces` (`crates/nvs-codegen/src/pieces.rs`): every function is keyed, only
-the misses are compiled, and each comes back as position-free bytes and relocations, with every
-literal by digest. `cargo test --test pieces` passes both its tests. § *Standing decisions*,
-*Built (stage 4, the pieces)* and *Decided (stage 4, the store)* hold the format, the hint that
-gives per-function reuse after an edit, and what was declined.
+Stages 1 to 4 are done. Stage 4's second session built the per-file store
+(`crates/nvs-cli/src/cache/per_file.rs`, § *Built (stage 4, the store)*). `cargo test --test
+compile_cache` passed all 12 tests, among them the five tests of `per-file-store` and
+`a_unit_past_the_section_limit_loads_warm`. `cargo test --bin nvs cache::` passed 33. Build and
+`cargo clippy --all-targets -- -D warnings` are green.
 
 The sweep's nine nightly failures came from run 45813627231 at `4e43e1fa2e`. `main` fixed them
-after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`), as the last two sessions checked.
+after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`), as earlier sessions checked.
 
-Tests that may go red elsewhere, none of them run here: the coverage and debugger tests
-(`crates/nvs-codegen/tests/probes.rs`, the debug-switch tests), the query-span tests (a query id
-is base plus addend), `crates/nvs-cli/tests/compile_cache.rs` (a warm hit resolves the base
-symbols out of `Descriptors`), and any instruction-count bound on aarch64, where each base use is
-a literal-pool load. `compile_all` now numbers pool jobs by submission, not program index
-(`compile_some`); `crates/nvs-codegen/tests/parallel_codegen.rs` covers it.
+Tests that may go red elsewhere, none of them run here: any test that counted one cache file per
+program, because a program is now its entries, a list and a hint. `crates/nvs-cli/src/cache_cmd.rs`'s
+gc tests are among them, though their payloads have no store magic and the sweep skips them. A
+test that reads the `compile:` line's `functions=` as the program's function count on a cached
+run is another. So are the coverage, debugger and query-span tests and the aarch64
+instruction bounds that the stage 3 handoff named.
 
 ### Next
 
-Stage 4, the second and last session: item 1's three open checkpoints, then items 2 to 5, as
-§ *Decided (stage 4, the store)* says. Payload codecs and the placer go in
-`crates/nvs-cli/src/cache.rs` beside `Loaded` (`:1171`), reusing its mapping and protect steps
-and `this_process` (`:1865`) for `Target::Symbol`. `unit_key` is at `:1716`, `unit_for` at
-`:1759`, `compile_beside_object` at `:1815`, publish at `:1506` (the hint needs a replacing
-form), eviction at `maybe_gc` `:1549`. A function's source file is its first `stmt_spans` entry's
-`file`. The `compile:` line's `functions=` and `reused=` are at `crates/nvs-cli/src/main.rs:1027`.
-At the stage's ceiling, the open items move to `### Backlog` as declined, with the count.
+Stage 5. First, a slice that closes stage 4's leftovers: delete the object-file loader in
+`crates/nvs-cli/src/cache.rs` (`Verified::relocate`, `parse`, `loadable`, `Layout`, `Landing`,
+`form_of`, `landing_for` and the aarch64 page writers). Also delete the unit tests that drive it,
+and the module-level `expect(dead_code)` at the top of the file. Keep `stub_body`, `write_le` and
+`write_branch26`, which `per_file::place` uses. Then stage 5's items:
+`crates/nvs-config/src/cache.rs:593` gets `incremental` beside `settle`'s startup row.
+`crates/nvs-cli/src/script.rs:1832` is where the compile takes the kept function code; give
+`per_file::compile_and_store` an in-memory index beside the hint's. `crates/nvs-cli/src/reload.rs:1042`
+writes the `program reloaded` record. `Work` from `cache::unit_for_counted` is the count it carries.
 
 ### Backlog
