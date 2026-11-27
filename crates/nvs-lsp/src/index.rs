@@ -647,6 +647,11 @@ pub struct SymbolIndex {
     /// changed discards the file. One path and one digest per input, usually
     /// one `nvs.toml` per directory.
     inputs: BTreeMap<PathBuf, Input>,
+    /// What [`dimmed`](Self::dimmed) reads besides the index, from
+    /// [`read_project`](Self::read_project) at the last settle. `None` until
+    /// then, and for an index with no root. One flag and the words of the
+    /// project's `nvs.toml` files, freed with the index.
+    project: Option<Unused>,
 }
 
 /// How a load decides that an indexed file still has the text its entry was
@@ -1805,6 +1810,28 @@ impl SymbolIndex {
             .into_iter()
             .filter(|declared| declared.visibility == Visibility::Private)
             .collect()
+    }
+
+    /// Reads [`Unused::of_project`] for `root` once, for [`dimmed`](Self::dimmed)
+    /// to use until the next call. The server calls it each time the index
+    /// settles, so a change to an `nvs.toml` is read at the next settle. A
+    /// `root` of `None` keeps the dimming private.
+    pub fn read_project(&mut self, root: Option<&Path>) {
+        self.project = root.map(|root| Unused::of_project(root, self));
+    }
+
+    /// The declarations in `path` an editor greys: [`unused`](Self::unused)
+    /// over the project [`read_project`](Self::read_project) read, while no
+    /// entry waits, and [`unused_private`](Self::unused_private) otherwise.
+    ///
+    /// A public declaration is greyed only over a settled index, since a
+    /// waiting entry may hold its one use, and a doubtful case is a use.
+    #[must_use]
+    pub fn dimmed(&self, path: &Path) -> Vec<&Declaration> {
+        match &self.project {
+            Some(project) if self.pending.is_empty() => self.unused(path, project),
+            _ => self.unused_private(path),
+        }
     }
 
     /// The declarations in `path` that nothing the index can see uses, in

@@ -346,7 +346,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         if !more {
                             settled(
                                 connection,
-                                &index,
+                                &mut index,
                                 &mut completion_files,
                                 &settings,
                                 encoding,
@@ -448,7 +448,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     index.settle(&documents);
                     settled(
                         connection,
-                        &index,
+                        &mut index,
                         &mut completion_files,
                         &settings,
                         encoding,
@@ -773,6 +773,9 @@ fn start_index(
         None => SymbolIndex::planned_tree(tree),
     };
     index.use_workers(0);
+    if index.pending().is_empty() {
+        index.read_project(root);
+    }
     index
 }
 
@@ -827,11 +830,12 @@ fn log_panicked(connection: &Connection, index: &mut SymbolIndex) -> Result<(), 
 /// When the connection is gone.
 fn settled(
     connection: &Connection,
-    index: &SymbolIndex,
+    index: &mut SymbolIndex,
     completion_files: &mut CompletionFiles,
     settings: &Settings,
     encoding: PositionEncoding,
 ) -> Result<(), ServerError> {
+    index.read_project(settings.root.as_deref());
     if completion_files.check(index) {
         publish_completion_files(connection, completion_files, encoding)?;
     }
@@ -1036,6 +1040,7 @@ fn check_workspace(
     *index = SymbolIndex::planned(documents, CheckScope::Workspace, root);
     index.use_workers(0);
     index.settle(documents);
+    index.read_project(root);
     if completion_files.check(index) {
         publish_completion_files(connection, completion_files, encoding)?;
     }
@@ -2892,9 +2897,10 @@ pub(crate) fn dimming_of_case(
         return Vec::new();
     };
     let settings = case_settings(root);
-    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    let mut index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    index.read_project(settings.root.as_deref());
     dimming(
-        &index.unused_private(&path),
+        &index.dimmed(&path),
         settings.scope,
         analysed,
         encoding,
@@ -3798,7 +3804,7 @@ fn publish(
         };
         if let Some(path) = path_of(&uri).filter(|_| !stub) {
             diagnostics.extend(dimming(
-                &index.unused_private(&path),
+                &index.dimmed(&path),
                 scope,
                 &analysed,
                 encoding,

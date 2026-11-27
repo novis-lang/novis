@@ -432,8 +432,8 @@ fn line_of(file: &SourceFile, statement: Span) -> Span {
 }
 
 /// The dimming an editor is sent for one document: one `Unnecessary` tag per
-/// private declaration in it that nothing in the index refers to. An unused
-/// `use` line is not here: it is the `W1026` warning, which [`to_wire`] fades.
+/// declaration in it that nothing in the index uses. An unused `use` line is
+/// not here: it is the `W1026` warning, which [`to_wire`] fades.
 ///
 /// **Silent at open scope**, and that is the rule rather than a shortcut.
 /// `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` indexes the open
@@ -443,7 +443,9 @@ fn line_of(file: &SourceFile, statement: Span) -> Span {
 /// rather than a guess a client renders in grey.
 ///
 /// `unused` is the answer to *which* names, which is
-/// [`crate::SymbolIndex::unused_private`]'s, and this is the crossing to the
+/// [`crate::SymbolIndex::dimmed`]'s: every declaration
+/// [`crate::SymbolIndex::unused`] lists once the index has settled, public
+/// and protected ones included, and the private ones before. This is the crossing to the
 /// wire — the same split [`for_document`] makes between the gate and
 /// [`to_wire`].
 ///
@@ -478,10 +480,15 @@ pub fn dimming(
     unused
         .iter()
         .map(|declared| {
+            let private = if declared.visibility == crate::index::Visibility::Private {
+                "is private and "
+            } else {
+                ""
+            };
             faded(
                 &declared.site,
                 format!(
-                    "{} `{}` is private and nothing in this workspace uses it",
+                    "{} `{}` {private}nothing in this workspace uses it",
                     declared.kind.describe(),
                     declared.symbol
                 ),
