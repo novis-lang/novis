@@ -34,7 +34,7 @@ stages:
     context: [docs/rules/config/a-startup-default-is-never-flipped.md, website/src/data/changes.json]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: section-limit
@@ -421,45 +421,29 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 7 took one session. The rules (`3c61149414`): the artifact rule's
-unit is a source file's entry under a program list and a hint, with the function key and its
-Declined list; the header rule's payload is pieces; the edit rule says what `incremental` keeps
-and declines compile on first call, a key from a file's digest alone and shared code between
-versions; the reload rule names the record's four counts; the opcache rule makes `incremental`
-a System startup row. Three rule titles moved with them. The help and website (`c4dc1279ef`):
-`nvs reload`'s help, four `about.md`, the CLI and server reference, the deploy guide and the CLI
-page, four `changes.json` entries, two newcomer reviews with every finding fixed, stamps, and
-the questions of seven pages. `site --check stale changes questions review` and `proofs --gate
---goal incremental-reload` are green.
+Every stage is done. Stage 8 took one session. The four suites this goal wrote are green by name:
+`compile_cache` 12, `parallel_codegen` 3, `function_keys` 3, `incremental_reload` 6, and every
+test the acceptance list names passed. The tests the last handoff said may go red are green:
+`reload_command`, `reload_outcomes`, `serve_reload`, `reload_follows_links`, `test_coverage`,
+`debugger`, `debug_api`, the binary's reload unit tests and `verify --fast -p nvs-lsp`.
 
-Nightly 45992349212 is still the newest CI run. Its Miri and aarch64 failures were fixed on
-`main` after the run. Linux proofs failed `website/snippets/tools/debug-viewer/runs.shot` with no
-diff in the log; the verdict names the first differing line from `ffe86543e9` on. The list is
-newest first, so the two `on = "start"` jobs' order depends on which ends last. If the next log
-shows the rows swapped, make the order not depend on timing in the snippet.
-
-Build and clippy are green. Tests that may go red, not run here:
-language-server tests, now that `Analysed::interner` is an `Arc`; gc tests that count one cache
-file per program; readers of `functions=` on a cached run; the coverage, debugger and query-span
-tests; exact matches on the `program reloaded` fields, which now end with `written`; and
-`reload_endpoint`'s reply test.
+Three reds were fixed, none from this goal's code. The nightly's `runs.shot` failure
+(`606701259f`): its two `on = "start"` jobs ended in either order. The OK job is now
+`alert-team` on `on = "failed"`, so it always ends after `send-receipts`, and the shot waits for
+`.outcome.s2`. Two attribute completion cases lacked the `Core\TestOnly` row, and the index
+readers test named `unused_private`, which dimming now reaches through `dimmed`
+(`2d6e9f8608`). The nightly's Miri and aarch64 failures were already fixed on `main`.
+`bun nv close --goal incremental-reload` is green.
 
 ### Next
 
-Stage 8, the close (this goal is not the chain's full gate):
-
-1. The tests this goal wrote, by name: `cargo test --test compile_cache`, `--test
-   parallel_codegen`, `--test function_keys`, `--test incremental_reload`, each with the names
-   the acceptance list gives.
-2. The tests named above that may go red, each fixed in one pass if it is.
-3. `bun nv close --goal incremental-reload`, every red fixed, then `DONE`.
-4. If a newer nightly than 45992349212 has run, read its `runs.shot` verdict first.
+Nothing: the goal is reached, and the driver runs its acceptance checks and retires it.
 
 ### Backlog
