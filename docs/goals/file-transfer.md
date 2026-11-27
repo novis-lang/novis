@@ -158,6 +158,7 @@ renames every use in this file.
 | `host_key` | SFTP only: one or more `SHA256:` fingerprints the server's host key must match. |
 | `known_hosts_file` | SFTP only: an OpenSSH `known_hosts` file, read instead of `host_key`. |
 | `tls_ca_file` | FTPS only: replaces the trust anchors for this block, as `[imap]`'s does. |
+| `tls_pin`, `tls_verify_host`, `tls_verify`, `tls_min_version` | FTPS only: the relaxations every client block takes, each under its `[capabilities.tls]` grant, which goal `tls-relax-every-client` builds. The control and data connections both go through `NvsTls::over_policy` with the block's policy. |
 | `root` | The remote folder every path is relative to. Unset, the login folder. |
 | `directory` | A local folder that replaces the server, for tests, examples and development. |
 | `timeout` | Idle time per operation, as `[imap]`'s `timeout`. |
