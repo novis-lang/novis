@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr_table.rs, crates/nvs-types/src/deprecated.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 3
     title: "a run and a build leave every test-only type out, and Core\\Program never lists one"
-    status: open
+    status: done
     context: [docs/rules/programs/implementing.md, crates/nvs-ir/src/lower/mod.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-ir/src/lower/expr.rs]
   - id: 4
     title: "the editor offers test-only code only inside test code, and its hover says it is for tests"
@@ -150,9 +150,11 @@ and a dynamic call on a `mixed` receiver finds no test-only method, as for a tes
 in any build, `nvs test` included** (`crates/nvs-hir/src/hierarchy.rs:1175`, lowered at
 `crates/nvs-ir/src/lower/expr.rs:4115` and `:4202`; the session finds where `constructors` expands).
 A program then lists the same classes under `nvs test` as in production, so a test sees the module
-set production runs. A test that needs a fake in the list passes it in by hand. Fallback if the
-hierarchy layer cannot see attributes: carry a `test_only` flag on `ClassLinks` beside `concrete`,
-set from the test-only type set.
+set production runs. A test that needs a fake in the list passes it in by hand. Built (stage 3):
+the filter is `crate::test_code::listed_implementors` in `nvs-types`, called by all three members
+in `crates/nvs-types/src/program.rs`, which record the class list the lowering reads. The checker
+already has the test-only set there, so `ClassLinks` gets no flag and `nvs_hir::implementors` stays
+the plain `is` walk that the other enumerations (constructor checks, field scans) need.
 
 **Packages.** A package's test-only code is test code wherever it is used, so the application's tests
 may use a framework's test helpers. `rule:testing/test-attribute` drops a package's `#[Test]` rows,
@@ -247,15 +249,15 @@ and the hierarchy and could run beside `refactor-commands` as a side goal. Stage
 
 ### 3. a run and a build leave every test-only type out, and Core\Program never lists one
 
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1470`: under `Tests::Omit`, a test-only type gets no class row,
+- [x] `crates/nvs-ir/src/lower/mod.rs:1470`: under `Tests::Omit`, a test-only type gets no class row,
   descriptor or layout. Its methods are already left out once stage 1 put them in the set (`:951`).
-- [ ] `crates/nvs-hir/src/hierarchy.rs:1175`: the enumeration skips a test-only class in every build,
+- [x] `crates/nvs-hir/src/hierarchy.rs:1175`: the enumeration skips a test-only class in every build,
   through a flag on `ClassLinks` if the layer cannot see attributes. `crates/nvs-ir/src/lower/expr.rs:4115`
   and `:4202` and the `constructors` expansion read the same list. `rule:programs/implementing` gains
   one sentence.
-- [ ] `crates/nvs-ir/src/lower/tests.rs:6465`: `a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it`
+- [x] `crates/nvs-ir/src/lower/tests.rs:6465`: `a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it`
   adds a test-only method and a test-only class to its program.
-- [ ] `crates/nvs-cli/tests/test_only_run.rs` (new): the four tests of the check `builds`, the
+- [x] `crates/nvs-cli/tests/test_only_run.rs` (new): the four tests of the check `builds`, the
   package one with a fixture under `crates/nvs-cli/tests/fixtures/test-only/` laid out like
   `fixtures/package-api/restrict/`. Then `cargo test --test test_only_run` once.
 
@@ -298,36 +300,42 @@ above.
 
 ### State
 
-Stages 1 and 2 are done. The checks `marker` and `uses` are green (`cargo test --test test_only`,
-11 passed), and the build and clippy are clean.
+Stages 1 to 3 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 11 passed)
+and `builds` (`cargo test --test test_only_run`, 4 passed) are green, and the build and clippy
+are clean.
 
-`refuse_calls` (`crates/nvs-types/src/test_code.rs`) now also refuses a `New`, `StaticProperty`,
-`ClassConst`, `ClassConstLate`, `ClassRefConst` and `EnumCase` entry whose type is test-only, with
-the one message shape "`X` is test code, so only test code can use it". Its help names
-`#[TestOnly]` when the target carries it. A written type is refused in two places that build the
-same diagnostic, so `Diagnostics` keeps one: `refuse_type`, called from `crate::lower`'s class and
-enum arms while `Env::in_production_body` is set (by `deprecated::window`, from
-`TestCode::is_test_body`), and `refuse_signatures`, an AST pass from `check.rs` after
-`check_hierarchy` over property and constant types, methods with no body and `implements` type
-arguments. The module doc says which covers what. `E0889`'s card names `#[TestOnly]`, and
-`tests/conformance/reject/a-call-into-test-code-is-refused.nvst` takes the new message.
+Stage 3: `crate::test_code::record_type` records each test-only class, interface and enum on
+`ExprTypeTable` (`record_test_only_type`, read by `is_test_only_type`), from `check.rs`'s three
+declaration arms. Under `Tests::Omit`, `lower_program_as` drops the type's class row, static
+properties and enum row (`Tests::keeps_type`), and `Tests::lowers` drops every method and
+property hook whose label starts with a test-only type. `listed_implementors` filters the three
+`Core\Program` enumerations in every build (see the decision). `rule:programs/implementing` says
+so. The lowering test `a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it` covers all of it,
+and `crates/nvs-cli/tests/test_only_run.rs` drives the binary over the fixtures under
+`crates/nvs-cli/tests/fixtures/test-only/`.
 
-Every job the nightly sweep named was already fixed on `main` after its run (`4e43e1fa2e`): the
-Miri zone tests in `c115a735a1`, the Uuid `Parses` case in `28a4d7a6bf` and the serve bound in
-`544711a8fb`.
+Every job the nightly sweep named (run at `4e43e1fa2e`) was already fixed on `main` after it: the
+Miri zone tests in `c115a735a1` and `215257ff46`, the Uuid `Parses` case in `28a4d7a6bf` and the
+serve bound in `544711a8fb`.
 
 ### Next
 
-Stage 3 from its first item. Under `Tests::Omit`, a test-only type gets no class row, descriptor
-or layout (`crates/nvs-ir/src/lower/mod.rs`, the class rows around `:1470`). `nvs-ir` does not
-depend on `nvs-types`, so the test-only type set has to travel on `ExprTypeTable`, as
-`record_test_code` carries the method labels (`crates/nvs-types/src/check.rs` `fn check_method`).
-Then `Core\Program::implementing` skips a test-only class (`crates/nvs-hir/src/hierarchy.rs:1175`,
-a `test_only` flag on `ClassLinks` if the layer cannot see attributes).
+Stage 4 from its first item. Its gate holds: `refactor-commands` and `loadable-completion` are
+reached. Completion (`crates/nvs-lsp/src/completion.rs`, `members_of`, `member`,
+`declared_members`, the type-name list) leaves test-only items out unless the method around the
+cursor is test code. The LSP sees the checked program's `ExprTypeTable`, so `is_test_code` and
+`is_test_only_type` answer there. Hover adds "Only for tests. `nvs run` and `nvs build` leave it
+out." in `crates/nvs-lsp/src/hover.rs` beside `restriction` and `deprecation`.
 
 Tests expected to go red at the gate: any test that counts `ATTRIBUTES` or snapshots the attribute
 cards, stubs or `nvs meta` output changes by one row, and any snapshot of `E0889`'s card or message
 (the `nvs agent show` pages, `llms-full.txt`) changes with the new text. The new code `E1019` may
-need a line wherever the error codes are listed for the website.
+need a line wherever the error codes are listed for the website. A snapshot of
+`ExprTypeTable`'s dump gains the empty `test_only_types` section.
 
 ### Backlog
+
+- A `#[TestOnly]` class that declares routes or commands still reaches the compiled route and
+  command tables, whose handlers then name a class a run has no row for. Stage 5's rule says whether
+  that is `E1019`, and stage 6 adds the check if so (`crates/nvs-types/src/routes.rs`,
+  `check_class_routes`, and `crates/nvs-types/src/commands.rs`).
