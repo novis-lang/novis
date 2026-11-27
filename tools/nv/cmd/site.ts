@@ -1146,6 +1146,17 @@ export interface Served {
 const same = (a: string, b: string) => a.replace(/\r\n?/g, "\n").trimEnd() === b.replace(/\r\n?/g, "\n").trimEnd();
 const firstLine = (s: string) => s.trim().split("\n")[0] ?? "";
 
+/** The first line where `was` and `now` differ, as `line N: was "…", now "…"`, so a runner whose
+ * render differs (a CI platform the author cannot run) names the difference in its log. */
+export function firstDifference(was: string, now: string): string {
+  const lines = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd().split("\n");
+  const [a, b] = [lines(was), lines(now)];
+  const i = a.findIndex((line, n) => line !== b[n]);
+  const at = i === -1 ? a.length : i;
+  const show = (s: string | undefined) => (s === undefined ? "the end" : JSON.stringify(s));
+  return `line ${at + 1}: was ${show(a[at])}, now ${show(b[at])}`;
+}
+
 /**
  * The divergence rule for a snippet that compiles. `owed` is the text its `.out` and its `.http.out` must
  * have, and null for a file that must not exist; it is null as a whole when a context the snippet must run
@@ -1643,7 +1654,7 @@ export function shotVerdict(p: string, recording: string, onDisk: string | null,
   const shoot = `run \`bun nv site --shoot ${p}\``;
   if (onDisk === null) return [`${p}: no .${SHOT_OUT} beside it; ${shoot}`];
   const problems: string[] = [];
-  if (!same(recording, onDisk)) problems.push(`${p}: its .${SHOT_OUT} is not what the run shows now; ${shoot}`);
+  if (!same(recording, onDisk)) problems.push(`${p}: its .${SHOT_OUT} is not what the run shows now (${firstDifference(onDisk, recording)}); ${shoot}`);
   if (!picture) problems.push(`${p}: no ${shotPng(p).slice(p.lastIndexOf("/") + 1)} beside it; ${shoot}`);
   return problems;
 }

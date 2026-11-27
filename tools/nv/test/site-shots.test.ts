@@ -86,7 +86,10 @@ describe("the shots part", () => {
     expect(shotVerdict(P, OUT, OUT, true)).toEqual([]);
     expect(shotVerdict(P, OUT, OUT.replace("\n", "\r\n"), true)).toEqual([]);
     expect(shotVerdict(P, OUT, null, true)).toEqual([`${P}: no .shot.out beside it; run \`bun nv site --shoot ${P}\``]);
-    expect(shotVerdict(P, OUT, OUT.replace("200", "404"), true)).toEqual([`${P}: its .shot.out is not what the run shows now; run \`bun nv site --shoot ${P}\``]);
+    expect(shotVerdict(P, OUT, OUT.replace("200", "404"), true)).toEqual([
+      `${P}: its .shot.out is not what the run shows now (line 4: was "404", now "200"); run \`bun nv site --shoot ${P}\``,
+    ]);
+    expect(shotVerdict(P, `${OUT}more`, OUT, true)[0]).toContain(`(line 5: was the end, now "more")`);
     expect(shotVerdict(P, shotOut("fedcba9876543210", "GET\n200"), OUT, true)).toHaveLength(1);
     expect(shotVerdict(P, OUT, OUT, false)).toEqual([`${P}: no requests.png beside it; run \`bun nv site --shoot ${P}\``]);
   });
