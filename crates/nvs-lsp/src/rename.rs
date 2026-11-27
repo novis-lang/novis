@@ -100,6 +100,14 @@
 //! path the index holds ([`SymbolIndex::linked`]) is written again the same
 //! way, its `#` anchor kept, and from the index alone.
 //!
+//! # A list of renames
+//!
+//! [`renamed_all`] plans each rename of a list against the one index, frees
+//! for every clash check each name the list takes away (`Freed`), so two
+//! names can swap, merges the edits per file, and refuses two renames that
+//! give one new name or edit one byte range. [`rename()`] is the plan of one,
+//! with nothing freed.
+//!
 //! # What it costs
 //!
 //! Nothing is kept. A rename reads the index the server already holds and the
@@ -188,7 +196,9 @@ pub fn rename(
     offset: BytePos,
     new_name: &str,
 ) -> Result<Renamed, String> {
-    let Renamed { rewrites, file } = planned(documents, index, analysed, offset, new_name)?;
+    let subject = subject(index, analysed, offset)?;
+    let Renamed { rewrites, file } =
+        planned(documents, index, subject, new_name, &Freed::default())?;
     let moves: Vec<(PathBuf, PathBuf)> = file.iter().cloned().collect();
     let checked = crate::refactor::checked(documents, index, rewrites, &moves)
         .map_err(|broken| broken.refusal())?;
@@ -198,15 +208,238 @@ pub fn rename(
     })
 }
 
-/// [`rename()`] before its check.
+/// One rename of a list [`renamed_all`] applies.
+#[derive(Clone, Copy, Debug)]
+pub struct Request<'a> {
+    /// The analysis of the file the symbol is in.
+    pub analysed: &'a Analysed,
+    /// The byte the symbol is at.
+    pub offset: BytePos,
+    /// The new name, as [`rename()`] takes it.
+    pub new_name: &'a str,
+    /// What a message calls this rename, as `line 3`.
+    pub label: &'a str,
+}
+
+/// What a list of renames changes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Batch {
+    /// Every edit, keyed by each file's current path, in file and source
+    /// order, each with the position in the list of the rename it came from.
+    pub rewrites: Vec<(usize, Rewrite)>,
+    /// Every file move, made after the edits. Two files may swap paths.
+    pub moves: Vec<(PathBuf, PathBuf)>,
+}
+
+/// Every edit that applies each rename of `requests`, as one plan, or the
+/// message that says why the list cannot be applied.
+///
+/// Each rename is computed against the one index `index`, so a position names
+/// a place in the files as they are before any rename. A name that another
+/// rename of the list takes away is free for the clash checks, so two names
+/// can swap. Two renames that give one new name, and two that edit one place,
+/// refuse the list and name both. The merged edit and its moves are checked
+/// once ([`crate::refactor::checked`]). A message about one rename starts with
+/// its [`label`](Request::label) when the list has more than one.
+///
+/// **Cost:** tooling only. One subject and one plan per rename, one sort of
+/// every edit, and one check of the merged edit.
+///
+/// # Errors
+///
+/// Returns the refusal message, written for the person who wrote the list.
+pub fn renamed_all(
+    documents: &Documents,
+    index: &SymbolIndex,
+    requests: &[Request<'_>],
+) -> Result<Batch, String> {
+    let labelled = |at: usize, message: String| {
+        if requests.len() > 1 {
+            format!("{}: {message}", requests[at].label)
+        } else {
+            message
+        }
+    };
+    let mut subjects = Vec::with_capacity(requests.len());
+    for (at, request) in requests.iter().enumerate() {
+        let subject = subject(index, request.analysed, request.offset)
+            .map_err(|message| labelled(at, message))?;
+        subjects.push(subject);
+    }
+    let freed = Freed::of(index, &subjects);
+    let mut given: BTreeMap<String, usize> = BTreeMap::new();
+    for (at, (subject, request)) in subjects.iter().zip(requests).enumerate() {
+        for name in subject.given(request.new_name) {
+            if let Some(first) = given.insert(name.to_lowercase(), at) {
+                return Err(format!(
+                    "{} and {} both give the name `{name}`, so nothing was changed.",
+                    requests[first].label, request.label
+                ));
+            }
+        }
+    }
+
+    let mut rewrites: Vec<(usize, Rewrite)> = Vec::new();
+    let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for (at, (subject, request)) in subjects.into_iter().zip(requests).enumerate() {
+        let Renamed {
+            rewrites: planned,
+            file,
+        } = planned(documents, index, subject, request.new_name, &freed)
+            .map_err(|message| labelled(at, message))?;
+        rewrites.extend(planned.into_iter().map(|rewrite| (at, rewrite)));
+        moves.extend(file);
+    }
+    rewrites.sort_by(|left, right| left.1.cmp(&right.1));
+    rewrites.dedup_by(|later, earlier| later.1 == earlier.1);
+    let mut texts = Texts::new(documents);
+    for pair in rewrites.windows(2) {
+        let ((first, earlier), (second, later)) = (&pair[0], &pair[1]);
+        let overlaps = earlier.site.path == later.site.path
+            && (later.site.start < earlier.site.end || later.site.start == earlier.site.start);
+        if overlaps {
+            let path = &later.site.path;
+            let line = texts
+                .file(path)
+                .map_or(0, |file| file.line_col(later.site.start).0 + 1);
+            return Err(format!(
+                "{} and {} both change `{}` on line {line}, so nothing was changed.",
+                requests[*first.min(second)].label,
+                requests[*first.max(second)].label,
+                plain(path).display()
+            ));
+        }
+    }
+    let from: BTreeSet<&PathBuf> = moves.iter().map(|(from, _)| from).collect();
+    let mut targets: BTreeSet<&PathBuf> = BTreeSet::new();
+    for (moved, to) in &moves {
+        if !targets.insert(to) || (taken(moved, to) && !from.contains(to)) {
+            return Err(format!(
+                "`{}` already exists, so nothing was changed.",
+                plain(to).display()
+            ));
+        }
+    }
+
+    let plain_rewrites: Vec<Rewrite> = rewrites.iter().map(|(_, it)| it.clone()).collect();
+    crate::refactor::checked(documents, index, plain_rewrites, &moves)
+        .map_err(|broken| broken.refusal())?;
+    Ok(Batch { rewrites, moves })
+}
+
+/// The names a list of renames takes away, which are free for each rename's
+/// clash checks ([`renamed_all`]).
+#[derive(Debug, Default)]
+struct Freed {
+    /// Each type, owned type and member the list renames, as the index spells
+    /// it.
+    symbols: BTreeSet<String>,
+    /// Every site of each of them, and of each local the list renames.
+    sites: Vec<Site>,
+    /// The file each renamed type is declared in, which may move away.
+    files: BTreeSet<PathBuf>,
+    /// Each renamed local: its file, its name and the places it is written.
+    locals: Vec<(PathBuf, String, Vec<Span>)>,
+}
+
+impl Freed {
+    /// What `subjects` take away.
+    fn of(index: &SymbolIndex, subjects: &[Subject]) -> Self {
+        let mut freed = Self::default();
+        for subject in subjects {
+            match &subject.what {
+                What::Type { symbol, sites, .. } => {
+                    freed.symbols.insert(symbol.clone());
+                    freed.sites.extend(sites.iter().cloned());
+                    if let Some(declared) = index.declaration(symbol) {
+                        freed.files.insert(declared.site.path.clone());
+                    }
+                }
+                What::Owned { symbol, sites, .. } => {
+                    freed.symbols.insert(symbol.clone());
+                    freed.sites.extend(sites.iter().cloned());
+                }
+                What::Members { family, sites, .. } => {
+                    freed.symbols.extend(family.iter().cloned());
+                    freed.sites.extend(sites.iter().cloned());
+                }
+                What::Local {
+                    path, name, sites, ..
+                } => {
+                    freed
+                        .locals
+                        .push((path.clone(), name.clone(), sites.clone()));
+                }
+            }
+        }
+        freed
+    }
+
+    /// Whether `symbol` is renamed away.
+    fn symbol(&self, symbol: &str) -> bool {
+        self.symbols.contains(symbol)
+    }
+
+    /// Whether the bytes `span` of `path` are a site of a name renamed away.
+    fn site(&self, path: &Path, span: Span) -> bool {
+        self.sites
+            .iter()
+            .any(|site| site.path == path && site.start <= span.start && span.end <= site.end)
+    }
+
+    /// Whether `binding`, a local of a body in `path`, is renamed away.
+    fn local(&self, path: &Path, binding: &LocalBinding) -> bool {
+        self.locals.iter().any(|(file, name, sites)| {
+            file == path
+                && *name == binding.name
+                && sites.iter().any(|span| {
+                    binding.declared.start <= span.start && span.end <= binding.declared.end
+                })
+        })
+    }
+}
+
+impl Subject {
+    /// Each full name a rename of this subject to `new_name` gives, which no
+    /// other rename of the same list may give too.
+    fn given(&self, new_name: &str) -> Vec<String> {
+        let new = new_name.strip_prefix('$').unwrap_or(new_name);
+        match &self.what {
+            What::Type { symbol, .. } => {
+                if new.contains('\\') {
+                    vec![new.trim_start_matches('\\').to_owned()]
+                } else {
+                    let space = namespace_of(symbol);
+                    if space.is_empty() {
+                        vec![new.to_owned()]
+                    } else {
+                        vec![format!("{space}\\{new}")]
+                    }
+                }
+            }
+            What::Owned { owner, .. } => vec![format!("{owner}::{new}")],
+            What::Members { family, .. } => family
+                .iter()
+                .filter_map(|member| member.rsplit_once("::"))
+                .map(|(owner, _)| format!("{owner}::{new}"))
+                .collect(),
+            What::Local { path, bindings, .. } => {
+                let body = bindings.first().map_or(0, |binding| binding.declared.start);
+                vec![format!("{}#{body}::${new}", path.display())]
+            }
+        }
+    }
+}
+
+/// [`rename()`] of `subject` before its check, with each name `freed` takes
+/// away free for the clash checks.
 fn planned(
     documents: &Documents,
     index: &SymbolIndex,
-    analysed: &Analysed,
-    offset: BytePos,
+    subject: Subject,
     new_name: &str,
+    freed: &Freed,
 ) -> Result<Renamed, String> {
-    let subject = subject(index, analysed, offset)?;
     if new_name.contains('\\') {
         let What::Type { symbol, old, sites } = subject.what else {
             return Err(
@@ -215,7 +448,7 @@ fn planned(
                     .to_owned(),
             );
         };
-        return namespaced(documents, index, &symbol, &old, new_name, &sites);
+        return namespaced(documents, index, &symbol, &old, new_name, &sites, freed);
     }
     let new = new_name.strip_prefix('$').unwrap_or(new_name);
     if !is_identifier(new) {
@@ -226,18 +459,15 @@ fn planned(
             if new == old {
                 return Err("The new name is the same as the old one.".to_owned());
             }
-            types(documents, index, &symbol, &old, new, &sites)
+            types(documents, index, &symbol, &old, new, &sites, freed)
         }
         What::Owned {
-            symbol,
-            owner,
-            old,
-            sites,
+            symbol, old, sites, ..
         } => {
             if new == old {
                 return Err("The new name is the same as the old one.".to_owned());
             }
-            owned(documents, index, &symbol, &owner, &old, new, &sites).map(|rewrites| Renamed {
+            owned(documents, index, &symbol, &old, new, &sites, freed).map(|rewrites| Renamed {
                 rewrites,
                 file: None,
             })
@@ -257,9 +487,11 @@ fn planned(
             if kind == DeclKind::Property {
                 callback_uses(documents, index, &family, &old)?;
             }
-            members(documents, index, &family, kind, &old, new, &sites).map(|rewrites| Renamed {
-                rewrites,
-                file: None,
+            members(documents, index, &family, kind, &old, new, &sites, freed).map(|rewrites| {
+                Renamed {
+                    rewrites,
+                    file: None,
+                }
             })
         }
         What::Local {
@@ -279,7 +511,10 @@ fn planned(
                         .to_owned(),
                 );
             }
-            if bindings.iter().any(|binding| binding.name == new) || nested.contains(new) {
+            let bound = bindings
+                .iter()
+                .any(|binding| binding.name == new && !freed.local(&path, binding));
+            if bound || nested.contains(new) {
                 return Err(format!("This code already has a variable named `${new}`."));
             }
             let mut rewrites: Vec<Rewrite> = sites
@@ -788,6 +1023,10 @@ fn sites_of(index: &SymbolIndex, symbols: &[String]) -> Vec<Site> {
 
 /// The edits that rename the members of `family` from `old` to `new`, after
 /// the clash check.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the subject's four parts, the two inputs every plan reads, the new name and what a list frees; a struct would only regroup the one caller's arguments"
+)]
 fn members(
     documents: &Documents,
     index: &SymbolIndex,
@@ -796,6 +1035,7 @@ fn members(
     old: &str,
     new: &str,
     sites: &[Site],
+    freed: &Freed,
 ) -> Result<Vec<Rewrite>, String> {
     if kind == DeclKind::Method && new == CONSTRUCTOR {
         return Err(
@@ -816,7 +1056,8 @@ fn members(
             continue;
         };
         for class in lineage(index, owner) {
-            if let Some(clash) = index.declaration(&format!("{class}::{spelled}")) {
+            let named = format!("{class}::{spelled}");
+            if let Some(clash) = index.declaration(&named).filter(|_| !freed.symbol(&named)) {
                 return Err(format!(
                     "`{class}` already has {} named `{spelled}`.",
                     clash.kind.describe()
@@ -1014,6 +1255,7 @@ fn types(
     old: &str,
     new: &str,
     sites: &[Site],
+    freed: &Freed,
 ) -> Result<Renamed, String> {
     if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
         return Err(format!(
@@ -1027,7 +1269,10 @@ fn types(
                 .rsplit('\\')
                 .next()
                 .unwrap_or(&declared.symbol);
-            if !declared.symbol.contains("::") && short.eq_ignore_ascii_case(new) {
+            if !declared.symbol.contains("::")
+                && short.eq_ignore_ascii_case(new)
+                && !freed.symbol(&declared.symbol)
+            {
                 return Err(format!(
                     "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
                     declared.symbol
@@ -1037,7 +1282,7 @@ fn types(
     }
 
     let mut texts = Texts::new(documents);
-    written_already(&mut texts, symbol, new, sites)?;
+    written_already(&mut texts, symbol, new, sites, freed)?;
     missed_sites(&mut texts, index, symbol, old, sites)?;
 
     let mut rewrites = Vec::new();
@@ -1063,7 +1308,7 @@ fn types(
         (from, to)
     });
     if let Some((from, to)) = &file {
-        refuse_taken(from, to, symbol, new)?;
+        refuse_taken(from, to, symbol, new, freed)?;
         rewrites.extend(moved(documents, index, &[(from.clone(), to.clone())]));
         rewrites.sort();
         rewrites.dedup();
@@ -1081,16 +1326,16 @@ fn cannot_change(symbol: &str, path: &Path) -> String {
     )
 }
 
-/// Refuses a move of `from` to `to` while another file is at `to`.
-fn refuse_taken(from: &Path, to: &Path, symbol: &str, new: &str) -> Result<(), String> {
-    // `User.nvs` to `user.nvs` names the same file on a disk that ignores
-    // case, and that file is the one being moved.
-    let same_file = from.parent() == to.parent()
-        && from
-            .file_name()
-            .zip(to.file_name())
-            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right));
-    if to.exists() && !same_file {
+/// Refuses a move of `from` to `to` while another file is at `to`, unless that
+/// file is one `freed` may move away.
+fn refuse_taken(
+    from: &Path,
+    to: &Path,
+    symbol: &str,
+    new: &str,
+    freed: &Freed,
+) -> Result<(), String> {
+    if taken(from, to) && !freed.files.contains(to) {
         return Err(format!(
             "`{}` already exists, so `{symbol}` cannot be renamed to `{new}`.",
             plain(to).display()
@@ -1099,13 +1344,27 @@ fn refuse_taken(from: &Path, to: &Path, symbol: &str, new: &str) -> Result<(), S
     Ok(())
 }
 
+/// Whether a file other than `from` is at `to`.
+fn taken(from: &Path, to: &Path) -> bool {
+    // `User.nvs` to `user.nvs` names the same file on a disk that ignores
+    // case, and that file is the one being moved.
+    let same_file = from.parent() == to.parent()
+        && from
+            .file_name()
+            .zip(to.file_name())
+            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right));
+    to.exists() && !same_file
+}
+
 /// Refuses a type's new short name `new` while a file with a site of it
 /// already writes that name, since a site there would then name two things.
+/// A place that is a site of a name `freed` takes away is not counted.
 fn written_already(
     texts: &mut Texts,
     symbol: &str,
     new: &str,
     sites: &[Site],
+    freed: &Freed,
 ) -> Result<(), String> {
     let touched: BTreeSet<&Path> = sites.iter().map(|site| site.path.as_path()).collect();
     for path in &touched {
@@ -1113,10 +1372,11 @@ fn written_already(
             .file(path)
             .ok_or_else(|| format!("`{}` could not be read.", plain(path).display()))?;
         let tokens = tokenize(file, &mut Diagnostics::new());
-        if tokens
-            .iter()
-            .any(|token| token.kind == TokenKind::Ident && text_of(file, token.span) == new)
-        {
+        if tokens.iter().any(|token| {
+            token.kind == TokenKind::Ident
+                && text_of(file, token.span) == new
+                && !freed.site(path, token.span)
+        }) {
             return Err(format!(
                 "`{}` already uses the name `{new}`, so `{symbol}` cannot be renamed to it.",
                 plain(path).display()
@@ -1196,6 +1456,7 @@ fn namespaced(
     old: &str,
     written: &str,
     sites: &[Site],
+    freed: &Freed,
 ) -> Result<Renamed, String> {
     let full = written.strip_prefix('\\').unwrap_or(written);
     if full.split('\\').any(|segment| !is_identifier(segment)) {
@@ -1207,7 +1468,7 @@ fn namespaced(
         if new == old {
             return Err("The new name is the same as the old one.".to_owned());
         }
-        return types(documents, index, symbol, old, new, sites);
+        return types(documents, index, symbol, old, new, sites, freed);
     }
     if space.is_empty() || old_space.is_empty() {
         return Err(format!(
@@ -1220,10 +1481,9 @@ fn namespaced(
             "`{new}` is a built-in type, so a type cannot be renamed to it."
         ));
     }
-    if let Some(clash) = index
-        .all_declarations()
-        .find(|declared| declared.symbol.eq_ignore_ascii_case(full))
-    {
+    if let Some(clash) = index.all_declarations().find(|declared| {
+        declared.symbol.eq_ignore_ascii_case(full) && !freed.symbol(&declared.symbol)
+    }) {
         return Err(format!(
             "`{}` already exists, so `{symbol}` cannot be renamed to `{full}`.",
             clash.symbol
@@ -1240,12 +1500,12 @@ fn namespaced(
     }
     let to = autoloaded_path(documents, index, &path, symbol, full)?;
     if let Some(to) = &to {
-        refuse_taken(&path, to, symbol, full)?;
+        refuse_taken(&path, to, symbol, full, freed)?;
     }
 
     let mut texts = Texts::new(documents);
     if new != old {
-        written_already(&mut texts, symbol, new, sites)?;
+        written_already(&mut texts, symbol, new, sites, freed)?;
     }
     missed_sites(&mut texts, index, symbol, old, sites)?;
 
@@ -1698,17 +1958,20 @@ fn owned(
     documents: &Documents,
     index: &SymbolIndex,
     symbol: &str,
-    owner: &str,
     old: &str,
     new: &str,
     sites: &[Site],
+    freed: &Freed,
 ) -> Result<Vec<Rewrite>, String> {
+    // An owned type is spelled `Owner::Name`.
+    let owner = symbol.rsplit_once("::").map_or(symbol, |(owner, _)| owner);
     if BUILT_IN.iter().any(|it| it.eq_ignore_ascii_case(new)) {
         return Err(format!(
             "`{new}` is a built-in type, so a type cannot be renamed to it."
         ));
     }
-    if let Some(clash) = index.declaration(&format!("{owner}::{new}")) {
+    let named = format!("{owner}::{new}");
+    if let Some(clash) = index.declaration(&named).filter(|_| !freed.symbol(&named)) {
         return Err(format!(
             "`{owner}` already has {} named `{new}`.",
             clash.kind.describe()
@@ -1721,10 +1984,11 @@ fn owned(
             .file(path)
             .ok_or_else(|| format!("`{}` could not be read.", plain(path).display()))?;
         let tokens = tokenize(file, &mut Diagnostics::new());
-        if tokens
-            .iter()
-            .any(|token| token.kind == TokenKind::Ident && text_of(file, token.span) == new)
-        {
+        if tokens.iter().any(|token| {
+            token.kind == TokenKind::Ident
+                && text_of(file, token.span) == new
+                && !freed.site(path, token.span)
+        }) {
             return Err(format!(
                 "`{}` already uses the name `{new}`, so `{symbol}` cannot be renamed to it.",
                 plain(path).display()

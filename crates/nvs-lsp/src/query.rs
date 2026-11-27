@@ -356,6 +356,59 @@ pub fn rename(
     target: Target<'_>,
     new_name: &str,
 ) -> Result<Renamed, String> {
+    let (analysed, offset) = located(workspace, target)?;
+    rename::rename(
+        workspace.documents(),
+        workspace.index(),
+        &analysed,
+        offset,
+        new_name,
+    )
+}
+
+/// Every edit that applies each `(target, new name, label)` of `list` as one
+/// plan, through [`rename::renamed_all`]. Each target is read against the
+/// files as they are before any rename.
+///
+/// # Errors
+///
+/// Returns the refusal message, starting with the label of the rename it is
+/// about when the list has more than one.
+pub fn rename_all(
+    workspace: &Workspace,
+    list: &[(Target<'_>, &str, &str)],
+) -> Result<rename::Batch, String> {
+    let mut located_all = Vec::with_capacity(list.len());
+    for (target, _, label) in list {
+        let found = located(workspace, *target).map_err(|message| {
+            if list.len() > 1 {
+                format!("{label}: {message}")
+            } else {
+                message
+            }
+        })?;
+        located_all.push(found);
+    }
+    let requests: Vec<rename::Request<'_>> = located_all
+        .iter()
+        .zip(list)
+        .map(
+            |((analysed, offset), (_, new_name, label))| rename::Request {
+                analysed,
+                offset: *offset,
+                new_name,
+                label,
+            },
+        )
+        .collect();
+    rename::renamed_all(workspace.documents(), workspace.index(), &requests)
+}
+
+/// The analysis of the file `target` is in, and the byte it names.
+fn located(
+    workspace: &Workspace,
+    target: Target<'_>,
+) -> Result<(crate::Analysed, nvs_diagnostics::BytePos), String> {
     let index = workspace.index();
     // A name carries its byte offset, and a position its line and column,
     // which become an offset once the file is analysed.
@@ -392,7 +445,7 @@ pub fn rename(
             PositionEncoding::Utf32,
         )
     });
-    rename::rename(workspace.documents(), index, &analysed, offset, new_name)
+    Ok((analysed, offset))
 }
 
 /// The names the index declares that are closest to `name`, nearest first,
