@@ -19,6 +19,12 @@ Each code example with an editor around it on this page shows the real result th
 
 ## Completion and errors
 
+When you type the name of a class, the editor suggests the classes that your program can load. These
+are the `Core` classes and the classes in the folders that your program's
+[`autoload` lines](/syntax/programs/namespaces/) name. For example, a program that loads only the
+`Shop` namespace does not get the classes of the `Blog` namespace. To use them, add an `autoload`
+line for `Blog`. A file that no program loads gets every class.
+
 In a string that is converted with `as property<User>`, the editor suggests the names of the public
 properties of `User`. Here it suggests `email` and `name`. The private property `$passwordHash` is not
 in the list.

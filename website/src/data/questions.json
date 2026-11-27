@@ -20508,14 +20508,14 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "0dad71e66246c0e6",
+    "hash": "448bba8975363e2c",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",
       "Move a class to another namespace by renaming it or dragging its file",
       "Grey out and delete the code that nothing uses",
       "Change the parameters of a method or move it to another class",
-      "Does renaming a property also rename the name initProperty compares?"
+      "Why does completion not suggest a class from another namespace?"
     ]
   },
   "/tools/formatter/": {

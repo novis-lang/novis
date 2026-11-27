@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Class name completion suggests only the `Core` classes and the classes in the folders that your program's `autoload` lines name. In a file that no program loads, it suggests every class."
+    },
+    {
       "kind": "fixed",
       "features": [
         "lang:classes/lateinit",
