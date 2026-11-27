@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **Before you chase a CI failure, check whether `main` fixed it after the run.** A sweep's
+  failures name the run, and the run names its commit. In `mail-receive` stage 6, two of the
+  nightly's three causes were fixed already. `git log <run-sha>..HEAD -- <the failing files>`
+  finds that in one call, and `gh run view <id> --json headSha` gives the commit. See
+  `tools/nv/cmd/affected.ts`.
 - **A helper added to a shared module makes every feature it serves owe its proofs again.** In
   `mail-receive` stage 6, one small `pub(crate) fn` in `crates/nvs-stdlib/src/time.rs` made
   `proofs --owed` name about 100 `Core\Time` features for `perf`. Put a helper in the module

@@ -358,43 +358,35 @@ names AGENTS.md § *Text an end user reads*.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 6's fourth `looper verify` run is red on one test:
-`the_identity_printer_reproduces_every_corpus_file` (`crates/nvs-fmt/tests/identity.rs`) names 19
-files the formatter changes, every `.nvs` under `tests/hostile/core/Mail-Message/`, `Mail-Report/`
-and `Mail-ReportRecipient/`, and `website/snippets/guides/how-to-use/receiving-mail/webhook.nvs`.
-The three earlier runs' reds are fixed: `directives` missed `mail.return_path` (`db7db14c95`),
-`render` (`8b98062a5e`) and `rules --render` (`358e87b015`).
+Stages 1 to 5 are done, and stage 6's `looper verify` is green at `59122f3cd9`. Only the
+goal-end gates are left.
 
-**The eleven bugs the proof agents found are fixed**, each with a test (`c136463405`): a `Date`
-with an out-of-range zone or year is `null` (`receive.rs` `readable_date`), `Message-ID` is the
-first id, a received address must be one (`is_address`), a header gives at most `MAX_LIST` ids or
-addresses, a report's status is an RFC 3463 code or empty, a report field keeps 4 KiB, a directory
-folder may not end with a dot or a space, and a flag is at most 255 bytes. The two rules say so.
-Every text it reached is reviewed and stamped, the perf figures are new (`3fa9c2a6dd`), and
-`proofs --owed --goal mail-receive` names nothing.
+The last runs' reds are fixed. The identity printer reproduces 106 formatted mail and IMAP files
+(`120de1711d`). A directory mailbox reaches every file through the `nvs_runtime::capability`
+doors (`a80feea6bc`). The spool anchor test reads the working directory through
+`working_dirs()` (`593ca68bb3`). Two test literals are listed as data in
+`tools/data/impact-data-literals.txt`.
 
-Expected red: the website build. `Date::range`'s signature names `Core\Unit::Day`, and
-`website/src/data/core.json` has no `Core\Unit` page, so `website/src/lib/core.ts:280` throws
-(Website run 45829710914). Run 45829711007's other causes are fixed since (`e953ca07db`,
-`4ede711347`, `edabc4106f`, and `8b98062a5e` for `fuzz/Cargo.lock`).
+The website builds locally. A flat enum's case, such as `Core\Unit::Day`, links to its Types
+page (`df291fc59c`). The debug-viewer shots show the Mail tab, and `site --check shots` accepts
+a picture a snippet reads, such as `files/logo.png` (`f42d198636`).
+
+Nightly run 45813627231 had three causes. The Miri zone tests (`c115a735a1`) and the `Core\Uuid`
+`Parses` case (`28a4d7a6bf`) were fixed on `main` after it. The serve stack-page test is in the
+backlog.
+
+Expected red on CI: that serve stack-page test on Linux.
 
 ### Next
 
-1. Format the 19 files with the Novis formatter, as `e953ca07db` did for 21 mail examples, and
-   rerun the identity test by name. A file whose `.out` moves is blessed. Then run `looper verify`
-   once more.
-2. Give `Core\Unit` (`crates/nvs-stdlib/src/time.rs:1694`) a reference page, or find why
-   `bun nv render --website` leaves it out. Re-shoot the 11 stale `.shot.out` files under
-   `website/snippets/tools/debug-viewer/` and give `sending-mail/files/logo.png` a `.shot`
-   (`bun nv site --shoot`).
-3. Then `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
+1. `looper verify` is green and needs no rerun unless code changes. `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
    fixed. Then `DONE`.
 
 ### Backlog
@@ -423,8 +415,15 @@ again.
   (686, 96) waiting` pages for 32 connections. That is 11.03 host pages per waiting request,
   against `REQUEST_HOST_STACK_PAGES = 11` (`serve.rs:5604`), whose doc records 9.1 on aarch64.
   It passes in WSL on x86_64 (`bun nv linux-test --bin nvs <name>`), and `serve.rs` has not
-  changed since the run. Find which frame on the request path grew before touching the bound.
+  changed since the run. CI at `53e94a9181` passed it and CI at `4e43e1fa2e` first failed it
+  (x86_64 `(691, 96)`). Windows CI passes it. Measured in WSL, there is no growth in that range:
+  351 pages over 32 requests at both commits, 10.97 per request against a total bound of 352. So
+  the bound had no headroom before, and the doc's 10.2 and "WSL stays under 10" are out of date.
+  The growth happened earlier. Bisect further back in WSL, or find the deep frame, before any
+  change to the bound.
+- `Core\Imap::open` asks `fs.read` for a directory block only at run time (`block_of`), because
+  a server block needs no file grant. `every_door_names_the_capability_its_member_declares`
+  cannot see that check, since it passes `member` and not `OPEN`. A row that means "fs.read
+  for a directory block only" would let the checker see it.
 - `tests/conformance/core/a-channel-send-waits-only-once-its-bound-is-reached.nvst` printed `---`
   for `--w` once on macOS aarch64. It looks like a scheduling race in the case.
-- `proofs`: `site shots` named `website/snippets/guides/how-to-use/sending-mail/files/logo.png`,
-  which has no `.shot`, and the other debug-viewer shots. Re-shoot with `bun nv site --shoot`.
