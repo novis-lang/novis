@@ -250,7 +250,10 @@ fn a_status_is_a_code_of_three_numbers_or_empty() {
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "a megabyte field read three times outlasts Miri's test timeout")]
+#[cfg_attr(
+    miri,
+    ignore = "a megabyte field read three times outlasts Miri's test timeout"
+)]
 fn a_folded_field_is_bounded_and_its_lines_count() {
     let long = "x".repeat(1 << 20);
     let continued = format!(" {long}");
