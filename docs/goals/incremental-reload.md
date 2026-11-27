@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/script.rs, crates/nvs-cli/src/main.rs, crates/nvs-config/src/cache.rs, docs/rules/config/opcache-revalidation-is-system-class.md, docs/rules/config/a-reload-command-checks-now-and-waits.md, crates/nvs-cli/src/reload.rs]
   - id: 6
     title: "the work of a reload after a body edit is counted and bounded at every program size, and a bench shows its growth"
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/start_cost.rs, benches/scaling/README.md]
   - id: 7
     title: "the rules, the reference, the help, the feature proofs and the website say so"
@@ -394,11 +394,16 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### 6. the work of a reload after a body edit is counted and bounded at every program size, and a bench shows its growth
 
-- [ ] `crates/nvs-cli/tests/incremental_reload.rs`: `a_body_edit_costs_the_same_work_at_every_program_size`,
+- [x] `crates/nvs-cli/tests/incremental_reload.rs`: `a_body_edit_costs_the_same_work_at_every_program_size`,
   over 110, 220 and 440 generated files: one file checked, one function compiled, one source-file
   entry written.
-- [ ] A bench of `nvs reload` after a one-line edit at those sizes, where `benches/scaling/README.md`
+  - [x] `written` on `cache::Work`, counted where `per_file::store` publishes an entry
+  - [x] `written` on `Rechecked::Swapped` and the `program reloaded` record
+  - [x] the test over generated programs, run once by name: 1, 1 and 1 at each size
+- [x] A bench of `nvs reload` after a one-line edit at those sizes, where `benches/scaling/README.md`
   says a server bench lives, with its growth recorded.
+  - [x] a `reload` ladder kind in `tools/nv/cmd/scaling.ts`, with its unit tests
+  - [x] `benches/scaling/compiler/reload.nvs`, 55 to 440 files: flat on the release binary, clock slope 1.00
 
 ### 7. the rules, the reference, the help, the feature proofs and the website say so
 
@@ -423,40 +428,41 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5's last session landed the front end's kept file results
-(`89d4363f1c`). `nvs_lsp::Session` is public, with its interner in an `Arc`. `Compiler::fronts`
-(`script.rs`) keeps one per written path under `incremental`, and `reconfigure` and `rekey` free
-them. `front_end_in` (`main.rs`) loads, parses and checks through `Looked::session`, and
-`Looked::take` frees the files the program stopped loading. `Compiled::checked` feeds the
-`program reloaded` record's new `checked` field. All five `incremental_reload` tests passed: a
-body edit checks 1 file and compiles 1 function, a signature edit checks 2 files, and
-production with `file_cache = false` checks 3 and reuses 0. A development log needs
-`[log] format = "json"` to print a record's fields.
+Stages 1 to 6 are done. Stage 6 took one session. `cache::Work` has `written`, the source-file
+entries `per_file::store` published, and the `program reloaded` record carries it beside
+`checked`, `compiled` and `reused` (`5d788b4d45`). `a_body_edit_costs_the_same_work_at_every_program_size`
+passed once by name: 1 checked, 1 compiled, 1 written at 110, 220 and 440 files, in 4.6 s.
+`bun nv scaling` has a `reload` kind (`f8ba451dcf`): the ladder prints its files and `nvs.toml`
+and marks one `/*edit*/` literal, and the tool serves, edits and runs `nvs reload` at each size.
+`benches/scaling/compiler/reload.nvs` (55 to 440 files) is flat on the release binary: the
+counts never move, and the clock's slope is 1.00, within `expect linear`, because a reload
+still re-hashes every file and places the whole program's code.
 
-Build, clippy and `cargo fmt --check` are green. The sweep's failures in run 45813627231 were
-fixed on `main` before this session (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`, `215257ff46`).
-The nightly 45992349212 also failed `website/snippets/tools/debug-viewer/runs.shot` on linux
-proofs only, and a local `site --shoot` rewrites the same `.shot.out`; it is not chased here.
+Nightly 45992349212's Miri and aarch64 failures were fixed on `main` after the run. Linux proofs
+failed `website/snippets/tools/debug-viewer/runs.shot` three runs in a row, and other platforms
+match. The shot verdict now names the first differing line (`ffe86543e9`). One guess is the order
+of the two `on = "start"` jobs; if the next log shows that, fix the order in the snippet.
 
-Tests that may go red, not run here: language-server tests, now that `Analysed::interner` is an
-`Arc`; gc tests that count one cache file per program; readers of `functions=` on a cached run;
-the coverage, debugger and query-span tests; and exact matches on the `program reloaded` fields.
+Build, clippy and `cargo fmt --check` are green. Tests that may go red, not run here:
+language-server tests, now that `Analysed::interner` is an `Arc`; gc tests that count one cache
+file per program; readers of `functions=` on a cached run; the coverage, debugger and query-span
+tests; exact matches on the `program reloaded` fields, which now end with `written`; and
+`reload_endpoint`'s reply test.
 
 ### Next
 
-Stage 6, in one session:
+Stage 7, in one or two sessions:
 
-1. `crates/nvs-cli/tests/incremental_reload.rs`: `a_body_edit_costs_the_same_work_at_every_program_size`.
-   Generate 110, 220 and 440 files (one class each, all reached from the entry), start `Served`
-   in development, make one body edit and read the record: `checked` 1 and `compiled` 1 at every
-   size. The count of source-file entries written needs a field too: add `written` to
-   `cache::Work` (where `per_file` stores an entry) and to the record, the way `checked` was
-   added.
-2. The bench of `nvs reload` after a one-line edit at those sizes, where
-   `benches/scaling/README.md` says a server bench lives, with its growth recorded.
-
-Then stage 7: the rules (`an-edit-reaches-the-next-request-without-a-restart`, and
-`a-reload-command-checks-now-and-waits` for the record's three counts), the help, the feature
-proofs `bun nv proofs --owed --goal incremental-reload` names, and the website.
+1. The rules: `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md` (the
+   edit state, the counts, the ladder), `docs/rules/config/a-reload-command-checks-now-and-waits.md`
+   (the record's `checked`, `compiled`, `reused`, `written`),
+   `docs/rules/packaging/an-artifact-is-one-immutable-content-addressed-file.md` (the unit is a
+   source file's entry under a program list), `docs/rules/packaging/a-warm-hit-skips-codegen-not-the-front-end.md`
+   and `docs/rules/config/opcache-revalidation-is-system-class.md`, each with the Standing
+   decisions above and their Declined lists.
+2. The help of `[opcache] incremental` and of `nvs reload`, then `bun nv proofs --owed --goal
+   incremental-reload` and each proof it names.
+3. `website/src/data/changes.json:1`, the development and deploy pages, then `bun nv site --check
+   stale`, `changes`, `questions` and `review`.
 
 ### Backlog
