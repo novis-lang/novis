@@ -3,7 +3,7 @@ namespace Novis\Pdf;
 
 use LogicError;
 
-/// An HTML document to render as a PDF file, with the images, stylesheets and fonts it uses.
+/// An HTML document to render as a PDF file, with the images, stylesheets, fonts and PDF files it uses.
 /// Each method returns a new `Document` and leaves this one as it was.
 final class Document
 {
@@ -34,8 +34,9 @@ final class Document
         return new Document($html as string, [], null, null, null, null, null, null, null);
     }
 
-    /// `withAsset` adds a file the HTML names, such as an image or a stylesheet.
+    /// `withAsset` adds a file the HTML names, such as an image, a stylesheet, a font or a PDF file.
     /// A render reads only these files and `data:` URIs. Any other name throws a `LogicError`.
+    /// `@page { background: url(form.pdf#page=2) }` draws page 2 of a PDF file under every page.
     public function withAsset(string $name, bytes $data): Document
     {
         array<Asset> $assets = $this->assets;

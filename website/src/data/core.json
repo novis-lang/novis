@@ -31762,7 +31762,7 @@
     {
       "id": "Novis.Pdf.Document",
       "name": "Novis\\Pdf\\Document",
-      "summary": "An HTML document to render as a PDF file, with the images, stylesheets and fonts it uses.\nEach method returns a new `Document` and leaves this one as it was.",
+      "summary": "An HTML document to render as a PDF file, with the images, stylesheets, fonts and PDF files it uses.\nEach method returns a new `Document` and leaves this one as it was.",
       "enums": [
         {
           "name": "Standard",
@@ -31835,7 +31835,7 @@
           "options": [],
           "returnType": "Document",
           "doc": {
-            "shortHtml": "<code>withAsset</code> adds a file the HTML names, such as an image or a stylesheet.\nA render reads only these files and <code>data:</code> URIs. Any other name throws a <code>LogicError</code>."
+            "shortHtml": "<code>withAsset</code> adds a file the HTML names, such as an image, a stylesheet, a font or a PDF file.\nA render reads only these files and <code>data:</code> URIs. Any other name throws a <code>LogicError</code>.\n<code>@page { background: url(form.pdf#page=2) }</code> draws page 2 of a PDF file under every page."
           },
           "slug": "withasset",
           "url": "/reference/core/novis-pdf-document/withasset/",
@@ -32061,7 +32061,7 @@
       "url": "/reference/core/novis-pdf-document/",
       "summaryBlocks": [
         {
-          "html": "<p>An HTML document to render as a PDF file, with the images, stylesheets and fonts it uses. Each method returns a new <code>Document</code> and leaves this one as it was.</p>\n<p><code>Novis\\Pdf\\Document</code> is an HTML document that <code>render</code> turns into a PDF file. Each method returns a new <code>Document</code> and does not change the old one. The render reads only the files you add with <code>withAsset</code> and <code>data:</code> URIs, so a name that is not an asset throws a <code>LogicError</code>. <code>render</code> returns a <code>Rendered</code> with the file, its page count, and the CSS it could not draw.</p>"
+          "html": "<p>An HTML document to render as a PDF file, with the images, stylesheets, fonts and PDF files it uses. Each method returns a new <code>Document</code> and leaves this one as it was.</p>\n<p><code>Novis\\Pdf\\Document</code> is an HTML document that <code>render</code> turns into a PDF file. Each method returns a new <code>Document</code> and does not change the old one. The render reads only the files you add with <code>withAsset</code> and <code>data:</code> URIs, so a name that is not an asset throws a <code>LogicError</code>. <code>render</code> returns a <code>Rendered</code> with the file, its page count, and the CSS it could not draw.</p>"
         },
         {
           "code": "<?nvs\nuse Novis\\Pdf\\Document;\nuse Novis\\Pdf\\Page;\n\n// The logo is a file that the HTML names. `withAsset` adds it to the document.\nbytes $logo = \"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"40\\\" height=\\\"20\\\"><rect width=\\\"40\\\" height=\\\"20\\\"/></svg>\" as bytes;\nstring $html = \"<html lang=\\\"en\\\"><head><title>Invoice 1042</title></head><body>\"\n    . \"<img src=\\\"logo.svg\\\" alt=\\\"Shop\\\"><h1>Invoice 1042</h1><p>Tea: 2.50 EUR</p></body></html>\";\n\n// The footer is a function. The render calls it once for each page.\nvar $rendered = Document::fromHtml($html)\n    ->withAsset('logo.svg', $logo)\n    ->withFooter(fn(Page $page): Core\\Html\\Markup => html`<p>Page {$page->number} of {$page->count}</p>`)\n    ->render();\n\necho Core\\Bytes::startsWith($rendered->bytes, '%PDF-' as bytes) ? 'a PDF file' : 'not a PDF file', \"\\n\";\necho $rendered->pageCount, \" page\\n\";",
@@ -32313,7 +32313,7 @@
     {
       "id": "Novis.Pdf.Pages",
       "name": "Novis\\Pdf\\Pages",
-      "summary": "Pages chosen from an existing PDF file. `Pages::merge` puts the chosen pages of several files into one file.",
+      "summary": "Pages chosen from an existing PDF file. `Pages::merge` puts the chosen pages of several files into one file.\nTo write new content on a page of a PDF file, add the file to a `Document` with `withAsset`.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -32384,7 +32384,7 @@
       "url": "/reference/core/novis-pdf-pages/",
       "summaryBlocks": [
         {
-          "html": "<p>Pages chosen from an existing PDF file. <code>Pages::merge</code> puts the chosen pages of several files into one file.</p>"
+          "html": "<p>Pages chosen from an existing PDF file. <code>Pages::merge</code> puts the chosen pages of several files into one file. To write new content on a page of a PDF file, add the file to a <code>Document</code> with <code>withAsset</code>.</p>"
         }
       ],
       "returnedBy": []

@@ -2,6 +2,7 @@
 namespace Novis\Pdf;
 
 /// Pages chosen from an existing PDF file. `Pages::merge` puts the chosen pages of several files into one file.
+/// To write new content on a page of a PDF file, add the file to a `Document` with `withAsset`.
 final class Pages
 {
     private function constructor(

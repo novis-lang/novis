@@ -59931,8 +59931,9 @@ The HTML may name assets, such as `<img src="logo.png">`. Add each one with `wit
 $document->withAsset(string $name, bytes $data): Document
 ```
 
-`withAsset` adds a file the HTML names, such as an image or a stylesheet.
+`withAsset` adds a file the HTML names, such as an image, a stylesheet, a font or a PDF file.
 A render reads only these files and `data:` URIs. Any other name throws a `LogicError`.
+`@page { background: url(form.pdf#page=2) }` draws page 2 of a PDF file under every page.
 
 **Returns** `Document`
 
