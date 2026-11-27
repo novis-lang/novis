@@ -257,7 +257,8 @@ impl Directory {
             )));
         }
         let path = self.root.join(folder);
-        if capability::metadata_if_present(ctx, &path, member)?.is_some_and(|found| found.is_dir()) {
+        if capability::metadata_if_present(ctx, &path, member)?.is_some_and(|found| found.is_dir())
+        {
             return Ok(path);
         }
         Err(io(format!(

@@ -649,7 +649,6 @@ impl Held {
             .map(|(name, _)| name.clone())
             .ok_or_else(|| Fault::fatal(format!("{member}: no folder is selected")))
     }
-
 }
 
 // Each call below takes the session's key and not the `Held` itself. A directory block's files are
@@ -683,7 +682,9 @@ fn select(ctx: &mut Ctx, key: u64, folder: &str, member: &str) -> Result<u32, Fa
     session.selected = None;
     let validity = match directory_of(ctx, key, member)? {
         Some(directory) => directory.select(ctx, folder, member)?,
-        None => held(ctx, key, member)?.server(member)?.select(folder, member)?,
+        None => held(ctx, key, member)?
+            .server(member)?
+            .select(folder, member)?,
     };
     held(ctx, key, member)?.selected = Some((folder.to_owned(), validity));
     Ok(validity)
@@ -702,7 +703,9 @@ fn search(
     if let Some(directory) = directory_of(ctx, key, member)? {
         return directory.search(ctx, &folder, filter, ceiling, member);
     }
-    held(ctx, key, member)?.server(member)?.search(filter, member)
+    held(ctx, key, member)?
+        .server(member)?
+        .search(filter, member)
 }
 
 /// Adds `flag` to message `uid` of the selected folder, or removes it when `add` is false.
@@ -718,7 +721,9 @@ fn store(
     if let Some(directory) = directory_of(ctx, key, member)? {
         return directory.store(ctx, &folder, uid, flag, add, member);
     }
-    held(ctx, key, member)?.server(member)?.store(uid, flag, add, member)
+    held(ctx, key, member)?
+        .server(member)?
+        .store(uid, flag, add, member)
 }
 
 /// Moves message `uid` of the selected folder to `target`.
@@ -727,7 +732,9 @@ fn move_to(ctx: &mut Ctx, key: u64, uid: u32, target: &str, member: &str) -> Res
     if let Some(directory) = directory_of(ctx, key, member)? {
         return directory.move_to(ctx, &folder, uid, target, member);
     }
-    held(ctx, key, member)?.server(member)?.move_to(uid, target, member)
+    held(ctx, key, member)?
+        .server(member)?
+        .move_to(uid, target, member)
 }
 
 /// Deletes message `uid` of the selected folder.
@@ -740,7 +747,13 @@ fn delete(ctx: &mut Ctx, key: u64, uid: u32, member: &str) -> Result<(), Fault> 
 }
 
 /// Selects `folder` and checks that its `UIDVALIDITY` is still `expected`.
-fn reselect(ctx: &mut Ctx, key: u64, folder: &str, expected: u32, member: &str) -> Result<(), Fault> {
+fn reselect(
+    ctx: &mut Ctx,
+    key: u64,
+    folder: &str,
+    expected: u32,
+    member: &str,
+) -> Result<(), Fault> {
     let validity = select(ctx, key, folder, member)?;
     if validity == expected {
         return Ok(());
@@ -757,7 +770,9 @@ fn fetch(ctx: &mut Ctx, key: u64, uid: u32, ceiling: u64, member: &str) -> Resul
     let folder = held(ctx, key, member)?.current(member)?;
     let raw = match directory_of(ctx, key, member)? {
         Some(directory) => directory.fetch(ctx, &folder, uid, ceiling, member)?,
-        None => held(ctx, key, member)?.server(member)?.fetch(uid, ceiling, member)?,
+        None => held(ctx, key, member)?
+            .server(member)?
+            .fetch(uid, ceiling, member)?,
     };
     Ok(crate::mail::receive::fetched_message(&raw, uid))
 }
