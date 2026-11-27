@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-lsp/src/extract.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/capabilities.rs]
   - id: 9
     title: "a method's parameters change at every call and in every override, from nvs code"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/typed_parameter.rs]
   - id: 10
     title: "the editor runs a refactoring that needs input through workspace/executeCommand"
@@ -378,6 +378,18 @@ match by name:
   read are refused. Constructors work through their `new` sites, and a kept promoted parameter stays
   promoted. `@param` lines follow: kept lines stay, removed ones go, added ones get none.
 - A parameter rename is `rename`'s, never this verb's.
+- **As built.** `crates/nvs-lsp/src/signature_change.rs` `signature`, through `query::signature`
+  and `nvs code signature` (`code.rs` `change_signature`, since `signature` was taken). The list
+  is parsed inside a throwaway class. Each family member keeps its own parameter names (an override
+  may name them differently), and for a kept parameter the list does not change, its own text; a
+  changed or added type is written as the list gives it, and a file that needs another spelling is
+  refused by the check, not rewritten with a `use` line. Calls are read as `named_arguments` reads
+  them (`rename::call_in_stmts`), named labels through the called member's own names. An argument
+  after the first a call leaves to its default, or after a named one, is written named. The reorder
+  rule is exact: arguments that may run code keep their written order. Also refused: a change of
+  `inout`, an added `inout`, a variadic parameter, a family whose members differ in parameter count,
+  a spread argument and a call nested in another call of the family. **Constructors are refused**:
+  the index records `new X(...)` as a use of the class, not of `X::constructor`; see `### Backlog`.
 
 **Input from the editor** (stage 10). Change parameters, move a member and extract an interface need
 text from the user. The code action carries a client command (`nvs.changeParameters`,
@@ -582,13 +594,13 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 9. a method's parameters change at every call and in every override, from nvs code
 
-- [ ] `crates/nvs-lsp/src/signature_change.rs:1` (new): the engine per § *What change of parameters
+- [x] `crates/nvs-lsp/src/signature_change.rs:1` (new): the engine per § *What change of parameters
   allows*, reading the family as `rename.rs:610` `family` does and the call sites as `rename.rs:1194`
   `named_arguments` does, through `refactor::checked`.
-- [ ] `crates/nvs-cli/src/code.rs:206`: the `Signature` verb with `--value`, and its help.
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `signature`. Then `cargo test
+- [x] `crates/nvs-cli/src/code.rs:206`: the `Signature` verb with `--value`, and its help.
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `signature`. Then `cargo test
   --test code code_signature` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the verb.
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the verb.
 
 ### 10. the editor runs a refactoring that needs input through workspace/executeCommand
 
@@ -669,41 +681,49 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 8 are done. Stage 8 landed in b164bfa94a: `nvs code inline` and the editor's three
-`refactor.inline` actions, from `crates/nvs-lsp/src/inline.rs` through `query::inline`.
-`cargo test --test code code_inline` 6 of 6 and `nvs lsp-test tests/lsp/actions/` 117 of 117 pass,
-and clippy and rustfmt are clean (526746b33d formatted three files stage 6 left unformatted).
-- **Nightly 45813627231 ran before its fixes** (c115a735a1, 28a4d7a6bf, 544711a8fb).
-- Stages 3 to 8 are each standing decision's *As built* bullet. Stage 6's settle republish is
-  `server.rs` `republish_dimming`, and its engine is `crates/nvs-lsp/src/delete.rs`.
-- **Ten `.lspt` action cases now show the inline offer** at their cursor, and their `--EXPECT--`
-  was rewritten to the answer. Four of them keep a file name that says "offered nothing"
-  (`a-method-call-`, `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`);
-  their titles say only the inline refactoring is offered. Stage 13 may rename the files.
+Stages 1 to 9 are done. Stage 9 landed in 7f63eafbb7: `nvs code signature` from
+`crates/nvs-lsp/src/signature_change.rs` through `query::signature`; `cargo test --test code
+code_signature` 6 of 6 pass, clippy and rustfmt are clean, and the tooling rule has its paragraph
+(seventeen verbs, eight write).
+- **Nightly 45813627231 ran on 4e43e1fa2e, before its fixes** (c115a735a1, 28a4d7a6bf, 544711a8fb).
+- Stages 3 to 9 are each standing decision's *As built* bullet.
+- **Four `.lspt` action cases keep a name that says "offered nothing"** (`a-method-call-`,
+  `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`) though they now
+  show the inline offer. Stage 13 may rename them.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
   next to an unrelated error. The `Move` help changed and `Unused` and `Delete` are new, so stage
   13's `site --check stale` and `questions` will name the `nvs code` pages. A server test in
   `crates/nvs-lsp/tests/` that reads a fixed sequence of `publishDiagnostics` may meet the extra
   publish `republish_dimming` sends at a settle, or a public hint it did not expect; the fix is a
   fixture that uses its declarations, as `publish.rs`'s `HOARD` now does. `Extract`, `Implement`
-  and `Inline` are new help too, and the `nvs code` overview's list of writing verbs changed. A new
-  code action kind, `refactor.inline`, is in `CODE_ACTION_KINDS`; a handshake or extension test that
-  pins the list of kinds would go red.
+  `Inline` and `Signature` are new help too. `refactor.inline` is a new kind in
+  `CODE_ACTION_KINDS`; a test that pins the list of kinds would go red.
 
 ### Next
 
-Stage 9 (§ *What change of parameters allows*).
-1. `crates/nvs-lsp/src/signature_change.rs` (new): read the override family as `rename.rs:1080`
-   `family` does and each call's arguments as `rename.rs:2362` `named_arguments` does. Reuse
-   `inline.rs`'s `path_to`, `RUNS_CODE` and `runs_code` (make them `pub(crate)`) for "an argument
-   may run code". Return `Result<Vec<Rewrite>, String>` through `refactor::checked`.
-2. `crates/nvs-lsp/src/query.rs:520` beside `inline`: `query::signature`.
-3. `crates/nvs-cli/src/code.rs:346`: `Signature` beside `Inline`, with `--value '$name=<expr>'`
-   repeatable, its help, and the dispatch beside `Command::Inline`; the function beside
-   `code.rs:1208` `inline`.
-4. The six tests of the check `signature` at the end of `crates/nvs-cli/tests/code.rs`, beside
-   the `TAXED` fixture, then `cargo test --test code code_signature` once.
-5. The tooling rule: one paragraph after `inline`, verb count to seventeen, `Eight write`;
-   `bun nv rules --render`.
+Stage 10 (§ *Input from the editor*).
+1. `crates/nvs-lsp/src/capabilities.rs:313` beside `code_action_provider`: an
+   `execute_command_provider` with the three ids `nvs.changeParameters`, `nvs.moveMember`,
+   `nvs.extractInterface`.
+2. `crates/nvs-lsp/src/server.rs:1221` beside `CodeActionRequest::METHOD`: an
+   `ExecuteCommand::METHOD` arm (and the list at `:727` if it names write requests). For
+   `nvs.changeParameters` with `[symbol, list]`, call `signature_change::signature` on the
+   workspace, turn the rewrites into a `WorkspaceEdit` as the rename arm at `:1262` does, and send
+   `workspace/applyEdit`; a refusal is an error response with the message. The other two ids answer
+   "not yet" until stages 11 and 12; an unknown id is an error.
+3. `crates/nvs-lsp/src/actions.rs:277` beside `inline::at`: *Change parameters…* on a method's
+   name, a `Command` with the id and the current list (the text between the parentheses).
+4. `editors/vscode/src/extension.ts:147` beside the `registerCommand` calls, and `package.json`:
+   the three commands show `window.showInputBox` prefilled, then `executeCommand` to the server.
+5. `crates/nvs-lsp/tests/actions.rs` and `tests/handshake.rs:170`: the three `editor-commands`
+   tests; `cargo test --test actions` and `cargo test --test handshake` once each.
+6. `docs/rules/ide/the-request-set-is-closed.md`: `workspace/executeCommand` and its three ids.
 
 ### Backlog
+
+- **A constructor's parameters (stage 9).** `signature` refuses `X::constructor`, because the index
+  records `new X(...)` as an occurrence of `X`, not of the constructor, so its calls are not
+  listed. Landing it needs the index walk (`index.rs`) to record a `New`'s class name as an
+  occurrence of `X::constructor` too, or `signature_change` to read the class's occurrences and
+  keep those under a `New` node (a subclass with no constructor of its own calls it too). A kept
+  promoted parameter already keeps its modifiers, since each kept parameter keeps its own prefix.
