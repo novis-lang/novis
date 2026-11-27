@@ -97,6 +97,9 @@ family reads, a reorder that swaps two arguments that may run code, a change of 
 parameter, a family whose methods differ in parameter count, a method of it taken as a callable
 value, a type above it outside the workspace, a call that spreads its arguments or nests in another
 call of the family, and a constructor, whose `new` calls the index records as uses of the class.
+Accepting a constructor needs the index walk (`crates/nvs-lsp/src/index.rs`) to record each `new X(...)`
+as an occurrence of `X::constructor` too, or the change to keep the class's occurrences under a `new`
+node; a subclass without a constructor of its own calls its parent's, so its `new` sites count too.
 Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`. **Cost:** tooling only:
 one parse of each file that declares or calls a method of the family, then the check.
 
