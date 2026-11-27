@@ -1068,6 +1068,7 @@ fn program_record(found: &crate::script::Rechecked) -> Record {
         Rechecked::Swapped {
             entry,
             program,
+            checked,
             compiled,
             reused,
         } => {
@@ -1078,6 +1079,7 @@ fn program_record(found: &crate::script::Rechecked) -> Record {
             record.envelope.fields = vec![
                 ("entry".to_string(), text(&entry.display().to_string())),
                 ("program".to_string(), text(&program.to_string())),
+                ("checked".to_string(), count(checked)),
                 ("compiled".to_string(), count(compiled)),
                 ("reused".to_string(), count(reused)),
             ];

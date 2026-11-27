@@ -992,7 +992,9 @@ struct Checked {
     /// Every file the entry point's `require`/`autoload` graph reached, the
     /// entry file first — `nvs_hir::resolve_program`'s order contract.
     files: Vec<nvs_hir::Loaded>,
-    interner: nvs_types::TypeInterner,
+    /// Shared with the kept front-end session under `[opcache] incremental`,
+    /// whose checked outputs name their types in it ([`Looked::session`]).
+    interner: std::sync::Arc<nvs_types::TypeInterner>,
     exprs: nvs_types::ExprTypeTable,
     /// Every declared enum's backing type and its cases' values, handed back
     /// by `check_program` rather than rebuilt — `nvs_ir::lower` needs a case's
@@ -1204,6 +1206,10 @@ fn front_end_granted(
 /// [`front_end`], writing into `looked` every path the run looked at on disk,
 /// whether the program compiled or not.
 ///
+/// Where `looked` carries a [`nvs_lsp::Session`], the run parses only the
+/// files whose text moved and checks only the bodies whose key moved, and
+/// [`Looked::checked`] counts the files it checked.
+///
 /// `crate::script::Compiler` is the caller. It keeps a compiled program and has
 /// to notice when any file behind it changes, and after a failed compile the
 /// only list of those files is the one this run leaves behind. `extensions` is
@@ -1248,12 +1254,38 @@ pub(crate) struct Looked {
     /// Every directory a discovery scan listed, with the names it held — a
     /// `discover` glob's base and every directory `implementing` walked.
     listed: Vec<nvs_hir::autoload::Listing>,
+    /// Under `[opcache] incremental`, the parses and checked outputs of this
+    /// program's last compile, which the run reuses where a file's text and
+    /// key did not move. The run loads every file at the id its last parse
+    /// had, and leaves the session here for the caller to keep.
+    pub(crate) session: Option<nvs_lsp::Session>,
+    /// How many files' bodies the run checked: every file without a session,
+    /// and only the files whose key moved with one.
+    pub(crate) checked: usize,
 }
 
 impl Looked {
+    /// A run that reuses `session`'s parses and checked outputs.
+    pub(crate) fn with_session(session: Option<nvs_lsp::Session>) -> Self {
+        Self {
+            session,
+            ..Self::default()
+        }
+    }
+
     /// Copies out of `map` and `autoload` what the run read, missed, probed and
-    /// listed.
-    fn take(&mut self, map: &SourceMap, autoload: Option<&nvs_hir::AutoloadMap>) {
+    /// listed. The session keeps the ids `map` gave its files, and frees the
+    /// parse and checked output of every file `map` did not load.
+    fn take(&mut self, map: &mut SourceMap, autoload: Option<&nvs_hir::AutoloadMap>) {
+        if let Some(session) = self.session.as_mut() {
+            session.keep_pins(map);
+            // Keyed as the session keys a file: by its canonical path.
+            let program: std::collections::HashSet<std::path::PathBuf> = map
+                .files()
+                .filter_map(|file| file.path().map(nvs_diagnostics::canonical_key))
+                .collect();
+            session.settled(|file| program.contains(file));
+        }
         self.read = map
             .files()
             .filter_map(|file| {
@@ -1308,12 +1340,18 @@ fn front_end_in(
     looked: Option<&mut Looked>,
     survey: Option<&std::path::Path>,
 ) -> Result<Checked, ExitCode> {
+    let mut looked = looked;
+    // A kept session's map loads each file at the id its kept parse and
+    // checked output name.
+    if let Some(session) = looked.as_deref_mut().and_then(|l| l.session.as_mut()) {
+        map = session.map();
+    }
     let mut id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
             report_unreadable(path, &err, sink);
             if let Some(looked) = looked {
-                looked.take(&map, None);
+                looked.take(&mut map, None);
             }
             return Err(ExitCode::FAILURE);
         }
@@ -1356,7 +1394,7 @@ fn front_end_in(
             diags.report(refused);
             emit_diagnostics(&mut diags, &map, sink);
             if let Some(looked) = looked {
-                looked.take(&map, None);
+                looked.take(&mut map, None);
             }
             return Err(ExitCode::FAILURE);
         }
@@ -1381,13 +1419,22 @@ fn front_end_in(
     mark.end(phases::Phase::Core);
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
     let mut lent: Option<nvs_hir::lenders::Lender> = None;
+    let mut checked;
     let (mut diags, module, loaded, autoload, interner, exprs, enums, layouts) = loop {
         let borrowed = lent
             .as_ref()
             .map_or(&[][..], nvs_hir::lenders::Lender::sites);
         let mark = phases::start();
-        let (mut diags, module, loaded, autoload) =
-            resolve_entry(&mut map, id, roster, strict_docs, borrowed, &classes);
+        let session = looked.as_deref_mut().and_then(|l| l.session.as_mut());
+        let (mut diags, module, loaded, autoload) = resolve_entry(
+            &mut map,
+            id,
+            roster,
+            strict_docs,
+            borrowed,
+            &classes,
+            session,
+        );
         // `rule:packaging/a-package-file-stays-under-its-declared-prefix` and
         // `rule:packaging/a-package-cannot-reach-its-host`, over every file the walk loaded.
         // Each package's `optional` list goes into the grant table's digest, because an
@@ -1418,7 +1465,6 @@ fn front_end_in(
         mark.end(phases::Phase::Collection);
 
         let mark = phases::start();
-        let mut interner = nvs_types::TypeInterner::new();
         let mut exprs = nvs_types::ExprTypeTable::new();
         // The one edge only the walk above knows — which file each written
         // `require` resolved to — carried across to `nvs-ir`, which calls that
@@ -1438,18 +1484,56 @@ fn front_end_in(
                 stmts: &file.stmts,
             })
             .collect();
-        let enums = nvs_types::check::check_program_loaded(
-            &files,
-            &module,
-            grants.as_ref(),
-            backtracking,
-            &namespace_grants,
-            Some(&packages),
-            &extensions,
-            &mut interner,
-            &mut exprs,
-            &mut diags,
-        );
+        let session = looked.as_deref_mut().and_then(|l| l.session.as_mut());
+        let (enums, interner) = if let Some(session) = session {
+            // A kept session checks the bodies whose key moved and folds every
+            // other file's kept output, and the result is the whole check's.
+            let sources: Vec<&nvs_diagnostics::SourceFile> =
+                files.iter().map(|file| file.src).collect();
+            let base = front_key(
+                &extensions,
+                &namespace_grants,
+                grants.as_ref(),
+                backtracking,
+            );
+            let walked = session.walked();
+            let enums =
+                session.check_all(&sources, &base, &module.graph, |bodies, kept, interner| {
+                    nvs_types::check::check_program_partial(
+                        &files,
+                        &module,
+                        grants.as_ref(),
+                        backtracking,
+                        &namespace_grants,
+                        Some(&packages),
+                        &extensions,
+                        bodies,
+                        &rustc_hash::FxHashSet::default(),
+                        kept,
+                        interner,
+                        &mut exprs,
+                        &mut diags,
+                    )
+                });
+            checked = session.walked() - walked;
+            (enums, session.shared_interner())
+        } else {
+            let mut interner = nvs_types::TypeInterner::new();
+            let enums = nvs_types::check::check_program_loaded(
+                &files,
+                &module,
+                grants.as_ref(),
+                backtracking,
+                &namespace_grants,
+                Some(&packages),
+                &extensions,
+                &mut interner,
+                &mut exprs,
+                &mut diags,
+            );
+            checked = files.len();
+            (enums, std::sync::Arc::new(interner))
+        };
         mark.end(phases::Phase::Check);
 
         // Both phases report an undeclared name: name resolution for a `use`,
@@ -1492,7 +1576,8 @@ fn front_end_in(
     };
 
     if let Some(looked) = looked {
-        looked.take(&map, Some(&autoload));
+        looked.take(&mut map, Some(&autoload));
+        looked.checked = checked;
     }
     // `nvs check`'s alone (`rule:statements/an-unused-use-is-a-warning`): a
     // program that runs prints nothing about a line it never needed. A file
@@ -1585,6 +1670,7 @@ fn resolve_entry(
     strict_docs: bool,
     borrowed: &[nvs_hir::autoload::Site],
     extensions: &[nvs_hir::ExtensionClass],
+    session: Option<&mut nvs_lsp::Session>,
 ) -> (
     Diagnostics,
     nvs_hir::Module,
@@ -1592,8 +1678,19 @@ fn resolve_entry(
     nvs_hir::AutoloadMap,
 ) {
     let mut diags = Diagnostics::new();
-    let stmts = parse_file(map.file(id), &mut diags);
-    check_declarations(&stmts, map.file(id), &mut diags);
+    // A kept session parses a file only when its text moved, and reports a
+    // kept parse's diagnostics again.
+    let (stmts, parses) = match session {
+        Some(session) => (
+            session.parse_entry(map.file(id), &mut diags),
+            Some(session.parses()),
+        ),
+        None => {
+            let stmts = parse_file(map.file(id), &mut diags);
+            check_declarations(&stmts, map.file(id), &mut diags);
+            (std::sync::Arc::new(stmts), None)
+        }
+    };
     let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
         id,
         stmts,
@@ -1603,9 +1700,26 @@ fn resolve_entry(
         strict_docs,
         borrowed,
         extensions,
-        None,
+        parses,
     );
     (diags, module, loaded, autoload)
+}
+
+/// What a kept session's checked output depends on beyond the program's own
+/// files: the extension set, the namespace grants and the configuration's
+/// grants and backtracking policy. A move in any of them checks every body
+/// again.
+fn front_key(
+    extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
+    namespace_grants: &nvs_config::grants::Grants,
+    grants: Option<&nvs_config::tree::Capabilities>,
+    backtracking: nvs_types::Backtracking,
+) -> blake3::Hash {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(format!("{extensions:?}").as_bytes());
+    hasher.update(&namespace_grants.digest());
+    hasher.update(format!("{grants:?}|{backtracking:?}").as_bytes());
+    hasher.finalize()
 }
 
 /// The note on the first unresolved name when the search for a program that

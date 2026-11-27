@@ -2179,7 +2179,10 @@ mod tests {
             },
             "a body edit compiles its own function, and the rest comes from memory"
         );
-        assert!(again.is_some(), "the new unit's code replaces what was kept");
+        assert!(
+            again.is_some(),
+            "the new unit's code replaces what was kept"
+        );
 
         let (_, _, _, none) =
             unit_for_kept(&edited, digest.into(), None, Some(&kept), false).expect("it compiles");

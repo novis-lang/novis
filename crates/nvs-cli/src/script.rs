@@ -239,6 +239,9 @@ pub(crate) struct Compiled {
     /// The functions the compile that built this unit compiled and reused, which the
     /// `program reloaded` record carries.
     work: crate::cache::Work,
+    /// How many files' bodies the compile that built this unit checked, which the
+    /// `program reloaded` record carries.
+    checked: usize,
 }
 
 /// The copy site table of `program`, whose files `map` has: one row per copy the ownership pass
@@ -470,11 +473,13 @@ struct Failure {
 #[derive(Debug)]
 pub(crate) enum Rechecked {
     /// The path serves a new unit now, and `program` is its whole-program
-    /// digest. `compiled` and `reused` count the functions the compile that
-    /// built it compiled and took without a compile.
+    /// digest. `checked` counts the files whose bodies the compile that built
+    /// it checked, and `compiled` and `reused` the functions it compiled and
+    /// took without a compile.
     Swapped {
         entry: PathBuf,
         program: Digest,
+        checked: usize,
         compiled: usize,
         reused: usize,
     },
@@ -644,6 +649,17 @@ pub(crate) struct Compiler {
     /// written path, never per request or per edit. A mutex, because only a
     /// compile reads or writes it, once before its backend and once after.
     kept: Mutex<HashMap<PathBuf, Arc<crate::cache::Kept>>>,
+    /// Under `[opcache] incremental`, each written path's front-end session: the
+    /// parse of every file its program read and the checked output of every
+    /// file's bodies, which the next compile of the path reuses where a file's
+    /// text and key did not move ([`nvs_lsp::Session`]). Empty with
+    /// `incremental` off, under the same rules as [`Self::kept`].
+    ///
+    /// **What it spends:** about what `nvs check` peaks at for each loaded
+    /// program, per written path, never per request or per edit. A compile
+    /// takes its path's session out while its front end runs, so two compiles
+    /// never share one.
+    fronts: Mutex<HashMap<PathBuf, nvs_lsp::Session>>,
     /// The signal of the [`watch`] thread checking this cache, so that
     /// [`Self::reconfigure`] can wake it. Empty until [`watch`] runs, and after
     /// its thread ends.
@@ -753,6 +769,7 @@ impl Compiler {
             backtracking: RwLock::new(nvs_types::Backtracking::of_config(config)),
             revalidation: RwLock::new(Revalidation::from_config(config)),
             kept: Mutex::new(HashMap::new()),
+            fronts: Mutex::new(HashMap::new()),
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
@@ -805,10 +822,11 @@ impl Compiler {
             }
             Some(_) => None,
             None => (now.serving() != before.serving()).then(|| {
-                let work = self.work_at(written, now.unit).unwrap_or_default();
+                let (work, checked) = self.work_at(written, now.unit).unwrap_or_default();
                 Rechecked::Swapped {
                     entry: written.to_path_buf(),
                     program: now.unit.program,
+                    checked,
                     compiled: work.compiled,
                     reused: work.reused,
                 }
@@ -816,12 +834,12 @@ impl Compiler {
         }
     }
 
-    /// The functions the compile of `generation` compiled and reused, where
-    /// its unit is in the table.
-    fn work_at(&self, path: &Path, generation: Generation) -> Option<crate::cache::Work> {
+    /// The functions the compile of `generation` compiled and reused, and the
+    /// files it checked, where its unit is in the table.
+    fn work_at(&self, path: &Path, generation: Generation) -> Option<(crate::cache::Work, usize)> {
         let key = self.key_of(path, generation);
         match shared(&self.units).get(&key)? {
-            CompileState::Ready(compiled) => Some(compiled.work),
+            CompileState::Ready(compiled) => Some((compiled.work, compiled.checked)),
             CompileState::Compiling(_) | CompileState::Failed(_) => None,
         }
     }
@@ -834,6 +852,34 @@ impl Compiler {
             .unwrap_or_else(PoisonError::into_inner)
             .get(written)
             .cloned()
+    }
+
+    /// Takes `written`'s front-end session out for a compile, or a new one,
+    /// under `[opcache] incremental`, and `None` without it.
+    fn front_for(&self, written: &Path) -> Option<nvs_lsp::Session> {
+        if !self.revalidation().incremental {
+            return None;
+        }
+        let taken = self
+            .fronts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(written);
+        Some(taken.unwrap_or_default())
+    }
+
+    /// Holds `session` for `written` after a compile, or frees it where
+    /// `incremental` is now off. The front end already freed the files its
+    /// program no longer reads ([`crate::Looked`]).
+    fn keep_front(&self, written: &Path, session: Option<nvs_lsp::Session>) {
+        let Some(session) = session else { return };
+        if !self.revalidation().incremental {
+            return;
+        }
+        self.fronts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(written.to_path_buf(), session);
     }
 
     /// Holds `kept` for `written` in place of what was held, or frees what was
@@ -926,6 +972,10 @@ impl Compiler {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .clear();
+            self.fronts
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
         }
         let watcher = self
             .watcher
@@ -1006,8 +1056,13 @@ impl Compiler {
         units.clear();
         self.exclusive(&self.traces).clear();
         self.exclusive(&self.paths).clear();
-        // Kept code was compiled against the old environment's extension set.
+        // Kept code and checked outputs were made against the old
+        // environment's extension set.
         self.kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        self.fronts
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
@@ -1824,7 +1879,8 @@ impl Compiler {
         // Taken before the front end reads anything: a file whose stamp is
         // not older than this may have changed after it was read ([`vouching`]).
         let started = SystemTime::now();
-        let mut looked = crate::Looked::default();
+        // Under `incremental`, the front end parses and checks only what moved.
+        let mut looked = crate::Looked::with_session(self.front_for(written));
         // Typed against the live extension set. A reload installs a new set
         // before it moves [`Self::env`], so a unit compiled from then on reads
         // the set its key will name.
@@ -1842,12 +1898,15 @@ impl Compiler {
                 &mut looked,
             )
         }));
+        let session = looked.session.take();
+        let checked_files = looked.checked;
         let Looks {
             answers,
             reads,
             listed,
             probes,
         } = looks(looked, Some(&real), started);
+        self.keep_front(written, session);
         let checked = match checked {
             Ok(Ok(checked)) => Ok(checked),
             Ok(Err(_)) => Err(format!(
@@ -1936,6 +1995,7 @@ impl Compiler {
                     query_sites: query_sites(&lowered, &checked.map),
                     copy_sites: copy_sites(&lowered, &checked.map),
                     work,
+                    checked: checked_files,
                 })
             })
             .map_err(|error| {

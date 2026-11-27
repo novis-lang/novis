@@ -42,10 +42,13 @@
 //!
 //! A cached output names its types by [`TypeId`](nvs_types::TypeId), so every
 //! check runs against the one interner of the session. An [`Analysed`] keeps
-//! an [`Rc`] of it, because a reader looks a type up long after the check. A
-//! check interns into the session's copy with [`Rc::make_mut`], which copies
+//! an [`Arc`] of it, because a reader looks a type up long after the check. A
+//! check interns into the session's copy with [`Arc::make_mut`], which copies
 //! the interner only while a kept analysis still shares it. An id is never
-//! renumbered, so every analysis reads its own ids in the copy it holds.
+//! renumbered, so every analysis reads its own ids in the copy it holds. It is
+//! an `Arc` and not an `Rc` because `nvs serve` keeps a session on its compile
+//! threads ([`Session`]'s public methods), and one atomic count per analysis
+//! costs the editor nothing it measures.
 //!
 //! The interner grows with the distinct types the project and its edits
 //! produce, and an edit that writes a new literal type adds one. So the
@@ -91,10 +94,11 @@
 //! [`Analysed`]: crate::Analysed
 
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use nvs_diagnostics::{SourceFile, SourceId};
+use nvs_diagnostics::{Diagnostics, SourceFile, SourceId, SourceMap};
 use nvs_hir::ClassGraph;
+use nvs_syntax::ast::Stmt;
 use nvs_types::{CheckCache, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -103,8 +107,12 @@ use crate::parse_cache::ParseCache;
 
 /// The parses, the checked outputs and the interner one server keeps across
 /// analyses.
+///
+/// `nvs serve` keeps one per program under `[opcache] incremental`, through
+/// the public methods below, so a reload parses the files whose text moved
+/// and checks the bodies whose key moved. Its compile has no file left out.
 #[derive(Debug, Default)]
-pub(crate) struct Session {
+pub struct Session {
     pub(crate) parses: ParseCache,
     /// The checked output of each file's bodies, by the file's pinned id.
     pub(crate) checks: CheckCache,
@@ -112,7 +120,7 @@ pub(crate) struct Session {
     keys: FxHashMap<SourceId, blake3::Hash>,
     /// The interner every output in [`checks`](Self::checks) names its types
     /// against.
-    interner: Rc<TypeInterner>,
+    interner: Arc<TypeInterner>,
     /// The interner's own size when the tree was last settled.
     settled_len: usize,
     /// How many times the interner was dropped for its size.
@@ -139,7 +147,7 @@ impl Session {
     ) -> R {
         let len = self.interner.own_len();
         if self.settled_len > 0 && len >= 2 * self.settled_len {
-            self.interner = Rc::default();
+            self.interner = Arc::default();
             self.checks.clear();
             self.keys.clear();
             self.settled_len = 0;
@@ -154,7 +162,7 @@ impl Session {
                 _ => true,
             })
             .collect();
-        let out = check(&bodies, &mut self.checks, Rc::make_mut(&mut self.interner));
+        let out = check(&bodies, &mut self.checks, Arc::make_mut(&mut self.interner));
         for id in bodies.iter().filter(|id| !left_out.contains(id)) {
             match self.checks.get(*id) {
                 Some(output) => self.keys.insert(*id, surfaces.key(*id, output.uses())),
@@ -165,8 +173,49 @@ impl Session {
     }
 
     /// The session's interner, for an analysis to keep.
-    pub(crate) fn shared_interner(&self) -> Rc<TypeInterner> {
-        Rc::clone(&self.interner)
+    pub fn shared_interner(&self) -> Arc<TypeInterner> {
+        Arc::clone(&self.interner)
+    }
+
+    /// [`check`](Self::check) with no file left out: a compile owns every
+    /// file of its program.
+    pub fn check_all<R>(
+        &mut self,
+        files: &[&SourceFile],
+        base: &blake3::Hash,
+        graph: &ClassGraph,
+        check: impl FnOnce(&FxHashSet<SourceId>, &mut CheckCache, &mut TypeInterner) -> R,
+    ) -> R {
+        self.check(files, base, graph, &FxHashSet::default(), check)
+    }
+
+    /// How many files' bodies were checked since the session was made.
+    #[must_use]
+    pub const fn walked(&self) -> usize {
+        self.checks.walked()
+    }
+
+    /// A map that loads every file at the id its last parse had, which a
+    /// kept parse and a kept output are valid for.
+    pub fn map(&mut self) -> SourceMap {
+        self.parses.map()
+    }
+
+    /// Keeps the ids `map` gave the files it loaded, for the next
+    /// [`map`](Self::map).
+    pub fn keep_pins(&mut self, map: &mut SourceMap) {
+        self.parses.keep_pins(map);
+    }
+
+    /// The parse cache, for the walk of the program's graph.
+    pub fn parses(&mut self) -> &mut dyn nvs_hir::Parses {
+        &mut self.parses
+    }
+
+    /// The entry file's statements, parsed only when its text moved, with its
+    /// parse and declaration diagnostics reported into `diags`.
+    pub fn parse_entry(&mut self, src: &SourceFile, diags: &mut Diagnostics) -> Arc<Vec<Stmt>> {
+        self.parses.parse_entry(src, diags).stmts
     }
 
     /// How many times the interner was dropped for its size.
@@ -181,7 +230,7 @@ impl Session {
 
     /// Frees the parse and the checked output of every file `keep` says has
     /// left the tree, and takes the interner's size as the settled one.
-    pub(crate) fn settled(&mut self, keep: impl Fn(&Path) -> bool) {
+    pub fn settled(&mut self, keep: impl Fn(&Path) -> bool) {
         for id in self.parses.retain(keep) {
             self.checks.remove(id);
             self.keys.remove(&id);

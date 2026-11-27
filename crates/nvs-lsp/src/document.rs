@@ -875,7 +875,7 @@ pub struct Analysed {
     ///
     /// It is the session's interner as the check left it (`crate::session`),
     /// shared until the next check interns a type.
-    pub interner: Rc<TypeInterner>,
+    pub interner: std::sync::Arc<TypeInterner>,
     /// Every declaration in the graph that carries `#[Core\Deprecated]`, with
     /// what its payload wrote — the whole graph's, for
     /// [`exprs`](Self::exprs)' reason. A completion item is tagged from it, and

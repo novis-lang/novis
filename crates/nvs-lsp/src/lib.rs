@@ -180,6 +180,7 @@ pub use index::{
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
 pub use render::{Action, Change, Edit, Lens, Link, Place, Redaction, Region, Renamable, Response};
 pub use server::{ServerError, Workspace, index_file_of, run, serve, workspace, workspace_from};
+pub use session::Session;
 pub use settings::{Client, Settings};
 #[doc(hidden)]
 pub use workers::panic_on_worker;
