@@ -46,7 +46,7 @@ stages:
     context: [docs/rules/ide/the-request-set-is-closed.md, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/tests/handshake.rs, editors/vscode/src/extension.ts, editors/vscode/package.json]
   - id: 11
     title: "a member moves to another class: a static one anywhere, an instance one up or down its hierarchy"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/imports.rs]
   - id: 12
     title: "an interface is extracted from a class"
@@ -425,6 +425,19 @@ contains `::` is a member, since no path contains `::`; otherwise it is the file
   the move is refused.
 - A name the target already has is refused.
 - In the editor, a *Move member…* code action on the member name asks for the class through stage 10.
+- **As built.** `crates/nvs-lsp/src/move_member.rs` `moved_member`, through `query::move_member`
+  and `nvs code move` (`code.rs` `move_member`). Sites are the index's occurrences and `@see`
+  mentions; the class before `::` is read off the text and rewritten, so `self::`, `static::` and
+  `parent::` outside the moved code become the new class too. Inside the moved code a `self::` or
+  `static::` of another member becomes the old class's name (an instance move keeps `static::`),
+  and each short type name the old file resolved gets a `use` line in the new file. `use` lines go
+  through `rename::sorted_heads`, so `nvs fmt` moves nothing. Decided while building: **a compared
+  property name always refuses the move**, whatever callbacks the target has, since a comparison
+  that stops matching is silent; **moved code that writes `parent`, or `self` or `static` not in
+  front of `::`, is refused**, since each would name another class. The move leaves the old file's
+  `use` line of the old class where nothing else uses it: a `W1026` warning, which organize imports
+  deletes. The editor's action is *Move `name` to another class…*, prefilled with the member's own
+  class.
 
 **What extract interface writes** (stage 12). `nvs code extract interface <Class> <Name> [--methods
 a,b]`. A bare `<Name>` is in the class's namespace. The default methods are every public, non-static
@@ -635,15 +648,18 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 11. a member moves to another class: a static one anywhere, an instance one up or down its hierarchy
 
-- [ ] `crates/nvs-lsp/src/move_member.rs:1` (new): the engine per § *What a member move allows*,
+- [x] `crates/nvs-lsp/src/move_member.rs:1` (new): the engine per § *What a member move allows*,
   through `refactor::checked`.
-- [ ] `crates/nvs-cli/src/code.rs:1162`: `move` sends a `from` with `::` to the member move; the `Move`
+  - [x] `moved_member`, its refusals and the three unit tests
+  - [x] `rename::sorted_heads` for the `use` lines
+- [x] `crates/nvs-cli/src/code.rs:1162`: `move` sends a `from` with `::` to the member move; the `Move`
   help names both forms.
-- [ ] `crates/nvs-lsp/src/commands.rs:151` and `crates/nvs-lsp/src/commands.rs:68`: `nvs.moveMember`
+- [x] `crates/nvs-lsp/src/commands.rs:151` and `crates/nvs-lsp/src/commands.rs:68`: `nvs.moveMember`
   runs the engine, and the *Move member…* action is offered on a member name.
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the five tests of the check `move-member`. Then `cargo test
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the five tests of the check `move-member`. Then `cargo test
   --test code code_move_member` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:54`: the member form of `move`.
+  - [x] the five tests pass
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:54`: the member form of `move`.
 
 ### 12. an interface is extracted from a class
 
@@ -696,15 +712,15 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 10 are done. Stage 10 landed in a8c9ba9ce8 (server) and 866afb62b2 (extension):
-`crates/nvs-lsp/src/commands.rs` offers *Change parameters…* and runs the three commands, and
-`server.rs` `execute_command` sends `workspace/applyEdit`. `cargo test --test actions` and
-`--test handshake` are green, clippy and rustfmt are clean, and the request-set rule has its
-paragraph (twenty-three standard requests). The extension type-checks and lints clean.
+Stages 1 to 11 are done. Stage 11 landed in 3404ec8d50 (engine, CLI, tests, rule) and 1ad715fadf
+(editor command): `nvs code move Shop\Tax::of Shop\Util\Money` moves a member, and
+`nvs.moveMember` runs the same engine. The five `code_move_member_*` tests and the module's three
+unit tests are green, and clippy and rustfmt are clean. No server test covers `nvs.moveMember` yet;
+stage 13 or 14 may add one beside `change_parameters_command_applies_the_engines_edit`.
 - **Nightly 45813627231's nine failures are all fixed on `main`**: Miri's time zone tests by
   c115a735a1, the `Core\Uuid` `Parses` conformance case by 28a4d7a6bf, and the aarch64 stack bound
   by 544711a8fb. The run was on 4e43e1fa2e, before them.
-- Stages 3 to 10 are each standing decision's *As built* bullet.
+- Stages 3 to 11 are each standing decision's *As built* bullet.
 - **The title of `ide/the-request-set-is-closed` in `docs/ground-rules.md` still says "seventeen
   standard requests and seven"**; its body says twenty-three and eight. Stage 13 rereads it.
 - **Four `.lspt` action cases keep a name that says "offered nothing"** (`a-method-call-`,
@@ -714,25 +730,27 @@ paragraph (twenty-three standard requests). The extension type-checks and lints 
   unrelated error; the new and changed `nvs code` help, in stage 13's `site --check stale` and
   `questions`; and a server test that reads a fixed sequence of `publishDiagnostics` and meets
   `republish_dimming`'s extra publish (fix: a fixture that uses its declarations, as `publish.rs`'s
-  `HOARD` does).
+  `HOARD` does). A server test that pins the exact list of code actions on a member's name now
+  also meets the *Move … to another class…* action (`commands::at`).
 
 ### Next
 
-Stage 11 (§ *What a member move allows*).
-1. `crates/nvs-lsp/src/move_member.rs` (new, `pub mod` in `lib.rs`): `moved_member(documents,
-   index, from: &str, to: &str) -> Result<Vec<Rewrite>, String>`, ending in
-   `crate::refactor::checked` as `signature_change.rs:295` does. Sites from
-   `SymbolIndex::occurrences` (`index.rs:2132`) and `declaration`; a pull up or push down reads
-   `overridden`/`overriders` (`index.rs:2091`) and `rename::family`. A `use` line goes through
-   `nvs_hir::import_site` (`crates/nvs-hir/src/imports.rs:83`).
-2. `crates/nvs-cli/src/code.rs:500` `Command::Move`: a `from` with `::` goes to a new
-   `move_member` (through a `query::move_member`), else `move_path` as now; the `Move` help at
-   `:200` names both forms.
-3. `crates/nvs-lsp/src/commands.rs:151`: `MOVE_MEMBER` with `[Class::member, class]` runs it, and
-   `commands::at` (`:68`) offers *Move member…* on a member's name with the class's name prefilled.
-4. `crates/nvs-cli/tests/code.rs`: the five `move-member` tests; `cargo test --test code
-   code_move_member` once.
-5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the member form of `move`.
+Stage 12 (§ *What extract interface writes*).
+1. `crates/nvs-lsp/src/extract_interface.rs` (new, `pub mod` in `lib.rs`): `extracted(documents,
+   index, class, name, methods: Option<&[String]>) -> Result<(Vec<Rewrite>, PathBuf, String),
+   String>`, writing each signature as `generate.rs:178` `implement` does. The new file's path is
+   `AutoloadMap::name_at`'s inverse, as `rename::autoloaded_path` (`rename.rs`) finds it. Each type
+   is written for the new file with a `use` line, as `move_member.rs` `spell` does (it could move
+   to a shared `pub(crate)` helper). The class's `implements` edit, then `refactor::checked` with
+   the new file as a created file (see how `checked` reads a path that has no text yet).
+2. `crates/nvs-cli/src/code.rs`: `Extracted::Interface { class, name, methods, dry_run, json }`
+   beside `Variable` and `Method`, written through `write_out`'s created-file path.
+3. `crates/nvs-lsp/src/commands.rs` `EXTRACT_INTERFACE`: runs it; `commands::at` offers *Extract
+   interface…* on a class name, prefilled with the class's name followed by `Contract`, which the
+   person edits (a design call for the session: no Novis naming convention exists for it).
+4. `crates/nvs-cli/tests/code.rs`: the three `extract-interface` tests; `cargo test --test code
+   code_extract_interface` once.
+5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the third form of `extract`.
 
 ### Backlog
 
