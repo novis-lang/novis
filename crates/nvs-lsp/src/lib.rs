@@ -136,6 +136,7 @@ pub mod query;
 pub mod reach;
 pub mod recorded;
 pub mod redactions;
+pub mod refactor;
 pub mod regions;
 pub mod rename;
 mod render;

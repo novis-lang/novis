@@ -55,8 +55,10 @@
 //! ([`crate::imports::written_at`]), so a type declared in another namespace
 //! still resolves. A `LogicError` written in a namespace gets its `use` line.
 //! The text both actions write is analysed before it is offered
-//! ([`analyse_rewritten`]), and an action whose text reports an error is not
-//! offered. That covers what this module does not compute: a generic interface,
+//! ([`crate::refactor::adds_no_error_in_entry`],
+//! `rule:ide/a-refactoring-checks-its-edit-before-it-writes`), and an action
+//! whose text adds an error is not offered. An error the document already had
+//! does not hide it. That covers what this module does not compute: a generic interface,
 //! whose methods are written in its type parameter, a method of a `Core`
 //! interface, which has no declaration to copy, and a default value whose names
 //! resolve differently in the class's file.
@@ -628,7 +630,10 @@ pub(crate) fn overridable_at(
 /// with no error inside the text written.
 ///
 /// An error elsewhere is the document's own, such as a half-written line
-/// further down, and does not say anything about `text`.
+/// further down, and does not say anything about `text`. This is the one
+/// check that does not count errors before and after
+/// (`crate::refactor`): in a half-written document the parser recovers at a
+/// different place once `text` is in it, and an error it already had moves.
 pub(crate) fn writes_cleanly(
     analysed: &Analysed,
     documents: &Documents,
@@ -868,15 +873,12 @@ impl Place {
     }
 }
 
-/// `Some` when the entry document with `edits` applied analyses with no error.
+/// `Some` when the entry document with `edits` applied analyses with no error
+/// it did not already have ([`crate::refactor::adds_no_error_in_entry`]).
 fn compiles(analysed: &Analysed, documents: &Documents, edits: &[Change]) -> Option<()> {
-    let mut text = analysed.map.file(analysed.entry).text().to_owned();
-    let mut ordered: Vec<&Change> = edits.iter().collect();
-    ordered.sort_by_key(|(span, _)| std::cmp::Reverse(span.start));
-    for (span, replacement) in ordered {
-        text.get(span.range())?;
-        text.replace_range(span.range(), replacement);
-    }
-    let checked = analyse_rewritten(documents, analysed, text)?;
-    (checked.diags.error_count() == 0).then_some(())
+    let edits: Vec<(usize, usize, &str)> = edits
+        .iter()
+        .map(|(span, text)| (span.range().start, span.range().end, text.as_str()))
+        .collect();
+    crate::refactor::adds_no_error_in_entry(documents, analysed, &edits).then_some(())
 }

@@ -6,7 +6,7 @@ context: [docs/rules/tooling/nvs-code-answers-about-the-project.md, docs/rules/i
 stages:
   - id: 1
     title: "every refactoring checks its edit before it writes"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/generate.rs, crates/nvs-lsp/src/query.rs, crates/nvs-lsp/src/index.rs]
   - id: 2
     title: "a property's name, compared as a string in its class's property callbacks, is renamed with it"
@@ -200,6 +200,13 @@ analysis is too slow to keep in the editor's rename on the largest corpus (`bun 
 over 5 s), the editor rename checks only the changed files, the CLI keeps the full check, and the rule
 says so. The check catches a compile error only. A break the compiler cannot see, such as stage 2's,
 needs the index to hold the site.
+- **What "gains an error" means, as built.** Each reader is analysed before and after, and errors are
+  counted per file and per code, so an error the project already had, or one whose message names the
+  renamed symbol, never refuses. That costs two analyses per reader, not one.
+- **Two places stay off the full check.** `writes_cleanly` keeps its inside-the-text rule: a
+  completion row in a half-written document moves the parser's recovery, so a count would drop rows
+  that are fine. The editor's `willRenameFiles` is not checked, since it cannot refuse a drag. The
+  four generators check their own document only, with one analysis.
 
 **A property's name in its callbacks** (stage 2). The runtime calls five methods with a property's
 name as their first parameter: `initProperty` (`LateInit`), `onPropertyGet` and `onPropertySet`
@@ -391,17 +398,17 @@ cases are disjoint files and may go to two writing subagents.
 
 ### 1. every refactoring checks its edit before it writes
 
-- [ ] `crates/nvs-lsp/src/refactor.rs:1` (new): `checked(workspace, index, rewrites, moves)` applies the
+- [x] `crates/nvs-lsp/src/refactor.rs:1` (new): `checked(workspace, index, rewrites, moves)` applies the
   rewrites in memory, analyses the changed files and their readers, and returns the rewrites or the
   first new error with its position. This stage writes the rule
   `ide/a-refactoring-checks-its-edit-before-it-writes` that states it.
-- [ ] `crates/nvs-lsp/src/generate.rs:632`: `writes_cleanly` calls `refactor::checked` or is replaced by
+- [x] `crates/nvs-lsp/src/generate.rs:632`: `writes_cleanly` calls `refactor::checked` or is replaced by
   it; the four generators keep their behaviour.
-- [ ] `crates/nvs-lsp/src/query.rs:395` and `crates/nvs-lsp/src/server.rs:1837`: rename and the file
+- [x] `crates/nvs-lsp/src/query.rs:395` and `crates/nvs-lsp/src/server.rs:1837`: rename and the file
   move pass through `checked` in both clients.
-- [ ] `crates/nvs-lsp/tests/refactor.rs:1` (new): the four tests of the check `checked`, the last one
+- [x] `crates/nvs-lsp/tests/refactor.rs:1` (new): the four tests of the check `checked`, the last one
   counting analysed files. Then `cargo test --test refactor` once.
-- [ ] `docs/rules/ide/a-refactoring-checks-its-edit-before-it-writes.md:1` (new), with its cost line
+- [x] `docs/rules/ide/a-refactoring-checks-its-edit-before-it-writes.md:1` (new), with its cost line
   and the fallback of § *Standing decisions*, then `bun nv rules`.
 
 ### 2. a property's name, compared as a string in its class's property callbacks, is renamed with it
@@ -609,17 +616,29 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Written by an interactive session on 2026-11-26, from the user's request for refactoring support at
-the level of a good IDE, from the command line and the editor. The user agreed to the list, to the
-namespace move as the first new feature, and raised the `lateinit` rename break, which the session
-reproduced (§ *Why*). Every other choice in § *Standing decisions* is the session's own, made by the
-priority ordering. Nothing of this goal is built. Every anchor was read that day, while
-`deeper-debug-records` ran stage 7.
+Stage 1 is done, and its check `checked` is green: `cargo test --test refactor` ran once, 4 passed.
+- `crates/nvs-lsp/src/refactor.rs` holds `checked(documents, index, rewrites, moves) -> Result<Checked,
+  Broken>`. It analyses each entry `SymbolIndex::readers` names for a changed or moved file, before
+  and after, and counts errors per file and per code. `Broken::refusal()` is the message both
+  clients show. It takes `&Documents`, not a `Workspace`, because the server has no `Workspace`.
+- `rename::rename` checks its own result (`rename.rs`, `planned` is the old body), so the CLI, both
+  server paths and the `.lspt` runner are checked. `nvs code move` checks in `code.rs` `move_path`.
+- The generators' `compiles` (`generate.rs:872`) calls `refactor::adds_no_error_in_entry`: one
+  analysis, counted against the request's own. An error the document already had no longer hides a
+  generator.
+- The same session fixed the nightly sweep first. Miri's zone tests and the `Core\Uuid` `Parses`
+  case were fixed on `main` after the run (c115a735a1, 28a4d7a6bf). The aarch64 stack-page test got a
+  one-page margin after a bisect (544711a8fb).
+
+**Expect red at the gate:** a `.lspt` case or an `actions.rs` test that pins a generator as *not
+offered* in a document with an unrelated error is now offered. A rename case whose edit leaves an
+error now gets the refusal message. Neither suite ran in this stage.
 
 ### Next
 
-Stage 1 from its first item, then stage 2. The check `checked` is red until
-`crates/nvs-lsp/tests/refactor.rs` exists with its four tests. Every later check names tests that do
-not exist yet.
+Stage 2 from its first item: `index.rs:3036` records a literal compared with a callback's name
+parameter as an occurrence of the property. Then `rename.rs` `members` (the line moved by about 25
+with `planned`), the warning, the five `code.rs` tests, the two `.lspt` cases and the rule. Stage 2's
+check `callback-names` is red until the five tests in `crates/nvs-cli/tests/code.rs` exist.
 
 ### Backlog

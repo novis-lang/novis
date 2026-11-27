@@ -1,0 +1,13 @@
+{
+  "title": "A refactoring's edit is analysed before it is written, and an edit that adds an error is refused with that error",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/no-refactoring-introduces-an-alias",
+    "ide/five-features-are-one-reference-index",
+    "ide/the-index-is-incremental-and-persistent",
+    "tooling/nvs-code-answers-about-the-project"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/refactor.rs"
+  ]
+}

@@ -162,10 +162,32 @@ pub fn prepare(index: &SymbolIndex, analysed: &Analysed, offset: BytePos) -> Res
 /// Every edit that renames the symbol at `offset` to `new_name`, or the
 /// message that says why it cannot be renamed.
 ///
+/// The edit and the file move are checked before they are returned
+/// ([`crate::refactor::checked`]): a rename that would add an error is refused
+/// with that error.
+///
 /// # Errors
 ///
 /// Returns the refusal message, written for the person at the editor.
 pub fn rename(
+    documents: &Documents,
+    index: &SymbolIndex,
+    analysed: &Analysed,
+    offset: BytePos,
+    new_name: &str,
+) -> Result<Renamed, String> {
+    let Renamed { rewrites, file } = planned(documents, index, analysed, offset, new_name)?;
+    let moves: Vec<(PathBuf, PathBuf)> = file.iter().cloned().collect();
+    let checked = crate::refactor::checked(documents, index, rewrites, &moves)
+        .map_err(|broken| broken.refusal())?;
+    Ok(Renamed {
+        rewrites: checked.rewrites,
+        file,
+    })
+}
+
+/// [`rename()`] before its check.
+fn planned(
     documents: &Documents,
     index: &SymbolIndex,
     analysed: &Analysed,
@@ -1320,7 +1342,7 @@ fn is_identifier(name: &str) -> bool {
 
 /// The key a path that may not exist yet is compared under: its directory as
 /// [`canonical_key`] spells it, and its own name.
-fn new_key(path: &Path) -> PathBuf {
+pub(crate) fn new_key(path: &Path) -> PathBuf {
     match (path.parent(), path.file_name()) {
         (Some(parent), Some(name)) => canonical_key(parent).join(name),
         _ => path.to_path_buf(),

@@ -1142,7 +1142,9 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
 /// inside the project root, and `to` is inside it too, does not exist, is not
 /// inside `from`, and has a directory that exists. A directory is not created
 /// and a type is not renamed, as the editor's move does neither (the rule's
-/// Declined list).
+/// Declined list). The edits and the move are checked before anything is
+/// written ([`nvs_lsp::refactor::checked`]), and a move that would add an
+/// error writes nothing and prints that error.
 pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> ExitCode {
     let mut project = match Project::open() {
         Ok(project) => project,
@@ -1154,6 +1156,15 @@ pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> Exit
     };
     let workspace = &project.workspace;
     let rewrites = rename::moved(workspace.documents(), workspace.index(), &moves);
+    let rewrites = match nvs_lsp::refactor::checked(
+        workspace.documents(),
+        workspace.index(),
+        rewrites,
+        &moves,
+    ) {
+        Ok(checked) => checked.rewrites,
+        Err(broken) => return unknown(&escaped(&broken.refusal()), &[], json),
+    };
     write_out(&mut project, &rewrites, &moves, dry_run, json)
 }
 
