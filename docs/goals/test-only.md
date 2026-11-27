@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/programs/implementing.md, crates/nvs-ir/src/lower/mod.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-ir/src/lower/expr.rs]
   - id: 4
     title: "the editor offers test-only code only inside test code, and its hover says it is for tests"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs]
   - id: 5
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
@@ -266,12 +266,12 @@ and the hierarchy and could run beside `refactor-commands` as a side goal. Stage
 Gate: `refactor-commands` and `loadable-completion` are reached (their goal files are gone from
 `docs/goals/`). The test-only filter joins the loadable filter in `every_type` and `under`.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:5069`: outside test code, a test-only member is left out of
+- [x] `crates/nvs-lsp/src/completion.rs:5069`: outside test code, a test-only member is left out of
   every member list (`members_of` `:676`, `member` `:3518`, `declared_members` `:4902`), and a
   test-only type out of the type-name list. The method around the cursor decides "inside test code".
-- [ ] `crates/nvs-lsp/src/hover.rs:608`: the "Only for tests" line beside `restriction` (`:644`) and
+- [x] `crates/nvs-lsp/src/hover.rs:608`: the "Only for tests" line beside `restriction` (`:644`) and
   `deprecation` (`:684`).
-- [ ] `crates/nvs-lsp/tests/test_only_editor.rs` (new, shaped like `deprecated.rs` beside it): the four
+- [x] `crates/nvs-lsp/tests/test_only_editor.rs` (new, shaped like `deprecated.rs` beside it): the four
   tests of the check `editor`, then `cargo test --test test_only_editor` once.
 
 ### 5. the rules, the reference, the examples, the feature proofs and the website say so
@@ -300,32 +300,36 @@ above.
 
 ### State
 
-Stages 1 to 3 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 11 passed)
-and `builds` (`cargo test --test test_only_run`, 4 passed) are green, and the build and clippy
-are clean.
+Stages 1 to 4 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 11 passed),
+`builds` (`cargo test --test test_only_run`, 4 passed) and `editor`
+(`cargo test --test test_only_editor`, 4 passed) are green, and the build and clippy are clean.
 
-Stage 3: `crate::test_code::record_type` records each test-only class, interface and enum on
-`ExprTypeTable` (`record_test_only_type`, read by `is_test_only_type`), from `check.rs`'s three
-declaration arms. Under `Tests::Omit`, `lower_program_as` drops the type's class row, static
-properties and enum row (`Tests::keeps_type`), and `Tests::lowers` drops every method and
-property hook whose label starts with a test-only type. `listed_implementors` filters the three
-`Core\Program` enumerations in every build (see the decision). `rule:programs/implementing` says
-so. The lowering test `a_run_lowers_no_test_code_and_a_test_run_lowers_all_of_it` covers all of it,
-and `crates/nvs-cli/tests/test_only_run.rs` drives the binary over the fixtures under
-`crates/nvs-cli/tests/fixtures/test-only/`.
+Stage 4: completion's `Cursor` carries `in_tests`, set by `test_code_at`: the cursor is inside a
+test-only class, interface, enum or `extend` block, or inside a member span of a method the
+`ExprTypeTable` calls test code. Outside it, `hidden` leaves out every member of a test-only type
+and every method that is test code (a `#[Test]` method too, whose call is `E0889` as well), in
+`own_members`, `block_rows` and `enum_cases`. `in_reach` and `under` leave out test-only types,
+except in the qualified list a `use` line takes, because a test file imports its test-only types
+at the top. Hover's `for_tests` adds "**Only for tests.** `nvs run` and `nvs build` leave it out."
+between the restriction and the `///` run. Members of unloaded `extend` blocks have no checker
+record and are not filtered.
 
-Every job the nightly sweep named (run at `4e43e1fa2e`) was already fixed on `main` after it: the
-Miri zone tests in `c115a735a1` and `215257ff46`, the Uuid `Parses` case in `28a4d7a6bf` and the
-serve bound in `544711a8fb`.
+Stage 3: `ExprTypeTable::is_test_only_type` answers the test-only types, `Tests::keeps_type` and
+`Tests::lowers` leave them out of a run, and `listed_implementors` filters `Core\Program`.
+`crates/nvs-cli/tests/test_only_run.rs` drives the binary over `fixtures/test-only/`.
+
+Every job the nightly sweep named (run 45813627231, at `4e43e1fa2e`) was already fixed on `main`
+after it: the Miri zone tests in `c115a735a1` and `215257ff46`, the Uuid `Parses` case in
+`28a4d7a6bf` and the serve bound in `544711a8fb`. A sweep that names that run again needs nothing.
 
 ### Next
 
-Stage 4 from its first item. Its gate holds: `refactor-commands` and `loadable-completion` are
-reached. Completion (`crates/nvs-lsp/src/completion.rs`, `members_of`, `member`,
-`declared_members`, the type-name list) leaves test-only items out unless the method around the
-cursor is test code. The LSP sees the checked program's `ExprTypeTable`, so `is_test_code` and
-`is_test_only_type` answer there. Hover adds "Only for tests. `nvs run` and `nvs build` leave it
-out." in `crates/nvs-lsp/src/hover.rs` beside `restriction` and `deprecation`.
+Stage 5 from its first item, following its `**Split:**` line. Write the rule fragment
+`docs/rules/testing/a-test-only-declaration-is-test-code.md` from § *Rules* and § *Declined* in
+the standing decisions, with a paragraph on the editor (`completion.rs` `hidden` and
+`test_code_at`, `hover.rs` `for_tests`), and decide the backlog's route and command question there.
+Then `bun nv rules`, the reference section at `docs/reference/lang/95-testing.md:1476`, and
+`bun nv proofs --owed --goal test-only` for the list the proof subagent takes.
 
 Tests expected to go red at the gate: any test that counts `ATTRIBUTES` or snapshots the attribute
 cards, stubs or `nvs meta` output changes by one row, and any snapshot of `E0889`'s card or message
