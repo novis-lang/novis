@@ -2943,7 +2943,8 @@ class Unreached {}
             &mut diags,
         );
         assert!(!diags.has_errors(), "{diags:?}");
-        let loads = |name: &str, relative: &str| built.loads_file(&QName::parse(name), &at(relative));
+        let loads =
+            |name: &str, relative: &str| built.loads_file(&QName::parse(name), &at(relative));
 
         // A hit.
         assert!(loads(r"Framework\Kernel", "fw/Kernel.nvs"));
@@ -2959,7 +2960,8 @@ class Unreached {}
         assert!(!built.loads_nothing());
 
         let mut diags = Diagnostics::new();
-        let only_links = AutoloadMap::build(&[links(&dir, id, prefix("Blog", &["./blog"]))], &mut diags);
+        let only_links =
+            AutoloadMap::build(&[links(&dir, id, prefix("Blog", &["./blog"]))], &mut diags);
         assert!(only_links.loads_nothing());
         assert!(!only_links.is_empty());
     }

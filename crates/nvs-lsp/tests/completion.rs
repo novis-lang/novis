@@ -623,7 +623,7 @@ const SOURCED: [(&str, &str); 56] = [
     ("scoped", "..offered"),
     ("called", "..offered"),
     ("under", "registry::CLASSES"),
-    ("in_reach", "every_type(symbols)"),
+    ("in_reach", "every_type(symbols, Some(analysed))"),
     ("in_scope", ".bodies_at("),
     ("words", "CompletionItemKind::KEYWORD"),
     ("declared_members", "declared_type("),

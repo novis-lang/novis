@@ -461,7 +461,7 @@ pub fn at(
         Asked::Namespace(prefix) => followed(
             &cursor,
             After::of(written(&cursor)),
-            under(symbols, &prefix),
+            under(analysed, symbols, &prefix),
         ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
         Asked::Literal(Literal::Path(literal)) => {
@@ -800,9 +800,9 @@ fn block_rows(
         .collect()
 }
 
-/// The blocks the workspace index holds that the program has not loaded and
-/// that add members to a type in `above`, with the rows [`block_rows`] gives
-/// for each, in block name order.
+/// The blocks the workspace index holds that the program has not loaded but
+/// can load ([`loadable`]), and that add members to a type in `above`, with
+/// the rows [`block_rows`] gives for each, in block name order.
 ///
 /// A block's target is resolved by `nvs_hir::HierarchyResolver::written_blocks`
 /// off its own file's namespace and imports, which is the reading the checker
@@ -825,6 +825,7 @@ fn unloaded_blocks(
                 .get(&QName::parse(&declared.symbol))
                 .is_none()
         })
+        .filter(|declared| loadable(analysed, declared))
         .collect();
     declared.sort_by(|a, b| a.symbol.cmp(&b.symbol));
     declared.dedup_by(|a, b| a.symbol == b.symbol);
@@ -3168,8 +3169,9 @@ fn is_name(ch: char) -> bool {
 /// (`rule:ide/completion-offers-only-what-the-compiler-derived`).
 ///
 /// Keyed by label, so a name two files both declare is offered once rather
-/// than twice.
-fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
+/// than twice. A workspace declaration is offered only where `analysed`'s
+/// program can load it ([`loadable`]).
+fn under(analysed: &Analysed, symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
     nvs_footprint::every_class();
     let core = registry::CLASSES
@@ -3190,6 +3192,9 @@ fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
             let Some(kind) = namespace_kind(declared.kind) else {
                 continue;
             };
+            if !loadable(analysed, declared) {
+                continue;
+            }
             if let Some(rest) = under_prefix(&declared.symbol, prefix) {
                 found.insert(
                     rest.clone(),
@@ -4445,13 +4450,16 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         .iter()
         .map(|occurrence| occurrence.symbol.as_str())
         .collect();
-    let candidates = every_type(symbols);
+    let candidates = every_type(symbols, Some(analysed));
     let taken = taken_among(&candidates, &imports, &here);
     let qualified = written_qualified(file);
     let site = crate::imports::entry_stmts(analysed)
         .and_then(|stmts| nvs_hir::import_site(stmts, file, offset));
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
-    for (symbol, kind, origin) in candidates {
+    for (symbol, kind, origin, loads) in candidates {
+        if !loads {
+            continue;
+        }
         let reached = written_as(&symbol, &here, &short);
         let tier = if short.contains_key(&symbol) {
             Tier::Imported
@@ -4523,11 +4531,19 @@ enum Spelled {
     WithoutImport,
 }
 
+/// One type [`every_type`] lists: its qualified name, the kind an item shows,
+/// the tier it ranks at when nothing nearer claims it, and whether the
+/// cursor's program can load it ([`loadable`]).
+type TypeRow = (String, CompletionItemKind, Tier, bool);
+
 /// Every type the server holds, for a bare name to reach: the workspace
-/// index's declarations, then the `Core` registry's classes and enums, each
-/// with the kind an item shows and the tier it ranks at when nothing nearer
-/// claims it.
-fn every_type(symbols: &SymbolIndex) -> Vec<(String, CompletionItemKind, Tier)> {
+/// index's declarations, then the `Core` registry's classes and enums.
+///
+/// Each row says whether `from`'s program can load it. A `Core` type always
+/// can, and with no `from` every type can. The rows a program cannot load stay
+/// in the list, because [`taken_among`] reads the whole of it: a `use` line
+/// must not take a short name that any type in the namespace in force has.
+fn every_type(symbols: &SymbolIndex, from: Option<&Analysed>) -> Vec<TypeRow> {
     nvs_footprint::every_class();
     let core = registry::CLASSES
         .iter()
@@ -4537,12 +4553,40 @@ fn every_type(symbols: &SymbolIndex) -> Vec<(String, CompletionItemKind, Tier)> 
                 .iter()
                 .map(|core| (core.name.to_owned(), CompletionItemKind::ENUM)),
         )
-        .map(|(symbol, kind)| (symbol, kind, Tier::Core));
+        .map(|(symbol, kind)| (symbol, kind, Tier::Core, true));
     let declared = symbols.all_declarations().filter_map(|declared| {
         let kind = namespace_kind(declared.kind)?;
-        Some((declared.symbol.clone(), kind, Tier::Workspace))
+        let offered = from.is_none_or(|analysed| loadable(analysed, declared));
+        Some((declared.symbol.clone(), kind, Tier::Workspace, offered))
     });
     declared.chain(core).collect()
+}
+
+/// Whether the program `analysed` belongs to can load the workspace
+/// declaration `declared`
+/// (`rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`).
+///
+/// It can when the program already loaded the name, or when the program's
+/// `autoload` map lands the name on the file the index found it in
+/// (`nvs_hir::AutoloadMap::loads_file`, a path comparison with no disk call).
+/// A type declared inside a class is loaded with that class, so the class's
+/// name is the one tested. A map with no ordinary entry loads nothing, and
+/// then every declaration is loadable: that is a file no program loads, a new
+/// class file no entry maps yet, or a program that only uses `require`.
+///
+/// - **Cost:** one prefix walk and one path comparison per indexed type, on a
+///   list that already builds one item per type.
+fn loadable(analysed: &Analysed, declared: &Declaration) -> bool {
+    let map = &analysed.autoload;
+    if map.loads_nothing() {
+        return true;
+    }
+    let outer = declared
+        .symbol
+        .split_once("::")
+        .map_or(declared.symbol.as_str(), |(class, _)| class);
+    let name = QName::parse(outer);
+    analysed.module.symbols.get(&name).is_some() || map.loads_file(&name, &declared.site.path)
 }
 
 /// The short names already spoken for at a cursor whose namespace is `here`
@@ -4556,18 +4600,19 @@ pub(crate) fn taken_short_names(
     imports: &FxHashMap<String, QName>,
     here: &[String],
 ) -> FxHashSet<String> {
-    taken_among(&every_type(symbols), imports, here)
+    taken_among(&every_type(symbols, None), imports, here)
 }
 
 /// [`taken_short_names`] over the types [`every_type`] already listed, so a
-/// completion that lists them for its items lists them once.
+/// completion that lists them for its items lists them once. A type the
+/// cursor's program cannot load still takes its short name.
 fn taken_among(
-    types: &[(String, CompletionItemKind, Tier)],
+    types: &[TypeRow],
     imports: &FxHashMap<String, QName>,
     here: &[String],
 ) -> FxHashSet<String> {
     let mut taken: FxHashSet<String> = imports.keys().cloned().collect();
-    taken.extend(types.iter().filter_map(|(symbol, _, _)| {
+    taken.extend(types.iter().filter_map(|(symbol, _, _, _)| {
         let segments = QName::parse(symbol).segments().to_vec();
         (segments.len() == here.len() + 1 && segments.starts_with(here))
             .then(|| segments[here.len()].clone())
