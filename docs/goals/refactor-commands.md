@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-lsp/src/typed_parameter.rs]
   - id: 10
     title: "the editor runs a refactoring that needs input through workspace/executeCommand"
-    status: open
+    status: done
     context: [docs/rules/ide/the-request-set-is-closed.md, docs/rules/ide/contributions-are-frozen-and-only-ever-added.md, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/tests/handshake.rs, editors/vscode/src/extension.ts, editors/vscode/package.json]
   - id: 11
     title: "a member moves to another class: a static one anywhere, an instance one up or down its hierarchy"
@@ -401,6 +401,16 @@ to the frozen contributions (adding is allowed). `rule:ide/the-request-set-is-cl
 `crates/nvs-lsp/tests/handshake.rs` grow by exactly that. The input box is the editor's own UI
 (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). **Fallback:** if `executeCommand`
 cannot carry the edit, one `nvs/` request per refactoring, admitted the same way.
+- **As built.** `crates/nvs-lsp/src/commands.rs`: `at` offers, `execute` runs, and `server.rs`
+  `execute_command` sends `workspace/applyEdit` with a numbered id and answers `null`. Decided while
+  building: **one id, two readers.** `vscode-languageclient` registers every id in
+  `executeCommandProvider` itself, so the extension registering the same ids would clash. The
+  extension asks for the text in its `executeCommand` middleware (`editors/vscode/src/refactor.ts`)
+  and registers nothing. The three ids are not contributed in `package.json`: each needs arguments
+  a code action carries, as `nvs.showLocations` does, so a palette entry would do nothing. The
+  action is offered to every client, filed under `refactor.rewrite`: a client without the input
+  step sends the list unchanged, and that is refused as "did not change". A client without
+  `workspace.applyEdit` is refused before any work.
 
 **What a member move allows** (stage 11). `nvs code move <Class::member> <Class>`: a `from` that
 contains `::` is a member, since no path contains `::`; otherwise it is the file move.
@@ -604,18 +614,23 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 10. the editor runs a refactoring that needs input through workspace/executeCommand
 
-- [ ] `crates/nvs-lsp/src/capabilities.rs:96` and `crates/nvs-lsp/src/server.rs:1727`: the
+- [x] `crates/nvs-lsp/src/capabilities.rs:96` and `crates/nvs-lsp/src/server.rs:1727`: the
   `executeCommandProvider` with `nvs.changeParameters`, `nvs.moveMember` and `nvs.extractInterface`;
   the handler sends `workspace/applyEdit` or answers the refusal. `nvs.moveMember` and
   `nvs.extractInterface` answer "not yet" until stages 11 and 12.
-- [ ] `crates/nvs-lsp/src/actions.rs:259`: the *Change parameters…* action on a method name, carrying
+  - [x] `commands.rs` `execute`, and `Client::apply_edit`
+  - [x] `server.rs` `execute_command`, the loop's arm and `needs_every_file`
+- [x] `crates/nvs-lsp/src/actions.rs:259`: the *Change parameters…* action on a method name, carrying
   the client command with the current list.
-- [ ] `editors/vscode/src/extension.ts:1` and `editors/vscode/package.json:1`: the three client
+  - [x] `commands::at`, appended in `server.rs` `code_actions` (an `Action` has no command)
+- [x] `editors/vscode/src/extension.ts:1` and `editors/vscode/package.json:1`: the three client
   commands show an input box and send `workspace/executeCommand`.
-- [ ] `crates/nvs-lsp/tests/actions.rs:1` and `crates/nvs-lsp/tests/handshake.rs:1`: the three tests of
+  - [x] `refactor.ts` `askFirst` as the `executeCommand` middleware; nothing contributed
+- [x] `crates/nvs-lsp/tests/actions.rs:1` and `crates/nvs-lsp/tests/handshake.rs:1`: the three tests of
   the check `editor-commands`, and the declared capabilities grown by exactly one. Then `cargo test
   --test actions` and `cargo test --test handshake` once each.
-- [ ] `docs/rules/ide/the-request-set-is-closed.md:1`: `workspace/executeCommand` and its three
+  - [x] the three tests pass; both binaries green
+- [x] `docs/rules/ide/the-request-set-is-closed.md:1`: `workspace/executeCommand` and its three
   commands.
 
 ### 11. a member moves to another class: a static one anywhere, an instance one up or down its hierarchy
@@ -624,7 +639,7 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
   through `refactor::checked`.
 - [ ] `crates/nvs-cli/src/code.rs:1162`: `move` sends a `from` with `::` to the member move; the `Move`
   help names both forms.
-- [ ] `crates/nvs-lsp/src/server.rs:1727` and `crates/nvs-lsp/src/actions.rs:259`: `nvs.moveMember`
+- [ ] `crates/nvs-lsp/src/commands.rs:151` and `crates/nvs-lsp/src/commands.rs:68`: `nvs.moveMember`
   runs the engine, and the *Move member…* action is offered on a member name.
 - [ ] `crates/nvs-cli/tests/code.rs:1058`: the five tests of the check `move-member`. Then `cargo test
   --test code code_move_member` once.
@@ -635,7 +650,7 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 - [ ] `crates/nvs-lsp/src/extract_interface.rs:1` (new): the engine per § *What extract interface
   writes*, writing signatures as `generate.rs:178` `implement` does, through `refactor::checked`.
 - [ ] `crates/nvs-cli/src/code.rs:206`: `extract interface` beside `variable` and `method`.
-- [ ] `crates/nvs-lsp/src/server.rs:1727` and `crates/nvs-lsp/src/actions.rs:259`:
+- [ ] `crates/nvs-lsp/src/commands.rs:152` and `crates/nvs-lsp/src/commands.rs:68`:
   `nvs.extractInterface` runs the engine, and *Extract interface…* is offered on a class name.
 - [ ] `crates/nvs-cli/tests/code.rs:1058`: the three tests of the check `extract-interface`. Then
   `cargo test --test code code_extract_interface` once.
@@ -681,43 +696,43 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 9 are done. Stage 9 landed in 7f63eafbb7: `nvs code signature` from
-`crates/nvs-lsp/src/signature_change.rs` through `query::signature`; `cargo test --test code
-code_signature` 6 of 6 pass, clippy and rustfmt are clean, and the tooling rule has its paragraph
-(seventeen verbs, eight write).
-- **Nightly 45813627231 ran on 4e43e1fa2e, before its fixes** (c115a735a1, 28a4d7a6bf, 544711a8fb).
-- Stages 3 to 9 are each standing decision's *As built* bullet.
+Stages 1 to 10 are done. Stage 10 landed in a8c9ba9ce8 (server) and 866afb62b2 (extension):
+`crates/nvs-lsp/src/commands.rs` offers *Change parameters…* and runs the three commands, and
+`server.rs` `execute_command` sends `workspace/applyEdit`. `cargo test --test actions` and
+`--test handshake` are green, clippy and rustfmt are clean, and the request-set rule has its
+paragraph (twenty-three standard requests). The extension type-checks and lints clean.
+- **Nightly 45813627231's nine failures are all fixed on `main`**: Miri's time zone tests by
+  c115a735a1, the `Core\Uuid` `Parses` conformance case by 28a4d7a6bf, and the aarch64 stack bound
+  by 544711a8fb. The run was on 4e43e1fa2e, before them.
+- Stages 3 to 10 are each standing decision's *As built* bullet.
+- **The title of `ide/the-request-set-is-closed` in `docs/ground-rules.md` still says "seventeen
+  standard requests and seven"**; its body says twenty-three and eight. Stage 13 rereads it.
 - **Four `.lspt` action cases keep a name that says "offered nothing"** (`a-method-call-`,
   `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`) though they now
   show the inline offer. Stage 13 may rename them.
-- **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
-  next to an unrelated error. The `Move` help changed and `Unused` and `Delete` are new, so stage
-  13's `site --check stale` and `questions` will name the `nvs code` pages. A server test in
-  `crates/nvs-lsp/tests/` that reads a fixed sequence of `publishDiagnostics` may meet the extra
-  publish `republish_dimming` sends at a settle, or a public hint it did not expect; the fix is a
-  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does. `Extract`, `Implement`
-  `Inline` and `Signature` are new help too. `refactor.inline` is a new kind in
-  `CODE_ACTION_KINDS`; a test that pins the list of kinds would go red.
+- **Expect red at the gate:** a `.lspt` case that pins a generator as not offered next to an
+  unrelated error; the new and changed `nvs code` help, in stage 13's `site --check stale` and
+  `questions`; and a server test that reads a fixed sequence of `publishDiagnostics` and meets
+  `republish_dimming`'s extra publish (fix: a fixture that uses its declarations, as `publish.rs`'s
+  `HOARD` does).
 
 ### Next
 
-Stage 10 (§ *Input from the editor*).
-1. `crates/nvs-lsp/src/capabilities.rs:313` beside `code_action_provider`: an
-   `execute_command_provider` with the three ids `nvs.changeParameters`, `nvs.moveMember`,
-   `nvs.extractInterface`.
-2. `crates/nvs-lsp/src/server.rs:1221` beside `CodeActionRequest::METHOD`: an
-   `ExecuteCommand::METHOD` arm (and the list at `:727` if it names write requests). For
-   `nvs.changeParameters` with `[symbol, list]`, call `signature_change::signature` on the
-   workspace, turn the rewrites into a `WorkspaceEdit` as the rename arm at `:1262` does, and send
-   `workspace/applyEdit`; a refusal is an error response with the message. The other two ids answer
-   "not yet" until stages 11 and 12; an unknown id is an error.
-3. `crates/nvs-lsp/src/actions.rs:277` beside `inline::at`: *Change parameters…* on a method's
-   name, a `Command` with the id and the current list (the text between the parentheses).
-4. `editors/vscode/src/extension.ts:147` beside the `registerCommand` calls, and `package.json`:
-   the three commands show `window.showInputBox` prefilled, then `executeCommand` to the server.
-5. `crates/nvs-lsp/tests/actions.rs` and `tests/handshake.rs:170`: the three `editor-commands`
-   tests; `cargo test --test actions` and `cargo test --test handshake` once each.
-6. `docs/rules/ide/the-request-set-is-closed.md`: `workspace/executeCommand` and its three ids.
+Stage 11 (§ *What a member move allows*).
+1. `crates/nvs-lsp/src/move_member.rs` (new, `pub mod` in `lib.rs`): `moved_member(documents,
+   index, from: &str, to: &str) -> Result<Vec<Rewrite>, String>`, ending in
+   `crate::refactor::checked` as `signature_change.rs:295` does. Sites from
+   `SymbolIndex::occurrences` (`index.rs:2132`) and `declaration`; a pull up or push down reads
+   `overridden`/`overriders` (`index.rs:2091`) and `rename::family`. A `use` line goes through
+   `nvs_hir::import_site` (`crates/nvs-hir/src/imports.rs:83`).
+2. `crates/nvs-cli/src/code.rs:500` `Command::Move`: a `from` with `::` goes to a new
+   `move_member` (through a `query::move_member`), else `move_path` as now; the `Move` help at
+   `:200` names both forms.
+3. `crates/nvs-lsp/src/commands.rs:151`: `MOVE_MEMBER` with `[Class::member, class]` runs it, and
+   `commands::at` (`:68`) offers *Move member…* on a member's name with the class's name prefilled.
+4. `crates/nvs-cli/tests/code.rs`: the five `move-member` tests; `cargo test --test code
+   code_move_member` once.
+5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the member form of `move`.
 
 ### Backlog
 
