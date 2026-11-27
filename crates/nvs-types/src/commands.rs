@@ -470,6 +470,10 @@ pub(crate) fn check_class_commands(
         if commands.is_empty() {
             continue;
         }
+        let method = span_text(env.src, m.name);
+        if crate::test_code::refuse_entry_point(commands[0].span, "command", class, method, env) {
+            continue;
+        }
         // Once for the method, however many names it answers to: the options
         // and the declaration's shape are both facts about the method, so
         // asking either per attribute would report one mistake once per alias.

@@ -223,13 +223,14 @@ codes! {
     /// `#[TestOnly]` where production code would still need the declaration
     /// (`rule:testing/a-test-only-declaration-is-test-code`): a test-only method that overrides
     /// or implements a production method, a production method that overrides a test-only one, and
-    /// a production type that extends or implements a test-only type.
+    /// a production type that extends or implements a test-only type, and a route or command on
+    /// test-only code.
     pub const E_TEST_ONLY_IN_PRODUCTION_HIERARCHY: Code = Code::new("E1019").card(
         "Code marked `#[TestOnly]` is not in a program that `nvs run` or `nvs build` compiles. \
          So production code cannot depend on it. A production class cannot extend or implement a \
          test-only type. A test-only method cannot override a production method, because \
          production code calls that method. A method that overrides a test-only method must be \
-         `#[TestOnly]` too.",
+         `#[TestOnly]` too. A test-only method cannot be a route or a command.",
     );
 
     /// A `catch` expression whose guarded expression or arm body is a call

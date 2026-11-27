@@ -20,7 +20,9 @@
 //! declaration: a production type that extends or implements a test-only one, a test-only method
 //! of a production type that overrides or implements a production method, and a production method
 //! that overrides a test-only one. A test-only type may implement a production interface, because
-//! no object of it exists outside tests.
+//! no object of it exists outside tests. [`refuse_entry_point`] raises it for a `#[Route]` or
+//! `#[Command]` on test-only code, read where the route and command tables are built, because
+//! those tables are the same under `nvs test` as under `nvs run`.
 //!
 //! [`TestCode`] is built whole before any body is checked, for
 //! [`crate::deprecated::Deprecations`]' reason: a call may be written above the declaration it
@@ -152,6 +154,34 @@ pub(crate) fn listed_implementors(selector: &QName, env: &Env<'_>) -> Vec<QName>
     let mut classes = nvs_hir::implementors(selector, env.graph);
     classes.retain(|class| !env.test_code.is_test_only_type(class));
     classes
+}
+
+/// `E1019` at a `#[Route]` or `#[Command]` (`what`) on method `method` of `class` when the
+/// method is `#[TestOnly]` code. The compiled route and command tables are the same under
+/// `nvs test` as under `nvs run`, and a run has no method for a test-only handler. Returns
+/// whether it reported, so the caller adds no row for the handler.
+pub(crate) fn refuse_entry_point(
+    attr: Span,
+    what: &str,
+    class: &QName,
+    method: &str,
+    env: &mut Env<'_>,
+) -> bool {
+    if !env.test_code.is_test_only_type(class) && !env.test_code.is_test_only_method(class, method)
+    {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TEST_ONLY_IN_PRODUCTION_HIERARCHY,
+            format!("`{class}::{method}` is `#[TestOnly]`, so it cannot be a {what}"),
+        )
+        .with_primary(attr, "`nvs run` and `nvs build` leave this method out")
+        .with_help(format!(
+            "Declare the {what} on a method that is not test code, or remove `#[TestOnly]`."
+        )),
+    );
+    true
 }
 
 /// Every class name written in `ty`, at any depth: a union's members, a type argument, a

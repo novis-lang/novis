@@ -167,6 +167,30 @@ fn production_code_cannot_extend_or_implement_a_test_only_type() {
     );
 }
 
+/// A route or a command on test-only code is `E1019`, because the route and command tables
+/// are the same under `nvs test` as under `nvs run`, and a run has no method to call.
+#[test]
+fn a_test_only_route_or_command_does_not_compile() {
+    let diags = check_src(
+        "<?nvs\nuse Core\\TestOnly;\n\
+         class Shop {\n  \
+           #[TestOnly]\n  \
+           #[Core\\Route(path: \"/reset\", method: Core\\Http\\Method::Post)]\n  \
+           public function reset(): string { return \"\"; }\n\
+         }\n\
+         #[TestOnly]\n\
+         class ShopTools {\n  \
+           #[Core\\Command(name: \"seed\")]\n  \
+           public static function seed(): void {}\n\
+         }\n",
+    );
+    assert_eq!(
+        count(&diags, code::E_TEST_ONLY_IN_PRODUCTION_HIERARCHY),
+        2,
+        "{diags:?}"
+    );
+}
+
 /// The declarations the use tests below share: a production class with one test-only method, a
 /// test-only class with a static property, a constant and a static method, and a test-only enum.
 const SHARED: &str = "<?nvs\nuse Core\\TestOnly;\n\

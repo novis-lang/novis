@@ -961,7 +961,11 @@ pub(crate) fn check_class_routes(
         let Some(&first) = routes.first() else {
             continue;
         };
-        let handler = format!("{class}::{}", span_text(env.src, m.name));
+        let method = span_text(env.src, m.name);
+        if crate::test_code::refuse_entry_point(first.span, "route", class, method, env) {
+            continue;
+        }
+        let handler = format!("{class}::{method}");
         let access = check_access_declared(first, m, &handler, ctx, env);
         if let Some(access) = access {
             check_csrf_opt_out(access, m, ctx, env);
