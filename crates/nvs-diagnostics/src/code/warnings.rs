@@ -410,4 +410,15 @@ codes! {
          not always the calendar year. On 2024-12-30, `Y` is 2025, because that day is in week 1 \
          of 2025. Write `y` for the calendar year, as in `yyyy-MM-dd`.",
     );
+    /// A string a property callback compares with its name parameter that no
+    /// property of the class, of a class above it or of a class below it has
+    /// (`rule:classes/a-compared-property-name-is-a-use`). `nvs_types::compared_names`
+    /// raises it. A warning, because a class below may be declared in another
+    /// program.
+    pub const W_COMPARED_NAME_IS_NO_PROPERTY: Code = Code::new("W1039").card(
+        "A method such as `initProperty` or `onPropertySet` gets the name of a property as its \
+         first parameter. This method compares that parameter with a string. No property of the \
+         class has that name. No class above it or below it has it either. So the comparison is \
+         never true. Check the spelling of the name.",
+    );
 }

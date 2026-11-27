@@ -232,6 +232,9 @@ fn planned(
             if kind == DeclKind::Field {
                 unresolved_reads(documents, index, &family, &old)?;
             }
+            if kind == DeclKind::Property {
+                callback_uses(documents, index, &family, &old)?;
+            }
             members(documents, index, &family, kind, &old, new, &sites).map(|rewrites| Renamed {
                 rewrites,
                 file: None,
@@ -880,6 +883,95 @@ fn unresolved_reads(
         }
     }
     Ok(())
+}
+
+/// An error when a property callback of a class in `family`, or of a class
+/// below it, writes `old` as a literal in a way the index does not follow
+/// (`rule:classes/a-compared-property-name-is-a-use`).
+///
+/// That is a literal the callback does not compare with its name parameter,
+/// or any literal while the body writes that parameter. A compared literal is
+/// a site the index holds, and the rename changes it. Every method named
+/// after a callback is read, whether or not its class implements the
+/// interface, so a doubtful place refuses.
+fn callback_uses(
+    documents: &Documents,
+    index: &SymbolIndex,
+    family: &[String],
+    old: &str,
+) -> Result<(), String> {
+    let symbol = family.first().map_or(old, String::as_str);
+    let mut classes = BTreeSet::new();
+    for member in family {
+        let Some((owner, _)) = member.rsplit_once("::") else {
+            continue;
+        };
+        let mut pending = vec![owner.to_owned()];
+        while let Some(current) = pending.pop() {
+            if classes.insert(current.clone()) {
+                pending.extend(
+                    index
+                        .subtypes(&current)
+                        .into_iter()
+                        .map(|below| below.symbol.clone()),
+                );
+            }
+        }
+    }
+    let mut texts = Texts::new(documents);
+    for class in &classes {
+        let Some(declared) = index.declaration(class) else {
+            continue;
+        };
+        let path = declared.site.path.clone();
+        let Some(file) = texts.file(&path) else {
+            continue;
+        };
+        let stmts = parse_file(file, &mut Diagnostics::new());
+        let Some(members) = class_members(&stmts, declared.site.start) else {
+            continue;
+        };
+        for (method, _, names) in nvs_hir::compared_names::callbacks_in(members, file.text()) {
+            let named = |span: &&Span| text_of(file, **span) == old;
+            let place = if names.assigned.is_some() {
+                names.compared.iter().chain(&names.other).find(named)
+            } else {
+                names.other.iter().find(named)
+            };
+            let Some(place) = place else {
+                continue;
+            };
+            let callback = text_of(file, method.name);
+            let file_name = path.file_name().map_or_else(
+                || plain(&path).display().to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            // `line_col` counts from 0, and an editor shows lines from 1.
+            let line = file.line_col(place.start).0 + 1;
+            return Err(if names.assigned.is_some() {
+                format!(
+                    "`{callback}` in `{file_name}` changes its first parameter, so rename cannot \
+                     tell what `'{old}'` on line {line} names. `{symbol}` cannot be renamed."
+                )
+            } else {
+                format!(
+                    "`{callback}` in `{file_name}` uses `'{old}'` on line {line}, but not in a \
+                     comparison with the property name. So `{symbol}` cannot be renamed."
+                )
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The members of the class whose name starts at `name` in `stmts`, inside a
+/// namespace block or not.
+fn class_members(stmts: &[Stmt], name: BytePos) -> Option<&[ClassMember]> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::NamespaceDecl(decl) => class_members(&decl.body.as_ref()?.stmts, name),
+        StmtKind::ClassDecl(decl) if decl.name.span.start == name => Some(decl.members.as_slice()),
+        _ => None,
+    })
 }
 
 /// The edits that rename the type `symbol` from `old` to `new`, after three

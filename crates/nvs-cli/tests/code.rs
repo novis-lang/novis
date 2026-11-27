@@ -742,6 +742,144 @@ fn code_rename_rewrites_a_parameter_and_its_uses() {
     assert_eq!(files(&dir), before);
 }
 
+/// A `Page` whose `initProperty` compares its name parameter with `'views'`.
+const LATE_PAGE: &str = "<?nvs\nnamespace Shop;\n\nuse LateInit;\n\nclass Page implements LateInit {\n    \
+                         public lateinit int $views;\n\n    \
+                         public function initProperty(string $name): void {\n        \
+                         if ($name == 'views') {\n            $this->views = 0;\n        }\n    \
+                         }\n}\n";
+
+/// An entry point that reads `$views` of a `Page`.
+const PAGE_ENTRY: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Page;\n\n\
+                          echo (new Page())->views;\n";
+
+/// The `Shop` project with `page` as `src/Page.nvs` and an entry point that
+/// uses it.
+fn page_project(name: &str, page: &str) -> nvs_repo::Scratch {
+    project(
+        name,
+        &[("src/Page.nvs", page), ("public/page.nvs", PAGE_ENTRY)],
+    )
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_of_a_lateinit_property_renames_the_name_init_property_compares() {
+    let dir = page_project("rename-lateinit-name", LATE_PAGE);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Page::$views", "hits"]);
+    assert!(ok, "{err}");
+    let page = read(&dir, "src/Page.nvs");
+    assert!(page.contains("public lateinit int $hits;"), "{page}");
+    assert!(page.contains("if ($name == 'hits') {"), "{page}");
+    assert!(page.contains("$this->hits = 0;"), "{page}");
+    assert!(out.contains("src/Page.nvs  3 edits\n"), "{out}");
+    assert!(read(&dir, "public/page.nvs").contains("->hits;"));
+    let (out, err, ok) = run(&dir, "run", &["public/page.nvs"]);
+    assert!(ok, "the renamed project still runs: {err}");
+    assert_eq!(out, "0");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_of_an_observed_property_renames_the_name_its_hooks_compare() {
+    let page = "<?nvs\nnamespace Shop;\n\nuse PropertyObserver;\n\n\
+                class Page implements PropertyObserver {\n    \
+                public int $views = 0;\n    public string $title = '';\n\n    \
+                public function onPropertyGet(string $name, mixed $value): void {\n        \
+                if (\"views\" == $name) {\n            echo 'read ';\n        }\n    }\n\n    \
+                public function onPropertySet(string $name, mixed $value): void {\n        \
+                if ($name != \"views\") {\n            return;\n        }\n        \
+                echo 'write ';\n    }\n}\n";
+    let dir = page_project("rename-observed-name", page);
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Page::$views", "hits"]);
+    assert!(ok, "{err}");
+    let page = read(&dir, "src/Page.nvs");
+    // Each literal keeps its own quotes.
+    assert!(page.contains("if (\"hits\" == $name) {"), "{page}");
+    assert!(page.contains("if ($name != \"hits\") {"), "{page}");
+    assert!(page.contains("$title = '';"), "{page}");
+    assert!(out.contains("src/Page.nvs  3 edits\n"), "{out}");
+    let (out, err, ok) = run(&dir, "run", &["public/page.nvs"]);
+    assert!(ok, "the renamed project still runs: {err}");
+    assert_eq!(out, "read 0");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_renames_a_match_arm_on_the_property_name() {
+    let page = "<?nvs\nnamespace Shop;\n\nuse LateInit;\n\nclass Page implements LateInit {\n    \
+                public lateinit int $views;\n\n    \
+                public function initProperty(string $name): void {\n        \
+                $this->views = match ($name) {\n            'views' => 7,\n            \
+                default => 0,\n        };\n    }\n}\n";
+    let dir = page_project("rename-match-name", page);
+    let (_, err, ok) = code(&dir, &["rename", r"Shop\Page::$views", "hits"]);
+    assert!(ok, "{err}");
+    let page = read(&dir, "src/Page.nvs");
+    assert!(page.contains("'hits' => 7,"), "{page}");
+    let (out, err, ok) = run(&dir, "run", &["public/page.nvs"]);
+    assert!(ok, "the renamed project still runs: {err}");
+    assert_eq!(out, "7");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_refuses_a_property_whose_name_a_callback_uses_another_way() {
+    // `'views'` is printed, not compared, so a rename cannot tell whether it
+    // names the property.
+    let page = LATE_PAGE.replace(
+        "        if ($name == 'views') {",
+        "        echo 'views';\n        if ($name == 'views') {",
+    );
+    let dir = page_project("rename-callback-other-use", &page);
+    let before = read(&dir, "src/Page.nvs");
+    let (out, err, ok) = code(&dir, &["rename", r"Shop\Page::$views", "hits"]);
+    assert!(!ok, "{out}");
+    assert!(
+        err.contains("`initProperty` in `Page.nvs` uses `'views'` on line 10"),
+        "{err}"
+    );
+    assert_eq!(read(&dir, "src/Page.nvs"), before);
+
+    // A body that writes its name parameter is refused too.
+    let page = LATE_PAGE.replace(
+        "        if ($name == 'views') {",
+        "        $name = 'views';\n        if ($name == 'views') {",
+    );
+    let dir = page_project("rename-callback-assigned", &page);
+    let (_, err, ok) = code(&dir, &["rename", r"Shop\Page::$views", "hits"]);
+    assert!(!ok);
+    assert!(
+        err.contains("`initProperty` in `Page.nvs` changes its first parameter"),
+        "{err}"
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_refs_of_a_lateinit_property_lists_the_compared_name() {
+    let dir = page_project("refs-lateinit-name", LATE_PAGE);
+    let (out, err, ok) = code(&dir, &["refs", r"Shop\Page::$views"]);
+    assert!(ok, "{err}");
+    let lines: Vec<Vec<&str>> = out
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    // Line 10 is `        if ($name == 'views') {`, and column 23 is the
+    // first letter between the quotes.
+    assert!(
+        lines.iter().any(|line| line[..2] == ["src/Page.nvs:10:23", "use"]
+            && line[2..].join(" ") == "if ($name == 'views') {"),
+        "{out}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line[0].starts_with("public/page.nvs:6:")),
+        "{out}"
+    );
+}
+
 // covers: tools:cli/nvs-code
 #[test]
 fn code_rename_of_an_unknown_name_prints_the_nearest() {

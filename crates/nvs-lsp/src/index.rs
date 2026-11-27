@@ -3115,6 +3115,7 @@ fn occurrences<'a>(
         clause_uses(&extends, &links.extends, path, &mut found);
         clause_uses(&implements, &links.implements, path, &mut found);
     }
+    found.extend(compared_names(analysed, scope, loaded, path));
 
     let mut names = Vec::new();
     let mut qualified = Vec::new();
@@ -3194,6 +3195,81 @@ fn occurrences<'a>(
         unfollowed,
         queries,
     }
+}
+
+/// Every property name a property callback this file declares compares with
+/// its name parameter, as a use of that property
+/// (`rule:classes/a-compared-property-name-is-a-use`,
+/// [`nvs_hir::compared_names`]).
+///
+/// The callback's class has to implement the interface that declares the
+/// callback, and the body may not write the parameter. The property is the one
+/// the class or a class above it declares, nearest first, which is the symbol
+/// a `$this->` read of it resolves to. A name no such class declares records
+/// nothing, and `nvs_types` warns at it.
+fn compared_names<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
+    loaded: &Loaded,
+    path: &Path,
+) -> Vec<Occurrence> {
+    let graph = &analysed.module.graph;
+    let mut found = Vec::new();
+    for symbol in analysed.module.symbols.iter() {
+        if symbol.decl_span.file != loaded.id {
+            continue;
+        }
+        let Some((stmt, file)) = scope.declared_type(&symbol.qname) else {
+            continue;
+        };
+        let StmtKind::ClassDecl(decl) = &stmt.kind else {
+            continue;
+        };
+        let class = symbol.qname.to_string();
+        for (method, interface, names) in
+            nvs_hir::compared_names::callbacks_in(&decl.members, file.text())
+        {
+            let implements = nvs_hir::hierarchy::implements_interface(
+                &symbol.qname,
+                &QName::parse(interface),
+                graph,
+            );
+            if names.assigned.is_some() || !implements {
+                continue;
+            }
+            let caller = member_symbol(&class, file, method.name);
+            for span in names.compared {
+                let property = format!("${}", text_of(file, span));
+                let owner = nvs_hir::hierarchy::find_in_ancestors(&symbol.qname, graph, |above| {
+                    declares_property(analysed, scope, above, &property).then_some(above)
+                });
+                if let Some(owner) = owner {
+                    found.push(Occurrence {
+                        symbol: format!("{owner}::{property}"),
+                        site: site(path, span),
+                        caller: caller.clone(),
+                    });
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Whether the body `class` is declared with declares the property `property`,
+/// `$` included.
+fn declares_property<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
+    class: &QName,
+    property: &str,
+) -> bool {
+    declared_body(analysed, scope, class).is_some_and(|body| {
+        body.members.iter().any(|member| {
+            matches!(&member.kind, ClassMemberKind::Property(declared)
+                if text_of(body.file, declared.name) == property)
+        })
+    })
 }
 
 /// What [`occurrences`] reads off one file.

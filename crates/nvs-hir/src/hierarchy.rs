@@ -1208,6 +1208,20 @@ pub fn implementors(target: &QName, graph: &ClassGraph) -> Vec<QName> {
     found
 }
 
+/// Every declaration in `graph` that has `target` above it, at any distance,
+/// sorted. `target` itself is not one.
+#[must_use]
+pub fn descendants(target: &QName, graph: &ClassGraph) -> Vec<QName> {
+    let mut found: Vec<QName> = graph
+        .links
+        .keys()
+        .filter(|qname| *qname != target && implements_interface(qname, target, graph))
+        .cloned()
+        .collect();
+    found.sort_by(|a, b| a.segments().cmp(b.segments()));
+    found
+}
+
 /// Walks every `extends` edge looking for a cycle, reporting
 /// `E_CIRCULAR_INHERITANCE` at the first back-edge found per traversal.
 pub(crate) fn detect_cycles(graph: &ClassGraph, symbols: &SymbolTable, diags: &mut Diagnostics) {

@@ -57,6 +57,7 @@
 
 pub mod aliases;
 pub mod autoload;
+pub mod compared_names;
 pub mod doc_targets;
 pub mod errors;
 pub mod hierarchy;

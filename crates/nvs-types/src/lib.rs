@@ -168,6 +168,7 @@ pub mod check;
 // out of [`expr_table::ExprTypeTable::commands`] by whoever runs the program,
 // which hands it to `nvs_runtime::commands` for `Core\Command` to answer from.
 pub mod commands;
+pub(crate) mod compared_names;
 pub mod condition;
 pub(crate) mod conformance;
 pub mod consts;
