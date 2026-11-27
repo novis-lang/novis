@@ -333,7 +333,10 @@ carries no signature. An interface and a class both give it, so every other type
 (`E0743`). A class selector lets a plugin family share an abstract base, with state and a template
 method an interface cannot carry, without declaring an interface beside the base to keep in step
 with it. **Membership is `is`**, so no second notion of "subclass" exists: `nvs_hir::implementors`
-walks `extends` as well as `implements` and counts a declaration as reaching itself.
+walks `extends` as well as `implements` and counts a declaration as reaching itself. **A
+`#[TestOnly]` class is never listed**, by this member, `implementingWith` or `constructors`, under
+every command, `nvs test` included ([`testing/a-test-only-declaration-is-test-code`](testing.md#testing-a-test-only-declaration-is-test-code)), so a test
+sees the classes production runs.
 
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend

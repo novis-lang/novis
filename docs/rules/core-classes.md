@@ -5379,7 +5379,7 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | `Page->number`, `->count`, `->isFirst()`, `->isLast()`, `->name` | the page's number from 1, the document's page count, and its named page or `null` |
 | `Page->string(string $name): ?string` | the page's `string-set` value |
 | `Page->marks(string $name): array<string>`, `->marksUpTo(string $name): array<string>` | the `data-mark` values on this page, and on every page up to it |
-| `Rendered->bytes`, `->pageCount` | the file and its page count |
+| `Rendered->bytes`, `->pageCount`, `->pages` | the file, its page count and one `Page` per page, the facts the functions saw, so a program reads after one render the page each mark landed on |
 | `Rendered->dropped`, `->missingGlyphs`, `->overflows` | what the render could not do ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)) |
 | `Pages::of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)); `merge` reads each source whole |
 | `Reader::open(Core\Bytes::Source $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): tainted string` | reading a PDF; `open` reads the source whole, and every string and `bytes` value read from the file is `tainted` |
@@ -5507,7 +5507,7 @@ list is what turns it into a test. The same holds for content: an element the su
 (`<iframe>`, `<video>`, `<canvas>`, a form field) is listed and drawn as nothing, and `<script>` never
 runs and is not listed, because no program expects it to run in a document.
 
-Three other things a render cannot do are **reported, never thrown**, because the document is still
+Four other things a render cannot do are **reported, never thrown**, because the document is still
 correct apart from them and a throw would lose the whole file over one character:
 
 - a character no font in the chain has is drawn as the font's empty box and listed in
@@ -5515,7 +5515,9 @@ correct apart from them and a throw would lose the whole file over one character
 - markup in a margin, a header, a footer or a slot taller than its area is listed in
   `Rendered::overflows` with its page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function));
 - a declaration the subset lists with a value it does not take is dropped and listed like an unknown
-  one.
+  one;
+- a `font-family` name that names no font is listed in `Rendered::dropped` on its own, with the name
+  as the value ([`core-classes/pdf-default-fonts`](core-classes.md#core-classes-pdf-default-fonts)).
 
 The component's fixtures owe a fixture using an unsupported property that renders with that property
 in the dropped list, and a clean fixture whose three lists are empty.
@@ -5740,7 +5742,9 @@ and `chapter` are two strings (`tests/conformance/novis/pdf-page-string-matches-
 
 - **Memory:** between the two calls, the request keeps one laid-out body per unfinished render, inside
   the request's cap. `render-second` frees it, and the request's end frees one left behind. Novis holds one `Page` per page and the markup the
-  functions return.
+  functions return. `Rendered::pages` keeps those `Page`s, made the same way when no function is set, for as long as
+  the result lives. Every `Page` of a render shares one list of all pages' marks, so the cost is O(pages + marks) per
+  render.
 
 **On disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
 `first` and `second` in `extensions/pdf/src/lib.rs`, with the guest's `Body` as the resource, called by `Document::render` in
@@ -5978,7 +5982,11 @@ twelve files stand in for the standard-14 fonts when the image component rasteri
 ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)), and live once in the tree under `extensions/fonts/`.
 
 **The font chain** of a run of text is the `@font-face` fonts its `font-family` names, from the asset
-map, then the default of its generic family. A character no font in the chain has is drawn as the
+map, then the default of its generic family. A name that is neither, a misspelt family or one a
+browser would find installed, is skipped and listed in `Rendered::dropped` with `font-family` as its
+property and the name as its value: with no system lookup it matches no font on any machine, and the
+text is drawn in another font. Every such name in a declaration is listed, after a name that matched
+too, and each once. A character no font in the chain has is drawn as the
 font's empty box and listed in `Rendered::missingGlyphs` with the chain it tried. It never throws: the
 rest of the document is right, and a program that must have every glyph asserts the list is empty. A
 font file that does not parse throws `ParseError` naming it. Every font is subset into the output, so
@@ -5997,8 +6005,9 @@ and no code under OFL-1.1 is admitted by it.
 The twelve files are under `extensions/fonts/` with their release recorded in `SOURCE.json`, and the
 image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the family names above to
 them, registers each `@font-face` font from the asset map, and builds the chain;
-`extensions/pdf/src/layout.rs` lists the missing glyphs, and `extensions/pdf/tests/layout.rs` holds
-the chain, the subsetting and the missing-glyph list.
+`extensions/pdf/src/css/mod.rs` lists a name the chain skips, `extensions/pdf/src/layout.rs` lists
+the missing glyphs, and `extensions/pdf/tests/layout.rs` holds the chain, the subsetting, the
+skipped names and the missing-glyph list.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
@@ -6006,6 +6015,11 @@ the chain, the subsetting and the missing-glyph list.
   asset.
 - **Throwing on a missing glyph.** One unknown character in a customer's name would lose the whole
   invoice.
+- **A separate list of missing fonts on `Rendered`.** It would add a constructor parameter and a
+  fourth list every check reads, for a fact `dropped` already carries with the declaration's line and
+  column. A test that asserts `dropped` is empty catches a misspelt family with no change.
+- **Listing only a name with no fallback after it.** A misspelt family before `sans-serif` is the
+  common mistake, and it would pass unseen.
 
 <sub>See also [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 

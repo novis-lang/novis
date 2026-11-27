@@ -32077,7 +32077,7 @@
     {
       "id": "Novis.Pdf.Page",
       "name": "Novis\\Pdf\\Page",
-      "summary": "One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.",
+      "summary": "One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.\nAfter the render, `Rendered::pages` has one `Page` for each page.",
       "enums": [],
       "types": [
         {
@@ -32305,7 +32305,7 @@
       "url": "/reference/core/novis-pdf-page/",
       "summaryBlocks": [
         {
-          "html": "<p>One page of a document. <code>Document::render</code> calls a header or footer function once for each page, with that page's <code>Page</code>.</p>"
+          "html": "<p>One page of a document. <code>Document::render</code> calls a header or footer function once for each page, with that page's <code>Page</code>. After the render, <code>Rendered::pages</code> has one <code>Page</code> for each page.</p>"
         }
       ],
       "returnedBy": []
@@ -32521,7 +32521,7 @@
     {
       "id": "Novis.Pdf.Rendered",
       "name": "Novis\\Pdf\\Rendered",
-      "summary": "The result of `Document::render`: the PDF file, its page count, and what the render could not draw.",
+      "summary": "The result of `Document::render`: the PDF file, its pages, and what the render could not draw.\nTo print a page number inside the same document, such as in a table of contents, use the CSS function `target-counter()`.",
       "enums": [],
       "types": [
         {
@@ -32555,6 +32555,12 @@
           "descHtml": "the number of pages in the PDF file"
         },
         {
+          "name": "$pages",
+          "access": "$rendered->pages",
+          "type": "array<Page>",
+          "descHtml": "one <code>Page</code> for each page of the PDF file, with its <code>string-set</code> values and its marks"
+        },
+        {
           "name": "$dropped",
           "access": "$rendered->dropped",
           "type": "array<Dropped>",
@@ -32580,7 +32586,7 @@
           "static": false,
           "receiver": "rendered",
           "generics": null,
-          "signature": "constructor(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows): void",
+          "signature": "constructor(bytes $bytes, uint $pageCount, array<Page> $pages, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows): void",
           "params": [
             {
               "kind": "param",
@@ -32594,6 +32600,14 @@
               "kind": "param",
               "name": "pageCount",
               "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "pages",
+              "type": "array<Page>",
               "default": null,
               "optional": false,
               "variadic": false
@@ -32637,6 +32651,10 @@
                 "descHtml": "the number of pages in the PDF file"
               },
               {
+                "name": "pages",
+                "descHtml": "one <code>Page</code> for each page of the PDF file, with its <code>string-set</code> values and its marks"
+              },
+              {
                 "name": "dropped",
                 "descHtml": "the CSS the render does not support, with the line and column of each declaration"
               },
@@ -32659,7 +32677,7 @@
       "url": "/reference/core/novis-pdf-rendered/",
       "summaryBlocks": [
         {
-          "html": "<p>The result of <code>Document::render</code>: the PDF file, its page count, and what the render could not draw.</p>"
+          "html": "<p>The result of <code>Document::render</code>: the PDF file, its pages, and what the render could not draw. To print a page number inside the same document, such as in a table of contents, use the CSS function <code>target-counter()</code>.</p>"
         }
       ],
       "returnedBy": [

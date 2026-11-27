@@ -45,7 +45,7 @@ Conventions the whole file uses:
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, arguments, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
 - A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — Declared attributes written as `#[...]`, how they are read back, and the names the compiler acts on. These give JSON codecs, the route table, the command table and the list of a program's classes. *(attribute, #[...], Attribute, attribute declaration, repeatable, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
-- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, generated inputs, the assertion roster, fixed clocks and seeds, the report formats, and benchmarks with counted work *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations)*
+- A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, generated inputs, the assertion roster, fixed clocks and seeds, the report formats, and benchmarks with counted work *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations, TestOnly, #[TestOnly], test helper, fake, test double, only for tests)*
 
 ### Part B — The `Core` library
 
@@ -31108,7 +31108,7 @@ foreach (Core\Program::implementingWith<Page, Footer>('render') as var $row) {
 <a id="lang-testing"></a>
 ## A.11 Testing
 
-Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations
+Keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations, TestOnly, #[TestOnly], test helper, fake, test double, only for tests
 
 ### A test is a method marked `#[Test]`
 
@@ -32880,6 +32880,261 @@ create the table
 drop the table, 2 passed
 
   0 failed, 2 passed, 0 skipped, 0 flaky
+```
+
+### `#[TestOnly]`: code that only tests can use
+
+`#[TestOnly]` says that a class, an interface, an enum or a method is only for tests. You write it
+in your normal code, next to the code it marks. A fake service for your tests or a method that
+resets a cache between tests are typical uses.
+
+- On a method, only test code can call the method.
+- On a class, interface or enum, only test code can use the type. This includes every method and
+  the constructor.
+
+Test code is a method with a testing attribute, such as `#[Test]` or `#[Fixture]`, and any
+`#[TestOnly]` code. Any other use of test-only code does not compile.
+
+`nvs run` and `nvs build` leave all test-only code out of your program. `nvs test` compiles it.
+
+**Good to know:** `Core\Program::implementing` never lists a test-only class, also under `nvs test`.
+So your tests see the same classes as your program.
+
+You write `use Core\TestOnly;` and then `#[TestOnly]` above the declaration. The attribute has no
+options.
+
+A use of test-only code outside test code is `E0889`. A use is a call, a `new`, a static property,
+a class constant, an enum case or `Foo::class`. A type is a use too. So a parameter type, a return
+type, a property type, `is`, `catch` and a type argument may name a test-only type only inside test
+code. The message is "`Cache::clearAll` is test code, so only test code can use it".
+
+A test-only type may name another test-only type. An anonymous function written inside test code
+is test code too.
+
+`#[TestOnly]` on a property, a constant, an enum case or a parameter does not compile. A test-only
+property would give an object a different shape under `nvs test` than under `nvs run`.
+
+Your program cannot depend on test-only code. Each of these is `E1019`:
+
+- A class or interface that is not test-only extends or implements a test-only type.
+- A test-only method overrides a method that is not test-only. Your program calls that method
+  through the parent type.
+- A method that is not test-only overrides a test-only method. It must be `#[TestOnly]` too.
+- A test-only class or method declares a route or a command.
+
+A test-only class may implement an interface of your program. A fake `Clock` for your tests is an
+example. No object of the fake exists when the program runs.
+
+When the program runs, test-only code does not exist. `Core\Reflect::forClass` with the name of a
+test-only class returns `null`, as it does for a class that does not exist. A call on a `mixed`
+value does not find a test-only method. `Core\Program::implementing`, `implementingWith` and
+`constructors` never list a test-only class.
+
+A package's test-only code is test code in your program too. So your tests can use the test
+helpers of a framework.
+
+In the editor, completion offers test-only code only inside test code. A hover on test-only code
+says "Only for tests."
+
+#### Example 01: a fake clock for tests
+
+```nvs
+<?nvs
+// Shows a fake clock that only tests can use. The program itself uses the real clock.
+
+use Core\Test;
+use Core\TestOnly;
+
+interface Clock
+{
+    public function hour(): int;
+}
+
+class SystemClock implements Clock
+{
+    public function hour(): int
+    {
+        return 9;
+    }
+}
+
+class Shop
+{
+    public function constructor(private Clock $clock) {}
+
+    public function isOpen(): bool
+    {
+        int $hour = $this->clock->hour();
+        return $hour >= 8 && $hour < 18;
+    }
+}
+
+// `nvs run` and `nvs build` leave this class out. `nvs test` compiles it.
+#[TestOnly]
+class FakeClock implements Clock
+{
+    public function constructor(private int $hour) {}
+
+    public function hour(): int
+    {
+        return $this->hour;
+    }
+}
+
+class ShopTest
+{
+    #[Test]
+    public function itIsClosedAtNight(): void
+    {
+        var $shop = new Shop(new FakeClock(23));
+        Test::assertSame(false, $shop->isOpen());
+    }
+}
+
+// This prints `open: yes`.
+var $shop = new Shop(new SystemClock());
+echo 'open: ', $shop->isOpen() ? 'yes' : 'no', "\n";
+```
+
+```output
+open: yes
+```
+
+#### Example 02: empty a cache between tests
+
+```nvs
+<?nvs
+// Shows a cache with one method that only tests can call. A test calls it to empty
+// the cache.
+
+use Core\Arr;
+use Core\Test;
+use Core\TestOnly;
+
+class Cache
+{
+    private array<string> $items = [];
+
+    public function put(string $key, string $value): void
+    {
+        $this->items[$key] = $value;
+    }
+
+    public function count(): uint
+    {
+        return Arr::count($this->items);
+    }
+
+    // Only test code can call this method. Your program cannot.
+    #[TestOnly]
+    public function clearAll(): void
+    {
+        $this->items = [];
+    }
+}
+
+class CacheTest
+{
+    #[Test]
+    public function itIsEmptyAfterClearAll(): void
+    {
+        var $cache = new Cache();
+        $cache->put('tea', '3.50');
+        $cache->clearAll();
+        Test::assertTrue($cache->count() == 0);
+    }
+}
+
+// This prints `items: 2`.
+var $cache = new Cache();
+$cache->put('tea', '3.50');
+$cache->put('cake', '2.00');
+echo 'items: ', $cache->count(), "\n";
+```
+
+```output
+items: 2
+```
+
+#### Example 03: a test helper for many test classes
+
+```nvs
+<?nvs
+// Shows one test helper class that two test classes share.
+
+use Core\Test;
+use Core\TestOnly;
+
+class Product
+{
+    public function constructor(public string $name, public int $cents) {}
+}
+
+class Cart
+{
+    private array<Product> $products = [];
+
+    public function add(Product $product): void
+    {
+        $this->products[] = $product;
+    }
+
+    public function totalCents(): int
+    {
+        int $total = 0;
+        foreach ($this->products as Product $product) {
+            $total += $product->cents;
+        }
+        return $total;
+    }
+}
+
+// This helper builds test data. Every test class can use it.
+#[TestOnly]
+class ShopTestData
+{
+    public static function tea(): Product
+    {
+        return new Product('tea', 350);
+    }
+
+    public static function cartWithTea(): Cart
+    {
+        var $cart = new Cart();
+        $cart->add(self::tea());
+        return $cart;
+    }
+}
+
+class ProductTest
+{
+    #[Test]
+    public function teaCostsThreeFifty(): void
+    {
+        Test::assertSame(350, ShopTestData::tea()->cents);
+    }
+}
+
+class CartTest
+{
+    #[Test]
+    public function theTotalCountsEveryProduct(): void
+    {
+        var $cart = ShopTestData::cartWithTea();
+        $cart->add(ShopTestData::tea());
+        Test::assertSame(700, $cart->totalCents());
+    }
+}
+
+// This prints `total: 550`.
+var $cart = new Cart();
+$cart->add(new Product('cake', 200));
+$cart->add(new Product('tea', 350));
+echo 'total: ', $cart->totalCents(), "\n";
+```
+
+```output
+total: 550
 ```
 
 ### Assertions
@@ -60275,13 +60530,14 @@ Tables and columns are not rebuilt. A page number past the end throws a `LogicEr
 <a id="core-novis-pdf-rendered"></a>
 ### `Novis\Pdf\Rendered`
 
-Keywords: constructor, $bytes, $pageCount, $dropped, $missingGlyphs, $overflows
+Keywords: constructor, $bytes, $pageCount, $pages, $dropped, $missingGlyphs, $overflows
 
 | Member | Signature |
 |---|---|
-| [`Novis\Pdf\Rendered::constructor`](#core-novis-pdf-rendered-constructor) | `constructor(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)` |
+| [`Novis\Pdf\Rendered::constructor`](#core-novis-pdf-rendered-constructor) | `constructor(bytes $bytes, uint $pageCount, array<Page> $pages, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)` |
 | [`Novis\Pdf\Rendered::$bytes`](#core-novis-pdf-rendered-bytes) | `bytes $bytes` |
 | [`Novis\Pdf\Rendered::$pageCount`](#core-novis-pdf-rendered-pagecount) | `uint $pageCount` |
+| [`Novis\Pdf\Rendered::$pages`](#core-novis-pdf-rendered-pages) | `array<Page> $pages` |
 | [`Novis\Pdf\Rendered::$dropped`](#core-novis-pdf-rendered-dropped) | `array<Dropped> $dropped` |
 | [`Novis\Pdf\Rendered::$missingGlyphs`](#core-novis-pdf-rendered-missingglyphs) | `array<MissingGlyph> $missingGlyphs` |
 | [`Novis\Pdf\Rendered::$overflows`](#core-novis-pdf-rendered-overflows) | `array<Overflow> $overflows` |
@@ -60290,7 +60546,7 @@ Keywords: constructor, $bytes, $pageCount, $dropped, $missingGlyphs, $overflows
 #### `Novis\Pdf\Rendered::constructor`
 
 ```nvs skip
-new Novis\Pdf\Rendered(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)
+new Novis\Pdf\Rendered(bytes $bytes, uint $pageCount, array<Page> $pages, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)
 ```
 
 `new Rendered` makes a result from its values. `Document::render` makes one for you.
@@ -60314,6 +60570,17 @@ Novis\Pdf\Rendered::uint $pageCount
 ```
 
 the number of pages in the PDF file
+
+**Returns** `void`
+
+<a id="core-novis-pdf-rendered-pages"></a>
+#### `Novis\Pdf\Rendered::$pages`
+
+```nvs skip
+Novis\Pdf\Rendered::array<Page> $pages
+```
+
+one `Page` for each page of the PDF file, with its `string-set` values and its marks
 
 **Returns** `void`
 
