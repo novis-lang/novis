@@ -370,13 +370,13 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### 5. a development server keeps each file's checked result and each function's code, and a production server frees both
 
-- [ ] `crates/nvs-config/src/cache.rs:588`: `incremental` with its startup row, and
+- [x] `crates/nvs-config/src/cache.rs:588`: `incremental` with its startup row, and
   `incremental_startup_default_follows_the_mode` in `crates/nvs-cli/tests/incremental_reload.rs`,
   read through `nvs config dump` in each mode.
 - [ ] `crates/nvs-cli/src/main.rs:1287` and `crates/nvs-cli/src/script.rs:1780`: the front end takes
   the program's kept file results and re-reads and re-checks only the moved files (§ *Stage 5*).
-- [ ] `crates/nvs-cli/src/script.rs:1831`: the compile takes the kept function code before the disk.
-- [ ] `crates/nvs-cli/src/reload.rs:1042`: the `program reloaded` record carries `compiled` and
+- [x] `crates/nvs-cli/src/script.rs:1831`: the compile takes the kept function code before the disk.
+- [x] `crates/nvs-cli/src/reload.rs:1042`: the `program reloaded` record carries `compiled` and
   `reused` function counts.
 - [ ] `crates/nvs-cli/tests/incremental_reload.rs` (new): the four tests of the check `edit-state`.
 
@@ -411,32 +411,45 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4's second session built the per-file store
-(`crates/nvs-cli/src/cache/per_file.rs`, § *Built (stage 4, the store)*). `cargo test --test
-compile_cache` passed all 12 tests, among them the five tests of `per-file-store` and
-`a_unit_past_the_section_limit_loads_warm`. `cargo test --bin nvs cache::` passed 33. Build and
-`cargo clippy --all-targets -- -D warnings` are green.
+Stages 1 to 4 are done. Stage 5 has had one session (of two). It landed three slices:
 
-The sweep's nine nightly failures came from run 45813627231 at `4e43e1fa2e`. `main` fixed them
-after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`), as earlier sessions checked.
+- The object-file loader is deleted from `crates/nvs-cli/src/cache.rs`, with its unit tests and
+  the module-level `expect(dead_code)`. `per_file::place` is the only placer.
+- `[opcache] incremental` (`crates/nvs-config/src/cache.rs`, `Revalidation::incremental`; the
+  startup row in `defaults.rs`; `default.toml`; the rule
+  `a-startup-default-is-never-flipped`'s table). `incremental_startup_default_follows_the_mode`
+  passed.
+- Kept function code: `cache::Kept` (`per_file.rs`), `cache::unit_for_kept`, and
+  `Compiler::kept`/`kept_for`/`keep` in `script.rs` (the compile at `script.rs:1909`). Kept
+  code is read before the hint, and it works with no disk cache. A compile with `incremental`
+  off frees its path's code. A reload that turns it off frees all of it, and so does `rekey`.
+  `Compiled::work` feeds `Rechecked::Swapped { compiled, reused }`, and `program_record`
+  (`reload.rs:1065`) writes both fields.
+  `kept_code_is_reused_before_the_disk_and_a_body_edit_compiles_one_function` passed.
 
-Tests that may go red elsewhere, none of them run here: any test that counted one cache file per
-program, because a program is now its entries, a list and a hint. `crates/nvs-cli/src/cache_cmd.rs`'s
-gc tests are among them, though their payloads have no store magic and the sweep skips them. A
-test that reads the `compile:` line's `functions=` as the program's function count on a cached
-run is another. So are the coverage, debugger and query-span tests and the aarch64
-instruction bounds that the stage 3 handoff named.
+Build and clippy are green. The sweep's nine nightly failures (run 45813627231) were fixed
+on `main` after that run. Tests that may go red, not run here: gc tests that count one cache
+file per program, readers of `functions=` on a cached run, the coverage, debugger and query-span
+tests, the stage 3 aarch64 bounds, and any exact match on the `program reloaded` fields.
 
 ### Next
 
-Stage 5. First, a slice that closes stage 4's leftovers: delete the object-file loader in
-`crates/nvs-cli/src/cache.rs` (`Verified::relocate`, `parse`, `loadable`, `Layout`, `Landing`,
-`form_of`, `landing_for` and the aarch64 page writers). Also delete the unit tests that drive it,
-and the module-level `expect(dead_code)` at the top of the file. Keep `stub_body`, `write_le` and
-`write_branch26`, which `per_file::place` uses. Then stage 5's items:
-`crates/nvs-config/src/cache.rs:593` gets `incremental` beside `settle`'s startup row.
-`crates/nvs-cli/src/script.rs:1832` is where the compile takes the kept function code; give
-`per_file::compile_and_store` an in-memory index beside the hint's. `crates/nvs-cli/src/reload.rs:1042`
-writes the `program reloaded` record. `Work` from `cache::unit_for_counted` is the count it carries.
+Stage 5's two open items, in the stage's second and last session:
+
+1. The front end keeps file results (`crates/nvs-cli/src/main.rs:1212`, `front_end_looking`, and
+   the compile's front-end call at `crates/nvs-cli/src/script.rs:1835`). Under
+   `Revalidation::incremental`, keep per written path each source file's checked result, keyed by
+   its content digest, beside `Compiler::kept`. A reload re-checks only the files whose digest
+   moved. When a declaration's signature moved, it also re-checks the files that use it. It needs
+   a count of files checked for the tests. Expose it the way `Work` is exposed: a field on
+   `Compiled`, and a `checked` field on `Rechecked::Swapped` and the record.
+2. `crates/nvs-cli/tests/incremental_reload.rs`: the four `edit-state` tests. Each starts
+   `nvs serve` in development (the `Server` helper in `crates/nvs-cli/tests/live_config.rs` and
+   `nvs_test::serve`), edits a file, runs `nvs reload` and reads the `program reloaded` record's
+   counts from the log. Production must keep no edit state: `Compiler::kept` is empty after a
+   compile.
+
+If item 1 does not fit the session, the stage ceiling moves it to `### Backlog` as declined,
+with the count that stopped it.
 
 ### Backlog
