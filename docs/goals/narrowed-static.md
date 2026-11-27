@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/locals.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-diagnostics/src/code/types_e10.rs]
   - id: 4
     title: "the rule, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/reference/lang/50-classes.md, docs/examples/lang/types/void-never-self-static/about.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -255,14 +255,14 @@ attempt is written to `### Backlog` with what blocked it.
 **Split:** the example, the attack and the bench go to one writing subagent once the rule fragment is
 written. Its brief names AGENTS.md § *Text an end user reads* and § *Feature proofs* above.
 
-- [ ] `docs/rules/statements/static-is-a-member-modifier.md` and `docs/rules/types/type-test.md`: per
+- [x] `docs/rules/statements/static-is-a-member-modifier.md` and `docs/rules/types/type-test.md`: per
   § *Rules*, then `bun nv rules`.
-- [ ] `docs/reference/lang/50-classes.md:647` and `:846`.
-- [ ] The feature proofs `bun nv proofs --owed --goal narrowed-static` names: about.md, details.md,
+- [x] `docs/reference/lang/50-classes.md:647` and `:846`.
+- [x] The feature proofs `bun nv proofs --owed --goal narrowed-static` names: about.md, details.md,
   the example, the bench, the attack, the Novis and Rust tests and the help text.
-- [ ] `website/src/data/changes.json:1`: the two entries, then `bun nv site --check stale`, `changes`
+- [x] `website/src/data/changes.json:1`: the two entries, then `bun nv site --check stale`, `changes`
   and `review` green.
-- [ ] `bun nv proofs --owed --goal narrowed-static` names nothing.
+- [x] `bun nv proofs --owed --goal narrowed-static` names nothing.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -331,35 +331,31 @@ order 1
 
 ### State
 
-Stages 1, 2 and 3 are done. The checks `called-class-test`, `called-class-run`, `narrowed`,
-`static-locals` and `finders-run` are green (`cargo test --test narrowed_static`: 12 passed; the
-finder case passes). Stage 1: `is static` records `ExprInfo::CalledClassTest` and lowers as
-`TestShape::CalledClass` against `lsb()`; `E1021` is `static` inside a tested type. Stage 2: a
-narrowing entry is a `locals::Fact` with a `called_class` bit, and each read that carries it is
-recorded by span. Stage 3: `LocalScope::static_locals` records each local whose type binds `static`,
-every write to it goes through `crate::check::check_static_local_write`, and an `inout` pass is the new
-`E1022` `E_STATIC_LOCAL_GETS_ANOTHER_CLASS` (`crates/nvs-diagnostics/src/code/types_e10.rs`). § *Stage
-1 as built* to § *Stage 3 as built* record the calls. The run sweep's nightly failures (run
-45992349212, on 8520fecd83) were all fixed on `main` after that run, by 215257ff46, 606701259f and
-544711a8fb; this session checked the Miri one names `parse_stops_at_the_part_count_bound`, which
-215257ff46 skips under Miri.
+Stages 1 to 4 are done, and their checks are green: `narrowed_static`'s 12 tests, the two
+conformance cases, and `proofs --gate --goal narrowed-static`. Stage 4 wrote the rule and
+`type-test.md`, E0741's card and help (both name the two new returns), example 07, attacks 04
+(six refused steps) and 05 (run time), and the feature's bench as the finder's linear filter with a
+`.scale.nvs` sibling. It also wrote two `changes.json` entries, rendered both chapters, stamped every
+review and page, and recorded the 41 `lang:types` and `lang:classes` perf figures on the release
+binary. `site --check stale`, `changes`, `review` and `questions` are green. The sweep's nightly
+failures (run 45992349212) were fixed on `main` after that run.
+
+`bun nv scaling --budget` names 55 benches over their share, none of them this goal's
+(`core/Arr/hasKey`, `core/Metrics/*`, `novis/Spreadsheet-*`), on both binaries. No gate found here
+runs it, so `data/perf/bench-budget.json` is unchanged.
 
 Tests that may go red at the full gate: a diagnostics roster test that lists every code, for `E1021`
-and `E1022`; a reference check that every code has a page or card; the proof stamp of example `05`
-under `methods-self-static-and-parent`, whose `.out` changed with E0741's help text;
-`website/public/llms-full.txt`, which still has the old help text until the site is rebuilt.
+and `E1022`; a reference check that every code has a page or card; any Rust test that pins E0741's
+help text word for word; `website/public/llms-full.txt`, which still has the old help text until the
+site is rebuilt.
 
 ### Next
 
-Stage 4 from its first item, as its `**Split:**` line says. The rule
-`docs/rules/statements/static-is-a-member-modifier.md`: E0741's list gains the narrowed value and the
-`static` local, the sentence "a local variable is none of these, so an `array<static>` built up in a
-loop is refused, and declaring `array<self>` is the way to write it" is replaced, `is static` tests the
-called class, `E1021` and `E1022` are named, and the Memory and Declined paragraphs per § *Rules*.
-Then `docs/rules/types/type-test.md`, `bun nv rules`, the reference `docs/reference/lang/50-classes.md`
-(`:647` and the E0741 listing near `:846`), and `bun nv proofs --owed --goal narrowed-static` to list
-the feature proofs. The example, attack and bench go to one writing subagent with `--nvs
-target/debug/nvs.exe`. The `crate::check::reject_static_return_of_another_class` doc already lists the
-`static` local.
+Stage 5: the check the pack names for it. At a close: `cargo build`, `cargo clippy --all-targets -- -D
+warnings`, `cargo test --test narrowed_static`, the two conformance cases by name
+(`tests/conformance/lang/is-static-tests-the-class-the-call-names.nvst`,
+`tests/conformance/lang/a-finder-returns-loaded-objects-as-static.nvst`) and `bun nv close --goal
+narrowed-static`. At a full gate: `looper verify`, then `bun nv verify --doc` and `bun nv ci --check`.
+A red `ci-check` on the bench budget is the 55 benches above, not this goal's.
 
 ### Backlog
