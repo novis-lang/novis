@@ -1,8 +1,10 @@
 A `#[Test]` method may be declared in any file — beside the class it tests, or in a separate tree.
 What makes a method a test is the attribute, never the path.
 
-**Test code is a method that carries a testing marker:** `#[Test]`, `#[Fixture]`, `#[BeforeClass]`,
-`#[AfterClass]` or `#[AfterEachTest]`. A data row is an attribute on a `#[Test]` method, and an
+**Test code is a method that carries a testing marker:** `#[Test]`, `#[Bench]`, `#[Property]`,
+`#[Fixture]`, `#[BeforeClass]`, `#[AfterClass]` or `#[AfterEachTest]`. It is also a declaration its
+author marks `#[TestOnly]`: such a method, and every method of such a class, interface or enum
+(`rule:testing/a-test-only-declaration-is-test-code`). A data row is an attribute on a `#[Test]` method, and an
 assertion message, a double and an anonymous function are written inside a test's body, so each of
 them is test code with the method it belongs to. The class that declares them is not test code:
 its constructor and its other methods are compiled as any class's are, because a class with a
@@ -28,4 +30,5 @@ time.
 **Declined:**
 
 - *A test class is test code as a whole.* A class with a `#[Test]` method may be the class under
-  test, so leaving the class out would leave production methods out of a build.
+  test, so leaving the class out would leave production methods out of a build. A class is test
+  code only when its author marks it `#[TestOnly]`, never because it has a `#[Test]` method.

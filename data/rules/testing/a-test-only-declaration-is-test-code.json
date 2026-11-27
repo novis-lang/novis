@@ -1,0 +1,14 @@
+{
+  "title": "`#[TestOnly]` makes a declaration test code, which only tests can use and a build leaves out",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/tests-never-reach-a-build",
+    "testing/private-in-the-same-file",
+    "packaging/a-restriction-limits-where-a-declaration-is-used"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/test_only.rs",
+    "crates/nvs-cli/tests/test_only_run.rs",
+    "crates/nvs-lsp/tests/test_only_editor.rs"
+  ]
+}

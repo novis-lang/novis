@@ -20,4 +20,7 @@ nothing more.
 request can call a method that used it.
 
 **Declined:** an attribute such as `#[VisibleForTesting]` on the member. It moves the decision to
-the class under test, and the member is then reachable from every test anywhere.
+the class under test, and the member is then reachable from every test anywhere. `#[TestOnly]`
+(`rule:testing/a-test-only-declaration-is-test-code`) narrows where that one would widen: it takes a
+declaration away from production code and gives no test more access. A test-only helper in the same
+file as a class is test code, so it reaches that class's `private` members as a test does.
