@@ -23,6 +23,13 @@
       "goals": [
         "file-scan"
       ]
+    },
+    {
+      "title": "Send and receive files over FTP, FTPS and SFTP",
+      "text": "`Core\\FileTransfer::open` connects to a server that the person who runs the program configures in `nvs.toml`. The same code works with FTP, FTPS, SFTP and a local folder. In tests, the folder replaces the server.",
+      "goals": [
+        "file-transfer"
+      ]
     }
   ]
 }
