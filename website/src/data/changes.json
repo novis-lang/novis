@@ -3,6 +3,13 @@
     {
       "kind": "changed",
       "features": [
+        "lang:expressions/anonymous-objects"
+      ],
+      "text": "An anonymous object you write where a shape is needed may have only the fields of that shape. Another field is the error `E0454`, and the message names the closest field. So `{ frezee: true }` for `{ freeze?: bool }` no longer compiles."
+    },
+    {
+      "kind": "changed",
+      "features": [
         "tools:editor/nvs-lsp"
       ],
       "text": "Class name completion suggests only the `Core` classes and the classes in the folders that your program's `autoload` lines name. In a file that no program loads, it suggests every class."

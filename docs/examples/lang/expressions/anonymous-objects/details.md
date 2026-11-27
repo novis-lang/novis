@@ -15,6 +15,10 @@ Reading a field the object does not have compiles, and throws a `RuntimeError` w
 there throws the same error, so read it with `$r->b ?? 0`. `isset($r->b)` is `false` when it is not
 there.
 
+An anonymous object you write where a shape is needed may have only the fields of that shape. Another
+field is the error `E0454`, and the message names the closest field. So `{ frezee: true }` for
+`{ freeze?: bool }` does not compile. A variable with more fields still fits the shape.
+
 An object of a class fits a shape when it has public properties with those names and types.
 `$v is Point` checks every field and its type when the program runs.
 `$v as Point` runs the same check. If the check fails, it throws a `RuntimeError`.

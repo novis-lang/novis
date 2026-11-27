@@ -1008,9 +1008,17 @@ pub(crate) fn check_heredoc_run_issues(
 /// value fits, has that type: `{ w: 2 }` at `{ w: float }` is a `{ w: float }`. The
 /// literal builds a new value, so lowering can convert each field where it is
 /// stored, which an existing value's field cannot be (see
-/// [`super::assign::field_fits`]). Every other field infers its own type, and
-/// a shape target's width subtyping ([`super::assign::is_assignable`]) lets
-/// the literal flow into a narrower shape or a plain `object`.
+/// [`super::assign::field_fits`]).
+///
+/// **A key the declared shape does not name is `E0454`.** Only a literal
+/// reaches here, and nothing can read its extra key through the shape, so the
+/// key is a misspelling: `{ frezee: true }` at `{ freeze?: bool }` would
+/// otherwise compile and set nothing. A value that is not a literal keeps
+/// width subtyping ([`super::assign::is_assignable`]). At a union of two or
+/// more shapes, a key is declared when some member names it. A union member
+/// that is not a shape and takes the literal anyway, such as `object`, turns
+/// the check off. A position that declares no shape, such as `object` or
+/// `mixed`, asks nothing. The help names the nearest key, as `E0309` does.
 ///
 /// **A field name written twice is `E0494`.** A shape's fields are a set —
 /// `{ a: int }` names one slot `a` — and the two sides of a repeated name would
@@ -1038,11 +1046,14 @@ pub(crate) fn check_anon_object(
         .iter()
         .map(|field| span_text(env.src, field.name))
         .collect();
+    let position = expected;
     let expected = expected.and_then(|id| declared_shape(id, &written, env));
     if let Some(shape) = expected {
         // Read by an editor, for the keys and their docs.
         env.exprs.record_object_shape(span, shape);
     }
+    let keys = declared_keys(position, expected, env);
+    let mut undeclared: Vec<&AnonObjectField> = Vec::new();
     let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
@@ -1088,12 +1099,108 @@ pub(crate) fn check_anon_object(
             report_duplicate_shape_field(field, &name, env);
             continue;
         }
+        if keys.as_ref().is_some_and(|keys| !keys.contains(&name)) {
+            undeclared.push(field);
+        }
         // Every key a literal writes is one the value carries, so the inferred
         // shape names none of them optional — the `?` is a thing a *declared*
         // type says, never a thing a value's own type discovers.
         out.push(ShapeField::required(name, field_ty));
     }
-    env.interner.shape(out)
+    let literal = env.interner.shape(out);
+    if let Some(keys) = keys
+        && !undeclared.is_empty()
+        && !taken_by_another_member(position, literal, env)
+    {
+        for field in undeclared {
+            report_undeclared_shape_key(field, &keys, env);
+        }
+    }
+    literal
+}
+
+/// The keys a literal may write at `position`, where it declares a shape: the
+/// keys of `declared`, or, at a union of two or more shapes where no member was
+/// chosen, every key some member names. `None` where no shape is declared,
+/// which asks nothing of the keys.
+fn declared_keys(
+    position: Option<TypeId>,
+    declared: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> Option<Vec<String>> {
+    let position = match declared {
+        Some(_) => None,
+        None => Some(env.interner.without_null(position?)),
+    };
+    let names = |id: TypeId| match env.interner.get(id) {
+        Ty::Shape(fields) => fields.iter().map(|field| field.name.clone()).collect(),
+        _ => Vec::new(),
+    };
+    if let Some(declared) = declared {
+        return Some(names(declared));
+    }
+    let Ty::Union(members) = env.interner.get(position?) else {
+        return None;
+    };
+    let shapes: Vec<TypeId> = members
+        .iter()
+        .copied()
+        .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)))
+        .collect();
+    if shapes.len() < 2 {
+        return None;
+    }
+    let mut keys: Vec<String> = Vec::new();
+    for shape in shapes {
+        for name in names(shape) {
+            if !keys.contains(&name) {
+                keys.push(name);
+            }
+        }
+    }
+    Some(keys)
+}
+
+/// Whether a member of the union at `position` that is not a shape takes the
+/// literal as written, as `object` takes any anonymous object. Such a member
+/// declares no keys, so the literal's extra key is not a mistake there.
+fn taken_by_another_member(position: Option<TypeId>, literal: TypeId, env: &mut Env<'_>) -> bool {
+    let Some(position) = position else {
+        return false;
+    };
+    let position = env.interner.without_null(position);
+    let Ty::Union(members) = env.interner.get(position) else {
+        return false;
+    };
+    let members = members.clone();
+    members.iter().any(|member| {
+        !matches!(env.interner.get(*member), Ty::Shape(_))
+            && is_assignable(literal, *member, env.interner, env.graph, env.signatures)
+    })
+}
+
+/// The `E0454` half of [`check_anon_object`], which owns why. The key list is
+/// the same one `E0454` gives for a `Core` options bag.
+fn report_undeclared_shape_key(field: &AnonObjectField, keys: &[String], env: &mut Env<'_>) {
+    let name = span_text(env.src, field.name);
+    let listed = keys
+        .iter()
+        .map(|key| format!("`{key}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let help = match nvs_hir::members::nearest_name(name, keys.iter().cloned()) {
+        Some(nearest) => format!("did you mean `{nearest}`? The keys of this shape are: {listed}"),
+        None if keys.is_empty() => "this shape has no keys".to_owned(),
+        None => format!("the keys of this shape are: {listed}"),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_OPTION,
+            format!("`{name}` is not a key of this shape"),
+        )
+        .with_primary(field.name, "no such key")
+        .with_help(help),
+    );
 }
 
 /// The shape an anonymous object's position declares: `expected` itself when it

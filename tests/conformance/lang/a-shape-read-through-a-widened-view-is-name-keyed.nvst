@@ -24,12 +24,15 @@ class View {
 var $point = {x: 1, y: 2};
 echo $point->x, " ", $point->y, "\n";
 
-// The same value through the narrower view, both as a binding and as a
-// anonymous object written straight into the argument.
+// The same value through the narrower view, from two bindings. A literal
+// written straight into the argument may not add a key the view does not
+// name, so each wider value is bound first.
 echo View::y($point), "\n";
-echo View::y({x: 10, y: 20}), "\n";
+var $other = {x: 10, y: 20};
+echo View::y($other), "\n";
 
-echo View::label({alpha: "a", label: "left"}), "\n";
+var $tagged = {alpha: "a", label: "left"};
+echo View::label($tagged), "\n";
 --EXPECT--
 1 2
 2

@@ -90,9 +90,53 @@ fn an_anon_object_with_exactly_the_shapes_fields_is_fine() {
 
 #[test]
 fn a_source_with_extra_fields_still_satisfies_the_shape() {
-    // Width subtyping: a source with extra fields beyond the shape still
-    // satisfies it.
-    let diags = check_in_method("({x: int}) $p = {x: 1, y: 2};");
+    // Width subtyping: a value with extra fields beyond the shape still
+    // satisfies it, when it is not a literal written at the shape.
+    let diags = check_in_method("var $q = {x: 1, y: 2}; ({x: int}) $p = $q;");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+// `rule:types/shape-type`: a literal written at a declared shape may write only
+// the keys the shape names, and the help names the nearest one.
+
+#[test]
+fn a_literal_key_the_shape_does_not_name_is_e0454_with_the_nearest_key() {
+    let diags = check_in_method("({freeze?: bool, zoom?: uint}) $p = {frezee: true};");
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+        .expect("the extra key is reported");
+    assert!(diag.message.contains("`frezee`"), "{diag:?}");
+    assert!(
+        diag.notes
+            .iter()
+            .any(|n| n.contains("did you mean `freeze`?")),
+        "{diag:?}"
+    );
+    assert!(
+        !diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "one report for one mistake: {diags:?}"
+    );
+}
+
+#[test]
+fn a_literal_key_no_member_of_a_shape_union_names_is_e0454() {
+    let diags = check_in_method("({a: int}|{b: int}) $p = {a: 1, c: 2};");
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_OPTION)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_union_member_that_takes_any_object_takes_the_extra_key() {
+    let diags = check_in_method("({a: int}|object) $p = {a: 1, c: 2};");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_position_that_declares_no_shape_asks_nothing_of_the_keys() {
+    let diags = check_in_method("object $p = {a: 1, c: 2}; mixed $q = {z: 1};");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -249,7 +293,7 @@ fn an_optional_field_does_not_admit_null_and_a_nullable_one_does_not_admit_absen
             .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
         "{optional_given_null:?}"
     );
-    let nullable_given_absent = check_in_method("({a: ?int}) $p = {b: 1};");
+    let nullable_given_absent = check_in_method("var $q = {b: 1}; ({a: ?int}) $p = $q;");
     assert!(
         nullable_given_absent
             .iter()

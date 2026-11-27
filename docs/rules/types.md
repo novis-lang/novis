@@ -2911,6 +2911,16 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   writes and every key it requires is written, so `{formula: "A1", cached: null}` at
   `{text: string}|{formula: string, cached: ?float}` is the second member. Where no member or two
   members match, it declares none.
+- **An anonymous object written at a declared shape writes only the keys that shape names.** Any
+  other key is `E0454`, the code a `Core` options bag gives a misspelt option, and its help names
+  the nearest key. Only a literal is held to this: nothing reads its extra key through the shape, so
+  the key is a misspelling, and `{frezee: true}` at `{freeze?: bool}` would otherwise compile and
+  set nothing. A value that is not a literal keeps width subtyping. At a union of two or more shapes
+  where no member was chosen, a key is declared when some member names it. A union member that is
+  not a shape and takes the literal anyway, such as `object`, turns the check off, and a position
+  that declares no shape, such as `object` or `mixed`, asks nothing. A literal that means to carry
+  an extra key is bound to a variable first. The check is in the checker alone and costs nothing at
+  run time.
 - **An attribute payload's field types are covariant** against its declaration's fields
   ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), where it is attached and where it is
   retrieved. A payload is folded into a new value at each retrieval, so no other view of it exists.
@@ -2972,10 +2982,13 @@ one map entry per declared field at check time, and at run time only the convers
 - **The `interface` keyword for a shape.** An `interface` is a nominal, `implements`-declared,
   method-bearing contract, and a structural, property-only meaning would give one keyword two
   meanings ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
-- **Exact-match shapes, with no width subtyping, or an option that refuses extra fields.** They are
-  stricter for no safety gained, force re-wrapping a value that already has every field a caller
-  reads, and let a client that adds a field break a server. An option choosing between the two
-  behaviours is a flag [`core-api/shape-rules`](core-api.md#core-api-shape-rules) refuses.
+- **Exact-match shapes for a value, with no width subtyping, or an option that refuses extra
+  fields.** They are stricter for no safety gained, force re-wrapping a value that already has every
+  field a caller reads, and let a client that adds a field break a server. An option choosing
+  between the two behaviours is a flag [`core-api/shape-rules`](core-api.md#core-api-shape-rules) refuses. None of these reasons
+  reaches a literal written at the shape, which is why the literal's keys are checked.
+- **A warning for a literal's extra key.** The program still compiles, so the misspelt option still
+  does nothing. A `Core` options bag already refuses the same mistake as an error.
 - **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
   interface.
 - **Converting an existing value's `int` field when it meets a `float` field.** The value is shared,

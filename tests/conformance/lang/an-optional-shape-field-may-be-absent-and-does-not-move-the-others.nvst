@@ -17,9 +17,11 @@ echo $p->x, "\n";
 ({a?: int, x: int}) $q = {a: 7, x: 2};
 echo $q->a, " ", $q->x, "\n";
 
-// Width subtyping still applies on top of it: an extra field the shape does
-// not name is no problem either.
-({a?: int, x: int}) $r = {x: 3, z: "extra"};
+// Width subtyping still applies on top of it: a value with an extra field the
+// shape does not name is no problem either. It is bound first, because a
+// literal written at the shape may not add a key.
+var $wider = {x: 3, z: "extra"};
+({a?: int, x: int}) $r = $wider;
 echo $r->x, "\n";
 --EXPECT--
 1

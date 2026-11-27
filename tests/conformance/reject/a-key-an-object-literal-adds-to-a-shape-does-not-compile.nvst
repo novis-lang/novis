@@ -1,0 +1,53 @@
+--TEST--
+An object literal written where a shape is expected may write only the keys that shape names, at a parameter, a `return`, a typed variable, a nested field and a union of shapes — `rule:types/shape-type`
+--FILE--
+<?nvs
+final class Sheet
+{
+    type Options = ?{ freeze?: bool, zoom?: uint, csv?: { separator?: string } };
+
+    public static function open(Options $options = null): void
+    {
+    }
+
+    public static function defaults(): { freeze?: bool }
+    {
+        return { frezee: true };
+    }
+
+    public static function style({ bold: bool }|{ italic: bool } $style): void
+    {
+    }
+}
+
+Sheet::open({ frezee: true });
+Sheet::open({ csv: { seperator: ';' } });
+Sheet::Options $o = { zom: 3 };
+Sheet::style({ bold: true, colour: 'red' });
+
+// A value that is not a literal keeps width subtyping, so this compiles.
+var $wider = { freeze: true, owner: 'x' };
+Sheet::open($wider);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `frezee` is not a key of this shape
+%A
+   = help: did you mean `freeze`? The keys of this shape are: `freeze`
+%A
+error[E0454]: `frezee` is not a key of this shape
+%A
+   = help: did you mean `freeze`? The keys of this shape are: `csv`, `freeze`, `zoom`
+%A
+error[E0454]: `seperator` is not a key of this shape
+%A
+   = help: did you mean `separator`? The keys of this shape are: `separator`
+%A
+error[E0454]: `zom` is not a key of this shape
+%A
+error[E0454]: `colour` is not a key of this shape
+%A
+   = help: the keys of this shape are: `bold`, `italic`
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

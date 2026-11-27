@@ -22,11 +22,13 @@ class Report {
 }
 
 // `rule:types/shape-type`'s width subtyping applies through the alias exactly
-// as it does to the shape written out: the optional key may be absent, and an
-// extra key is still accepted.
+// as it does to the shape written out: the optional key may be absent, and a
+// value with an extra key is still accepted. The value is bound first, because
+// a literal written at the shape may not add a key.
 echo Order::total({total: 7}), "\n";
 echo Report::total({total: 40, note: "paid"}), "\n";
-echo Report::total({total: 2, note: "x", extra: true}), "\n";
+var $wider = {total: 2, note: "x", extra: true};
+echo Report::total($wider), "\n";
 --EXPECT--
 7
 40

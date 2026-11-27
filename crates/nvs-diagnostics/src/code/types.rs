@@ -462,8 +462,11 @@ codes! {
     );
     /// A field name in an options bag that the member does not declare —
     /// usually a typo. Unlike `rule:types/shape-type`'s width subtyping, which accepts an
-    /// extra field on purpose, an options bag refuses one: a misspelled option
+    /// extra field on a value, an options bag refuses one: a misspelled option
     /// that is silently ignored is the failure `rule:core-api/shape-rules` R2 exists to prevent.
+    /// A key an anonymous object writes at a shape declared in `.nvs` code,
+    /// which the shape does not name, is this same code for the same reason
+    /// (`rule:types/shape-type`), and its help names the nearest key.
     /// A **shape key** no arm of an `rule:core-api/shape-parameter` shape parameter declares is
     /// this same code: the merged list is the whole key set either way. So is a
     /// key that belongs to an arm the anonymous object's other values did not select —
@@ -472,9 +475,10 @@ codes! {
     /// differently and are one code on purpose: a second code would ask the
     /// reader to know which arm they were in before they could look it up.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454").card(
-        "This name is not one of the options that are allowed here. The error message lists the \
-         options you can use, so check the spelling against that list. If the option was \
-         removed, the message names what replaced it.",
+        "This name is not one of the options or keys that are allowed here. The error message \
+         lists the ones you can use, so check the spelling against that list. An object you write \
+         for a shape may only have the keys of that shape. If the option was removed, the message \
+         names what replaced it.",
     );
     /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — `rule:types/arithmetic`. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
     /// there is no type that represents both operands' values, so one side
