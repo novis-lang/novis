@@ -606,6 +606,7 @@ fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let parts: Vec<String> = deprecation(analysed, target)
         .into_iter()
         .chain(restriction(analysed, target))
+        .chain(for_tests(analysed, target))
         .chain(doc)
         .collect();
     (!parts.is_empty()).then(|| parts.join("\n\n"))
@@ -671,6 +672,29 @@ fn restriction(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
         })
         .collect();
     Some(parts.join("\n\n"))
+}
+
+/// The line a hover on test code shows: a test-only class, interface or enum,
+/// a member of one, or a method that is test code
+/// (`rule:testing/a-test-only-declaration-is-test-code`). `None` for every
+/// other declaration.
+///
+/// Cost: one or two set lookups per hover.
+fn for_tests(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let exprs = &analysed.exprs;
+    let tests_only = match target {
+        Target::Type(class) => exprs.is_test_only_type(&class.to_string()),
+        Target::Method(call) => {
+            let owner = call.class.to_string();
+            exprs.is_test_only_type(&owner)
+                || exprs.is_test_code(&format!("{owner}::{}", call.method))
+        }
+        Target::Property { class, .. } | Target::Constant { class, .. } => {
+            exprs.is_test_only_type(&class.to_string())
+        }
+        Target::TypeAlias { .. } => false,
+    };
+    tests_only.then(|| "**Only for tests.** `nvs run` and `nvs build` leave it out.".to_owned())
 }
 
 /// What `#[Core\Deprecated]` wrote on the declaration `target` resolves to,

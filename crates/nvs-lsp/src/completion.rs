@@ -454,6 +454,7 @@ pub fn at(
         offset,
         client,
         encoding,
+        in_tests: test_code_at(analysed, offset),
     };
     let mut items = match asked(analysed, files, &path, offset) {
         Asked::Member(class, reach) => members_of(&cursor, &class, reach),
@@ -461,7 +462,7 @@ pub fn at(
         Asked::Namespace(prefix) => followed(
             &cursor,
             After::of(written(&cursor)),
-            under(analysed, symbols, &prefix),
+            under(analysed, symbols, &prefix, cursor.in_tests),
         ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
         Asked::Literal(Literal::Path(literal)) => {
@@ -593,6 +594,9 @@ struct Cursor<'a> {
     /// text it replaces, or a line it adds elsewhere, is the one place this
     /// module writes a range.
     encoding: PositionEncoding,
+    /// Whether the cursor is inside test code ([`test_code_at`]). Outside it,
+    /// no test-only member or type is offered ([`hidden`]).
+    in_tests: bool,
 }
 
 impl Cursor<'_> {
@@ -790,6 +794,7 @@ fn block_rows(
     members
         .iter()
         .filter(|member| own || visibility_of_member(member) == Visibility::Public)
+        .filter(|member| !hidden(cursor, block, member_of(file, member).as_ref()))
         .filter_map(|member| {
             let mut item = declared_member(cursor, file, &owner, member, reach)?;
             let details = item.label_details.get_or_insert_with(Default::default);
@@ -3170,8 +3175,14 @@ fn is_name(ch: char) -> bool {
 ///
 /// Keyed by label, so a name two files both declare is offered once rather
 /// than twice. A workspace declaration is offered only where `analysed`'s
-/// program can load it ([`loadable`]).
-fn under(analysed: &Analysed, symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
+/// program can load it ([`loadable`]), and a test-only one only where the
+/// cursor is `in_tests` ([`hidden`]).
+fn under(
+    analysed: &Analysed,
+    symbols: &SymbolIndex,
+    prefix: &[String],
+    in_tests: bool,
+) -> Vec<CompletionItem> {
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
     nvs_footprint::every_class();
     let core = registry::CLASSES
@@ -3192,7 +3203,9 @@ fn under(analysed: &Analysed, symbols: &SymbolIndex, prefix: &[String]) -> Vec<C
             let Some(kind) = namespace_kind(declared.kind) else {
                 continue;
             };
-            if !loadable(analysed, declared) {
+            if !loadable(analysed, declared)
+                || (!in_tests && analysed.exprs.is_test_only_type(&declared.symbol))
+            {
                 continue;
             }
             if let Some(rest) = under_prefix(&declared.symbol, prefix) {
@@ -4456,8 +4469,15 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
     let site = crate::imports::entry_stmts(analysed)
         .and_then(|stmts| nvs_hir::import_site(stmts, file, offset));
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
+    // A `use` line is written outside every method, and a test file imports
+    // its test-only types there, so the qualified list offers them all.
+    let tests_only = |symbol: &str| {
+        spelled != Spelled::Qualified
+            && !cursor.in_tests
+            && analysed.exprs.is_test_only_type(symbol)
+    };
     for (symbol, kind, origin, loads) in candidates {
-        if !loads {
+        if !loads || tests_only(&symbol) {
             continue;
         }
         let reached = written_as(&symbol, &here, &short);
@@ -4506,6 +4526,9 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
     // read off the registry, which is the one table that can say.
     for (name, target) in &imports {
         let target = target.to_string();
+        if tests_only(&target) {
+            continue;
+        }
         found.entry(target.clone()).or_insert_with(|| {
             let kind = if registry::core_enum(&target).is_some() {
                 CompletionItemKind::ENUM
@@ -5025,6 +5048,7 @@ fn own_members(
                 graph,
             )
         })
+        .filter(|member| !hidden(cursor, class, member_of(file, member).as_ref()))
         .filter_map(|member| {
             let item = declared_member(cursor, file, &owner, member, reach)?;
             Some(match member_of(file, member) {
@@ -5083,7 +5107,7 @@ fn enum_cases(
     cases: &[EnumCase],
     reach: Reach,
 ) -> Vec<CompletionItem> {
-    if reach == Reach::Instance {
+    if reach == Reach::Instance || hidden(cursor, class, None) {
         return Vec::new();
     }
     let owner = class.to_string();
@@ -5126,6 +5150,64 @@ fn tagged(
         item.tags = Some(vec![CompletionItemTag::DEPRECATED]);
     }
     item
+}
+
+/// Whether `member` of `class`, or `class` itself where `member` is `None`, is
+/// left out of a list at the cursor
+/// (`rule:testing/a-test-only-declaration-is-test-code`). It is outside test
+/// code, and the class is test-only or the member is a method that is test
+/// code. A use of either there does not compile, so it is not offered at all.
+/// A `[[restrict]]`-blocked member sorts last instead ([`tagged`]), because
+/// its reason is worth reading.
+///
+/// Cost: nothing inside test code, and one or two set lookups per member
+/// otherwise.
+fn hidden(cursor: &Cursor<'_>, class: &QName, member: Option<&Member>) -> bool {
+    if cursor.in_tests {
+        return false;
+    }
+    let exprs = &cursor.analysed.exprs;
+    let owner = class.to_string();
+    exprs.is_test_only_type(&owner)
+        || matches!(member, Some(Member::Method(name))
+            if exprs.is_test_code(&format!("{owner}::{name}")))
+}
+
+/// Whether `offset` in the entry document is inside test code
+/// (`rule:testing/tests-never-reach-a-build`): inside a test-only class,
+/// interface, enum or `extend` block, or inside a method that is test code,
+/// its attributes and signature included. An anonymous function is part of
+/// the method that writes it, so it is test code with that method.
+///
+/// The method around the cursor is read here, unlike in [`restricted_here`],
+/// because whether a test-only item compiles depends on it alone.
+fn test_code_at(analysed: &Analysed, offset: BytePos) -> bool {
+    let Some(class) = block_around(analysed, offset).or_else(|| class_at(analysed, offset)) else {
+        return false;
+    };
+    let owner = class.to_string();
+    if analysed.exprs.is_test_only_type(&owner) {
+        return true;
+    }
+    let Some((stmt, file)) = declared_type(analysed, &class) else {
+        return false;
+    };
+    let members: &[ClassMember] = match &stmt.kind {
+        StmtKind::ClassDecl(decl) => &decl.members,
+        StmtKind::InterfaceDecl(decl) => &decl.members,
+        StmtKind::ExtendDecl(decl) => &decl.members,
+        _ => return false,
+    };
+    members.iter().any(|member| match &member.kind {
+        ClassMemberKind::Method(method) => {
+            member.span.start <= offset
+                && offset < member.span.end
+                && analysed
+                    .exprs
+                    .is_test_code(&format!("{owner}::{}", text_of(file, method.name)))
+        }
+        _ => false,
+    })
 }
 
 /// The first character of the `sortText` of an item that sorts after every
