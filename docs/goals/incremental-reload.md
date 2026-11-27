@@ -22,7 +22,7 @@ stages:
     context: [docs/rules/packaging/a-warm-hit-skips-codegen-not-the-front-end.md, docs/rules/packaging/an-artifact-is-verified-whole-before-a-page-is-executable.md, crates/nvs-cli/tests/compile_cache.rs]
   - id: 5
     title: "a development server keeps each file's checked result and each function's code, and a production server frees both"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/script.rs, crates/nvs-cli/src/main.rs, crates/nvs-config/src/cache.rs, docs/rules/config/opcache-revalidation-is-system-class.md, docs/rules/config/a-reload-command-checks-now-and-waits.md, crates/nvs-cli/src/reload.rs]
   - id: 6
     title: "the work of a reload after a body edit is counted and bounded at every program size, and a bench shows its growth"
@@ -287,6 +287,18 @@ declaration's signature moved, nothing else is re-checked, and when one did, the
 are. With it `false`, both are freed when the compile ends, as today. **Memory:** about what
 `nvs check` peaks at for the program, plus its machine code; about 200 MiB at 440 files. It is per
 program, never per request or per edit, and freed with the unit.
+**Built (stage 5, the front end):** the kept file results are the language server's own
+`nvs_lsp::Session` (parse cache, check cache, file keys, interner), now public, with its interner
+in an `Arc` so a compile thread can keep it. `Compiler::fronts` holds one per written path under
+`incremental`. A compile takes its path's session out, so two compiles never share one. The
+front end loads through the session's pinned map, parses through its cache, and checks through
+`check_program_partial`. A file's key is its text and the surface rows of what its last check
+used, so a body edit checks its own file and a signature edit also checks the files that read it.
+`Looked::take` frees the files the program no longer loads, keyed by the source map's own
+canonical paths. `front_key` folds the extension set, the namespace grants, the configuration's
+grants and the backtracking policy into every key. The record's `checked` counts the files whose
+bodies were checked. A key built from each file's digest alone was declined: it cannot see a
+signature edit in another file, and the language server already pays for the surface rows.
 
 **Not built: shared code between unit versions.** Relinking places the whole program's code again,
 29 MB at 440 files and about 2.9 GB at 100× that size, an estimated 1–2 s. Sharing unchanged code
@@ -373,12 +385,12 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 - [x] `crates/nvs-config/src/cache.rs:588`: `incremental` with its startup row, and
   `incremental_startup_default_follows_the_mode` in `crates/nvs-cli/tests/incremental_reload.rs`,
   read through `nvs config dump` in each mode.
-- [ ] `crates/nvs-cli/src/main.rs:1287` and `crates/nvs-cli/src/script.rs:1780`: the front end takes
+- [x] `crates/nvs-cli/src/main.rs:1287` and `crates/nvs-cli/src/script.rs:1780`: the front end takes
   the program's kept file results and re-reads and re-checks only the moved files (§ *Stage 5*).
 - [x] `crates/nvs-cli/src/script.rs:1831`: the compile takes the kept function code before the disk.
 - [x] `crates/nvs-cli/src/reload.rs:1042`: the `program reloaded` record carries `compiled` and
   `reused` function counts.
-- [ ] `crates/nvs-cli/tests/incremental_reload.rs` (new): the four tests of the check `edit-state`.
+- [x] `crates/nvs-cli/tests/incremental_reload.rs` (new): the four tests of the check `edit-state`.
 
 ### 6. the work of a reload after a body edit is counted and bounded at every program size, and a bench shows its growth
 
@@ -411,45 +423,40 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has had one session (of two). It landed three slices:
+Stages 1 to 5 are done. Stage 5's last session landed the front end's kept file results
+(`89d4363f1c`). `nvs_lsp::Session` is public, with its interner in an `Arc`. `Compiler::fronts`
+(`script.rs`) keeps one per written path under `incremental`, and `reconfigure` and `rekey` free
+them. `front_end_in` (`main.rs`) loads, parses and checks through `Looked::session`, and
+`Looked::take` frees the files the program stopped loading. `Compiled::checked` feeds the
+`program reloaded` record's new `checked` field. All five `incremental_reload` tests passed: a
+body edit checks 1 file and compiles 1 function, a signature edit checks 2 files, and
+production with `file_cache = false` checks 3 and reuses 0. A development log needs
+`[log] format = "json"` to print a record's fields.
 
-- The object-file loader is deleted from `crates/nvs-cli/src/cache.rs`, with its unit tests and
-  the module-level `expect(dead_code)`. `per_file::place` is the only placer.
-- `[opcache] incremental` (`crates/nvs-config/src/cache.rs`, `Revalidation::incremental`; the
-  startup row in `defaults.rs`; `default.toml`; the rule
-  `a-startup-default-is-never-flipped`'s table). `incremental_startup_default_follows_the_mode`
-  passed.
-- Kept function code: `cache::Kept` (`per_file.rs`), `cache::unit_for_kept`, and
-  `Compiler::kept`/`kept_for`/`keep` in `script.rs` (the compile at `script.rs:1909`). Kept
-  code is read before the hint, and it works with no disk cache. A compile with `incremental`
-  off frees its path's code. A reload that turns it off frees all of it, and so does `rekey`.
-  `Compiled::work` feeds `Rechecked::Swapped { compiled, reused }`, and `program_record`
-  (`reload.rs:1065`) writes both fields.
-  `kept_code_is_reused_before_the_disk_and_a_body_edit_compiles_one_function` passed.
+Build, clippy and `cargo fmt --check` are green. The sweep's failures in run 45813627231 were
+fixed on `main` before this session (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`, `215257ff46`).
+The nightly 45992349212 also failed `website/snippets/tools/debug-viewer/runs.shot` on linux
+proofs only, and a local `site --shoot` rewrites the same `.shot.out`; it is not chased here.
 
-Build and clippy are green. The sweep's nine nightly failures (run 45813627231) were fixed
-on `main` after that run. Tests that may go red, not run here: gc tests that count one cache
-file per program, readers of `functions=` on a cached run, the coverage, debugger and query-span
-tests, the stage 3 aarch64 bounds, and any exact match on the `program reloaded` fields.
+Tests that may go red, not run here: language-server tests, now that `Analysed::interner` is an
+`Arc`; gc tests that count one cache file per program; readers of `functions=` on a cached run;
+the coverage, debugger and query-span tests; and exact matches on the `program reloaded` fields.
 
 ### Next
 
-Stage 5's two open items, in the stage's second and last session:
+Stage 6, in one session:
 
-1. The front end keeps file results (`crates/nvs-cli/src/main.rs:1212`, `front_end_looking`, and
-   the compile's front-end call at `crates/nvs-cli/src/script.rs:1835`). Under
-   `Revalidation::incremental`, keep per written path each source file's checked result, keyed by
-   its content digest, beside `Compiler::kept`. A reload re-checks only the files whose digest
-   moved. When a declaration's signature moved, it also re-checks the files that use it. It needs
-   a count of files checked for the tests. Expose it the way `Work` is exposed: a field on
-   `Compiled`, and a `checked` field on `Rechecked::Swapped` and the record.
-2. `crates/nvs-cli/tests/incremental_reload.rs`: the four `edit-state` tests. Each starts
-   `nvs serve` in development (the `Server` helper in `crates/nvs-cli/tests/live_config.rs` and
-   `nvs_test::serve`), edits a file, runs `nvs reload` and reads the `program reloaded` record's
-   counts from the log. Production must keep no edit state: `Compiler::kept` is empty after a
-   compile.
+1. `crates/nvs-cli/tests/incremental_reload.rs`: `a_body_edit_costs_the_same_work_at_every_program_size`.
+   Generate 110, 220 and 440 files (one class each, all reached from the entry), start `Served`
+   in development, make one body edit and read the record: `checked` 1 and `compiled` 1 at every
+   size. The count of source-file entries written needs a field too: add `written` to
+   `cache::Work` (where `per_file` stores an entry) and to the record, the way `checked` was
+   added.
+2. The bench of `nvs reload` after a one-line edit at those sizes, where
+   `benches/scaling/README.md` says a server bench lives, with its growth recorded.
 
-If item 1 does not fit the session, the stage ceiling moves it to `### Backlog` as declined,
-with the count that stopped it.
+Then stage 7: the rules (`an-edit-reaches-the-next-request-without-a-restart`, and
+`a-reload-command-checks-now-and-waits` for the record's three counts), the help, the feature
+proofs `bun nv proofs --owed --goal incremental-reload` names, and the website.
 
 ### Backlog

@@ -668,6 +668,14 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A development server's log prints a record's message and none of its fields.** In
+  `incremental-reload` stage 5, a test read `checked=` off a `program reloaded` line and found
+  only `[info] program reloaded`. Write `[log] format = "json"` beside `mode = "development"`
+  when a test reads a record's counts. See `crates/nvs-cli/tests/incremental_reload.rs`.
+- **A path a compile read is not the parse cache's key.** In `incremental-reload` stage 5, the
+  entry's `Read` path, canonicalized, missed the cache's key, so every reload checked the entry
+  again. Settle an `nvs_lsp::Session` from the source map's own paths. See
+  `crates/nvs-cli/src/main.rs`.
 - **A viewer browser test waits on the final state, not on an element the loading state shares.**
   In `mail-complete`'s acceptance, `mail.browser.test.ts` waited for `.mail-one .note`, which the
   page's `Loading.` note also matches, and a DONE was refused on the race. Wait on the note's text
