@@ -5597,15 +5597,23 @@ mod tests {
     const CONNECTION_STACK_PAGES: usize = 11;
 
     /// How many more pages a waiting request may keep resident on its
-    /// connection's stack in a debug build: 8.0 measured on a Windows
-    /// workstation, 9.1 on CI's Linux aarch64 runner and 10.2 on its Linux
-    /// x86_64 runner, where WSL on a workstation stays under 10. A release
+    /// connection's stack in a debug build: 11.0 measured on a Windows
+    /// workstation and in WSL, and 11.03 on CI's Linux aarch64 runner. A release
     /// build measured 2.9.
-    const REQUEST_HOST_STACK_PAGES: usize = 11;
+    ///
+    /// The reading moves in whole pages. A debug frame that is live while the
+    /// request waits, such as the task closure in `nvs_host::isolate`, grows
+    /// by a few bytes when a field or a branch is added, and the deepest frame
+    /// then crosses a page boundary: the same tree reads 10.0 or 11.0. So the
+    /// bound is one page over the highest measurement, and a doubling still
+    /// fails it.
+    const REQUEST_HOST_STACK_PAGES: usize = 12;
 
     /// How many pages a waiting request's program may keep resident on its own
-    /// stack in a debug build: 3.0 measured, and 1.0 in release.
-    const REQUEST_PROGRAM_STACK_PAGES: usize = 4;
+    /// stack in a debug build: 3.0 measured on Linux, 4.0 on a Windows
+    /// workstation, and 1.0 in release. One page over the highest, for the
+    /// reason [`REQUEST_HOST_STACK_PAGES`] gives.
+    const REQUEST_PROGRAM_STACK_PAGES: usize = 5;
 
     /// One keep-alive connection of `asked` requests to `entry`, served on one
     /// core the way `nvs serve`'s handler serves a mount's entry: the core's

@@ -393,6 +393,16 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`bun nv linux-test` can build a stale crate from its WSL copy.** In `refactor-commands`
+  stage 1, the copy had the current `nvs-config/src/viewer.rs`, but cargo there kept an older
+  build of it, and `nvs-runtime` failed with `cannot find function linkable`. Touch that crate's
+  sources in the copy (`wsl -e sh -c "touch /var/tmp/nvs-target-wsl-src/<tree>/crates/<crate>/src/*.rs"`)
+  and run again. See `tools/nv/cmd/linux-test.ts`.
+- **A debug stack-page bound fails on one runner when a frame crosses a page.** In
+  `refactor-commands` stage 1, the nightly failed `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
+  at 11.03 pages per request on aarch64. A bisect found a few bytes of task closure that moved
+  the reading from 10.0 to 11.0 on every platform. Bisect with a script that prints the reading
+  before you change a bound, and keep one page over the highest. See `crates/nvs-cli/src/serve.rs`.
 - **A new `Core` class fails a dozen roster tests that a chain goal's own checks never run.** In
   `mail-receive` stage 2, CI run 45829711007 was red on the mail classes from `mail-complete`:
   `capability`, `in_place`, `taint_signatures`, `ext_world`, `conformance_coverage`,
