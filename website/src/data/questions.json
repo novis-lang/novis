@@ -357,7 +357,7 @@
   },
   "/guides/how-to-use/sending-mail/": {
     "feature": "guides/how-to-use/sending-mail.mdx",
-    "hash": "6ffff64a49d56407",
+    "hash": "86b5580a761111b7",
     "questions": [
       "Step by step guide to sending email from my app",
       "Set up an SMTP server and its password in nvs.toml",
@@ -6206,6 +6206,171 @@
       "Get the protocol version of an HTTPS reply"
     ]
   },
+  "/reference/core/imap/": {
+    "feature": "Core\\Imap",
+    "hash": "6d7dfc62d981f4a2",
+    "questions": [
+      "How do I read emails from an IMAP mailbox?",
+      "Connect to a mail server to read incoming mail",
+      "Check an inbox for new messages from a script",
+      "Where do I set the IMAP server and password?",
+      "Read a support inbox from my web application"
+    ]
+  },
+  "/reference/core/imap/open/": {
+    "feature": "Core\\Imap::open",
+    "hash": "291a13c54551d3ae",
+    "questions": [
+      "How do I open a mailbox and sign in over IMAP?",
+      "Configure an imap block with host, user and password in nvs.toml",
+      "Why does opening a mailbox throw a RuntimeError about capabilities?",
+      "Use a folder of .eml files as a mailbox for tests",
+      "Do I have to close the IMAP connection myself?"
+    ]
+  },
+  "/reference/core/imap-folder/": {
+    "feature": "Core\\Imap\\Folder",
+    "hash": "51417486563a9425",
+    "questions": [
+      "What can I do with one folder of a mailbox?",
+      "Search, read, move and delete messages in an IMAP folder",
+      "Work with the messages of the INBOX folder",
+      "What is a UID of an email message?",
+      "Change the flags of messages in a mail folder"
+    ]
+  },
+  "/reference/core/imap-folder/delete/": {
+    "feature": "Core\\Imap\\Folder::delete",
+    "hash": "f77d6544fab0d883",
+    "questions": [
+      "How do I delete one email from a mailbox?",
+      "Remove a message from an IMAP folder for good",
+      "Delete only one message and leave the others alone",
+      "Move an email to Trash instead of deleting it",
+      "Why does deleting a message throw an IOError?"
+    ]
+  },
+  "/reference/core/imap-folder/fetch/": {
+    "feature": "Core\\Imap\\Folder::fetch",
+    "hash": "2ddbfd0b89a0b2c5",
+    "questions": [
+      "How do I read one email from a mailbox by its UID?",
+      "Download a message from an IMAP folder",
+      "Does reading an email over IMAP mark it as read?",
+      "Get the subject and sender of a message in my inbox",
+      "What happens when an email is too big for the memory limit?"
+    ]
+  },
+  "/reference/core/imap-folder/flag/": {
+    "feature": "Core\\Imap\\Folder::flag",
+    "hash": "32ff3ca1fad0fe5c",
+    "questions": [
+      "How do I add a flag or a star to an email?",
+      "Set a custom keyword such as $Paid on a message",
+      "Mark an email as answered over IMAP",
+      "Which IMAP flags can I set on a message?",
+      "Why is the Deleted flag not allowed?"
+    ]
+  },
+  "/reference/core/imap-folder/markseen/": {
+    "feature": "Core\\Imap\\Folder::markSeen",
+    "hash": "43252de1cbdb644e",
+    "questions": [
+      "How do I mark an email as read?",
+      "Set the Seen flag of a message over IMAP",
+      "Handle each new email only once in a script",
+      "When should my script mark a message as read?",
+      "Keep a message new when processing it fails"
+    ]
+  },
+  "/reference/core/imap-folder/markunseen/": {
+    "feature": "Core\\Imap\\Folder::markUnseen",
+    "hash": "d75c31daa5e010be",
+    "questions": [
+      "How do I mark an email as unread again?",
+      "Remove the Seen flag from a message",
+      "Make a message show as new in the mail program",
+      "Let the next run try an email again after an error",
+      "Does marking as unread change the other flags?"
+    ]
+  },
+  "/reference/core/imap-folder/move/": {
+    "feature": "Core\\Imap\\Folder::move",
+    "hash": "963055441f5f0346",
+    "questions": [
+      "How do I move an email to another folder?",
+      "Archive a message from the inbox over IMAP",
+      "Does a moved message keep its UID?",
+      "Put each bounce into its own mail folder",
+      "Does a read message stay read after a move?"
+    ]
+  },
+  "/reference/core/imap-folder/search/": {
+    "feature": "Core\\Imap\\Folder::search",
+    "hash": "b5026313c64de7ee",
+    "questions": [
+      "How do I find unread emails in a folder?",
+      "Search a mailbox for messages from one sender",
+      "Find emails received between two dates",
+      "Search messages by text in the subject",
+      "Get only the first few message UIDs, oldest first"
+    ]
+  },
+  "/reference/core/imap-folder/uidvalidity/": {
+    "feature": "Core\\Imap\\Folder::uidValidity",
+    "hash": "8ce0268d20e4f14d",
+    "questions": [
+      "What is UIDVALIDITY in IMAP?",
+      "Are the message UIDs I saved still correct?",
+      "Read only the emails that are newer than the last run",
+      "Detect when the mail server numbers the messages again",
+      "Which number should I save next to the highest UID?"
+    ]
+  },
+  "/reference/core/imap-folder/unflag/": {
+    "feature": "Core\\Imap\\Folder::unflag",
+    "hash": "684591cf998976a6",
+    "questions": [
+      "How do I remove a flag from an email?",
+      "Remove the star from a message over IMAP",
+      "Delete a custom keyword such as $Todo from a message",
+      "What happens when I remove a flag the message does not have?",
+      "Clear the Flagged flag and keep the other flags"
+    ]
+  },
+  "/reference/core/imap-mailbox/": {
+    "feature": "Core\\Imap\\Mailbox",
+    "hash": "090ee13fd7dffcae",
+    "questions": [
+      "What does Core\\Imap::open return?",
+      "An open connection to an email account",
+      "Open the folders of a mailbox one after another",
+      "Object for a mailbox that I am signed in to",
+      "List and open the folders of an IMAP account"
+    ]
+  },
+  "/reference/core/imap-mailbox/folder/": {
+    "feature": "Core\\Imap\\Mailbox::folder",
+    "hash": "831473891ede5ab4",
+    "questions": [
+      "How do I open the INBOX folder?",
+      "Open a mail folder by its name",
+      "Is UID 1 in INBOX the same message as UID 1 in Sent?",
+      "Why does opening a folder throw an IOError?",
+      "Which folder names are not allowed in a directory mailbox?"
+    ]
+  },
+  "/reference/core/imap-mailbox/folders/": {
+    "feature": "Core\\Imap\\Mailbox::folders",
+    "hash": "ac820395cd84d27e",
+    "questions": [
+      "How do I list all folders of a mailbox?",
+      "Get the names of the IMAP folders, such as Sent and Archive",
+      "Check that an Archive or Junk folder exists",
+      "Why are the folder names tainted?",
+      "In what order are the folder names returned?"
+    ]
+  },
   "/reference/core/io/": {
     "feature": "Core\\IO",
     "hash": "245130e84f10865b",
@@ -8190,6 +8355,28 @@
       "Use a name for the cc, bcc or reply address"
     ]
   },
+  "/reference/core/mail-address/address/": {
+    "feature": "Core\\Mail\\Address::address",
+    "hash": "8c6b43ea5892d607",
+    "questions": [
+      "How do I get the email address without the name?",
+      "Read the address of the sender of a received email",
+      "Find a customer by the address of an incoming message",
+      "Why is the address of a received email tainted?",
+      "Does an email address keep its upper and lower case?"
+    ]
+  },
+  "/reference/core/mail-address/name/": {
+    "feature": "Core\\Mail\\Address::name",
+    "hash": "68eaedaedb37d304",
+    "questions": [
+      "How do I get the display name of an email address?",
+      "Greet the sender of an email by name",
+      "What is the name when an address has none?",
+      "Decode a sender name written as =?UTF-8?Q?...?=",
+      "Can I trust the name shown for an email sender?"
+    ]
+  },
   "/reference/core/mail-address/of/": {
     "feature": "Core\\Mail\\Address::of",
     "hash": "0b49edc61b489337",
@@ -8311,6 +8498,237 @@
       "Set text/csv as the type of a mail file"
     ]
   },
+  "/reference/core/mail-message/": {
+    "feature": "Core\\Mail\\Message",
+    "hash": "72d23889f0862952",
+    "questions": [
+      "How do I read an email that my app received?",
+      "Object for an incoming email, a reply or a bounce",
+      "Get the sender, subject and body of a received message",
+      "Why is every value of a received email tainted?",
+      "Handle replies and bounces to the emails I sent"
+    ]
+  },
+  "/reference/core/mail-message/answers/": {
+    "feature": "Core\\Mail\\Message::answers",
+    "hash": "9d3b1e84a0514e2d",
+    "questions": [
+      "Which of my sent emails is this bounce or reply about?",
+      "Get the Message-ID of the original mail from a bounce",
+      "Stop a newsletter for a reader who reported it as spam",
+      "Find the sent message from In-Reply-To or References",
+      "Why is the original message id null for some bounces?"
+    ]
+  },
+  "/reference/core/mail-message/attachments/": {
+    "feature": "Core\\Mail\\Message::attachments",
+    "hash": "aeb3849651033060",
+    "questions": [
+      "How do I get the files attached to a received email?",
+      "Save an attachment from an incoming message to disk",
+      "Forward a file from a received email",
+      "Is an attachment file name like ../../etc/passwd safe?",
+      "Are images inside the HTML of an email attachments too?"
+    ]
+  },
+  "/reference/core/mail-message/bouncetag/": {
+    "feature": "Core\\Mail\\Message::bounceTag",
+    "hash": "c6fef5ffcd9e7829",
+    "questions": [
+      "How do I find which order a bounced email belonged to?",
+      "Read the tag after + in the address a bounce was sent to",
+      "Match a bounce that has no copy of my original mail",
+      "Which headers are read for the bounce tag?",
+      "Remove a newsletter reader whose address bounced"
+    ]
+  },
+  "/reference/core/mail-message/cc/": {
+    "feature": "Core\\Mail\\Message::cc",
+    "hash": "9feadfb240dee253",
+    "questions": [
+      "How do I read the Cc recipients of a received email?",
+      "Who got a copy of this message?",
+      "Collect all addresses for a reply to everyone",
+      "What does cc return when the email has no Cc header?",
+      "Can I see the Bcc recipients of an incoming email?"
+    ]
+  },
+  "/reference/core/mail-message/date/": {
+    "feature": "Core\\Mail\\Message::date",
+    "hash": "e89df563ba4a2cf7",
+    "questions": [
+      "How do I get the date an email was sent?",
+      "Read the Date header with its time zone offset",
+      "Sort received emails by the time they were sent",
+      "What happens when the date of an email cannot be read?",
+      "Can I trust the sent time of a received message?"
+    ]
+  },
+  "/reference/core/mail-message/from/": {
+    "feature": "Core\\Mail\\Message::from",
+    "hash": "f212517ee3bbf972",
+    "questions": [
+      "How do I get the sender of a received email?",
+      "Read the From address and name of a message",
+      "Can somebody fake the From address of an email?",
+      "Show the sender of an email safely on a web page",
+      "Read a sender name written in another alphabet"
+    ]
+  },
+  "/reference/core/mail-message/header/": {
+    "feature": "Core\\Mail\\Message::header",
+    "hash": "a96802090f09de83",
+    "questions": [
+      "How do I read any header of a received email?",
+      "Get the List-Id header of a message",
+      "Read every Received line of an email",
+      "Do List-Id and list-id return the same email header?",
+      "Decode an encoded value in an email header"
+    ]
+  },
+  "/reference/core/mail-message/html/": {
+    "feature": "Core\\Mail\\Message::html",
+    "hash": "a2670b102ec16ce6",
+    "questions": [
+      "How do I get the HTML body of a received email?",
+      "Show the HTML of an incoming message safely on a page",
+      "Remove scripts from the HTML of an email",
+      "Why is the HTML body of a received plain text email null?",
+      "Is a quoted-printable HTML body decoded?"
+    ]
+  },
+  "/reference/core/mail-message/inreplyto/": {
+    "feature": "Core\\Mail\\Message::inReplyTo",
+    "hash": "db3fb77cdebdfd3c",
+    "questions": [
+      "How do I read the In-Reply-To header of an email?",
+      "Find the sent mail that a reply belongs to",
+      "Tell a reply from a new message",
+      "What if the In-Reply-To header has two ids?",
+      "Does In-Reply-To prove that the reply is about my mail?"
+    ]
+  },
+  "/reference/core/mail-message/kind/": {
+    "feature": "Core\\Mail\\Message::kind",
+    "hash": "7bcd0991d8661957",
+    "questions": [
+      "How do I tell if a received email is a bounce?",
+      "Detect out-of-office replies to my emails",
+      "Find spam complaints in a mailbox",
+      "Is an email with the subject Undelivered a bounce?",
+      "Sort incoming mail into bounces, delays and replies"
+    ]
+  },
+  "/reference/core/mail-message/messageid/": {
+    "feature": "Core\\Mail\\Message::messageId",
+    "hash": "a2b1b94fbbaad6fa",
+    "questions": [
+      "How do I get the Message-ID of a received email?",
+      "Notice an email that I received twice",
+      "Read the message id without the angle brackets",
+      "Can two emails have the same Message-ID?",
+      "Use the message id of an email as an array key"
+    ]
+  },
+  "/reference/core/mail-message/parse/": {
+    "feature": "Core\\Mail\\Message::parse",
+    "hash": "760d398bb6642464",
+    "questions": [
+      "How do I parse a raw email message?",
+      "Read an .eml file in my program",
+      "Parse the email a mail provider posts to my webhook",
+      "Does parsing a broken email throw an error?",
+      "How many parts of a nested email are read?"
+    ]
+  },
+  "/reference/core/mail-message/raw/": {
+    "feature": "Core\\Mail\\Message::raw",
+    "hash": "d04873602052a7bd",
+    "questions": [
+      "How do I get the raw source of an email?",
+      "Save a received message as an .eml file",
+      "Forward a whole email as an attached file",
+      "Get the message bytes exactly as they arrived",
+      "Keep a copy of every incoming email unchanged"
+    ]
+  },
+  "/reference/core/mail-message/references/": {
+    "feature": "Core\\Mail\\Message::references",
+    "hash": "2b098fcc73e840bd",
+    "questions": [
+      "How do I read the References header of an email?",
+      "Group replies by email conversation",
+      "Find the first message of an email thread",
+      "Read a References header that continues over several lines",
+      "Get all message ids of a conversation, oldest first"
+    ]
+  },
+  "/reference/core/mail-message/replyto/": {
+    "feature": "Core\\Mail\\Message::replyTo",
+    "hash": "b0a17681e90a3772",
+    "questions": [
+      "How do I read the Reply-To address of an email?",
+      "Where should my answer to this email go?",
+      "Answer the visitor who used my contact form",
+      "Use the sender when an email has no Reply-To",
+      "Can the sender put any address in Reply-To?"
+    ]
+  },
+  "/reference/core/mail-message/report/": {
+    "feature": "Core\\Mail\\Message::report",
+    "hash": "652d649e43d937f4",
+    "questions": [
+      "How do I read the delivery report of a bounce?",
+      "Get the status of each recipient of a bounced email",
+      "Which address failed and which one is only late?",
+      "Why is report null for a normal email?",
+      "Read the details of a delayed delivery message"
+    ]
+  },
+  "/reference/core/mail-message/subject/": {
+    "feature": "Core\\Mail\\Message::subject",
+    "hash": "7bd94a72f9c1a029",
+    "questions": [
+      "How do I get the subject of a received email?",
+      "Decode a subject written as =?UTF-8?B?...?=",
+      "Find an order number in an email subject",
+      "Show an email subject safely on a web page",
+      "What is the subject of an email without one?"
+    ]
+  },
+  "/reference/core/mail-message/text/": {
+    "feature": "Core\\Mail\\Message::text",
+    "hash": "fa84aece195ae5b3",
+    "questions": [
+      "How do I get the plain text body of an email?",
+      "Read the text of a reply without the quoted lines",
+      "What does text return for an HTML only email?",
+      "Is a base64 email body decoded?",
+      "Escape the body of a received email before showing it"
+    ]
+  },
+  "/reference/core/mail-message/to/": {
+    "feature": "Core\\Mail\\Message::to",
+    "hash": "188b2419aee07f32",
+    "questions": [
+      "How do I get the recipients of a received email?",
+      "Read the To addresses of an incoming message",
+      "Read the members of a group address in the To header",
+      "Choose a team by the address an email was sent to",
+      "Does the To header show every person who got the mail?"
+    ]
+  },
+  "/reference/core/mail-message/uid/": {
+    "feature": "Core\\Mail\\Message::uid",
+    "hash": "76cca8ec264366fa",
+    "questions": [
+      "How do I get the UID of an email I fetched?",
+      "Move or delete the message I just read from a folder",
+      "Why is uid null for a parsed message?",
+      "Keep the UIDs of the bounces in a folder",
+      "Get the mailbox number of a fetched message"
+    ]
+  },
   "/reference/core/mail-preview/": {
     "feature": "Core\\Mail\\Preview",
     "hash": "18a809d284496b25",
@@ -8363,6 +8781,94 @@
       "Why does a dark mode rule for Outlook match nothing?",
       "Test an email template for CSS it never uses",
       "List the unused CSS selectors in an email"
+    ]
+  },
+  "/reference/core/mail-report/": {
+    "feature": "Core\\Mail\\Report",
+    "hash": "0b5f8de02aacb35e",
+    "questions": [
+      "What does Core\\Mail\\Message::report return?",
+      "Object for the delivery report inside a bounce",
+      "Read a delivery status notification in my app",
+      "What is a delivery report of an email?",
+      "Get the result of a delayed or failed delivery"
+    ]
+  },
+  "/reference/core/mail-report/recipients/": {
+    "feature": "Core\\Mail\\Report::recipients",
+    "hash": "9473c3ba6805992f",
+    "questions": [
+      "How do I list the recipients in a delivery report?",
+      "Handle a bounce that is about several addresses",
+      "Check each failed address of a bounce on its own",
+      "How many recipients of a delivery report are read?",
+      "Why is a recipient missing from a delivery report?"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/": {
+    "feature": "Core\\Mail\\ReportRecipient",
+    "hash": "1b3dd172467a5fb2",
+    "questions": [
+      "One address in the delivery report of a bounce",
+      "Read the address, action and status code of a bounced recipient",
+      "Object for one recipient of a delivery report",
+      "What can I read about each address that bounced?",
+      "Get the result of the delivery for one recipient"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/action/": {
+    "feature": "Core\\Mail\\ReportRecipient::action",
+    "hash": "ea0da6e3b44aa5a0",
+    "questions": [
+      "How do I see if a recipient in a bounce failed or was delayed?",
+      "Read the Action line of a delivery report",
+      "What did the mail server do for one address?",
+      "Check that an address really did not get my email",
+      "Which actions can a delivery report give?"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/address/": {
+    "feature": "Core\\Mail\\ReportRecipient::address",
+    "hash": "816b5e9b41cf7446",
+    "questions": [
+      "How do I get the address that bounced?",
+      "Read the Final-Recipient address of a delivery report",
+      "Find the customers whose email address failed",
+      "Remove rfc822; and angle brackets from a bounced address",
+      "Compare a bounced address with the addresses I sent to"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/diagnostic/": {
+    "feature": "Core\\Mail\\ReportRecipient::diagnostic",
+    "hash": "ac9ab1bdb5c5bcfd",
+    "questions": [
+      "How do I get the error message of a bounced email?",
+      "Read the Diagnostic-Code line of a delivery report",
+      "Show why an email failed on a support page",
+      "Log the mail server text such as 550 5.1.1 User unknown",
+      "Why is the bounce diagnostic null?"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/ispermanent/": {
+    "feature": "Core\\Mail\\ReportRecipient::isPermanent",
+    "hash": "346cc046d454f3ea",
+    "questions": [
+      "Is a bounce permanent or temporary?",
+      "When should I stop sending to an email address?",
+      "Tell a hard bounce from a soft bounce",
+      "Is a full mailbox a permanent failure?",
+      "Avoid being blocked for mailing addresses that do not exist"
+    ]
+  },
+  "/reference/core/mail-reportrecipient/status/": {
+    "feature": "Core\\Mail\\ReportRecipient::status",
+    "hash": "4f7c121053e7493e",
+    "questions": [
+      "How do I get the status code of a bounced email?",
+      "What does the status code 5.1.1 mean?",
+      "Read the Status line of a delivery report",
+      "What do the three numbers of a mail status code mean?",
+      "Why is the status of a recipient an empty string?"
     ]
   },
   "/reference/core/markdown/": {
@@ -15568,7 +16074,7 @@
   },
   "/reference/core/test-sentmail/": {
     "feature": "Core\\Test\\SentMail",
-    "hash": "e6bac989c6bda2f4",
+    "hash": "204c85991ff76502",
     "questions": [
       "What does Core\\Test::sentMail return?",
       "One email that my code sent during a test",
@@ -15586,17 +16092,6 @@
       "Read the name and content of an email attachment in a test",
       "Does the attachment list include inline images in the HTML?",
       "Check that an email was sent with no attachments"
-    ]
-  },
-  "/reference/core/test-sentmail/isautosubmitted/": {
-    "feature": "Core\\Test\\SentMail::isAutoSubmitted",
-    "hash": "2540a0eb2f9157f0",
-    "questions": [
-      "How do I check that a program sent an email automatically in a test?",
-      "Test that a reply written by a person is sent as a normal mail",
-      "Read the Auto-Submitted header of a sent email",
-      "Stop out-of-office replies to my automatic emails",
-      "Is an email automatic when the code does not say?"
     ]
   },
   "/reference/core/test-sentmail/bcc/": {
@@ -15669,6 +16164,17 @@
       "Test that a reply belongs to the right email thread",
       "Read the In-Reply-To header of a sent email",
       "What is the reply id of a new email that starts a thread?"
+    ]
+  },
+  "/reference/core/test-sentmail/isautosubmitted/": {
+    "feature": "Core\\Test\\SentMail::isAutoSubmitted",
+    "hash": "f8d5e9756cf2c43c",
+    "questions": [
+      "How do I check that a program sent an email automatically in a test?",
+      "Test that a reply written by a person is sent as a normal mail",
+      "Read the Auto-Submitted header of a sent email",
+      "Stop out-of-office replies to my automatic emails",
+      "Is an email automatic when the code does not say?"
     ]
   },
   "/reference/core/test-sentmail/messageid/": {
@@ -18485,6 +18991,28 @@
       "Error for an invalid argument passed to a function"
     ]
   },
+  "/reference/types/mail-message-kind/": {
+    "feature": "Core\\Mail\\Message::Kind",
+    "hash": "97f4568ce6dd55ea",
+    "questions": [
+      "Which kinds of received email can my app tell apart?",
+      "Enum for bounce, delay, complaint, auto-reply and reply",
+      "Is an out-of-office reply with In-Reply-To a reply or an auto-reply?",
+      "Use match to handle each kind of incoming email",
+      "In what order are the kinds of a message checked?"
+    ]
+  },
+  "/reference/types/mail-reportrecipient-action/": {
+    "feature": "Core\\Mail\\ReportRecipient::Action",
+    "hash": "834ad587893b11fd",
+    "questions": [
+      "What do Failed, Delayed and Delivered mean in a bounce?",
+      "Enum for what the mail server did with my message",
+      "What does Relayed mean in a delivery report?",
+      "What does Expanded mean for a mailing list address?",
+      "When does a delivery report count as a bounce?"
+    ]
+  },
   "/reference/types/mime-type/": {
     "feature": "Core\\Mime::Type",
     "hash": "9ac357aabc2ca5a9",
@@ -19840,7 +20368,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "82da9063098bce84",
+    "hash": "d7e69bd18d9bd7fa",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",
