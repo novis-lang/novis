@@ -167,6 +167,13 @@ pub(crate) struct Literals {
     /// The `count` at the start of the function being hashed. A hashed name
     /// counts from it, so a function hashes alike wherever it is compiled.
     base: usize,
+    /// Set only when the unit keys its functions ([`crate::function_keys`]):
+    /// each data object defined so far, by id, to the digest of its contents
+    /// with every target it relocates against named by its own digest or
+    /// symbol. A literal's name counts up through the unit, so a function's
+    /// key names a literal by this digest, never by its name. Compile-time
+    /// memory, one entry per data object the unit defines.
+    pub(crate) digests: Option<FxHashMap<DataId, [u8; 32]>>,
 }
 
 impl Literals {
@@ -209,6 +216,68 @@ impl Literals {
         };
         let functions: Vec<String> = desc.function_decls.values().map(target).collect();
         let data: Vec<String> = desc.data_decls.values().map(target).collect();
+        Self::describe_with(desc, &functions, &data)
+    }
+
+    /// The digest of `desc` as a function's key reads it: every data target
+    /// a literal by its own digest and anything else by its symbol, and every
+    /// function target by its symbol. Two literals with the same contents get
+    /// the same digest wherever the unit defines them.
+    fn digest(&self, desc: &DataDescription, module: &dyn Module) -> [u8; 32] {
+        let declarations = module.declarations();
+        let functions: Vec<String> = desc
+            .function_decls
+            .values()
+            .map(|target| match target {
+                cranelift_module::ModuleRelocTarget::User {
+                    namespace: 0,
+                    index,
+                } => declarations
+                    .get_function_decl(FuncId::from_u32(*index))
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| format!("{target:?}")),
+                other => format!("{other:?}"),
+            })
+            .collect();
+        let data: Vec<String> = desc
+            .data_decls
+            .values()
+            .map(|target| self.data_key_name(target, module))
+            .collect();
+        *blake3::hash(Self::describe_with(desc, &functions, &data).as_bytes()).as_bytes()
+    }
+
+    /// `target`, a data object, as a function's key names it: a literal this
+    /// unit defined by the hex of its digest, and any other object by its
+    /// symbol, which does not depend on where it is declared.
+    pub(crate) fn data_key_name(
+        &self,
+        target: &cranelift_module::ModuleRelocTarget,
+        module: &dyn Module,
+    ) -> String {
+        let cranelift_module::ModuleRelocTarget::User {
+            namespace: 1,
+            index,
+        } = target
+        else {
+            return format!("{target:?}");
+        };
+        let id = DataId::from_u32(*index);
+        if let Some(digest) = self.digests.as_ref().and_then(|digests| digests.get(&id)) {
+            return format!("literal {}", blake3::Hash::from(*digest).to_hex());
+        }
+        module
+            .declarations()
+            .get_data_decl(id)
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{target:?}"))
+    }
+
+    /// The text [`Self::describe`] and [`Self::digest`] share, with each
+    /// target already named.
+    fn describe_with(desc: &DataDescription, functions: &[String], data: &[String]) -> String {
         format!(
             "{:?} functions {functions:?} data {data:?} at {:?} {:?} align {:?} section {:?} used {}",
             desc.init,
@@ -2299,6 +2368,12 @@ impl Emitter<'_, '_> {
                 function: self.f.name.clone(),
                 source: Box::new(source),
             })?;
+        if self.literals.digests.is_some() {
+            let digest = self.literals.digest(desc, &*self.module);
+            if let Some(digests) = self.literals.digests.as_mut() {
+                digests.insert(data, digest);
+            }
+        }
         self.module
             .define_data(data, desc)
             .map_err(|source| CodegenError::Cranelift {

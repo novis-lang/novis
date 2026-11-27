@@ -1478,6 +1478,36 @@ pub fn function_code_hashes(
     Ok(hashes)
 }
 
+/// Each function of `program` by name, with the key of its machine code, in
+/// the program's function order.
+///
+/// The key covers everything the function's code reads: its lowered body,
+/// each declaration its emit read, the target and the optimisation level
+/// (`UnitBuilder::function_key`). A caller that stores code under it folds in
+/// the environment hash too. The functions are emitted into a throwaway object
+/// module and never compiled.
+///
+/// What it spends: the program's declarations, one function's Cranelift IR at
+/// a time, and one digest per data object the program defines, dropped before
+/// it returns.
+///
+/// # Errors
+///
+/// The same cases [`compile`] reports, for the same reasons.
+pub fn function_keys(program: &Program) -> Result<Vec<(String, [u8; 32])>, CodegenError> {
+    let mut unit = UnitBuilder::for_object()?;
+    unit.keys = Some(Vec::with_capacity(program.functions.len()));
+    unit.literals.digests = Some(FxHashMap::default());
+    unit.declare_all(program)?;
+    let bases = Base::all(program)?;
+    let mut ctx = unit.module.module().make_context();
+    for (function, base) in program.functions.iter().zip(bases) {
+        unit.emit_body(function, base, &mut ctx)?;
+        unit.module.module().clear_context(&mut ctx);
+    }
+    Ok(unit.keys.take().unwrap_or_default())
+}
+
 /// Every class descriptor a unit declares, built from the lowered IR and from
 /// nothing else — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 /// 's answer to where a warm cache hit's descriptors come from.
@@ -1819,6 +1849,14 @@ struct UnitBuilder<M> {
     /// Set only by [`function_code_hash`]: the hash of each compiled
     /// function's bytes and relocations. `None` is the ordinary compile.
     hash: Option<blake3::Hasher>,
+    /// Set only when the unit keys its functions ([`function_keys`]): each
+    /// emitted function's name and key, in the order they were emitted.
+    /// `None` is the ordinary compile, which renders nothing for a key.
+    keys: Option<Vec<(String, [u8; 32])>>,
+    /// Filled with [`Self::keys`]: each function this unit defines, by id, to
+    /// its Novis name. A key names a callee by it, because the callee's symbol
+    /// carries its place in the program.
+    key_names: FxHashMap<cranelift_module::FuncId, String>,
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
@@ -3032,6 +3070,8 @@ impl<M: Backend> UnitBuilder<M> {
             disasm,
             clif: None,
             hash: None,
+            keys: None,
+            key_names: FxHashMap::default(),
         }
     }
 
@@ -3183,6 +3223,9 @@ impl<M: Backend> UnitBuilder<M> {
                     source: Box::new(source),
                 })?;
             self.functions.insert(function.name.clone(), id);
+            if self.keys.is_some() {
+                self.key_names.insert(id, function.name.clone());
+            }
             self.shapes
                 .insert(function.name.clone(), MethodShape::of_function(function));
             if let Some(slots) = &function.debug_slots {
@@ -3301,7 +3344,92 @@ impl<M: Backend> UnitBuilder<M> {
             return Err(error);
         }
         self.collect_clif(&function.name, ctx);
+        if self.keys.is_some() {
+            let key = self.function_key(&mut ctx.func);
+            if let Some(keys) = self.keys.as_mut() {
+                keys.push((function.name.clone(), key));
+            }
+        }
         Ok(id)
+    }
+
+    /// The key of the function just emitted into `func`: BLAKE3 over the
+    /// target and its settings, the optimisation level among them, then the
+    /// Cranelift IR the emit wrote, then the name of each target that IR
+    /// relocates against.
+    ///
+    /// The record of what the emit read is the IR it wrote. Every slot
+    /// offset, static slot, statement number and callee is an operand or a
+    /// relocation in it, so a declaration the emit read moves the key exactly
+    /// when it moves the code, and no list beside the emit can forget one.
+    /// Cranelift compiles the same IR to the same bytes, so two functions
+    /// with one key have one machine code.
+    ///
+    /// A target is named so that its place in the program does not move the
+    /// key: a function of the unit by its Novis name, a literal by the digest
+    /// of its contents ([`emit::Literals`]), and a runtime entry, a class
+    /// descriptor or a codec by its symbol. While the IR is printed, each
+    /// target's entry is renumbered by its first use in this function, and
+    /// then put back as it was. The environment hash is the caller's to fold
+    /// in, because this crate does not know the extension set.
+    ///
+    /// What it spends: one printing of the function's IR and one BLAKE3 pass
+    /// over it, on the compiling thread, only when keys were asked for.
+    fn function_key(&mut self, func: &mut codegen::ir::Function) -> [u8; 32] {
+        let module: &dyn Module = self.module.module();
+        let declarations = module.declarations();
+        let targets: Vec<(
+            codegen::ir::UserExternalNameRef,
+            codegen::ir::UserExternalName,
+        )> = func
+            .params
+            .user_named_funcs()
+            .iter()
+            .map(|(reference, name)| (reference, name.clone()))
+            .collect();
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(b"nvs function key 1\n");
+        hasher.update(format!("{}\n{}\n", self.isa.triple(), self.isa.flags()).as_bytes());
+        for flag in self.isa.isa_flags() {
+            hasher.update(format!("{flag}\n").as_bytes());
+        }
+        // `cranelift-module` names a function in namespace 0 and a data
+        // object in namespace 1. The renumbered entries use namespaces from
+        // `RENUMBERED` up, which no module uses, so no entry ever collides with
+        // one not yet renumbered.
+        const RENUMBERED: u32 = 0x100;
+        for (local, (reference, name)) in (0_u32..).zip(&targets) {
+            func.params.reset_user_func_name(
+                *reference,
+                codegen::ir::UserExternalName::new(RENUMBERED + name.namespace, local),
+            );
+        }
+        hasher.update(func.to_string().as_bytes());
+        for (reference, name) in &targets {
+            func.params.reset_user_func_name(*reference, name.clone());
+        }
+        for (_, name) in &targets {
+            let target = cranelift_module::ModuleRelocTarget::User {
+                namespace: name.namespace,
+                index: name.index,
+            };
+            let line = match name.namespace {
+                0 => {
+                    let id = cranelift_module::FuncId::from_u32(name.index);
+                    self.key_names.get(&id).map_or_else(
+                        || {
+                            let declared = declarations.get_function_decl(id).name.clone();
+                            format!("import {}", declared.unwrap_or_else(|| format!("{name}")))
+                        },
+                        |novis| format!("function {novis}"),
+                    )
+                }
+                _ => self.literals.data_key_name(&target, module),
+            };
+            hasher.update(line.as_bytes());
+            hasher.update(b"\n");
+        }
+        *hasher.finalize().as_bytes()
     }
 
     /// Defines the machine code [`compile_body`] left in `ctx` as function
@@ -4121,6 +4249,40 @@ echo Gate::less(1, 2);
                 Some(code_hash(&gate("", "<"))),
                 None,
             ]
+        );
+    }
+
+    /// A function's key names each literal by its contents, never by its
+    /// number. `Gate::less` reuses the `"less"` that `Before::run` defined
+    /// first, or defines its own when `Before::run` prints `"more"`, and its
+    /// key is the same both times. `Before::run`'s key follows its string,
+    /// and a changed comparison moves `Gate::less`'s.
+    #[test]
+    fn a_key_names_a_literal_by_its_contents() {
+        let key = |program: &Program, name: &str| {
+            function_keys(program)
+                .expect("the functions emit")
+                .into_iter()
+                .find(|(function, _)| function == name)
+                .map(|(_, key)| key)
+                .expect("the program has the function")
+        };
+        let before = |text: &str, op: &str| {
+            gate(
+                &format!(
+                    "class Before {{ public static function run(int $n): int {{ if ($n > 0) {{ echo \"{text}\"; }} return $n; }} }} echo Before::run(3); "
+                ),
+                op,
+            )
+        };
+        let shared = before("less", "<");
+        let own = before("more", "<");
+        assert_eq!(key(&shared, "Gate::less"), key(&shared, "Gate::less"));
+        assert_eq!(key(&shared, "Gate::less"), key(&own, "Gate::less"));
+        assert_ne!(key(&shared, "Before::run"), key(&own, "Before::run"));
+        assert_ne!(
+            key(&shared, "Gate::less"),
+            key(&before("less", "<="), "Gate::less")
         );
     }
 
