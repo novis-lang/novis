@@ -107,6 +107,25 @@ pub fn checked(
     rewrites: Vec<Rewrite>,
     moves: &[(PathBuf, PathBuf)],
 ) -> Result<Checked, Broken> {
+    checked_creating(documents, index, rewrites, moves, &[])
+}
+
+/// [`checked`], with each `(path, text)` of `created` a new file the edit
+/// writes. Each analysis after the edit reads it at its path, and an
+/// `autoload` probe finds it there. Extract interface writes one
+/// (`crate::extract_interface`).
+///
+/// # Errors
+///
+/// Returns the first error the edit adds, in a changed file, a reader or a
+/// created file.
+pub fn checked_creating(
+    documents: &Documents,
+    index: &SymbolIndex,
+    rewrites: Vec<Rewrite>,
+    moves: &[(PathBuf, PathBuf)],
+    created: &[(PathBuf, String)],
+) -> Result<Checked, Broken> {
     let mut texts = read_texts(documents, &rewrites);
     apply(&mut texts, &rewrites);
     let places = places(index, moves, &texts);
@@ -141,6 +160,9 @@ pub fn checked(
             overlaid.push((new.clone(), text));
         }
     }
+    for (path, text) in created {
+        overlaid.push((crate::rename::new_key(path), text.clone()));
+    }
     let after_reads = Overlaid {
         base: documents,
         texts: overlaid,
@@ -153,7 +175,11 @@ pub fn checked(
             .map(|analysed| errors(&analysed, &now))
             .unwrap_or_default();
         let at = now(entry);
-        let planned: Vec<PathBuf> = places.values().cloned().collect();
+        let planned: Vec<PathBuf> = places
+            .values()
+            .cloned()
+            .chain(created.iter().map(|(path, _)| crate::rename::new_key(path)))
+            .collect();
         let after =
             nvs_hir::requires::with_planned(planned, || analyse_with(documents, &after_reads, &at));
         let Some(after) = after else {

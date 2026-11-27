@@ -307,12 +307,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Move a part of the code into a new variable or a new method, and save
-    /// the changed file.
+    /// Move a part of the code into a new variable or a new method, or the
+    /// methods of a class into a new interface, and save the changed files.
     ///
-    /// This is the same change as the editor's "Extract to variable" and
-    /// "Extract to method" actions. The command prints the changed file. If
-    /// the change is not possible, it prints why, changes nothing and fails.
+    /// These are the same changes as the editor's "Extract to variable",
+    /// "Extract to method" and "Extract interface" actions. The command prints
+    /// each changed file. If the change is not possible, it prints why,
+    /// changes nothing and fails.
     Extract {
         #[command(subcommand)]
         what: Extracted,
@@ -485,6 +486,33 @@ enum Extracted {
         #[arg(long)]
         json: bool,
     },
+    /// Write a new interface with the public methods of a class. The class
+    /// then implements the interface.
+    ///
+    /// The interface gets its own file. The `autoload` setting gives its
+    /// path. Each method keeps its parameters, its return type and its `///`
+    /// comment. No other code changes to use the interface.
+    Interface {
+        /// The class, as `Shop\Cart`.
+        class: String,
+        /// The name of the interface, as `Priced`. A name without a
+        /// namespace is in the namespace of the class. No type may have
+        /// this name yet.
+        name: String,
+        /// The methods to take, as `total,addItem`. Without it, the
+        /// interface gets every public method that is not static, except
+        /// the constructor.
+        #[arg(long, value_delimiter = ',')]
+        methods: Option<Vec<String>>,
+        /// Print each change and the path of the new file, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `created` field lists
+        /// the new file. The `written` field is `true` when the files were
+        /// saved.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Args {
@@ -546,6 +574,13 @@ impl Args {
                     dry_run,
                     json,
                 } => extract(&range, Extraction::Method, name.as_deref(), dry_run, json),
+                Extracted::Interface {
+                    class,
+                    name,
+                    methods,
+                    dry_run,
+                    json,
+                } => extract_interface(&class, &name, methods.as_deref(), dry_run, json),
             },
             Command::Implement {
                 class,
@@ -1186,7 +1221,10 @@ pub(crate) fn delete(name: &str, dry_run: bool, json: bool) -> ExitCode {
                 &mut project,
                 &deleted.rewrites,
                 &[],
-                &files,
+                &Whole {
+                    deleted: &files,
+                    created: &[],
+                },
                 None,
                 dry_run,
                 json,
@@ -1230,7 +1268,57 @@ pub(crate) fn extract(
     // character after it.
     let to = (line, column.saturating_add(1));
     match query::extract(&project.workspace, &path, from, to, which, name) {
-        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Ok(rewrites) => write_out(
+            &mut project,
+            &rewrites,
+            &[],
+            &Whole::NONE,
+            None,
+            dry_run,
+            json,
+        ),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `nvs code extract interface`: a new interface with the methods of a class
+/// ([`query::extract_interface`]), its file created and the class's file
+/// changed through [`write_out`], or printed with `--dry-run`.
+pub(crate) fn extract_interface(
+    class: &str,
+    name: &str,
+    methods: Option<&[String]>,
+    dry_run: bool,
+    json: bool,
+) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    if project.workspace.index().declaration(class).is_none() {
+        let nearest = project.nearest_names(class);
+        return unknown(
+            &format!("no name `{}` in this project", escaped(class)),
+            &nearest,
+            json,
+        );
+    }
+    match query::extract_interface(&project.workspace, class, name, methods) {
+        Ok(extracted) => {
+            let created = [(extracted.path, extracted.text)];
+            write_out(
+                &mut project,
+                &extracted.rewrites,
+                &[],
+                &Whole {
+                    deleted: &[],
+                    created: &created,
+                },
+                None,
+                dry_run,
+                json,
+            )
+        }
         Err(message) => unknown(&escaped(&message), &[], json),
     }
 }
@@ -1252,7 +1340,15 @@ pub(crate) fn implement(class: &str, dry_run: bool, json: bool) -> ExitCode {
         );
     }
     match query::implement(&project.workspace, class) {
-        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Ok(rewrites) => write_out(
+            &mut project,
+            &rewrites,
+            &[],
+            &Whole::NONE,
+            None,
+            dry_run,
+            json,
+        ),
         Err(message) => unknown(&escaped(&message), &[], json),
     }
 }
@@ -1287,7 +1383,15 @@ pub(crate) fn inline(target: &str, dry_run: bool, json: bool) -> ExitCode {
         query::inline(&project.workspace, &query::Inlined::Method(target))
     };
     match inlined {
-        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Ok(rewrites) => write_out(
+            &mut project,
+            &rewrites,
+            &[],
+            &Whole::NONE,
+            None,
+            dry_run,
+            json,
+        ),
         Err(message) => unknown(&escaped(&message), &[], json),
     }
 }
@@ -1329,7 +1433,15 @@ pub(crate) fn change_signature(
         return unknown_method(&project, symbol, json);
     }
     match query::signature(&project.workspace, symbol, parameters, &pairs) {
-        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Ok(rewrites) => write_out(
+            &mut project,
+            &rewrites,
+            &[],
+            &Whole::NONE,
+            None,
+            dry_run,
+            json,
+        ),
         Err(message) => unknown(&escaped(&message), &[], json),
     }
 }
@@ -1365,7 +1477,15 @@ pub(crate) fn move_member(from: &str, to: &str, dry_run: bool, json: bool) -> Ex
         );
     }
     match query::move_member(&project.workspace, from, to) {
-        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Ok(rewrites) => write_out(
+            &mut project,
+            &rewrites,
+            &[],
+            &Whole::NONE,
+            None,
+            dry_run,
+            json,
+        ),
         Err(message) => unknown(&escaped(&message), &[], json),
     }
 }
@@ -1666,7 +1786,7 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
                 &mut project,
                 &renamed.rewrites,
                 &moves,
-                &[],
+                &Whole::NONE,
                 None,
                 dry_run,
                 json,
@@ -1784,7 +1904,7 @@ pub(crate) fn rename_from(from: &str, dry_run: bool, json: bool) -> ExitCode {
         &mut project,
         &rewrites,
         &batch.moves,
-        &[],
+        &Whole::NONE,
         Some(&lines),
         dry_run,
         json,
@@ -1826,7 +1946,15 @@ pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> Exit
         Ok(checked) => checked.rewrites,
         Err(broken) => return unknown(&escaped(&broken.refusal()), &[], json),
     };
-    write_out(&mut project, &rewrites, &moves, &[], None, dry_run, json)
+    write_out(
+        &mut project,
+        &rewrites,
+        &moves,
+        &Whole::NONE,
+        None,
+        dry_run,
+        json,
+    )
 }
 
 /// `from` and `to` as the keys a move is made under, or the message and the
@@ -1989,7 +2117,7 @@ pub(crate) fn order(paths: &[String], check: bool, dry_run: bool, json: bool) ->
         Err(message) => return unknown(&message, &[], json),
     };
     let written = !check && !dry_run;
-    if written && let Err(message) = committed(&project, &changes, &[], &[]) {
+    if written && let Err(message) = committed(&project, &changes, &[], &[], &[]) {
         return unknown(&message, &[], json);
     }
     let status = if check && !moved.is_empty() {
@@ -2162,6 +2290,22 @@ struct Change {
     edits: usize,
 }
 
+/// The whole files a write verb deletes or creates, beside its edits.
+struct Whole<'a> {
+    /// Each file the verb deletes.
+    deleted: &'a [PathBuf],
+    /// Each file the verb creates, with its text. Nothing may be at its path.
+    created: &'a [(PathBuf, String)],
+}
+
+impl Whole<'_> {
+    /// No file deleted or created.
+    const NONE: Whole<'static> = Whole {
+        deleted: &[],
+        created: &[],
+    };
+}
+
 /// The write path of `rename`, `move`, `delete`, `extract` and `implement`,
 /// and what they print.
 ///
@@ -2169,9 +2313,10 @@ struct Change {
 /// read or an edit that does not fit its file writes nothing. Every path and
 /// every move's target is checked to be inside the project root. Each file is
 /// read again, and one whose bytes differ from the bytes the edits were
-/// computed against writes nothing. Then each file is written, each file of
-/// `deleted` is removed, and each move is made after all of them. `--dry-run`
-/// stops before the second read.
+/// computed against writes nothing. Then each file of `whole.created` is
+/// created, each file is written, each file of `whole.deleted` is removed,
+/// and each move is made after all of them. `--dry-run` stops before the
+/// second read.
 ///
 /// The bytes the edits were computed against are each file's first read in
 /// this call, which is right after the analysis. A crash between two writes
@@ -2185,11 +2330,13 @@ fn write_out(
     project: &mut Project,
     rewrites: &[Rewrite],
     moves: &[(PathBuf, PathBuf)],
-    deleted: &[PathBuf],
+    whole: &Whole<'_>,
     lines: Option<&BTreeMap<Rewrite, u32>>,
     dry_run: bool,
     json: bool,
 ) -> ExitCode {
+    let deleted = whole.deleted;
+    let created = whole.created;
     let mut rewrites: Vec<&Rewrite> = rewrites.iter().collect();
     rewrites.sort();
     rewrites.dedup();
@@ -2217,6 +2364,26 @@ fn write_out(
         }
     }
     let shown_deleted: Vec<String> = deleted.iter().map(|path| project.shown(path)).collect();
+    for (path, _) in created {
+        if !inside(project.workspace.root(), path) {
+            let message = format!(
+                "`{}` is outside the project, so nothing was changed.",
+                project.shown(path)
+            );
+            return unknown(&message, &[], json);
+        }
+        if path.exists() {
+            let message = format!(
+                "`{}` already exists, so nothing was changed.",
+                project.shown(path)
+            );
+            return unknown(&message, &[], json);
+        }
+    }
+    let shown_created: Vec<String> = created
+        .iter()
+        .map(|(path, _)| project.shown(path))
+        .collect();
     let edits: Vec<(Place, String, String)> = rewrites
         .iter()
         .map(|rewrite| {
@@ -2233,7 +2400,7 @@ fn write_out(
         .iter()
         .map(|(from, to)| (project.shown(from), project.shown(to)))
         .collect();
-    if !dry_run && let Err(message) = committed(project, &changes, moves, &gone) {
+    if !dry_run && let Err(message) = committed(project, &changes, moves, &gone, created) {
         return unknown(&message, &[], json);
     }
     if json {
@@ -2261,6 +2428,7 @@ fn write_out(
                 "edits": edits,
                 "moved": moved,
                 "deleted": shown_deleted,
+                "created": shown_created,
                 "written": !dry_run,
             }))
         );
@@ -2281,6 +2449,9 @@ fn write_out(
         for path in &shown_deleted {
             println!("delete {path}");
         }
+        for path in &shown_created {
+            println!("create {path}");
+        }
         return ExitCode::SUCCESS;
     }
     for change in &changes {
@@ -2292,6 +2463,9 @@ fn write_out(
     }
     for path in &shown_deleted {
         println!("deleted {path}");
+    }
+    for path in &shown_created {
+        println!("created {path}");
     }
     ExitCode::SUCCESS
 }
@@ -2374,13 +2548,15 @@ fn applied(text: &str, rewrites: &[&Rewrite]) -> Option<String> {
 const CHANGE_BEFORE_WRITE: &str = "NVS_TEST_CODE_CHANGE_BEFORE_WRITE";
 
 /// Writes `changes` once no file of them or of `gone` differs from the bytes
-/// they were computed against, then removes each file of `gone`, and then
-/// makes `moves`.
+/// they were computed against and nothing is at a path of `created`. Each
+/// file of `created` is created first, then `changes` are written, then each
+/// file of `gone` is removed, and then `moves` are made.
 fn committed(
     project: &Project,
     changes: &[Change],
     moves: &[(PathBuf, PathBuf)],
     gone: &[Change],
+    created: &[(PathBuf, String)],
 ) -> Result<(), String> {
     #[cfg(debug_assertions)]
     if let Some(path) = std::env::var_os(CHANGE_BEFORE_WRITE) {
@@ -2406,6 +2582,14 @@ fn committed(
             ));
         }
     }
+    for (path, _) in created {
+        if path.exists() {
+            return Err(format!(
+                "`{}` already exists, so nothing was changed.",
+                project.shown(path)
+            ));
+        }
+    }
     let mut done: Vec<String> = Vec::new();
     let partly = |what: String, done: &[String]| {
         if done.is_empty() {
@@ -2417,6 +2601,12 @@ fn committed(
             )
         }
     };
+    for (path, text) in created {
+        if let Err(what) = create_new(project, path, text) {
+            return Err(partly(what, &done));
+        }
+        done.push(project.shown(path));
+    }
     for change in changes {
         if let Err(err) = std::fs::write(&change.path, &change.after) {
             let what = format!(
@@ -2488,6 +2678,32 @@ fn committed(
         }
     }
     Ok(())
+}
+
+/// Creates the file `path` with `text`, and each missing directory above it,
+/// each judged inside the project root first. A file already at `path` is an
+/// error, since it is opened with `create_new`.
+fn create_new(project: &Project, path: &Path, text: &str) -> Result<(), String> {
+    use std::io::Write as _;
+    if let Some(parent) = path.parent()
+        && !parent.is_dir()
+    {
+        if !inside(project.workspace.root(), parent) {
+            return Err(format!(
+                "`{}` is outside the project, so it was not created.",
+                project.shown(parent)
+            ));
+        }
+        std::fs::create_dir_all(parent)
+            .map_err(|err| format!("`{}` cannot be created: {err}.", project.shown(parent)))?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|err| format!("`{}` cannot be created: {err}.", project.shown(path)))?;
+    file.write_all(text.as_bytes())
+        .map_err(|err| format!("`{}` cannot be written: {err}.", project.shown(path)))
 }
 
 /// `file:10` or `file:10-20` split into the file and its lines, and the whole

@@ -603,6 +603,28 @@ pub fn move_member(workspace: &Workspace, from: &str, to: &str) -> Result<Vec<Re
     crate::move_member::moved_member(workspace.documents(), workspace.index(), from, to)
 }
 
+/// The interface `name` extracted from the class `class`, with `methods` or
+/// its default methods ([`crate::extract_interface::extracted`]): the edits
+/// to the class's file, and the new file's path and text.
+///
+/// # Errors
+///
+/// Returns why nothing is written.
+pub fn extract_interface(
+    workspace: &Workspace,
+    class: &str,
+    name: &str,
+    methods: Option<&[String]>,
+) -> Result<crate::extract_interface::Extracted, String> {
+    crate::extract_interface::extracted(
+        workspace.documents(),
+        workspace.index(),
+        class,
+        name,
+        methods,
+    )
+}
+
 /// The edits that write every method the class `symbol` owes, through the
 /// function the editor's *Implement the missing methods* fix shares
 /// ([`crate::generate::implement_class`]).

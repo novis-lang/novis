@@ -57,14 +57,16 @@ use crate::rename::Rewrite;
 /// Why a move is refused, written for the person who asked.
 type Why = String;
 
-/// The files the move reads, each parsed once.
-struct Files {
+/// The files the move reads, each parsed once. Extract interface reads
+/// the class's file through it too (`crate::extract_interface`).
+pub(crate) struct Files {
     map: SourceMap,
     loaded: BTreeMap<PathBuf, Option<(SourceId, Vec<Stmt>)>>,
 }
 
 impl Files {
-    fn new(documents: &Documents) -> Self {
+    /// No file read yet, over the open buffers of `documents`.
+    pub(crate) fn new(documents: &Documents) -> Self {
         let mut map = SourceMap::new();
         documents.overlay(&mut map);
         Self {
@@ -721,7 +723,7 @@ fn resolved(index: &SymbolIndex, uses: &[String], space: &str, word: &str) -> Op
 /// How the file `path` writes the type `full` at `at`: its short name where
 /// its namespace or a `use` line reaches it, else its short name with a new
 /// `use` line pushed to `heads`, else its qualified name.
-fn spell(
+pub(crate) fn spell(
     files: &mut Files,
     index: &SymbolIndex,
     path: &Path,

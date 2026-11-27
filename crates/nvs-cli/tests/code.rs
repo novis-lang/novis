@@ -2941,3 +2941,88 @@ fn code_move_member_refuses_a_private_member_its_class_still_uses() {
     assert_eq!(read(&dir, "src/Tax.nvs"), tax);
     assert_eq!(read(&dir, "src/Util/Money.nvs"), MONEY);
 }
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_interface_writes_the_interface_file_and_implements_it() {
+    let dir = project("extract-interface", &[]);
+    let (out, err, ok) = code(&dir, &["extract", "interface", r"Shop\Cart", "Basket"]);
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("created src/Basket.nvs"), "{out}");
+    let basket = read(&dir, "src/Basket.nvs");
+    assert_eq!(
+        basket,
+        "<?nvs\nnamespace Shop;\n\ninterface Basket\n{\n    \
+         /// Adds `n` items and returns the new total.\n    \
+         public function addItem(int $n): int;\n\n    \
+         public function price(): int;\n}\n"
+    );
+    let cart = read(&dir, "src/Cart.nvs");
+    assert!(
+        cart.contains("class Cart implements Priced, Basket {"),
+        "{cart}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the changed project checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_interface_takes_only_the_methods_named() {
+    let dir = project("extract-interface-methods", &[]);
+    let (out, err, ok) = code(
+        &dir,
+        &[
+            "extract",
+            "interface",
+            r"Shop\Cart",
+            r"Shop\Billing\Adds",
+            "--methods",
+            "addItem",
+        ],
+    );
+    assert!(ok, "{out}{err}");
+    let adds = read(&dir, "src/Billing/Adds.nvs");
+    assert!(
+        adds.starts_with("<?nvs\nnamespace Shop\\Billing;\n"),
+        "{adds}"
+    );
+    assert!(
+        adds.contains("public function addItem(int $n): int;"),
+        "{adds}"
+    );
+    assert!(!adds.contains("price"), "{adds}");
+    let cart = read(&dir, "src/Cart.nvs");
+    assert!(cart.contains("use Shop\\Billing\\Adds;"), "{cart}");
+    assert!(
+        cart.contains("class Cart implements Priced, Adds {"),
+        "{cart}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the changed project checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_interface_refuses_a_name_that_exists() {
+    let dir = project("extract-interface-exists", &[]);
+    let (out, err, ok) = code(&dir, &["extract", "interface", r"Shop\Cart", "Wishlist"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("already exists"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Cart.nvs"), CART);
+    assert_eq!(read(&dir, "src/Wishlist.nvs"), WISHLIST);
+    let (out, err, ok) = code(
+        &dir,
+        &[
+            "extract",
+            "interface",
+            r"Shop\Cart",
+            "Basket",
+            "--methods",
+            "total",
+        ],
+    );
+    assert!(!ok, "{out}");
+    assert!(err.contains("no public method `total`"), "{out}{err}");
+    assert!(!dir.join("src/Basket.nvs").exists());
+}

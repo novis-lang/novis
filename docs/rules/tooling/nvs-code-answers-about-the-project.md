@@ -26,7 +26,7 @@ lines and one blank line beside it. A type whose file holds nothing else but its
 `use` lines deletes the file, refused while a `require` names it; the editor does not offer that
 case, since an action edits one document's text. The edit passes
 `rule:ide/a-refactoring-checks-its-edit-before-it-writes`, and the JSON lists each deleted file under
-`deleted`, a key every write verb's JSON has. **Cost:** tooling only: one analysis of the
+`deleted` and each created file under `created`, two keys every write verb's JSON has. **Cost:** tooling only: one analysis of the
 declaration's file, one of each reader of a deleted file, and the check.
 
 **`extract variable`** and **`extract method`** take a range, `path:line:column-line:column`, whose
@@ -39,6 +39,24 @@ class's interfaces and `abstract` parents leave without a body, as the editor's 
 missing methods* fix writes it on `E0449` (`nvs_lsp::generate::implement_class`); a class that owes
 none is refused. Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.
 **Cost:** tooling only: the editor's analyses for the action, then the check.
+
+**`extract interface`** takes a class and a name, and an optional `--methods a,b`, from
+`nvs_lsp::extract_interface::extracted`, the function the editor's `nvs.extractInterface` command
+runs. A bare name is in the class's namespace. The default methods are every public method that is
+not static, except the constructor. It creates one file, at the path the `autoload` map gives the
+name (the first root of its longest prefix, as `rule:ide/a-type-moves-with-its-namespace` finds
+it), with each method's signature as its declaration writes it and its `///` run, and adds the
+name to the class's `implements` list. Each type is written for the new file: its short name with a
+new `use` line where that name is free there, and its qualified name otherwise, never an alias. No
+parameter type anywhere changes to the interface, since which uses take it is the person's choice.
+A name that exists, a class no program loads through an `autoload` map, a name no root reaches and
+a path where a file already is are refused, since an autoloaded file holds one declaration
+(`rule:programs/one-declaration-per-autoloaded-file`). The edit passes
+`rule:ide/a-refactoring-checks-its-edit-before-it-writes` with the new file overlaid at its path
+(`refactor::checked_creating`), so a signature that does not compile there, such as one that writes
+a generic class's type parameter, refuses it. The CLI creates the file with `create_new`, after
+judging it and each missing directory inside the project root. **Cost:** tooling only: one
+analysis of the class's file, one of each program that reads it, then the check.
 
 **`inline`** takes a method's name, or a position, `path:line:column`, on a local, a call or a
 method's name, from `nvs_lsp::query::inline`, the function the editor's three `refactor.inline`

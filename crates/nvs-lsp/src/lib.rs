@@ -115,6 +115,7 @@ mod disk_index;
 mod document;
 mod expected;
 pub mod extract;
+pub mod extract_interface;
 mod file_key;
 pub mod file_kinds;
 pub mod folding;

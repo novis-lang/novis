@@ -797,13 +797,15 @@ fn signature(
     method: &MethodMember,
     offset: BytePos,
 ) -> String {
-    let (visibility, params, returns) = parts(analysed, file, method, offset);
-    let returns = returns.map(|ty| format!(": {ty}")).unwrap_or_default();
-    format!(
-        "{visibility} function {}({}){returns}",
-        text_of(file, method.name),
-        params.join(", "),
-    )
+    let typed = |span: Span| {
+        written_at(
+            analysed,
+            text_of(file, span),
+            Some((file.id(), span.start)),
+            offset,
+        )
+    };
+    signature_typed(file, method, &typed)
 }
 
 /// [`signature`]'s three parts: the visibility, each parameter, and the
@@ -822,6 +824,33 @@ fn parts(
             offset,
         )
     };
+    parts_typed(file, method, &typed)
+}
+
+/// `method`'s signature as its declaration writes it, without `abstract`,
+/// with each type the text `typed` gives for its span. Extract interface
+/// writes each method this way (`crate::extract_interface`), for a file that
+/// does not exist yet.
+pub(crate) fn signature_typed(
+    file: &SourceFile,
+    method: &MethodMember,
+    typed: &dyn Fn(Span) -> String,
+) -> String {
+    let (visibility, params, returns) = parts_typed(file, method, typed);
+    let returns = returns.map(|ty| format!(": {ty}")).unwrap_or_default();
+    format!(
+        "{visibility} function {}({}){returns}",
+        text_of(file, method.name),
+        params.join(", "),
+    )
+}
+
+/// [`parts`], with each type the text `typed` gives for its span.
+fn parts_typed(
+    file: &SourceFile,
+    method: &MethodMember,
+    typed: &dyn Fn(Span) -> String,
+) -> (&'static str, Vec<String>, Option<String>) {
     let visibility = if method.modifiers.contains(&Modifier::Protected) {
         "protected"
     } else {
