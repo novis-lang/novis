@@ -1459,9 +1459,11 @@ the text and in the JSON. So the bytes of a file are never sent to the terminal 
 
 # The compile cache
 
-A compiled unit is stored on disk under a name derived from the hash of its source and of the build
-environment — so an entry is never stale and never needs clearing. `nvs run` and `nvs serve` both
-read and write it.
+Compiled code is stored on disk with one entry for each source file. An entry has the code of each
+function in that file. Its name is a hash of the code of those functions and of the build
+environment. A changed function gives a new name, so an entry is never stale and never needs
+clearing. `nvs run` and `nvs serve` both read and write it.
+After an edit inside one function, only that function is compiled again.
 
 `[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
 off. With no directory named, the cache is the `cache` folder in the data folder. `[cache] dir` is
@@ -1483,7 +1485,8 @@ permissions that pass.
     nvs cache gc [--json]
     nvs cache clear [--json]
 
-`nvs cache gc` checks the size of the compile cache. If the cache is larger than
+`nvs cache gc` first deletes the entries that no compiled program uses, such as the code of a file
+before you edited it. Then it checks the size of the compile cache. If the cache is larger than
 `[opcache] file_cache_max_size`, it deletes the oldest entries until the cache is at 80% of that
 size. If the cache is not larger, it deletes nothing. The default size is 256 MB.
 

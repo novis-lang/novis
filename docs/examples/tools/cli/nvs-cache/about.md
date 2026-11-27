@@ -1,6 +1,7 @@
 `nvs cache` deletes compiled programs from the compile cache.
 
-`nvs cache gc` checks the size of the cache. If the cache is larger than
+`nvs cache gc` first deletes the entries that no compiled program uses, such as the code of a file
+before you edited it. Then it checks the size of the cache. If the cache is larger than
 `[opcache] file_cache_max_size`, it deletes the oldest entries until the cache is at 80% of that
 size. `nvs cache clear` deletes every entry. The next run of a deleted program compiles it again.
 

@@ -112,8 +112,10 @@ compiled code, so the program starts faster. The output does not change:
 
 <Terminal src="tools/cli/cache.term" />
 
-`nvs run` and `nvs serve` both read and write the cache. The name of each entry comes from a hash of
-the source code and of the build. A changed file gets a new entry, so an entry is never out of date.
+`nvs run` and `nvs serve` both read and write the cache. It has one entry for each source file. The
+name of each entry is a hash of the code of the functions in it and of the build. A changed function
+gives a new name, so an entry is never out of date. After an edit inside one function, only that function is
+compiled again.
 
 The cache is the `cache` folder in the data folder. The default data folder is `.nvsdata`, next to
 the `nvs` program. You can set another folder in `nvs.toml`:
@@ -128,8 +130,9 @@ The folder and its parent folder must belong to the account that runs `nvs`. No 
 may write to them. If a folder that you set fails this check, `nvs` prints one warning. It then
 compiles the program at every start.
 
-Two commands change how much disk space the cache uses. `nvs cache gc` removes the oldest entries
-when the cache is larger than `[opcache] file_cache_max_size`. The default limit is 256 MB. In the
+Two commands change how much disk space the cache uses. `nvs cache gc` removes the entries that no
+compiled program uses. Then it removes the oldest entries when the cache is larger than
+`[opcache] file_cache_max_size`. The default limit is 256 MB. In the
 example above, the cache is smaller, so nothing is removed. `nvs cache clear` removes every entry:
 
 ```sh

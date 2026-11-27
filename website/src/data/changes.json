@@ -1,6 +1,34 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "directive:opcache"
+      ],
+      "text": "`[opcache] incremental` keeps two things in memory after a compile: the result of checking each file for errors, and the code of each function. A reload after an edit then checks only the files that changed. The default is `true` in development and `false` in production."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:server/nvs-reload"
+      ],
+      "text": "A reload compiles only the functions that changed, and uses the saved code of every other function. The `program reloaded` line in the log counts the files checked and the functions compiled and reused."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/the-compile-cache"
+      ],
+      "text": "The compile cache has one entry for each source file, with the code of each function in it. After an edit inside one function, only that function is compiled again."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-cache"
+      ],
+      "text": "`nvs cache gc` first deletes the entries that no compiled program uses, such as the code of a file you edited. Then it deletes the oldest entries if the cache is larger than its limit."
+    },
+    {
       "kind": "changed",
       "features": [
         "Novis\\Pdf\\Document::render"

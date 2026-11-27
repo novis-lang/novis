@@ -355,7 +355,9 @@ A running server takes a change without a restart, except a change to four keys.
 **A code change.** The server checks every file a program has loaded once per `[opcache]
 revalidate_freq`, off the request path. When a file changed, the server waits until no file of the
 program has changed for `[opcache] settle`: `1s` in production, `100ms` in development. Then it
-compiles the whole program again, and the next request runs the new code. A request that is already
+compiles the program again, and the next request runs the new code. Only the functions that changed
+are compiled. With `[opcache] incremental`, which is `true` in development, only the files that
+changed are checked. A request that is already
 running finishes on the code it started with. A file added where the program looks for one, or a
 file removed, is a change too. This works in every mode, so a deploy needs no step after it.
 `nvs reload` makes the change take effect at once.
@@ -393,6 +395,7 @@ key, the running value and the new one. The shipped `nvs.toml` ends each of thes
 [opcache]
 #revalidate_freq = "2s"               # how often the server checks the files a program loaded
 #settle = "1s"                        # how long they must stay unchanged before a compile
+#incremental = false                  # keep checked files and compiled functions between compiles
 ```
 
 ## Deploying
@@ -472,7 +475,20 @@ revalidate_freq = "1h"
 ```
 
 Each program a reload replaces writes one `program reloaded` line to the log. Each program that does
-not compile writes one `program reload failed` line, with the first error. A `[[schedule]]` entry
+not compile writes one `program reload failed` line, with the first error. A `program reloaded`
+line has four counts:
+
+| Field | What it counts |
+|---|---|
+| `checked` | the source files whose code was checked |
+| `compiled` | the functions compiled to machine code |
+| `reused` | the functions whose saved machine code was used again |
+| `written` | the files written to the compile cache |
+
+A reload compiles only the functions that changed. With `[opcache] incremental`, the server also
+checks only the files that changed. Its default is `true` in development and `false` in
+production. After an edit inside one function, `checked`, `compiled` and `written` are each `1`,
+at any program size. A `[[schedule]]` entry
 with `on = "reload"` runs after a reload, and its arguments include `programs` and `failed`.
 
 <!-- src: `rule:config/a-reload-command-checks-now-and-waits` -->

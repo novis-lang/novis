@@ -56,6 +56,10 @@ The server checks its configuration files and every program it has loaded. The c
 when every compile has ended. A program that no request has loaded yet is compiled by its first
 request.
 
+A reload compiles only the functions that changed. The server uses its saved code for every other
+function. The log has one `program reloaded` line for each program. Its `compiled` field is the
+number of functions compiled, and `reused` is the number used again.
+
 Run `nvs reload` as the account that runs the server, or as an administrator. It reloads every
 server that uses the same data folder. The data folder is where `nvs` keeps its own files,
 such as the compile cache. If the server was started with `--data`, give the same
@@ -131,5 +135,15 @@ revalidate_freq = "1h"
 `nvs reload` prints each error with its file and line, so you or the agent can fix it at once. A
 reload that you forget still takes effect within one hour. `nvs agent primer` tells a coding agent
 to run `nvs reload` after its edits.
+
+In development, the server also keeps the result of checking each file for errors in memory. A reload after an
+edit inside one function then checks one file and compiles one function, at any program size. The
+setting is `[opcache] incremental`. Its default is `true` in development and `false` in production,
+where the server frees this memory after each compile:
+
+```toml
+[opcache]
+incremental = true
+```
 
 Read every option in [Reference: nvs reload](/reference/cli/nvs-reload/).

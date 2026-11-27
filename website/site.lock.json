@@ -150,10 +150,10 @@
     "directive:mode.ceiling": "3d52fcad32e30f1c"
   },
   "docs/examples/config/mode-default/about.md": {
-    "directive:mode.default": "443686f18a50ec7c"
+    "directive:mode.default": "1625bb1f8e936501"
   },
   "docs/examples/config/opcache/about.md": {
-    "directive:opcache": "fa095ecc87446848"
+    "directive:opcache": "b99ca23cf443fe90"
   },
   "docs/examples/config/opcache-file_cache_dir/about.md": {
     "directive:opcache.file_cache_dir": "53c38ea90703de72"
@@ -4689,7 +4689,7 @@
     "tools:cli/nvs-build-openapi": "aaf30e235ec78607"
   },
   "docs/examples/tools/cli/nvs-cache/about.md": {
-    "tools:cli/nvs-cache": "d84ffe32bc54a636"
+    "tools:cli/nvs-cache": "8c18676a3720e199"
   },
   "docs/examples/tools/cli/nvs-check/about.md": {
     "tools:cli/nvs-check": "a01272659c024d70"
@@ -4749,7 +4749,7 @@
     "tools:cli/profiling": "52625769cfa1744b"
   },
   "docs/examples/tools/cli/the-compile-cache/about.md": {
-    "tools:cli/the-compile-cache": "376e91459698612a"
+    "tools:cli/the-compile-cache": "8e86acee60df5e70"
   },
   "docs/examples/tools/cli/the-debug-viewer/about.md": {
     "tools:cli/the-debug-viewer": "4c26d4e0c2659dd9"
@@ -4896,7 +4896,7 @@
     "tools:server/mounts-which-file-answers-a-request": "cdb3be28bc91fa9e"
   },
   "docs/examples/tools/server/nvs-reload/about.md": {
-    "tools:server/nvs-reload": "71da0ce0ac195ed6"
+    "tools:server/nvs-reload": "c70da3f16e807720"
   },
   "docs/examples/tools/server/nvs-serve/about.md": {
     "tools:server/nvs-serve": "e77bad0426c52981"
@@ -4914,7 +4914,7 @@
     "tools:server/what-a-program-reads-about-its-door": "99cf760c505b7da3"
   },
   "docs/examples/tools/server/what-reaches-a-running-server/about.md": {
-    "tools:server/what-reaches-a-running-server": "8d5aecda01f44be1"
+    "tools:server/what-reaches-a-running-server": "0726b16597070496"
   },
   "docs/examples/tools/server/when-the-client-goes-away/about.md": {
     "tools:server/when-the-client-goes-away": "ed57ac7201346c6e"
@@ -9192,7 +9192,7 @@
     "directive:mode.default": "205b178e2070ef64"
   },
   "help:directive:opcache": {
-    "directive:opcache": "589a5d19437efb74"
+    "directive:opcache": "2251759ef325fd81"
   },
   "help:directive:opcache.file_cache_dir": {
     "directive:opcache.file_cache_dir": "1936e0406f9718c5"
@@ -9876,7 +9876,7 @@
     "tools:cli/nvs-build-openapi": "df118b2be2a03504"
   },
   "help:tools:cli/nvs-cache": {
-    "tools:cli/nvs-cache": "ae50355a58ff99cf"
+    "tools:cli/nvs-cache": "efec4a4299919413"
   },
   "help:tools:cli/nvs-check": {
     "tools:cli/nvs-check": "ab8ef0701139caef"
@@ -9936,7 +9936,7 @@
     "tools:cli/profiling": "af98b86d315f02db"
   },
   "help:tools:cli/the-compile-cache": {
-    "tools:cli/the-compile-cache": "fd0b685bee69a613"
+    "tools:cli/the-compile-cache": "49ac635800544c75"
   },
   "help:tools:cli/the-debug-viewer": {
     "tools:cli/the-debug-viewer": "963c9e805aebcf8c"
@@ -10083,7 +10083,7 @@
     "tools:server/mounts-which-file-answers-a-request": "641769e3c81982fa"
   },
   "help:tools:server/nvs-reload": {
-    "tools:server/nvs-reload": "0ea07bebbcedd090"
+    "tools:server/nvs-reload": "399a0a1fd8323707"
   },
   "help:tools:server/nvs-serve": {
     "tools:server/nvs-serve": "3082ff8d2a7a7d02"
@@ -10101,7 +10101,7 @@
     "tools:server/what-a-program-reads-about-its-door": "d5a3beab0e36a12d"
   },
   "help:tools:server/what-reaches-a-running-server": {
-    "tools:server/what-reaches-a-running-server": "267a54f75993f24e"
+    "tools:server/what-reaches-a-running-server": "8c8d0ba850a3e4fb"
   },
   "help:tools:server/when-the-client-goes-away": {
     "tools:server/when-the-client-goes-away": "0f7101d1cea59208"
@@ -10489,13 +10489,13 @@
     "tools:cli/nvs-build-openapi": "dbac43af636127ef"
   },
   "tools/cli/index.mdx": {
-    "tools:cli/nvs-cache": "55fa8243c751a0e5",
+    "tools:cli/nvs-cache": "3b2f83921acf2261",
     "tools:cli/nvs-check": "86292469633f7dfc",
     "tools:cli/nvs-code": "6894cb1f8cfe6f4d",
     "tools:cli/nvs-telemetry": "7e43ba1c25912f69",
     "tools:cli/nvs-update-check": "78ba415a67550879",
     "tools:cli/one-binary": "ed9352ebba644ab5",
-    "tools:cli/the-compile-cache": "884750663dbb5933"
+    "tools:cli/the-compile-cache": "4b4eb265daabed4d"
   },
   "tools/debug-viewer/index.mdx": {
     "tools:cli/nvs-debug": "df2a3261de9b6623",

@@ -390,7 +390,7 @@
   },
   "/guides/production/deploy/": {
     "feature": "guides/production/deploy.mdx",
-    "hash": "93307e6eb4685eaa",
+    "hash": "312dac595d3149eb",
     "questions": [
       "How do I deploy a new version without a restart?",
       "Switch to a new release folder with a symlink",
@@ -1285,13 +1285,14 @@
   },
   "/reference/cli/nvs-cache/": {
     "feature": "tools:cli/nvs-cache",
-    "hash": "78e5402e91cda80f",
+    "hash": "9fba0965051a87d7",
     "questions": [
       "How do I clear the compile cache?",
       "Delete the oldest compiled programs when the cache is too big",
       "How large can the compile cache get before entries are deleted?",
       "Get the result of a cache cleanup as JSON for a cron job",
-      "Why does nvs cache count some entries as skipped on Windows?"
+      "Why does nvs cache count some entries as skipped on Windows?",
+      "Delete compiled code that no program uses any more"
     ]
   },
   "/reference/cli/nvs-check/": {
@@ -1468,12 +1469,12 @@
   },
   "/reference/cli/nvs-reload/": {
     "feature": "tools:server/nvs-reload",
-    "hash": "51323a0576cd3ce7",
+    "hash": "c406f722de596de7",
     "questions": [
       "Make my running server use the new code at once",
       "How do I know if a deploy has a compile error?",
       "What do the exit codes of nvs reload mean?",
-      "Reload every server that uses one data folder",
+      "How many functions did a reload compile?",
       "Can a web request start a reload of the server?",
       "My coding agent edits many files. How do I stop half-edited compiles?"
     ]
@@ -1588,10 +1589,10 @@
   },
   "/reference/cli/the-compile-cache/": {
     "feature": "tools:cli/the-compile-cache",
-    "hash": "a5080b1566be22a6",
+    "hash": "61fa9753dca0b4e3",
     "questions": [
       "Why does my program start faster the second time?",
-      "Where are compiled programs stored on disk?",
+      "Does an edit to one function compile the whole program again?",
       "Do I need to clear the cache after changing my code?",
       "Turn off caching of compiled code",
       "Change the folder used for compiled code",
@@ -1817,7 +1818,7 @@
   },
   "/reference/config/mode/": {
     "feature": "tools:config/mode",
-    "hash": "3195222b7b7c7488",
+    "hash": "b064b5837bc4bf59",
     "questions": [
       "Run the server with safe settings for a live website",
       "How do I show full error details while developing?",
@@ -1841,13 +1842,14 @@
   },
   "/reference/config/opcache/": {
     "feature": "directive:opcache",
-    "hash": "8034ea757726858f",
+    "hash": "820acb781039b207",
     "questions": [
       "Why does my code change not show up without a restart?",
       "How often does the server check for changed source files?",
       "Where is compiled code stored on disk?",
       "Detect changed files by content and not by modification time",
-      "Make the server reload code faster while I edit"
+      "Make the server reload code faster while I edit",
+      "Make a reload check only the files I changed"
     ]
   },
   "/reference/config/queue/": {
@@ -20474,7 +20476,7 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "6261f4a237d9357b",
+    "hash": "f97f5228f8245840",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",

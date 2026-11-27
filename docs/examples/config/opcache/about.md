@@ -9,5 +9,10 @@ unchanged before the server compiles them again.
 The default of `settle` depends on the run mode: `1s` in production and `100ms` in development. A
 value written in the file is used in both modes.
 
+`incremental` keeps two things in memory after a compile: the result of checking each file for
+errors, and the compiled code of each function. A reload after an edit then checks only the files
+that changed. It compiles only the functions that changed. The default is `true` in development and `false` in production.
+With `false`, the server frees this memory after each compile.
+
 **Good to know:** a program cannot change any of these settings. Only the person who runs the server
 may change them.

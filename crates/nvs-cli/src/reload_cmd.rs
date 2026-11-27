@@ -41,6 +41,11 @@ const REPLY_LIMIT: u64 = 64 * 1024;
 /// changed program is compiled, then prints what each server did. It exits with
 /// 0 when everything is in use, with 1 when a file has an error or a server did
 /// not answer, and with 2 when no server is running.
+///
+/// A server reuses the saved code of every function that did not change. In
+/// development it also checks only the files that changed (`[opcache] incremental`). The server log
+/// has one `program reloaded` record for each changed program. The record says
+/// how many files were checked and how many functions were compiled and reused.
 #[derive(clap::Args)]
 pub(crate) struct Args {
     /// Print the result as JSON.

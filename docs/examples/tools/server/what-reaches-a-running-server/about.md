@@ -3,8 +3,8 @@ configuration keys are the exception.
 
 The server checks the files of a program regularly, and `[opcache] revalidate_freq` sets how often.
 When a file changed, the server waits until the files stay unchanged for the time in
-`[opcache] settle`. It then compiles the whole program again, and the next request runs the new
-code. A request that is already running finishes on the old code. `nvs reload` checks every file at
+`[opcache] settle`. It then compiles only the functions that changed, and the next request runs the
+new code. A request that is already running finishes on the old code. `nvs reload` checks every file at
 once, without the wait.
 
 The server checks its configuration files every two seconds. When you save a file, the server reads
