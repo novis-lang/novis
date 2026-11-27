@@ -3,9 +3,9 @@
 //!
 //! The operator is **total**. Every value has a representation, so every
 //! subject has an answer, and this module refuses nothing about the left-hand
-//! side — not even a subject whose declared type settles the question, and not
-//! even one that can hold no object at all under the value arm.
-//! `rule:types/type-test` is the argument, and it also names the second reason — once `is` narrows, a
+//! side: not a subject whose declared type settles the question, and not one
+//! that can hold no object at all under the value arm. `rule:types/type-test`
+//! is the argument, and it names the second reason too. Once `is` narrows, a
 //! guard written inside an already-narrowed branch is statically true by
 //! construction, and refusing that would let a flow analysis turn working code
 //! into a compile error.
@@ -13,24 +13,37 @@
 //! The right side has **two arms** and one of them is a value
 //! (`rule:types/type-test` § *The value arm*): a `class<T>` names the class to
 //! test against, and the subject narrows to `T` on the true edge. The operand
-//! is the only thing refused there — anything that is not a class reference is
+//! is the only thing refused there. Anything that is not a class reference is
 //! [`code::E_DYNAMIC_CLASS_NAME`], the one report `new $v(...)` and `$v::f(...)`
 //! already share (`rule:types/class-reference-sites`).
 //!
+//! **One written type answers by the frame: `static`.** In a class that is not
+//! `final`, `$x is static` and `$x is ?static` test the class the call named
+//! (`rule:statements/static-is-a-member-modifier`), which only the running
+//! frame knows. So [`always_holds`] never folds them: a subject of the
+//! declaring class may still be a sibling of the called class. [`never_holds`]
+//! still folds, because a subject disjoint from the declaring class is disjoint
+//! from every subclass. In a `final` class `static` is the declaring class, and
+//! the test is an ordinary one. [`called_class_test`] reads the written type,
+//! since the lowered one cannot tell `static` from the declaring class.
+//!
 //! A settled answer **folds** instead: the expression's type is `true` or
 //! `false` rather than `bool`, with no diagnostic and no warning
-//! (`rule:types/single-value-types` is what makes those types sayable). Both folds
-//! are deliberately one-sided, in [`always_holds`]'s and
+//! (`rule:types/single-value-types` is what makes those types sayable). Both
+//! folds are deliberately one-sided, in [`always_holds`]'s and
 //! [`never_holds`]'s directions: what neither proves types as plain `bool` and
-//! is answered at run time, which is never wrong — only, at worst, a run-time
-//! test where a constant would have done.
+//! is answered at run time, which is never wrong, only at worst a run-time test
+//! where a constant would have done.
 //!
-//! The two refusals here are about the **right**-hand side, and both are cases
-//! where there is no question rather than a knowable answer:
+//! The refusals here are about the **right**-hand side. Two are cases where
+//! there is no question rather than a knowable answer:
 //! [`code::E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE`] for `void` and `never`,
-//! which no value inhabits, and
-//! [`code::E_TYPE_TEST_AGAINST_A_QUALIFIER`] for a `tainted` or `secret`
-//! qualifier, which is erased before codegen and leaves no bit to read.
+//! which no value inhabits, and [`code::E_TYPE_TEST_AGAINST_A_QUALIFIER`] for
+//! a `tainted` or `secret` qualifier, which is erased before codegen and leaves
+//! no bit to read. Two are about `static`, where no answer can be read:
+//! [`code::E_STATIC_IN_ANON_FN`] inside an anonymous function, whose frame
+//! holds no called class, and [`code::E_STATIC_INSIDE_A_TESTED_TYPE`] for a
+//! `static` deeper than the whole type, as in `array<static>`.
 //!
 //! **Over a `mixed` subject, `tainted` is the answer rather than the
 //! question** (`rule:security/taint-propagation`): text out of `mixed` is
@@ -41,14 +54,14 @@
 //! `object` subject wherever a shape is tested. `secret` is refused over any
 //! subject.
 //!
-//! A test that survives both folds and both refusals **records the type it
-//! lowered** ([`crate::expr_table::ExprInfo::TypeTest`]), because that is the
-//! one case with a run-time answer: narrowing reads it on the true edge, and
-//! `nvs-ir` reads it to emit the test. The value arm records
-//! [`crate::expr_table::ExprInfo::ClassRefTest`] and its base for the same two
-//! readers. A folded one records the constant instead
-//! ([`crate::expr_table::ExprInfo::SettledTypeTest`]) — which variant is on the
-//! span is what tells the three apart, and the constant is carried rather than
+//! A test with a run-time answer **records what `nvs-ir` and narrowing read**:
+//! [`crate::expr_table::ExprInfo::TypeTest`] and the type it lowered for the
+//! type arm, [`crate::expr_table::ExprInfo::ClassRefTest`] and its base for the
+//! value arm, and [`crate::expr_table::ExprInfo::CalledClassTest`] for
+//! `is static`. Narrowing reads the type on the true edge, and `nvs-ir` reads
+//! the record to emit the test. A folded one records the constant instead
+//! ([`crate::expr_table::ExprInfo::SettledTypeTest`]). Which variant is on the
+//! span tells the four apart, and the constant is carried rather than
 //! re-derived because the fold is a question about types that no longer exist
 //! below this crate. A refused test records none of them: it has a diagnostic,
 //! so no lowering ever sees it.
@@ -57,7 +70,7 @@
 //! a session editing one rule does not carry the rest in context.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_syntax::ast::{Expr, TestOperand, Type};
+use nvs_syntax::ast::{Expr, TestOperand, Type, TypeAtom, TypeKind};
 
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
@@ -126,7 +139,19 @@ fn infer_against_type(
     {
         return env.interner.bool_ty();
     }
+    let called = match called_class_test(ty, ctx, env) {
+        CalledClass::No => None,
+        CalledClass::Refused => return env.interner.bool_ty(),
+        CalledClass::Test { nullable } => Some(nullable),
+    };
     let tested = keep_subject_qualifiers(subject, tested, ErasingPosition::TypeTest, env.interner);
+    if let Some(nullable) = called
+        && !never_holds(subject, tested, env)
+    {
+        env.exprs
+            .record(expr.span, ExprInfo::CalledClassTest { tested, nullable });
+        return env.interner.bool_ty();
+    }
     if always_holds(subject, tested, env) {
         env.exprs
             .record(expr.span, ExprInfo::SettledTypeTest { answer: true });
@@ -139,6 +164,121 @@ fn infer_against_type(
     }
     env.exprs.record(expr.span, ExprInfo::TypeTest { tested });
     env.interner.bool_ty()
+}
+
+/// What [`called_class_test`] found in a tested type.
+enum CalledClass {
+    /// No `static` that names the called class: the test is an ordinary one.
+    No,
+    /// `static` or `?static`, tested against the called class at run time.
+    Test { nullable: bool },
+    /// A `static` this test cannot answer, already reported.
+    Refused,
+}
+
+/// `rule:statements/static-is-a-member-modifier`'s `$x is static`: whether
+/// the tested type names the called class.
+///
+/// In a class that is not `final`, `static` and `?static` are tested against
+/// the frame's called class, so a call on a subclass answers for that
+/// subclass. [`crate::lower::lower_type`] interns `static` as the declaring
+/// class, which is what the true edge proves. In a `final` class `static` is
+/// exactly the declaring class, so the ordinary test and its folds stay.
+///
+/// Two spellings are refused. Inside an anonymous function no frame holds the
+/// called class, so any `static` there is [`code::E_STATIC_IN_ANON_FN`], as
+/// `static::` is. A `static` deeper in the tested type, as in
+/// `array<static>` or `static|int`, is
+/// [`code::E_STATIC_INSIDE_A_TESTED_TYPE`]: the lowered type cannot tell it
+/// from the declaring class, so the test would answer for the wrong class.
+fn called_class_test(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> CalledClass {
+    let Some(class) = ctx.current_class else {
+        return CalledClass::No;
+    };
+    let Some(at) = static_written_in(ty) else {
+        return CalledClass::No;
+    };
+    if ctx.in_anon_fn {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_IN_ANON_FN,
+                "`is static` names no class inside an anonymous function",
+            )
+            .with_primary(at, "inside an anonymous function")
+            .with_help(
+                "an anonymous function does not know which class the method was called on. \
+                 Test the value before the anonymous function, or test it against a class \
+                 that you name",
+            ),
+        );
+        return CalledClass::Refused;
+    }
+    if crate::signatures::class_is_final(class, env.signatures) {
+        return CalledClass::No;
+    }
+    if let Some(nullable) = top_level_static(ty) {
+        return CalledClass::Test { nullable };
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_STATIC_INSIDE_A_TESTED_TYPE,
+            "`static` can only be the whole tested type, as in `is static` or `is ?static`",
+        )
+        .with_primary(at, "`static` inside a tested type")
+        .with_help(
+            "test the value with `is static` alone. To test the elements of an array, test \
+             each element in a loop",
+        ),
+    );
+    CalledClass::Refused
+}
+
+/// `Some(nullable)` when `ty` is `static`, `?static`, `static|null` or
+/// `null|static`, parentheses aside.
+fn top_level_static(ty: &Type) -> Option<bool> {
+    match &ty.kind {
+        TypeKind::Paren(inner) => top_level_static(inner),
+        TypeKind::Atom(TypeAtom::StaticTy) => Some(false),
+        TypeKind::Nullable(inner) => top_level_static(inner).map(|_| true),
+        TypeKind::Union(items) if items.len() == 2 => {
+            let is_null = |t: &Type| matches!(t.kind, TypeKind::Atom(TypeAtom::Null));
+            match (&items[0], &items[1]) {
+                (a, b) if is_null(a) => top_level_static(b).map(|_| true),
+                (a, b) if is_null(b) => top_level_static(a).map(|_| true),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The span of the first `static` written anywhere in `ty`.
+fn static_written_in(ty: &Type) -> Option<Span> {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => static_written_in(inner),
+        TypeKind::Union(items) | TypeKind::Intersection(items) => {
+            items.iter().find_map(static_written_in)
+        }
+        TypeKind::Atom(atom) => match atom {
+            TypeAtom::StaticTy => Some(ty.span),
+            TypeAtom::Array(Some(inner), key) => key
+                .as_deref()
+                .and_then(static_written_in)
+                .or_else(|| static_written_in(inner)),
+            TypeAtom::ClassRef(inner)
+            | TypeAtom::PropertyKey(inner)
+            | TypeAtom::PropertyPath(inner)
+            | TypeAtom::StringHoles { key: inner, .. } => static_written_in(inner),
+            TypeAtom::CallableSig { params, ret } => params
+                .iter()
+                .find_map(static_written_in)
+                .or_else(|| static_written_in(ret)),
+            TypeAtom::Name(_, args) => args.iter().find_map(static_written_in),
+            TypeAtom::Shape(fields) => fields.iter().find_map(|f| static_written_in(&f.ty)),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// `rule:types/conversion`'s shape row: `$x as Shape` is this module's test

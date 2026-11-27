@@ -1,0 +1,29 @@
+--TEST--
+`is static` inside an anonymous function is `E0834`, because its frame holds no called class, and a `static` deeper than the whole tested type is `E1021` in a class that is not `final` (`rule:statements/static-is-a-member-modifier`)
+--FILE--
+<?nvs
+class Model {
+    public function check(Model $o): void {
+        callable $f = fn(): bool => $o is static;
+        $f();
+    }
+
+    public static function all(array<Model> $xs): bool {
+        return $xs is array<static>;
+    }
+}
+
+class Order extends Model {}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0834]: `is static` names no class inside an anonymous function
+%A
+4 |         callable $f = fn(): bool => $o is static;
+%A
+error[E1021]: `static` can only be the whole tested type, as in `is static` or `is ?static`
+%A
+9 |         return $xs is array<static>;
+%A
+error: aborting due to 2 errors
+%A

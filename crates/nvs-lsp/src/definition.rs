@@ -488,6 +488,7 @@ const fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
         // every unresolved node here gets.
         ExprInfo::TypeTest { tested } => *tested,
         ExprInfo::ClassRefTest { base } => *base,
+        ExprInfo::CalledClassTest { tested, .. } => *tested,
         ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => call.return_ty,
         _ => return None,
     })

@@ -700,11 +700,12 @@ pub(crate) fn narrowed_property(
 /// folded rather than recorded anything for the value arm.
 ///
 /// The type comes from `crate::expr_table::ExprInfo::TypeTest`, or the base
-/// from `ExprInfo::ClassRefTest` for the value arm, recorded by
+/// from `ExprInfo::ClassRefTest` for the value arm, or the declaring class
+/// from `ExprInfo::CalledClassTest` for `is static`, recorded by
 /// [`crate::expr::type_test::infer_type_test`] when the condition was checked a
 /// moment earlier: a written type is placed by the namespace and the imports of
 /// the site that wrote it and interned there, and this walk carries neither.
-/// **Which variant is on the span is the guard**: the checker records these two
+/// **Which variant is on the span is the guard**: the checker records these three
 /// only for a test whose answer is a run-time `bool`, so a type that already
 /// covers the declared one folded to `true`, carries a
 /// `crate::expr_table::ExprInfo::SettledTypeTest` instead, and never arrives
@@ -733,6 +734,7 @@ fn type_test_residue(
     let residue = match env.exprs.lookup(test_span) {
         Some(&ExprInfo::TypeTest { tested }) => tested,
         Some(&ExprInfo::ClassRefTest { base }) => base,
+        Some(&ExprInfo::CalledClassTest { tested, .. }) => tested,
         _ => return None,
     };
     let residue = crate::expr::type_test::keep_subject_qualifiers(

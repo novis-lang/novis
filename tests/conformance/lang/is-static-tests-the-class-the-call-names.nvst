@@ -1,0 +1,40 @@
+--TEST--
+`$o is static` tests the class the call names at run time, in a static and in an instance method, so a call on one subclass answers `false` for an object of a sibling — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+// covers: lang:types/void-never-self-static
+class Model {
+    public static function owns(Model $o): bool {
+        return $o is static;
+    }
+
+    public function sameKind(?Model $o): bool {
+        return $o is ?static;
+    }
+}
+
+class Order extends Model {}
+
+class Customer extends Model {}
+
+Order $order = new Order();
+Customer $customer = new Customer();
+
+// A static method: `static` is the class before `::`.
+echo Order::owns($order) ? "true" : "false", "\n";
+echo Order::owns($customer) ? "true" : "false", "\n";
+echo Model::owns($customer) ? "true" : "false", "\n";
+
+// An instance method: `static` is the class of the object the method runs on.
+echo $order->sameKind($order) ? "true" : "false", "\n";
+echo $order->sameKind($customer) ? "true" : "false", "\n";
+echo $order->sameKind(null) ? "true" : "false", "\n";
+echo (new Model())->sameKind($customer) ? "true" : "false", "\n";
+--EXPECT--
+true
+false
+true
+true
+false
+true
+true

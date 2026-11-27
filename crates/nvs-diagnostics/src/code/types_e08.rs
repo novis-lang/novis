@@ -590,16 +590,17 @@ codes! {
          constant. Give it the parent's type, or a type that fits it.",
     );
 
-    /// `static::` — a constant, a call, `::class`, `new static()` — inside an
-    /// anonymous function's body.
+    /// `static::` — a constant, a call, `::class`, `new static()` — or a
+    /// type test `$x is static` inside an anonymous function's body.
     ///
     /// The called class is what the enclosing method's frame holds, and an
     /// anonymous function is lifted to a frame of its own that carries neither
     /// it nor a receiver, so there is nothing to bind `static` to. Refused
     /// where it is written.
     pub const E_STATIC_IN_ANON_FN: Code = Code::new("E0834").card(
-        "`static::` cannot be used inside an anonymous function. Read the value into a variable \
-         outside the function, and use that variable inside it.",
+        "`static::` and `is static` cannot be used inside an anonymous function. Read the value \
+         into a variable outside the function, and use that variable inside it. To test a \
+         value, test it before the anonymous function.",
     );
 
     /// A call to an `abstract static` method on a class fixed while compiling

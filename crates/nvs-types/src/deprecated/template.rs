@@ -719,6 +719,7 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
             // position does, which uses no declaration.
             ExprInfo::TypeTest { .. }
             | ExprInfo::ClassRefTest { .. }
+            | ExprInfo::CalledClassTest { .. }
             | ExprInfo::SettledTypeTest { .. }
             | ExprInfo::ShapeConversion { .. }
             | ExprInfo::PropertyKey { .. }

@@ -1039,6 +1039,24 @@ pub enum ExprInfo {
         /// true edge, the reference holding a `T` or an implementor of one.
         base: TypeId,
     },
+    /// `$x is static` or `$x is ?static` in a class that is not `final`,
+    /// keyed by the *`is` expression's* own span
+    /// (`rule:statements/static-is-a-member-modifier`).
+    ///
+    /// `static` is the class the call names, which only the frame knows at run
+    /// time, so `nvs-ir` tests the subject against the frame's called class
+    /// and reads no class off the record. A variant of its own, and not
+    /// [`Self::ClassRefTest`] with a flag: there the class arrives through an
+    /// operand that `nvs-ir` lowers, and here there is no operand, and a
+    /// `?static` also passes `null`. [`crate::locals::narrow`] narrows the
+    /// subject to `tested` on the true edge.
+    CalledClassTest {
+        /// The declaring class, or `?` of it for `?static`, with the subject's
+        /// qualifiers on it: what the true edge proves.
+        tested: TypeId,
+        /// `?static`: a `null` subject passes too.
+        nullable: bool,
+    },
     /// `$x is T` the checker **settled**, carrying the constant it folded to —
     /// the other half of [`Self::TypeTest`], and never recorded beside one.
     ///

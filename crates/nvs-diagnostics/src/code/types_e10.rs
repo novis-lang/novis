@@ -244,4 +244,15 @@ codes! {
          cannot be one of these parts. To catch an error from such a call, write a `try` block: \
          `try { save(); } catch (IOError $e) { ... }`. Or return a value from the function.",
     );
+
+    /// `static` written inside a tested type, as in `$xs is array<static>`,
+    /// in a class that is not `final`
+    /// (`rule:statements/static-is-a-member-modifier`). `is static` and
+    /// `is ?static` test the class the call names, and a `static` deeper in
+    /// the type would be tested against the declaring class instead.
+    pub const E_STATIC_INSIDE_A_TESTED_TYPE: Code = Code::new("E1021").card(
+        "In a test with `is`, `static` can only be the whole type: `$x is static` or \
+         `$x is ?static`. These test the class that the method was called on. To test the \
+         elements of an array, test each element with `is static` in a loop.",
+    );
 }

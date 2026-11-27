@@ -7774,12 +7774,14 @@ impl<'a> Lowering<'a> {
     /// `rule:types/type-test`'s `$x is T` — `bool` for every subject, and
     /// never a throw.
     ///
-    /// **The checker's record says which of three shapes this is**, and reading
+    /// **The checker's record says which of four shapes this is**, and reading
     /// it is not optional: `nvs_types::expr_table::ExprInfo::TypeTest` carries
     /// the interned right-hand side and means the answer is a run-time `bool`,
     /// `ExprInfo::ClassRefTest` means the value arm, whose class arrives as the
-    /// descriptor the operand evaluates to, and `ExprInfo::SettledTypeTest`
-    /// carries the constant the checker folded to. The fold cannot be
+    /// descriptor the operand evaluates to, `ExprInfo::CalledClassTest` means
+    /// `is static` or `is ?static`, tested against the frame's called class
+    /// ([`Self::lsb`]), and `ExprInfo::SettledTypeTest` carries the constant
+    /// the checker folded to. The fold cannot be
     /// re-derived here, which is why it travels as a record — two settled tests
     /// can share both representations and fold opposite ways (`?int $x; $x is
     /// int|null` against `$x is string|float`), so the erasures this crate
@@ -7813,6 +7815,9 @@ impl<'a> Lowering<'a> {
             Some(&ExprInfo::TypeTest { tested }) => TypeTestPlan::AtRunTime(tested),
             Some(&ExprInfo::SettledTypeTest { answer }) => TypeTestPlan::Settled(answer),
             Some(ExprInfo::ClassRefTest { .. }) => TypeTestPlan::AgainstDescriptor,
+            Some(&ExprInfo::CalledClassTest { nullable, .. }) => {
+                TypeTestPlan::AgainstCalledClass(nullable)
+            }
             _ => panic!(
                 "nvs-ir: an `is` at {:?} with no tested type, no class reference and no settled \
                  answer recorded in the typed-expression table — `nvs_types::expr::type_test` \
@@ -7866,6 +7871,13 @@ impl<'a> Lowering<'a> {
                          resolved no marker class for. So this is a checker that did not run",
                         self.checked_types.get(tested)
                     );
+                };
+                self.emit_test_shape(shape, value, subject, expr.span, env, cur)
+            }
+            TypeTestPlan::AgainstCalledClass(nullable) => {
+                let shape = match nullable {
+                    true => TestShape::Any(vec![TestShape::Tag(Ty::Null), TestShape::CalledClass]),
+                    false => TestShape::CalledClass,
                 };
                 self.emit_test_shape(shape, value, subject, expr.span, env, cur)
             }
@@ -8015,6 +8027,19 @@ impl<'a> Lowering<'a> {
                 },
             ),
             TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // The value arm's walk, against the frame's called class.
+            TestShape::CalledClass if matches!(subject, Ty::Object | Ty::Tagged) => {
+                let desc = self.lsb();
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::ClassTest {
+                        value,
+                        class: TestedClass::Descriptor(desc),
+                    },
+                )
+            }
+            TestShape::CalledClass => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
             // The checked build's row, which [`super::checked`] puts where a
             // class row was. Only the label differs.
             TestShape::IfDeclared(name) if matches!(subject, Ty::Object | Ty::Tagged) => self.emit(
@@ -8668,6 +8693,9 @@ enum TypeTestPlan {
     /// The value arm: the class arrives as the descriptor the right-hand side
     /// evaluates to, so there is no interned type to read off the record.
     AgainstDescriptor,
+    /// `is static` or, with `true`, `is ?static`: tested against the frame's
+    /// called class, [`Lowering::lsb`].
+    AgainstCalledClass(bool),
     /// The checker settled the answer. The subject still runs.
     Settled(bool),
 }
@@ -8686,6 +8714,10 @@ pub(super) enum TestShape {
     /// its place: [`TestedClass::IfDeclared`]'s test, which passes a class
     /// with no descriptor.
     IfDeclared(String),
+    /// [`Self::Class`]'s walk against the frame's called class, read once per
+    /// frame by [`Lowering::lsb`]: `rule:statements/static-is-a-member-modifier`'s
+    /// `is static`. The walk `$x is $cls` pays, and no more.
+    CalledClass,
     /// A class no value is ever an instance of, which is a `Core` namespace
     /// class and nothing else (`nvs_types::expr::testable_core_class`): the
     /// answer is `false` with the subject unread, and there is no descriptor

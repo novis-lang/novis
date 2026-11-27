@@ -6,7 +6,7 @@ context: [docs/rules/statements/static-is-a-member-modifier.md, crates/nvs-types
 stages:
   - id: 1
     title: "$o is static tests the class the call named, and is refused inside an anonymous function"
-    status: open
+    status: done
     context: [docs/rules/types/type-test.md, crates/nvs-types/src/expr/type_test.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/expr.rs]
   - id: 2
     title: "a value narrowed by is static is on E0741's list"
@@ -111,6 +111,19 @@ it, that spelling is E0834's sibling refusal "`static` inside a tested type", an
 it to the rule. Cost: one descriptor walk per test, the walk `$x is $cls` already pays, instead of a
 constant. No memory.
 
+**Stage 1 as built (the session's calls, 2026-11-27).** The record is a new variant,
+`ExprInfo::CalledClassTest { tested, nullable }`, and not `ClassRefTest` with a flag: `ClassRefTest`
+means an operand that `nvs-ir` lowers, and `?static` must also pass `null`. `nvs-ir` lowers it as
+the new `TestShape::CalledClass` row, behind `Tag(Null)` for `?static`. `never_holds` still folds:
+a subject disjoint from the declaring class is disjoint from every subclass, so the fold is sound and
+saves a walk. Only `always_holds` is skipped. `static`, `?static`, `static|null` and `null|static` are
+the spellings tested against the called class. A `static` deeper in a tested type
+(`array<static>`, `static|int`) is the new `E1021` `E_STATIC_INSIDE_A_TESTED_TYPE`, in a class that is
+not `final`: the lowered type cannot tell it from the declaring class. So stage 3's new error is
+`E1022`. Inside an anonymous function every `is` that writes `static` is `E0834`, in a `final` class
+too, as `static::` is; the check sits in `type_test.rs`'s `called_class_test`, not in
+`report_class_keyword_outside_class`, because a type position has no class-side `Expr`.
+
 **Stage 2: a narrowed value is the called class.** On the true edge of `$o is static`, the subject
 carries a "called class" fact beside its narrowing. `yields_the_called_class`
 (`crates/nvs-types/src/check.rs:1763`) accepts a variable, or a `readonly` path, that carries it. The
@@ -130,10 +143,10 @@ the body's `LocalScope`, as `static_callbacks` records a `callable(static)` para
 to E0741's list: its initializer, an assignment, an append `$xs[] = $v`, an element write
 `$xs[$k] = $v`, a nested element write and a compound write. `check_write_target`
 (`crates/nvs-types/src/expr/assign.rs:1434`) and `check_assign` (`:1133`) are where the writes meet.
-A value off the list is the new error `E1021` (the next free code after `E1020`, the `void` `catch` part; the
+A value off the list is the new error `E1022` (stage 1 took `E1021`; the
 session takes the next free one if that has moved): "a variable declared `static` gets a value that is
 not the called class", primary label on the value, secondary on the declaration. An `inout` pass of
-such a local is `E1021` too, because the callee's parameter type is the declaring class and may write
+such a local is `E1022` too, because the callee's parameter type is the declaring class and may write
 any value of it. A `foreach` over it with a by-value element is a read and is allowed. Removing an
 element is allowed. `yields_the_called_class` then accepts a read of such a local. This replaces the
 rule's sentence "a local variable is none of these, so an `array<static>` built up in a loop is
@@ -176,16 +189,16 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### 1. $o is static tests the class the call named, and is refused inside an anonymous function
 
-- [ ] `crates/nvs-types/src/expr/type_test.rs:113`: in a class that is not `final`, a tested type that
+- [x] `crates/nvs-types/src/expr/type_test.rs:113`: in a class that is not `final`, a tested type that
   is `static` or `?static` skips both folds and records the called-class test (§ *Stage 1*). The
   module doc (`:1`) is rewritten whole to name it.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:7804`: `lower_type_test` lowers that record as a `ClassTest`
+- [x] `crates/nvs-ir/src/lower/expr.rs:7804`: `lower_type_test` lowers that record as a `ClassTest`
   against `self.lsb()`, and the doc above it names the fourth shape.
-- [ ] `crates/nvs-types/src/expr/mod.rs:1488`: `is static` inside an anonymous function is E0834 with
+- [x] `crates/nvs-types/src/expr/mod.rs:1488`: `is static` inside an anonymous function is E0834 with
   its own wording, and `crates/nvs-diagnostics/src/code/types_e08.rs:600`'s card names the type position.
-- [ ] `crates/nvs-types/tests/narrowed_static.rs` (new): the three tests of the check
+- [x] `crates/nvs-types/tests/narrowed_static.rs` (new): the three tests of the check
   `called-class-test`, then `cargo test --test narrowed_static` once.
-- [ ] `tests/conformance/lang/is-static-tests-the-class-the-call-names.nvst` (new): a static and an
+- [x] `tests/conformance/lang/is-static-tests-the-class-the-call-names.nvst` (new): a static and an
   instance method, called on the class itself and on a sibling, printing `false` for the sibling; then
   the check `called-class-run` once.
 
@@ -203,9 +216,9 @@ attempt is written to `### Backlog` with what blocked it.
 
 - [ ] `crates/nvs-types/src/locals.rs:222`: a record of every local whose declared type binds `static`,
   beside `static_callbacks`, made where a typed declaration is checked.
-- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1021` with its card.
+- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1022` with its card.
 - [ ] `crates/nvs-types/src/expr/assign.rs:1133` and `:1434`: every write of § *Stage 3* to such a
-  local is held to `yields_the_called_class`, and an `inout` pass of it is `E1021`
+  local is held to `yields_the_called_class`, and an `inout` pass of it is `E1022`
   (`crates/nvs-types/src/expr/calls.rs`; the session finds the `inout` argument check by name).
 - [ ] `crates/nvs-types/src/check.rs:1763`: a read of such a local is on the list.
 - [ ] The five tests of the check `static-locals`, then `cargo test --test narrowed_static` once.
@@ -293,15 +306,23 @@ order 1
 
 ### State
 
-Written by an interactive session on 2026-11-26. The user made the three calls under § *Standing
-decisions*; every other call there is the session's. Nothing is built. Every anchor was read on that
-day, while `mail-complete` ran. The bug of stage 1 was reproduced on that day's release binary: a
-`Model` method returning `$o is static` printed `true` for a sibling class, in a static and in an
-instance method, and `fn(): bool => $o is static` compiled.
+Stage 1 is done, and its checks `called-class-test` and `called-class-run` are green. `is static`
+records `ExprInfo::CalledClassTest` (`crates/nvs-types/src/expr/type_test.rs`, `called_class_test`)
+and lowers as `TestShape::CalledClass` against `lsb()` (`crates/nvs-ir/src/lower/expr.rs`). E0834
+has a type-position wording, and `E1021` is new: `static` inside a tested type. § *Stage 1 as built*
+records the calls. A reject case pins both codes:
+`tests/conformance/reject/is-static-has-no-answer-inside-a-closure-or-a-tested-type.nvst`. The rule
+and `docs/reference/` do not name `E1021` yet; stage 4 writes them. The nightly sweep's three
+failures were fixed on `main` after its run (606701259f, 215257ff46, 544711a8fb).
+
+Tests that may go red at the full gate: a diagnostics roster test that lists every code, if one
+exists, for `E1021`; a reference check that every code has a page or card listing.
 
 ### Next
 
-Stage 1 from its first item. The check `called-class-test` is red until
-`crates/nvs-types/tests/narrowed_static.rs` exists with its three tests.
+Stage 2 from its first item: the "called class" fact beside `LocalScope::narrowed`
+(`crates/nvs-types/src/locals.rs`, `narrow` and `type_test_residue`, which now reads
+`CalledClassTest`), then `yields_the_called_class` (`crates/nvs-types/src/check.rs:1763`). The check
+`narrowed` is red until its four tests exist in `crates/nvs-types/tests/narrowed_static.rs`.
 
 ### Backlog
