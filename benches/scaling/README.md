@@ -29,7 +29,7 @@ echo Bench::run(1000), "\n";
 | `// scaling: start N` | the first size, and the literal in the closing line |
 | `// scaling: max N` | the largest size the ramp may reach; at least three doublings above `start` |
 | `// scaling: expect <class>` | the growth the work may have: `constant`, `linear`, `nlogn` or `karatsuba`. `quadratic` is never accepted |
-| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve`, `fetch` or `mutate` |
+| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve`, `fetch`, `mutate` or `reload` |
 | `// scaling: size <what>` | a `serve` ladder's size: `requests` (the default), `headers`, `header-bytes`, `body-bytes`, `query`, `form`, `connections` or `routes` |
 | `// scaling: rounds N` | a `run` ladder's work is repeated: the closing line passes N beside `start`, and the difference of half and all of N rounds is judged, so the input it builds once cancels |
 | `// scaling: proposal` | the ladder grows past its bound and the fix waits for a decision; it is reported, and does not fail |
@@ -50,7 +50,11 @@ routes, the last of them `/last`, and the tool serves the printed program and re
 ladder is a `run` ladder that downloads from a server: the tool serves `<name>/server.nvs` beside it
 and gives the program the server's address in the environment variable `NVS_SCALING_URL`. A `mutate`
 ladder prints a program with its `#[Test]` methods, as a `compile` ladder does, and the tool runs
-`nvs test --mutate` on it. A ladder that needs Unix
+`nvs test --mutate` on it. A `reload` ladder prints a program of many files, as a `compile` ladder
+does, with its server's `nvs.toml` as one more `// scaling: file nvs.toml`, and marks one integer
+literal in one file as `/*edit*/ 0`. The tool serves the program, raises that literal and runs `nvs
+reload`; the `program reloaded` record's `checked`, `compiled` and `written` must be the same at every
+size. A ladder that needs Unix
 sockets declares `// requires: unix`, and one that needs a service of `tests/db/compose.yaml`
 declares `// requires: <service>`, as a bench does. A folder's
 `nvs.toml` applies to every ladder in it, as in the bench tree.

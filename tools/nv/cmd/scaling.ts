@@ -103,6 +103,15 @@
 // (`runsPerMutantGrow`), which is the covering-test filter of `rule:testing/mutation-testing`. A
 // mutation run is not run under callgrind.
 //
+// `reload` prints a program of many files, its `nvs.toml` among them, and marks one integer literal in
+// one of them after a `/*edit*/` comment. At each size the tool boots `nvs serve` on the printed program
+// with a data folder of its own, then `--reps` times raises the literal by one, so no edit reverts to a
+// unit already compiled, and runs `nvs reload`. The counts are the `program reloaded` record's
+// `checked`, `compiled` and `written` (`RELOAD_COUNTS`), and they must be equal at every size
+// (`reloadWorkGrows`): the work an edit causes is the edit's, never the program's. The clock is the
+// fastest `nvs reload`, judged against the ladder's `expect`, because a reload still re-reads every
+// file and places the whole program's code. A reload is not run under callgrind.
+//
 // `serve` is the one kind whose copy is not rewritten but for one size: the ladder is the program every request runs,
 // and `// scaling: size` names what the size counts (`SERVE_SIZES`, `serveShape`). At each size the
 // tool boots `nvs serve` on the copy, on a free port, sends the load with `bun nv bench`'s client, and
@@ -147,7 +156,7 @@
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
 
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { waitOnPurpose } from "../../looper/src/jobs/hang.ts";
 import { mirrorPath, syncMirror, wslBuildLine, wslPath } from "../accept/mirror.ts";
@@ -416,7 +425,7 @@ const BENCH_BOUNDS: Bounds = { count: COUNT_BOUND, clock: CLOCK_BOUND };
 export const EXPECT: Record<string, number> = { constant: 0.15, linear: COUNT_BOUND, nlogn: 1.35, karatsuba: 1.7 };
 
 /** The kinds a ladder may declare. */
-export const KINDS = ["run", "compile", "lsp", "fmt", "serve", "fetch", "mutate"] as const;
+export const KINDS = ["run", "compile", "lsp", "fmt", "serve", "fetch", "mutate", "reload"] as const;
 
 /** The variable a `fetch` ladder reads its server's address from. */
 export const FETCH_URL_ENV = "NVS_SCALING_URL";
@@ -644,7 +653,7 @@ const RUN: Measure = {
 
 /** A `// scaling: file <name>` line in a printed program: what follows it, up to the next one, is the
  * file `<name>` beside the program, which the program can `require` or read as its input. */
-const PRINTED_FILE = /^\/\/ scaling: file ([\w.-]+\.(?:nvs|nvsr|in|env))\r?$/m;
+const PRINTED_FILE = /^\/\/ scaling: file ([\w.-]+\.(?:nvs|nvsr|in|env)|nvs\.toml)\r?$/m;
 
 /** A printed program split at its `// scaling: file` lines: the program first, then each named file. */
 export function printedFiles(stdout: string): { program: string; files: [string, string][] } {
@@ -1019,6 +1028,110 @@ const serve = (what: string): Measure => {
   };
 };
 
+// What a `reload` ladder's printed program marks as its one edit: the integer literal after a
+// `/*edit*/` comment.
+export const EDIT_MARK = /\/\*edit\*\/\s*(\d+)/;
+
+/** The counts of a `program reloaded` record that a `reload` ladder judges. */
+export const RELOAD_COUNTS = ["checked", "compiled", "written"] as const;
+
+/** `text` with its `EDIT_MARK` literal raised by `by`, or null when it has no mark. Every edit of a
+ * ramp writes a value no earlier edit wrote, so no reload is a revert to a unit already compiled. */
+export function edited(text: string, by: number): string | null {
+  const m = EDIT_MARK.exec(text);
+  if (!m) return null;
+  return text.slice(0, m.index) + `/*edit*/ ${Number(m[1]) + by}` + text.slice(m.index + m[0].length);
+}
+
+/** The counts of the JSON `program reloaded` record `line` is, or null when it is not one. */
+export function reloadRecord(line: string): Record<string, number> | null {
+  if (!line.includes("program reloaded")) return null;
+  const counts: Record<string, number> = {};
+  for (const k of [...RELOAD_COUNTS, "reused"]) {
+    const m = new RegExp(`"${k}":(\\d+)`).exec(line);
+    if (!m) return null;
+    counts[k] = Number(m[1]);
+  }
+  return counts;
+}
+
+/** Why a `reload` ramp's work after one edit moved with the program's size, or null when every count
+ * in `RELOAD_COUNTS` is the same at every size. */
+export function reloadWorkGrows(batches: Batch[]): string | null {
+  const moved = RELOAD_COUNTS.filter((k) => batches.some((b) => b.counts[k] !== batches[0]!.counts[k]));
+  if (!moved.length) return null;
+  return moved.map((k) => `${k} moves with the program's size: ${batches.map((b) => `${b.counts[k]} at ${b.size}`).join(", ")}`).join("; ");
+}
+
+/** How long a `reload` ladder waits for the record of one reload after `nvs reload` returns. */
+const RECORD_WAIT_MS = 30_000;
+
+/**
+ * The program the ladder prints at this size, served by `nvs serve` in its own data folder, then
+ * `reps` times: the marked literal raised by one and `nvs reload`. The clock is the fastest
+ * `nvs reload`, and the counts are each record's, the largest across the reps.
+ */
+async function reloadLoad(copy: string, bench: string, opts: Options): Promise<{ counts: Record<string, number>; ns: number }> {
+  const program = await generate(copy, bench, opts);
+  const dir = dirname(abs(program));
+  const marked = readdirSync(dir)
+    .filter((f) => f.endsWith(".nvs"))
+    .map((f) => join(dir, f))
+    .filter((f) => resolve(f) !== resolve(abs(copy)) && EDIT_MARK.test(readFileSync(f, "utf8")));
+  if (marked.length !== 1) throw new PerfError(`the program ${bench} printed marks ${marked.length} \`/*edit*/\` literals, not one`);
+  const data = join(dir, ".nvsdata");
+  rmSync(data, { recursive: true, force: true });
+  const port = await freePort();
+  const why = (e: unknown) => messageOf(e).trim().split(/\r?\n/)[0] ?? "";
+  // The server runs in the program's folder, where its printed `nvs.toml` is, so the binary's path is made absolute.
+  const argv = [abs(opts.nvs), "--data", data, "serve", abs(program), "--listen", `127.0.0.1:${port}`];
+  const server = await Server.start(argv, port, dir, { LLVM_PROFILE_FILE: DISCARD_PROFILE }).catch((e: unknown) => {
+    throw new PerfError(`\`nvs serve\` did not start on the program ${bench} printed: ${why(e)}`);
+  });
+  const counts: Record<string, number> = Object.fromEntries(RELOAD_COUNTS.map((k) => [k, 0]));
+  let ns = Infinity;
+  try {
+    for (let i = 0; i < opts.reps; i++) {
+      // The server keeps a window of its last lines, so a new record is told apart by its text: each
+      // names the new program's digest.
+      const lastRecord = () => server.lines().findLast((l) => reloadRecord(l) !== null);
+      const seen = lastRecord();
+      const file = marked[0]!;
+      const temp = `${file}.tmp`;
+      writeFileSync(temp, edited(readFileSync(file, "utf8"), 1)!);
+      renameSync(temp, file);
+      const out = await spawnProof([opts.nvs, "--data", data, "reload"], program, TIMEOUT_MS, { unlogged: true });
+      if (out.code !== 0) throw new PerfError(`\`nvs reload\` exited ${out.code} on the program ${bench} printed: ${firstLine(out.stderr || out.stdout)}`);
+      ns = Math.min(ns, out.ms * 1e6);
+      // The record is written as the swap lands, and the server's pipe may deliver it just after
+      // `nvs reload` returns.
+      let record: Record<string, number> | null = null;
+      for (const deadline = Date.now() + RECORD_WAIT_MS; record === null && Date.now() < deadline; ) {
+        const line = lastRecord();
+        if (line !== undefined && line !== seen) record = reloadRecord(line);
+        else await Bun.sleep(20);
+      }
+      if (!record) throw new PerfError(`no \`program reloaded\` record with its counts within ${RECORD_WAIT_MS / 1000}s of \`nvs reload\` on ${bench}:\n${server.said()}`);
+      for (const k of RELOAD_COUNTS) counts[k] = Math.max(counts[k]!, record[k]!);
+      counts.reused = record.reused!;
+    }
+  } finally {
+    await server.stop();
+  }
+  return { counts, ns };
+}
+
+/** A program a development server reloads after one body edit: the record's counts, which must not
+ * move with the size, and the clock of `nvs reload`. */
+const RELOAD: Measure = {
+  keys: RELOAD_COUNTS,
+  rewrites: true,
+  take: (copy, bench, opts) => reloadLoad(copy, bench, opts),
+  clock: async (copy, bench, opts) => (await reloadLoad(copy, bench, opts)).ns,
+  callgrind: (_copy, bench) => Promise.reject(new PerfError(`the clock's slope of ${bench} could not be read, and a \`reload\` ladder is not run under callgrind`)),
+  judge: reloadWorkGrows,
+};
+
 /** `body`, run while an `nvs serve` of the `fetch` ladder's `<name>/server.nvs` listens on a free port
  * and `FETCH_URL_ENV` names it to every program `body` starts. */
 async function withServer<T>(bench: string, opts: Options, body: () => Promise<T>): Promise<T> {
@@ -1048,7 +1161,7 @@ const FETCH: Measure = {
   callgrind: (_copy, bench) => Promise.reject(new PerfError(`${bench} could not be judged, and a \`fetch\` ladder is not run under callgrind`)),
 };
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH, mutate: MUTATE };
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH, mutate: MUTATE, reload: RELOAD };
 
 /** One bench, ramped over batches of its operation and judged. */
 export async function rampOne(bench: string, opts: Options, measure: Measure = RUN): Promise<Judged> {

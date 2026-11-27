@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
   HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, perOpOf, printedFiles, printedInputs, proposed, rebased, roundsPlan, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch, withRounds,
+  edited, reloadRecord, reloadWorkGrows,
 } from "../cmd/scaling.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -114,6 +115,20 @@ test("a server's peak memory may wander under the slack, and one that rises with
   expect(peakGrows(served([20_900, 19_100, 19_700, 19_800]))).toBeNull();
   expect(peakGrows(served([20_000, 20_000, 20_000, 20_000 * (1 + PEAK_SLACK)]))).toBeNull();
   expect(peakGrows(served([20_000, 22_000, 26_000, 34_000]))).toBe("peak memory grows with requests served: 70% above its lowest at 512 requests");
+});
+
+test("a reload ladder raises its marked literal, reads the record's counts, and fails work that moves with the size", () => {
+  expect(edited("return /*edit*/ 7;", 1)).toBe("return /*edit*/ 8;");
+  expect(edited("return 7;", 1)).toBeNull();
+  const line = '{"level":"info","message":"program reloaded","entry":"app.nvs","checked":1,"compiled":1,"reused":440,"written":1}';
+  expect(reloadRecord(line)).toEqual({ checked: 1, compiled: 1, written: 1, reused: 440 });
+  expect(reloadRecord('{"message":"program reloaded","checked":1}')).toBeNull();
+  expect(reloadRecord('{"message":"listening","checked":1,"compiled":1,"reused":2,"written":1}')).toBeNull();
+  const ramp = (checked: number[]): Batch[] => checked.map((c, i) => ({ size: 55 << i, counts: { checked: c, compiled: 1, written: 1 }, ns: 0 }));
+  expect(reloadWorkGrows(ramp([1, 1, 1, 1]))).toBeNull();
+  expect(reloadWorkGrows(ramp([1, 1, 2, 4]))).toBe("checked moves with the program's size: 1 at 55, 1 at 110, 2 at 220, 4 at 440");
+  expect(ladderOf("// scaling: kind reload\n// scaling: start 55\n// scaling: max 440\n// scaling: expect linear\n")).toMatchObject({ kind: "reload" });
+  expect(printedFiles("<?nvs\n// scaling: file nvs.toml\n[mode]\n").files).toEqual([["nvs.toml", "[mode]\n"]]);
 });
 
 test("a mutation run's test runs per mutant stay flat as the suite grows, and runs that follow the suite fail", () => {

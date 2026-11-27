@@ -1,0 +1,53 @@
+<?nvs
+// Prints a program of n classes, one per file, that a development server reloads after one method body changes, as it does after each save.
+// scaling: kind reload
+// scaling: start 55
+// scaling: max 440
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): string
+    {
+        array<string> $lines = ['<?nvs'];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "require 'reload-{$i}.nvs';";
+            $i = $i + 1;
+        }
+        $lines[] = 'int $sum = 0;';
+        $i = 0;
+        while ($i < $size) {
+            $lines[] = "\$sum += Part{$i}::value();";
+            $i = $i + 1;
+        }
+        $lines[] = "echo \$sum, \"\\n\";";
+        $lines[] = '// scaling: file nvs.toml';
+        $lines[] = '[mode]';
+        $lines[] = 'default = "development"';
+        $lines[] = '[log]';
+        $lines[] = 'format = "json"';
+        $lines[] = '[opcache]';
+        $lines[] = 'validate = "hash"';
+        $lines[] = 'revalidate_freq = "1h"';
+        $lines[] = 'settle = "1m"';
+        $i = 0;
+        while ($i < $size) {
+            $lines[] = "// scaling: file reload-{$i}.nvs";
+            $lines[] = '<?nvs';
+            $lines[] = "class Part{$i} {";
+            $lines[] = '    public static function value(): int {';
+            if ($i == 0) {
+                $lines[] = '        return /*edit*/ 0;';
+            } else {
+                $lines[] = "        return {$i};";
+            }
+            $lines[] = '    }';
+            $lines[] = '}';
+            $i = $i + 1;
+        }
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(55);

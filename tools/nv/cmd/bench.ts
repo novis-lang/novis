@@ -759,6 +759,11 @@ export class Server {
     return this.log.map((l) => `    ${l}`).join("\n") || "    (nothing)";
   }
 
+  /** The last lines the server wrote, standard output and standard error together, oldest first. */
+  lines(): readonly string[] {
+    return this.log;
+  }
+
   private async await(port: number): Promise<void> {
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
