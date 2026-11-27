@@ -15588,8 +15588,8 @@
       "Check that an email was sent with no attachments"
     ]
   },
-  "/reference/core/test-sentmail/autosubmitted/": {
-    "feature": "Core\\Test\\SentMail::autoSubmitted",
+  "/reference/core/test-sentmail/isautosubmitted/": {
+    "feature": "Core\\Test\\SentMail::isAutoSubmitted",
     "hash": "2540a0eb2f9157f0",
     "questions": [
       "How do I check that a program sent an email automatically in a test?",

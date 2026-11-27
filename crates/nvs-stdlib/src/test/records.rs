@@ -193,7 +193,7 @@ pub(crate) const SENT_MAIL: CoreClass = CoreClass {
             &UNSUBSCRIBE_DOC,
         ),
         reader(
-            "autoSubmitted",
+            "isAutoSubmitted",
             CoreTy::Bool,
             "nvs_core_test_sent_mail_auto_submitted",
             &AUTO_SUBMITTED_DOC,
@@ -392,7 +392,7 @@ const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test\SentMail::autoSubmitted`'s reference card.
+/// `Core\Test\SentMail::isAutoSubmitted`'s reference card.
 const AUTO_SUBMITTED_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the message has the header `Auto-Submitted: auto-generated`.",
     params: &[],
@@ -636,7 +636,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test\SentMail::autoSubmitted(): bool`.
+    /// `Core\Test\SentMail::isAutoSubmitted(): bool`.
     fn nvs_core_test_sent_mail_auto_submitted(_ctx, args: [1]) {
         sent_mail_slot(args, "autoSubmitted")
     }
@@ -844,7 +844,7 @@ mod tests {
     // covers: Core\Test\SentMail::cc, Core\Test\SentMail::bcc, Core\Test\SentMail::replyTo, Core\Test\SentMail::html
     // covers: Core\Test\SentMail::messageId, Core\Test\SentMail::fromName, Core\Test\SentMail::attachments
     // covers: Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references, Core\Test\SentMail::unsubscribe
-    // covers: Core\Test\SentMail::autoSubmitted, Core\Test\SentMail::bounceTag
+    // covers: Core\Test\SentMail::isAutoSubmitted, Core\Test\SentMail::bounceTag
     // covers: Core\Mail\Attachment::name, Core\Mail\Attachment::type, Core\Mail\Attachment::bytes, Core\Mail\Attachment::isInline
     #[test]
     fn sent_mail_members_read_each_parameter_and_an_absent_part_is_empty_or_null() {

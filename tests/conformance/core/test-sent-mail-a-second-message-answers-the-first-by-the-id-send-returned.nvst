@@ -5,7 +5,7 @@ test
 --FILE--
 <?nvs
 // covers: Core\Test\SentMail::messageId, Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references
-// covers: Core\Test\SentMail::fromName, Core\Test\SentMail::unsubscribe, Core\Test\SentMail::autoSubmitted
+// covers: Core\Test\SentMail::fromName, Core\Test\SentMail::unsubscribe, Core\Test\SentMail::isAutoSubmitted
 // covers: Core\Test\SentMail::bounceTag, Core\Test\SentMail::attachments
 use Core\Str;
 use Core\Test;
@@ -50,7 +50,7 @@ final class ThreadTest {
 
         // Neither message sets these options, so each has its default.
         Test::assertNull($reply->unsubscribe());
-        Test::assertTrue($reply->autoSubmitted());
+        Test::assertTrue($reply->isAutoSubmitted());
         Test::assertCount($reply->attachments(), 0);
     }
 }

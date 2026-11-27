@@ -45110,7 +45110,7 @@ Returns the extra fields of the record, as the log wrote them.
 <a id="core-core-test-sentmail"></a>
 ### `Core\Test\SentMail`
 
-Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html, messageId, fromName, attachments, inReplyTo, references, unsubscribe, autoSubmitted, bounceTag
+Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html, messageId, fromName, attachments, inReplyTo, references, unsubscribe, isAutoSubmitted, bounceTag
 
 | Member | Signature |
 |---|---|
@@ -45128,7 +45128,7 @@ Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html, messageId, fromNa
 | [`Core\Test\SentMail->inReplyTo`](#core-core-test-sentmail-inreplyto) | `inReplyTo(): ?string` |
 | [`Core\Test\SentMail->references`](#core-core-test-sentmail-references) | `references(): array<string>` |
 | [`Core\Test\SentMail->unsubscribe`](#core-core-test-sentmail-unsubscribe) | `unsubscribe(): ?string` |
-| [`Core\Test\SentMail->autoSubmitted`](#core-core-test-sentmail-autosubmitted) | `autoSubmitted(): bool` |
+| [`Core\Test\SentMail->isAutoSubmitted`](#core-core-test-sentmail-isautosubmitted) | `isAutoSubmitted(): bool` |
 | [`Core\Test\SentMail->bounceTag`](#core-core-test-sentmail-bouncetag) | `bounceTag(): ?string` |
 
 <a id="core-core-test-sentmail-endpoint"></a>
@@ -45285,11 +45285,11 @@ Returns the URL in the `List-Unsubscribe` header.
 
 **Returns** `?string` — The `unsubscribe` option, or `null` when none was given.
 
-<a id="core-core-test-sentmail-autosubmitted"></a>
-#### `Core\Test\SentMail->autoSubmitted`
+<a id="core-core-test-sentmail-isautosubmitted"></a>
+#### `Core\Test\SentMail->isAutoSubmitted`
 
 ```nvs skip
-$sentMail->autoSubmitted(): bool
+$sentMail->isAutoSubmitted(): bool
 ```
 
 Checks whether the message has the header `Auto-Submitted: auto-generated`.

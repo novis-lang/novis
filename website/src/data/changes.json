@@ -174,7 +174,7 @@
         "Core\\Test\\SentMail::inReplyTo",
         "Core\\Test\\SentMail::references",
         "Core\\Test\\SentMail::unsubscribe",
-        "Core\\Test\\SentMail::autoSubmitted",
+        "Core\\Test\\SentMail::isAutoSubmitted",
         "Core\\Test\\SentMail::bounceTag"
       ],
       "text": "`Core\\Test\\SentMail` reads every part of a sent message: its `Message-ID`, the sender's name, the attachments, the thread headers, the unsubscribe link and the bounce tag."
@@ -2151,28 +2151,28 @@
       "why": "nvs test now records each run of a program's tests in the debug viewer; these members return what they did before"
     },
     "Core\\Test\\SentMail::bcc": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\SentMail::cc": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\SentMail::endpoint": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\SentMail::replyTo": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\SentMail::subject": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\SentMail::to": {
-      "hash": "179a5d7278af6113",
-      "why": "A new test reads these with the new parts. What each one returns is the same."
+      "hash": "b15688f0c1a7ba50",
+      "why": "A new test reads these with the new parts, and it calls `isAutoSubmitted` by its new name. What each one returns is the same."
     },
     "Core\\Test\\Summary::class": {
       "hash": "be4a1a67af502674",

@@ -51340,12 +51340,12 @@
           "examples": "core/Test-SentMail/unsubscribe"
         },
         {
-          "id": "Test.SentMail.autoSubmitted",
-          "name": "autoSubmitted",
+          "id": "Test.SentMail.isAutoSubmitted",
+          "name": "isAutoSubmitted",
           "static": false,
           "receiver": "sentMail",
           "generics": null,
-          "signature": "autoSubmitted(): bool",
+          "signature": "isAutoSubmitted(): bool",
           "params": [],
           "options": [],
           "returnType": "bool",
@@ -51353,9 +51353,9 @@
             "shortHtml": "Checks whether the message has the header <code>Auto-Submitted: auto-generated</code>.",
             "returnHtml": "The <code>autoSubmitted</code> option. It is <code>true</code> when the option was not given."
           },
-          "slug": "autosubmitted",
-          "url": "/reference/core/test-sentmail/autosubmitted/",
-          "examples": "core/Test-SentMail/autoSubmitted"
+          "slug": "isautosubmitted",
+          "url": "/reference/core/test-sentmail/isautosubmitted/",
+          "examples": "core/Test-SentMail/isAutoSubmitted"
         },
         {
           "id": "Test.SentMail.bounceTag",

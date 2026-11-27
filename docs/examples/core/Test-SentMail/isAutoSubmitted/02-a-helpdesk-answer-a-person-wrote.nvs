@@ -25,6 +25,6 @@ class HelpdeskTest
     {
         Helpdesk::answer('anna@example.com', 'Your parcel arrives tomorrow.');
 
-        Test::assertTrue(!Test::sentMail()[0]->autoSubmitted());
+        Test::assertTrue(!Test::sentMail()[0]->isAutoSubmitted());
     }
 }

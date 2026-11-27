@@ -8,7 +8,7 @@ test, freed with it.
 connection, and `Core\Test::sentMail(): array<Core\Test\SentMail>` returns the messages sent since
 the test started, by the test, its requests and its runs, in the order sent. `Core\Test\SentMail`'s
 members are the fields `Core\Mail::send` takes, read back, and what it wrote: `messageId()`,
-`fromName()`, `inReplyTo()`, `references()`, `unsubscribe()`, `autoSubmitted()`, `bounceTag()`, and
+`fromName()`, `inReplyTo()`, `references()`, `unsubscribe()`, `isAutoSubmitted()`, `bounceTag()`, and
 `attachments()`, each a `Core\Mail\Attachment` with `name()`, `type()`, `bytes()` and `isInline()`.
 `html()` is the HTML as sent, its CSS inlined, and `text()` the plain text as sent, built from the
 HTML where the program gave none. A `[mail.<name>] capture = true` block keeps its mail the same way

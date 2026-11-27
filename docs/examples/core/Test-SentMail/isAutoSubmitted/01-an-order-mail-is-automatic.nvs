@@ -23,6 +23,6 @@ class OrderTest
 
         // The default is `true`. The message has the header `Auto-Submitted: auto-generated`,
         // so an out-of-office reply is not sent back to the shop.
-        Test::assertTrue(Test::sentMail()[0]->autoSubmitted());
+        Test::assertTrue(Test::sentMail()[0]->isAutoSubmitted());
     }
 }

@@ -25,7 +25,7 @@ class AutoSubmittedAttackTest
         }
         int $automatic = 0;
         foreach (Test::sentMail() as Core\Test\SentMail $mail) {
-            if ($mail->autoSubmitted()) {
+            if ($mail->isAutoSubmitted()) {
                 $automatic = $automatic + 1;
             }
         }
@@ -35,8 +35,8 @@ class AutoSubmittedAttackTest
         // is automatic again.
         Test::request(Method::Post, '/answer');
         Mail::send('shop', ['ada@example.com'], 'Hi', 'A program sent this.');
-        Test::assertTrue(!Test::sentMail()[2000]->autoSubmitted());
-        Test::assertTrue(Test::sentMail()[2001]->autoSubmitted());
+        Test::assertTrue(!Test::sentMail()[2000]->isAutoSubmitted());
+        Test::assertTrue(Test::sentMail()[2001]->isAutoSubmitted());
     }
 }
 

@@ -50,7 +50,7 @@ final class AttachmentTest {
         // The other options of this message, read back as they were given.
         Test::assertSame($mail->messageId(), $id);
         Test::assertSame($mail->unsubscribe(), "https://example.com/unsubscribe/ada");
-        Test::assertTrue(!$mail->autoSubmitted());
+        Test::assertTrue(!$mail->isAutoSubmitted());
         Test::assertSame($mail->bounceTag(), "invoice_7.a");
         Test::assertNull($mail->fromName());
         Test::assertNull($mail->inReplyTo());

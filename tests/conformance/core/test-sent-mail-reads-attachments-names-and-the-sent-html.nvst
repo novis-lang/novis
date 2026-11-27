@@ -6,7 +6,7 @@ test
 <?nvs
 // covers: Core\Test\SentMail::messageId, Core\Test\SentMail::fromName, Core\Test\SentMail::attachments
 // covers: Core\Test\SentMail::inReplyTo, Core\Test\SentMail::references, Core\Test\SentMail::unsubscribe
-// covers: Core\Test\SentMail::autoSubmitted, Core\Test\SentMail::bounceTag, Core\Test\SentMail::html
+// covers: Core\Test\SentMail::isAutoSubmitted, Core\Test\SentMail::bounceTag, Core\Test\SentMail::html
 // covers: Core\Mail\Attachment::name, Core\Mail\Attachment::type, Core\Mail\Attachment::bytes, Core\Mail\Attachment::isInline
 // covers: Core\Mail::send
 use Core\Test;
@@ -42,7 +42,7 @@ final class ReceiptTest {
         Test::assertSame($receipt->inReplyTo(), "0a1b@example.com");
         Test::assertEquals($receipt->references(), ["09ff@example.com", "0a1b@example.com"]);
         Test::assertSame($receipt->unsubscribe(), "https://example.com/unsubscribe/7");
-        Test::assertTrue($receipt->autoSubmitted());
+        Test::assertTrue($receipt->isAutoSubmitted());
         Test::assertSame($receipt->bounceTag(), "order-7");
 
         // `html()` returns the HTML as sent. The `p` rule is now in the element's `style` attribute.
@@ -66,7 +66,7 @@ final class ReceiptTest {
         Test::assertNull($note->inReplyTo());
         Test::assertEquals($note->references(), []);
         Test::assertNull($note->unsubscribe());
-        Test::assertTrue(!$note->autoSubmitted());
+        Test::assertTrue(!$note->isAutoSubmitted());
         Test::assertNull($note->bounceTag());
         Test::assertCount($note->attachments(), 0);
         Test::assertNull($note->html());

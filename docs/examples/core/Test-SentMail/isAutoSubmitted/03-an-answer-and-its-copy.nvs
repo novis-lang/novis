@@ -13,10 +13,10 @@ class AnswerTest
         Test::request(Method::Post, '/tickets/381/answer');
 
         // The first message is the reply that the agent wrote.
-        Test::assertTrue(!Test::sentMail()[0]->autoSubmitted());
+        Test::assertTrue(!Test::sentMail()[0]->isAutoSubmitted());
 
         // The second message is the copy that the program made.
-        Test::assertTrue(Test::sentMail()[1]->autoSubmitted());
+        Test::assertTrue(Test::sentMail()[1]->isAutoSubmitted());
     }
 }
 

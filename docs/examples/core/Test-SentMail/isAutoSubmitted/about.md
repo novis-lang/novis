@@ -1,6 +1,6 @@
-`autoSubmitted()` checks whether a message has the header `Auto-Submitted: auto-generated`. In a
+`isAutoSubmitted()` checks whether a message has the header `Auto-Submitted: auto-generated`. In a
 test, `Core\Test::sentMail()` returns one `Core\Test\SentMail` for each message, and
-`autoSubmitted()` is one of its methods.
+`isAutoSubmitted()` is one of its methods.
 
 The header says that a program sent the message, not a person. A mail server does not send an
 out-of-office reply to such a message. So an automatic message does not start a loop of automatic
@@ -11,7 +11,7 @@ is `true`, because most mail that a web application sends is automatic: a receip
 or an alert. Give `autoSubmitted: false` for a message that a person wrote, such as a reply from
 a support agent.
 
-Use `autoSubmitted()` to check that a message a person wrote is sent as a normal mail.
+Use `isAutoSubmitted()` to check that a message a person wrote is sent as a normal mail.
 
 **The examples below** show an automatic order mail, a helpdesk reply that a person wrote, and a
 request that sends both kinds.
