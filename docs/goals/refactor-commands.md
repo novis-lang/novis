@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/programs/autoload.md, docs/rules/programs/one-declaration-per-autoloaded-file.md, crates/nvs-hir/src/autoload.rs, crates/nvs-hir/src/imports.rs, crates/nvs-cli/tests/code.rs]
   - id: 4
     title: "a list of renames applies in one call"
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/code.rs]
   - id: 5
     title: "a moved file or folder renames the types its new path names, from nvs code move and from a drag in the editor"
@@ -261,8 +261,14 @@ them against one starting index. Edits are merged per file. Two renames that edi
 refused, naming both. The clash check treats a name the same list renames away as free, so a swap
 works. One new name given twice is refused. The CLI reads `nvs code rename --from <file>`: one
 `<target> <new-name>` per line, blank lines and `#` lines skipped, positions read against the files
-as they were. Output, `--dry-run` and `--json` are `rename`'s, and each JSON edit carries the `line`
-of the list it came from. The editor gets nothing new from this stage.
+as they were. Output, `--dry-run` and `--json` are `rename`'s, and each JSON edit carries
+`fromLine`, the line of the list it came from: `line` is already the edit position's line. The
+editor gets nothing new from this stage.
+- **As built.** `rename::renamed_all` (`rename.rs:251`) takes `Request`s and returns a `Batch` whose
+  edits each carry their list index. "One new name" means one resulting full name
+  (`Subject::given`), compared without case. Two edits starting at one byte count as one range, so
+  two `use` blocks a list's namespace moves both rewrite are refused. Two files that swap paths are
+  each moved aside first in `committed` (`code.rs`).
 
 **A moved file takes the name its path gives** (stage 5). Under an autoload root the path *is* the
 name (`rule:programs/one-declaration-per-autoloaded-file`), so a move that keeps the old name always
@@ -457,14 +463,14 @@ cases are disjoint files and may go to two writing subagents.
 
 ### 4. a list of renames applies in one call
 
-- [ ] `crates/nvs-lsp/src/rename.rs:168`: a plan over several renames, computed against one index,
+- [x] `crates/nvs-lsp/src/rename.rs:168`: a plan over several renames, computed against one index,
   merged per file, with the conflict and clash rules of § *Several renames in one plan*; `rename`
   becomes the plan of one.
-- [ ] `crates/nvs-cli/src/code.rs:151` and `:285`: `--from <file>`, conflicting with the two
+- [x] `crates/nvs-cli/src/code.rs:151` and `:285`: `--from <file>`, conflicting with the two
   positional arguments; the `line` field in `--json`.
-- [ ] `crates/nvs-cli/tests/code.rs:835`: the four tests of the check `batch`. Then `cargo test --test
+- [x] `crates/nvs-cli/tests/code.rs:835`: the four tests of the check `batch`. Then `cargo test --test
   code code_rename_from` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:42`: one paragraph for `--from`.
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:42`: one paragraph for `--from`.
 
 ### 5. a moved file or folder renames the types its new path names, from nvs code move and from a drag in the editor
 
@@ -619,35 +625,38 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1, 2 and 3 are done. `cargo test --test code code_rename` passes, 22 of 22, so `namespace`
-and `callback-names` are green. `nvs lsp-test tests/lsp/rename/` passes, 104 of 104.
-- **How stage 3 is built.** `rename::planned` (`rename.rs:202`) sends a new name with a `\` to
-  `namespaced` (`rename.rs:1192`). It reads the new path from each reading program's map in
-  `autoloaded_path`, and it collects the `use` and `namespace` line edits apart from the rest. `headed`
-  (`rename.rs:1469`) turns those into one edit per file, sorted with `nvs_fmt::sorted_imports`. Lines
-  added at a deleted `use` line replace it. `types` now shares `written_already`, `missed_sites` and
-  `refuse_taken` with it.
-- **A name with a `\` always starts at the root** in Novis (`E0240` refuses a leading `\`), so every
-  qualified site becomes the new full name.
-- `nvs_hir::requires::planned_key` (`requires.rs:851`) keys a planned path through its nearest
-  existing ancestor, and `rename::new_key` is that function. `committed` in `code.rs` creates a
-  move's missing directories, judged inside the root.
-- The rule is `docs/rules/ide/a-type-moves-with-its-namespace.md`, with its record and its line in
-  `data/rules/ide.json`.
+Stages 1 to 4 are done. `cargo test --test code code_rename_from` passes, 4 of 4, so `batch` is
+green; stage 3 left `code_rename` at 22 of 22 and `nvs lsp-test tests/lsp/rename/` at 104 of 104.
+The nightly sweep's nine failures were all fixed on `main` before this session (c115a735a1,
+28a4d7a6bf, 544711a8fb).
+- **How stage 4 is built.** `rename::renamed_all` (`rename.rs:251`) computes every subject first,
+  builds one `Freed` (`rename.rs:333`) from them, refuses one resulting name given twice
+  (`Subject::given`), then calls `planned` (`rename.rs:436`) per rename with that `Freed`. Every clash
+  check skips what `Freed` names: declarations in `types`, `namespaced`, `members` and `owned`,
+  tokens inside freed sites in `written_already` and `owned`, freed files in `refuse_taken`, freed
+  bindings for a local. The merged edits are sorted, overlaps refused, and `refactor::checked` runs
+  once. `rename::rename` is `planned` with an empty `Freed`. `query::rename_all` locates each target.
+- The CLI's `rename_from` (`code.rs`) parses the list, `write_out` takes the line map and writes
+  `fromLine` (standing decision: `line` was taken), and `committed` moves swapped files aside first.
+- **Stage 3** is `namespaced` (`rename.rs:1452`) with `autoloaded_path` and `headed`
+  (`rename.rs:1729`); `rename::new_key` is `nvs_hir::requires::planned_key` (`requires.rs:851`).
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
   next to an unrelated error.
 
 ### Next
 
-Stage 4, a list of renames applies in one call (§ *Several renames in one plan*):
-1. `crates/nvs-lsp/src/rename.rs:184` (`rename`) and `:202` (`planned`): a plan over several renames,
-   each computed against the one index, merged per file. Two edits of one byte range are refused,
-   naming both. A name the list renames away is free for the clash checks, so a swap works. The
-   check runs once over the merged plan.
-2. `crates/nvs-cli/src/code.rs:155` (`Rename`) and `:1102` (`rename`): `--from <file>`, conflicting
-   with the two positional arguments; the `line` field on each JSON edit.
-3. The four `batch` tests after `crates/nvs-cli/tests/code.rs:789`, then `cargo test --test code
-   code_rename_from` once.
-4. The `--from` paragraph in `docs/rules/tooling/nvs-code-answers-about-the-project.md:42`.
+Stage 5, a moved file takes the name its path gives (§ *A moved file takes the name its path
+gives*):
+1. `crates/nvs-lsp/src/rename.rs:554` (`moved`): for each moved `.nvs` file a map claims, the name
+   its new path gives; where that differs and the file has a sole declaration, build a
+   `Request`-like rename into the stage 4 plan with the file move already decided. `renamed_all`
+   takes a `Request` with an `Analysed` and an offset, so a move needs either the declaration's
+   analysis or a second entry that takes a `Subject` directly; prefer the latter.
+2. `crates/nvs-cli/src/code.rs:1310` (`judged_move`) and the `Move` help at `code.rs:194`.
+3. `crates/nvs-lsp/src/server.rs:1837` (`will_rename_files`).
+4. The five `moved-namespace` tests before `crates/nvs-cli/tests/code.rs:897` (`ORDER`), then
+   `cargo test --test code code_move` once; the new `.lspt` case, then `nvs lsp-test
+   tests/lsp/rename/` once.
+5. The move paragraph and the Declined item in the tooling rule.
 
 ### Backlog
