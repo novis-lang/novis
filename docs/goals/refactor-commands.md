@@ -50,7 +50,7 @@ stages:
     context: [crates/nvs-hir/src/imports.rs]
   - id: 12
     title: "an interface is extracted from a class"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/generate.rs, crates/nvs-hir/src/autoload.rs]
   - id: 13
     title: "the rules, the help, the examples, the feature proofs and the website say so"
@@ -447,6 +447,20 @@ class's `implements` list. It changes no parameter type to the interface: that i
 user. It refuses a name that exists or that no root reaches, since an autoloaded file holds one
 declaration. In the editor, *Extract interface…* on the class name asks for the name through stage 10,
 with the default methods.
+- **As built.** `crates/nvs-lsp/src/extract_interface.rs` `extracted`, through
+  `query::extract_interface`, `nvs code extract interface` (`code.rs` `extract_interface`) and
+  `nvs.extractInterface` (`commands.rs`). Signatures come from `generate::signature_typed`, the
+  writer *Implement the missing methods* shares, with each type resolved in the class's file and
+  written for the new one: its short name with a new `use` line where that name is free, else
+  `\Full\Name`. The class's `implements` edit and its `use` line go through
+  `move_member::spell`, now `pub(crate)`. Decided while building: **a created file is explicit
+  everywhere.** `refactor::checked_creating` overlays it and marks it planned for `autoload`;
+  `write_out` takes a `Whole { deleted, created }`, judges each created path inside the root,
+  refuses one that exists and creates it with `create_new`, and every write verb's JSON gains a
+  `created` key; the server sends `documentChanges` with a `CreateFile` that never overwrites,
+  and refuses a client without `create` in `resourceOperations` (`ClientSettings::create_files`).
+  The input box starts at the class's name followed by `Contract`, since Novis has no naming
+  convention for an interface. A class no program loads through an `autoload` map is refused.
 
 **The verb list.** `nvs code` goes from eleven verbs to seventeen: `unused` reads; `delete`, `extract`,
 `implement`, `inline` and `signature` write, beside `rename`, `move` and `order`. Every write verb
@@ -663,14 +677,14 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
 ### 12. an interface is extracted from a class
 
-- [ ] `crates/nvs-lsp/src/extract_interface.rs:1` (new): the engine per § *What extract interface
+- [x] `crates/nvs-lsp/src/extract_interface.rs:1` (new): the engine per § *What extract interface
   writes*, writing signatures as `generate.rs:178` `implement` does, through `refactor::checked`.
-- [ ] `crates/nvs-cli/src/code.rs:206`: `extract interface` beside `variable` and `method`.
-- [ ] `crates/nvs-lsp/src/commands.rs:152` and `crates/nvs-lsp/src/commands.rs:68`:
+- [x] `crates/nvs-cli/src/code.rs:206`: `extract interface` beside `variable` and `method`.
+- [x] `crates/nvs-lsp/src/commands.rs:152` and `crates/nvs-lsp/src/commands.rs:68`:
   `nvs.extractInterface` runs the engine, and *Extract interface…* is offered on a class name.
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the three tests of the check `extract-interface`. Then
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the three tests of the check `extract-interface`. Then
   `cargo test --test code code_extract_interface` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the third form of `extract`.
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:62`: the third form of `extract`.
 
 ### 13. the rules, the help, the examples, the feature proofs and the website say so
 
@@ -712,45 +726,39 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 11 are done. Stage 11 landed in 3404ec8d50 (engine, CLI, tests, rule) and 1ad715fadf
-(editor command): `nvs code move Shop\Tax::of Shop\Util\Money` moves a member, and
-`nvs.moveMember` runs the same engine. The five `code_move_member_*` tests and the module's three
-unit tests are green, and clippy and rustfmt are clean. No server test covers `nvs.moveMember` yet;
-stage 13 or 14 may add one beside `change_parameters_command_applies_the_engines_edit`.
-- **Nightly 45813627231's nine failures are all fixed on `main`**: Miri's time zone tests by
-  c115a735a1, the `Core\Uuid` `Parses` conformance case by 28a4d7a6bf, and the aarch64 stack bound
-  by 544711a8fb. The run was on 4e43e1fa2e, before them.
-- Stages 3 to 11 are each standing decision's *As built* bullet.
-- **The title of `ide/the-request-set-is-closed` in `docs/ground-rules.md` still says "seventeen
-  standard requests and seven"**; its body says twenty-three and eight. Stage 13 rereads it.
+Stages 1 to 12 are done. Stage 12 landed in two commits: the engine, the CLI, its three tests and
+the rule (`feat(cli): nvs code extract interface …`), then the editor command
+(`feat(lsp): nvs.extractInterface …`). The three `code_extract_interface_*` tests,
+`extract_interface_is_offered_on_a_class_name_and_runs_the_engine` (`tests/actions.rs`) and the
+module's unit test are green, and clippy and rustfmt are clean.
+- Nightly 45813627231's nine failures were fixed on `main` before this session.
+- `docs/rules/ide/the-request-set-is-closed.md` now describes all three command actions; its
+  stale "cannot run them" sentence is gone. **Its title in `docs/ground-rules.md` still says
+  "seventeen standard requests and seven"**; the body says twenty-three and eight. Stage 13
+  rereads it.
 - **Four `.lspt` action cases keep a name that says "offered nothing"** (`a-method-call-`,
-  `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`) though they now
-  show the inline offer. Stage 13 may rename them.
-- **Expect red at the gate:** a `.lspt` case that pins a generator as not offered next to an
-  unrelated error; the new and changed `nvs code` help, in stage 13's `site --check stale` and
-  `questions`; and a server test that reads a fixed sequence of `publishDiagnostics` and meets
-  `republish_dimming`'s extra publish (fix: a fixture that uses its declarations, as `publish.rs`'s
-  `HOARD` does). A server test that pins the exact list of code actions on a member's name now
-  also meets the *Move … to another class…* action (`commands::at`).
+  `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`) though they show
+  the inline offer. Stage 13 may rename them.
+- **Expect red at the gate:** a `.lspt` or server test that pins the exact code actions on a
+  class's name now also meets *Extract an interface from `X`…*, and one on a member's name meets
+  *Move … to another class…*; `every_verb_json_follows_the_check_json_conventions` if it pins a
+  write verb's key list (each now has `created`); the changed `nvs code` help in `site --check
+  stale` and `questions`; and a server test reading a fixed `publishDiagnostics` sequence that
+  meets `republish_dimming`'s extra publish (fix: a fixture using its declarations, as `HOARD`).
 
 ### Next
 
-Stage 12 (§ *What extract interface writes*).
-1. `crates/nvs-lsp/src/extract_interface.rs` (new, `pub mod` in `lib.rs`): `extracted(documents,
-   index, class, name, methods: Option<&[String]>) -> Result<(Vec<Rewrite>, PathBuf, String),
-   String>`, writing each signature as `generate.rs:178` `implement` does. The new file's path is
-   `AutoloadMap::name_at`'s inverse, as `rename::autoloaded_path` (`rename.rs`) finds it. Each type
-   is written for the new file with a `use` line, as `move_member.rs` `spell` does (it could move
-   to a shared `pub(crate)` helper). The class's `implements` edit, then `refactor::checked` with
-   the new file as a created file (see how `checked` reads a path that has no text yet).
-2. `crates/nvs-cli/src/code.rs`: `Extracted::Interface { class, name, methods, dry_run, json }`
-   beside `Variable` and `Method`, written through `write_out`'s created-file path.
-3. `crates/nvs-lsp/src/commands.rs` `EXTRACT_INTERFACE`: runs it; `commands::at` offers *Extract
-   interface…* on a class name, prefilled with the class's name followed by `Contract`, which the
-   person edits (a design call for the session: no Novis naming convention exists for it).
-4. `crates/nvs-cli/tests/code.rs`: the three `extract-interface` tests; `cargo test --test code
-   code_extract_interface` once.
-5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the third form of `extract`.
+Stage 13 (its own items are complete; follow its **Split:** line).
+1. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`: reread each verb's paragraph
+   against the code; `extract`'s now has three forms (`:32`, `:43`).
+2. `docs/rules/ide/no-refactoring-introduces-an-alias.md` and
+   `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md`: the *Built* lists
+   name inline, delete unused, change parameters, move member and extract interface. Then `bun nv
+   rules --render`. Fix the `ide/the-request-set-is-closed` title in `docs/ground-rules.md`.
+3. Help text reread: `crates/nvs-cli/src/code.rs` `Command` and `Extracted` (`Interface` is new).
+4. Examples under `docs/examples/tools/cli/nvs-code/` and the website pages, by two writing
+   subagents, then `bun nv proofs --owed --goal refactor-commands`, `site --check stale`,
+   `questions`, `changes` and `review`.
 
 ### Backlog
 
