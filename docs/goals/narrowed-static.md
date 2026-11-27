@@ -22,7 +22,7 @@ stages:
     context: [docs/reference/lang/50-classes.md, docs/examples/lang/types/void-never-self-static/about.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: called-class-test
@@ -266,8 +266,8 @@ written. Its brief names AGENTS.md § *Text an end user reads* and § *Feature p
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## The finder case
 
@@ -331,31 +331,32 @@ order 1
 
 ### State
 
-Stages 1 to 4 are done, and their checks are green: `narrowed_static`'s 12 tests, the two
-conformance cases, and `proofs --gate --goal narrowed-static`. Stage 4 wrote the rule and
-`type-test.md`, E0741's card and help (both name the two new returns), example 07, attacks 04
-(six refused steps) and 05 (run time), and the feature's bench as the finder's linear filter with a
-`.scale.nvs` sibling. It also wrote two `changes.json` entries, rendered both chapters, stamped every
-review and page, and recorded the 41 `lang:types` and `lang:classes` perf figures on the release
-binary. `site --check stale`, `changes`, `review` and `questions` are green. The sweep's nightly
-failures (run 45992349212) were fixed on `main` after that run.
+Every stage is done. The full gate ran `looper verify` over this goal and refactor-commands,
+loadable-completion, test-only and incremental-reload. It is green, and so are `bun nv verify --doc`,
+`bun nv ci --check` and `proofs --gate --goal narrowed-static`. The first run's reds were all fixed in
+this session:
 
-`bun nv scaling --budget` names 55 benches over their share, none of them this goal's
-(`core/Arr/hasKey`, `core/Metrics/*`, `novis/Spreadsheet-*`), on both binaries. No gate found here
-runs it, so `data/perf/bench-budget.json` is unchanged.
+- The `types` and `statements` rule chapters were not rendered from stage 4's fragments.
+- incremental-reload left four checks stale. `live_config` counted every `.nvsc` file, and now
+  counts compiled units as `compile_cache` does. `erased_entries` had a row for the cached script's
+  door, which is gone. `backend_policy` matched the variable name `.func`. A warm `nvs run --count`
+  counted one more allocation than a cold run, because std read `RUST_MIN_STACK` at the watchdog's
+  first spawn. The watchdog thread now names std's 2 MiB stack size (`crates/nvs-host/src/watchdog.rs`).
+- test-only left its examples, attack, fixture and two reference blocks out of the formatter's
+  layout. They are formatted, the testing chapter's 11 perf figures are measured again, and the page
+  and `about.md` are stamped.
+- `W1039` had no Rust test that asserts it by its code. `crates/nvs-types/tests/compared_names.rs` is
+  that test.
+- refactor-commands' "Extract an interface" action broke the extension's code-action test, which
+  expected exactly one action. It now checks the one quick fix and lets a `refactor.*` action sit
+  beside it.
 
-Tests that may go red at the full gate: a diagnostics roster test that lists every code, for `E1021`
-and `E1022`; a reference check that every code has a page or card; any Rust test that pins E0741's
-help text word for word; `website/public/llms-full.txt`, which still has the old help text until the
-site is rebuilt.
+The sweep's nightly failures (run 45992349212) were already fixed on `main`: the Miri timeout by
+215257ff46, the Runs shot by 606701259f and the aarch64 stack bound by 544711a8fb.
 
 ### Next
 
-Stage 5: the check the pack names for it. At a close: `cargo build`, `cargo clippy --all-targets -- -D
-warnings`, `cargo test --test narrowed_static`, the two conformance cases by name
-(`tests/conformance/lang/is-static-tests-the-class-the-call-names.nvst`,
-`tests/conformance/lang/a-finder-returns-loaded-objects-as-static.nvst`) and `bun nv close --goal
-narrowed-static`. At a full gate: `looper verify`, then `bun nv verify --doc` and `bun nv ci --check`.
-A red `ci-check` on the bench budget is the 55 benches above, not this goal's.
+Nothing. The goal is reached, and the driver runs its acceptance checks and retires it.
 
 ### Backlog
+
