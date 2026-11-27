@@ -271,6 +271,7 @@
 //! measured program whose resumes or `switch` show up in a profile.
 
 mod emit;
+pub mod pieces;
 mod pool;
 mod ty;
 
@@ -1468,7 +1469,7 @@ pub fn function_code_hashes(
         unit.literals.restart();
         unit.hash = Some(blake3::Hasher::new());
         unit.literals.record = Some(Vec::new());
-        unit.compile_function(function)?;
+        unit.compile_function(function, &|_| false)?;
         let mut hasher = unit.hash.take().unwrap_or_default();
         for data in unit.literals.record.take().unwrap_or_default() {
             hasher.update(data.as_bytes());
@@ -1505,6 +1506,51 @@ pub fn function_keys(program: &Program) -> Result<Vec<(String, [u8; 32])>, Codeg
         unit.module.module().clear_context(&mut ctx);
     }
     Ok(unit.keys.take().unwrap_or_default())
+}
+
+/// Every function of `program` keyed as [`function_keys`] keys it, and each
+/// one whose key `reuse` says the caller does not hold compiled into a
+/// position-free [`pieces::Piece`], with every literal the program defines.
+///
+/// This is the compile the per-function artifact cache runs: a function it
+/// already holds costs its emit and its key here, and no Cranelift compile.
+/// Code generation runs on [`pool`]'s threads as [`compile`]'s does.
+///
+/// What it spends: the compiled functions' bytes and relocations and every
+/// literal's contents, held by the returned [`pieces::Pieces`].
+///
+/// # Errors
+///
+/// The same cases [`compile_object`] reports, for the same reasons.
+pub fn compile_pieces(
+    program: &Program,
+    reuse: &dyn Fn(&[u8; 32]) -> bool,
+) -> Result<pieces::Pieces, CodegenError> {
+    if program.is_debug() || program.mutant_switch {
+        return Err(CodegenError::Internal(
+            "a debug unit or a mutation run's schema is never written to the artifact cache"
+                .to_owned(),
+        ));
+    }
+    let mut unit = UnitBuilder::for_object()?;
+    unit.keys = Some(Vec::with_capacity(program.functions.len()));
+    unit.literals.digests = Some(FxHashMap::default());
+    unit.literals.pieces = Some(Vec::new());
+    unit.pieces = Some(Vec::new());
+    unit.compile_some(program, reuse)?;
+    let literals = unit
+        .literals
+        .pieces
+        .take()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|literal| (literal.digest, literal))
+        .collect();
+    Ok(pieces::Pieces {
+        keys: unit.keys.take().unwrap_or_default(),
+        compiled: unit.pieces.take().unwrap_or_default(),
+        literals,
+    })
 }
 
 /// Every class descriptor a unit declares, built from the lowered IR and from
@@ -1866,6 +1912,9 @@ struct UnitBuilder<M> {
     /// its Novis name. A key names a callee by it, because the callee's symbol
     /// carries its place in the program.
     key_names: FxHashMap<cranelift_module::FuncId, String>,
+    /// Set only by [`compile_pieces`]: each compiled function's piece, in the
+    /// program's order. `None` is the ordinary compile.
+    pieces: Option<Vec<pieces::Piece>>,
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
@@ -3058,6 +3107,8 @@ fn base_symbols(program: &Program) -> Result<Vec<(String, usize)>, CodegenError>
 struct Emitted<'p> {
     name: &'p str,
     id: cranelift_module::FuncId,
+    /// The function's key, when the unit keys its functions.
+    key: Option<[u8; 32]>,
     ctx: codegen::Context,
 }
 
@@ -3114,6 +3165,7 @@ impl<M: Backend> UnitBuilder<M> {
             hash: None,
             keys: None,
             key_names: FxHashMap::default(),
+            pieces: None,
         }
     }
 
@@ -3132,6 +3184,17 @@ impl<M: Backend> UnitBuilder<M> {
     /// thread writes, and the first function that fails in that order is the
     /// error, whichever thread finished first.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
+        self.compile_some(program, &|_| false)
+    }
+
+    /// [`Self::compile_all`], except that a function whose key `reuse` says
+    /// the caller already holds is emitted and keyed but not compiled or
+    /// defined. `reuse` is asked only when the unit keys its functions.
+    fn compile_some(
+        &mut self,
+        program: &Program,
+        reuse: &dyn Fn(&[u8; 32]) -> bool,
+    ) -> Result<(), CodegenError> {
         self.declare_all(program)?;
         self.desc_symbols
             .lock()
@@ -3140,7 +3203,7 @@ impl<M: Backend> UnitBuilder<M> {
         let threads = pool::threads(program.functions.len());
         if threads == 1 {
             for (index, function) in program.functions.iter().enumerate() {
-                self.compile_function(function)?;
+                self.compile_function(function, reuse)?;
                 #[cfg(test)]
                 if index == 0 {
                     failpoint::hit()?;
@@ -3158,9 +3221,12 @@ impl<M: Backend> UnitBuilder<M> {
                 (job, compiled)
             },
             |lanes| {
+                // A job's number counts the functions submitted, so a function
+                // whose key is reused takes none.
                 let mut defined = 0;
+                let mut submitted = 0;
                 let mut stopped = None;
-                for (index, function) in program.functions.iter().enumerate() {
+                for function in &program.functions {
                     while lanes.full() {
                         self.define_next(lanes, &mut defined)?;
                     }
@@ -3169,27 +3235,34 @@ impl<M: Backend> UnitBuilder<M> {
                         .pop()
                         .unwrap_or_else(|| self.module.module().make_context());
                     match self.emit_body(function, &mut ctx) {
-                        Ok(id) => lanes.submit(
-                            index,
-                            Emitted {
-                                name: &function.name,
-                                id,
-                                ctx,
-                            },
-                        ),
+                        Ok(id) => {
+                            let key = self.last_key();
+                            if key.is_some_and(|key| reuse(&key)) {
+                                self.module.module().clear_context(&mut ctx);
+                                self.spare.push(ctx);
+                                continue;
+                            }
+                            lanes.submit(
+                                submitted,
+                                Emitted {
+                                    name: &function.name,
+                                    id,
+                                    key,
+                                    ctx,
+                                },
+                            );
+                            submitted += 1;
+                        }
                         Err(error) => {
-                            stopped = Some((index, error));
+                            stopped = Some(error);
                             break;
                         }
                     }
                 }
-                let end = stopped
-                    .as_ref()
-                    .map_or(program.functions.len(), |(at, _)| *at);
-                while defined < end {
+                while defined < submitted {
                     self.define_next(lanes, &mut defined)?;
                 }
-                stopped.map_or(Ok(()), |(_, error)| Err(error))
+                stopped.map_or(Ok(()), Err)
             },
         )
     }
@@ -3204,7 +3277,8 @@ impl<M: Backend> UnitBuilder<M> {
         let (mut job, compiled) = lanes
             .take(*defined)
             .ok_or_else(|| emit::internal("a code-generation job that was never submitted"))?;
-        let result = compiled.and_then(|()| self.define_compiled(job.name, job.id, &job.ctx));
+        let result =
+            compiled.and_then(|()| self.define_compiled(job.name, job.id, job.key, &job.ctx));
         self.module.module().clear_context(&mut job.ctx);
         self.spare.push(job.ctx);
         result?;
@@ -3327,11 +3401,21 @@ impl<M: Backend> UnitBuilder<M> {
     /// Emits, compiles and defines one already-declared function on this
     /// thread, which is what [`Self::compile_all`] does for each function when
     /// it generates code on one thread.
-    fn compile_function(&mut self, function: &nvs_ir::Function) -> Result<(), CodegenError> {
+    /// A function whose key `reuse` says the caller holds is emitted and
+    /// keyed only.
+    fn compile_function(
+        &mut self,
+        function: &nvs_ir::Function,
+        reuse: &dyn Fn(&[u8; 32]) -> bool,
+    ) -> Result<(), CodegenError> {
         let mut ctx = std::mem::replace(&mut self.ctx, codegen::Context::new());
         let result = self.emit_body(function, &mut ctx).and_then(|id| {
+            let key = self.last_key();
+            if key.is_some_and(|key| reuse(&key)) {
+                return Ok(());
+            }
             compile_body(&*self.isa, &mut ctx, &function.name)?;
-            self.define_compiled(&function.name, id, &ctx)
+            self.define_compiled(&function.name, id, key, &ctx)
         });
         self.module.module().clear_context(&mut ctx);
         self.ctx = ctx;
@@ -3388,6 +3472,15 @@ impl<M: Backend> UnitBuilder<M> {
             }
         }
         Ok(id)
+    }
+
+    /// The key [`Self::emit_body`] wrote last, when the unit keys its
+    /// functions.
+    fn last_key(&self) -> Option<[u8; 32]> {
+        self.keys
+            .as_ref()
+            .and_then(|keys| keys.last())
+            .map(|(_, key)| *key)
     }
 
     /// The key of the function just emitted into `func`: BLAKE3 over the
@@ -3473,12 +3566,31 @@ impl<M: Backend> UnitBuilder<M> {
     /// `id`, with its relocations, and records what a disassembly or a hash
     /// asked for. The bytes, alignment and relocations are the ones
     /// `Module::define_function` would define after compiling `ctx` itself.
+    ///
+    /// When the unit records pieces ([`compile_pieces`]), it records this
+    /// function's piece under `key` too.
     fn define_compiled(
         &mut self,
         name: &str,
         id: cranelift_module::FuncId,
+        key: Option<[u8; 32]>,
         ctx: &codegen::Context,
     ) -> Result<(), CodegenError> {
+        if self.pieces.is_some() {
+            let piece = pieces::piece_of(
+                name,
+                key.unwrap_or_default(),
+                id,
+                ctx,
+                self.module.module(),
+                &self.key_names,
+                self.literals.digests.as_ref(),
+            )
+            .ok_or_else(|| emit::internal("a function recorded before it was compiled"))?;
+            if let Some(pieces) = self.pieces.as_mut() {
+                pieces.push(piece);
+            }
+        }
         let code = ctx
             .compiled_code()
             .ok_or_else(|| emit::internal("a function defined before it was compiled"))?;

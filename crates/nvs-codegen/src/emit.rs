@@ -174,6 +174,10 @@ pub(crate) struct Literals {
     /// key names a literal by this digest, never by its name. Compile-time
     /// memory, one entry per data object the unit defines.
     pub(crate) digests: Option<FxHashMap<DataId, [u8; 32]>>,
+    /// Set only by [`crate::compile_pieces`], with [`Self::digests`]: each
+    /// data object defined so far as a position-free piece. Compile-time
+    /// memory, one copy of each literal's contents.
+    pub(crate) pieces: Option<Vec<crate::pieces::LiteralPiece>>,
 }
 
 impl Literals {
@@ -2444,6 +2448,17 @@ impl Emitter<'_, '_> {
             let digest = self.literals.digest(desc, &*self.module);
             if let Some(digests) = self.literals.digests.as_mut() {
                 digests.insert(data, digest);
+            }
+            if self.literals.pieces.is_some() {
+                let piece = crate::pieces::literal_piece(
+                    digest,
+                    desc,
+                    &*self.module,
+                    self.literals.digests.as_ref(),
+                );
+                if let Some(pieces) = self.literals.pieces.as_mut() {
+                    pieces.push(piece);
+                }
             }
         }
         self.module
