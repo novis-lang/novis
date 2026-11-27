@@ -182,39 +182,20 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### State
 
-Every stage is done, and the goal is ready for its `DONE`. Stage 3 was a close: `cargo build`,
-`cargo clippy --all-targets -- -D warnings`, `cargo test --test loadable_completion` (ten of ten) and
-`requires::tests::the_map_says_which_indexed_file_it_loads` are green, and so is
-`bun nv close --goal loadable-completion`. Its one red was `site --check roadmap`: `file-transfer`
-was on the chain and in no theme. 7aaffedbcd gives it a theme of its own in
-`website/src/data/roadmap.json` and rewrites README.md's copy. Every call under § *Standing
-decisions* is the session's, open until the user changes one, and the rewritten rule holds each.
+Every stage is done. `cargo test --test loadable_completion` is ten of ten green, and the work is
+`AutoloadMap::loads_file` (`crates/nvs-hir/src/autoload.rs`) and `loadable` in `completion.rs`,
+which `every_type`, `under` and `unloaded_blocks` read. The rule, the editor page and one
+`changes.json` entry say so. Every call under § *Standing decisions* is open until the user changes
+one.
 
-- `AutoloadMap::loads_file` and `loads_nothing` (`crates/nvs-hir/src/autoload.rs`, beside `resolve`)
-  share the prefix walk with `probe_entries`. Unit test:
-  `requires::tests::the_map_says_which_indexed_file_it_loads`.
-- `completion.rs`: `loadable(analysed, declared)` is the one test that `every_type`, `under` and
-  `unloaded_blocks` read. `taken_among` still reads every row.
-- The rule is rewritten whole. Its new title and its guard
-  `crates/nvs-lsp/tests/loadable_completion.rs` are in
-  `data/rules/ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted.json`.
-- The editor page's § *Completion and errors*, its questions and one `changes.json` entry say so.
-  The newcomer review was done, and `site --check stale changes review questions` is green.
-- The nightly sweep's nine failures (run 45813627231, at 4e43e1fa2e) were fixed on `main` after
-  that run, by c115a735a1, 28a4d7a6bf and 544711a8fb. No test is expected to go red.
-
-**The refused `DONE` was caused by work outside this goal.** Somebody is working in this tree on an
-uncommitted change: an object literal's key that the declared shape does not name is `E0454`
-(`crates/nvs-types/src/expr/literals.rs`, `crates/nvs-types/tests/objects_and_shapes.rs`, three
-cases under `tests/conformance/lang/` and a new
-`tests/conformance/reject/a-key-an-object-literal-adds-to-a-shape-does-not-compile.nvst`). Its
-borrow error broke `loadable`, and its formatting broke `close`. The borrow error was gone by this
-session. This session ran `rustfmt` on `literals.rs` and nothing else, and committed none of it.
-`cargo test --test loadable_completion` is ten of ten green. 254c6cfc29 gives `html-attributes`,
-which joined the chain at 86efa7f96c, a roadmap theme. `close` stays red on two items of that
-uncommitted work: `lang:types/type-aliases` is stale on `syntax/values/union-types.mdx` and its
-`about.md`, and its moved tests have no `changes.json` entry. Both belong to that change. Its
-author stamps the page and writes the entry when it lands.
+**The refused `DONE` came from uncommitted work outside this goal.** Someone working in this tree
+is making an object literal's undeclared shape key `E0454`: `crates/nvs-types/src/expr/literals.rs`,
+`crates/nvs-types/tests/objects_and_shapes.rs`, three cases under `tests/conformance/lang/` and a new
+reject case. Its borrow error broke `loadable`, and it was fixed before this session. Its formatting
+broke `close`. This session ran `rustfmt` on `literals.rs` alone and committed none of that work.
+254c6cfc29 gives `html-attributes` (on the chain since 86efa7f96c) a roadmap theme. `close` stays
+red on that work's own items: `lang:types/type-aliases` is stale on `syntax/values/union-types.mdx`
+and its `about.md`, and has no `changes.json` entry. No test is expected to go red.
 
 ### Next
 
