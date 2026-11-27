@@ -188,15 +188,12 @@ which `every_type`, `under` and `unloaded_blocks` read. The rule, the editor pag
 `changes.json` entry say so. Every call under § *Standing decisions* is open until the user changes
 one.
 
-**`DONE` waits on uncommitted work outside this goal.** Someone working in this tree is making an
-object literal's undeclared shape key `E0454`: `crates/nvs-types/src/expr/literals.rs`,
-`crates/nvs-types/tests/objects_and_shapes.rs`, `crates/nvs-diagnostics/src/code/types.rs`, three
-cases under `tests/conformance/lang/`, the reference chapter, a reject case and a `changes.json`
-entry. Its last edit was at 09:28 on 2026-11-27. At 09:41 the tree builds and is formatted, and
-`loadable` is green. `close` is red only on that work's stamps: `llms-full.txt` not rendered, four
-pages and `about.md` files stale for `anonymous-objects` and `type-aliases`, `details.md` unreviewed,
-and 14 `lang:expressions/*` perf proofs stale on `30-expressions.md`. No session stamps another
-person's unfinished work. The nightly run 45813627231's three causes are fixed on `main`
+**`DONE` waits on the user's `E0454` work, which is still being edited.** Its code landed in
+c8eca50b11 at 09:42 on 2026-11-27. Its `about.md`, the reference chapter, a reject case and its
+`changes.json` entry are still uncommitted at 09:44. At 09:44 the tree builds and is formatted, and
+`loadable` is ten of ten green. `close` is red only on that work's stamps: `llms-full.txt` not
+rendered and 14 `lang:expressions/*` perf proofs stale on `30-expressions.md`. No session stamps
+another person's unfinished work. The nightly run 45813627231's three causes are fixed on `main`
 after it: c115a735a1 (zone tests skip Miri), 28a4d7a6bf (`Core\Uuid` is `Parses` at run time) and
 544711a8fb (the waiting-stack bound covers aarch64's 11.03). No test is expected to go red.
 
