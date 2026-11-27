@@ -40,7 +40,7 @@ it exists outside tests.
 
 **A run and a build leave it out.** `nvs run`, a reload and `nvs build` lower no test-only method and
 emit no class row, descriptor or layout for a test-only type. `Core\Reflect::forClass` with a
-test-only class's name throws the error an unknown class throws, and a dynamic call on a `mixed`
+test-only class's name returns `null`, as it does for an unknown class, and a dynamic call on a `mixed`
 receiver finds no test-only method. `nvs test` lowers all of it, and `nvs check` checks all of it.
 
 **`Core\Program::implementing`, `implementingWith` and `constructors` never list a test-only class,

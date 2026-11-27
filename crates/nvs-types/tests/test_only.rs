@@ -12,6 +12,7 @@ fn count(diags: &Diagnostics, want: Code) -> usize {
 }
 
 /// A method that carries `#[TestOnly]` is test code, and its neighbours are not.
+// covers: lang:testing/testonly-code-that-only-tests-can-use
 #[test]
 fn a_test_only_method_is_test_code() {
     let (diags, table) = check_src_table(

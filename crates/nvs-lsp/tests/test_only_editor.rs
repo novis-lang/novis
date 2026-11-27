@@ -73,6 +73,7 @@ const TEST_CLOSE: &str = "\n  }\n}\n";
 
 /// After `$cache->` in code that is not a test, `get` is offered and the
 /// test-only `clearAll` is not.
+// covers: lang:testing/testonly-code-that-only-tests-can-use, tools:editor/nvs-lsp
 #[test]
 fn completion_outside_test_code_offers_no_test_only_member() {
     let items = offered("var $cache = new Cache();\n$cache->", "");

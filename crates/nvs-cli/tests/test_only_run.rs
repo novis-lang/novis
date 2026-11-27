@@ -46,6 +46,7 @@ fn nvs(command: &str, file: &str) -> (String, bool) {
 
 /// `Core\Reflect::forClass` finds no row for a test-only class under `nvs run`, and finds the
 /// production class beside it, so the lookup itself works.
+// covers: lang:testing/testonly-code-that-only-tests-can-use
 #[test]
 fn a_run_cannot_find_a_test_only_class_by_name() {
     let (output, ok) = nvs("run", "clock.nvs");
