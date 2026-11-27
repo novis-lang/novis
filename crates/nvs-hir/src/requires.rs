@@ -791,7 +791,52 @@ pub fn canonicalize(path: &Path) -> Option<PathBuf> {
     }
     nvs_footprint::exists(path);
     nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Resolved);
-    path.canonicalize().ok()
+    let found = path.canonicalize().ok();
+    if found.is_none() {
+        return planned(path);
+    }
+    found
+}
+
+thread_local! {
+    /// The paths [`with_planned`] says exist, each as its parent's canonical
+    /// form joined with its file name. Empty outside a call of it.
+    static PLANNED: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// `run`, with each of `paths` found by [`canonicalize`] as if it were on
+/// disk, on this thread only.
+///
+/// A refactoring that moves a file checks its edit by analysing the program
+/// with the moved text overlaid at the new path
+/// (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`). The file is
+/// not there yet, so an `autoload` probe for the new name would miss it and
+/// refuse a correct edit. Each path is its parent's canonical form joined with
+/// its file name, the key the overlay uses. A missing path costs one look at
+/// an empty list, and nothing is kept after `run` returns.
+pub fn with_planned<T>(paths: Vec<PathBuf>, run: impl FnOnce() -> T) -> T {
+    struct Restore(Vec<PathBuf>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = std::mem::take(&mut self.0);
+            PLANNED.with(|planned| *planned.borrow_mut() = previous);
+        }
+    }
+    let previous = PLANNED.with(|planned| std::mem::replace(&mut *planned.borrow_mut(), paths));
+    let _restore = Restore(previous);
+    run()
+}
+
+/// `path` as a planned path names it, when [`with_planned`] holds it.
+fn planned(path: &Path) -> Option<PathBuf> {
+    PLANNED.with(|planned| {
+        let planned = planned.borrow();
+        if planned.is_empty() {
+            return None;
+        }
+        let key = path.parent()?.canonicalize().ok()?.join(path.file_name()?);
+        planned.contains(&key).then_some(key)
+    })
 }
 
 /// Reports a `require` whose literal path resolved only because the

@@ -20,7 +20,9 @@
 //!
 //! # Decision: the old path of a moved file stays readable
 //!
-//! The analysis overlays each moved file at its new path and cannot hide the
+//! The analysis overlays each moved file at its new path, and
+//! `nvs_hir::requires::with_planned` lets an `autoload` probe find it there
+//! before it is on disk. It cannot hide the
 //! old one, which is still on disk. A use the edit forgot that still names the
 //! old place therefore resolves and adds no error. The rewrites of
 //! `crate::rename::moved` write every `require` again, so this is a name the
@@ -151,7 +153,11 @@ pub fn checked(
             .map(|analysed| errors(&analysed, &now))
             .unwrap_or_default();
         let at = now(entry);
-        let Some(after) = analyse_with(documents, &after_reads, &at) else {
+        let planned: Vec<PathBuf> = places.values().cloned().collect();
+        let after = nvs_hir::requires::with_planned(planned, || {
+            analyse_with(documents, &after_reads, &at)
+        });
+        let Some(after) = after else {
             continue;
         };
         analysed.push(at);
