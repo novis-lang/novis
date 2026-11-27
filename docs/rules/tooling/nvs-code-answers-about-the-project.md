@@ -66,14 +66,27 @@ that may not compile.
   output and `--dry-run` are `rename`'s, and each `--json` edit carries `fromLine`, the line of
   the list it came from, since `line` is its position's. A message about one rename starts with
   `line N:`. **Cost:** tooling only, one plan per line and one check for the whole list.
-- **`move <from> <to>`** is the editor's file move, `rename::moved`, and writes through the same
-  path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
+- **`move <from> <to>`** is the editor's file move, `rename::relocated`, and writes through the
+  same path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
   root, and a directory moves with every file under it. `<to>` is inside the root, does not exist,
   is not inside `<from>`, and its directory exists. Both are judged before anything is computed, and
   a failure writes nothing. Each `require` literal that names a moved file, or that a moved file
   writes, is written again first, keyed by the file's current path, and then `fs::rename` makes the
   move; a move that fails after the edits names the files already changed. The output and `--json`
   are `rename`'s, with the move as the one entry of `moved`.
+  - **A moved file takes the name its path gives.** Under an `autoload` root the path is the name
+    (`rule:programs/one-declaration-per-autoloaded-file`), so a move that kept the old name would
+    always break the program. For each moved `.nvs` file a program's map claims, the name that map
+    finds the new path by (`AutoloadMap::name_at`, the deepest root that holds it) is the name its
+    sole declaration takes, through the plan `rename --from` builds, with the file move already
+    decided. A new folder gives a new namespace, a new file name a new last segment, and a folder
+    moves every type under it in one plan, where two types that move into one namespace need no
+    `use` line for each other. A file only a `require` reaches keeps its names. An autoloaded file
+    that no root reaches at its new path is refused, and so are programs whose maps give it
+    different names. The editor's `workspace/willRenameFiles` returns the same plan, and only the
+    `require` edits where the plan is refused, because a drag cannot be refused; the diagnostics
+    then name what broke. **Cost:** tooling only, one analysis per program that reads a moved file
+    and one rename plan per renamed type.
 - **`order [paths...]`** is the editor's *Order class members* action, `nvs_lsp::order::of`, run
   over each file a path names (a file or a directory under the root) or every file of the project
   (`rule:tooling/class-members-have-one-order`). Each changed file is one whole-file edit through the
@@ -159,9 +172,9 @@ reads each ignore file once and keeps its parsed patterns, a few KiB, until it e
 - **A journal or a staged write for `rename` and `move`.** A crash between two writes leaves the
   project half changed, and the next `nvs check` names every site that no longer resolves. `nvs fmt`
   writes the same way, and nothing on the request path is involved.
-- **`move` renaming the type a moved file declares, or creating a missing directory.** The editor's
-  file move does neither. A type is renamed with `rename`, which moves its file too, and after a
-  move `nvs check` names any other name that no longer resolves.
+- **`move` creating a missing directory.** The user types the new path, so a typo in it would
+  create a folder nobody asked for. `rename` to a full name creates the folders its new name needs,
+  because there the autoload map gives the path and nobody typed it.
 - **Trusting a file's size and modification time, as the editor does.** A stale editor answer lasts
   until the next keystroke, but a stale `nvs code` answer is acted on by an agent and outlives the
   call. Hashing every file is a fraction of a second on the workers.

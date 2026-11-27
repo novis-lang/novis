@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-cli/tests/code.rs]
   - id: 5
     title: "a moved file or folder renames the types its new path names, from nvs code move and from a drag in the editor"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/autoload.rs, crates/nvs-lsp/src/server.rs, crates/nvs-cli/tests/code.rs]
   - id: 6
     title: "unused declarations are listed, greyed out and deleted"
@@ -281,6 +281,15 @@ editor's `willRenameFiles` cannot refuse a drag, so there it returns only the `r
 today, and the existing diagnostics name what broke. The rule's Declined item "`move` renaming the type
 a moved file declares" is deleted, with the reason above. `move` still creates no directory: the user
 types that path.
+- **As built.** `rename::relocated` (`rename.rs:406`) is the entry both clients call. The name a
+  new path gives is `AutoloadMap::name_at` (`autoload.rs`), the deepest root that holds the path, so
+  a move to a second root of one prefix keeps working. Each renamed type is planned by
+  `planned_all`, the core `renamed_all` shares, with `Freed::placed` naming the files the caller
+  moves: `types` and `namespaced` add no file move and no `require` edit for those, and the caller's
+  one `moved` call writes the `require` edits. `Freed::renamed` lets two types that move into one
+  namespace skip the `use` lines for each other. The editor's `willRenameFiles` returns the plan, and
+  `moved` alone where the plan is refused (`server.rs` `dragged`). Two renames of a list whose
+  namespace moves both edit one file's `use` block are still refused as an overlap, as in stage 4.
 
 **What counts as a use** (stage 6). `SymbolIndex::unused` generalizes `unused_private`
 (`index.rs:1743`) to types, methods, properties, constants and enum cases. A declaration is used when
@@ -474,17 +483,17 @@ cases are disjoint files and may go to two writing subagents.
 
 ### 5. a moved file or folder renames the types its new path names, from nvs code move and from a drag in the editor
 
-- [ ] `crates/nvs-lsp/src/rename.rs:272` (`moved`): each claimed file whose new path gives another
+- [x] `crates/nvs-lsp/src/rename.rs:272` (`moved`): each claimed file whose new path gives another
   name joins a stage 4 plan; a folder move renames every type under it.
-- [ ] `crates/nvs-cli/src/code.rs:1162` (`judged_move`): the refusal of an autoloaded file no root
+- [x] `crates/nvs-cli/src/code.rs:1162` (`judged_move`): the refusal of an autoloaded file no root
   claims at its new path; the `Move` help at `code.rs:177` says the class is renamed with it.
-- [ ] `crates/nvs-lsp/src/server.rs:1837`: `willRenameFiles` returns the plan's edits and returns only
+- [x] `crates/nvs-lsp/src/server.rs:1837`: `willRenameFiles` returns the plan's edits and returns only
   the `require` edits where the plan refuses.
-- [ ] `crates/nvs-cli/tests/code.rs:898`: the five tests of the check `moved-namespace`. Then `cargo
+- [x] `crates/nvs-cli/tests/code.rs:898`: the five tests of the check `moved-namespace`. Then `cargo
   test --test code code_move` once.
-- [ ] `tests/lsp/rename/a-dragged-autoloaded-file-takes-its-new-namespace.lspt:1` (new), beside
+- [x] `tests/lsp/rename/a-dragged-autoloaded-file-takes-its-new-namespace.lspt:1` (new), beside
   `a-renamed-files-require-is-rewritten.lspt`, then `nvs lsp-test tests/lsp/rename/` once.
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:54` and `:147`: the move paragraph,
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:54` and `:147`: the move paragraph,
   and the Declined item deleted with its reason.
 
 ### 6. unused declarations are listed, greyed out and deleted
@@ -625,38 +634,36 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 4 are done. `cargo test --test code code_rename_from` passes, 4 of 4, so `batch` is
-green; stage 3 left `code_rename` at 22 of 22 and `nvs lsp-test tests/lsp/rename/` at 104 of 104.
-The nightly sweep's nine failures were all fixed on `main` before this session (c115a735a1,
-28a4d7a6bf, 544711a8fb).
-- **How stage 4 is built.** `rename::renamed_all` (`rename.rs:251`) computes every subject first,
-  builds one `Freed` (`rename.rs:333`) from them, refuses one resulting name given twice
-  (`Subject::given`), then calls `planned` (`rename.rs:436`) per rename with that `Freed`. Every clash
-  check skips what `Freed` names: declarations in `types`, `namespaced`, `members` and `owned`,
-  tokens inside freed sites in `written_already` and `owned`, freed files in `refuse_taken`, freed
-  bindings for a local. The merged edits are sorted, overlaps refused, and `refactor::checked` runs
-  once. `rename::rename` is `planned` with an empty `Freed`. `query::rename_all` locates each target.
-- The CLI's `rename_from` (`code.rs`) parses the list, `write_out` takes the line map and writes
-  `fromLine` (standing decision: `line` was taken), and `committed` moves swapped files aside first.
-- **Stage 3** is `namespaced` (`rename.rs:1452`) with `autoloaded_path` and `headed`
-  (`rename.rs:1729`); `rename::new_key` is `nvs_hir::requires::planned_key` (`requires.rs:851`).
+Stages 1 to 5 are done. `cargo test --test code code_move` passes, 12 of 12, so `moved-namespace` is
+green, and `nvs lsp-test tests/lsp/rename/` passes 105 of 105 with the new
+`a-dragged-autoloaded-file-takes-its-new-namespace.lspt`. Clippy is clean. The nightly sweep's nine
+failures came from run 45813627231 at 4e43e1fa2e, which predates their fixes on `main`
+(c115a735a1, 28a4d7a6bf, 544711a8fb).
+- **How stage 5 is built.** § *A moved file takes the name its path gives*, its *As built* bullet.
+  `nvs code move` (`code.rs` `move_path`) and the server's `dragged` (`server.rs`) both call
+  `rename::relocated`; the move help says a class takes the name of its new path.
+- **How stage 4 is built.** `rename::renamed_all` computes every subject, builds one `Freed`, and
+  hands them to `planned_all`, which refuses a name given twice, plans each rename, merges, refuses
+  overlaps and taken targets. `renamed_all` then runs `refactor::checked` once.
+- **Stage 3** is `namespaced` with `autoloaded_path` and `headed`; `rename::new_key` is
+  `nvs_hir::requires::planned_key`.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
-  next to an unrelated error.
+  next to an unrelated error. The `Move` help changed, so stage 13's `site --check stale` and
+  `questions` will name the `nvs code` pages.
 
 ### Next
 
-Stage 5, a moved file takes the name its path gives (§ *A moved file takes the name its path
-gives*):
-1. `crates/nvs-lsp/src/rename.rs:554` (`moved`): for each moved `.nvs` file a map claims, the name
-   its new path gives; where that differs and the file has a sole declaration, build a
-   `Request`-like rename into the stage 4 plan with the file move already decided. `renamed_all`
-   takes a `Request` with an `Analysed` and an offset, so a move needs either the declaration's
-   analysis or a second entry that takes a `Subject` directly; prefer the latter.
-2. `crates/nvs-cli/src/code.rs:1310` (`judged_move`) and the `Move` help at `code.rs:194`.
-3. `crates/nvs-lsp/src/server.rs:1837` (`will_rename_files`).
-4. The five `moved-namespace` tests before `crates/nvs-cli/tests/code.rs:897` (`ORDER`), then
-   `cargo test --test code code_move` once; the new `.lspt` case, then `nvs lsp-test
-   tests/lsp/rename/` once.
-5. The move paragraph and the Declined item in the tooling rule.
+Stage 6, unused declarations (§ *What counts as a use*, § *What delete removes*). Follow the stage's
+**Split:** line first: one `Explore` subagent lists every way a declaration is reached with no index
+occurrence.
+1. `crates/nvs-lsp/src/index.rs:1743` (`unused_private`): `SymbolIndex::unused`, and
+   `unused_private` as a filter of it.
+2. `crates/nvs-lsp/src/diagnostics.rs:434`: dimming for public and protected declarations at
+   workspace scope.
+3. `crates/nvs-lsp/src/refactor.rs`: `delete`, and its code action in `crates/nvs-lsp/src/actions.rs`.
+4. `crates/nvs-cli/src/code.rs` (the `Commands` enum near `Move` at `:194`): `Unused` and `Delete`.
+5. The six `unused` tests in `crates/nvs-cli/tests/code.rs`, then `cargo test --test code
+   code_unused` and `code_delete`; the two new `.lspt` cases, then `nvs lsp-test tests/lsp/`.
+6. The rule paragraphs the stage names.
 
 ### Backlog
