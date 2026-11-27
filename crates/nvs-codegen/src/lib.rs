@@ -1468,7 +1468,7 @@ pub fn function_code_hashes(
         unit.literals.restart();
         unit.hash = Some(blake3::Hasher::new());
         unit.literals.record = Some(Vec::new());
-        unit.compile_function(function, Base::default())?;
+        unit.compile_function(function)?;
         let mut hasher = unit.hash.take().unwrap_or_default();
         for data in unit.literals.record.take().unwrap_or_default() {
             hasher.update(data.as_bytes());
@@ -1499,10 +1499,9 @@ pub fn function_keys(program: &Program) -> Result<Vec<(String, [u8; 32])>, Codeg
     unit.keys = Some(Vec::with_capacity(program.functions.len()));
     unit.literals.digests = Some(FxHashMap::default());
     unit.declare_all(program)?;
-    let bases = Base::all(program)?;
     let mut ctx = unit.module.module().make_context();
-    for (function, base) in program.functions.iter().zip(bases) {
-        unit.emit_body(function, base, &mut ctx)?;
+    for function in &program.functions {
+        unit.emit_body(function, &mut ctx)?;
         unit.module.module().clear_context(&mut ctx);
     }
     Ok(unit.keys.take().unwrap_or_default())
@@ -1589,6 +1588,16 @@ impl Descriptors {
                     .map(|(key, codec)| (shape_codec_symbol(key), codec.cast::<u8>())),
             )
             .chain(core_desc_symbols())
+            // Each function's base numbers, which its code relocates against
+            // as a number and never dereferences ([`base_symbols`]). A program
+            // too large to number has no bases, and its payload's relocations
+            // against them stay unresolved, which is a miss.
+            .chain(
+                base_symbols(program)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(name, number)| (name, std::ptr::without_provenance::<u8>(number))),
+            )
             .collect();
         let functions = program
             .functions
@@ -2977,6 +2986,11 @@ impl UnitBuilder<ObjectModule> {
 /// and the count of statements, conditional edges and query sites in every
 /// function before it in `program.functions`. That is the order
 /// `nvs_ir::Program::stmt_spans`, `edge_spans` and `query_sites` list them in.
+///
+/// No function's code carries these numbers: it relocates against
+/// [`emit::BaseKind`]'s symbols, and the linker resolves each to the number
+/// here ([`base_symbols`]). So a function placed before another does not move
+/// the other's bytes or its key.
 #[derive(Clone, Copy, Debug, Default)]
 struct Base {
     index: u32,
@@ -3009,6 +3023,34 @@ impl Base {
         }
         Ok(bases)
     }
+
+    fn get(self, kind: emit::BaseKind) -> u32 {
+        match kind {
+            emit::BaseKind::Stmt => self.stmt,
+            emit::BaseKind::Edge => self.edge,
+            emit::BaseKind::Query => self.query,
+            emit::BaseKind::Index => self.index,
+        }
+    }
+}
+
+/// Every function's four [`Base`] symbols, each with the number it resolves
+/// to. The JIT publishes them before it links a unit, and
+/// [`Descriptors::resolve`] answers them when a warm hit loads one.
+///
+/// What it spends: four names per function, per unit while it is linked,
+/// dropped once the code is placed.
+fn base_symbols(program: &Program) -> Result<Vec<(String, usize)>, CodegenError> {
+    let bases = Base::all(program)?;
+    let mut symbols = Vec::with_capacity(bases.len() * emit::BaseKind::ALL.len());
+    for (function, base) in program.functions.iter().zip(bases) {
+        for kind in emit::BaseKind::ALL {
+            let number = usize::try_from(base.get(kind))
+                .map_err(|_| emit::internal("a base past the address width"))?;
+            symbols.push((emit::base_symbol(kind, &function.name), number));
+        }
+    }
+    Ok(symbols)
 }
 
 /// One function's emitted Cranelift IR on its way to a code-generation
@@ -3091,16 +3133,20 @@ impl<M: Backend> UnitBuilder<M> {
     /// error, whichever thread finished first.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.declare_all(program)?;
-        let bases = Base::all(program)?;
+        self.desc_symbols
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(base_symbols(program)?);
         let threads = pool::threads(program.functions.len());
         if threads == 1 {
             for (index, function) in program.functions.iter().enumerate() {
-                let base = bases[index];
-                self.compile_function(function, base)?;
+                self.compile_function(function)?;
                 #[cfg(test)]
                 if index == 0 {
                     failpoint::hit()?;
                 }
+                #[cfg(not(test))]
+                let _ = index;
             }
             return Ok(());
         }
@@ -3122,7 +3168,7 @@ impl<M: Backend> UnitBuilder<M> {
                         .spare
                         .pop()
                         .unwrap_or_else(|| self.module.module().make_context());
-                    match self.emit_body(function, bases[index], &mut ctx) {
+                    match self.emit_body(function, &mut ctx) {
                         Ok(id) => lanes.submit(
                             index,
                             Emitted {
@@ -3281,13 +3327,9 @@ impl<M: Backend> UnitBuilder<M> {
     /// Emits, compiles and defines one already-declared function on this
     /// thread, which is what [`Self::compile_all`] does for each function when
     /// it generates code on one thread.
-    fn compile_function(
-        &mut self,
-        function: &nvs_ir::Function,
-        base: Base,
-    ) -> Result<(), CodegenError> {
+    fn compile_function(&mut self, function: &nvs_ir::Function) -> Result<(), CodegenError> {
         let mut ctx = std::mem::replace(&mut self.ctx, codegen::Context::new());
-        let result = self.emit_body(function, base, &mut ctx).and_then(|id| {
+        let result = self.emit_body(function, &mut ctx).and_then(|id| {
             compile_body(&*self.isa, &mut ctx, &function.name)?;
             self.define_compiled(&function.name, id, &ctx)
         });
@@ -3297,8 +3339,8 @@ impl<M: Backend> UnitBuilder<M> {
     }
 
     /// Emits one already-declared function's body into `ctx` as Cranelift IR,
-    /// and returns the function's id. `base` numbers the function's first
-    /// statement, conditional edge and query site program-wide ([`Base`]).
+    /// and returns the function's id. Its program-wide numbers are relocations
+    /// against its [`Base`] symbols, so the IR does not depend on its place.
     ///
     /// This half writes the unit's literals and reads its declarations, so it
     /// runs on the compiling thread. [`compile_body`] is the half that may run
@@ -3306,7 +3348,6 @@ impl<M: Backend> UnitBuilder<M> {
     fn emit_body(
         &mut self,
         function: &nvs_ir::Function,
-        base: Base,
         ctx: &mut codegen::Context,
     ) -> Result<cranelift_module::FuncId, CodegenError> {
         let id =
@@ -3332,10 +3373,6 @@ impl<M: Backend> UnitBuilder<M> {
                 classes: &self.classes,
                 statics: &self.statics,
                 literals: &mut self.literals,
-                stmt_base: base.stmt,
-                edge_base: base.edge,
-                query_base: base.query,
-                function_index: base.index,
             },
             function,
         );

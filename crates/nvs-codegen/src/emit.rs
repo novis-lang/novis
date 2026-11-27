@@ -313,41 +313,99 @@ pub(crate) struct UnitTables<'a> {
     pub statics: &'a FxHashMap<(String, String), u32>,
     /// See [`Literals`].
     pub literals: &'a mut Literals,
-    /// The program-wide number of this function's first statement, which every
-    /// coverage probe in it adds to its own `StmtId` — see
+}
+
+/// One of the four program-wide numbers a function's code adds its own local
+/// numbers to. The code never carries the number itself: it relocates against
+/// [`base_symbol`]'s name for the function, and whoever links the code
+/// resolves that symbol to the number (`crate::Base`). So a function's bytes
+/// do not depend on where it sits in the program, and its key does not
+/// either.
+///
+/// A relocation is the choice because it costs nothing on the request path.
+/// The local number is the relocation's addend, so a use is one
+/// `symbol_value`: the same one instruction as the constant it replaces on
+/// x86-64, and a load from the literal pool on aarch64. A table of bases per
+/// function would add a load and an add to every use.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum BaseKind {
+    /// The program-wide number of the function's first statement, which every
+    /// coverage probe and stop site adds its own `StmtId` to — see
     /// `nvs_ir::Program::stmt_spans`.
-    pub stmt_base: u32,
-    /// The program-wide number of this function's first conditional edge,
-    /// which every branch probe in it adds to its own `EdgeId` — see
+    Stmt,
+    /// The program-wide number of the function's first conditional edge,
+    /// which every branch probe adds its own `EdgeId` to — see
     /// `nvs_ir::Program::edge_spans`.
-    pub edge_base: u32,
-    /// The count of query sites in every function before this one, so this
-    /// function's first site is number `query_base + 1` — see
+    Edge,
+    /// The count of query sites in every function before this one, so the
+    /// function's first site is number `base + 1` — see
     /// `nvs_ir::Program::query_sites`.
-    pub query_base: u32,
-    /// This function's index in `nvs_ir::Program::functions`, which its frame
+    Query,
+    /// The function's index in `nvs_ir::Program::functions`, which its frame
     /// record carries under the debug switch.
-    pub function_index: u32,
+    Index,
+}
+
+impl BaseKind {
+    pub(crate) const ALL: [Self; 4] = [Self::Stmt, Self::Edge, Self::Query, Self::Index];
+
+    fn prefix(self) -> &'static str {
+        match self {
+            Self::Stmt => "nvs_base_stmt_",
+            Self::Edge => "nvs_base_edge_",
+            Self::Query => "nvs_base_query_",
+            Self::Index => "nvs_base_index_",
+        }
+    }
+}
+
+/// The symbol `function`'s `kind` base relocates against. It names the
+/// function by its Novis name, which is unique in a program and does not
+/// depend on the function's place in it.
+pub(crate) fn base_symbol(kind: BaseKind, function: &str) -> String {
+    crate::mangled(kind.prefix(), function)
+}
+
+/// A global value whose address is `function`'s `kind` base plus `offset`,
+/// which a `symbol_value` turns into the number.
+fn base_global(
+    func: &mut codegen::ir::Function,
+    module: &mut dyn Module,
+    function: &str,
+    kind: BaseKind,
+    offset: i64,
+) -> Result<codegen::ir::GlobalValue, CodegenError> {
+    let data = module
+        .declare_data(&base_symbol(kind, function), Linkage::Import, false, false)
+        .map_err(|source| CodegenError::Cranelift {
+            function: function.to_owned(),
+            source: Box::new(source),
+        })?;
+    let global = module.declare_data_in_func(data, func);
+    clear_colocated(func, global);
+    if let codegen::ir::GlobalValueData::Symbol { offset: at, .. } = &mut func.global_values[global]
+    {
+        *at = codegen::ir::immediates::Imm64::new(offset);
+    }
+    Ok(global)
+}
+
+/// The rank of each query site in `f`: its place in
+/// [`Function::query_sites`] plus one, because the zero id names no site
+/// (`rule:observability/a-query-span-names-its-call-site`). The program-wide
+/// id is the function's [`BaseKind::Query`] base plus the rank. Keyed by the
+/// value the instruction defines, so the arm that emits it is one lookup.
+fn query_ranks(f: &Function) -> Result<FxHashMap<u32, i64>, CodegenError> {
+    let mut ranks = FxHashMap::default();
+    for (rank, (result, _)) in (1_i64..).zip(f.query_sites()) {
+        let result = result.ok_or_else(|| internal("a query site that defines no value"))?;
+        ranks.insert(result.index(), rank);
+    }
+    Ok(ranks)
 }
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
 /// signature.
-/// The program-wide id of each query site in `f`: `query_base` plus its rank
-/// in [`Function::query_sites`] plus one, because the zero id names no site
-/// (`rule:observability/a-query-span-names-its-call-site`). Keyed by the value
-/// the instruction defines, so the arm that emits it is one lookup.
-fn query_ids(f: &Function, query_base: u32) -> Result<FxHashMap<u32, i64>, CodegenError> {
-    let mut ids = FxHashMap::default();
-    for (rank, (result, _)) in (1_u32..).zip(f.query_sites()) {
-        let result = result.ok_or_else(|| internal("a query site that defines no value"))?;
-        let id = query_base
-            .checked_add(rank)
-            .ok_or_else(|| internal("a unit with more than 2^32 query sites"))?;
-        ids.insert(result.index(), i64::from(id));
-    }
-    Ok(ids)
-}
-
 pub(crate) fn emit_function(
     module: &mut dyn Module,
     ctx: &mut codegen::Context,
@@ -361,10 +419,6 @@ pub(crate) fn emit_function(
         classes,
         statics,
         literals,
-        stmt_base,
-        edge_base,
-        query_base,
-        function_index,
     } = tables;
     let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
@@ -418,8 +472,7 @@ pub(crate) fn emit_function(
             module,
             ctx_p,
             debug_area.map(|area| (area, slots.len())),
-            function_index,
-            stmt_base,
+            &f.name,
         )?),
     };
 
@@ -467,9 +520,8 @@ pub(crate) fn emit_function(
         classes,
         statics,
         literals,
-        stmt_base,
-        edge_base,
-        query_ids: query_ids(f, query_base)?,
+        query_ranks: query_ranks(f)?,
+        base_globals: FxHashMap::default(),
         f,
         values: FxHashMap::default(),
         blocks,
@@ -484,7 +536,7 @@ pub(crate) fn emit_function(
         safepoint_p,
         debug_area,
         debug_frame,
-        debug_site: stmt_base,
+        debug_site: 0,
         landing_status: None,
         order,
         stack_check_pending: !is_leaf(f),
@@ -502,8 +554,9 @@ pub(crate) fn emit_function(
 struct DebugFrame {
     /// The stack slot of the `nvs_runtime::FrameRecord`.
     record: codegen::ir::StackSlot,
-    /// The base of the unit's `nvs_runtime::SiteTable`, bound once in the ABI
-    /// entry block like `safepoint_p`.
+    /// The address of this function's first statement's byte in the unit's
+    /// `nvs_runtime::SiteTable`, bound once in the ABI entry block like
+    /// `safepoint_p`.
     sites_p: Value,
     /// [`DEBUG_FRAMES_OFFSET`], as the offset an instruction takes.
     head: i32,
@@ -539,16 +592,16 @@ fn offset_i32(offset: usize) -> Result<i32, CodegenError> {
 }
 
 /// Links a frame record to the task in the ABI entry block: the caller's
-/// record, the slot base, the function and its first site are written into a
-/// stack slot, and the context's head is set to it. The function's first
-/// statement writes its own site before anything reads the record.
+/// record, the slot base, the function's index and its first site are written
+/// into a stack slot, and the context's head is set to it. The function's
+/// first statement writes its own site before anything reads the record.
+/// `name` is the function's Novis name, which its [`BaseKind`] symbols carry.
 fn link_frame_record(
     b: &mut FunctionBuilder<'_>,
     module: &mut dyn Module,
     ctx_p: Value,
     area: Option<(codegen::ir::StackSlot, usize)>,
-    function: u32,
-    site: u32,
+    name: &str,
 ) -> Result<DebugFrame, CodegenError> {
     let size =
         u32::try_from(FRAME_RECORD_SIZE).map_err(|_| internal("a frame record past 4 GiB"))?;
@@ -600,15 +653,17 @@ fn link_frame_record(
         record_p,
         offset_i32(FRAME_SLOT_COUNT_OFFSET)?,
     );
-    let function = b.ins().iconst(types::I32, i64::from(function));
-    b.ins().store(
+    let index = base_global(b.func, module, name, BaseKind::Index, 0)?;
+    let function = b.ins().symbol_value(types::I64, index);
+    b.ins().istore32(
         ctx_word(),
         function,
         record_p,
         offset_i32(FRAME_FUNCTION_OFFSET)?,
     );
-    let first = b.ins().iconst(types::I32, i64::from(site));
-    b.ins().store(ctx_word(), first, record_p, site_offset);
+    let stmt = base_global(b.func, module, name, BaseKind::Stmt, 0)?;
+    let first = b.ins().symbol_value(types::I64, stmt);
+    b.ins().istore32(ctx_word(), first, record_p, site_offset);
     b.ins().store(ctx_word(), record_p, ctx_p, head);
 
     // An import, so it arrives with `colocated` clear. It goes through
@@ -621,7 +676,10 @@ fn link_frame_record(
         })?;
     let global = module.declare_data_in_func(data, b.func);
     clear_colocated(b.func, global);
-    let sites_p = b.ins().symbol_value(types::I64, global);
+    // The table's entry for this function's first statement, so a stop site
+    // reads its byte at its own local number.
+    let table = b.ins().symbol_value(types::I64, global);
+    let sites_p = b.ins().iadd(table, first);
     Ok(DebugFrame {
         record,
         sites_p,
@@ -778,13 +836,13 @@ struct Emitter<'a, 'f> {
     /// Every `static` property the unit declares — see [`crate::UnitBuilder::statics`].
     statics: &'a FxHashMap<(String, String), u32>,
     literals: &'a mut Literals,
-    /// See [`UnitTables::stmt_base`].
-    stmt_base: u32,
-    /// See [`UnitTables::edge_base`].
-    edge_base: u32,
-    /// The program-wide id of each [`InstKind::QuerySiteConst`] that names a
-    /// site, keyed by the value it defines — see [`query_ids`].
-    query_ids: FxHashMap<u32, i64>,
+    /// The rank of each [`InstKind::QuerySiteConst`] that names a site, keyed
+    /// by the value it defines — see [`query_ranks`].
+    query_ranks: FxHashMap<u32, i64>,
+    /// The same cache as `desc_globals`, for the [`BaseKind`] symbols plus
+    /// each offset this function relocates against — see
+    /// [`Self::base_value`].
+    base_globals: FxHashMap<(BaseKind, i64), codegen::ir::GlobalValue>,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
     /// at — the IR carries that on the defining instruction, and an operand
@@ -818,8 +876,8 @@ struct Emitter<'a, 'f> {
     /// Under the debug switch, the function's frame record, and `None` without
     /// it — see [`link_frame_record`].
     debug_frame: Option<DebugFrame>,
-    /// The program-wide number of the statement marker emitted last, which the
-    /// stop site after it carries.
+    /// The function-local number of the statement marker emitted last, which
+    /// the stop site after it carries.
     debug_site: u32,
     /// The status parameter of the landing block currently being emitted, or
     /// `None` for an ordinary block — see [`is_landing`].
@@ -914,12 +972,8 @@ impl Emitter<'_, '_> {
     fn emit_inst(&mut self, cur: Block, inst: &Inst) -> Result<Block, CodegenError> {
         match &inst.kind {
             InstKind::StmtMarker(stmt) => {
-                let stmt = self
-                    .stmt_base
-                    .checked_add(stmt.index())
-                    .ok_or_else(|| internal("a unit with more than 2^32 statements"))?;
-                self.debug_site = stmt;
-                return self.emit_stmt_probe(cur, stmt);
+                self.debug_site = stmt.index();
+                return self.emit_stmt_probe(cur, stmt.index());
             }
             InstKind::DebugLocals(stores) => return self.emit_debug_locals(stores, inst.on_error),
             InstKind::Safepoint => return self.emit_safepoint(cur, inst.on_error),
@@ -1126,24 +1180,29 @@ impl Emitter<'_, '_> {
                 self.define(inst, word)?;
             }
             InstKind::QuerySiteConst { site, plain_binds } => {
-                // The id is the site's number in the program, read from the
-                // map built before the body; the zero id is a call with no
-                // site, which a callable reference's thunk makes. A call the
-                // checker proved binds no `secret` sets one bit above the id.
+                // The id is the site's number in the program: the function's
+                // query base plus the site's rank, read from the map built
+                // before the body. The zero id is a call with no site, which
+                // a callable reference's thunk makes. A call the checker
+                // proved binds no `secret` sets one bit above the id. The
+                // base is below 2^32, so the bit is in the addend and the
+                // sum never carries into it.
+                let plain = match plain_binds {
+                    true => nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS,
+                    false => 0,
+                };
                 let id = match site {
-                    Some(_) => inst
-                        .result
-                        .and_then(|result| self.query_ids.get(&result.index()).copied())
-                        .ok_or_else(|| {
-                            internal("a query site the function's walk did not count")
-                        })?,
-                    None => 0,
+                    Some(_) => {
+                        let rank = inst
+                            .result
+                            .and_then(|result| self.query_ranks.get(&result.index()).copied())
+                            .ok_or_else(|| {
+                                internal("a query site the function's walk did not count")
+                            })?;
+                        self.base_value(BaseKind::Query, rank | plain)?
+                    }
+                    None => self.b.ins().iconst(types::I64, plain),
                 };
-                let id = match plain_binds {
-                    true => id | nvs_stdlib::registry::QUERY_SITE_PLAIN_BINDS,
-                    false => id,
-                };
-                let id = self.b.ins().iconst(types::I64, id);
                 self.define(inst, id)?;
             }
             InstKind::SourceConst { source, restricted } => {
@@ -1857,7 +1916,8 @@ impl Emitter<'_, '_> {
         let (slow, cont) = self.emit_probe_branch()?;
         self.b.switch_to_block(slow);
         let callee = self.runtime_ref("nvs_probe_stmt", RuntimeSig::Probe)?;
-        let id = self.b.ins().iconst(types::I32, i64::from(stmt));
+        let id = self.base_value(BaseKind::Stmt, i64::from(stmt))?;
+        let id = self.b.ins().ireduce(types::I32, id);
         self.b.ins().call(callee, &[self.ctx_p, id]);
         self.b.ins().jump(cont, &[]);
 
@@ -1968,10 +2028,10 @@ impl Emitter<'_, '_> {
         };
         let site = self.debug_site;
         let record_p = self.b.ins().stack_addr(types::I64, record, 0);
-        let number = self.b.ins().iconst(types::I32, i64::from(site));
+        let number = self.base_value(BaseKind::Stmt, i64::from(site))?;
         self.b
             .ins()
-            .store(ctx_word(), number, record_p, site_offset);
+            .istore32(ctx_word(), number, record_p, site_offset);
 
         let byte = i32::try_from(site).map_err(|_| internal("a stop site past 2 GiB"))?;
         let armed = self.b.ins().uload8(types::I32, ctx_word(), sites_p, byte);
@@ -2109,17 +2169,29 @@ impl Emitter<'_, '_> {
     }
 
     /// Calls [`nvs_runtime::nvs_probe_edge`] for `edge`, a function-local
-    /// `EdgeId` this adds the function's base to. Like the statement probe it
-    /// has no status to check.
+    /// `EdgeId` the linker adds the function's base to. Like the statement
+    /// probe it has no status to check.
     fn emit_edge_probe(&mut self, edge: u32) -> Result<(), CodegenError> {
-        let edge = self
-            .edge_base
-            .checked_add(edge)
-            .ok_or_else(|| internal("a unit with more than 2^32 conditional edges"))?;
         let callee = self.runtime_ref("nvs_probe_edge", RuntimeSig::Probe)?;
-        let id = self.b.ins().iconst(types::I32, i64::from(edge));
+        let id = self.base_value(BaseKind::Edge, i64::from(edge))?;
+        let id = self.b.ins().ireduce(types::I32, id);
         self.b.ins().call(callee, &[self.ctx_p, id]);
         Ok(())
+    }
+
+    /// The function's `kind` base plus `offset`, as an `i64`. The number is a
+    /// relocation the linker writes, so the bytes do not carry it
+    /// ([`BaseKind`]).
+    fn base_value(&mut self, kind: BaseKind, offset: i64) -> Result<Value, CodegenError> {
+        let global = match self.base_globals.get(&(kind, offset)) {
+            Some(global) => *global,
+            None => {
+                let global = base_global(self.b.func, self.module, &self.f.name, kind, offset)?;
+                self.base_globals.insert((kind, offset), global);
+                global
+            }
+        };
+        Ok(self.b.ins().symbol_value(types::I64, global))
     }
 
     /// A string literal: **one address, no call and no allocation**, whatever
