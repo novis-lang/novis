@@ -1,0 +1,59 @@
+<?nvs
+// Attack: the program tries to reach code that only tests may use. It uses three ways
+// that the compiler cannot check. That code does not exist when the program runs, so every
+// attempt should find nothing.
+
+use Core\Program;
+use Core\Reflect;
+use Core\TestOnly;
+
+interface Clock
+{
+    public function hour(): int;
+}
+
+class SystemClock implements Clock
+{
+    public function hour(): int
+    {
+        return 9;
+    }
+}
+
+#[TestOnly]
+class FakeClock implements Clock
+{
+    public function hour(): int
+    {
+        return 23;
+    }
+}
+
+class Cache
+{
+    public int $items = 3;
+
+    #[TestOnly]
+    public function clearAll(): void
+    {
+        $this->items = 0;
+    }
+}
+
+// 1. Calls the test-only method on a `mixed` value. The error is caught, so step 2 still runs.
+mixed $cache = new Cache();
+try {
+    $cache->clearAll();
+    echo "step 1: clearAll ran\n";
+} catch (Throwable $error) {
+    echo "step 1: ", Reflect::forObject($error)->name(), "\n";
+}
+echo "step 1: items ", ($cache as Cache)->items, "\n";
+
+// 2. Looks up the test-only class by its name.
+echo "step 2: ", Reflect::forClass('FakeClock') == null ? 'not found' : 'found', "\n";
+
+// 3. Lists every class that implements `Clock`.
+foreach (Program::implementing<Clock>() as Clock $clock) {
+    echo "step 3: ", Reflect::forObject($clock)->name(), "\n";
+}

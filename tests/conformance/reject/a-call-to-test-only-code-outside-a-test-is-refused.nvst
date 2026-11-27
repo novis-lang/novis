@@ -1,0 +1,59 @@
+--TEST--
+code that is not test code cannot call a `#[TestOnly]` method, construct a `#[TestOnly]` class or name it as a type, and test code may, `rule:testing/a-test-only-declaration-is-test-code`
+--FILE--
+<?nvs
+// covers: lang:testing/testonly-code-that-only-tests-can-use
+use Core\Test;
+use Core\TestOnly;
+
+final class Cache {
+    public int $items = 0;
+
+    #[TestOnly]
+    public function clearAll(): void {
+        $this->items = 0;
+    }
+}
+
+#[TestOnly]
+final class FakeCache {
+    public static function empty(): Cache {
+        var $cache = new Cache();
+        $cache->clearAll();
+        return $cache;
+    }
+}
+
+final class CacheTest {
+    #[Test]
+    public function itStartsEmpty(): void {
+        Test::assertSame(0, FakeCache::empty()->items);
+    }
+}
+
+final class Shop {
+    public function reset(Cache $cache): void {
+        $cache->clearAll();
+    }
+
+    public function fake(): FakeCache {
+        return new FakeCache();
+    }
+}
+
+(new Cache())->clearAll();
+--EXPECTF-ERROR--
+error[E0889]: `Cache::clearAll` is test code, so only test code can use it
+   --> case.nvs:33:9
+%A
+error[E0889]: `FakeCache` is test code, so only test code can use it
+   --> case.nvs:36:29
+%A
+error[E0889]: `FakeCache` is test code, so only test code can use it
+   --> case.nvs:37:16
+%A
+error[E0889]: `Cache::clearAll` is test code, so only test code can use it
+   --> case.nvs:41:1
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

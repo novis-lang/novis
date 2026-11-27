@@ -198,6 +198,7 @@
   "benches/members/lang/iteration/keys-and-values-from-a-map.nvs": "495491d202fb10a1",
   "benches/members/lang/iteration/keys-and-values-from-a-map.scale.nvs": "78f24fcbb67545c8",
   "benches/members/lang/programs/doc-comments.nvs": "ea8116474f9933e8",
+  "benches/members/lang/testing/testonly-code-that-only-tests-can-use.nvs": "e95ea029266add48",
   "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs": "391bdf2ddc6dddd6",
   "docs/examples/config/capabilities/about.md": "e53d7b81f3177709",
   "docs/examples/config/debug-index_age/about.md": "26161bdafaba8670",
@@ -1333,6 +1334,11 @@
   "docs/examples/lang/testing/hooks-beforeclass-afterclass-and-aftereachtest/details.md": "d29944a53dafba2b",
   "docs/examples/lang/testing/test-options/about.md": "55ea852b3b053fa2",
   "docs/examples/lang/testing/test-options/details.md": "bb14c9491aa9f981",
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/01-a-fake-clock-for-tests.nvs": "0633114581763f76",
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/02-empty-a-cache-between-tests.nvs": "9e92cd70f3d8c49c",
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/03-a-test-helper-for-many-test-classes.nvs": "668385fd560201a1",
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/about.md": "37c6a9363d87ea3b",
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/details.md": "98c1afe1752bf043",
   "docs/examples/lang/types/array-t/about.md": "59714087fba647d8",
   "docs/examples/lang/types/array-t/details.md": "4a3d9fa2181b48eb",
   "docs/examples/lang/types/callable-classes-object-shapes/03-pick-the-report-format-from-a-setting.nvs": "dff0c57f202775e7",
@@ -2382,6 +2388,7 @@
   "tests/hostile/lang/iteration/keys-and-values-from-a-map/01-a-map-changed-while-its-pairs-are-walked.nvs": "cc5967236a5d9e92",
   "tests/hostile/lang/programs/doc-comments/03-see-paths-that-leave-the-project.nvs": "fb6a20b8ea246f69",
   "tests/hostile/lang/programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file/01-a-request-names-a-file-outside-the-app.nvs": "a55198618f763a67",
+  "tests/hostile/lang/testing/testonly-code-that-only-tests-can-use/01-production-code-reaches-for-test-only-code.nvs": "92a0ac46fb5e893f",
   "tests/hostile/lang/types/property-keys/04-an-attribute-that-names-a-hidden-property.nvs": "32fb30d0584e7136",
   "tests/hostile/lang/types/void-never-self-static/02-a-stored-function-called-with-another-class.nvs": "9019cb19ab4bb902",
   "tests/hostile/lang/types/void-never-self-static/03-a-function-for-a-subclass-called-with-the-base-class.nvs": "5d4a365cc44f670e",
@@ -2510,5 +2517,5 @@
   "website/src/content/docs/tools/debug-viewer/index.mdx": "4d2a5b06494874fc",
   "website/src/content/docs/tools/editor/index.mdx": "abd56576985f08ce",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "897f90d6aec7dd9a"
+  "website/src/data/changes.json": "df754f6ca6547f1d"
 }

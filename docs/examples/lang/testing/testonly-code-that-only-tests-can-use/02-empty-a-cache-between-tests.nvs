@@ -1,0 +1,47 @@
+<?nvs
+// Shows a cache with one method that only tests can call. A test calls it to empty
+// the cache.
+
+use Core\Arr;
+use Core\Test;
+use Core\TestOnly;
+
+class Cache
+{
+    private array<string> $items = [];
+
+    public function put(string $key, string $value): void
+    {
+        $this->items[$key] = $value;
+    }
+
+    public function count(): uint
+    {
+        return Arr::count($this->items);
+    }
+
+    // Only test code can call this method. Your program cannot.
+    #[TestOnly]
+    public function clearAll(): void
+    {
+        $this->items = [];
+    }
+}
+
+class CacheTest
+{
+    #[Test]
+    public function itIsEmptyAfterClearAll(): void
+    {
+        var $cache = new Cache();
+        $cache->put('tea', '3.50');
+        $cache->clearAll();
+        Test::assertTrue($cache->count() == 0);
+    }
+}
+
+// This prints `items: 2`.
+var $cache = new Cache();
+$cache->put('tea', '3.50');
+$cache->put('cake', '2.00');
+echo 'items: ', $cache->count(), "\n";

@@ -1,0 +1,67 @@
+--TEST--
+a test may use a `#[TestOnly]` class, its constructor and a `#[TestOnly]` method of a production class, and a test-only class may implement a production interface, `rule:testing/a-test-only-declaration-is-test-code`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: lang:testing/testonly-code-that-only-tests-can-use
+use Core\Test;
+use Core\TestOnly;
+
+interface Clock {
+    public function hour(): int;
+}
+
+final class Cache {
+    public int $items = 0;
+
+    public function put(): void {
+        $this->items = $this->items + 1;
+    }
+
+    #[TestOnly]
+    public function clearAll(): void {
+        $this->items = 0;
+    }
+}
+
+#[TestOnly]
+final class FakeClock implements Clock {
+    public function constructor(private int $hour) {}
+
+    public function hour(): int {
+        return $this->hour;
+    }
+}
+
+#[TestOnly]
+final class ShopTestData {
+    public static function fullCache(): Cache {
+        var $cache = new Cache();
+        $cache->put();
+        $cache->put();
+        return $cache;
+    }
+}
+
+final class ShopTest {
+    #[Test]
+    public function aFakeClockGivesItsHour(): void {
+        Clock $clock = new FakeClock(23);
+        Test::assertSame(23, $clock->hour());
+    }
+
+    #[Test]
+    public function clearAllEmptiesTheCache(): void {
+        var $cache = ShopTestData::fullCache();
+        Test::assertSame(2, $cache->items);
+        $cache->clearAll();
+        Test::assertSame(0, $cache->items);
+    }
+}
+--EXPECTF--
+  ShopTest
+    ✓ aFakeClockGivesItsHour           %f ms
+    ✓ clearAllEmptiesTheCache          %f ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky in %d ms

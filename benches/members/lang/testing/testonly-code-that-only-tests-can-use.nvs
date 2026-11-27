@@ -1,0 +1,66 @@
+<?nvs
+// Measures a method call on a class that also has a test-only method, as a program calls its own cache.
+// bench: iterations 2048
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+use Core\Test;
+use Core\TestOnly;
+
+class Cache
+{
+    public uint $hits = 0;
+
+    public function hit(uint $step): uint
+    {
+        $this->hits = $this->hits + $step;
+        return $this->hits;
+    }
+
+    // `nvs run` leaves this method out of the program.
+    #[TestOnly]
+    public function clearAll(): void
+    {
+        $this->hits = 0;
+    }
+}
+
+// `nvs run` leaves this whole class out of the program.
+#[TestOnly]
+class FakeCache
+{
+    public static function empty(): Cache
+    {
+        var $cache = new Cache();
+        $cache->clearAll();
+        return $cache;
+    }
+}
+
+class CacheTest
+{
+    #[Test]
+    public function itStartsEmpty(): void
+    {
+        Test::assertTrue(FakeCache::empty()->hits == 0);
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $cache = new Cache();
+        uint $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each step depends on the result before it.
+            $total = $cache->hit($total % 3 + 1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

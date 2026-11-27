@@ -1832,6 +1832,207 @@ helpers of a framework.
 In the editor, completion offers test-only code only inside test code. A hover on test-only code
 says "Only for tests."
 
+## Example 01: a fake clock for tests
+
+```nvs
+<?nvs
+// Shows a fake clock that only tests can use. The program itself uses the real clock.
+
+use Core\Test;
+use Core\TestOnly;
+
+interface Clock
+{
+    public function hour(): int;
+}
+
+class SystemClock implements Clock
+{
+    public function hour(): int
+    {
+        return 9;
+    }
+}
+
+class Shop
+{
+    public function constructor(private Clock $clock) {}
+
+    public function isOpen(): bool
+    {
+        int $hour = $this->clock->hour();
+        return $hour >= 8 && $hour < 18;
+    }
+}
+
+// `nvs run` and `nvs build` leave this class out. `nvs test` compiles it.
+#[TestOnly]
+class FakeClock implements Clock
+{
+    public function constructor(private int $hour) {}
+
+    public function hour(): int
+    {
+        return $this->hour;
+    }
+}
+
+class ShopTest
+{
+    #[Test]
+    public function itIsClosedAtNight(): void
+    {
+        var $shop = new Shop(new FakeClock(23));
+        Test::assertSame(false, $shop->isOpen());
+    }
+}
+
+// This prints `open: yes`.
+var $shop = new Shop(new SystemClock());
+echo 'open: ', $shop->isOpen() ? 'yes' : 'no', "\n";
+```
+
+```output
+open: yes
+```
+
+## Example 02: empty a cache between tests
+
+```nvs
+<?nvs
+// Shows a cache with one method that only tests can call. A test calls it to empty
+// the cache.
+
+use Core\Arr;
+use Core\Test;
+use Core\TestOnly;
+
+class Cache
+{
+    private array<string> $items = [];
+
+    public function put(string $key, string $value): void
+    {
+        $this->items[$key] = $value;
+    }
+
+    public function count(): uint
+    {
+        return Arr::count($this->items);
+    }
+
+    // Only test code can call this method. Your program cannot.
+    #[TestOnly]
+    public function clearAll(): void
+    {
+        $this->items = [];
+    }
+}
+
+class CacheTest
+{
+    #[Test]
+    public function itIsEmptyAfterClearAll(): void
+    {
+        var $cache = new Cache();
+        $cache->put('tea', '3.50');
+        $cache->clearAll();
+        Test::assertTrue($cache->count() == 0);
+    }
+}
+
+// This prints `items: 2`.
+var $cache = new Cache();
+$cache->put('tea', '3.50');
+$cache->put('cake', '2.00');
+echo 'items: ', $cache->count(), "\n";
+```
+
+```output
+items: 2
+```
+
+## Example 03: a test helper for many test classes
+
+```nvs
+<?nvs
+// Shows one test helper class that two test classes share.
+
+use Core\Test;
+use Core\TestOnly;
+
+class Product
+{
+    public function constructor(public string $name, public int $cents) {}
+}
+
+class Cart
+{
+    private array<Product> $products = [];
+
+    public function add(Product $product): void
+    {
+        $this->products[] = $product;
+    }
+
+    public function totalCents(): int
+    {
+        int $total = 0;
+        foreach ($this->products as Product $product) {
+            $total += $product->cents;
+        }
+        return $total;
+    }
+}
+
+// This helper builds test data. Every test class can use it.
+#[TestOnly]
+class ShopTestData
+{
+    public static function tea(): Product
+    {
+        return new Product('tea', 350);
+    }
+
+    public static function cartWithTea(): Cart
+    {
+        var $cart = new Cart();
+        $cart->add(self::tea());
+        return $cart;
+    }
+}
+
+class ProductTest
+{
+    #[Test]
+    public function teaCostsThreeFifty(): void
+    {
+        Test::assertSame(350, ShopTestData::tea()->cents);
+    }
+}
+
+class CartTest
+{
+    #[Test]
+    public function theTotalCountsEveryProduct(): void
+    {
+        var $cart = ShopTestData::cartWithTea();
+        $cart->add(ShopTestData::tea());
+        Test::assertSame(700, $cart->totalCents());
+    }
+}
+
+// This prints `total: 550`.
+var $cart = new Cart();
+$cart->add(new Product('cake', 200));
+$cart->add(new Product('tea', 350));
+echo 'total: ', $cart->totalCents(), "\n";
+```
+
+```output
+total: 550
+```
+
 # Assertions
 
 An assertion checks one thing about a value. When the check is false, the test fails.

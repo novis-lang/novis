@@ -4133,6 +4133,9 @@
   "docs/examples/lang/testing/test-options/about.md": {
     "lang:testing/test-options": "4d00d1a295c9d8b4"
   },
+  "docs/examples/lang/testing/testonly-code-that-only-tests-can-use/about.md": {
+    "lang:testing/testonly-code-that-only-tests-can-use": "f6e39821390bb1d5"
+  },
   "docs/examples/lang/types/a-member-every-class-of-a-union-declares/about.md": {
     "lang:types/a-member-every-class-of-a-union-declares": "36f4cad317cb8424"
   },
@@ -4797,7 +4800,7 @@
     "tools:editor/nvs-dap": "4b30f2306df7e608"
   },
   "docs/examples/tools/editor/nvs-lsp/about.md": {
-    "tools:editor/nvs-lsp": "95a395365fcaa61b"
+    "tools:editor/nvs-lsp": "1dc0446845434a60"
   },
   "docs/examples/tools/editor/nvs-lsp-test/about.md": {
     "tools:editor/nvs-lsp-test": "df416dc062c9527f"
@@ -9984,7 +9987,7 @@
     "tools:editor/nvs-dap": "b5dc0d14f31c3914"
   },
   "help:tools:editor/nvs-lsp": {
-    "tools:editor/nvs-lsp": "c33b539f70f199ca"
+    "tools:editor/nvs-lsp": "e29567315e94902d"
   },
   "help:tools:editor/nvs-lsp-test": {
     "tools:editor/nvs-lsp-test": "cdbb8253b23e08ce"
@@ -10503,7 +10506,7 @@
     "tools:editor/nvs-dap": "e7529dc767e5836e"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "cc592b8ac2a76289",
+    "tools:editor/nvs-lsp": "128f5576d6d32b45",
     "tools:editor/the-vs-code-extension": "3bce161c43298594"
   },
   "tools/formatter/index.mdx": {

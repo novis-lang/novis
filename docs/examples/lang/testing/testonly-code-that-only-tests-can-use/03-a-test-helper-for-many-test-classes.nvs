@@ -1,0 +1,72 @@
+<?nvs
+// Shows one test helper class that two test classes share.
+
+use Core\Test;
+use Core\TestOnly;
+
+class Product
+{
+    public function constructor(public string $name, public int $cents) {}
+}
+
+class Cart
+{
+    private array<Product> $products = [];
+
+    public function add(Product $product): void
+    {
+        $this->products[] = $product;
+    }
+
+    public function totalCents(): int
+    {
+        int $total = 0;
+        foreach ($this->products as Product $product) {
+            $total += $product->cents;
+        }
+        return $total;
+    }
+}
+
+// This helper builds test data. Every test class can use it.
+#[TestOnly]
+class ShopTestData
+{
+    public static function tea(): Product
+    {
+        return new Product('tea', 350);
+    }
+
+    public static function cartWithTea(): Cart
+    {
+        var $cart = new Cart();
+        $cart->add(self::tea());
+        return $cart;
+    }
+}
+
+class ProductTest
+{
+    #[Test]
+    public function teaCostsThreeFifty(): void
+    {
+        Test::assertSame(350, ShopTestData::tea()->cents);
+    }
+}
+
+class CartTest
+{
+    #[Test]
+    public function theTotalCountsEveryProduct(): void
+    {
+        var $cart = ShopTestData::cartWithTea();
+        $cart->add(ShopTestData::tea());
+        Test::assertSame(700, $cart->totalCents());
+    }
+}
+
+// This prints `total: 550`.
+var $cart = new Cart();
+$cart->add(new Product('cake', 200));
+$cart->add(new Product('tea', 350));
+echo 'total: ', $cart->totalCents(), "\n";
