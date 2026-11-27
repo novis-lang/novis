@@ -234,6 +234,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
   --only`. Any edit of a source, even `bun nv render` of a chapter, makes it stale again, so edit
   and render first and measure last. See `tools/nv/proofs/collect.ts` `perfAny`.
+- **`bun nv scaling --budget --write` stores the share of every bench, not only yours.** It takes no
+  file filter. In `narrowed-static` stage 4, it rewrote about 290 lines of
+  `data/perf/bench-budget.json` for 55 other goals' benches. Run `--budget` without `--write` first,
+  and give a raised bench a reason beside its `iterations` line. See `tools/nv/cmd/scaling.ts`.
 - **A `.scale.nvs` ramp whose last three sizes start below where buffers settle reads a linear
   cost as faster than linear.** Three `Session` scale benches failed at `max 4096` with increments
   2.0, 7.9 and 5.0 bytes per unit. The increments were 5.0 at every size from 2048 up. A hand run
