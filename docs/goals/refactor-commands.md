@@ -58,7 +58,7 @@ stages:
     context: [docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md, docs/examples/tools/cli/nvs-code/about.md, website/src/content/docs/tools/editor/index.mdx, website/src/content/docs/tools/cli/index.mdx, website/src/data/changes.json]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: checked
@@ -719,26 +719,25 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### 14. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 13 are done. Stage 13 landed in two commits:
-- `docs(rules): …`: the alias rule and the code-action rule name every new action, the
-  request-set title (`data/rules/ide/the-request-set-is-closed.json`) says twenty-three and
-  eight, and the `nvs code` help names `inline` and `signature` among the writers. The tooling
-  rule already matched the code and was not changed.
-- `docs(site): …`: the `nvs code` about and five examples (`03-` to `07-`, with the helper files
-  `billing/Cart.nvs` and `parts/Priced.nvs`), a sentence in the `lateinit` and `nvs-lsp` abouts,
-  new editor-page sections, a `## Questions about your code` section on the CLI page (which now
-  `covers` `tools:cli/nvs-code`), eight `changes.json` entries, and the questions of four pages.
-  The stale `unseen` record for `tools:cli/nvs-code` is removed, since the entries name it.
-- `site --check stale changes questions review` and `proofs --gate` are green. Nightly
-  45813627231's failures were fixed on `main` before stage 13; the sweep named that run again.
-- Four `.lspt` action cases named "…-is-offered-nothing" show the inline offer; not renamed.
+Every stage is done. Stage 14 was a close, not the chain's full gate:
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `cargo test --test code code_`
+  (85), `--test refactor` (17) and `--test actions` (4) are green.
+- `bun nv close --goal refactor-commands` was red, then green after four commits: the editor
+  page's three inline `nvs` fences became snippets (`property-name-in-a-string`,
+  `inline-before`, `inline-after`), the quick-fix replay lists the *Move `name` to another
+  class…* offer, `50-classes.md`, `tooling.md` and `llms-full.txt` are rendered again, and the
+  nineteen `lang:classes` perf figures the chapter render made stale are measured again.
+- The constructor backlog item is now in the tooling rule's `signature` paragraph.
+- Nightly 45813627231's nine failed jobs were fixed on `main` after its commit `4e43e1fa2e`:
+  `c115a735a1` (four Miri zone tests), `544711a8fb` (the aarch64 serve test) and `28a4d7a6bf`
+  (the uuid `Parses` conformance case on four runners).
 - **Expect red at the gate:** a `.lspt` or server test that pins the exact code actions on a
   class's name now also meets *Extract an interface from `X`…*, and one on a member's name meets
   *Move … to another class…*; `every_verb_json_follows_the_check_json_conventions` if it pins a
@@ -748,20 +747,10 @@ Stages 1 to 13 are done. Stage 13 landed in two commits:
 
 ### Next
 
-Stage 14, the close. The pack says whether this goal is the chain's full gate.
-1. At a close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, the acceptance tests
-   by name (`cargo test --test code code_`, `--test refactor`, `--test actions`), then `bun nv
-   close --goal refactor-commands`, and fix each red it names.
-2. At a full gate: `looper verify` in the background, then the reds named above in one pass.
-3. Before `DONE`: move any decision only this file holds into a rule (the Standing decisions are
-   all in rules already, but the constructor backlog item should go to the tooling rule's
-   `signature` paragraph, which already names the refusal), then delete the goal file.
+Nothing. The goal is reached, and the driver retires this file. The full gate four goals on
+meets the reds named under *Expect red at the gate* above.
 
 ### Backlog
 
-- **A constructor's parameters (stage 9).** `signature` refuses `X::constructor`, because the index
-  records `new X(...)` as an occurrence of `X`, not of the constructor, so its calls are not
-  listed. Landing it needs the index walk (`index.rs`) to record a `New`'s class name as an
-  occurrence of `X::constructor` too, or `signature_change` to read the class's occurrences and
-  keep those under a `New` node (a subclass with no constructor of its own calls it too). A kept
-  promoted parameter already keeps its modifiers, since each kept parameter keeps its own prefix.
+- **A constructor's parameters (stage 9)** is recorded in
+  `rule:tooling/nvs-code-answers-about-the-project`'s `signature` paragraph.
