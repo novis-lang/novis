@@ -3,6 +3,13 @@
     {
       "kind": "changed",
       "features": [
+        "Novis\\Pdf\\Rendered::constructor"
+      ],
+      "text": "`Rendered->pages` has one `Page` for each page of a rendered PDF file. You can read the page of each `data-mark` after one render. `new Rendered` takes the pages as its third value."
+    },
+    {
+      "kind": "changed",
+      "features": [
         "lang:expressions/anonymous-objects",
         "lang:types/type-aliases"
       ],
@@ -2570,10 +2577,6 @@
     },
     "Novis\\Pdf\\Reader::text": {
       "hash": "74368ab866d97c99",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
-    },
-    "Novis\\Pdf\\Rendered::constructor": {
-      "hash": "66b5426355f67ec2",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Cell::constructor": {

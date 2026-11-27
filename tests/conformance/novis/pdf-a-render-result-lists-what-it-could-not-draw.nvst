@@ -1,5 +1,5 @@
 --TEST--
-`Rendered` carries the PDF file and its page count, lists an unsupported declaration, a missing glyph and an overflowing footer, has three empty lists for a clean render, and keeps every value of one made by hand: rule:core-classes/pdf-css-subset
+`Rendered` carries the PDF file, its page count and one `Page` per page with that page's marks and strings, lists an unsupported declaration, a missing glyph and an overflowing footer, has three empty lists for a clean render, and keeps every value of one made by hand: rule:core-classes/pdf-css-subset
 --FILE--
 <?nvs
 // covers: Novis\Pdf\Rendered::constructor
@@ -27,12 +27,28 @@ foreach ($flawed->overflows as var $overflow) {
     echo "overflow in the ", $overflow->area, " of page ", $overflow->page, "\n";
 }
 
+// `pages` has one `Page` per page, with its marks and strings, from a render with a footer function and from one without.
+string $entries = "<style>p { break-after: page } h2 { string-set: part content() }</style>"
+    . "<h2>Part A</h2><p data-mark=\"entry:Blog\">Blog</p><p data-mark=\"entry:Shop;entry:Cart\">Shop</p><p>End</p>";
+var $plain = Document::fromHtml($entries)->render();
+var $footed = Document::fromHtml($entries)->withFooter(fn(Page $page): Core\Html\Markup => html`<p>{$page->number}</p>`)->render();
+array<Rendered> $both = [$plain, $footed];
+foreach ($both as Rendered $result) {
+    echo Core\Arr::count($result->pages), " of ", $result->pageCount, ":";
+    foreach ($result->pages as Page $page) {
+        echo " ", $page->number, "/", $page->count, "=", Core\Str::join($page->marks("entry"), "+"), "@", $page->string("part") ?? "-";
+    }
+    echo "\n";
+}
+
 // A result made by hand keeps every value it was given.
-var $made = new Rendered("%PDF-" as bytes, 2, [], [{text: "x", fonts: ["Serif"], page: 2}], [{page: 1, area: "header", text: "Shop"}]);
-echo Core\Bytes::length($made->bytes), " ", $made->pageCount, " ", $made->missingGlyphs[0]->fonts[0], " ", $made->overflows[0]->area, "\n";
+var $made = new Rendered("%PDF-" as bytes, 2, [new Page(1, 2, null, [], [])], [], [{text: "x", fonts: ["Serif"], page: 2}], [{page: 1, area: "header", text: "Shop"}]);
+echo Core\Bytes::length($made->bytes), " ", $made->pageCount, " ", $made->pages[0]->number, " ", $made->missingGlyphs[0]->fonts[0], " ", $made->overflows[0]->area, "\n";
 --EXPECT--
 %PDF- 2 pages, 0 0 0
 dropped text-shadow: 1px 1px gray in h1 at 1:13
 missing 1 character on page 1, fonts tried
 overflow in the footer of page 1
-5 2 Serif header
+3 of 3: 1/3=Blog@Part A 2/3=Shop+Cart@Part A 3/3=@Part A
+3 of 3: 1/3=Blog@Part A 2/3=Shop+Cart@Part A 3/3=@Part A
+5 2 1 Serif header

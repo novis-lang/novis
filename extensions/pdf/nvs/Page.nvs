@@ -2,6 +2,7 @@
 namespace Novis\Pdf;
 
 /// One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.
+/// After the render, `Rendered::pages` has one `Page` for each page.
 final class Page
 {
     type Named = { name: string, value: string };

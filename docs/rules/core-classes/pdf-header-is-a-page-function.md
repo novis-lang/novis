@@ -31,7 +31,9 @@ and `chapter` are two strings (`tests/conformance/novis/pdf-page-string-matches-
 
 - **Memory:** between the two calls, the request keeps one laid-out body per unfinished render, inside
   the request's cap. `render-second` frees it, and the request's end frees one left behind. Novis holds one `Page` per page and the markup the
-  functions return.
+  functions return. `Rendered::pages` keeps those `Page`s, made the same way when no function is set, for as long as
+  the result lives. Every `Page` of a render shares one list of all pages' marks, so the cost is O(pages + marks) per
+  render.
 
 **On disk.** The CSS half is `extensions/pdf/src/layout/margin.rs`, and the two passes are
 `first` and `second` in `extensions/pdf/src/lib.rs`, with the guest's `Body` as the resource, called by `Document::render` in

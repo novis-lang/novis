@@ -1,7 +1,8 @@
 <?nvs
 namespace Novis\Pdf;
 
-/// The result of `Document::render`: the PDF file, its page count, and what the render could not draw.
+/// The result of `Document::render`: the PDF file, its pages, and what the render could not draw.
+/// To print a page number inside the same document, such as in a table of contents, use the CSS function `target-counter()`.
 final class Rendered
 {
     type Dropped = { property: string, value: string, selector: string, line: uint, column: uint };
@@ -12,12 +13,14 @@ final class Rendered
     ///
     /// @param $bytes the PDF file
     /// @param $pageCount the number of pages in the PDF file
+    /// @param $pages one `Page` for each page of the PDF file, with its `string-set` values and its marks
     /// @param $dropped the CSS the render does not support, with the line and column of each declaration
     /// @param $missingGlyphs the text that no font has, with the fonts tried and the page
     /// @param $overflows the HTML that is too tall for its cell, with its page and area
     public function constructor(
         public readonly bytes $bytes,
         public readonly uint $pageCount,
+        public readonly array<Page> $pages,
         public readonly array<Dropped> $dropped,
         public readonly array<MissingGlyph> $missingGlyphs,
         public readonly array<Overflow> $overflows,

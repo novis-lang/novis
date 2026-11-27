@@ -1,13 +1,22 @@
 <?nvs
-// Shows the PDF file and the page count that a render returns.
+// Shows the PDF file, the page count and the pages that a render returns.
 use Novis\Pdf\Document;
+use Novis\Pdf\Page;
 
-var $html = '<style>p { break-after: page }</style><p>Order 1042</p><p>Order 1043</p>';
+var $html = '<style>p { break-after: page }</style>'
+    . '<p data-mark="order:1042">Order 1042</p><p data-mark="order:1043">Order 1043</p>';
 var $rendered = Document::fromHtml($html)->render();
 
 // `bytes` is the PDF file. Every PDF file starts with `%PDF-`.
 echo Core\Bytes::slice($rendered->bytes, 0, 5) as string, "\n";
 echo $rendered->pageCount, " pages\n";
+
+// `pages` has one `Page` for each page. This prints the page of each order.
+foreach ($rendered->pages as Page $page) {
+    foreach ($page->marks('order') as string $order) {
+        echo "order {$order} is on page {$page->number}\n";
+    }
+}
 
 // The three lists are empty, because the render drew everything.
 echo Core\Arr::count($rendered->dropped), ' dropped, ';

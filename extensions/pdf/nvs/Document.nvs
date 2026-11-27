@@ -112,7 +112,7 @@ final class Document
         };
         if ($this->header == null && $this->footer == null && $this->slots == null) {
             var $whole = Engine::render($document);
-            return new Rendered($whole->data, $whole->pageCount, $whole->dropped, $whole->missingGlyphs, $whole->overflows);
+            return new Rendered($whole->data, $whole->pageCount, self::pagesOf($whole->pages, $whole->pageCount), $whole->dropped, $whole->missingGlyphs, $whole->overflows);
         }
         var $first = Engine::renderFirst({
             document: $document,
@@ -120,17 +120,28 @@ final class Document
             footerHeight: $this->footer?->height,
         });
         var $facts = $first->facts;
-        array<array<Page::Named>> $marks = [];
-        foreach ($facts->pages as var $page) {
-            $marks[] = $page->marks;
-        }
+        var $all = self::pagesOf($facts->pages, $facts->pageCount);
         array<{ header: ?string, footer: ?string, slots: array<{ name: string, value: string }> }> $pages = [];
-        foreach ($facts->pages as var $page) {
-            var $one = new Page($page->number, $facts->pageCount, $page->name, $page->strings, $marks);
+        foreach ($all as var $one) {
             $pages[] = { header: self::markup($this->header, $one), footer: self::markup($this->footer, $one), slots: self::fills($this->slots, $one) };
         }
+        // The second pass draws only in the margins and slots, so the pages of the first pass are the pages of the file.
         var $result = Engine::renderSecond($first->body, { pages: $pages });
-        return new Rendered($result->data, $result->pageCount, $result->dropped, $result->missingGlyphs, $result->overflows);
+        return new Rendered($result->data, $result->pageCount, $all, $result->dropped, $result->missingGlyphs, $result->overflows);
+    }
+
+    /// One `Page` for each page's facts. Every `Page` shares one list of the marks of all pages.
+    private static function pagesOf(array<{ number: uint, name: ?string, strings: array<Page::Named>, marks: array<Page::Named> }> $facts, uint $count): array<Page>
+    {
+        array<array<Page::Named>> $marks = [];
+        foreach ($facts as var $page) {
+            $marks[] = $page->marks;
+        }
+        array<Page> $all = [];
+        foreach ($facts as var $page) {
+            $all[] = new Page($page->number, $count, $page->name, $page->strings, $marks);
+        }
+        return $all;
     }
 
     private static function markup(?Margin $margin, Page $page): ?string
