@@ -314,11 +314,16 @@ goal, and the stale renders are committed (`139ee67cd4`). The Syntax page's newc
 done, its findings are fixed, and it and its questions are stamped (`902e86203c`). No item of
 this goal is red in `close` now.
 
-What stays red belongs to a pdf session that made its last commit at 11:39 on 2026-11-27. It has
-`data/proofs/review-baseline.json` uncommitted in the tree. Its items are the `proofs` gate on
-`Novis\Pdf\Document::render` (`about.md` is 219 words, over 200, and unreviewed) and
-`::withAsset` (help unreviewed), `site stale` on `Pdf-Document/withAsset/about.md`, `site review`
-on three pdf texts, and `site questions` on seven `/reference/core/novis-pdf-*` pages.
+The pdf items are taken over and fixed (`a5a776b819`). Render's `about.md` is 194 words. A
+newcomer review of it, its second example and the `withAsset` help is done, and its findings are
+fixed. The texts, the help cards and the seven pdf question sets are stamped. The uncommitted
+`review-baseline.json` held only entries that `reviewed.json` already stamped, and is committed.
+
+One red stays in `close`, and it is not this goal's: `site roadmap` says `tls-relax-every-client`
+is on the chain and in no theme. A person was writing that goal while this session ran: its file
+`docs/goals/tls-relax-every-client.md` and the chain edit in `docs/goals/README.md` were
+uncommitted, and the goal had one stage still called "The first stage". This session left both
+files alone.
 
 All nine failed jobs of nightly run 45813627231 (commit `4e43e1fa2e`, 2026-11-26) come from
 three causes, each fixed on `main` after that commit: the Miri zone tests in
@@ -327,12 +332,10 @@ bound in `544711a8fb`.
 
 ### Next
 
-Rerun `bun nv close --goal test-only`. If only pdf items are red, check `git log -3` and
-`git status` first. If the pdf session has committed `review-baseline.json`, or has made no commit
-since 12:39 on 2026-11-27, take the pdf items over. Cut `docs/examples/novis/Pdf-Document/render/about.md`
-under 200 words, then review it and the `withAsset` help with `bun nv site --review --brief`.
-Stamp the keys that review printed, and rewrite and stamp the seven pdf question sets. Once
-`close` is green, delete the goal file and write `DONE`.
+Run `git status` and `bun nv site --check roadmap --nvs target/debug/nvs.exe`. If the
+`tls-relax-every-client` goal is committed with its roadmap theme, rerun
+`bun nv close --goal test-only`. If it is still uncommitted and only `site roadmap` is red, leave it
+to its author. Once `close` is green, delete this goal file and write `DONE`.
 
 Tests expected to go red at the full gate: any test that counts `ATTRIBUTES` or snapshots the
 attribute cards, stubs or `nvs meta` output changes by one row. Any snapshot of `E0889`'s or
