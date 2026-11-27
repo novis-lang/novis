@@ -41,6 +41,9 @@ when a `set` hook transformed it. Logic that computes or transforms a value belo
 property's own hook (`rule:classes/property-hooks`); the observer only watches the result, and the
 guard only allows or stops it.
 
+A string one of these steps compares its `$name` with is a use of that property, which a rename
+follows (`rule:classes/a-compared-property-name-is-a-use`).
+
 **Declined:**
 - **An element write reports an `onPropertyGet` for its root as well.** One write would then reach
   the observer twice, once as a read nobody wrote.

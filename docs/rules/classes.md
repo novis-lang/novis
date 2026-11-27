@@ -643,6 +643,9 @@ The compiled read keeps the one tag compare of [`classes/an-unwritten-property-r
 only its uninitialized branch reaches the runtime. An observed `lateinit` write tests the tag before it
 stores, and asks whether an `initProperty` call is running only when the slot was uninitialized.
 
+A string `initProperty` compares its `$name` with is a use of that property, which a rename follows
+([`classes/a-compared-property-name-is-a-use`](classes.md#classes-a-compared-property-name-is-a-use)).
+
 - **Memory:** per `initProperty` call while it runs, one two-word entry in the task's own table and
   one in the request's shared table, keyed by object and slot, plus one entry per read parked on it.
   The shared table is one small allocation per request that calls `initProperty` or starts a task.
@@ -830,6 +833,9 @@ when a `set` hook transformed it. Logic that computes or transforms a value belo
 property's own hook ([`classes/property-hooks`](classes.md#classes-property-hooks)); the observer only watches the result, and the
 guard only allows or stops it.
 
+A string one of these steps compares its `$name` with is a use of that property, which a rename
+follows ([`classes/a-compared-property-name-is-a-use`](classes.md#classes-a-compared-property-name-is-a-use)).
+
 **Declined:**
 - **An element write reports an `onPropertyGet` for its root as well.** One write would then reach
   the observer twice, once as a read nobody wrote.
@@ -906,6 +912,46 @@ reaches no guard, and an access inside the property's own hooks, or a write that
   implements.
 
 <sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read).</sub>
+
+<a id="classes-a-compared-property-name-is-a-use"></a>
+
+## A string a property callback compares with its name parameter is a use of that property
+
+`rule:classes/a-compared-property-name-is-a-use`
+
+The runtime calls five methods with a property's name as their first parameter: `initProperty`
+(`LateInit`), `onPropertyGet` and `onPropertySet` (`PropertyObserver`), and `beforePropertySet` and
+`beforePropertyUnset` (`PropertyGuard`). Inside one of them, in a class that implements its interface,
+a string literal compared with the name parameter is a use of the property with that name, on the
+method's class or a class above it. A comparison is `==` or `!=` with the parameter on either side,
+a `match` on the parameter, whose arm conditions are the literals, and a `switch` on it, whose `case`
+values are. A body that writes the name parameter compares nothing the tools read.
+
+The editor's index records each such literal, between its quotes, as an occurrence of the property
+([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)). So a rename rewrites it and keeps its quotes, and
+references and highlight list it, with no code of their own. A rename of the property is refused, with
+the place named, while a callback of the class or a class below it writes the old name in any other
+way, such as an array of names or an argument to another call, or writes its name parameter: the
+rename would miss that use. A string outside these methods is not tied to the property and is not read.
+
+A compared literal that no property of the class, of a class above it or of a class below it has is
+warning `W1039`, at the literal: "`'veiws'` is not a property of `Page`". It is a typo the program
+would find only at run time. It is a warning, never an error, because a class below may be declared
+in another program.
+
+- **Cost:** tooling and checking time only. Each callback body is read once more when its file is
+  indexed or checked, and the spans it gives are dropped with the answer. Nothing runs on the request
+  path, and a class with no callback pays nothing.
+
+**Declined:**
+- **Every string equal to a property name is a use.** A word such as `name` or `id` is written in
+  many strings that have nothing to do with the property, and a rename would change them all.
+- **A name in a variable or a constant compared with the parameter.** The tools cannot prove what it
+  is, so it refuses nothing and is renamed with nothing.
+- **An error for a compared name no property has.** A class below may be declared in a program the
+  checker does not see, and it may have that property.
+
+<sub>See also [`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/property-guard-runs-before-the-write`](classes.md#classes-property-guard-runs-before-the-write), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes).</sub>
 
 <a id="classes-an-override-keeps-its-parents-signature"></a>
 

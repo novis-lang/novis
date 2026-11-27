@@ -36,6 +36,13 @@
 //!   on whatever receiver it was written. A property site keeps or
 //!   drops the `$` the way its own text has it: `public string $name` and
 //!   `User::$count` write it, `$u->name` does not.
+//! - **A property's compared name** — a string literal one of the property
+//!   callbacks of its class compares with its name parameter
+//!   (`rule:classes/a-compared-property-name-is-a-use`) — is an occurrence the
+//!   index holds, so it is renamed with the property, between its quotes.
+//!   [`callback_uses`] refuses the rename while a callback of the class or a
+//!   class below it writes the old name another way, or writes its name
+//!   parameter.
 //! - **A local** of a function, a method or a script body: every `$name` the
 //!   declaring body writes as a variable read, a declaration, a `foreach`,
 //!   `catch`, destructuring or `static` binding, the binding's own

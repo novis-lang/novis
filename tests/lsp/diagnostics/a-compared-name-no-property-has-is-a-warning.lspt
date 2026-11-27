@@ -1,0 +1,25 @@
+--TEST--
+a string `initProperty` compares its name parameter with, which no property of the class or of a class above or below it has, is warning `W1039`, `rule:classes/a-compared-property-name-is-a-use`
+--FILE--
+<?nvs
+class Page implements LateInit
+{
+    public lateinit int $views;
+
+    public function initProperty(string $name): void
+    {
+        if ($name == 'veiws') {
+            $this->views = 0;
+        }
+        if ($name == 'views') {
+            $this->views = 3;
+        }
+    }
+}
+
+var $page = new Page();
+echo $page->views;
+--REQUEST--
+diagnostics
+--EXPECT--
+8:23-8:28 warning W1039 `'veiws'` is not a property of `Page`

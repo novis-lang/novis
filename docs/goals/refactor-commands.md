@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-lsp/src/generate.rs, crates/nvs-lsp/src/query.rs, crates/nvs-lsp/src/index.rs]
   - id: 2
     title: "a property's name, compared as a string in its class's property callbacks, is renamed with it"
-    status: open
+    status: done
     context: [docs/rules/classes/late-init-initializes-on-the-first-read.md, docs/rules/classes/property-observer-pipeline.md, crates/nvs-hir/src/interfaces.rs, crates/nvs-lsp/src/index.rs, crates/nvs-cli/tests/code.rs]
   - id: 3
     title: "a type moves to another namespace by rename"
@@ -419,18 +419,19 @@ cases are disjoint files and may go to two writing subagents.
 - [x] `crates/nvs-lsp/src/rename.rs:744` (`members`): a property's rename rewrites those occurrences
   inside the quotes, and refuses a literal equal to the old name that a callback uses any other way,
   or a name parameter the body assigns, naming the place.
-- [ ] The warning for a compared name that no property has, in the checker where the class's
+- [x] The warning for a compared name that no property has, in the checker where the class's
   properties are known (an `Explore` subagent finds where `initProperty` is checked, as
   `crates/nvs-types/src/iter_lib.rs:238` registers it), with a diagnostics case beside the existing
   lateinit cases.
   - [x] `W1039` and `crates/nvs-types/src/compared_names.rs`, called from `check.rs:885`
-  - [ ] the conformance case `tests/conformance/class/a-compared-name-no-property-has-is-a-warning.nvst`
+  - [x] the case, as `tests/lsp/diagnostics/a-compared-name-no-property-has-is-a-warning.lspt`: a
+    `.nvst` compares stderr only when the build fails, so it cannot pin a warning alone
 - [x] `crates/nvs-cli/tests/code.rs:719`: the five tests of the check `callback-names`, on a neutral
   `Page` class. Then `cargo test --test code code_rename code_refs` once, as two runs.
-- [ ] `tests/lsp/rename/a-lateinit-property-renames-the-name-init-property-compares.lspt:1` and
+- [x] `tests/lsp/rename/a-lateinit-property-renames-the-name-init-property-compares.lspt:1` and
   `tests/lsp/references/a-lateinit-property-lists-the-name-init-property-compares.lspt:1` (new), then
   `nvs lsp-test tests/lsp/rename/ tests/lsp/references/` once.
-- [ ] `docs/rules/classes/a-compared-property-name-is-a-use.md:1` (new), one sentence in
+- [x] `docs/rules/classes/a-compared-property-name-is-a-use.md:1` (new), one sentence in
   `docs/rules/classes/late-init-initializes-on-the-first-read.md:1` and
   `docs/rules/classes/property-observer-pipeline.md:1` pointing to it, and the rename list in
   `rename.rs:1`'s module doc. Then `bun nv rules`.
@@ -618,37 +619,33 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stage 2 is half done, and its check `callback-names` is green: its five tests passed, run by name
-as `cargo test --test code code_rename` and `code_refs`.
-- `crates/nvs-hir/src/compared_names.rs` is the one reader: `CALLBACKS` (five, with
-  `beforePropertyUnset`, which also takes the name first; `onPropertyChanged` joins when
-  `property-changes` declares it), `callbacks_in` and `of_method`. A `switch` on the parameter also
-  counts, beside `==`, `!=` and `match`. Two unit tests pass.
-- `index.rs` `compared_names` records each compared literal, between its quotes, as an occurrence
-  of the nearest declaring class's property, only where the class implements the interface and the
-  body never writes the parameter.
-- `rename.rs` `callback_uses` refuses a property rename when a callback of the class or a class
-  below it writes the old name another way, or writes its name parameter. It reparses each class file.
-- `W1039` (`W_COMPARED_NAME_IS_NO_PROPERTY`) is raised by `crates/nvs-types/src/compared_names.rs`
-  over the class, its ancestors and `hierarchy::descendants` (new). No conformance case yet.
-- A namespaced file names these interfaces with `use LateInit;`, as the tests do.
-
-**Stage 1 bug:** a type rename that moves its file is refused with `E0306`. `refactor::checked`
-overlays the moved text, but autoload's probe (`autoload.rs:1395`) asks the disk. Red because of it:
-`code_rename_renames_a_type_and_moves_the_file_named_after_it`, `..._json_lists_every_edit_and_the_moved_file`
-and `..._dry_run_prints_every_edit_and_writes_nothing` in `crates/nvs-cli/tests/code.rs`.
-**Also expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
-beside an unrelated error.
+Stages 1 and 2 are done. All 15 `code_rename_` tests pass, run by name, so `callback-names` is green
+and the three stage 1 tests are green again. `nvs lsp-test tests/lsp/rename/ tests/lsp/references/`
+and the new diagnostics case pass, 156 of 156.
+- **The stage 1 bug is fixed.** `nvs_hir::requires::with_planned` (`requires.rs:788` onward) puts the
+  moved paths in a thread-local list while `refactor::checked` runs its analysis after the edit.
+  `canonicalize` finds a path from that list when the disk does not have it. Stage 3 builds on this:
+  a namespace move writes into a directory that may not exist yet. The planned key is the parent's
+  canonical form joined with the file name, so a parent that does not exist yet is not found.
+  Stage 3 must extend `planned` to the nearest existing ancestor.
+- **Stage 2's rule** is `docs/rules/classes/a-compared-property-name-is-a-use.md`, with its record
+  under `data/rules/classes/`. The `W1039` case is a `.lspt` diagnostics case, not a `.nvst`: a
+  `.nvst` compares stderr only when the build fails.
+- The nightly sweep's nine failures were already fixed on main by c115a735a1, 28a4d7a6bf and
+  544711a8fb. Nothing was changed for them.
+- **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
+  next to an unrelated error.
 
 ### Next
 
-1. The stage 1 bug above. The likely fix is to let the check's analysis see the overlaid paths in
-   autoload's probe: a planned-path set that `requires::canonicalize` consults (`requires.rs:788`),
-   in the way `nvs_diagnostics::embedded` answers first in a bundle. Then rerun the three tests by name.
-2. Stage 2's rest: the `W1039` conformance case beside
-   `tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst`; the two `.lspt` cases;
-   the rule `docs/rules/classes/a-compared-property-name-is-a-use.md` (with `beforePropertyUnset`
-   and `switch` added to the decision's list, and the cost: tooling and checking time only), the two
-   pointer sentences, and the rename list in `rename.rs:1`'s module doc; then `bun nv rules`.
+Stage 3, a type moves to another namespace by rename (§ *A type's new namespace*):
+1. `crates/nvs-lsp/src/rename.rs:874` (`types`): accept a qualified new name. Refuse a type that is not
+   its file's sole declaration (`autoload.rs:1512`). Get the new path from `AutoloadMap::resolve`
+   (`autoload.rs:596`) through `named_after` (`rename.rs:1074`).
+2. The `use` lines to add and delete, at `nvs_hir::import_site` (`imports.rs:83`), and each touched
+   block sorted with `nvs fmt`'s sort.
+3. `requires.rs` `planned`: find a planned path whose parent directory does not exist yet.
+4. CLI: `code.rs:1116` and `:1492` create the missing directories under the root, each judged before
+   it is joined. Then the seven `namespace` tests at `crates/nvs-cli/tests/code.rs:613`.
 
 ### Backlog

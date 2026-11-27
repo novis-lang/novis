@@ -28,6 +28,7 @@
     "classes/property-observer-pipeline",
     "classes/property-observer-costs-nothing-when-unused",
     "classes/property-guard-runs-before-the-write",
+    "classes/a-compared-property-name-is-a-use",
     "classes/an-override-keeps-its-parents-signature",
     "classes/a-redeclared-property-keeps-its-parents-type",
     "classes/a-covariant-type-is-checked-where-a-value-enters",

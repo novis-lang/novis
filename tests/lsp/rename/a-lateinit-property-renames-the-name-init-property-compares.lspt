@@ -1,0 +1,25 @@
+--TEST--
+a `lateinit` property is renamed in the string `initProperty` compares its name parameter with, inside the quotes, `rule:classes/a-compared-property-name-is-a-use`
+--FILE--
+<?nvs
+class Page implements LateInit
+{
+    public lateinit int $views;
+
+    public function initProperty(string $name): void
+    {
+        if ($name == 'views') {
+            $this->views = 0;
+        }
+    }
+}
+
+var $page = new Page();
+echo $page->vi<|>ews;
+--REQUEST--
+rename to=visits
+--EXPECT--
+case.nvs:4:25 $visits
+case.nvs:8:23 visits
+case.nvs:9:20 visits
+case.nvs:15:13 visits

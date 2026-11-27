@@ -1,0 +1,17 @@
+{
+  "title": "A string a property callback compares with its name parameter is a use of that property",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/late-init-initializes-on-the-first-read",
+    "classes/property-observer-pipeline",
+    "classes/property-guard-runs-before-the-write",
+    "ide/five-features-are-one-reference-index",
+    "ide/a-refactoring-checks-its-edit-before-it-writes"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/code.rs",
+    "tests/lsp/rename/a-lateinit-property-renames-the-name-init-property-compares.lspt",
+    "tests/lsp/references/a-lateinit-property-lists-the-name-init-property-compares.lspt",
+    "tests/lsp/diagnostics/a-compared-name-no-property-has-is-a-warning.lspt"
+  ]
+}

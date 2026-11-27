@@ -32,6 +32,9 @@ The compiled read keeps the one tag compare of `rule:classes/an-unwritten-proper
 only its uninitialized branch reaches the runtime. An observed `lateinit` write tests the tag before it
 stores, and asks whether an `initProperty` call is running only when the slot was uninitialized.
 
+A string `initProperty` compares its `$name` with is a use of that property, which a rename follows
+(`rule:classes/a-compared-property-name-is-a-use`).
+
 - **Memory:** per `initProperty` call while it runs, one two-word entry in the task's own table and
   one in the request's shared table, keyed by object and slot, plus one entry per read parked on it.
   The shared table is one small allocation per request that calls `initProperty` or starts a task.
