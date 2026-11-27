@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "One way to change your code safely",
-      "text": "Each refactoring, such as a rename or a file move, checks its change before it writes it. The same refactorings work from your editor and from the command line with `nvs code`.",
-      "goals": [
-        "refactor-commands"
-      ]
-    },
-    {
       "title": "Completion that offers only what your program can load",
       "text": "Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.",
       "goals": [
