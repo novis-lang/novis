@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **In the loop, a session that reaches its goal writes `DONE` and leaves the goal file in place.**
+  The driver runs the acceptance checks from that file, then deletes it and drops the slug from the
+  chain in its own `chore(goals): <slug> is reached and retired` commit. In `test-only` stage 6, a
+  handoff said "delete this goal file", and `looper lint` went red on the chain at once. Only a goal
+  ended outside the loop deletes its own file. See `tools/looper/`.
 - **A Python edit script under `.agent-tmp/` opens files with `newline=''`, or bytes.** On Windows,
   `open(p, 'w')` writes every line ending as CRLF, so the whole file changes. In
   `refactor-commands` stage 6, four Rust files came out CRLF, and git warned at the commit. A
