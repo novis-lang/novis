@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-hir/src/autoload.rs, crates/nvs-lsp/src/server.rs, crates/nvs-cli/tests/code.rs]
   - id: 6
     title: "unused declarations are listed, greyed out and deleted"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/diagnostics.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/src/actions.rs, docs/rules/ide/five-features-are-one-reference-index.md]
   - id: 7
     title: "extract and implement are nvs code verbs"
@@ -518,21 +518,21 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
   - [x] the index keeps each file's string words (`Indexed::written`) and `Declaration::attributed`
   - [x] `unused`, `used`, `entered`, `reached_otherwise`, `above_outside`, and `Unused::of_project`
   - [x] the disk index format is 6
-- [ ] `crates/nvs-lsp/src/diagnostics.rs:434`: dimming covers public and protected declarations at
+- [x] `crates/nvs-lsp/src/diagnostics.rs:434`: dimming covers public and protected declarations at
   workspace scope.
-- [ ] `crates/nvs-lsp/src/refactor.rs:1`: `delete` per § *What delete removes*, and its code action in
-  `crates/nvs-lsp/src/actions.rs:259`.
-- [ ] `crates/nvs-cli/src/code.rs:206`: the `Unused` and `Delete` verbs with their help.
+- [x] `crates/nvs-lsp/src/refactor.rs:1`: `delete` per § *What delete removes*, and its code action in
+  `crates/nvs-lsp/src/actions.rs:259`. Built as its own module, `crates/nvs-lsp/src/delete.rs`.
+- [x] `crates/nvs-cli/src/code.rs:206`: the `Unused` and `Delete` verbs with their help.
   - [x] `Unused`, its help and `unused()`
-  - [ ] `Delete`
-- [ ] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `unused`. Then `cargo test
+  - [x] `Delete`
+- [x] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `unused`. Then `cargo test
   --test code code_unused code_delete` once, as two runs.
   - [x] the three `code_unused_*` tests, green
-  - [ ] the three `code_delete_*` tests
-- [ ] `tests/lsp/actions/an-unused-method-offers-its-deletion.lspt:1` and
+  - [x] the three `code_delete_*` tests, green
+- [x] `tests/lsp/actions/an-unused-method-offers-its-deletion.lspt:1` and
   `tests/lsp/diagnostics/an-unused-public-method-is-greyed-at-workspace-scope.lspt:1` (new), then `nvs
   lsp-test tests/lsp/` once.
-- [ ] `docs/rules/ide/five-features-are-one-reference-index.md:1`: dimming covers public declarations
+- [x] `docs/rules/ide/five-features-are-one-reference-index.md:1`: dimming covers public declarations
   at workspace scope; the tooling rule gets the two verbs.
 
 ### 7. extract and implement are nvs code verbs
@@ -651,45 +651,39 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 is half done: `SymbolIndex::unused` and `nvs code unused` landed
-(a0b4f82e71), and `cargo test --test code code_unused` passes, 3 of 3. Clippy is clean. The tooling
-rule names the twelfth verb, and `bun nv rules --render` re-rendered `ide.md` and `tooling.md`. The
-nightly sweep's nine failures still name run 45813627231 at 4e43e1fa2e, which predates their fixes
-on `main` (c115a735a1, 28a4d7a6bf, 544711a8fb), so nothing was owed there.
-- **How stage 6's classifier is built.** § *What counts as a use*, its *As built* bullet.
-- **How stage 5 is built.** § *A moved file takes the name its path gives*, its *As built* bullet.
-  `nvs code move` (`code.rs` `move_path`) and the server's `dragged` (`server.rs`) both call
-  `rename::relocated`; the move help says a class takes the name of its new path.
-- **How stage 4 is built.** `rename::renamed_all` computes every subject, builds one `Freed`, and
-  hands them to `planned_all`, which refuses a name given twice, plans each rename, merges, refuses
-  overlaps and taken targets. `renamed_all` then runs `refactor::checked` once.
-- **Stage 3** is `namespaced` with `autoloaded_path` and `headed`; `rename::new_key` is
-  `nvs_hir::requires::planned_key`.
+Stages 1 to 6 are done. Stage 6 landed in three commits: workspace dimming (4a33c149d1),
+`nvs code delete` (cbd71535ed) and the *Delete unused …* action with the settle republish
+(557d2b2059). `cargo test --test code code_unused` 3 of 3 and `code_delete` 3 of 3 pass,
+the `actions` and `diagnostics` `.lspt` folders and `publish.rs`'s dimming test are green, and
+clippy is clean. The nightly sweep's run 45813627231 predates its fixes on `main`.
+- **How stage 6 is built.** The classifier is § *What counts as a use*, its *As built* bullet.
+  `SymbolIndex::dimmed` reads `unused` over the `Unused` that `read_project` cached at the last
+  settle, and `unused_private` while an entry waits. The server calls `read_project` in `settled`,
+  in `start_index` when nothing waits, in `check_workspace` and in the `.lspt` index builders;
+  `settled` then republishes each open document from its kept analysis (`republish_dimming`).
+  `crates/nvs-lsp/src/delete.rs` is the engine (not `refactor.rs`); it deletes only what `unused`
+  lists. `write_out` and `committed` (`code.rs`) take deleted files, and every write verb's JSON has
+  a `deleted` key. Stages 3 to 5 are each standing decision's *As built* bullet.
+
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
-  next to an unrelated error. The `Move` help changed and `Unused` is new, so stage 13's `site --check stale`
-  and `questions` will name the `nvs code` pages. A dimming `.lspt` that greys a private member
-  whose name a string writes, since `unused_private` now filters `unused`.
+  next to an unrelated error. The `Move` help changed and `Unused` and `Delete` are new, so stage
+  13's `site --check stale` and `questions` will name the `nvs code` pages. A server test in
+  `crates/nvs-lsp/tests/` that reads a fixed sequence of `publishDiagnostics` may meet the extra
+  publish `republish_dimming` sends at a settle, or a public hint it did not expect; the fix is a
+  fixture that uses its declarations, as `publish.rs`'s `HOARD` now does.
 
 ### Next
 
-The rest of stage 6 (§ *What delete removes*).
-1. `crates/nvs-lsp/src/diagnostics.rs:446` (the dimming crossing) and its two callers,
-   `server.rs:2897` and `:3801`: at workspace scope call `index.unused(&path, &Unused::of_project(..))`
-   in place of `unused_private`; open scope stays `unused_private`. Cache `Unused` on the server, read
-   once per index settle, not per publish.
-2. `crates/nvs-lsp/src/refactor.rs`: `delete(index, texts, symbol) -> Result<(Vec<Rewrite>, moves), String>`:
-   refuse while `occurrences`, `mentions_of` or `imports_of` is non-empty, or the method has an
-   `overridden`/`overriders` entry; remove the declaration's member span (`extent`, or the member
-   span found as `Declaration::attributed` does) with its `///` run and one blank line; a sole
-   declaration deletes the file, refused while a `require` names it (`SymbolIndex::linked` / rename's
-   `moved` finds them). Run `refactor::checked`.
-3. Its `refactor.rewrite` code action in `crates/nvs-lsp/src/actions.rs`, offered at a declaration
-   `unused` lists.
-4. `Delete` in `crates/nvs-cli/src/code.rs`, beside `Unused`, writing through `planned`/`committed`
-   and `write_out`; the three `code_delete_*` tests at the end of `crates/nvs-cli/tests/code.rs`, then
-   `cargo test --test code code_delete` once.
-5. The two `.lspt` cases the stage names, then `nvs lsp-test tests/lsp/` once.
-6. `docs/rules/ide/five-features-are-one-reference-index.md`: dimming covers public declarations at
-   workspace scope; the tooling rule gets `delete` and becomes thirteen verbs; `bun nv rules --render`.
+Stage 7 (§ *Extract and implement on the command line*).
+1. `crates/nvs-lsp/src/extract.rs:155`: a reasoned form that returns why a selection cannot be
+   extracted; `at` keeps its offers.
+2. `crates/nvs-lsp/src/generate.rs:178`: `implement` reachable by class name, through
+   `refactor::checked`.
+3. `crates/nvs-cli/src/code.rs`: `Extract` (`variable`, `method`) and `Implement` beside `Delete`,
+   each with help; the range parser beside `split_position`. Write through `write_out`, passing
+   `&[]` for `deleted`.
+4. The four tests of the check `extract-implement` at the end of `crates/nvs-cli/tests/code.rs`, then
+   `cargo test --test code code_extract` and `code_implement` once each.
+5. `docs/rules/tooling/nvs-code-answers-about-the-project.md`: the two verbs; `bun nv rules --render`.
 
 ### Backlog
