@@ -924,7 +924,7 @@ impl Body {
 
 /// The member of a class, an interface or an enum in `stmts` that declares a
 /// method whose name starts at `name_at`, with the member's span.
-fn method_member(stmts: &[Stmt], name_at: BytePos) -> Option<(Span, &MethodMember)> {
+pub(crate) fn method_member(stmts: &[Stmt], name_at: BytePos) -> Option<(Span, &MethodMember)> {
     stmts.iter().find_map(|stmt| match &stmt.kind {
         StmtKind::NamespaceDecl(namespace) => namespace
             .body
@@ -1085,7 +1085,7 @@ fn compiles(analysed: &Analysed, documents: &Documents, edits: &[Change]) -> boo
 }
 
 /// Whether evaluating `node` may run code.
-fn runs_code(node: &Node) -> bool {
+pub(crate) fn runs_code(node: &Node) -> bool {
     std::iter::once(node)
         .chain(node.descendants())
         .any(|node| RUNS_CODE.contains(&node.kind))
@@ -1115,7 +1115,10 @@ fn parenthesized(text: &str, kind: &str, parent: Option<&Node>, child: &Node) ->
 
 /// The nodes from a root of `roots` down to the first node `wanted` accepts,
 /// outermost first.
-fn path_to<'a>(roots: &'a [Node], wanted: &dyn Fn(&Node) -> bool) -> Option<Vec<&'a Node>> {
+pub(crate) fn path_to<'a>(
+    roots: &'a [Node],
+    wanted: &dyn Fn(&Node) -> bool,
+) -> Option<Vec<&'a Node>> {
     for root in roots {
         if wanted(root) {
             return Some(vec![root]);
@@ -1167,7 +1170,7 @@ fn removed_lines(source: &str, span: Span) -> Span {
 }
 
 /// The line of `offset` in `source`, counted from 1.
-fn line_of(source: &str, offset: BytePos) -> usize {
+pub(crate) fn line_of(source: &str, offset: BytePos) -> usize {
     source
         .get(..offset as usize)
         .map_or(0, |head| head.matches('\n').count())

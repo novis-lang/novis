@@ -8,8 +8,8 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename`, `move`, `delete`, `extract`, `implement`, `inline` and
-//! `order` write**, through [`planned`] and [`committed`], the one write path: it
+//! **Only `rename`, `move`, `delete`, `extract`, `implement`, `inline`,
+//! `signature` and `order` write**, through [`planned`] and [`committed`], the one write path: it
 //! writes and deletes only inside the project root, and only files whose
 //! bytes have not changed since this call first read them. [`write_out`]
 //! prints what every write verb but `order` wrote, and [`order()`] prints what
@@ -354,6 +354,37 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Change the parameters of a method, and save the changed files.
+    ///
+    /// The list is the whole new parameter list, as you write it in the
+    /// method. Parameters keep their name, so a parameter with an old name
+    /// is the old parameter. It may get another type, default or place. A
+    /// new parameter needs a default or a `--value`. The value is written
+    /// at every call. A removed parameter's argument is deleted at every
+    /// call. Every method that overrides the method, or that it overrides,
+    /// gets the same list.
+    ///
+    /// The command does not change a call when its code would run in
+    /// another order, or not at all. For example, a removed argument may
+    /// not call a function. The command prints the changed files. If the
+    /// change is not possible, it prints why, changes nothing and fails.
+    Signature {
+        /// The method, as `Shop\Cart::addItem`.
+        method: String,
+        /// The new parameter list, as `int $count, string $note = ''`.
+        parameters: String,
+        /// The value of a new parameter at every call, as `$note='gift'`.
+        /// You can give this more than once.
+        #[arg(long = "value", value_name = "$NAME=VALUE")]
+        values: Vec<String>,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the methods that call a method, and the methods it calls.
     ///
     /// The callers come first. Each method has its own line, with `caller`
@@ -509,6 +540,13 @@ impl Args {
                 dry_run,
                 json,
             } => inline(&target, dry_run, json),
+            Command::Signature {
+                method,
+                parameters,
+                values,
+                dry_run,
+                json,
+            } => change_signature(&method, &parameters, &values, dry_run, json),
             Command::Calls { symbols, json } => calls(&symbols, json),
             Command::Reach { symbols, json } => reach(&symbols, json),
         }
@@ -1232,6 +1270,48 @@ pub(crate) fn inline(target: &str, dry_run: bool, json: bool) -> ExitCode {
         query::inline(&project.workspace, &query::Inlined::Method(target))
     };
     match inlined {
+        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `nvs code signature`: a method's new parameter list in its whole override
+/// family and at every call ([`query::signature`]), written to disk through
+/// [`write_out`], or printed with `--dry-run`. Each `--value` is
+/// `$name=<expression>`.
+pub(crate) fn change_signature(
+    symbol: &str,
+    parameters: &str,
+    values: &[String],
+    dry_run: bool,
+    json: bool,
+) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let mut pairs = Vec::new();
+    for value in values {
+        match value.split_once('=') {
+            Some((name, expr)) if name.trim().starts_with('$') && !expr.trim().is_empty() => {
+                pairs.push((name.trim().to_owned(), expr.trim().to_owned()));
+            }
+            _ => {
+                return unknown(
+                    &format!(
+                        "`--value {}` is not written as `$name=value`",
+                        escaped(value)
+                    ),
+                    &[],
+                    json,
+                );
+            }
+        }
+    }
+    if !method(&project, symbol) {
+        return unknown_method(&project, symbol, json);
+    }
+    match query::signature(&project.workspace, symbol, parameters, &pairs) {
         Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
         Err(message) => unknown(&escaped(&message), &[], json),
     }

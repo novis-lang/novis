@@ -2607,3 +2607,163 @@ fn code_inline_refuses_an_argument_that_is_not_a_variable_or_a_literal() {
     );
     assert_eq!(read(&dir, "src/Order.nvs"), order);
 }
+
+/// What the entry point of an [`order_entry_project`] prints.
+fn orders_print(dir: &Path) -> String {
+    let (out, err, ok) = run(dir, "run", &["public/orders.nvs"]);
+    assert!(ok, "the project runs: {err}");
+    out
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_adds_a_parameter_with_a_default_and_leaves_callers() {
+    let dir = order_entry_project("signature-default", TAXED);
+    let (out, err, ok) = code(
+        &dir,
+        &[
+            "signature",
+            r"Shop\Order::taxed",
+            "int $amount, int $rate = 3, int $extra = 0",
+        ],
+    );
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Order.nvs"), "{out}");
+    let order = read(&dir, "src/Order.nvs");
+    assert!(
+        order.contains("private function taxed(int $amount, int $rate = 3, int $extra = 0): int"),
+        "{order}"
+    );
+    assert!(order.contains("$this->taxed($gross, 2)"), "{order}");
+    assert!(order.contains("$this->taxed($sum)"), "{order}");
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_adds_a_parameter_with_a_value_at_every_call() {
+    let dir = order_entry_project("signature-value", TAXED);
+    let (_, err, ok) = code(
+        &dir,
+        &[
+            "signature",
+            r"Shop\Order::taxed",
+            "int $amount, int $extra, int $rate = 3",
+            "--value",
+            "$extra=0",
+        ],
+    );
+    assert!(ok, "{err}");
+    let order = read(&dir, "src/Order.nvs");
+    assert!(order.contains("$this->taxed($gross, 0, 2)"), "{order}");
+    assert!(order.contains("$this->taxed($sum, 0)"), "{order}");
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_removes_a_parameter_and_its_argument() {
+    let order = TAXED.replace("return $amount * $rate;", "return $amount * 2;");
+    let dir = order_entry_project("signature-remove", &order);
+    let before = orders_print(&dir);
+    let (_, err, ok) = code(&dir, &["signature", r"Shop\Order::taxed", "int $amount"]);
+    assert!(ok, "{err}");
+    let written = read(&dir, "src/Order.nvs");
+    assert!(
+        written.contains("private function taxed(int $amount): int"),
+        "{written}"
+    );
+    assert!(written.contains("$this->taxed($gross) - 1"), "{written}");
+    assert!(written.contains("$this->taxed($sum) + $sum"), "{written}");
+    assert_eq!(orders_print(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_reorders_positional_arguments_and_keeps_named_ones() {
+    let order = TAXED.replace("$this->taxed($sum)", "$this->taxed($sum, rate: 3)");
+    let dir = order_entry_project("signature-reorder", &order);
+    let (_, err, ok) = code(
+        &dir,
+        &["signature", r"Shop\Order::taxed", "int $rate, int $amount"],
+    );
+    assert!(ok, "{err}");
+    let written = read(&dir, "src/Order.nvs");
+    assert!(
+        written.contains("private function taxed(int $rate, int $amount): int"),
+        "{written}"
+    );
+    assert!(written.contains("$this->taxed(2, $gross)"), "{written}");
+    // A named argument keeps its name, and so must every argument after it.
+    assert!(
+        written.contains("$this->taxed(rate: 3, amount: $sum)"),
+        "{written}"
+    );
+    still_prints_31(&dir);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_changes_every_method_of_the_override_family() {
+    let fee = "<?nvs\nnamespace Shop;\n\nclass Fee {\n    \
+               /// @param $base The amount the fee is for.\n    \
+               /// @param $round Unused.\n    \
+               public function rate(int $base, bool $round): int {\n        \
+               return $base + 2;\n    }\n}\n";
+    let flat = "<?nvs\nnamespace Shop;\n\nclass FlatFee extends Fee {\n    \
+                public function rate(int $amount, bool $round): int {\n        \
+                return $amount + 3;\n    }\n}\n";
+    let entry = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Fee;\nuse Shop\\FlatFee;\n\n\
+                 echo (new Fee())->rate(1, true) + (new FlatFee())->rate(1, false);\n";
+    let dir = project(
+        "signature-family",
+        &[
+            ("src/Fee.nvs", fee),
+            ("src/FlatFee.nvs", flat),
+            ("public/fees.nvs", entry),
+        ],
+    );
+    let (_, err, ok) = code(
+        &dir,
+        &["signature", r"Shop\Fee::rate", "int $base, int $extra = 0"],
+    );
+    assert!(ok, "{err}");
+    let fee_after = read(&dir, "src/Fee.nvs");
+    assert!(
+        fee_after.contains("public function rate(int $base, int $extra = 0): int"),
+        "{fee_after}"
+    );
+    assert!(fee_after.contains("@param $base"), "{fee_after}");
+    assert!(!fee_after.contains("@param $round"), "{fee_after}");
+    // The override keeps its own name for the first parameter.
+    let flat_after = read(&dir, "src/FlatFee.nvs");
+    assert!(
+        flat_after.contains("public function rate(int $amount, int $extra = 0): int"),
+        "{flat_after}"
+    );
+    assert!(
+        read(&dir, "public/fees.nvs").contains("(new Fee())->rate(1) + (new FlatFee())->rate(1)"),
+        "the literal arguments are removed"
+    );
+    let (out, err, ok) = run(&dir, "run", &["public/fees.nvs"]);
+    assert!(ok, "the changed project runs: {err}");
+    assert_eq!(out, "7");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_signature_refuses_removing_an_argument_that_runs_code() {
+    let order = TAXED
+        .replace("return $amount * $rate;", "return $amount * 2;")
+        .replace("$this->taxed($gross, 2)", "$this->taxed($gross, $this->two())")
+        .replace(
+            "    private function taxed",
+            "    private function two(): int {\n        return 2;\n    }\n\n    private function taxed",
+        );
+    let dir = order_entry_project("signature-runs-code", &order);
+    let (out, err, ok) = code(&dir, &["signature", r"Shop\Order::taxed", "int $amount"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("`$this->two()` on line 6 of"), "{out}{err}");
+    assert!(err.contains("may run code"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Order.nvs"), order);
+}

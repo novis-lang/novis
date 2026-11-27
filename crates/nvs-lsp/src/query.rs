@@ -568,6 +568,31 @@ pub fn inline(workspace: &Workspace, target: &Inlined<'_>) -> Result<Vec<Rewrite
         .map_err(|broken| broken.refusal())
 }
 
+/// The edits that give the method `symbol` and its override family the
+/// parameter list `list`, and each call the arguments it then needs
+/// ([`crate::signature_change::signature`]). `values` gives the expression
+/// written at every call, per new parameter's name with its `$`. Each edit
+/// is checked before it is returned
+/// (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`).
+///
+/// # Errors
+///
+/// Returns why the parameters are not changed.
+pub fn signature(
+    workspace: &Workspace,
+    symbol: &str,
+    list: &str,
+    values: &[(String, String)],
+) -> Result<Vec<Rewrite>, String> {
+    crate::signature_change::signature(
+        workspace.documents(),
+        workspace.index(),
+        symbol,
+        list,
+        values,
+    )
+}
+
 /// The edits that write every method the class `symbol` owes, through the
 /// function the editor's *Implement the missing methods* fix shares
 /// ([`crate::generate::implement_class`]).

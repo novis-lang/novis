@@ -1,7 +1,7 @@
-`nvs code` has sixteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
+`nvs code` has seventeen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
 `find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
-Seven write: `rename`, `move`, `delete`, `extract`, `implement`, `inline` and `order`.
+Eight write: `rename`, `move`, `delete`, `extract`, `implement`, `inline`, `signature` and `order`.
 
 **`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
 (`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
@@ -38,6 +38,7 @@ file already writes, is refused. **`implement`** takes a class name and writes e
 class's interfaces and `abstract` parents leave without a body, as the editor's *Implement the
 missing methods* fix writes it on `E0449` (`nvs_lsp::generate::implement_class`); a class that owes
 none is refused. Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.
+**Cost:** tooling only: the editor's analyses for the action, then the check.
 
 **`inline`** takes a method's name, or a position, `path:line:column`, on a local, a call or a
 method's name, from `nvs_lsp::query::inline`, the function the editor's three `refactor.inline`
@@ -61,7 +62,25 @@ or call is put in parentheses where the place it lands needs them, and each edit
 local's file and one analysis when its declaration writes a type, or one analysis of the method's
 file and of each calling file, and the check. In the editor, each action analyses the rewritten
 document once more, and is computed only with the cursor on a variable or a method's name.
-**Cost:** tooling only: the editor's analyses for the action, then the check.
+
+**`signature`** takes a method's name and its whole new parameter list, as source writes it, with
+`--value '$name=<expression>'` once per added parameter that needs one, from
+`nvs_lsp::query::signature` (`crates/nvs-lsp/src/signature_change.rs`). Parameters match the old
+list by name, so a kept one may change its type, default or place; a parameter's rename is
+`rename`'s. An added one needs a default or a value, which is written at every call; with both,
+calls keep the default. A removed one deletes its argument at every call. Every method of the
+override family gets the list, each keeping its own parameter names and, for what the list does not
+change, its own modifiers and spelling; a changed or added type is written as the list writes it, and
+a file that needs another spelling is refused by the check. An argument after the first one a call
+leaves to its default, or after a named one, is written with its name, and each removed parameter's
+`@param` line goes. Refused, since each could change what runs or miss a call: a removed argument
+that may run code (a call, `new`, an assignment, a property read), a removed parameter a body of the
+family reads, a reorder that swaps two arguments that may run code, a change of `inout`, a variadic
+parameter, a family whose methods differ in parameter count, a method of it taken as a callable
+value, a type above it outside the workspace, a call that spreads its arguments or nests in another
+call of the family, and a constructor, whose `new` calls the index records as uses of the class.
+Each edit passes `rule:ide/a-refactoring-checks-its-edit-before-it-writes`. **Cost:** tooling only:
+one parse of each file that declares or calls a method of the family, then the check.
 
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through

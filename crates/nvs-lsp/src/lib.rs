@@ -148,6 +148,7 @@ pub mod semantic;
 mod server;
 mod session;
 pub mod settings;
+pub mod signature_change;
 pub mod split_join;
 pub mod stubs;
 pub mod suite;

@@ -1077,7 +1077,7 @@ fn outside(index: &SymbolIndex, symbol: &str) -> String {
 
 /// `method`, with every method it overrides and every method that overrides
 /// it, at any distance and in both directions, sorted.
-fn family(index: &SymbolIndex, method: &str) -> Vec<String> {
+pub(crate) fn family(index: &SymbolIndex, method: &str) -> Vec<String> {
     let mut found = vec![method.to_owned()];
     let mut next = 0;
     while let Some(current) = found.get(next).cloned() {
@@ -1128,7 +1128,7 @@ fn overrides_outside(index: &SymbolIndex, method: &str, name: &str) -> Result<()
 }
 
 /// Whether the `Core` class `core` has a method named `name`.
-fn core_has(core: &nvs_stdlib::registry::CoreClass, name: &str) -> bool {
+pub(crate) fn core_has(core: &nvs_stdlib::registry::CoreClass, name: &str) -> bool {
     core.methods
         .iter()
         .chain(core.instance.iter())
@@ -1137,7 +1137,7 @@ fn core_has(core: &nvs_stdlib::registry::CoreClass, name: &str) -> bool {
 
 /// Every type above `class` that the index holds no declaration for, reached
 /// through the types it does hold.
-fn outside_above(index: &SymbolIndex, class: &str) -> Vec<String> {
+pub(crate) fn outside_above(index: &SymbolIndex, class: &str) -> Vec<String> {
     let mut seen: BTreeSet<String> = BTreeSet::from([class.to_owned()]);
     let mut pending = vec![class.to_owned()];
     let mut found = Vec::new();
@@ -2402,7 +2402,7 @@ fn named_arguments(
 
 /// The arguments of the method call in `stmts` whose method name is written
 /// from `start` to `end`.
-fn call_in_stmts(stmts: &[Stmt], start: BytePos, end: BytePos) -> Option<&CallArgs> {
+pub(crate) fn call_in_stmts(stmts: &[Stmt], start: BytePos, end: BytePos) -> Option<&CallArgs> {
     stmts
         .iter()
         .filter(|stmt| stmt.span.start <= start && end <= stmt.span.end)
