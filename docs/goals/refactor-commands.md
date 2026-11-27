@@ -54,7 +54,7 @@ stages:
     context: [crates/nvs-lsp/src/generate.rs, crates/nvs-hir/src/autoload.rs]
   - id: 13
     title: "the rules, the help, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md, docs/examples/tools/cli/nvs-code/about.md, website/src/content/docs/tools/editor/index.mdx, website/src/content/docs/tools/cli/index.mdx, website/src/data/changes.json]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
@@ -692,30 +692,30 @@ and queue handlers. Answer shape: `file.rs:NN` and one line each.
 `docs/examples/tools/cli/nvs-code/` and a second writes the website sections. Their files are disjoint.
 Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`: the first paragraph names seventeen
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`: the first paragraph names seventeen
   verbs and which write; each verb's paragraph reread against the code.
-- [ ] `docs/rules/ide/no-refactoring-introduces-an-alias.md:1` and
+- [x] `docs/rules/ide/no-refactoring-introduces-an-alias.md:1` and
   `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md:1`: the *Built* lists name
   every new action. Change parameters, move a member and extract an interface are "a refactoring the
   user drives", as that rule already puts it. Then `bun nv rules`.
-- [ ] Each `nvs code` help text reread against AGENTS.md § *Text an end user reads*.
-- [ ] `docs/examples/tools/cli/nvs-code/about.md:1` and the examples `bun nv proofs --owed --goal
+- [x] Each `nvs code` help text reread against AGENTS.md § *Text an end user reads*.
+- [x] `docs/examples/tools/cli/nvs-code/about.md:1` and the examples `bun nv proofs --owed --goal
   refactor-commands` names. Foreseen: moving a class to another namespace, renaming from a list,
   finding and deleting unused code, inlining, changing a method's parameters.
-- [ ] `docs/examples/lang/classes/lateinit/about.md:1`: one sentence that renaming a property also
+- [x] `docs/examples/lang/classes/lateinit/about.md:1`: one sentence that renaming a property also
   renames the name `initProperty` compares.
-- [ ] `website/src/content/docs/tools/editor/index.mdx:37`: the Rename section says a class can take a
+- [x] `website/src/content/docs/tools/editor/index.mdx:37`: the Rename section says a class can take a
   new namespace, a file drag renames the class, and a property's rename reaches the names its
   callbacks compare; new sections for delete unused, inline, change parameters, move member and
   extract interface. Then `bun nv site --stamp` on it.
-- [ ] `website/src/content/docs/tools/cli/index.mdx:1`: the `nvs code` section lists the new verbs.
+- [x] `website/src/content/docs/tools/cli/index.mdx:1`: the `nvs code` section lists the new verbs.
   Then `bun nv site --stamp` on it.
-- [ ] `website/src/data/changes.json:1`: `fixed` for a property's rename reaching its callbacks;
+- [x] `website/src/data/changes.json:1`: `fixed` for a property's rename reaching its callbacks;
   `changed` for `nvs code rename`, `nvs code move` and the editor's rename and file move; `added` for
   the compared-name warning, `nvs code unused`, `delete`, `extract`, `implement`, `inline` and
   `signature`, and for the editor's inline, delete, change parameters, move member and extract
   interface. Then `bun nv site --check stale`, `changes` and `review` green.
-- [ ] `bun nv proofs --owed --goal refactor-commands` names nothing.
+- [x] `bun nv proofs --owed --goal refactor-commands` names nothing.
 
 ### 14. the goal is verified once, and every failure is fixed
 
@@ -726,19 +726,19 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 12 are done. Stage 12 landed in two commits: the engine, the CLI, its three tests and
-the rule (`feat(cli): nvs code extract interface …`), then the editor command
-(`feat(lsp): nvs.extractInterface …`). The three `code_extract_interface_*` tests,
-`extract_interface_is_offered_on_a_class_name_and_runs_the_engine` (`tests/actions.rs`) and the
-module's unit test are green, and clippy and rustfmt are clean.
-- Nightly 45813627231's nine failures were fixed on `main` before this session.
-- `docs/rules/ide/the-request-set-is-closed.md` now describes all three command actions; its
-  stale "cannot run them" sentence is gone. **Its title in `docs/ground-rules.md` still says
-  "seventeen standard requests and seven"**; the body says twenty-three and eight. Stage 13
-  rereads it.
-- **Four `.lspt` action cases keep a name that says "offered nothing"** (`a-method-call-`,
-  `a-methods-own-name-`, `a-static-call-`, `a-variable-read-is-offered-nothing`) though they show
-  the inline offer. Stage 13 may rename them.
+Stages 1 to 13 are done. Stage 13 landed in two commits:
+- `docs(rules): …`: the alias rule and the code-action rule name every new action, the
+  request-set title (`data/rules/ide/the-request-set-is-closed.json`) says twenty-three and
+  eight, and the `nvs code` help names `inline` and `signature` among the writers. The tooling
+  rule already matched the code and was not changed.
+- `docs(site): …`: the `nvs code` about and five examples (`03-` to `07-`, with the helper files
+  `billing/Cart.nvs` and `parts/Priced.nvs`), a sentence in the `lateinit` and `nvs-lsp` abouts,
+  new editor-page sections, a `## Questions about your code` section on the CLI page (which now
+  `covers` `tools:cli/nvs-code`), eight `changes.json` entries, and the questions of four pages.
+  The stale `unseen` record for `tools:cli/nvs-code` is removed, since the entries name it.
+- `site --check stale changes questions review` and `proofs --gate` are green. Nightly
+  45813627231's failures were fixed on `main` before stage 13; the sweep named that run again.
+- Four `.lspt` action cases named "…-is-offered-nothing" show the inline offer; not renamed.
 - **Expect red at the gate:** a `.lspt` or server test that pins the exact code actions on a
   class's name now also meets *Extract an interface from `X`…*, and one on a member's name meets
   *Move … to another class…*; `every_verb_json_follows_the_check_json_conventions` if it pins a
@@ -748,17 +748,14 @@ module's unit test are green, and clippy and rustfmt are clean.
 
 ### Next
 
-Stage 13 (its own items are complete; follow its **Split:** line).
-1. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`: reread each verb's paragraph
-   against the code; `extract`'s now has three forms (`:32`, `:43`).
-2. `docs/rules/ide/no-refactoring-introduces-an-alias.md` and
-   `docs/rules/ide/a-code-action-writes-only-what-is-already-determined.md`: the *Built* lists
-   name inline, delete unused, change parameters, move member and extract interface. Then `bun nv
-   rules --render`. Fix the `ide/the-request-set-is-closed` title in `docs/ground-rules.md`.
-3. Help text reread: `crates/nvs-cli/src/code.rs` `Command` and `Extracted` (`Interface` is new).
-4. Examples under `docs/examples/tools/cli/nvs-code/` and the website pages, by two writing
-   subagents, then `bun nv proofs --owed --goal refactor-commands`, `site --check stale`,
-   `questions`, `changes` and `review`.
+Stage 14, the close. The pack says whether this goal is the chain's full gate.
+1. At a close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, the acceptance tests
+   by name (`cargo test --test code code_`, `--test refactor`, `--test actions`), then `bun nv
+   close --goal refactor-commands`, and fix each red it names.
+2. At a full gate: `looper verify` in the background, then the reds named above in one pass.
+3. Before `DONE`: move any decision only this file holds into a rule (the Standing decisions are
+   all in rules already, but the constructor backlog item should go to the tooling rule's
+   `signature` paragraph, which already names the refusal), then delete the goal file.
 
 ### Backlog
 
