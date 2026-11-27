@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A Python edit script under `.agent-tmp/` opens files with `newline=''`, or bytes.** On Windows,
+  `open(p, 'w')` writes every line ending as CRLF, so the whole file changes. In
+  `refactor-commands` stage 6, four Rust files came out CRLF, and git warned at the commit. A
+  raw-string fixture in such a script also loses its `\\`. Prefer Edit, or `bun nv splice --patch`.
 - **Before you chase a CI failure, check whether `main` fixed it after the run.** A sweep's
   failures name the run, and the run names its commit. In `mail-receive` stage 6, two of the
   nightly's three causes were fixed already. `git log <run-sha>..HEAD -- <the failing files>`

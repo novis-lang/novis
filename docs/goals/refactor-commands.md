@@ -307,6 +307,16 @@ and is never listed. **Safe default** for any other doubtful case: count it as a
 `nvs code unused [paths] [--json]` prints one line per declaration: position, kind, name. It exits 0.
 The editor's dimming (`crates/nvs-lsp/src/diagnostics.rs:434`) greys public and protected
 declarations too, from the same function, and stays silent at open scope as it does now.
+- **As built.** `SymbolIndex::unused(path, &Unused)` (`index.rs`), with `Unused::of_project`
+  reading `package.toml` and every `nvs.toml` from the root down to each indexed file. Decided from
+  the Explore list: Novis enums have no `from`/`tryFrom`, so a case counts as used when `Enum::cases`
+  has an occurrence. A declaration with any attribute is used (`Declaration::attributed`, the text
+  before its name holds `#[`), which covers `#[Command]`, `#[Fixture]`, `#[Bench]` and the rest
+  without a list. A public property is always used, since an encoder or a template reads it by name.
+  A type with any used member is used. A method of a class with any type above it outside the index
+  is used. A string's words are kept per file in `Indexed::written` and posted in `by_written`, so a
+  name a string writes is one lookup. `unused_private` now also skips a private member a string
+  names, so an existing dimming `.lspt` may go red if it greys one.
 
 **What delete removes.** `nvs code delete <name> [--dry-run] [--json]` and the editor's *Delete
 unused …* code action (`refactor.rewrite`) at a greyed declaration. It refuses while `refs` lists any
@@ -503,15 +513,22 @@ declaration is reached with no index occurrence: route attributes, `nvs.toml` ke
 `implementing<T>()`, `Core` interfaces the runtime calls (`PropertyObserver` and the rest), schedule
 and queue handlers. Answer shape: `file.rs:NN` and one line each.
 
-- [ ] `crates/nvs-lsp/src/index.rs:1743`: `SymbolIndex::unused` per § *What counts as a use*;
+- [x] `crates/nvs-lsp/src/index.rs:1743`: `SymbolIndex::unused` per § *What counts as a use*;
   `unused_private` becomes a filter of it.
+  - [x] the index keeps each file's string words (`Indexed::written`) and `Declaration::attributed`
+  - [x] `unused`, `used`, `entered`, `reached_otherwise`, `above_outside`, and `Unused::of_project`
+  - [x] the disk index format is 6
 - [ ] `crates/nvs-lsp/src/diagnostics.rs:434`: dimming covers public and protected declarations at
   workspace scope.
 - [ ] `crates/nvs-lsp/src/refactor.rs:1`: `delete` per § *What delete removes*, and its code action in
   `crates/nvs-lsp/src/actions.rs:259`.
 - [ ] `crates/nvs-cli/src/code.rs:206`: the `Unused` and `Delete` verbs with their help.
+  - [x] `Unused`, its help and `unused()`
+  - [ ] `Delete`
 - [ ] `crates/nvs-cli/tests/code.rs:1058`: the six tests of the check `unused`. Then `cargo test
   --test code code_unused code_delete` once, as two runs.
+  - [x] the three `code_unused_*` tests, green
+  - [ ] the three `code_delete_*` tests
 - [ ] `tests/lsp/actions/an-unused-method-offers-its-deletion.lspt:1` and
   `tests/lsp/diagnostics/an-unused-public-method-is-greyed-at-workspace-scope.lspt:1` (new), then `nvs
   lsp-test tests/lsp/` once.
@@ -634,11 +651,12 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 to 5 are done. `cargo test --test code code_move` passes, 12 of 12, so `moved-namespace` is
-green, and `nvs lsp-test tests/lsp/rename/` passes 105 of 105 with the new
-`a-dragged-autoloaded-file-takes-its-new-namespace.lspt`. Clippy is clean. The nightly sweep's nine
-failures came from run 45813627231 at 4e43e1fa2e, which predates their fixes on `main`
-(c115a735a1, 28a4d7a6bf, 544711a8fb).
+Stages 1 to 5 are done. Stage 6 is half done: `SymbolIndex::unused` and `nvs code unused` landed
+(a0b4f82e71), and `cargo test --test code code_unused` passes, 3 of 3. Clippy is clean. The tooling
+rule names the twelfth verb, and `bun nv rules --render` re-rendered `ide.md` and `tooling.md`. The
+nightly sweep's nine failures still name run 45813627231 at 4e43e1fa2e, which predates their fixes
+on `main` (c115a735a1, 28a4d7a6bf, 544711a8fb), so nothing was owed there.
+- **How stage 6's classifier is built.** § *What counts as a use*, its *As built* bullet.
 - **How stage 5 is built.** § *A moved file takes the name its path gives*, its *As built* bullet.
   `nvs code move` (`code.rs` `move_path`) and the server's `dragged` (`server.rs`) both call
   `rename::relocated`; the move help says a class takes the name of its new path.
@@ -648,22 +666,30 @@ failures came from run 45813627231 at 4e43e1fa2e, which predates their fixes on 
 - **Stage 3** is `namespaced` with `autoloaded_path` and `headed`; `rename::new_key` is
   `nvs_hir::requires::planned_key`.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
-  next to an unrelated error. The `Move` help changed, so stage 13's `site --check stale` and
-  `questions` will name the `nvs code` pages.
+  next to an unrelated error. The `Move` help changed and `Unused` is new, so stage 13's `site --check stale`
+  and `questions` will name the `nvs code` pages. A dimming `.lspt` that greys a private member
+  whose name a string writes, since `unused_private` now filters `unused`.
 
 ### Next
 
-Stage 6, unused declarations (§ *What counts as a use*, § *What delete removes*). Follow the stage's
-**Split:** line first: one `Explore` subagent lists every way a declaration is reached with no index
-occurrence.
-1. `crates/nvs-lsp/src/index.rs:1743` (`unused_private`): `SymbolIndex::unused`, and
-   `unused_private` as a filter of it.
-2. `crates/nvs-lsp/src/diagnostics.rs:434`: dimming for public and protected declarations at
-   workspace scope.
-3. `crates/nvs-lsp/src/refactor.rs`: `delete`, and its code action in `crates/nvs-lsp/src/actions.rs`.
-4. `crates/nvs-cli/src/code.rs` (the `Commands` enum near `Move` at `:194`): `Unused` and `Delete`.
-5. The six `unused` tests in `crates/nvs-cli/tests/code.rs`, then `cargo test --test code
-   code_unused` and `code_delete`; the two new `.lspt` cases, then `nvs lsp-test tests/lsp/`.
-6. The rule paragraphs the stage names.
+The rest of stage 6 (§ *What delete removes*).
+1. `crates/nvs-lsp/src/diagnostics.rs:446` (the dimming crossing) and its two callers,
+   `server.rs:2897` and `:3801`: at workspace scope call `index.unused(&path, &Unused::of_project(..))`
+   in place of `unused_private`; open scope stays `unused_private`. Cache `Unused` on the server, read
+   once per index settle, not per publish.
+2. `crates/nvs-lsp/src/refactor.rs`: `delete(index, texts, symbol) -> Result<(Vec<Rewrite>, moves), String>`:
+   refuse while `occurrences`, `mentions_of` or `imports_of` is non-empty, or the method has an
+   `overridden`/`overriders` entry; remove the declaration's member span (`extent`, or the member
+   span found as `Declaration::attributed` does) with its `///` run and one blank line; a sole
+   declaration deletes the file, refused while a `require` names it (`SymbolIndex::linked` / rename's
+   `moved` finds them). Run `refactor::checked`.
+3. Its `refactor.rewrite` code action in `crates/nvs-lsp/src/actions.rs`, offered at a declaration
+   `unused` lists.
+4. `Delete` in `crates/nvs-cli/src/code.rs`, beside `Unused`, writing through `planned`/`committed`
+   and `write_out`; the three `code_delete_*` tests at the end of `crates/nvs-cli/tests/code.rs`, then
+   `cargo test --test code code_delete` once.
+5. The two `.lspt` cases the stage names, then `nvs lsp-test tests/lsp/` once.
+6. `docs/rules/ide/five-features-are-one-reference-index.md`: dimming covers public declarations at
+   workspace scope; the tooling rule gets `delete` and becomes thirteen verbs; `bun nv rules --render`.
 
 ### Backlog
