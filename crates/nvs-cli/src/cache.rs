@@ -85,55 +85,33 @@
 //! would let one build of the compiler evict another's entries out of a shared cache directory.
 //!
 //! Cost of a hit: one read of the whole file into a heap buffer, which is one copy of the unit per
-//! process for as long as the [`Verified`] lives, and one BLAKE3 pass over the payload. The loader
+//! process for as long as the [`Verified`] lives, and one BLAKE3 pass over the payload. The placer
 //! below adds one more pass, and
 //! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is where that trade
 //! is argued.
 //!
-//! # The loader
+//! # The placer
 //!
-//! [`Verified::relocate`] is the half that makes a payload runnable. It maps a private, anonymous,
-//! writable region of its own, copies each of the object's allocatable sections into it at the
-//! alignment that section runs at, resolves every symbol the object left undefined against the
-//! addresses its caller supplies, and only then calls `make_exec`. That call consumes the `MmapMut`
-//! which was the one writable view of those pages, so the one-way W^X transition of
+//! A stored program is not an object file: it is a list of source-file entries, each holding the
+//! relocatable code of its functions, and `per_file`'s module doc gives the format. Its placer is
+//! the half that makes that code runnable. It maps one private, anonymous, writable region, copies
+//! every function and each literal into it once, writes every relocation against the addresses
+//! this process supplies, and only then calls `make_exec`. That call consumes the `MmapMut` which
+//! was the one writable view of those pages, so the one-way W^X transition of
 //! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is a move here
 //! rather than a rule someone has to remember.
 //!
-//! **The pages that run are never the file's.** The same rule owns the argument — a relocatable
-//! object's sections are laid out for a linker to place, not for a header of any length to leave
-//! aligned.
-//! What it means in this module is that [`Cache::load`]'s buffer is never written after the read
-//! and exists only to be hashed and copied out of.
+//! **The pages that run are never the file's.** [`Cache::load`]'s buffer is never written after
+//! the read and exists only to be hashed and copied out of.
 //!
-//! **A landing area is the answer to the >2 GB relocation, and to the GOT.** A symbol reached
-//! through one gets [`LANDING_LEN`] bytes inside that same mapping: eight holding the symbol's full
-//! address and, for a call, [`JUMP_THROUGH_NEXT_EIGHT`] in front of them. So every displacement
-//! this loader writes names a target inside its own mapping, whatever distance the host image sits
-//! at. [`landing_for`] decides who gets one, and the distinction it draws is not
-//! defined-versus-undefined: a *call* needs a landing only when the symbol is undefined, because
-//! everything the payload defines is already inside the mapping, but a **GOT-relative** field needs
-//! one either way — the instruction loads through the address the field computes, so a payload's
-//! own literal reached that way needs a slot as much as an imported helper does.
+//! **A call to a runtime symbol goes through a stub beside the code.** The stub is [`LANDING_LEN`]
+//! bytes inside the same mapping: [`JUMP_THROUGH_NEXT_EIGHT`] (or its aarch64 form) and the
+//! symbol's full address behind it. So every displacement the placer writes names a target inside
+//! its own mapping, whatever distance the host image sits at. [`write_le`] and [`write_branch26`]
+//! write a resolved value into its field, and a value too wide for it is a miss.
 //!
-//! **`nvs-codegen`'s own payloads need no landing at all.** Its object backend compiles with
-//! `is_pic` off, as its JIT does, so every reference in the payload is an absolute relocation of
-//! eight bytes, which already holds any address. The landings serve a PC-relative or GOT form,
-//! which an object compiled with `is_pic` on carries. Under `is_pic` on, COFF also gave every
-//! symbol reached through the GOT a `.rdata$.refptr` section of its own, and a unit of about 4,000
-//! functions passed COFF's limit of 65,535 sections. With it off, the payload has one `.text` and
-//! one `.rdata` at any size. [`loadable`] is the writer's check that the loader reads what it
-//! publishes.
-//!
-//! **Both architectures, and one place they differ.** [`HOST_ARCH`] names x86-64 and aarch64, which
-//! between them are every platform of CI's build matrix, and everything above is
-//! the same for each: the same placement, the same landings, the same one-way protection change.
-//! What differs is only how a resolved value reaches the bytes that hold it, and [`Form`] is that
-//! difference in one type — x86-64 writes a flat little-endian field, while aarch64's fixed-width
-//! instructions carry a call, a page and an offset inside a page as bit ranges within one word,
-//! and reach a symbol through a pair of instructions that have to agree. [`form_of`] is where a
-//! container format's own relocation number becomes one of those, and it is the only place either
-//! format's numbering is read.
+//! **Both architectures.** [`HOST_ARCH`] names x86-64 and aarch64, which between them are every
+//! platform of CI's build matrix. [`HOST_PUBLISHES`] says whether this host stores code at all.
 //!
 //! Every failure is an [`Unloadable`], and every variant of that is a cache miss on
 //! `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`'s terms: an
@@ -200,30 +178,16 @@
 //! (`rule:packaging/a-bundle-carries-source-not-artifacts`), and feeds into this cache rather than
 //! out of it, so there is no already-produced payload for the cache to ship over.
 //!
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the object-file loader (`Verified::relocate`, `Layout`, `loadable`) is reached \
-                  only by this module's tests since the per-file store replaced it; \
-                  the next session of incremental-reload deletes it with those tests"
-    )
-)]
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use memmap2::{Mmap, MmapOptions};
+use memmap2::Mmap;
 use nvs_config::cache::{Digest, EnvHash, artifact_key, content_hash, env_hash};
 use nvs_config::trust::{self, Untrusted};
-use object::read::{Object, ObjectSection, ObjectSymbol};
-use object::{
-    Architecture, BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind,
-    RelocationTarget, SectionKind, SymbolIndex, SymbolKind, SymbolSection,
-};
+use object::Architecture;
 use rand::RngExt;
 
 mod per_file;
@@ -326,7 +290,7 @@ enum Miss {
 /// exactly one code path, the far side of the checksum comparison in [`Cache::load`], and it owns
 /// the bytes privately, so there is no way to reach an artifact's bytes without having verified
 /// them. Nothing ever hands out a mutable view of the buffer, and no page of it is ever executable:
-/// [`Verified::relocate`] copies the sections into a mapping of its own.
+/// the placer copies the code into a mapping of its own.
 ///
 /// **Costs** one copy of the whole file per loaded unit, freed with this value.
 #[derive(Debug)]
@@ -364,142 +328,11 @@ impl Verified {
     pub(crate) fn header(&self) -> Header {
         self.header
     }
-
-    /// The loader's half of the read path: place this payload's sections, resolve every symbol it
-    /// left undefined against `resolve`, and only then make the pages executable.
-    ///
-    /// `resolve` is the whole of "this process's own addresses" — a runtime helper's, and a
-    /// descriptor's for an `nvs_class_desc_*`, which [`nvs_codegen::class_desc_symbol`] spells at
-    /// both ends. A name it answers [`None`] for is a miss
-    /// (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`) and not a failure:
-    /// it says the artifact was written against a runtime this process no longer matches.
-    ///
-    /// # Errors
-    ///
-    /// Every variant of [`Unloadable`] is a cache miss; the caller's next move is the compile it
-    /// would have done anyway. They are distinguished only so a test can say which wall it hit.
-    pub(crate) fn relocate(
-        &self,
-        resolve: &dyn Fn(&str) -> Option<*const u8>,
-    ) -> Result<Loaded, Unloadable> {
-        let (object, layout) = parse(self.payload())?;
-        // Read before the pages exist, so a payload with no entry maps nothing.
-        let (functions, entry) = layout.functions(&object)?;
-        let mut pages = MmapOptions::new()
-            .len(layout.len)
-            .map_anon()
-            .map_err(|source| Unloadable::Mapping(source.to_string()))?;
-        for section in object.sections() {
-            let Some(&start) = layout.sections.get(&section.index().0) else {
-                continue;
-            };
-            if section.kind() == SectionKind::UninitializedData {
-                // An anonymous mapping is already zero, which is the whole of this section's
-                // contents; `data()` has nothing to hand over for it.
-                continue;
-            }
-            let data = section.data().map_err(|_| Unloadable::Unreadable)?;
-            let end = start
-                .checked_add(data.len())
-                .filter(|end| *end <= layout.len)
-                .ok_or(Unloadable::Unreadable)?;
-            pages[start..end].copy_from_slice(data);
-        }
-
-        // The address the relocations are computed against. `expose_provenance` rather than
-        // `addr`, for the same reason `nvs-codegen` uses it when it publishes a descriptor: these
-        // bytes are about to be executed, and what they reach through has to stay reachable.
-        let base = pages.as_ptr().expose_provenance();
-        layout.fill_landings(&object, &mut pages, base, resolve)?;
-        for section in object.sections() {
-            let Some(&start) = layout.sections.get(&section.index().0) else {
-                continue;
-            };
-            for (offset, relocation) in section.relocations() {
-                let at = usize::try_from(offset)
-                    .ok()
-                    .and_then(|offset| start.checked_add(offset))
-                    .ok_or(Unloadable::Unreadable)?;
-                layout.apply(&object, &mut pages, base, at, &relocation, resolve)?;
-            }
-        }
-
-        // W^X, one way and once: nothing holds a writable view of these bytes after this line,
-        // because [`nvs_codegen::make_executable`] consumes the `MmapMut` that was the only one.
-        // That function rather than `make_exec` directly — publishing written bytes as code has a
-        // platform-specific half that a protection change does not imply, and it has one home for
-        // both of the ways Novis publishes code.
-        let pages = nvs_codegen::make_executable(pages)
-            .map_err(|source| Unloadable::Mapping(source.to_string()))?;
-        Ok(Loaded {
-            pages,
-            entry,
-            functions,
-        })
-    }
 }
 
-/// The payload as an object this host's loader reads, and the placement of its sections.
-fn parse(payload: &[u8]) -> Result<(object::File<'_>, Layout), Unloadable> {
-    let object = object::File::parse(payload).map_err(|_| Unloadable::Unreadable)?;
-    if object.architecture() != HOST_ARCH {
-        return Err(Unloadable::ForeignArchitecture);
-    }
-    let layout = Layout::of(&object)?;
-    Ok((object, layout))
-}
-
-/// Whether [`Verified::relocate`] would load `payload` in this process, judged without mapping a
-/// page: every check of the read path that needs no address. The writer publishes a payload only
-/// when this passes, so it never writes a file its own loader refuses.
-///
-/// It also checks one thing the loader takes on trust: every function the payload defines, and
-/// every defined symbol a relocation names, lies in a section the layout placed. A container
-/// header that miscounts its sections can still parse, and this check finds it.
-///
-/// It does not judge a name this process cannot resolve: that depends on the process that loads
-/// the file, not on the file.
-///
-/// Cost: one parse of the object and one walk of its symbols and relocations, on a cold run that
-/// has just generated the unit's code twice.
-pub(crate) fn loadable(payload: &[u8]) -> Result<(), Unloadable> {
-    let (object, layout) = parse(payload)?;
-    let placed = |symbol: &object::read::Symbol<'_, '_>| {
-        symbol.is_undefined() || layout.symbol_offset(&object, symbol).is_some()
-    };
-    if !object
-        .symbols()
-        .filter(|symbol| symbol.kind() == SymbolKind::Text)
-        .all(|symbol| placed(&symbol))
-    {
-        return Err(Unloadable::Unreadable);
-    }
-    for section in object.sections() {
-        if !layout.sections.contains_key(&section.index().0) {
-            continue;
-        }
-        for (_, relocation) in section.relocations() {
-            let RelocationTarget::Symbol(index) = relocation.target() else {
-                continue;
-            };
-            let symbol = object
-                .symbol_by_index(index)
-                .map_err(|_| Unloadable::Unreadable)?;
-            if !placed(&symbol) {
-                return Err(Unloadable::Unreadable);
-            }
-        }
-    }
-    layout.functions(&object).map(drop)
-}
-
-/// The architecture this loader knows how to relocate for, or [`Architecture::Unknown`] on a host
-/// where it does not.
-///
-/// A payload's architecture is already in `env_hash` and therefore in its path, so this can only
-/// disagree with the file for a hand-placed one — but the check is also what keeps the loader off
-/// a host it has no answer for. `x86-64` and `aarch64` are the two, which between them are every
-/// platform of CI's build matrix.
+/// The architecture the placer writes stubs for, or [`Architecture::Unknown`] on a host where it
+/// writes none. `x86-64` and `aarch64` are the two, which between them are every platform of CI's
+/// build matrix.
 #[cfg(target_arch = "x86_64")]
 const HOST_ARCH: Architecture = Architecture::X86_64;
 #[cfg(target_arch = "aarch64")]
@@ -521,8 +354,8 @@ const HOST_PUBLISHES: bool = true;
 #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows)))))]
 const HOST_PUBLISHES: bool = false;
 
-/// x86-64's `jmp qword ptr [rip + 0]`, whose eight-byte operand follows it — [`Landing::Stub`]'s
-/// whole body there, and the reason no relocation this loader applies can be out of range.
+/// x86-64's `jmp qword ptr [rip + 0]`, whose eight-byte operand follows it — a stub's whole body
+/// there, and the reason no call the placer writes can be out of range.
 const JUMP_THROUGH_NEXT_EIGHT: [u8; 6] = [0xFF, 0x25, 0x00, 0x00, 0x00, 0x00];
 
 /// aarch64's spelling of that jump: `ldr x16, #8` then `br x16`, so the eight bytes the branch
@@ -531,15 +364,14 @@ const JUMP_THROUGH_NEXT_EIGHT: [u8; 6] = [0xFF, 0x25, 0x00, 0x00, 0x00, 0x00];
 /// callee may assume anything about it.
 const LOAD_NEXT_EIGHT_AND_BRANCH: [u8; 8] = [0x50, 0x00, 0x00, 0x58, 0x00, 0x02, 0x1F, 0xD6];
 
-/// Bytes reserved for one [`Landing`], and the alignment it gets. Sixteen for both kinds and both
-/// architectures: a slot needs eight, x86-64's stub fourteen and aarch64's exactly sixteen, and one
-/// size keeps the arithmetic in [`Layout`] to one branch.
+/// Bytes reserved for one stub, and the alignment it gets. Sixteen on both architectures: x86-64's
+/// stub needs fourteen and aarch64's exactly sixteen.
 const LANDING_LEN: usize = 16;
 
-/// The instructions a [`Landing::Stub`] opens with here, with the eight bytes holding the address
-/// they jump through immediately behind them — which is what both spellings above are chosen for,
-/// so [`Layout::fill_landings`] writes the address at one offset it derives rather than at one it
-/// has to know per architecture.
+/// The instructions a stub opens with here, with the eight bytes holding the address they jump
+/// through immediately behind them — which is what both spellings above are chosen for, so the
+/// placer writes the address at one offset it derives rather than at one it has to know per
+/// architecture.
 fn stub_body(arch: Architecture) -> Result<&'static [u8], Unloadable> {
     match arch {
         Architecture::X86_64 => Ok(&JUMP_THROUGH_NEXT_EIGHT),
@@ -558,12 +390,9 @@ fn stub_body(arch: Architecture) -> Result<&'static [u8], Unloadable> {
 /// wall it hit.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum Unloadable {
-    /// The payload is not an object file, or names a section this host's reader cannot follow.
+    /// The stored code is malformed: an offset or a length points outside what was placed.
     Unreadable,
-    /// The payload was written for another architecture — or for this one on a host whose loader
-    /// is not written yet. See [`HOST_ARCH`].
-    ForeignArchitecture,
-    /// A symbol the payload leaves undefined has no address in this process.
+    /// A symbol the code leaves undefined has no address in this process.
     Unresolved(String),
     /// A relocation whose form this loader cannot represent. A `format_version` bump is what
     /// would stop an older file reaching this at all.
@@ -572,503 +401,6 @@ pub(crate) enum Unloadable {
     NoEntry,
     /// The mapping could not be made, or could not be made executable.
     Mapping(String),
-}
-
-/// What a relocation needs placed beside the code, when the field cannot hold the target itself.
-///
-/// Two different reasons put something here, and only one of them is about distance. A
-/// PC-relative *call* from mapped pages to a helper in this process's image can be more than 2 GB
-/// away, so it goes through a [`Stub`](Self::Stub) — a linker's veneer, for a linker's reason, and
-/// only an undefined symbol needs one because everything the payload defines is inside this same
-/// mapping. A **GOT-relative** field is not about distance at all: the instruction the compiler
-/// emitted *loads through* the address the field computes, so it needs a [`Slot`](Self::Slot)
-/// holding the target whether or not the payload defines the symbol. Substituting the target's own
-/// address there does not shorten the indirection, it reads the target's first eight bytes as a
-/// pointer.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-enum Landing {
-    /// Eight bytes holding the symbol's address, for a GOT-relative reference to it.
-    Slot,
-    /// A jump through such an address, for a PC-relative call to it.
-    Stub,
-}
-
-/// Where everything the loader places goes, decided before a page is allocated.
-#[derive(Debug)]
-struct Layout {
-    /// Where each allocatable section starts, by the payload's own section index. Keyed by the
-    /// index's number rather than by [`object::SectionIndex`], which `object` does not order.
-    sections: BTreeMap<usize, usize>,
-    /// Where each landing starts, keyed by the symbol it stands for — [`SymbolIndex`]'s number,
-    /// for the same reason — **and by its kind**, because one symbol can be reached both ways: a
-    /// helper that is called and also has its address taken needs a stub and a slot, and a field
-    /// handed the wrong one of those is off by an indirection rather than off by an address.
-    landings: BTreeMap<(usize, Landing), usize>,
-    /// Total bytes to map.
-    len: usize,
-    /// The payload's own container format, which is all [`linkage_name`] needs to know to undo the
-    /// spelling that format gave a symbol.
-    format: BinaryFormat,
-    /// The payload's own architecture, which is what [`form_of`] reads a relocation's number
-    /// against and what [`stub_body`] writes for. Taken from the file rather than from
-    /// [`HOST_ARCH`] for [`linkage_name`]'s reason: a loader that reads the object it is holding
-    /// cannot disagree with it.
-    arch: Architecture,
-}
-
-impl Layout {
-    /// Walks `object` twice — once for the sections, once for the relocations that need a landing
-    /// — and hands back the placement both walks agreed on.
-    fn of(object: &object::File<'_>) -> Result<Self, Unloadable> {
-        let mut layout = Self {
-            sections: BTreeMap::new(),
-            landings: BTreeMap::new(),
-            len: 0,
-            format: object.format(),
-            arch: object.architecture(),
-        };
-        for section in object.sections() {
-            if !allocatable(section.kind()) {
-                continue;
-            }
-            let size = usize::try_from(section.size()).map_err(|_| Unloadable::Unreadable)?;
-            let align = usize::try_from(section.align()).unwrap_or(1);
-            let start = layout.reserve(size, align);
-            layout.sections.insert(section.index().0, start);
-        }
-        for section in object.sections() {
-            if !layout.sections.contains_key(&section.index().0) {
-                continue;
-            }
-            for (_, relocation) in section.relocations() {
-                let RelocationTarget::Symbol(index) = relocation.target() else {
-                    continue;
-                };
-                let symbol = object
-                    .symbol_by_index(index)
-                    .map_err(|_| Unloadable::Unreadable)?;
-                let name = linkage_name(
-                    layout.format,
-                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
-                );
-                let (reach, form) = form_of(layout.arch, &relocation)?;
-                let Some(landing) =
-                    landing_for(reach, form, symbol.kind(), !symbol.is_undefined(), name)?
-                else {
-                    continue;
-                };
-                if layout.landings.contains_key(&(index.0, landing)) {
-                    continue;
-                }
-                let start = layout.reserve(LANDING_LEN, LANDING_LEN);
-                layout.landings.insert((index.0, landing), start);
-            }
-        }
-        if layout.len == 0 {
-            return Err(Unloadable::Unreadable);
-        }
-        Ok(layout)
-    }
-
-    /// Takes `size` bytes at `align`, and says where they start.
-    fn reserve(&mut self, size: usize, align: usize) -> usize {
-        let start = self.len.next_multiple_of(align.max(1));
-        self.len = start + size;
-        start
-    }
-
-    /// Writes every landing's target address, which is the only place `resolve` is asked for a
-    /// *function*'s address — after this, a call relocation names a stub and nothing else.
-    ///
-    /// A landing for a symbol the payload **defines** — which only a GOT-relative field asks for —
-    /// holds an address inside this same mapping, so it is filled from `base` and never from
-    /// `resolve`: this process has no name for a literal the compiling process minted.
-    fn fill_landings(
-        &self,
-        object: &object::File<'_>,
-        pages: &mut [u8],
-        base: usize,
-        resolve: &dyn Fn(&str) -> Option<*const u8>,
-    ) -> Result<(), Unloadable> {
-        for ((index, landing), start) in &self.landings {
-            let symbol = object
-                .symbol_by_index(SymbolIndex(*index))
-                .map_err(|_| Unloadable::Unreadable)?;
-            let address = if symbol.is_undefined() {
-                let name = linkage_name(
-                    self.format,
-                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
-                );
-                resolve(name)
-                    .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
-                    .expose_provenance()
-            } else {
-                base + self
-                    .symbol_offset(object, &symbol)
-                    .ok_or(Unloadable::Unreadable)?
-            };
-            let at = match landing {
-                Landing::Slot => *start,
-                Landing::Stub => {
-                    let body = stub_body(self.arch)?;
-                    pages[*start..*start + body.len()].copy_from_slice(body);
-                    *start + body.len()
-                }
-            };
-            let address = u64::try_from(address).map_err(|_| Unloadable::Unreadable)?;
-            pages[at..at + 8].copy_from_slice(&address.to_le_bytes());
-        }
-        Ok(())
-    }
-
-    /// Applies one relocation at `at`, an offset into `pages` whose address is `base + at`.
-    fn apply(
-        &self,
-        object: &object::File<'_>,
-        pages: &mut [u8],
-        base: usize,
-        at: usize,
-        relocation: &object::Relocation,
-        resolve: &dyn Fn(&str) -> Option<*const u8>,
-    ) -> Result<(), Unloadable> {
-        let (reach, form) = form_of(self.arch, relocation)?;
-        let width = form.width();
-        let end = at.checked_add(width).ok_or(Unloadable::Unreadable)?;
-        let field = pages.get(at..end).ok_or(Unloadable::Unreadable)?;
-        // A format with implicit addends — COFF is one — keeps the addend in the field itself,
-        // and `object` reports the part it knows separately. The two add. An instruction field is
-        // never one of those, whatever the format says: Mach-O carries a non-zero aarch64 addend
-        // in an `ARM64_RELOC_ADDEND` record of its own and stops calling the addend implicit once
-        // it has, and ELF spells every aarch64 addend in the `RELA` entry, so the bit range about
-        // to be overwritten has nothing in it to read back.
-        let mut addend = relocation.addend();
-        if relocation.has_implicit_addend() && form.is_flat() {
-            addend = addend
-                .checked_add(read_le(field).ok_or_else(|| {
-                    Unloadable::Unrepresentable(format!("an implicit addend {width} bytes wide"))
-                })?)
-                .ok_or(Unloadable::Unreadable)?;
-        }
-
-        let target = match relocation.target() {
-            RelocationTarget::Symbol(index) => {
-                let symbol = object
-                    .symbol_by_index(index)
-                    .map_err(|_| Unloadable::Unreadable)?;
-                let defined = !symbol.is_undefined();
-                let name = linkage_name(
-                    self.format,
-                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
-                );
-                // The same question [`Layout::of`] asked, asked again rather than remembered: the
-                // landing a *field* wants is decided by that field's own kind, so a symbol reached
-                // both ways cannot be handed the other one's.
-                match landing_for(reach, form, symbol.kind(), defined, name)? {
-                    // A landing is the target now: the stub jumps to the symbol, the slot holds
-                    // it, and either way what this field encodes is a displacement inside the
-                    // loader's own mapping.
-                    Some(landing) => {
-                        base + *self
-                            .landings
-                            .get(&(index.0, landing))
-                            .ok_or(Unloadable::Unreadable)?
-                    }
-                    None if defined => {
-                        base + self
-                            .symbol_offset(object, &symbol)
-                            .ok_or(Unloadable::Unreadable)?
-                    }
-                    None => resolve(name)
-                        .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
-                        .expose_provenance(),
-                }
-            }
-            // A field naming a section names something already inside this mapping, so it needs no
-            // landing. A *GOT* field naming one would need a slot nobody reserved — [`Layout::of`]
-            // walks symbols — so it is a miss rather than a field pointed at the section itself.
-            RelocationTarget::Section(index) if reach != Reach::Got => {
-                base + *self.sections.get(&index.0).ok_or(Unloadable::Unreadable)?
-            }
-            target => {
-                return Err(Unloadable::Unrepresentable(format!(
-                    "a relocation against {target:?}"
-                )));
-            }
-        };
-
-        let target = i64::try_from(target)
-            .map_err(|_| Unloadable::Unreadable)?
-            .checked_add(addend)
-            .ok_or(Unloadable::Unreadable)?;
-        let place = i64::try_from(base + at).map_err(|_| Unloadable::Unreadable)?;
-        let field = &mut pages[at..end];
-        match form {
-            Form::Absolute { .. } => write_le(field, target),
-            Form::Displacement { .. } => write_le(field, target - place),
-            Form::Branch26 => write_branch26(field, target - place),
-            // `ADRP` reaches a page, and the two ends of the distance it covers are the page the
-            // target is in and the page this instruction is in — never the addresses themselves,
-            // so the low twelve bits of each are dropped before they are subtracted rather than
-            // after.
-            Form::Page21 => write_page21(field, page_of(target) - page_of(place)),
-            Form::PageOffset12 => write_page_offset12(field, target & 0xFFF),
-        }
-    }
-
-    /// Every function this payload defines, by the name `nvs-codegen` gave it, and the entry
-    /// frame's offset. The entry is one of the functions, and the rest are what the loader's
-    /// binding step asks for by name once the pages are executable. One walk answers both, and
-    /// neither is answerable later, since `object` borrows [`Verified`]'s buffer and [`Loaded`]
-    /// does not hold it.
-    fn functions(
-        &self,
-        object: &object::File<'_>,
-    ) -> Result<(BTreeMap<String, usize>, usize), Unloadable> {
-        let mut functions = BTreeMap::new();
-        for symbol in object.symbols() {
-            if symbol.kind() != SymbolKind::Text {
-                continue;
-            }
-            let (Ok(name), Some(offset)) = (symbol.name(), self.symbol_offset(object, &symbol))
-            else {
-                continue;
-            };
-            functions.insert(linkage_name(self.format, name).to_owned(), offset);
-        }
-        let entry = *functions
-            .iter()
-            .find(|(name, _)| {
-                nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
-            })
-            .map(|(_, offset)| offset)
-            .ok_or(Unloadable::NoEntry)?;
-        Ok((functions, entry))
-    }
-
-    /// Where a symbol defined by the payload landed, as an offset into the mapping.
-    fn symbol_offset(
-        &self,
-        object: &object::File<'_>,
-        symbol: &object::read::Symbol<'_, '_>,
-    ) -> Option<usize> {
-        let SymbolSection::Section(index) = symbol.section() else {
-            return None;
-        };
-        let section = object.section_by_index(index).ok()?;
-        let start = *self.sections.get(&index.0)?;
-        let within = symbol.address().checked_sub(section.address())?;
-        start.checked_add(usize::try_from(within).ok()?)
-    }
-}
-
-/// The name `nvs-codegen` emitted a symbol under, out of the name this container format spells it
-/// with.
-///
-/// Mach-O prefixes every global symbol with an underscore, so a payload in that format defines
-/// `_nvs_fn_…` and leaves `_nvs_helper_throw` undefined where ELF and COFF carry the bare name.
-/// Both of this loader's ends speak the bare form and neither can be taught otherwise: `resolve`
-/// answers for [`nvs_runtime::symbols`]' own spellings and for the descriptor names
-/// [`nvs_codegen::class_desc_symbol`] mints, and the [`Loaded::functions`] map is read back by
-/// [`nvs_codegen::Placed::address_of`] under the label that crate derived. So the prefix comes off
-/// here, at each of the few places a name is *read*, and nothing downstream has to know the format.
-///
-/// The question is asked of the **file**, not of the host. A payload is the host's format by
-/// construction — `env_hash` covers the target triple — but a loader that reads the object it is
-/// actually holding cannot disagree with it, and this is one comparison.
-fn linkage_name(format: BinaryFormat, name: &str) -> &str {
-    match format {
-        BinaryFormat::MachO => name.strip_prefix('_').unwrap_or(name),
-        _ => name,
-    }
-}
-
-/// Whether a section is one the loader places, rather than one only a linker or a debugger reads.
-fn allocatable(kind: SectionKind) -> bool {
-    matches!(
-        kind,
-        SectionKind::Text
-            | SectionKind::Data
-            | SectionKind::ReadOnlyData
-            | SectionKind::ReadOnlyDataWithRel
-            | SectionKind::ReadOnlyString
-            | SectionKind::UninitializedData
-    )
-}
-
-/// What a relocation's field is computed against, once the container format's own spelling of it
-/// has been read.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Reach {
-    /// The symbol's own address.
-    Symbol,
-    /// A word holding the symbol's address, which the instruction the field belongs to loads
-    /// *through* — the GOT, and a [`Landing::Slot`] whether or not the payload defines the symbol.
-    Got,
-    /// The symbol as the destination of a call, which an undefined symbol reaches through a
-    /// [`Landing::Stub`] whatever the distance.
-    Call,
-}
-
-/// Where a relocation's resolved value goes, and how what it lands in spells it.
-///
-/// **This is where the two architectures differ, and it is the only place they do.** x86-64 gives
-/// every relocation a flat little-endian field of its own, so the value and the bytes are the same
-/// number. aarch64 has fixed-width instructions and no flat field to spare, so a call's
-/// displacement, a page and an offset inside a page are each a bit range within one four-byte
-/// word, and one symbol reference is a pair of instructions that have to agree.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Form {
-    /// A flat little-endian field `width` bytes wide, holding the target's own address.
-    Absolute { width: usize },
-    /// A flat little-endian field `width` bytes wide, holding the distance from the field to the
-    /// target.
-    Displacement { width: usize },
-    /// That distance again, in `B`/`BL`'s 26-bit immediate, which counts instructions rather than
-    /// bytes and so reaches ±128 MiB.
-    Branch26,
-    /// The distance from the 4 KiB page the instruction sits in to the page the target sits in, in
-    /// `ADRP`'s 21-bit immediate — which counts pages, and which the encoding splits in two.
-    Page21,
-    /// The target's offset inside its own 4 KiB page, in the 12-bit immediate of the `ADD` or the
-    /// load that completes an `ADRP` pair, scaled by the access width that instruction names.
-    PageOffset12,
-}
-
-impl Form {
-    /// Bytes of the mapping this form reads and writes.
-    fn width(self) -> usize {
-        match self {
-            Self::Absolute { width } | Self::Displacement { width } => width,
-            // One aarch64 instruction, whatever the bit range inside it.
-            Self::Branch26 | Self::Page21 | Self::PageOffset12 => 4,
-        }
-    }
-
-    /// Whether the field is a whole little-endian integer, which is the only shape an implicit
-    /// addend can be read back out of.
-    fn is_flat(self) -> bool {
-        matches!(self, Self::Absolute { .. } | Self::Displacement { .. })
-    }
-}
-
-/// What a relocation asks for, out of the number its container format recorded it as.
-///
-/// `object` maps the relocations that every architecture spells the same way onto a
-/// [`RelocationKind`] and reports the rest as [`RelocationKind::Unknown`], with the format's own
-/// number left intact in [`RelocationFlags`]. aarch64's instruction-field relocations are all in
-/// that second group, so they are read from the flags here — and read **only when the payload is
-/// aarch64**, because a Mach-O `r_type` is one byte and `ARM64_RELOC_PAGE21` is numerically
-/// `X86_64_RELOC_SIGNED`.
-///
-/// # Errors
-///
-/// [`Unloadable::Unrepresentable`] for a relocation this loader has no encoding for, which is a
-/// cache miss like every other variant.
-fn form_of(
-    arch: Architecture,
-    relocation: &object::Relocation,
-) -> Result<(Reach, Form), Unloadable> {
-    if arch == Architecture::Aarch64 {
-        let paired = match relocation.flags() {
-            RelocationFlags::Elf { r_type } => match r_type {
-                object::elf::R_AARCH64_ADR_PREL_PG_HI21 => Some((Reach::Symbol, Form::Page21)),
-                object::elf::R_AARCH64_ADD_ABS_LO12_NC => Some((Reach::Symbol, Form::PageOffset12)),
-                object::elf::R_AARCH64_ADR_GOT_PAGE => Some((Reach::Got, Form::Page21)),
-                object::elf::R_AARCH64_LD64_GOT_LO12_NC => Some((Reach::Got, Form::PageOffset12)),
-                _ => None,
-            },
-            RelocationFlags::MachO { r_type, .. } => match r_type {
-                object::macho::ARM64_RELOC_PAGE21 => Some((Reach::Symbol, Form::Page21)),
-                object::macho::ARM64_RELOC_PAGEOFF12 => Some((Reach::Symbol, Form::PageOffset12)),
-                object::macho::ARM64_RELOC_GOT_LOAD_PAGE21 => Some((Reach::Got, Form::Page21)),
-                object::macho::ARM64_RELOC_GOT_LOAD_PAGEOFF12 => {
-                    Some((Reach::Got, Form::PageOffset12))
-                }
-                _ => None,
-            },
-            _ => None,
-        };
-        if let Some(paired) = paired {
-            return Ok(paired);
-        }
-    }
-
-    let width = usize::from(relocation.size()) / 8;
-    // A call is named three ways between the backend's writer and the two formats' readers —
-    // `Relative` on the way out, `PltRelative` on the way back in — and the encoding is the one
-    // thing all three agree on.
-    let call = relocation.encoding() == RelocationEncoding::AArch64Call;
-    match relocation.kind() {
-        RelocationKind::Absolute => Ok((Reach::Symbol, Form::Absolute { width })),
-        RelocationKind::GotRelative => Ok((Reach::Got, Form::Displacement { width })),
-        RelocationKind::Relative | RelocationKind::PltRelative if call => {
-            Ok((Reach::Call, Form::Branch26))
-        }
-        RelocationKind::PltRelative => Ok((Reach::Call, Form::Displacement { width })),
-        RelocationKind::Relative => Ok((Reach::Symbol, Form::Displacement { width })),
-        kind => Err(Unloadable::Unrepresentable(format!("{kind:?}"))),
-    }
-}
-
-/// What a symbol needs placed for a relocation of this shape, if anything — `defined` says whether
-/// the payload defines it or leaves it to `resolve`.
-///
-/// A [`Landing::Slot`] and a [`Landing::Stub`] are the two shapes a 64-bit address can be reached
-/// through from a field too narrow to hold one. An absolute field is already wide enough to hold
-/// the address itself, so it needs neither, and neither does any field naming a symbol this payload
-/// defines — with **one** exception, which is the whole reason `defined` is not simply a filter on
-/// the caller's side.
-///
-/// That exception is [`Reach::Got`]. Its slot is an *indirection the instruction performs*, not a
-/// way of reaching something far away: x86-64's `movq sym@GOTPCREL(%rip), %r` and aarch64's
-/// `adrp`/`ldr [x, #:got_lo12:]` pair both load eight bytes from wherever the field points.
-/// Cranelift with `is_pic` on emits that form for every non-`colocated` global, a literal the
-/// payload defines included, and that literal needs a slot as much as an import does.
-/// `nvs-codegen` compiles with `is_pic` off, so its payloads never reach here. Pointing such a
-/// field at the literal instead loads the literal's first eight bytes as an address — for an immortal
-/// `StrHeader` that is `nvs_runtime::IMMORTAL_REFCOUNT`, and `echo` of it dereferences
-/// `usize::MAX`.
-///
-/// **An `ADRP` pair naming a symbol the payload does not define is a miss, not a landing.** The
-/// pair computes an address rather than loading one, so there is nowhere to put an indirection the
-/// compiler did not emit — the same answer this function has always given a PC-relative field
-/// naming undefined *data*. Cranelift reaches an imported symbol through the GOT under `is_pic`,
-/// and through an absolute field without it, so what would arrive here is a payload some other
-/// backend wrote.
-fn landing_for(
-    reach: Reach,
-    form: Form,
-    symbol: SymbolKind,
-    defined: bool,
-    name: &str,
-) -> Result<Option<Landing>, Unloadable> {
-    match (reach, form) {
-        (Reach::Got, _) => Ok(Some(Landing::Slot)),
-        (_, Form::Absolute { .. }) => Ok(None),
-        // Everything the payload defines is inside this one mapping, so a displacement to it is
-        // always representable and a veneer would only be a hop.
-        _ if defined => Ok(None),
-        (Reach::Call, _) => Ok(Some(Landing::Stub)),
-        // A PC-relative field naming code is a call whatever the format called it, and a stub
-        // answers it whatever the distance.
-        (Reach::Symbol, Form::Displacement { .. }) if symbol == SymbolKind::Text => {
-            Ok(Some(Landing::Stub))
-        }
-        (_, form) => Err(Unloadable::Unrepresentable(format!(
-            "{form:?} against `{name}`"
-        ))),
-    }
-}
-
-/// A relocation field's own contents, as the signed addend they stand for.
-fn read_le(field: &[u8]) -> Option<i64> {
-    match field.len() {
-        8 => Some(i64::from_le_bytes(field.try_into().ok()?)),
-        4 => Some(i64::from(i32::from_le_bytes(field.try_into().ok()?))),
-        2 => Some(i64::from(i16::from_le_bytes(field.try_into().ok()?))),
-        1 => Some(i64::from(i8::from_le_bytes(field.try_into().ok()?))),
-        _ => None,
-    }
 }
 
 /// Writes a resolved relocation value into its field, or refuses because it does not fit.
@@ -1087,13 +419,6 @@ fn write_le(field: &mut [u8], value: i64) -> Result<(), Unloadable> {
     Ok(())
 }
 
-/// The 4 KiB page an address sits in — `ADRP`'s unit, and the one thing it and the `ADD` or load
-/// paired with it divide between them: the page is what the first instruction reaches, and the
-/// offset inside it is what the second adds back.
-fn page_of(address: i64) -> i64 {
-    address & !0xFFF
-}
-
 /// The four bytes of `field` as the one aarch64 instruction they are.
 fn instruction(field: &[u8]) -> Result<u32, Unloadable> {
     let word: [u8; 4] = field.try_into().map_err(|_| Unloadable::Unreadable)?;
@@ -1102,8 +427,8 @@ fn instruction(field: &[u8]) -> Result<u32, Unloadable> {
 
 /// Writes a resolved displacement into `B`/`BL`'s 26-bit immediate, which counts instructions.
 ///
-/// The reach is ±128 MiB, and every call this loader writes names a target inside its own mapping
-/// — the payload's own code, or a [`Landing::Stub`] beside it — so the range is a bound on how
+/// The reach is ±128 MiB, and every call the placer writes names a target inside its own mapping
+/// — the program's own code, or a stub beside it — so the range is a bound on how
 /// large a unit may be rather than a constraint on where the host image sits.
 fn write_branch26(field: &mut [u8], displacement: i64) -> Result<(), Unloadable> {
     let word = instruction(field)?;
@@ -1120,81 +445,17 @@ fn write_branch26(field: &mut [u8], displacement: i64) -> Result<(), Unloadable>
     Ok(())
 }
 
-/// Writes a resolved page distance into `ADRP`'s 21-bit immediate, which the encoding splits in
-/// two: the low two bits sit at 30:29 and the other nineteen at 23:5.
-///
-/// The reach is ±4 GiB. Unlike a branch's, this one is never stretched by where the host image
-/// sits: [`landing_for`] only ever lets an `ADRP` name a symbol the payload defines or a
-/// [`Landing::Slot`], and both of those are inside this mapping.
-fn write_page21(field: &mut [u8], distance: i64) -> Result<(), Unloadable> {
-    let word = instruction(field)?;
-    let out_of_reach = || Unloadable::Unrepresentable(format!("{distance} in a 21-bit page field"));
-    let pages = i32::try_from(distance >> 12).map_err(|_| out_of_reach())?;
-    if !(-(1 << 20)..(1 << 20)).contains(&pages) {
-        return Err(out_of_reach());
-    }
-    let pages = pages.cast_unsigned();
-    let patched = (word & 0x9F00_001F) | ((pages & 0x3) << 29) | (((pages >> 2) & 0x7_FFFF) << 5);
-    field.copy_from_slice(&patched.to_le_bytes());
-    Ok(())
-}
-
-/// Writes a resolved page offset into the 12-bit immediate at 21:10 of the `ADD` or the load that
-/// completes an `ADRP` pair.
-///
-/// **The scale is the instruction's, not the relocation's.** A load's immediate counts units of
-/// its own access width, so the same twelve bits mean bytes after an `ADD`, eight-byte words after
-/// an `ldr x`, and sixteen after a 128-bit vector load. Mach-O has one `ARM64_RELOC_PAGEOFF12` for
-/// all of them, so the instruction is read for its size field exactly as a linker reads it, and an
-/// offset that is not a whole number of those units is a miss rather than a truncation.
-fn write_page_offset12(field: &mut [u8], offset: i64) -> Result<(), Unloadable> {
-    let word = instruction(field)?;
-    // A load or store with an unsigned immediate: 29:27 are `111` and 25:24 are `01`. Its scale is
-    // the size field at 31:30 — except for a 128-bit access, which spells `size` as zero and says
-    // so by setting the SIMD bit at 26 together with the high `opc` bit at 23.
-    let scale = if word & 0x3B00_0000 == 0x3900_0000 {
-        match word >> 30 {
-            0 if word & 0x0480_0000 == 0x0480_0000 => 4,
-            size => size,
-        }
-    } else {
-        0
-    };
-    let unit = 1_i64 << scale;
-    if offset % unit != 0 {
-        return Err(Unloadable::Unrepresentable(format!(
-            "{offset} in a page offset scaled by {unit}"
-        )));
-    }
-    let immediate = u32::try_from(offset >> scale).map_err(|_| Unloadable::Unreadable)? & 0xFFF;
-    let patched = (word & !(0xFFF << 10)) | (immediate << 10);
-    field.copy_from_slice(&patched.to_le_bytes());
-    Ok(())
-}
-
 /// One artifact's payload, placed, relocated and executable — the end state of the read path.
 ///
-/// The pages are this loader's own mapping and never the file's: the header in front leaves a payload's
-/// sections at whatever offset the object writer chose, which is not the alignment they have to
-/// run at, and a relocation against a far-away helper needs a [`Landing`] placed beside the code
-/// that no file's bytes have room for. The file is read into [`Verified`]'s buffer only to be
-/// hashed and copied out of, and nothing writes to that buffer, so no patch can reach the bytes
-/// that were hashed.
+/// The pages are the placer's own mapping and never the file's: a call to a far-away helper needs
+/// a stub placed beside the code, which no file's bytes have room for. The file is read into
+/// [`Verified`]'s buffer only to be hashed and copied out of, and nothing writes to that buffer,
+/// so no patch can reach the bytes that were hashed.
 #[derive(Debug)]
 pub(crate) struct Loaded {
-    /// The mapping, `PROT_READ | PROT_EXEC` since [`Verified::relocate`] returned and never
+    /// The mapping, `PROT_READ | PROT_EXEC` since the placer returned and never
     /// writable again — the `MmapMut` that was the only writable view is consumed by `make_exec`.
     pages: Mmap,
-    /// Where the entry frame starts inside [`Self::pages`].
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "`relocate` finds the entry frame to refuse a payload without one, and a \
-                      program runs it through `Descriptors::into_unit`, so only the tests read it here"
-        )
-    )]
-    entry: usize,
     /// Every function symbol the payload defines, to its offset inside [`Self::pages`] — what this
     /// type's [`nvs_codegen::Placed`] impl answers from, and the only thing that survives the
     /// object reader, which borrows a mapping this type does not keep.
@@ -1203,34 +464,6 @@ pub(crate) struct Loaded {
     /// artifact: the same scale as the JIT's own `functions` table, and the price of the loader's
     /// binding step being answerable at all after `mprotect`.
     functions: BTreeMap<String, usize>,
-}
-
-#[cfg(test)]
-impl Loaded {
-    /// This artifact's entry frame, ready to run — `nvs_codegen::Unit::script`'s counterpart for a
-    /// unit that was compiled by another process.
-    #[expect(
-        unsafe_code,
-        reason = "an address in relocated, executable pages becomes the ABI's own function type; \
-                  every claim that makes it callable — the pages are executable, the symbol is \
-                  the entry frame, the frame has `rule:errors/propagation`'s one signature — was established by \
-                  `relocate` before this type existed, and the returned `Entry` borrows the pages \
-                  so the mapping outlives the pointer"
-    )]
-    #[must_use]
-    pub(crate) fn script(&self) -> Entry<'_> {
-        let address = self.pages.as_ptr().wrapping_add(self.entry);
-        // SAFETY: `address` is inside `self.pages`, which `relocate` made executable and this type
-        // keeps mapped; `entry` is the offset of the symbol `nvs_ir::lower::ENTRY_SCRIPT_LABEL`
-        // names, and every frame `nvs-codegen` emits has `NvsFn`'s signature —
-        // `rule:errors/propagation` is the one home of that convention and both ends of this
-        // file agree on it.
-        let function = unsafe { std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(address) };
-        Entry {
-            function,
-            pages: std::marker::PhantomData,
-        }
-    }
 }
 
 /// The loader's last step, binding, from this side: the addresses this loader placed, by the names
@@ -1244,31 +477,6 @@ impl nvs_codegen::Placed for Loaded {
     fn address_of(&self, symbol: &str) -> Option<*const u8> {
         let offset = *self.functions.get(symbol)?;
         Some(self.pages.as_ptr().wrapping_add(offset))
-    }
-}
-
-/// A loaded artifact's entry frame, borrowed from the pages it lives in.
-///
-/// The borrow is the point: a frame is a bare address, and the mapping it points into is dropped
-/// by whoever owns the [`Loaded`]. Tying the two together here is what keeps a caller from
-/// outliving the pages it is about to jump into.
-#[cfg(test)]
-#[derive(Debug)]
-pub(crate) struct Entry<'a> {
-    function: nvs_runtime::NvsFn,
-    pages: std::marker::PhantomData<&'a Loaded>,
-}
-
-#[cfg(test)]
-impl Entry<'_> {
-    /// Runs the frame on `ctx`.
-    ///
-    /// # Errors
-    ///
-    /// The status the run reported, with its message left on `ctx` — [`nvs_runtime::call`]'s own
-    /// result, unchanged, exactly as `nvs_codegen::ScriptFn::call` hands it back.
-    pub(crate) fn call(&self, ctx: &mut nvs_runtime::Ctx) -> Result<nvs_runtime::Value, i32> {
-        nvs_runtime::call(self.function, ctx, &[])
     }
 }
 
@@ -2800,88 +2008,9 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// The writer publishes only a payload its own loader reads ([`loadable`]). The object the
-    /// compiler writes passes, and the same object cut short, or with a header that counts one
-    /// section, does not.
-    ///
-    /// The number of sections in the object does not grow with the number of functions: a
-    /// program of one function and one of sixty give objects with the same sections. Each
-    /// function and each literal shares the one `.text` and the one read-only data section.
-    #[test]
-    #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
-    fn the_writer_publishes_only_what_its_loader_reads() {
-        use object::Object as _;
-
-        let dir = scratch("loadable");
-        let object_of = |functions: usize| {
-            let mut source = String::from("<?nvs\nclass Many {\n");
-            for i in 0..functions {
-                source.push_str(&format!(
-                    "    public static function f{i}(): string {{ return \"s{i}\"; }}\n"
-                ));
-            }
-            source.push_str("}\n");
-            for i in 0..functions {
-                source.push_str(&format!("echo Many::f{i}();\n"));
-            }
-            let path = dir.join(format!("many-{functions}.nvs"));
-            fs::write(&path, source).expect("a scratch directory of this test's own is writable");
-            unit_of(&path).0
-        };
-
-        let one = object_of(1);
-        let sixty = object_of(60);
-        assert_eq!(loadable(&one), Ok(()), "the compiler's own object loads");
-        assert_eq!(loadable(&sixty), Ok(()), "the compiler's own object loads");
-        let sections = |payload: &[u8]| {
-            object::File::parse(payload)
-                .expect("a relocatable object")
-                .sections()
-                .count()
-        };
-        assert_eq!(
-            sections(&sixty),
-            sections(&one),
-            "sixty functions and their literals add no section"
-        );
-
-        assert!(
-            loadable(&sixty[..sixty.len() / 2]).is_err(),
-            "half an object is not published"
-        );
-        // A header that counts one section. Where a format's count is: COFF's 16-bit count at
-        // byte 2, and a 64-bit ELF header's at byte 60. Mach-O counts its sections per segment
-        // command, so only the cut above runs there.
-        let format = object::File::parse(&*sixty)
-            .expect("a relocatable object")
-            .format();
-        let count_at = match format {
-            object::BinaryFormat::Coff => Some(2),
-            object::BinaryFormat::Elf => Some(60),
-            _ => None,
-        };
-        if let Some(at) = count_at {
-            let mut miscounted = sixty.clone();
-            miscounted[at..at + 2].copy_from_slice(&1_u16.to_le_bytes());
-            assert!(
-                loadable(&miscounted).is_err(),
-                "an object whose header counts one section is not published ({format:?})"
-            );
-        }
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// Both halves of a warm hit for the program at `source`: the payload, written through the
-    /// object backend which is the only producer
-    /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
-    /// recognises, and the descriptors the *loading* process builds for itself out of the same
-    /// lowered IR.
-    ///
-    /// The front end runs **once** here, which is what a warm hit does too — a hit skips codegen
-    /// and not the front end (`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`), so a
-    /// fixture that ran it twice would be measuring a pipeline this cache does not have.
-    fn unit_of(source: &Path) -> (Vec<u8>, nvs_codegen::Descriptors) {
+    /// A real compiled payload for the program at `source`, written through the object backend:
+    /// bytes a test stores, damages and reads back, which nothing here runs.
+    fn unit_of(source: &Path) -> Vec<u8> {
         let checked = crate::front_end(source).expect("a program with no error diagnostics");
         let program = nvs_ir::lower::lower_program(
             nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -2891,10 +2020,7 @@ mod tests {
             &checked.enums,
             &checked.layouts,
         );
-        (
-            nvs_codegen::compile_object(&program).expect("a host-format object"),
-            nvs_codegen::Descriptors::of(&program),
-        )
+        nvs_codegen::compile_object(&program).expect("a host-format object")
     }
 
     /// The environment that `rule:config/the-extension-set-is-in-every-unit-key`'s digest would call
@@ -2943,287 +2069,6 @@ mod tests {
         .expect("the script echoed UTF-8")
     }
 
-    /// Runs a loaded artifact's entry frame and hands back what it echoed.
-    fn output_of(loaded: &Loaded) -> String {
-        let mut ctx = nvs_runtime::Ctx::buffered();
-        loaded
-            .script()
-            .call(&mut ctx)
-            .expect("the entry frame ran to completion");
-        String::from_utf8(
-            ctx.take_buffered_output()
-                .expect("a context this test made buffered"),
-        )
-        .expect("the script echoed UTF-8")
-    }
-
-    /// The other side of every warm-hit gate below: on an architecture this loader has no
-    /// relocation vocabulary for, a verified payload is a **miss**, and that is a decision rather
-    /// than a shortfall.
-    ///
-    /// [`HOST_ARCH`] is where it is spelled, and it names the two architectures
-    /// CI's build matrix does. What a third one costs is one compile per run
-    /// and nothing a script can observe, which is exactly what every other miss in this file
-    /// costs, so the cases that assert a *warm hit* are the ones that carry the gate and this one
-    /// carries the claim.
-    #[test]
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    fn a_payload_is_a_miss_elsewhere() {
-        let dir = scratch("foreign-arch");
-        let source = dir.join("program.nvs");
-        fs::write(&source, "<?nvs\necho 42;\n")
-            .expect("a scratch directory of this test's own is writable");
-
-        let (payload, descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        cache.store(key, &payload).expect("writable");
-
-        // The artifact itself is sound — it verified — so nothing before `relocate` objects. The
-        // refusal is the loader saying it has no answer for this host, which `Cache::load`'s
-        // caller reads as "compile it", never as an error.
-        let hit = cache.load(key).expect("a published artifact verifies");
-        assert!(
-            matches!(
-                hit.relocate(&this_process(&descriptors)),
-                Err(Unloadable::ForeignArchitecture)
-            ),
-            "a host this loader does not relocate for is a miss, not a failure"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` end to end: a
-    /// payload this process verified becomes pages it can run.
-    ///
-    /// The assertion is the program's own output, and it is the strongest one available: reaching
-    /// it means the sections were placed at the alignments they run at, every relocation resolved
-    /// against *this* process's addresses — `nvs_echo_str` wrote into this test's own buffered
-    /// context, which is the one in this address space — and the pages were executable by the
-    /// time the entry frame was entered. A loader that mapped without relocating, or that
-    /// relocated against the compiling process's addresses, cannot get here.
-    #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable() {
-        let dir = scratch("warm-hit");
-        let source = dir.join("program.nvs");
-        fs::write(&source, "<?nvs\nint $n = 40;\necho $n + 2;\n")
-            .expect("a scratch directory of this test's own is writable");
-
-        let (payload, descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        assert_eq!(
-            cache.store(key, &payload).expect("writable"),
-            Stored::Written
-        );
-
-        let hit = cache.load(key).expect("a published artifact verifies");
-        let loaded = hit
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol the payload leaves undefined has an address here");
-        assert_eq!(
-            output_of(&loaded),
-            "42",
-            "the pages a warm hit relocated ran, and reached this process's own `nvs_echo_str`"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// The descriptors a loading process builds, at the one place a test can tell a real one from
-    /// a placeholder: a payload
-    /// whose program allocates an instance, names its class and reads a field back.
-    ///
-    /// [`a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`] would pass
-    /// against *any* address for an `nvs_class_desc_*`, because nothing in that fixture ever
-    /// dereferences one. Everything this fixture prints comes out of the descriptor instead:
-    /// `$box::class` reads the name off it, and allocating the instance reads the slot count that
-    /// decides how much of it `$box->n` may touch. So reaching `Box=42` means the address the
-    /// loader resolved that symbol to was a real `ClassDesc` for this very class — built by *this*
-    /// process out of the IR its own front end just lowered, and never carried in the file. That is
-    /// `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end` stated as an observation rather
-    /// than as prose.
-    #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn a_class_in_a_payload_reaches_the_descriptor_this_process_built() {
-        let dir = scratch("descriptors");
-        let source = dir.join("program.nvs");
-        fs::write(
-            &source,
-            "<?nvs\nclass Box {\n    public int $n = 0;\n}\n\nvar $box = new Box();\n\
-             $box->n = 42;\necho $box::class, \"=\", $box->n;\n",
-        )
-        .expect("a scratch directory of this test's own is writable");
-
-        let (payload, descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        cache.store(key, &payload).expect("writable");
-
-        let loaded = cache
-            .load(key)
-            .expect("a published artifact verifies")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol the payload leaves undefined has an address here");
-        assert_eq!(
-            output_of(&loaded),
-            "Box=42",
-            "the relocated code reached a descriptor this process built from the same IR"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// The loader's last step, binding, at the one place a test can tell a bound method table from
-    /// an empty one: a call that *must* go through it, whose fallback runs a different body.
-    ///
-    /// `static::speak()` inside `Base::shout` is late static binding, so `nvs_ir` lowers it to an
-    /// `InstKind::CallVirtual` against the descriptor of the class the call was made on, with
-    /// `Base::speak` as the fallback a descriptor answering no `speak` gets. `Derived::shout()`
-    /// therefore prints `derived` only if `Derived`'s descriptor holds a row bound to the address
-    /// the *loader* placed `Derived::speak` at — and prints `base` if the table is empty, which is
-    /// exactly the state every fixture above leaves it in. The assertion is `derived`, so nothing
-    /// but the loader's build-place-relocate-protect-*bind* order can produce it, and the bind
-    /// runs after `relocate` returned executable pages because a row is written into this
-    /// process's descriptor and never back into the mapping.
-    #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound() {
-        let dir = scratch("bind-methods");
-        let source = dir.join("program.nvs");
-        fs::write(
-            &source,
-            "<?nvs\nclass Base {\n    public static function speak(): string { return \"base\"; }\n\
-             \n    public static function shout(): string { return static::speak(); }\n}\n\n\
-             class Derived extends Base {\n    \
-             public static function speak(): string { return \"derived\"; }\n}\n\n\
-             echo Derived::shout();\n",
-        )
-        .expect("a scratch directory of this test's own is writable");
-
-        let (payload, mut descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        cache.store(key, &payload).expect("writable");
-
-        let loaded = cache
-            .load(key)
-            .expect("a published artifact verifies")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol the payload leaves undefined has an address here");
-        descriptors.bind(&loaded);
-
-        assert_eq!(
-            output_of(&loaded),
-            "derived",
-            "the virtual call dispatched through a row bound to the placed payload's own code"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// `rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`'s loaded arm, read
-    /// back from the OS: the pages a payload was relocated into are executable and not writable.
-    /// `crates/nvs-codegen/tests/code_pages.rs` holds the compiled arm.
-    #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn a_loaded_payload_runs_from_pages_that_are_not_writable() {
-        let dir = scratch("code-pages");
-        let source = dir.join("program.nvs");
-        fs::write(&source, "<?nvs\necho \"hi\";\n")
-            .expect("a scratch directory of this test's own is writable");
-
-        let (payload, descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        cache.store(key, &payload).expect("writable");
-        let loaded = cache
-            .load(key)
-            .expect("a published artifact verifies")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol the payload leaves undefined has an address here");
-
-        let entry = loaded.pages.as_ptr().wrapping_add(loaded.entry);
-        let page = region::query(entry).expect("the entry is inside this process's mapping");
-        let protection = page.protection();
-        assert!(
-            protection.contains(region::Protection::EXECUTE),
-            "the loaded page is not executable ({protection:?})"
-        );
-        assert!(
-            !protection.contains(region::Protection::WRITE),
-            "the loaded page is writable and executable at once ({protection:?})"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
-    /// The read path's end state, as the *type* the rest of the CLI takes: a warm hit hands back a
-    /// `nvs_codegen::Unit`, and it answers everything a cold compile's does.
-    ///
-    /// [`a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound`] pins the binding
-    /// step against the loader's own `script`. What is new here is that the assembled unit carries
-    /// the rest of it — a named function it can be asked for by label, an entry frame reached
-    /// through `Unit::script` rather than through this module's `Loaded::script`, and a context
-    /// armed by `Unit::install_in` — because that is what lets the compile site hold one variable
-    /// whichever path produced it, which is the whole point of the read path ending in a `Unit`.
-    #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn a_warm_hit_assembles_the_unit_a_cold_compile_would_have() {
-        let dir = scratch("loaded-unit");
-        let source = dir.join("program.nvs");
-        fs::write(
-            &source,
-            "<?nvs\nclass Base {\n    public static function speak(): string { return \"base\"; }\n\
-             \n    public static function shout(): string { return static::speak(); }\n}\n\n\
-             class Derived extends Base {\n    \
-             public static function speak(): string { return \"derived\"; }\n}\n\n\
-             echo Derived::shout();\n",
-        )
-        .expect("a scratch directory of this test's own is writable");
-
-        let (payload, descriptors) = unit_of(&source);
-        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
-        let key = artifact_key(content_hash(&payload), cache.env());
-        cache.store(key, &payload).expect("writable");
-
-        let loaded = cache
-            .load(key)
-            .expect("a published artifact verifies")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol the payload leaves undefined has an address here");
-        let unit = descriptors.into_unit(Box::new(loaded));
-
-        assert!(
-            unit.has_function("Derived::speak"),
-            "a loaded unit knows every function the payload defines, by its Novis label"
-        );
-        let mut ctx = nvs_runtime::Ctx::buffered();
-        unit.install_in(&mut ctx);
-        unit.script()
-            .expect("a loaded unit has the entry frame the payload defines")
-            .call(&mut ctx)
-            .expect("the entry frame ran to completion");
-        assert_eq!(
-            String::from_utf8(
-                ctx.take_buffered_output()
-                    .expect("a context this test made buffered")
-            )
-            .expect("the script echoed UTF-8"),
-            "derived",
-            "the unit's own entry frame ran, dispatching through the rows it bound"
-        );
-
-        drop(fs::remove_dir_all(&dir));
-    }
-
     /// The read path and the write path as a run performs them: the second run of one program
     /// reads what the first published, and compiles nothing.
     ///
@@ -3233,7 +2078,7 @@ mod tests {
     /// runs are asserted to print the same thing as well, because "did not compile it" is only
     /// worth anything beside "and ran the same program".
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit needs a host the placer writes stubs for; see `HOST_ARCH`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_second_run_of_the_same_program_does_not_compile_it() {
         let dir = scratch("second-run");
@@ -3430,7 +2275,7 @@ mod tests {
     /// digest alone: the unedited program is a hit *first*, so the miss below is the edit's doing
     /// and not an empty cache's, and the edited program is a hit on the run after it.
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit needs a host the placer writes stubs for; see `HOST_ARCH`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn an_edited_source_file_is_a_miss_on_the_next_run() {
         let dir = scratch("edited");
@@ -3483,14 +2328,12 @@ mod tests {
     /// only the ordering stops it. The recompile afterwards is the "not an error" half — a corrupt
     /// entry costs one compile and nothing a script can observe.
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_payload_whose_checksum_fails_is_a_miss_and_not_an_error() {
         let dir = scratch("checksum");
         let source = dir.join("program.nvs");
         fs::write(&source, "<?nvs\necho 7;\n")
             .expect("a scratch directory of this test's own is writable");
-        let (payload, descriptors) = unit_of(&source);
+        let payload = unit_of(&source);
         let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
         let key = artifact_key(content_hash(&payload), cache.env());
         cache.store(key, &payload).expect("writable");
@@ -3510,19 +2353,15 @@ mod tests {
             "and the read path deletes it: at this key it can only be corrupt"
         );
 
-        // The compile the caller would have done anyway, and its result runs.
+        // The compile the caller would have done anyway, and its result is read back whole.
         assert_eq!(
             cache.store(key, &payload).expect("writable"),
             Stored::Written
         );
-        let loaded = cache
-            .load(key)
-            .expect("the republished artifact verifies")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol resolves");
+        let republished = cache.load(key).expect("the republished artifact verifies");
         assert_eq!(
-            output_of(&loaded),
-            "7",
+            republished.payload(),
+            payload.as_slice(),
             "a miss cost one recompile, no more"
         );
 
@@ -3569,14 +2408,12 @@ mod tests {
     /// cannot reach the unit. Over a mapping this is the `SIGBUS` the rule exists to prevent on
     /// Unix, and a refused truncation on Windows; over a read it is nothing at all.
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn truncating_a_cached_file_after_its_load_leaves_the_loaded_unit_whole() {
         let dir = scratch("truncated-after-load");
         let source = dir.join("program.nvs");
         fs::write(&source, "<?nvs\necho 7;\n")
             .expect("a scratch directory of this test's own is writable");
-        let (payload, descriptors) = unit_of(&source);
+        let payload = unit_of(&source);
         let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
         let key = artifact_key(content_hash(&payload), cache.env());
         cache.store(key, &payload).expect("writable");
@@ -3589,11 +2426,11 @@ mod tests {
             .set_len(0)
             .expect("a file with no mapping over it can be truncated");
 
-        assert_eq!(verified.payload(), payload.as_slice());
-        let loaded = verified
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol resolves");
-        assert_eq!(output_of(&loaded), "7", "the truncation reached nothing");
+        assert_eq!(
+            verified.payload(),
+            payload.as_slice(),
+            "the truncation reached nothing"
+        );
 
         drop(fs::remove_dir_all(&dir));
     }
@@ -3613,14 +2450,12 @@ mod tests {
     /// build a prepared entry came from is in the key exactly as the payload's is, and a foreign
     /// one misses on both checks below rather than being read as a mismatch.
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_payload_written_by_a_different_toolchain_is_a_miss() {
         let dir = scratch("toolchain");
         let source = dir.join("program.nvs");
         fs::write(&source, "<?nvs\necho 9;\n")
             .expect("a scratch directory of this test's own is writable");
-        let (payload, descriptors) = unit_of(&source);
+        let payload = unit_of(&source);
 
         let theirs =
             Cache::new(dir.join("cache"), other_toolchain()).expect("a directory of this test's");
@@ -3652,12 +2487,10 @@ mod tests {
         );
 
         // And nothing here damaged the entry for the toolchain that wrote it.
-        let loaded = theirs
+        let still = theirs
             .load(their_key)
-            .expect("the artifact still verifies for its own environment")
-            .relocate(&this_process(&descriptors))
-            .expect("every symbol resolves");
-        assert_eq!(output_of(&loaded), "9");
+            .expect("the artifact still verifies for its own environment");
+        assert_eq!(still.payload(), payload.as_slice());
 
         drop(fs::remove_dir_all(&dir));
     }
@@ -3706,7 +2539,7 @@ mod tests {
     /// under `--release` on all three runners, and both margins hold there by a wider factor than
     /// here.
     #[test]
-    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit needs a host the placer writes stubs for; see `HOST_ARCH`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     #[cfg_attr(
         debug_assertions,
@@ -3827,37 +2660,6 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// The one thing about [`linkage_name`] a non-Mach-O host can still assert: that it undoes
-    /// exactly the prefix that format adds and leaves every other format's name alone.
-    ///
-    /// Asserted rather than left to the Mach-O host because the branch is unreachable here — this
-    /// tree's own tests place COFF and ELF payloads — so nothing else in the suite would notice it
-    /// stripping a character off a name that never had one.
-    #[test]
-    fn a_macho_name_loses_its_underscore_and_no_other_format_s_does() {
-        assert_eq!(
-            linkage_name(BinaryFormat::MachO, "_nvs_helper_throw"),
-            "nvs_helper_throw"
-        );
-        assert_eq!(
-            linkage_name(BinaryFormat::Elf, "nvs_helper_throw"),
-            "nvs_helper_throw"
-        );
-        assert_eq!(
-            linkage_name(BinaryFormat::Coff, "nvs_helper_throw"),
-            "nvs_helper_throw"
-        );
-        // A bare name under Mach-O keeps every character: the prefix is stripped when it is there,
-        // never one character unconditionally.
-        assert_eq!(
-            linkage_name(BinaryFormat::MachO, "nvs_helper_throw"),
-            "nvs_helper_throw"
-        );
-        // And only the first one. A label `nvs-codegen` minted with its own leading underscore
-        // would come back with it.
-        assert_eq!(linkage_name(BinaryFormat::MachO, "__nvs_fn_0"), "_nvs_fn_0");
-    }
-
     /// One instruction, written back the way an assembler would have written it.
     ///
     /// Every case below is stated as the encoding of the instruction it produces, because that is
@@ -3923,99 +2725,7 @@ mod tests {
         );
     }
 
-    /// [`write_page21`] splits `ADRP`'s immediate the way the encoding does — two bits at 30:29 and
-    /// nineteen at 23:5 — and counts pages rather than bytes.
-    #[test]
-    fn an_aarch64_page_field_is_split_across_the_instruction() {
-        // One page forward lands entirely in the low half of the immediate, which is the bit range
-        // an encoder that wrote all twenty-one bits contiguously would miss.
-        let mut field = 0x9000_0000_u32.to_le_bytes();
-        write_page21(&mut field, 0x1000).expect("one page is in reach");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0xB000_0000),
-            "`adrp x0, #4096`"
-        );
-
-        // Four pages carries into the high half and leaves the low one empty.
-        let mut field = 0x9000_0000_u32.to_le_bytes();
-        write_page21(&mut field, 0x4000).expect("four pages is in reach");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0x9000_0020),
-            "`adrp x0, #16384`"
-        );
-
-        // Backwards, sign-extended across both halves — and the destination register is not part
-        // of the immediate.
-        let mut field = 0x9000_0003_u32.to_le_bytes();
-        write_page21(&mut field, -0x1000).expect("one page back is in reach");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0xF0FF_FFE3),
-            "`adrp x3, #-4096`"
-        );
-
-        // ±4 GiB is the whole reach, and past it is a miss.
-        let mut field = 0x9000_0000_u32.to_le_bytes();
-        assert!(matches!(
-            write_page21(&mut field, 1 << 33),
-            Err(Unloadable::Unrepresentable(_))
-        ));
-    }
-
-    /// [`write_page_offset12`] scales the offset by the access width the *instruction* names, which
-    /// is the one thing `ARM64_RELOC_PAGEOFF12` does not say.
-    #[test]
-    fn an_aarch64_page_offset_is_scaled_by_the_instruction_it_lands_in() {
-        // `add x0, x0, #0` counts bytes.
-        let mut field = 0x9100_0000_u32.to_le_bytes();
-        write_page_offset12(&mut field, 0x123).expect("a byte offset needs no scaling");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0x9104_8C00),
-            "`add x0, x0, #291`"
-        );
-
-        // `ldr x0, [x0]` counts eight-byte words, which is the form a GOT slot is read through.
-        let mut field = 0xF940_0000_u32.to_le_bytes();
-        write_page_offset12(&mut field, 0x40).expect("64 is eight words");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0xF940_2000),
-            "`ldr x0, [x0, #64]`"
-        );
-
-        // `ldr q0, [x0]` counts sixteens, and says so by setting the vector bit together with the
-        // high half of `opc` rather than through the size field, which reads as zero.
-        let mut field = 0x3DC0_0000_u32.to_le_bytes();
-        write_page_offset12(&mut field, 0x20).expect("32 is two quadwords");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0x3DC0_0800),
-            "`ldr q0, [x0, #32]`"
-        );
-
-        // `ldrsb x0, [x0]` sets that same high `opc` bit with the vector bit clear, and counts
-        // bytes. Reading bit 23 alone would scale this one by sixteen.
-        let mut field = 0x3980_0000_u32.to_le_bytes();
-        write_page_offset12(&mut field, 0x7).expect("a signed byte load counts bytes");
-        assert_eq!(
-            assembled(u32::from_le_bytes(field)),
-            assembled(0x3980_1C00),
-            "`ldrsb x0, [x0, #7]`"
-        );
-
-        // An offset that is not a whole number of the instruction's own units is a miss, never an
-        // address rounded down to one that fits.
-        let mut field = 0xF940_0000_u32.to_le_bytes();
-        assert!(matches!(
-            write_page_offset12(&mut field, 0x44),
-            Err(Unloadable::Unrepresentable(_))
-        ));
-    }
-
-    /// A [`Landing::Stub`] is the same two facts on both architectures: a jump through the eight
+    /// A stub is the same two facts on both architectures: a jump through the eight
     /// bytes immediately behind it, inside [`LANDING_LEN`].
     #[test]
     fn a_stub_jumps_through_the_eight_bytes_behind_it() {
@@ -4049,56 +2759,5 @@ mod tests {
             stub_body(Architecture::Riscv64),
             Err(Unloadable::Unrepresentable(_))
         ));
-    }
-
-    /// [`landing_for`]'s two answers that are not about distance: a GOT field gets a slot even for
-    /// a symbol the payload defines, and an `ADRP` pair naming one it does not is a miss.
-    #[test]
-    fn a_got_field_gets_a_slot_and_an_adrp_pair_to_an_import_gets_nothing() {
-        for form in [
-            Form::Page21,
-            Form::PageOffset12,
-            Form::Displacement { width: 4 },
-        ] {
-            assert_eq!(
-                landing_for(Reach::Got, form, SymbolKind::Data, true, "nvs_bytes_0"),
-                Ok(Some(Landing::Slot)),
-                "a {form:?} loaded through needs its slot however near the target is"
-            );
-        }
-        // Defined, and reached directly: already inside this mapping.
-        assert_eq!(
-            landing_for(
-                Reach::Symbol,
-                Form::Page21,
-                SymbolKind::Data,
-                true,
-                "nvs_bytes_0"
-            ),
-            Ok(None)
-        );
-        // Undefined, and reached directly: there is nowhere to put an indirection the compiler did
-        // not emit, so the artifact is not this process's.
-        assert!(matches!(
-            landing_for(
-                Reach::Symbol,
-                Form::Page21,
-                SymbolKind::Data,
-                false,
-                "nvs_helper_throw"
-            ),
-            Err(Unloadable::Unrepresentable(_))
-        ));
-        // A call to an import is the case a stub exists for.
-        assert_eq!(
-            landing_for(
-                Reach::Call,
-                Form::Branch26,
-                SymbolKind::Text,
-                false,
-                "nvs_helper_throw"
-            ),
-            Ok(Some(Landing::Stub))
-        );
     }
 }

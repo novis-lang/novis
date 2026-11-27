@@ -460,7 +460,8 @@ pub(crate) fn place(
     for (literal, start) in literals.iter().zip(&literal_starts) {
         pages[*start..*start + literal.bytes.len()].copy_from_slice(&literal.bytes);
     }
-    // `expose_provenance`, for the reason `Verified::relocate` gives: these bytes are about to run.
+    // `expose_provenance`, as `nvs-codegen` uses it when it publishes a descriptor: these bytes
+    // are about to run, and what they reach through has to stay reachable.
     let base = pages.as_ptr().expose_provenance();
     for (name, start) in &stubs {
         let address = resolve(name).ok_or_else(|| Unloadable::Unresolved((*name).to_owned()))?;
@@ -544,9 +545,9 @@ pub(crate) fn place(
         }
         placed.insert(nvs_codegen::function_symbol(*index, name), *start);
     }
+    entry.ok_or(Unloadable::NoEntry)?;
     Ok(Loaded {
         pages,
-        entry: entry.ok_or(Unloadable::NoEntry)?,
         functions: placed,
     })
 }

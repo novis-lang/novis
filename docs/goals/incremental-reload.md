@@ -273,8 +273,8 @@ adds, goes in an entry of its own, so a one-file program writes two entries. Evi
 `sweep_unnamed` reads every list, from any environment, without its checksum. It runs before
 the size check, on `nvs cache gc` and on the roll. No clock guards a writer whose list has not
 landed: if its entries are deleted, its next run misses and recompiles those files. The
-object-file loader (`Verified::relocate`, `Layout`, `loadable`) is reached only by
-`cache.rs`'s unit tests. A module-level `expect(dead_code)` stands until it is deleted.
+object-file loader (`Verified::relocate`, `Layout`, `loadable`, the GOT slots and the aarch64
+page writers) is deleted with its unit tests; `per_file::place` is the only placer.
 
 **Stage 5: the edit state.** A new directive, `[opcache] incremental`, `System`-class, boolean, with
 the startup default the mode chooses, exactly as `settle`'s is
