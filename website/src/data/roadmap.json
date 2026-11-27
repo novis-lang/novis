@@ -25,6 +25,13 @@
       ]
     },
     {
+      "title": "The same TLS settings for every client",
+      "text": "The database, LDAP, mail and Redis clients take the same TLS settings as `Core\\Http\\Client`. You can trust a private certificate for one host. Each setting needs a host entry under `[capabilities.tls]` in `nvs.toml`.",
+      "goals": [
+        "tls-relax-every-client"
+      ]
+    },
+    {
       "title": "Send and receive files over FTP, FTPS and SFTP",
       "text": "`Core\\FileTransfer::open` connects to a server that the person who runs the program configures in `nvs.toml`. The same code works with FTP, FTPS, SFTP and a local folder. In tests, the folder replaces the server.",
       "goals": [
