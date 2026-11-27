@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/classes/late-init-initializes-on-the-first-read.md, docs/rules/classes/property-observer-pipeline.md, crates/nvs-hir/src/interfaces.rs, crates/nvs-lsp/src/index.rs, crates/nvs-cli/tests/code.rs]
   - id: 3
     title: "a type moves to another namespace by rename"
-    status: open
+    status: done
     context: [docs/rules/programs/autoload.md, docs/rules/programs/one-declaration-per-autoloaded-file.md, crates/nvs-hir/src/autoload.rs, crates/nvs-hir/src/imports.rs, crates/nvs-cli/tests/code.rs]
   - id: 4
     title: "a list of renames applies in one call"
@@ -438,20 +438,20 @@ cases are disjoint files and may go to two writing subagents.
 
 ### 3. a type moves to another namespace by rename
 
-- [ ] `crates/nvs-lsp/src/rename.rs:874` (`types`): a qualified new name moves the type per § *A
+- [x] `crates/nvs-lsp/src/rename.rs:874` (`types`): a qualified new name moves the type per § *A
   type's new namespace*; the sole-declaration and autoload-root refusals; `named_after` (`:1074`) gives
   the new path from `AutoloadMap::resolve` (`crates/nvs-hir/src/autoload.rs:596`).
-- [ ] `crates/nvs-lsp/src/rename.rs:874`: the `use` lines added and deleted, at
+- [x] `crates/nvs-lsp/src/rename.rs:874`: the `use` lines added and deleted, at
   `crates/nvs-hir/src/imports.rs:83`, and each touched `use` block sorted by `nvs fmt`'s sort.
-- [ ] `crates/nvs-cli/src/code.rs:1116` and `:1492`: the CLI writes the move, creating missing
+- [x] `crates/nvs-cli/src/code.rs:1116` and `:1492`: the CLI writes the move, creating missing
   directories under the root after judging them; help at `code.rs:141` says a class can take a full
   name.
-- [ ] `crates/nvs-cli/tests/code.rs:613`: the seven tests of the check `namespace`. Then `cargo test
+- [x] `crates/nvs-cli/tests/code.rs:613`: the seven tests of the check `namespace`. Then `cargo test
   --test code code_rename` once.
-- [ ] `tests/lsp/rename/a-class-moves-to-another-namespace.lspt:1` and
+- [x] `tests/lsp/rename/a-class-moves-to-another-namespace.lspt:1` and
   `tests/lsp/rename/a-class-that-shares-its-file-is-refused-a-namespace.lspt:1` (new), then `nvs
   lsp-test tests/lsp/rename/` once.
-- [ ] `docs/rules/ide/a-type-moves-with-its-namespace.md:1` (new) and
+- [x] `docs/rules/ide/a-type-moves-with-its-namespace.md:1` (new) and
   `docs/rules/tooling/nvs-code-answers-about-the-project.md:42`: the rename paragraph, then `bun nv
   rules`.
 
@@ -619,33 +619,35 @@ Each brief names AGENTS.md § *Text an end user reads* and the neutral names.
 
 ### State
 
-Stages 1 and 2 are done. All 15 `code_rename_` tests pass, run by name, so `callback-names` is green
-and the three stage 1 tests are green again. `nvs lsp-test tests/lsp/rename/ tests/lsp/references/`
-and the new diagnostics case pass, 156 of 156.
-- **The stage 1 bug is fixed.** `nvs_hir::requires::with_planned` (`requires.rs:788` onward) puts the
-  moved paths in a thread-local list while `refactor::checked` runs its analysis after the edit.
-  `canonicalize` finds a path from that list when the disk does not have it. Stage 3 builds on this:
-  a namespace move writes into a directory that may not exist yet. The planned key is the parent's
-  canonical form joined with the file name, so a parent that does not exist yet is not found.
-  Stage 3 must extend `planned` to the nearest existing ancestor.
-- **Stage 2's rule** is `docs/rules/classes/a-compared-property-name-is-a-use.md`, with its record
-  under `data/rules/classes/`. The `W1039` case is a `.lspt` diagnostics case, not a `.nvst`: a
-  `.nvst` compares stderr only when the build fails.
-- The nightly sweep's nine failures were already fixed on main by c115a735a1, 28a4d7a6bf and
-  544711a8fb. Nothing was changed for them.
+Stages 1, 2 and 3 are done. `cargo test --test code code_rename` passes, 22 of 22, so `namespace`
+and `callback-names` are green. `nvs lsp-test tests/lsp/rename/` passes, 104 of 104.
+- **How stage 3 is built.** `rename::planned` (`rename.rs:202`) sends a new name with a `\` to
+  `namespaced` (`rename.rs:1192`). It reads the new path from each reading program's map in
+  `autoloaded_path`, and it collects the `use` and `namespace` line edits apart from the rest. `headed`
+  (`rename.rs:1469`) turns those into one edit per file, sorted with `nvs_fmt::sorted_imports`. Lines
+  added at a deleted `use` line replace it. `types` now shares `written_already`, `missed_sites` and
+  `refuse_taken` with it.
+- **A name with a `\` always starts at the root** in Novis (`E0240` refuses a leading `\`), so every
+  qualified site becomes the new full name.
+- `nvs_hir::requires::planned_key` (`requires.rs:851`) keys a planned path through its nearest
+  existing ancestor, and `rename::new_key` is that function. `committed` in `code.rs` creates a
+  move's missing directories, judged inside the root.
+- The rule is `docs/rules/ide/a-type-moves-with-its-namespace.md`, with its record and its line in
+  `data/rules/ide.json`.
 - **Expect red at the gate:** a `.lspt` or `actions.rs` case that pins a generator as not offered
   next to an unrelated error.
 
 ### Next
 
-Stage 3, a type moves to another namespace by rename (§ *A type's new namespace*):
-1. `crates/nvs-lsp/src/rename.rs:874` (`types`): accept a qualified new name. Refuse a type that is not
-   its file's sole declaration (`autoload.rs:1512`). Get the new path from `AutoloadMap::resolve`
-   (`autoload.rs:596`) through `named_after` (`rename.rs:1074`).
-2. The `use` lines to add and delete, at `nvs_hir::import_site` (`imports.rs:83`), and each touched
-   block sorted with `nvs fmt`'s sort.
-3. `requires.rs` `planned`: find a planned path whose parent directory does not exist yet.
-4. CLI: `code.rs:1116` and `:1492` create the missing directories under the root, each judged before
-   it is joined. Then the seven `namespace` tests at `crates/nvs-cli/tests/code.rs:613`.
+Stage 4, a list of renames applies in one call (§ *Several renames in one plan*):
+1. `crates/nvs-lsp/src/rename.rs:184` (`rename`) and `:202` (`planned`): a plan over several renames,
+   each computed against the one index, merged per file. Two edits of one byte range are refused,
+   naming both. A name the list renames away is free for the clash checks, so a swap works. The
+   check runs once over the merged plan.
+2. `crates/nvs-cli/src/code.rs:155` (`Rename`) and `:1102` (`rename`): `--from <file>`, conflicting
+   with the two positional arguments; the `line` field on each JSON edit.
+3. The four `batch` tests after `crates/nvs-cli/tests/code.rs:789`, then `cargo test --test code
+   code_rename_from` once.
+4. The `--from` paragraph in `docs/rules/tooling/nvs-code-answers-about-the-project.md:42`.
 
 ### Backlog
