@@ -49,9 +49,9 @@
 # The mode a run starts in: `production` or `development`. A host with no configuration file
 # starts in `production`. Some settings in this file have a different default in each mode. The
 # comment of each one gives both defaults.
-# The mode also sets `[server] dispatch`, `[server] static` and `[opcache] settle` when the file
-# does not write them. This happens once, when the file is loaded. A change of mode while the
-# server runs does not change these three settings.
+# The mode also sets `[server] dispatch`, `[server] static`, `[opcache] settle` and
+# `[opcache] incremental` when the file does not write them. This happens once, when the file is
+# loaded. A change of mode while the server runs does not change these four settings.
 #default = "production"               # default
 # The highest mode that code may switch to. `development` is higher than `production`, because it
 # allows more. When this is not written, code cannot switch to a mode above the one the server
@@ -1244,6 +1244,10 @@
 # How long no file of a changed program may move before it is compiled, so a deploy that is still
 # being copied is compiled once, from the finished files.
 #settle = "1s"                        # default: "1s" in production, "100ms" in development
+# Whether the server keeps the checked result of each file and the compiled code of each function
+# in memory after a compile. With `true`, a reload after an edit checks only the files that
+# changed and compiles only the functions that changed. This uses more memory.
+#incremental = false                  # default: false in production, true in development
 # Whether Novis saves compiled code to files on disk, so a later start can use it again.
 #file_cache = true                    # default
 # The folder for the compiled code files. Only this setting sets that folder. The `[cache]` block

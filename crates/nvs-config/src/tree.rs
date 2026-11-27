@@ -1703,6 +1703,10 @@ pub struct Opcache {
     /// How long a changed program must be quiet before it is compiled; its default is a startup
     /// row the run mode chooses (`rule:config/a-startup-default-is-never-flipped`).
     pub settle: Option<Setting>,
+    /// Whether a serving process keeps each source file's checked result and each function's code
+    /// between compiles, so a reload re-checks and recompiles only what an edit reached; its
+    /// default is a startup row the run mode chooses (`rule:config/a-startup-default-is-never-flipped`).
+    pub incremental: Option<bool>,
     /// Whether the on-disk artifact cache is used at all.
     pub file_cache: Option<bool>,
     /// Where it lives; root-owned, and defaulting to the per-build location `nvs-cli`'s cache module

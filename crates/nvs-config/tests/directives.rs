@@ -99,6 +99,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "opcache.validate",
         "opcache.revalidate_freq",
         "opcache.settle",
+        "opcache.incremental",
         // The next compile reads and writes the new directory.
         "opcache.file_cache_dir",
         // The next outbound connection is judged by the new anchors.
@@ -3713,6 +3714,7 @@ fn every_key_of_the_opcache_block_is_not_settable_because_it_has_no_safe_directi
         "validate",
         "revalidate_freq",
         "settle",
+        "incremental",
         "file_cache",
         "file_cache_dir",
         "file_cache_max_size",

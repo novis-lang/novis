@@ -52,7 +52,8 @@
 //! at all. Reading them is a question about the configuration and not about any one cache, so it
 //! lands beside the key rather than inside the crate that happens to hold the table — the same
 //! separation `[server]`'s waits have from the listener that arms them ([`mod@crate::server`]).
-//! `settle` is the third, and the one whose default the run mode chooses. A `validate` that is
+//! `settle` is the third, and `incremental` the fourth; the run mode chooses both defaults. A
+//! `validate` that is
 //! neither `mtime` nor `hash` does not load ([`validate`]); a `revalidate_freq` or `settle` that is
 //! not a duration is not refused yet and keeps its default.
 //!
@@ -542,6 +543,13 @@ pub struct Revalidation {
     /// `settle`: how long no file of a changed program may have moved before it is compiled, so a
     /// deploy still being copied is compiled once, from the finished tree.
     pub settle: Duration,
+    /// `incremental`: whether the process keeps each source file's checked result and each
+    /// function's code for the unit in force, so the next compile of the program re-checks and
+    /// recompiles only what moved. With it `false`, both are freed when a compile ends.
+    ///
+    /// **Memory:** with it `true`, about what `nvs check` peaks at for the program, plus its
+    /// machine code, per loaded program and never per request or per edit.
+    pub incremental: bool,
 }
 
 /// `settle`'s startup row (`rule:config/a-startup-default-is-never-flipped`) in `production`, and
@@ -551,6 +559,14 @@ pub const SETTLE_PRODUCTION: Duration = crate::defaults::OPCACHE_SETTLE[0];
 /// `settle`'s startup row in `development`: short enough that a saved file reaches the next reload
 /// of a browser tab, and long enough that an editor's write-then-rename is one change.
 pub const SETTLE_DEVELOPMENT: Duration = crate::defaults::OPCACHE_SETTLE[1];
+
+/// `incremental`'s startup row in `production`, and the default for a mode that is neither: a
+/// server updated a few times a day frees the edit state and keeps its memory down.
+pub const INCREMENTAL_PRODUCTION: bool = crate::defaults::OPCACHE_INCREMENTAL[0];
+
+/// `incremental`'s startup row in `development`: a developer's machine keeps the edit state, so a
+/// reload after a save checks one file and compiles one function.
+pub const INCREMENTAL_DEVELOPMENT: bool = crate::defaults::OPCACHE_INCREMENTAL[1];
 
 impl Default for Revalidation {
     /// `mtime`, checked at most once every two seconds, and settled for production's one second.
@@ -568,6 +584,7 @@ impl Default for Revalidation {
             validate: Validate::Mtime,
             freq: crate::defaults::OPCACHE_REVALIDATE_FREQ,
             settle: SETTLE_PRODUCTION,
+            incremental: INCREMENTAL_PRODUCTION,
         }
     }
 }
@@ -585,8 +602,9 @@ impl Revalidation {
     /// consulted: `[opcache]` is `System`-class and one process holds one unit cache, so a
     /// per-application answer would be a second policy over a table the applications share.
     ///
-    /// An unwritten `settle` is the startup row of the mode `[mode] default` names, read here each
-    /// time a configuration is published and never from a runtime flip, which only a request makes.
+    /// An unwritten `settle` or `incremental` is the startup row of the mode `[mode] default`
+    /// names, read here each time a configuration is published and never from a runtime flip,
+    /// which only a request makes.
     ///
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
@@ -600,6 +618,11 @@ impl Revalidation {
                 SETTLE_DEVELOPMENT
             } else {
                 SETTLE_PRODUCTION
+            },
+            incremental: if development {
+                INCREMENTAL_DEVELOPMENT
+            } else {
+                INCREMENTAL_PRODUCTION
             },
             ..Self::default()
         };
@@ -622,6 +645,7 @@ impl Revalidation {
                 .as_ref()
                 .and_then(|written| duration_of("opcache.settle", written))
                 .unwrap_or(fallback.settle),
+            incremental: opcache.incremental.unwrap_or(fallback.incremental),
         }
     }
 }

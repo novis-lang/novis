@@ -18,7 +18,8 @@
 //! **A default that is not one fixed value is computed when it is read** ([`Value`]): `cpu_time`
 //! from whether the run is server work, the mode table's rows from the mode in force
 //! ([`crate::mode::DERIVED`], which stays their one home), `[server] dispatch`, `static` and
-//! `[opcache] settle` from the mode the run started in, `[mode] ceiling` from that mode itself,
+//! `[opcache] settle` and `incremental` from the mode the run started in, `[mode] ceiling` from
+//! that mode itself,
 //! `[server] workers` from this machine, an unwritten `[limits.hard]` key from the `[limits]` value
 //! it bounds (`memory`'s only for server work), and a data-folder path from the data folder. A key whose unwritten state is "no
 //! value" — `wall_time`, `memory_high_water`, every `# example` key — has no row.
@@ -296,6 +297,8 @@ pub const OPCACHE_VALIDATE: &str = "mtime";
 pub const OPCACHE_REVALIDATE_FREQ: Duration = Duration::from_secs(2);
 /// `[opcache] settle` in production and in development.
 pub const OPCACHE_SETTLE: [Duration; 2] = [Duration::from_secs(1), Duration::from_millis(100)];
+/// `[opcache] incremental` in production and in development.
+pub const OPCACHE_INCREMENTAL: [bool; 2] = [false, true];
 /// `[opcache] file_cache`.
 pub const OPCACHE_FILE_CACHE: bool = true;
 /// `[opcache] file_cache_max_size`.
@@ -636,6 +639,10 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("opcache.settle", Value::Startup {
         production: &Value::Time(OPCACHE_SETTLE[0]),
         development: &Value::Time(OPCACHE_SETTLE[1]),
+    }),
+    row!("opcache.incremental", Value::Startup {
+        production: &Value::Flag(OPCACHE_INCREMENTAL[0]),
+        development: &Value::Flag(OPCACHE_INCREMENTAL[1]),
     }),
     row!("opcache.file_cache", Value::Flag(OPCACHE_FILE_CACHE)),
     row!("opcache.file_cache_dir", Value::DataFolder(Folder::cache)),
