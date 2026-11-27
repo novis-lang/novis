@@ -10490,7 +10490,7 @@
   },
   "/reference/core/novis-pdf-document/": {
     "feature": "Novis\\Pdf\\Document",
-    "hash": "63920d63c04c6bef",
+    "hash": "a705102f5968b809",
     "questions": [
       "Create PDF files in Novis",
       "Turn an HTML page into a PDF with images and fonts",
@@ -10512,11 +10512,11 @@
   },
   "/reference/core/novis-pdf-document/render/": {
     "feature": "Novis\\Pdf\\Document::render",
-    "hash": "b8bdc7abceb02014",
+    "hash": "956c551f0cdb75c6",
     "questions": [
       "How do I get the PDF bytes to send in a response?",
       "Count the pages of a generated PDF",
-      "Find CSS the PDF renderer does not support",
+      "Find CSS or a font-family name the PDF renderer cannot use",
       "Check for text that no font can draw",
       "Find an @page margin box whose text does not fit",
       "How deeply can tables be nested in a PDF?"
@@ -10524,7 +10524,7 @@
   },
   "/reference/core/novis-pdf-document/withasset/": {
     "feature": "Novis\\Pdf\\Document::withAsset",
-    "hash": "a78f3783fa509a0a",
+    "hash": "1e57c9fc4a518248",
     "questions": [
       "Add a logo image to a PDF",
       "Why does my PDF render fail for an image file?",
@@ -10612,12 +10612,13 @@
   },
   "/reference/core/novis-pdf-page/": {
     "feature": "Novis\\Pdf\\Page",
-    "hash": "c1d6f441fcd7249f",
+    "hash": "8e593b77d893e830",
     "questions": [
       "What can a header function read about the current page?",
       "Get the page number and page count in a PDF footer",
       "Get the CSS page name of the current PDF page",
       "Check if a page is the first or last page",
+      "Find which page a heading landed on after a PDF render",
       "PDF page object for headers and footers"
     ]
   },
@@ -10685,7 +10686,7 @@
   },
   "/reference/core/novis-pdf-pages/": {
     "feature": "Novis\\Pdf\\Pages",
-    "hash": "823447b245b8d446",
+    "hash": "0991ab5c027e2f55",
     "questions": [
       "Combine and reorder pages of PDF files",
       "Work with pages of an existing PDF",
@@ -10774,22 +10775,23 @@
   },
   "/reference/core/novis-pdf-rendered/": {
     "feature": "Novis\\Pdf\\Rendered",
-    "hash": "f4757891346d7c98",
+    "hash": "402827cb36ccf06f",
     "questions": [
       "What does rendering a PDF return?",
       "Get the PDF bytes and page count after a render",
-      "Find CSS that the PDF render does not support",
+      "Read the marks on each page of a rendered PDF",
+      "Find CSS or a font name that the PDF render could not use",
       "Find text that no font in my PDF can draw",
       "Find header or footer content that is too tall"
     ]
   },
   "/reference/core/novis-pdf-rendered/constructor/": {
     "feature": "Novis\\Pdf\\Rendered::constructor",
-    "hash": "2d25f8cdca6e8ec8",
+    "hash": "38bbcfa300793c0c",
     "questions": [
       "Fail a test when the PDF ignores CSS",
       "Make a fake render result for a test",
-      "Create a render result with bytes, page count and empty lists",
+      "Create a render result with bytes, pages and empty lists",
       "Header or footer content too tall for its area",
       "Selector, line and column of unsupported CSS"
     ]

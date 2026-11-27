@@ -8,8 +8,8 @@ string $html = '<style>h1 { box-shadow: 2px 2px gray } p { font-family: Arail, s
     . '<h1>Order 1042</h1><p>Gift note: 𓀀</p>';
 var $rendered = Document::fromHtml($html)->render();
 
-// `dropped` lists each CSS declaration the render left out, with its selector and its line.
-// It also lists each font name that has no font. The render uses the next name in the list.
+// `dropped` lists each CSS declaration that the render did not use, with its selector and line.
+// It also lists `Arail`, because no font has that name. The text uses `sans-serif` instead.
 foreach ($rendered->dropped as var $css) {
     echo 'dropped ', $css->property, ': ', $css->value, ' in ', $css->selector, ' at line ', $css->line, "\n";
 }
