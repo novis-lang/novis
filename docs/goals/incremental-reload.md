@@ -234,6 +234,31 @@ per-function reuse the loader is on every compile anyway, and one walk halves a 
 `compile:` line. **Disk:** an edit writes one source file's entry and a new list. **Cost of the
 read path:** one open per source file in a process with nothing in memory, measured at 10 µs per
 file on a Dev Drive and 33 µs on a drive the antivirus scans.
+**Built (stage 4, the pieces):** the stored unit of code is a *piece*, not an object file.
+`nvs_codegen::compile_pieces` (`crates/nvs-codegen/src/pieces.rs`) emits and keys every function,
+compiles only those whose key the caller's `reuse` misses, on the stage 2 pool, and returns each as
+its bytes, alignment and relocations. A relocation names its target as `Target::Function` (the
+Novis name), `Target::Literal` (the literal's digest) or `Target::Symbol` (runtime entry,
+descriptor, codec, base, library call), so a piece is the same in any program with its key
+(`crates/nvs-codegen/tests/pieces.rs`). Every literal comes back by digest, and
+`Pieces::literals_for` gives the ones a set of pieces reaches. An object file per source file was
+declined: it needs a module per file, which declares the whole program once per file. An object
+file per function was declined: about 1 KB of headers per function on disk. **Cost:** a loader of
+our own for five relocation kinds (`RelocKind`: `Abs8`, `Abs4`, `X86PcRel4`, `X86CallPcRel4`,
+`Arm64Call`); any other kind is `Other`, and a piece with one is never stored.
+**Decided (stage 4, the store), built next:** a source-file entry is the pieces of the functions
+whose first statement span is in that file, in program order, and the literals they reach. Its key
+is `artifact_key(BLAKE3("nvs file entry" ‖ each function key), env)`. The program list is each
+source file's entry key in program order, under `unit_key` as today. A process with nothing in
+memory reuses functions after an edit through one *hint* per program, keyed
+`artifact_key(BLAKE3("nvs latest" ‖ entry path ‖ unit kind ‖ level), env)`, whose payload is the
+last list key written for it. It is the one file the store replaces, by the same rename. A stale or
+missing hint costs reuse and never correctness, because each reused piece is found under its own
+key in a verified entry. A compile reads the hint's list and its entries, indexes their pieces by
+key, runs `compile_pieces` with that index as `reuse`, writes the entries whose key is new, then the
+list, then the hint. It places every function and each literal once in one private mapping,
+relocates, protects, and builds the `Unit` from `Descriptors` and the placed addresses by Novis
+name.
 
 **Stage 5: the edit state.** A new directive, `[opcache] incremental`, `System`-class, boolean, with
 the startup default the mode chooses, exactly as `settle`'s is
@@ -314,6 +339,12 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 - [ ] `crates/nvs-cli/src/cache.rs:1652` and `:1695`: `unit_key` and `unit_for` read and write the
   program list and the source-file entries (§ *Stage 4*).
+  - [x] `nvs_codegen::compile_pieces` compiles only the misses into position-free pieces.
+  - [ ] The entry, list and hint payloads encode and decode in `cache.rs`, each through
+    `Cache::store` and `Cache::load`.
+  - [ ] The placer: every piece and literal in one private mapping, relocated, protected, bound.
+  - [ ] `unit_for` reads the list, falls back to the hint's list, compiles the misses, writes
+    entries, list and hint.
 - [ ] `crates/nvs-cli/src/cache.rs:1749`: `compile_beside_object` is gone; a miss compiles objects
   only, and the unit is placed from the list.
 - [ ] `crates/nvs-cli/src/cache.rs:1386`: eviction removes an entry no program list names, on the
@@ -364,29 +395,32 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 took two sessions. The second bound the bases at link time:
-each function's statement, edge, query and index numbers are relocations against
-`emit::BaseKind` symbols (`crates/nvs-codegen/src/emit.rs`, `base_symbol`, `base_global`,
-`Emitter::base_value`). The JIT publishes them and `Descriptors::resolve` answers them on a warm
-hit (`base_symbols`, `crates/nvs-codegen/src/lib.rs`). § *Standing decisions*, *Built (stage 3,
-the bases)* records the choice and its cost. `cargo test --test function_keys` passes all three
-tests of the check `function-keys`.
+Stages 1, 2 and 3 are done. Stage 4 has had one session of its two. It built
+`nvs_codegen::compile_pieces` (`crates/nvs-codegen/src/pieces.rs`): every function is keyed, only
+the misses are compiled, and each comes back as position-free bytes and relocations, with every
+literal by digest. `cargo test --test pieces` passes both its tests. § *Standing decisions*,
+*Built (stage 4, the pieces)* and *Decided (stage 4, the store)* hold the format, the hint that
+gives per-function reuse after an edit, and what was declined.
 
 The sweep's nine nightly failures came from run 45813627231 at `4e43e1fa2e`. `main` fixed them
-after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`). This session checked that.
+after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`), as the last two sessions checked.
 
 Tests that may go red elsewhere, none of them run here: the coverage and debugger tests
 (`crates/nvs-codegen/tests/probes.rs`, the debug-switch tests), the query-span tests (a query id
-is now base plus addend), `crates/nvs-cli/tests/compile_cache.rs` (a warm hit resolves the base
+is base plus addend), `crates/nvs-cli/tests/compile_cache.rs` (a warm hit resolves the base
 symbols out of `Descriptors`), and any instruction-count bound on aarch64, where each base use is
-now a literal-pool load.
+a literal-pool load. `compile_all` now numbers pool jobs by submission, not program index
+(`compile_some`); `crates/nvs-codegen/tests/parallel_codegen.rs` covers it.
 
 ### Next
 
-Stage 4, its first item: `crates/nvs-cli/src/cache.rs:1716` (`unit_key`) and `:1759`
-(`unit_for`) read and write the program list and the source-file entries (§ *Stage 4*). Each
-function's key comes from `nvs_codegen::function_keys` (`lib.rs:1497`), with the environment hash
-folded in by the store. `compile_beside_object` is at `cache.rs:1815`, eviction at `:2018`, and
-the `compile:` line's `functions=` and `reused=` at `crates/nvs-cli/src/main.rs:1027`.
+Stage 4, the second and last session: item 1's three open checkpoints, then items 2 to 5, as
+§ *Decided (stage 4, the store)* says. Payload codecs and the placer go in
+`crates/nvs-cli/src/cache.rs` beside `Loaded` (`:1171`), reusing its mapping and protect steps
+and `this_process` (`:1865`) for `Target::Symbol`. `unit_key` is at `:1716`, `unit_for` at
+`:1759`, `compile_beside_object` at `:1815`, publish at `:1506` (the hint needs a replacing
+form), eviction at `maybe_gc` `:1549`. A function's source file is its first `stmt_spans` entry's
+`file`. The `compile:` line's `functions=` and `reused=` are at `crates/nvs-cli/src/main.rs:1027`.
+At the stage's ceiling, the open items move to `### Backlog` as declined, with the count.
 
 ### Backlog
