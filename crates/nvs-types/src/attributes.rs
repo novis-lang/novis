@@ -1185,6 +1185,7 @@ fn check_recognized(
             crate::derive::ROUTE_TARGET,
             crate::derive::ROUTE_PARAMS,
             crate::derive::PATH,
+            crate::derive::TEST_ONLY,
         ]
         .into_iter()
         .any(recognized)

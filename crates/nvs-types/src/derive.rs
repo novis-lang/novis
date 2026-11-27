@@ -70,7 +70,8 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
 /// [`crate::routes`]', `#[Core\Router\Target]`/`#[Core\Router\Params]` are
 /// [`crate::route_params`]', `#[Core\Path]` is [`crate::paths`]' and
-/// `#[Core\Deprecated]` is [`crate::deprecated`]'s.
+/// `#[Core\Deprecated]` is [`crate::deprecated`]'s and `#[Core\TestOnly]` is
+/// [`crate::test_code`]'s.
 pub const ATTRIBUTES: &[&str] = [
     DERIVE,
     FIELD,
@@ -97,6 +98,7 @@ pub const ATTRIBUTES: &[&str] = [
     API_SCHEME,
     PATH,
     DEPRECATED,
+    TEST_ONLY,
 ]
 .as_slice();
 
@@ -796,6 +798,20 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 you.",
         site: "a class, interface, enum, enum case, method, property, constant or parameter",
     },
+    AttributeDoc {
+        name: TEST_ONLY,
+        sites: &[
+            AttributeSite::Class,
+            AttributeSite::Interface,
+            AttributeSite::Enum,
+            AttributeSite::Method,
+        ],
+        repeatable: false,
+        fields: &[],
+        short: "Says that this code is only for tests. Only test code can use it. `nvs run` and \
+                `nvs build` leave it out.",
+        site: "a class, interface, enum or method",
+    },
 ];
 
 /// `#[Json\Derive]` — `rule:core-classes/derive-attribute`'s opt-in, on a class.
@@ -980,6 +996,12 @@ pub const PATH: &str = r"Core\Path";
 /// of a declaration. [`crate::deprecated`] owns its payload and the nine
 /// declarations it may be written above.
 pub const DEPRECATED: &str = r"Core\Deprecated";
+
+/// `#[Core\TestOnly]` — `rule:testing/a-test-only-declaration-is-test-code`'s marker, on a
+/// class, interface, enum or method. It takes no fields. It is not under `Core\Test` with the
+/// testing markers, because it is written in production files beside the code it marks.
+/// [`crate::test_code`] owns what it means.
+pub const TEST_ONLY: &str = r"Core\TestOnly";
 
 /// One of `rule:core-classes/derive-attribute`'s two derived formats — the only thing this pass
 /// branches on.

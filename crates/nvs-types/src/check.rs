@@ -322,6 +322,7 @@ fn check_files(
     let attributes = crate::retrieval::build_attribute_table(files);
     let deprecations = crate::deprecated::build_table(files);
     let test_code = crate::test_code::build_table(files);
+    crate::test_code::check_hierarchy(files, &test_code, &signatures, &module.graph, diags);
     // Threaded across the files rather than restarted at each: an `rule:types/anonymous-function`
     // anonymous function at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per

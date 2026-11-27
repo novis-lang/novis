@@ -6,7 +6,7 @@ context: [docs/rules/testing/tests-never-reach-a-build.md, docs/rules/testing/pr
 stages:
   - id: 1
     title: "#[TestOnly] exists, and what it marks joins the test-code table"
-    status: open
+    status: done
     context: [docs/rules/attributes/an-attribute-is-declared-with-its-sites.md, crates/nvs-types/src/check.rs, crates/nvs-diagnostics/src/code/types_e10.rs]
   - id: 2
     title: "every use of test-only code outside test code does not compile"
@@ -109,13 +109,15 @@ working, not a widening.
   refuses these with the ordinary wrong-site error, so `E1019` is not needed for them. A test-only
   property would give an object a different layout under `nvs test` than under `nvs run`, and a
   codec or `Core\Reflect` would show tests a shape production never has.
-- On a method that overrides or implements a method that is not test code. Production calls that
-  method through the parent type, so it must exist in a build.
+- On a method of a type that is not test-only, when the method overrides or implements a method
+  that is not test code. Production calls that method through the parent type, so it must exist in
+  a build. A test-only type may implement a production interface, such as a fake `Clock`, because
+  no object of it exists outside tests (decided in stage 1, so the fake-clock example compiles).
 - On a method that is not test code and overrides or implements a test-only one. It must carry
   `#[TestOnly]` too, or production could call the name through the subclass.
 - On a class or interface that is not test code and extends or implements a test-only type, and on a
   type that is not test code with a test-only type as a type argument in its `extends` or
-  `implements`.
+  `implements`. The type-argument half is checked with stage 2's type positions, as `E0889`.
 - A `#[TestOnly]` on a member of a type that already carries it is allowed and says nothing.
 
 **What counts as a use.** Everything `[[restrict]]`'s use list names
@@ -219,16 +221,16 @@ and the hierarchy and could run beside `refactor-commands` as a side goal. Stage
 
 ### 1. #[TestOnly] exists, and what it marks joins the test-code table
 
-- [ ] `crates/nvs-types/src/derive.rs:835`: a `TEST_ONLY` constant (`Core\TestOnly`) beside `TEST`,
+- [x] `crates/nvs-types/src/derive.rs:835`: a `TEST_ONLY` constant (`Core\TestOnly`) beside `TEST`,
   and its `ATTRIBUTE_DOCS` row (`:221`, shaped like `DEPRECATED`'s at `:755`) with the four sites and
   end-user `short` and `site` texts. `rule:attributes/an-attribute-is-declared-with-its-sites`.
-- [ ] `crates/nvs-types/src/test_code.rs:60`: `build_table` adds every `#[TestOnly]` method, and
+- [x] `crates/nvs-types/src/test_code.rs:60`: `build_table` adds every `#[TestOnly]` method, and
   every method of a `#[TestOnly]` class, interface or enum, to the method set; a second set holds the
   test-only types. The module doc (`:1`) is rewritten whole to name the eighth way in.
-- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1019` with its card, and the checks of
+- [x] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1019` with its card, and the checks of
   § *Where it is not allowed* where a class's parents and overrides are resolved
   (`crates/nvs-types/src/check.rs`; the session finds the override check by `E_` code).
-- [ ] `crates/nvs-types/tests/test_only.rs` (new): the six tests of the check `marker`, then
+- [x] `crates/nvs-types/tests/test_only.rs` (new): the six tests of the check `marker`, then
   `cargo test --test test_only` once.
 
 ### 2. every use of test-only code outside test code does not compile
@@ -296,14 +298,32 @@ above.
 
 ### State
 
-Written by an interactive session on 2026-11-26 from the user's idea. The user agreed to the
-attribute and asked for the goal; every call under § *Standing decisions* is the session's, open
-until the user changes one. Nothing is built. Every anchor was read on that day, while
-`mail-complete` ran.
+Stage 1 is done, and the check `marker` is green (`cargo test --test test_only`, 6 passed).
+`#[Core\TestOnly]` is a row of `ATTRIBUTES` and `ATTRIBUTE_DOCS` (`crates/nvs-types/src/derive.rs`,
+after `DEPRECATED`), and `crates/nvs-types/src/attributes.rs` reports a field on it as it does for
+`#[Core\Path]`. A file writes it as `use Core\TestOnly;` and `#[TestOnly]`, the way
+`#[Core\Deprecated]` is written. `TestCode` (`crates/nvs-types/src/test_code.rs`) now has three
+sets: every test-code method, the test-only methods, and the test-only types. It reads enums too,
+so lowering already skips each test-only method under `nvs run`, through `record_test_code`
+(`check.rs` `check_method`). `check_hierarchy` raises `E1019` and runs from `check.rs` right after
+`build_table`.
+
+The session also fixed the push run's two Miri timeouts in the mail tests (`215257ff46`). Every
+job the nightly sweep named was already fixed on `main`: the zone tests in `c115a735a1`, the
+`Parses` case in `28a4d7a6bf` and the serve bound in `544711a8fb`.
 
 ### Next
 
-Stage 1 from its first item. The check `marker` is red until `crates/nvs-types/tests/test_only.rs`
-exists with its six tests.
+Stage 2 from its first item. `refuse_calls` (`crates/nvs-types/src/test_code.rs`, after
+`check_hierarchy`) also reads the `New`, `StaticProperty`, `ClassConst` and `ClassConstLate`
+entries against `TestCode::is_test_only_type`, and its message takes the one shape of § *What
+counts as a use*. Type positions are checked where `check_method` reads the method's test-code
+flag (`crates/nvs-types/src/check.rs`, `fn check_method`). The type arguments of an `implements`
+clause go in the same check. A test-only class still gets a class row under `nvs run` until stage 3.
+
+Tests expected to go red at the gate: `every_core_attribute_is_one_declaration` should hold, but
+any test that counts `ATTRIBUTES` or snapshots the attribute cards, stubs or `nvs meta` output will
+change by one row. The new code `E1019` may need a line wherever the error codes are listed for
+the website.
 
 ### Backlog
