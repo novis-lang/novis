@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-host/src/affinity.rs]
   - id: 3
     title: "each function's machine code has a key that covers everything its code reads, and no number baked into it depends on where it sits"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/ir.rs, docs/rules/packaging/an-artifact-is-one-immutable-content-addressed-file.md]
   - id: 4
     title: "machine code is stored one file per source file under a program list, and a cold compile generates each new function once"
@@ -210,6 +210,17 @@ Novis name, a literal by the digest of its contents (`emit::Literals::digests`),
 its symbol. The environment hash is folded in by the store in stage 4, because `nvs-codegen` does
 not know the extension set. `nvs_codegen::function_keys` emits a program and returns every key;
 keys cost one IR printing and one BLAKE3 pass per function, and nothing when not asked for.
+**Built (stage 3, the bases):** a relocation, not a table. Each function's statement, edge, query
+and index base is an imported symbol named by its Novis name (`emit::BaseKind`, `base_symbol`),
+and each use is a `symbol_value` whose addend is the local number: one instruction on x86-64, the
+same count as the constant it replaced, and a literal-pool load on aarch64. A table entry would add
+a load and an add to every use. The JIT publishes the numbers into its symbol map before it links
+(`base_symbols`), and `Descriptors::resolve` answers them on a warm hit, so a stored payload needs
+no new field. A stop site reads its byte at a pointer the entry block offsets by the statement
+base. **Cost:** four names per function while a unit links. A function's *lines* stay in its key,
+because its backtrace label prints them, so a function moved down a file still moves its key. The
+static slots and class layouts stay program-wide numbers that are in the key: a static declared
+before another moves the keys of the second one's readers, which is correct and only coarser.
 
 **Stage 4: one file per source file, and one code walk.** A source file's entry holds the
 relocatable code of the functions it declares, each under its own key, and is keyed by the keys it
@@ -291,9 +302,11 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
   - [x] `UnitBuilder::function_key` hashes the emitted IR with position-free target names.
   - [x] `function_keys` returns every function's key, and
     `tests::a_key_names_a_literal_by_its_contents` passes.
-- [ ] `crates/nvs-codegen/src/lib.rs:2943` (`Base`): the statement, edge and query bases and the
+- [x] `crates/nvs-codegen/src/lib.rs:2943` (`Base`): the statement, edge and query bases and the
   function index are bound at link time.
-- [ ] `crates/nvs-codegen/tests/function_keys.rs` (new): the three tests of the check.
+  - [x] The emit relocates against `emit::BaseKind` symbols with the local number as the addend.
+  - [x] The JIT and `Descriptors` resolve each symbol to its number (`base_symbols`).
+- [x] `crates/nvs-codegen/tests/function_keys.rs` (new): the three tests of the check.
 
 ### 4. machine code is stored one file per source file under a program list, and a cold compile generates each new function once
 
@@ -351,28 +364,29 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1 and 2 are done, each in one session. Stage 3, session 1 of 2: the first item is done.
-`nvs_codegen::function_keys` (`crates/nvs-codegen/src/lib.rs:1497`) returns each function's key,
-and `UnitBuilder::function_key` (`lib.rs:3378`) builds it from the IR the emit wrote (§ *Standing
-decisions*, *Built (stage 3, the key)*). `tests::a_key_names_a_literal_by_its_contents` passes.
+Stages 1, 2 and 3 are done. Stage 3 took two sessions. The second bound the bases at link time:
+each function's statement, edge, query and index numbers are relocations against
+`emit::BaseKind` symbols (`crates/nvs-codegen/src/emit.rs`, `base_symbol`, `base_global`,
+`Emitter::base_value`). The JIT publishes them and `Descriptors::resolve` answers them on a warm
+hit (`base_symbols`, `crates/nvs-codegen/src/lib.rs`). § *Standing decisions*, *Built (stage 3,
+the bases)* records the choice and its cost. `cargo test --test function_keys` passes all three
+tests of the check `function-keys`.
 
-The nightly's nine failures (run 45813627231) were fixed on `main` after that run's commit:
-`c115a735a1` (the four zone tests skip Miri), `28a4d7a6bf` (the `Core\Uuid` conformance case)
-and `544711a8fb` (the serve stack-page bound). This session checked each against the run's log.
+The sweep's nine nightly failures came from run 45813627231 at `4e43e1fa2e`. `main` fixed them
+after that commit (`c115a735a1`, `28a4d7a6bf`, `544711a8fb`). This session checked that.
 
-This file had a duplicated tail (the standing decisions, the stages and an older handoff, written
-twice after `### Backlog`). It was cut back to one copy.
-
-Tests that may go red elsewhere: none expected. Nothing outside `function_keys` asks for keys.
+Tests that may go red elsewhere, none of them run here: the coverage and debugger tests
+(`crates/nvs-codegen/tests/probes.rs`, the debug-switch tests), the query-span tests (a query id
+is now base plus addend), `crates/nvs-cli/tests/compile_cache.rs` (a warm hit resolves the base
+symbols out of `Descriptors`), and any instruction-count bound on aarch64, where each base use is
+now a literal-pool load.
 
 ### Next
 
-Stage 3's second item: the bases in `Base` (`crates/nvs-codegen/src/lib.rs:2981`) are bound at
-link time. Today a function placed before another moves its key, because the probe calls carry the
-program-wide statement and edge numbers as immediates (`emit.rs`, the 19 uses of `stmt_base`,
-`edge_base`, `function_index` and `query_ids`). Then `crates/nvs-codegen/tests/function_keys.rs`
-with the three tests of the check `function-keys`: `a_function_moved_in_the_program_keeps_its_bytes`
-can reuse the `before(...)` program of the unit test, with a different number of statements.
+Stage 4, its first item: `crates/nvs-cli/src/cache.rs:1716` (`unit_key`) and `:1759`
+(`unit_for`) read and write the program list and the source-file entries (§ *Stage 4*). Each
+function's key comes from `nvs_codegen::function_keys` (`lib.rs:1497`), with the environment hash
+folded in by the store. `compile_beside_object` is at `cache.rs:1815`, eviction at `:2018`, and
+the `compile:` line's `functions=` and `reused=` at `crates/nvs-cli/src/main.rs:1027`.
 
 ### Backlog
-
