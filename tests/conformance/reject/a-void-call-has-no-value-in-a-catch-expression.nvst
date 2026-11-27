@@ -1,0 +1,45 @@
+--TEST--
+A `void` call as the guarded expression or an arm body of a `catch` expression is `E1020`, whether the expression is a statement, a value or inside a closure, and it reports once (`rule:expressions/catch-result-type`)
+--FILE--
+<?nvs
+final class Job {
+    public static function run(): void {
+        throw new RuntimeError('no disk');
+    }
+    public static function count(): int {
+        return 1;
+    }
+}
+
+Job::run() catch (RuntimeError $e) => null;
+var $kept = Job::run() catch (RuntimeError) => 1;
+echo Job::run() catch (RuntimeError) => 1;
+int $n = Job::count() catch (RuntimeError) => Job::run();
+var $later = fn(): void => {
+    Job::run() catch (RuntimeError) => null;
+};
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1020]: this `catch` expression uses a call that returns `void`
+%A
+11 | Job::run() catch (RuntimeError $e) => null;
+%A
+error[E1020]: this `catch` expression uses a call that returns `void`
+%A
+12 | var $kept = Job::run() catch (RuntimeError) => 1;
+%A
+error[E1020]: this `catch` expression uses a call that returns `void`
+%A
+13 | echo Job::run() catch (RuntimeError) => 1;
+%A
+error[E1020]: this `catch` expression uses a call that returns `void`
+%A
+14 | int $n = Job::count() catch (RuntimeError) => Job::run();
+%A
+error[E1020]: this `catch` expression uses a call that returns `void`
+%A
+16 |     Job::run() catch (RuntimeError) => null;
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

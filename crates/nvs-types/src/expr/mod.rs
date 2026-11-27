@@ -1179,7 +1179,13 @@ fn infer_kind(
             // shape `crate::locals`' `StmtKind::Try` arm builds.
             let mark = live.mark();
             let never = env.interner.never();
-            let mut types = vec![check_expr(guarded, None, live, scope, ctx, env)];
+            let guard_ty = check_expr(guarded, None, live, scope, ctx, env);
+            let mut types = vec![refuse_void_catch_part(
+                guard_ty,
+                guarded,
+                "before `catch`",
+                env,
+            )];
             let mut joins: Vec<Vec<String>> = vec![live.rewind(mark)];
             for arm in arms {
                 let ty = lower_type(&arm.ty, ctx, env);
@@ -1215,7 +1221,12 @@ fn infer_kind(
                 // expression finishes, exactly as a terminating clause is left
                 // out of the block form's own join.
                 if arm_ty != never {
-                    types.push(arm_ty);
+                    types.push(refuse_void_catch_part(
+                        arm_ty,
+                        &arm.body,
+                        "in this arm",
+                        env,
+                    ));
                     joins.push(arm_added);
                 }
             }
@@ -1339,6 +1350,34 @@ fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) 
              `catch (Throwable $e) => report($e)`",
         ),
     );
+}
+
+/// `rule:expressions/catch-result-type`: the guarded expression and every arm
+/// body that completes are the `catch` expression's value, and a `void` call
+/// has none, so either is `E1020` where it is written. That holds in statement
+/// position too, as `E0868` holds for a `match` arm.
+///
+/// A refused part comes back as the error type, so the union is the error
+/// type and the position the expression sits in reports nothing more
+/// (`rule:types/one-mistake-reports-once`). Lowering never sees the `void`
+/// operand, which no phi can carry. `place` finishes the label: "before
+/// `catch`" or "in this arm".
+fn refuse_void_catch_part(ty: TypeId, part: &Expr, place: &str, env: &mut Env<'_>) -> TypeId {
+    if !matches!(env.interner.get(ty), Ty::Void) {
+        return ty;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_VOID_IN_CATCH_EXPRESSION,
+            "this `catch` expression uses a call that returns `void`",
+        )
+        .with_primary(part.span, format!("this call {place} has no value"))
+        .with_help(
+            "a `catch` expression gives a value. To catch an error from a call that returns \
+             `void`, write a `try` block: `try { ... } catch (Error $e) { ... }`",
+        ),
+    );
+    env.interner.error()
 }
 
 /// `self`/`static`/`$this`'s type, resolved against the enclosing

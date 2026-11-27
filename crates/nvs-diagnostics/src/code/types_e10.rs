@@ -231,4 +231,16 @@ codes! {
          production code calls that method. A method that overrides a test-only method must be \
          `#[TestOnly]` too.",
     );
+
+    /// A `catch` expression whose guarded expression or arm body is a call
+    /// that returns `void` (`rule:expressions/catch-result-type`). The
+    /// expression is the value of the guard or of an arm, so a part with none
+    /// has nothing to give, whether the expression is used or written as a
+    /// statement. `E0868` is the same refusal for a `match` arm.
+    pub const E_VOID_IN_CATCH_EXPRESSION: Code = Code::new("E1020").card(
+        "A `catch` expression gives a value: the value of the call before `catch`, or the value \
+         of the arm that caught the error. A function that returns `void` gives no value, so it \
+         cannot be one of these parts. To catch an error from such a call, write a `try` block: \
+         `try { save(); } catch (IOError $e) { ... }`. Or return a value from the function.",
+    );
 }

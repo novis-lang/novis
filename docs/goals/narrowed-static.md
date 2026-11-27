@@ -130,10 +130,10 @@ the body's `LocalScope`, as `static_callbacks` records a `callable(static)` para
 to E0741's list: its initializer, an assignment, an append `$xs[] = $v`, an element write
 `$xs[$k] = $v`, a nested element write and a compound write. `check_write_target`
 (`crates/nvs-types/src/expr/assign.rs:1434`) and `check_assign` (`:1133`) are where the writes meet.
-A value off the list is the new error `E1020` (the next free code after `test-only`'s `E1019`; the
+A value off the list is the new error `E1021` (the next free code after `E1020`, the `void` `catch` part; the
 session takes the next free one if that has moved): "a variable declared `static` gets a value that is
 not the called class", primary label on the value, secondary on the declaration. An `inout` pass of
-such a local is `E1020` too, because the callee's parameter type is the declaring class and may write
+such a local is `E1021` too, because the callee's parameter type is the declaring class and may write
 any value of it. A `foreach` over it with a by-value element is a read and is allowed. Removing an
 element is allowed. `yields_the_called_class` then accepts a read of such a local. This replaces the
 rule's sentence "a local variable is none of these, so an `array<static>` built up in a loop is
@@ -203,9 +203,9 @@ attempt is written to `### Backlog` with what blocked it.
 
 - [ ] `crates/nvs-types/src/locals.rs:222`: a record of every local whose declared type binds `static`,
   beside `static_callbacks`, made where a typed declaration is checked.
-- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1020` with its card.
+- [ ] `crates/nvs-diagnostics/src/code/types_e10.rs`: `E1021` with its card.
 - [ ] `crates/nvs-types/src/expr/assign.rs:1133` and `:1434`: every write of § *Stage 3* to such a
-  local is held to `yields_the_called_class`, and an `inout` pass of it is `E1020`
+  local is held to `yields_the_called_class`, and an `inout` pass of it is `E1021`
   (`crates/nvs-types/src/expr/calls.rs`; the session finds the `inout` argument check by name).
 - [ ] `crates/nvs-types/src/check.rs:1763`: a read of such a local is on the list.
 - [ ] The five tests of the check `static-locals`, then `cargo test --test narrowed_static` once.
