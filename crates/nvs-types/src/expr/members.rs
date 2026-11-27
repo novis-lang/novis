@@ -2654,7 +2654,11 @@ pub(crate) fn check_property_member(
                 if let ExprInfo::Property { narrowed: slot, .. } = &mut record {
                     *slot = narrowed;
                 }
-                env.exprs.record(object.span.to(*name_span), record);
+                let span = object.span.to(*name_span);
+                if crate::locals::property_carries_called_class(object, &owner, &name, scope, env) {
+                    scope.note_called_class_read(span);
+                }
+                env.exprs.record(span, record);
                 narrowed.unwrap_or(ty)
             }
             None => {

@@ -47,6 +47,13 @@
 //! [`Narrowing`], which records what it installed so it can tell the two
 //! apart).
 //!
+//! An entry is a [`Fact`]: the type, and whether `$x is static` proved the
+//! value is the called class. That second part changes no type. It puts each
+//! read of the key on E0741's list, by span
+//! ([`LocalScope::note_called_class_read`]), because that list is asked after
+//! the walk. It is a field of the entry, so the rules below drop it exactly as
+//! they drop the type.
+//!
 //! Two rules keep that sound, and both are load-bearing because `nvs-ir`
 //! turns a narrowed receiver into an *unchecked* `nvs_ir::ir::InstKind::Untag`:
 //!
@@ -180,7 +187,13 @@ pub(crate) struct LocalScope {
     /// is one: the whole expression checker threads a `&LocalScope`, and both
     /// the read that consults a narrowing and the write that must drop it
     /// happen mid-expression.
-    narrowed: std::cell::RefCell<FxHashMap<String, TypeId>>,
+    narrowed: std::cell::RefCell<FxHashMap<String, Fact>>,
+    /// The span of every read of a variable or a `readonly` path that carried
+    /// the called-class fact of an `is static` test ([`Fact::called_class`])
+    /// when it was checked. `crate::check::yields_the_called_class` reads it
+    /// after the walk, when the narrowing that proved it is gone. One span per
+    /// such read, for one body, at check time only.
+    called_class_reads: std::cell::RefCell<FxHashSet<Span>>,
     /// One layer per loop being checked, innermost last: the narrowings
     /// [`suspend`] put out of a read's reach for it. A write still reaches
     /// them ([`LocalScope::drop_narrowing`]), which is what makes resuming one
@@ -304,8 +317,8 @@ impl LocalScope {
     /// the binding was declared as — so every write path goes through
     /// [`Self::overwrite`] instead.
     pub(crate) fn declared_ty(&self, name: &str) -> Option<TypeId> {
-        if let Some(narrowed) = self.narrowed.borrow().get(name) {
-            return Some(*narrowed);
+        if let Some(narrowed) = self.narrowed_ty(name) {
+            return Some(narrowed);
         }
         if let Some(info) = self.arm_bound.borrow().get(name) {
             return Some(info.ty);
@@ -349,7 +362,29 @@ impl LocalScope {
     /// variable-read arm, because the fact has to reach `nvs-ir` on the read's
     /// own span — see [`crate::expr_table::ExprInfo::NarrowedRead`].
     pub(crate) fn narrowed_ty(&self, name: &str) -> Option<TypeId> {
-        self.narrowed.borrow().get(name).copied()
+        self.narrowed.borrow().get(name).and_then(|fact| fact.ty)
+    }
+
+    /// Whether a dominating `is static` test proved that `key`, a variable's
+    /// name or a `readonly` path's key, is an instance of the called class or
+    /// `null` on the path being checked right now ([`Fact::called_class`]).
+    pub(crate) fn carries_called_class(&self, key: &str) -> bool {
+        self.narrowed
+            .borrow()
+            .get(key)
+            .is_some_and(|fact| fact.called_class)
+    }
+
+    /// Records that the read at `span` carried the called-class fact — see
+    /// [`Self::called_class_reads`].
+    pub(crate) fn note_called_class_read(&self, span: Span) {
+        self.called_class_reads.borrow_mut().insert(span);
+    }
+
+    /// Whether the read at `span` carried the called-class fact when it was
+    /// checked.
+    pub(crate) fn read_the_called_class(&self, span: Span) -> bool {
+        self.called_class_reads.borrow().contains(&span)
     }
 
     /// What `name` was *declared* as, dropping any narrowing on it first —
@@ -426,6 +461,32 @@ impl LocalScope {
     }
 }
 
+/// What a dominating condition proved about one key of [`LocalScope::narrowed`].
+///
+/// `ty` is the type the key provably has, or `None` where the test proved no
+/// type narrower than the one the key already had. `called_class` is set by
+/// `$x is static` and `$x is ?static` on their true edge: the value is an
+/// instance of the called class, or `null`
+/// (`rule:statements/static-is-a-member-modifier`). The type stays the
+/// declaring class, so the fact changes no type. It only puts a read of the key
+/// on E0741's list. The fact is a field of the entry, so every path that drops,
+/// suspends or restores a narrowing drops, suspends or restores it too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Fact {
+    pub ty: Option<TypeId>,
+    pub called_class: bool,
+}
+
+impl Fact {
+    /// A narrowing to `ty`, with no called-class fact.
+    fn to(ty: TypeId) -> Self {
+        Self {
+            ty: Some(ty),
+            called_class: false,
+        }
+    }
+}
+
 /// One installed narrowing, and everything needed to take it back off again.
 ///
 /// `installed` is what [`narrow`] put in [`LocalScope::narrowed`]; `previous`
@@ -434,7 +495,7 @@ impl LocalScope {
 /// it in between, that write is the newer fact and restoring would resurrect
 /// a narrowing the program has already invalidated.
 #[derive(Debug, Default)]
-pub(crate) struct Narrowing(Vec<(String, TypeId, Option<TypeId>)>);
+pub(crate) struct Narrowing(Vec<(String, Fact, Option<Fact>)>);
 
 impl Narrowing {
     /// Folds `other`'s entries in, so a run of consecutive guard clauses is
@@ -451,7 +512,7 @@ impl Narrowing {
                 continue;
             }
             match previous {
-                Some(ty) => map.insert(name, ty),
+                Some(fact) => map.insert(name, fact),
                 None => map.remove(&name),
             };
         }
@@ -549,18 +610,29 @@ pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<
         }
         _ => {}
     }
-    let residue = match null_residue(cond, when, scope, env) {
-        Some(found) => Some(found),
+    let found = match null_residue(cond, when, scope, env) {
+        Some((name, ty)) => Some((name, Fact::to(ty))),
         None => match type_test_residue(cond, when, scope, env) {
             Some(found) => Some(found),
-            None => single_value_residue(cond, when, scope, env),
+            None => {
+                single_value_residue(cond, when, scope, env).map(|(name, ty)| (name, Fact::to(ty)))
+            }
         },
     };
-    let Some((name, residue)) = residue else {
+    let Some((name, found)) = found else {
         return Narrowing::default();
     };
-    let previous = scope.narrowed.borrow_mut().insert(name.clone(), residue);
-    Narrowing(vec![(name, residue, previous)])
+    // A test of a key that is already narrowed only narrows it further, with
+    // no write in between, so what the earlier test proved still holds: a
+    // type the new test leaves alone, and the called-class fact.
+    let mut map = scope.narrowed.borrow_mut();
+    let previous = map.get(&name).copied();
+    let installed = Fact {
+        ty: found.ty.or(previous.and_then(|fact| fact.ty)),
+        called_class: found.called_class || previous.is_some_and(|fact| fact.called_class),
+    };
+    map.insert(name.clone(), installed);
+    Narrowing(vec![(name, installed, previous)])
 }
 
 /// The local a `!= null` test narrows on the branch where it evaluates to
@@ -678,6 +750,22 @@ pub(crate) fn narrowed_property(
     scope.narrowed_ty(&format!("{root}->{name}"))
 }
 
+/// Whether a dominating `is static` test proved the called-class fact for the
+/// read `object->name` ([`Fact::called_class`]). The same path rule as
+/// [`narrowed_property`]: the property is `readonly`, and its receiver is a
+/// variable or a `readonly` path.
+pub(crate) fn property_carries_called_class(
+    object: &Expr,
+    owner: &nvs_hir::QName,
+    name: &str,
+    scope: &LocalScope,
+    env: &Env<'_>,
+) -> bool {
+    crate::signatures::property_is_readonly(owner, name, env.signatures)
+        && path_root(object, env)
+            .is_some_and(|root| scope.carries_called_class(&format!("{root}->{name}")))
+}
+
 /// The local an `is` test narrows on the branch where it evaluates to `when`,
 /// and the type it proves.
 ///
@@ -720,21 +808,26 @@ pub(crate) fn narrowed_property(
 /// puts them back once more against the variable's current type. So
 /// `?tainted string` narrows to `tainted string` and never to `string`, whatever
 /// recorded the test (`rule:types/narrowing`).
+///
+/// **`is static` also proves the called-class fact** ([`Fact::called_class`]),
+/// even where its type is the one the subject already has. That is the usual
+/// case: a `Model` tested in a method of `Model` keeps the type `Model`, and
+/// the entry is installed for the fact alone.
 fn type_test_residue(
     cond: &Expr,
     when: bool,
     scope: &LocalScope,
     env: &mut Env<'_>,
-) -> Option<(String, TypeId)> {
+) -> Option<(String, Fact)> {
     let (tested, test_span, proved_when) = type_test(cond)?;
     if proved_when != when {
         return None;
     }
     let (name, current) = subject(tested, scope, env)?;
-    let residue = match env.exprs.lookup(test_span) {
-        Some(&ExprInfo::TypeTest { tested }) => tested,
-        Some(&ExprInfo::ClassRefTest { base }) => base,
-        Some(&ExprInfo::CalledClassTest { tested, .. }) => tested,
+    let (residue, called_class) = match env.exprs.lookup(test_span) {
+        Some(&ExprInfo::TypeTest { tested }) => (tested, false),
+        Some(&ExprInfo::ClassRefTest { base }) => (base, false),
+        Some(&ExprInfo::CalledClassTest { tested, .. }) => (tested, true),
         _ => return None,
     };
     let residue = crate::expr::type_test::keep_subject_qualifiers(
@@ -743,7 +836,8 @@ fn type_test_residue(
         crate::expr::quals::ErasingPosition::TypeTest,
         env.interner,
     );
-    (residue != current).then_some((name, residue))
+    let ty = (residue != current).then_some(residue);
+    (ty.is_some() || called_class).then_some((name, Fact { ty, called_class }))
 }
 
 /// The `$x is Type` test `cond` is, if it is one at all: the tested operand,
@@ -909,7 +1003,7 @@ fn rooted_at(key: &str, root: &str) -> bool {
 #[derive(Debug)]
 struct Shadowed {
     /// The narrowings [`suspend`] took out of [`LocalScope::narrowed`].
-    taken: FxHashMap<String, TypeId>,
+    taken: FxHashMap<String, Fact>,
     /// The keys [`loop_writes`] found the loop can write.
     writes: FxHashSet<String>,
     /// Every key the checker dropped inside the loop that `writes` does not
@@ -965,10 +1059,10 @@ impl Suspended {
 /// because the condition is tested again before every entry.
 fn suspend(scope: &LocalScope, writes: FxHashSet<String>) -> Suspended {
     let mut taken = FxHashMap::default();
-    scope.narrowed.borrow_mut().retain(|key, ty| {
+    scope.narrowed.borrow_mut().retain(|key, fact| {
         let written = writes.iter().any(|w| rooted_at(key, w));
         if written {
-            taken.insert(key.clone(), *ty);
+            taken.insert(key.clone(), *fact);
         }
         !written
     });
@@ -2305,7 +2399,10 @@ mod tests {
         let int = interner.int();
         let scope = LocalScope::new();
         for key in ["n", "n->a", "k"] {
-            scope.narrowed.borrow_mut().insert(key.to_owned(), int);
+            scope
+                .narrowed
+                .borrow_mut()
+                .insert(key.to_owned(), super::Fact::to(int));
         }
         let writes: FxHashSet<String> = ["n".to_owned()].into_iter().collect();
         let _suspended = suspend(&scope, writes);

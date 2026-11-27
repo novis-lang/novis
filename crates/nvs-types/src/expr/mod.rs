@@ -378,6 +378,11 @@ fn infer_kind(
                 env.exprs
                     .record(expr.span, ExprInfo::NarrowedRead { to: ty });
             }
+            // A read under `is static`'s true edge is on E0741's list, which
+            // is asked after the walk: `crate::check::yields_the_called_class`.
+            if scope.carries_called_class(name) {
+                scope.note_called_class_read(expr.span);
+            }
             ty
         }
         ExprKind::ConstFetch(_) => env.interner.mixed(),

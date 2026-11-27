@@ -2935,7 +2935,7 @@ pub(crate) fn check_call_through_static_callback(
         let before = env.diags.len();
         check_expr(&arg.value, expected, live, scope, ctx, env);
         let at_static = record.static_at.get(index).copied().unwrap_or(false);
-        if !at_static || crate::check::yields_the_called_class(&arg.value, ctx, env) {
+        if !at_static || crate::check::yields_the_called_class(&arg.value, scope, ctx, env) {
             continue;
         }
         proven = false;

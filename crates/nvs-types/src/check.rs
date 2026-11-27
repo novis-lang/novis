@@ -1621,7 +1621,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
         record_locals(body.span, &mut scope, env);
         check_every_path_returns(m, body, return_ty, env);
-        reject_static_return_of_another_class(m, body, ctx, env);
+        reject_static_return_of_another_class(m, body, &scope, ctx, env);
         keep_body_reads(label.as_ref(), env);
         env.body_writers = outer_writers;
         if let Some(label) = label {
@@ -1700,10 +1700,14 @@ fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
 /// * an array literal whose every value is on this list.
 /// * a `new` of a `Core` generic collection with no constructor arguments,
 ///   such as `new Core\ObjectMap<string, static>()`: it is empty, as `[]` is.
+/// * a variable, or a path of `readonly` properties, read where a dominating
+///   `$x is static` or `$x is ?static` holds: the test compared its class with
+///   the called class at run time. A write, or a loop that writes it, drops
+///   the fact with the narrowing ([`crate::locals::Fact`]).
 ///
-/// A local variable is not on the list, so a `static[]` built up in a loop is
-/// refused: its type is the declaring class's array, and the checker does not
-/// keep `static` apart from that class inside the body.
+/// Any other local variable is not on the list, so a `static[]` built up in a
+/// loop is refused: its type is the declaring class's array, and the checker
+/// does not keep `static` apart from that class inside the body.
 ///
 /// An explicitly named class (`Base::make()`) is deliberately not on that
 /// list: naming a class *sets* the called class, so its answer is that class
@@ -1716,6 +1720,7 @@ fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
 fn reject_static_return_of_another_class(
     m: &MethodMember,
     body: &Block,
+    scope: &crate::locals::LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
@@ -1730,7 +1735,7 @@ fn reject_static_return_of_another_class(
     {
         let read: &Env<'_> = env;
         crate::returns::for_each_return(&body.stmts, &mut |e: &Expr| {
-            if !yields_the_called_class(e, ctx, read) {
+            if !yields_the_called_class(e, scope, ctx, read) {
                 offenders.push(e.span);
             }
         });
@@ -1745,9 +1750,10 @@ fn reject_static_return_of_another_class(
             .with_primary(span, "not the called class")
             .with_secondary(declared, "declared `static` here")
             .with_help(
-                "`static` is the class the call named, which a subclass may be — return `$this` \
-                 or `new static(...)`, or declare `self` if the declaring class is what is meant. \
-                   In a `final` class `static` is that class, so any value of it may be returned",
+                "`static` is the class the call named, which a subclass may be. Return `$this`, \
+                 `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if \
+                 the declaring class is what is meant. In a `final` class `static` is that \
+                 class, so any value of it may be returned",
             ),
         );
     }
@@ -1767,18 +1773,33 @@ fn callable_sig_of(ty: TypeId, env: &Env<'_>) -> Option<(Vec<TypeId>, TypeId)> {
 /// [`reject_static_return_of_another_class`] documents. A call through a
 /// `callable(static)` parameter holds each `static` argument to it too
 /// (`crate::expr::calls::check_call_through_static_callback`).
-pub(crate) fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
+///
+/// `scope` is the body's own, and `e` was checked in it already: a read under
+/// `is static` is known by its span ([`crate::locals::LocalScope::read_the_called_class`]).
+pub(crate) fn yields_the_called_class(
+    e: &Expr,
+    scope: &crate::locals::LocalScope,
+    ctx: &Ctx<'_>,
+    env: &Env<'_>,
+) -> bool {
     match &e.kind {
-        ExprKind::Variable(span) => span_text(env.src, *span) == "$this",
+        ExprKind::Variable(span) => {
+            span_text(env.src, *span) == "$this" || scope.read_the_called_class(e.span)
+        }
+        ExprKind::PropertyAccess { .. } => scope.read_the_called_class(e.span),
+        ExprKind::Paren(inner) => yields_the_called_class(inner, scope, ctx, env),
         ExprKind::Null => true,
         ExprKind::Ternary {
             then: Some(then),
             else_,
             ..
-        } => yields_the_called_class(then, ctx, env) && yields_the_called_class(else_, ctx, env),
+        } => {
+            yields_the_called_class(then, scope, ctx, env)
+                && yields_the_called_class(else_, scope, ctx, env)
+        }
         ExprKind::ArrayLiteral(items) => items
             .iter()
-            .all(|item| yields_the_called_class(&item.value, ctx, env)),
+            .all(|item| yields_the_called_class(&item.value, scope, ctx, env)),
         ExprKind::New {
             target: NewTarget::StaticTy,
             ..

@@ -100,3 +100,151 @@ final class Order {
         declared.folded_at("$o is static")
     );
 }
+
+/// How many `E0741` errors `diags` has.
+fn not_the_called_class(diags: &nvs_diagnostics::Diagnostics) -> usize {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_STATIC_RETURN_NOT_CALLED_CLASS))
+        .count()
+}
+
+/// `Model` with the bodies `methods`, a `readonly ?Model $parent`, and one
+/// subclass, so the class is not `final`.
+fn model(methods: &str) -> String {
+    format!(
+        "<?nvs
+class Model {{
+    public readonly ?Model $parent;
+    function constructor(?Model $p) {{ $this->parent = $p; }}
+{methods}
+}}
+class Order extends Model {{}}
+"
+    )
+}
+
+/// On the true edge of `is static` and `is ?static`, a variable, or a
+/// `readonly` path, may be returned as `static` and `?static`, also inside a
+/// loop that does not write it.
+#[test]
+fn a_value_narrowed_by_is_static_is_the_called_class() {
+    let src = model(
+        "    public static function first(array<Model> $all): ?static {
+        foreach ($all as Model $o) {
+            if ($o is static) {
+                return $o;
+            }
+        }
+        return null;
+    }
+    public static function pick(?Model $o): ?static {
+        if ($o is ?static) {
+            return $o;
+        }
+        return null;
+    }
+    public static function only(Model $o, Model $fallback): static {
+        return $o is static ? $o : static::only($fallback, $fallback);
+    }
+    public function parentAsStatic(): ?static {
+        if ($this->parent is static) {
+            return $this->parent;
+        }
+        return null;
+    }
+    public static function both(Model $a, Model $b): array<static> {
+        if ($a is static && $b is static) {
+            return [$a, $b];
+        }
+        return [];
+    }",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A write to the variable drops the proof with the narrowing, and so does a
+/// loop that writes it, at a read written before the write too.
+#[test]
+fn a_write_after_is_static_drops_the_proof() {
+    let src = model(
+        "    public static function replaced(Model $o, Model $other): ?static {
+        if ($o is static) {
+            $o = $other;
+            return $o;
+        }
+        return null;
+    }
+    public static function lastOf(array<Model> $all, Model $o): ?static {
+        if ($o is static) {
+            foreach ($all as Model $x) {
+                $o = $x;
+            }
+            return $o;
+        }
+        return null;
+    }
+    public static function inLoop(array<Model> $all, Model $o): ?static {
+        if ($o is static) {
+            foreach ($all as Model $x) {
+                if ($x is Order) {
+                    return $o;
+                }
+                $o = $x;
+            }
+        }
+        return null;
+    }",
+    );
+    let diags = check_src(&src);
+    assert_eq!(not_the_called_class(&diags), 3, "{diags:?}");
+}
+
+/// Only the edge where the test holds proves anything: the `else` block and
+/// the code after an `if` that does not leave are not proven.
+#[test]
+fn the_else_edge_of_is_static_proves_nothing() {
+    let src = model(
+        "    public static function other(Model $o): ?static {
+        if ($o is static) {
+            return null;
+        } else {
+            return $o;
+        }
+    }
+    public static function after(Model $o): ?static {
+        if ($o is static) {
+            echo \"called class\";
+        }
+        return $o;
+    }",
+    );
+    let diags = check_src(&src);
+    assert_eq!(not_the_called_class(&diags), 2, "{diags:?}");
+}
+
+/// `if (!($o is static)) { continue; }` proves the rest of the block, as every
+/// other guard clause does.
+#[test]
+fn a_negated_is_static_guard_clause_proves_the_rest() {
+    let src = model(
+        "    public static function first(array<Model> $all): ?static {
+        foreach ($all as Model $o) {
+            if (!($o is static)) {
+                continue;
+            }
+            return $o;
+        }
+        return null;
+    }
+    public static function own(Model $o): ?static {
+        if (!($o is static)) {
+            return null;
+        }
+        return $o;
+    }",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}

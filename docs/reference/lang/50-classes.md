@@ -851,7 +851,7 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
 ...
 10 |         return new self();
    |                ^^^^^^^^^^ not the called class
-   = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
+   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
