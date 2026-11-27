@@ -188,19 +188,20 @@ which `every_type`, `under` and `unloaded_blocks` read. The rule, the editor pag
 `changes.json` entry say so. Every call under § *Standing decisions* is open until the user changes
 one.
 
-**The refused `DONE` came from uncommitted work outside this goal.** Someone working in this tree
-is making an object literal's undeclared shape key `E0454`: `crates/nvs-types/src/expr/literals.rs`,
-`crates/nvs-types/tests/objects_and_shapes.rs`, three cases under `tests/conformance/lang/` and a new
-reject case. Its borrow error broke `loadable`, and it was fixed before this session. Its formatting
-broke `close`. This session ran `rustfmt` on `literals.rs` alone and committed none of that work.
-254c6cfc29 gives `html-attributes` (on the chain since 86efa7f96c) a roadmap theme. `close` stays
-red on that work's own items: `lang:types/type-aliases` is stale on `syntax/values/union-types.mdx`
-and its `about.md`, and has no `changes.json` entry. No test is expected to go red.
+**`DONE` waits on uncommitted work outside this goal.** Someone working in this tree is making an
+object literal's undeclared shape key `E0454`: `crates/nvs-types/src/expr/literals.rs`,
+`crates/nvs-types/tests/objects_and_shapes.rs`, `crates/nvs-diagnostics/src/code/types.rs`, three
+cases under `tests/conformance/lang/`, a new reject case and a `changes.json` entry. It was still
+being edited at 09:27 on 2026-11-27. The tree now builds, and `loadable` is green again. `close` is
+red only on `cargo fmt --check` of `objects_and_shapes.rs`, that work's own file, which no session
+touches while it is being written. The nightly run 45813627231's three causes are fixed on `main`
+after it: c115a735a1 (zone tests skip Miri), 28a4d7a6bf (`Core\Uuid` is `Parses` at run time) and
+544711a8fb (the waiting-stack bound covers aarch64's 11.03). No test is expected to go red.
 
 ### Next
 
 Nothing in this goal. Once the `E0454` change is committed with its stamps and its `changes.json`
-entry, `bun nv close --goal loadable-completion` is green and `DONE` is claimed again. If that work
+entry and formatted, `bun nv close --goal loadable-completion` is green and `DONE` is claimed again. If that work
 is abandoned, discarding it is the user's decision, never a session's.
 
 ### Backlog
