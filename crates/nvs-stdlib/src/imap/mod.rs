@@ -632,28 +632,14 @@ impl Held {
         }
     }
 
-    /// Every folder of the mailbox.
-    fn folders(&mut self, member: &str) -> Result<Vec<String>, Fault> {
+    /// The signed-in session of a server block.
+    fn server(&mut self, member: &str) -> Result<&mut Session, Fault> {
         match &mut self.mailbox {
-            Backend::Server(session) => session.folders(member),
-            Backend::Directory(directory) => directory.folders(member),
+            Backend::Server(session) => Ok(session),
+            Backend::Directory(_) => Err(Fault::fatal(format!(
+                "{member}: a directory mailbox was asked for its server session"
+            ))),
         }
-    }
-
-    /// Selects `folder` unless it is selected already, and returns its `UIDVALIDITY`.
-    fn select(&mut self, folder: &str, member: &str) -> Result<u32, Fault> {
-        if let Some((name, validity)) = &self.selected
-            && name == folder
-        {
-            return Ok(*validity);
-        }
-        self.selected = None;
-        let validity = match &mut self.mailbox {
-            Backend::Server(session) => session.select(folder, member)?,
-            Backend::Directory(directory) => directory.select(folder, member)?,
-        };
-        self.selected = Some((folder.to_owned(), validity));
-        Ok(validity)
     }
 
     /// The name of the selected folder.
@@ -664,65 +650,116 @@ impl Held {
             .ok_or_else(|| Fault::fatal(format!("{member}: no folder is selected")))
     }
 
-    /// The UIDs of the selected folder that match `filter`. `ceiling` is how many bytes the
-    /// request can still hold.
-    fn search(&mut self, filter: &Filter, ceiling: u64, member: &str) -> Result<Vec<u32>, Fault> {
-        let folder = self.current(member)?;
-        match &mut self.mailbox {
-            Backend::Server(session) => session.search(filter, member),
-            Backend::Directory(directory) => directory.search(&folder, filter, ceiling, member),
-        }
-    }
+}
 
-    /// Adds `flag` to message `uid` of the selected folder, or removes it when `add` is false.
-    fn store(&mut self, uid: u32, flag: &str, add: bool, member: &str) -> Result<(), Fault> {
-        let folder = self.current(member)?;
-        match &mut self.mailbox {
-            Backend::Server(session) => session.store(uid, flag, add, member),
-            Backend::Directory(directory) => directory.store(&folder, uid, flag, add, member),
-        }
-    }
+// Each call below takes the session's key and not the `Held` itself. A directory block's files are
+// reached through the doors of `nvs_runtime::capability`, and a door reads `ctx`, so the
+// [`Directory`] is copied out of its session first. A server's session is borrowed as it is.
 
-    /// Moves message `uid` of the selected folder to `target`.
-    fn move_to(&mut self, uid: u32, target: &str, member: &str) -> Result<(), Fault> {
-        let folder = self.current(member)?;
-        match &mut self.mailbox {
-            Backend::Server(session) => session.move_to(uid, target, member),
-            Backend::Directory(directory) => directory.move_to(&folder, uid, target, member),
-        }
-    }
+/// A copy of session `key`'s [`Directory`], or `None` for a server block.
+fn directory_of(ctx: &mut Ctx, key: u64, member: &str) -> Result<Option<Directory>, Fault> {
+    Ok(match &held(ctx, key, member)?.mailbox {
+        Backend::Directory(directory) => Some(directory.clone()),
+        Backend::Server(_) => None,
+    })
+}
 
-    /// Deletes message `uid` of the selected folder.
-    fn delete(&mut self, uid: u32, member: &str) -> Result<(), Fault> {
-        let folder = self.current(member)?;
-        match &mut self.mailbox {
-            Backend::Server(session) => session.delete(uid, member),
-            Backend::Directory(directory) => directory.delete(&folder, uid, member),
-        }
+/// Every folder of session `key`'s mailbox.
+fn folders(ctx: &mut Ctx, key: u64, member: &str) -> Result<Vec<String>, Fault> {
+    if let Some(directory) = directory_of(ctx, key, member)? {
+        return directory.folders(ctx, member);
     }
+    held(ctx, key, member)?.server(member)?.folders(member)
+}
 
-    /// Selects `folder` and checks that its `UIDVALIDITY` is still `expected`.
-    fn reselect(&mut self, folder: &str, expected: u32, member: &str) -> Result<(), Fault> {
-        let validity = self.select(folder, member)?;
-        if validity == expected {
-            return Ok(());
-        }
-        Err(io(format!(
-            "{member}: the `UIDVALIDITY` of the folder `{folder}` changed from {expected} to \
-             {validity}, so its UIDs name other messages now. Open the folder again."
-        )))
+/// Selects `folder` unless it is selected already, and returns its `UIDVALIDITY`.
+fn select(ctx: &mut Ctx, key: u64, folder: &str, member: &str) -> Result<u32, Fault> {
+    let session = held(ctx, key, member)?;
+    if let Some((name, validity)) = &session.selected
+        && name == folder
+    {
+        return Ok(*validity);
     }
+    session.selected = None;
+    let validity = match directory_of(ctx, key, member)? {
+        Some(directory) => directory.select(ctx, folder, member)?,
+        None => held(ctx, key, member)?.server(member)?.select(folder, member)?,
+    };
+    held(ctx, key, member)?.selected = Some((folder.to_owned(), validity));
+    Ok(validity)
+}
 
-    /// Message `uid` of the selected folder, parsed, with `uid()` set. `ceiling` is how many
-    /// bytes the request can still hold.
-    fn fetch(&mut self, uid: u32, ceiling: u64, member: &str) -> Result<Value, Fault> {
-        let folder = self.current(member)?;
-        let raw = match &mut self.mailbox {
-            Backend::Server(session) => session.fetch(uid, ceiling, member)?,
-            Backend::Directory(directory) => directory.fetch(&folder, uid, ceiling, member)?,
-        };
-        Ok(crate::mail::receive::fetched_message(&raw, uid))
+/// The UIDs of the selected folder that match `filter`. `ceiling` is how many bytes the request
+/// can still hold.
+fn search(
+    ctx: &mut Ctx,
+    key: u64,
+    filter: &Filter,
+    ceiling: u64,
+    member: &str,
+) -> Result<Vec<u32>, Fault> {
+    let folder = held(ctx, key, member)?.current(member)?;
+    if let Some(directory) = directory_of(ctx, key, member)? {
+        return directory.search(ctx, &folder, filter, ceiling, member);
     }
+    held(ctx, key, member)?.server(member)?.search(filter, member)
+}
+
+/// Adds `flag` to message `uid` of the selected folder, or removes it when `add` is false.
+fn store(
+    ctx: &mut Ctx,
+    key: u64,
+    uid: u32,
+    flag: &str,
+    add: bool,
+    member: &str,
+) -> Result<(), Fault> {
+    let folder = held(ctx, key, member)?.current(member)?;
+    if let Some(directory) = directory_of(ctx, key, member)? {
+        return directory.store(ctx, &folder, uid, flag, add, member);
+    }
+    held(ctx, key, member)?.server(member)?.store(uid, flag, add, member)
+}
+
+/// Moves message `uid` of the selected folder to `target`.
+fn move_to(ctx: &mut Ctx, key: u64, uid: u32, target: &str, member: &str) -> Result<(), Fault> {
+    let folder = held(ctx, key, member)?.current(member)?;
+    if let Some(directory) = directory_of(ctx, key, member)? {
+        return directory.move_to(ctx, &folder, uid, target, member);
+    }
+    held(ctx, key, member)?.server(member)?.move_to(uid, target, member)
+}
+
+/// Deletes message `uid` of the selected folder.
+fn delete(ctx: &mut Ctx, key: u64, uid: u32, member: &str) -> Result<(), Fault> {
+    let folder = held(ctx, key, member)?.current(member)?;
+    if let Some(directory) = directory_of(ctx, key, member)? {
+        return directory.delete(ctx, &folder, uid, member);
+    }
+    held(ctx, key, member)?.server(member)?.delete(uid, member)
+}
+
+/// Selects `folder` and checks that its `UIDVALIDITY` is still `expected`.
+fn reselect(ctx: &mut Ctx, key: u64, folder: &str, expected: u32, member: &str) -> Result<(), Fault> {
+    let validity = select(ctx, key, folder, member)?;
+    if validity == expected {
+        return Ok(());
+    }
+    Err(io(format!(
+        "{member}: the `UIDVALIDITY` of the folder `{folder}` changed from {expected} to \
+         {validity}, so its UIDs name other messages now. Open the folder again."
+    )))
+}
+
+/// Message `uid` of the selected folder, parsed, with `uid()` set. `ceiling` is how many bytes
+/// the request can still hold.
+fn fetch(ctx: &mut Ctx, key: u64, uid: u32, ceiling: u64, member: &str) -> Result<Value, Fault> {
+    let folder = held(ctx, key, member)?.current(member)?;
+    let raw = match directory_of(ctx, key, member)? {
+        Some(directory) => directory.fetch(ctx, &folder, uid, ceiling, member)?,
+        None => held(ctx, key, member)?.server(member)?.fetch(uid, ceiling, member)?,
+    };
+    Ok(crate::mail::receive::fetched_message(&raw, uid))
 }
 
 /// An `IOError` with `message`.
@@ -770,6 +807,13 @@ fn block_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Opened, Fault> {
     if let Some(directory) = read("directory") {
         let root = PathBuf::from(directory);
         nvs_runtime::capability::require(ctx, nvs_config::Cap::FsRead, Scope::Path(&root), member)?;
+        let found = nvs_runtime::capability::metadata_if_present(ctx, &root, member)?;
+        if !found.is_some_and(|found| found.is_dir()) {
+            return Err(io(format!(
+                "{member}: the directory {} of `[imap.{endpoint}]` does not exist",
+                root.display()
+            )));
+        }
         return Ok(Opened::Directory(root));
     }
     let Some(host) = read("host") else {
@@ -843,12 +887,6 @@ fn open(ctx: &mut Ctx, endpoint: &str) -> Result<u64, Fault> {
     let block = match block_of(ctx, endpoint, OPEN)? {
         Opened::Server(block) => block,
         Opened::Directory(root) => {
-            if !root.is_dir() {
-                return Err(io(format!(
-                    "{OPEN}: the directory {} of `[imap.{endpoint}]` does not exist",
-                    root.display()
-                )));
-            }
             let held = Held {
                 mailbox: Backend::Directory(Directory::new(root, endpoint.to_owned())),
                 selected: None,
@@ -959,18 +997,17 @@ fn receiver_of(value: Value, class: &'static CoreClass, member: &str) -> Result<
     Ok(Receiver { key, block, folder })
 }
 
-/// The folder a [`FOLDER_CLASS`] receiver names, selected, with its session.
-fn folder_session<'c>(ctx: &'c mut Ctx, value: Value, member: &str) -> Result<&'c mut Held, Fault> {
+/// The key of the session a [`FOLDER_CLASS`] receiver names, with its folder selected.
+fn folder_session(ctx: &mut Ctx, value: Value, member: &str) -> Result<u64, Fault> {
     let Receiver { key, folder, .. } = receiver_of(value, &FOLDER_CLASS, member)?;
     let (name, validity) = folder.ok_or_else(|| Fault::fatal(format!("{member}: no folder")))?;
-    let held = held(ctx, key, member)?;
-    held.start();
-    held.reselect(&name, validity, member)?;
-    Ok(held)
+    held(ctx, key, member)?.start();
+    reselect(ctx, key, &name, validity, member)?;
+    Ok(key)
 }
 
 /// [`folder_session`], once `fs.write` grants the directory of a `directory` block.
-fn writing_folder<'c>(ctx: &'c mut Ctx, value: Value, member: &str) -> Result<&'c mut Held, Fault> {
+fn writing_folder(ctx: &mut Ctx, value: Value, member: &str) -> Result<u64, Fault> {
     let key = receiver_of(value, &FOLDER_CLASS, member)?.key;
     if let Some(root) = held(ctx, key, member)?.directory_root() {
         nvs_runtime::capability::require(
@@ -1113,10 +1150,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_imap_mailbox_folders(ctx, args: [1]) {
         let member = format!("{MAILBOX_NAME}::folders");
         let Receiver { key, .. } = receiver_of(args[0], &MAILBOX, &member)?;
-        let held = held(ctx, key, &member)?;
-        held.start();
+        held(ctx, key, &member)?.start();
         let mut out = NvsArray::new();
-        for name in held.folders(&member)? {
+        for name in folders(ctx, key, &member)? {
             out.append(Value::text(&name));
         }
         Ok(Value::array(out))
@@ -1131,9 +1167,8 @@ nvs_runtime::nvs_helper! {
         let name = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!("{member} expected a `string` for `$name`, got tag {}", args[1].tag_byte()))
         })?.to_owned();
-        let held = held(ctx, key, &member)?;
-        held.start();
-        let validity = held.select(&name, &member)?;
+        held(ctx, key, &member)?.start();
+        let validity = select(ctx, key, &name, &member)?;
         Ok(crate::instance::build(
             &FOLDER_CLASS,
             [
@@ -1158,9 +1193,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_imap_folder_search(ctx, args: [7]) {
         let member = format!("{FOLDER_NAME}::search");
         let filter = filter_of(args, &member)?;
-        let held = folder_session(ctx, args[0], &member)?;
+        let key = folder_session(ctx, args[0], &member)?;
         let mut out = NvsArray::new();
-        for uid in held.search(&filter, headroom(), &member)? {
+        for uid in search(ctx, key, &filter, headroom(), &member)? {
             out.append(Value::int(i64::from(uid)));
         }
         Ok(Value::array(out))
@@ -1183,7 +1218,8 @@ fn change_flag(
 ) -> Result<Value, Fault> {
     let uid = uid_of(args[1], member)?;
     let flag = flag_of(flag, member)?;
-    writing_folder(ctx, args[0], member)?.store(uid, &flag, add, member)?;
+    let key = writing_folder(ctx, args[0], member)?;
+    store(ctx, key, uid, &flag, add, member)?;
     Ok(Value::null())
 }
 
@@ -1205,7 +1241,8 @@ nvs_runtime::nvs_helper! {
         let target = args[2].as_text().ok_or_else(|| {
             Fault::fatal(format!("{member} expected a `string` for `$folder`, got tag {}", args[2].tag_byte()))
         })?.to_owned();
-        writing_folder(ctx, args[0], &member)?.move_to(uid, &target, &member)?;
+        let key = writing_folder(ctx, args[0], &member)?;
+        move_to(ctx, key, uid, &target, &member)?;
         Ok(Value::null())
     }
 }
@@ -1247,7 +1284,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_imap_folder_delete(ctx, args: [2]) {
         let member = format!("{FOLDER_NAME}::delete");
         let uid = uid_of(args[1], &member)?;
-        writing_folder(ctx, args[0], &member)?.delete(uid, &member)?;
+        let key = writing_folder(ctx, args[0], &member)?;
+        delete(ctx, key, uid, &member)?;
         Ok(Value::null())
     }
 }
@@ -1257,10 +1295,10 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_imap_folder_fetch(ctx, args: [2]) {
         let member = format!("{FOLDER_NAME}::fetch");
         let uid = uid_of(args[1], &member)?;
-        let held = folder_session(ctx, args[0], &member)?;
+        let key = folder_session(ctx, args[0], &member)?;
         // The raw message and its parsed copy are both held, so the ceiling is the memory the
         // request has left.
-        held.fetch(uid, headroom(), &member)
+        fetch(ctx, key, uid, headroom(), &member)
     }
 }
 

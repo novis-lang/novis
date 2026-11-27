@@ -3,6 +3,8 @@
 
 use std::path::Path;
 
+use nvs_runtime::Ctx;
+
 use super::{Directory, VALIDITY};
 use crate::imap::session::Filter;
 
@@ -10,6 +12,16 @@ const MEMBER: &str = "Core\\Imap\\Folder::search";
 
 fn write(path: &Path, text: &str) {
     std::fs::write(path, text).expect("a file the test owns");
+}
+
+/// A context granting `fs.read` and `fs.write` under `dir`, which each door checks.
+fn granted(dir: &Path) -> Ctx {
+    let mut ctx = Ctx::buffered();
+    ctx.set_config(crate::tests::granting(&format!(
+        "[capabilities.fs]\nread = ['{0}']\nwrite = ['{0}']\n",
+        dir.display()
+    )));
+    ctx
 }
 
 /// A mailbox with `INBOX` holding messages 1, 2 and 10, an empty `Archive`, and files that are
@@ -37,9 +49,9 @@ fn mailbox(dir: &Path) -> Directory {
     Directory::new(dir.to_path_buf(), "inbox".to_owned())
 }
 
-fn search(mailbox: &Directory, filter: &Filter) -> Vec<u32> {
+fn search(ctx: &Ctx, mailbox: &Directory, filter: &Filter) -> Vec<u32> {
     mailbox
-        .search("INBOX", filter, u64::MAX, MEMBER)
+        .search(ctx, "INBOX", filter, u64::MAX, MEMBER)
         .expect("the search")
 }
 
@@ -52,18 +64,19 @@ fn search(mailbox: &Directory, filter: &Filter) -> Vec<u32> {
 fn a_directory_block_lists_its_subdirectories_as_folders() {
     let dir = nvs_repo::scratch("imap-directory-folders");
     let mailbox = mailbox(&dir);
+    let ctx = granted(&dir);
     assert_eq!(
-        mailbox.folders(MEMBER).expect("the folders"),
+        mailbox.folders(&ctx, MEMBER).expect("the folders"),
         ["Archive", "INBOX"]
     );
     assert_eq!(
-        mailbox.select("INBOX", MEMBER).expect("the folder"),
+        mailbox.select(&ctx, "INBOX", MEMBER).expect("the folder"),
         VALIDITY
     );
     for outside in [
         "..", "../INBOX", "INBOX/..", "a\\b", "C:", "", "INBOX.", "INBOX ", ".",
     ] {
-        let Err(fault) = mailbox.select(outside, MEMBER) else {
+        let Err(fault) = mailbox.select(&ctx, outside, MEMBER) else {
             panic!("`{outside}` was opened as a folder");
         };
         assert!(
@@ -71,7 +84,7 @@ fn a_directory_block_lists_its_subdirectories_as_folders() {
             "{outside}: {fault:?}"
         );
     }
-    let Err(fault) = mailbox.select("Spam", MEMBER) else {
+    let Err(fault) = mailbox.select(&ctx, "Spam", MEMBER) else {
         panic!("a folder that does not exist was opened");
     };
     assert!(
@@ -79,39 +92,39 @@ fn a_directory_block_lists_its_subdirectories_as_folders() {
         "{fault:?}"
     );
 
-    assert_eq!(search(&mailbox, &Filter::default()), [1, 2, 10]);
+    assert_eq!(search(&ctx, &mailbox, &Filter::default()), [1, 2, 10]);
     let unseen = Filter {
         unseen: true,
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &unseen), [1, 10]);
+    assert_eq!(search(&ctx, &mailbox, &unseen), [1, 10]);
     let invoices = Filter {
         subject: Some("INVOICE".to_owned()),
         from: Some("ada@".to_owned()),
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &invoices), [1, 10]);
+    assert_eq!(search(&ctx, &mailbox, &invoices), [1, 10]);
     let february = Filter {
         since: Some((2026, 2, 1)),
         before: Some((2026, 3, 1)),
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &february), [2]);
+    assert_eq!(search(&ctx, &mailbox, &february), [2]);
     let first = Filter {
         limit: Some(2),
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &first), [1, 2]);
+    assert_eq!(search(&ctx, &mailbox, &first), [1, 2]);
 
     let raw = mailbox
-        .fetch("INBOX", 2, u64::MAX, MEMBER)
+        .fetch(&ctx, "INBOX", 2, u64::MAX, MEMBER)
         .expect("message 2");
     assert!(raw.starts_with(b"From: Bob"));
-    let Err(fault) = mailbox.fetch("INBOX", 2, 4, MEMBER) else {
+    let Err(fault) = mailbox.fetch(&ctx, "INBOX", 2, 4, MEMBER) else {
         panic!("a message over the ceiling was read");
     };
     assert!(format!("{fault:?}").contains("was not read"), "{fault:?}");
-    let Err(fault) = mailbox.fetch("INBOX", 3, u64::MAX, MEMBER) else {
+    let Err(fault) = mailbox.fetch(&ctx, "INBOX", 3, u64::MAX, MEMBER) else {
         panic!("a missing message was read");
     };
     assert!(
@@ -128,31 +141,32 @@ fn a_directory_block_lists_its_subdirectories_as_folders() {
 fn a_directory_block_moves_flags_and_deletes_files() {
     let dir = nvs_repo::scratch("imap-directory-changes");
     let mailbox = mailbox(&dir);
+    let ctx = granted(&dir);
     let inbox = dir.join("INBOX");
     let archive = dir.join("Archive");
     let flags = |path: &Path| std::fs::read_to_string(path).ok();
 
     mailbox
-        .store("INBOX", 1, "\\Seen", true, MEMBER)
+        .store(&ctx, "INBOX", 1, "\\Seen", true, MEMBER)
         .expect("a flag");
     mailbox
-        .store("INBOX", 1, "$Important", true, MEMBER)
+        .store(&ctx, "INBOX", 1, "$Important", true, MEMBER)
         .expect("a keyword");
     mailbox
-        .store("INBOX", 1, "\\seen", true, MEMBER)
+        .store(&ctx, "INBOX", 1, "\\seen", true, MEMBER)
         .expect("the same flag again");
     assert_eq!(
         flags(&inbox.join("1.flags")).as_deref(),
         Some("\\Seen\n$Important\n")
     );
     mailbox
-        .store("INBOX", 1, "\\SEEN", false, MEMBER)
+        .store(&ctx, "INBOX", 1, "\\SEEN", false, MEMBER)
         .expect("a flag removed");
     mailbox
-        .store("INBOX", 1, "$important", false, MEMBER)
+        .store(&ctx, "INBOX", 1, "$important", false, MEMBER)
         .expect("a keyword removed");
     assert_eq!(flags(&inbox.join("1.flags")), None);
-    let Err(fault) = mailbox.store("INBOX", 3, "\\Seen", true, MEMBER) else {
+    let Err(fault) = mailbox.store(&ctx, "INBOX", 3, "\\Seen", true, MEMBER) else {
         panic!("a missing message was flagged");
     };
     assert!(
@@ -162,16 +176,16 @@ fn a_directory_block_moves_flags_and_deletes_files() {
     assert!(!inbox.join("3.flags").exists());
 
     mailbox
-        .move_to("INBOX", 2, "Archive", MEMBER)
+        .move_to(&ctx, "INBOX", 2, "Archive", MEMBER)
         .expect("message 2 moves");
     mailbox
-        .move_to("INBOX", 10, "Archive", MEMBER)
+        .move_to(&ctx, "INBOX", 10, "Archive", MEMBER)
         .expect("message 10 moves");
     assert!(!inbox.join("2.eml").exists() && !inbox.join("2.flags").exists());
     assert!(archive.join("1.eml").is_file() && archive.join("2.eml").is_file());
     assert_eq!(flags(&archive.join("1.flags")).as_deref(), Some("\\Seen\n"));
     assert!(flags(&archive.join("2.eml")).is_some_and(|text| text.contains("Re: invoice 7")));
-    let Err(fault) = mailbox.move_to("INBOX", 1, "Spam", MEMBER) else {
+    let Err(fault) = mailbox.move_to(&ctx, "INBOX", 1, "Spam", MEMBER) else {
         panic!("a message moved to a folder that does not exist");
     };
     assert!(
@@ -181,17 +195,17 @@ fn a_directory_block_moves_flags_and_deletes_files() {
     assert!(inbox.join("1.eml").is_file());
 
     mailbox
-        .store("INBOX", 1, "\\Flagged", true, MEMBER)
+        .store(&ctx, "INBOX", 1, "\\Flagged", true, MEMBER)
         .expect("a flag");
     mailbox
-        .delete("INBOX", 1, MEMBER)
+        .delete(&ctx, "INBOX", 1, MEMBER)
         .expect("message 1 is deleted");
     assert!(!inbox.join("1.eml").exists() && !inbox.join("1.flags").exists());
     assert!(
         inbox.join("010.eml").is_file(),
         "only its own files are removed"
     );
-    let Err(fault) = mailbox.delete("INBOX", 1, MEMBER) else {
+    let Err(fault) = mailbox.delete(&ctx, "INBOX", 1, MEMBER) else {
         panic!("a message was deleted twice");
     };
     assert!(
@@ -220,16 +234,17 @@ fn a_date_that_is_null_matches_neither_since_nor_before() {
         "Subject: c\r\nDate: yesterday at noon, 99 Foo -1 99:99:99 +9999\r\n\r\nhi\r\n",
     );
     let mailbox = Directory::new(dir.to_path_buf(), "inbox".to_owned());
+    let ctx = granted(&dir);
     let since = Filter {
         since: Some((1, 1, 1)),
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &since), [1]);
+    assert_eq!(search(&ctx, &mailbox, &since), [1]);
     let before = Filter {
         before: Some((9999, 12, 31)),
         ..Filter::default()
     };
-    assert_eq!(search(&mailbox, &before), [1]);
+    assert_eq!(search(&ctx, &mailbox, &before), [1]);
 }
 
 /// A flag that would push `<uid>.flags` past its ceiling is an `IOError`, and the flags the
@@ -242,10 +257,12 @@ fn a_flag_past_the_flags_ceiling_is_not_written() {
     std::fs::create_dir_all(&inbox).expect("the inbox");
     write(&inbox.join("1.eml"), "Subject: a\r\n\r\nhi\r\n");
     let mailbox = Directory::new(dir.to_path_buf(), "inbox".to_owned());
+    let ctx = granted(&dir);
     let keyword = "k".repeat(200);
     let mut refused = None;
     for n in 0..400 {
-        if let Err(fault) = mailbox.store("INBOX", 1, &format!("{keyword}{n}"), true, MEMBER) {
+        if let Err(fault) = mailbox.store(&ctx, "INBOX", 1, &format!("{keyword}{n}"), true, MEMBER)
+        {
             refused = Some(fault);
             break;
         }
@@ -256,6 +273,6 @@ fn a_flag_past_the_flags_ceiling_is_not_written() {
         "{fault:?}"
     );
     mailbox
-        .store("INBOX", 1, "\\Seen", false, MEMBER)
+        .store(&ctx, "INBOX", 1, "\\Seen", false, MEMBER)
         .expect("the flags stay readable");
 }

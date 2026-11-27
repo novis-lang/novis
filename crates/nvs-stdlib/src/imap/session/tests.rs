@@ -660,10 +660,16 @@ fn fetch_returns_a_parsed_message_with_its_uid() {
         validity: 7,
         ..Fake::default()
     });
-    let mut mailbox = held(session);
-    mailbox.start();
-    assert_eq!(mailbox.select("INBOX", MEMBER).expect("the folder"), 7);
-    let message = mailbox.fetch(42, u64::MAX, MEMBER).expect("the message");
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    let key = ctx.hold_open_connection(None, None, Box::new(held(session)));
+    crate::imap::held(&mut ctx, key, MEMBER)
+        .expect("the session is filed")
+        .start();
+    assert_eq!(
+        crate::imap::select(&mut ctx, key, "INBOX", MEMBER).expect("the folder"),
+        7
+    );
+    let message = crate::imap::fetch(&mut ctx, key, 42, u64::MAX, MEMBER).expect("the message");
     let class = &crate::mail::receive::MESSAGE;
     let slot = |name: &str| {
         let at = class
@@ -706,7 +712,7 @@ fn fetch_returns_a_parsed_message_with_its_uid() {
         parsed.release();
     }
 
-    drop(mailbox);
+    drop(ctx);
     let heard = thread.join().expect("the fake server");
     assert!(
         heard.find("UID FETCH 42 (UID BODY.PEEK[])").is_some(),
@@ -732,7 +738,10 @@ fn the_session_closes_when_the_request_ends() {
     let key = ctx.hold_open_connection(None, None, Box::new(held(session)));
     let open = crate::imap::held(&mut ctx, key, MEMBER).expect("the session is filed");
     open.start();
-    assert_eq!(open.folders(MEMBER).expect("the folders"), ["INBOX"]);
+    assert_eq!(
+        crate::imap::folders(&mut ctx, key, MEMBER).expect("the folders"),
+        ["INBOX"]
+    );
     drop(ctx);
     let heard = thread.join().expect("the fake server");
     assert!(

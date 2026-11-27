@@ -12,7 +12,9 @@
 //! would remove. A UID is a number. So every path this module
 //! opens is `<directory>/<folder>/<uid>.eml` or `.flags`, and none leaves the directory.
 //! [`super`] asks `fs.read` for the directory when it opens the mailbox, and `fs.write` before each
-//! change.
+//! change. Every file is then reached through a door of [`nvs_runtime::capability`]
+//! (`rule:security/capability-check-at-the-door`), so each read asks `fs.read` and each change
+//! `fs.write` for its own path, and a link inside the directory cannot lead out of it.
 //!
 //! **What differs from a server.** `since` and `before` read each message's `Date` header, since
 //! a file has no arrival date that a test can set, and a message without one matches neither.
@@ -23,11 +25,13 @@
 //! What it spends: nothing between calls. `search` with a header filter reads and parses one
 //! message at a time, each within the memory the request has left. The files are read with
 //! blocking calls, because a directory block serves tests and local work and never a server's
-//! requests in production.
+//! requests in production. A [`Directory`] is copied out of its session for each call, so a door
+//! can read the request's `Ctx`: the copy is the directory's path and the block's name.
 
 use std::path::{Path, PathBuf};
 
-use nvs_runtime::{Fault, ThrownClass};
+use nvs_runtime::capability::{self, Kind};
+use nvs_runtime::{Ctx, Fault, ThrownClass};
 
 use super::session::{Filter, MAX_FOLDERS};
 
@@ -43,6 +47,7 @@ fn io(message: String) -> Fault {
 }
 
 /// The mailbox of `[imap.<block>] directory = "<root>"`.
+#[derive(Clone)]
 pub(super) struct Directory {
     /// The block's `directory`, absolute.
     root: PathBuf,
@@ -65,18 +70,11 @@ impl Directory {
     /// # Errors
     ///
     /// A catchable `IOError` when the directory cannot be read.
-    pub(super) fn folders(&self, member: &str) -> Result<Vec<String>, Fault> {
-        let entries = std::fs::read_dir(&self.root).map_err(|why| {
-            io(format!(
-                "{member}: the directory {} of `[imap.{}]` cannot be read: {why}",
-                self.root.display(),
-                self.block
-            ))
-        })?;
-        let mut names: Vec<String> = entries
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
-            .filter_map(|entry| entry.file_name().into_string().ok())
+    pub(super) fn folders(&self, ctx: &Ctx, member: &str) -> Result<Vec<String>, Fault> {
+        let mut names: Vec<String> = capability::read_dir(ctx, &self.root, member)?
+            .into_iter()
+            .filter(|entry| entry.kind == Kind::Dir)
+            .filter_map(|entry| entry.name.into_string().ok())
             .filter(|name| is_folder_name(name))
             .collect();
         names.sort();
@@ -90,8 +88,8 @@ impl Directory {
     ///
     /// A catchable `RuntimeError` for a name that is not one directory name, and an `IOError`
     /// when the folder does not exist.
-    pub(super) fn select(&self, folder: &str, member: &str) -> Result<u32, Fault> {
-        self.folder_path(folder, member)?;
+    pub(super) fn select(&self, ctx: &Ctx, folder: &str, member: &str) -> Result<u32, Fault> {
+        self.folder_path(ctx, folder, member)?;
         Ok(VALIDITY)
     }
 
@@ -104,26 +102,27 @@ impl Directory {
     /// is over `ceiling`.
     pub(super) fn search(
         &self,
+        ctx: &Ctx,
         folder: &str,
         filter: &Filter,
         ceiling: u64,
         member: &str,
     ) -> Result<Vec<u32>, Fault> {
-        let dir = self.folder_path(folder, member)?;
+        let dir = self.folder_path(ctx, folder, member)?;
         let reads_headers = filter.since.is_some()
             || filter.before.is_some()
             || filter.from.is_some()
             || filter.subject.is_some();
         let mut found = Vec::new();
-        for uid in uids(&dir, member)? {
+        for uid in uids(ctx, &dir, member)? {
             if filter.limit.is_some_and(|limit| found.len() >= limit) {
                 break;
             }
-            if filter.unseen && has(&flags(&dir, uid, member)?, "\\Seen") {
+            if filter.unseen && has(&flags(ctx, &dir, uid, member)?, "\\Seen") {
                 continue;
             }
             if reads_headers {
-                let raw = read_message(&dir, uid, ceiling, member)?;
+                let raw = read_message(ctx, &dir, uid, ceiling, member)?;
                 if !matches(&crate::mail::receive::parse(&raw), filter) {
                     continue;
                 }
@@ -142,13 +141,14 @@ impl Directory {
     /// before it is read.
     pub(super) fn fetch(
         &self,
+        ctx: &Ctx,
         folder: &str,
         uid: u32,
         ceiling: u64,
         member: &str,
     ) -> Result<Vec<u8>, Fault> {
-        let dir = self.folder_path(folder, member)?;
-        read_message(&dir, uid, ceiling, member)
+        let dir = self.folder_path(ctx, folder, member)?;
+        read_message(ctx, &dir, uid, ceiling, member)
     }
 
     /// Adds `flag` to message `uid` of `folder`, or removes it when `add` is false. `flag` is
@@ -159,15 +159,16 @@ impl Directory {
     /// A catchable `IOError` when there is no such message or its flags cannot be written.
     pub(super) fn store(
         &self,
+        ctx: &Ctx,
         folder: &str,
         uid: u32,
         flag: &str,
         add: bool,
         member: &str,
     ) -> Result<(), Fault> {
-        let dir = self.folder_path(folder, member)?;
-        message_path(&dir, uid, member)?;
-        let mut kept = flags(&dir, uid, member)?;
+        let dir = self.folder_path(ctx, folder, member)?;
+        message_path(ctx, &dir, uid, member)?;
+        let mut kept = flags(ctx, &dir, uid, member)?;
         let present = has(&kept, flag);
         if add && !present {
             kept.push(flag.to_owned());
@@ -177,30 +178,22 @@ impl Directory {
             return Ok(());
         }
         let path = dir.join(format!("{uid}.flags"));
-        let written = if kept.is_empty() {
-            match std::fs::remove_file(&path) {
-                Err(why) if why.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                other => other,
+        if kept.is_empty() {
+            if capability::metadata_if_present(ctx, &path, member)?.is_some() {
+                capability::remove_file(ctx, &path, member)?;
             }
-        } else {
-            let mut text = kept.join("\n");
-            text.push('\n');
-            if text.len() as u64 > FLAGS_CEILING {
-                return Err(io(format!(
-                    "{member}: the flags of the message with the UID {uid} would be {} bytes, and \
-                     a flags file may have {FLAGS_CEILING}. Nothing was written.",
-                    text.len()
-                )));
-            }
-            std::fs::write(&path, text)
-        };
-        written.map_err(|why| {
-            io(format!(
-                "{member}: the flags of the message with the UID {uid} cannot be written to {}: \
-                 {why}",
-                path.display()
-            ))
-        })
+            return Ok(());
+        }
+        let mut text = kept.join("\n");
+        text.push('\n');
+        if text.len() as u64 > FLAGS_CEILING {
+            return Err(io(format!(
+                "{member}: the flags of the message with the UID {uid} would be {} bytes, and \
+                 a flags file may have {FLAGS_CEILING}. Nothing was written.",
+                text.len()
+            )));
+        }
+        capability::write(ctx, &path, text.as_bytes(), member)
     }
 
     /// Moves message `uid` of `folder`, with its flags, to `target` under the next free UID
@@ -212,32 +205,24 @@ impl Directory {
     /// when there is no such message or target folder, or a file cannot be renamed.
     pub(super) fn move_to(
         &self,
+        ctx: &Ctx,
         folder: &str,
         uid: u32,
         target: &str,
         member: &str,
     ) -> Result<(), Fault> {
-        let dir = self.folder_path(folder, member)?;
-        let source = message_path(&dir, uid, member)?;
-        let to = self.folder_path(target, member)?;
-        let next = uids(&to, member)?
+        let dir = self.folder_path(ctx, folder, member)?;
+        let source = message_path(ctx, &dir, uid, member)?;
+        let to = self.folder_path(ctx, target, member)?;
+        let next = uids(ctx, &to, member)?
             .last()
             .map_or(Some(1), |last| last.checked_add(1))
             .ok_or_else(|| io(format!("{member}: the folder `{target}` has no free UID")))?;
-        let renamed = |from: &Path, into: PathBuf| {
-            std::fs::rename(from, &into).map_err(|why| {
-                io(format!(
-                    "{member}: {} cannot be moved to {}: {why}",
-                    from.display(),
-                    into.display()
-                ))
-            })
-        };
         let flags = dir.join(format!("{uid}.flags"));
-        if flags.is_file() {
-            renamed(&flags, to.join(format!("{next}.flags")))?;
+        if is_file(ctx, &flags, member)? {
+            capability::rename(ctx, &flags, &to.join(format!("{next}.flags")), member)?;
         }
-        renamed(&source, to.join(format!("{next}.eml")))
+        capability::rename(ctx, &source, &to.join(format!("{next}.eml")), member)
     }
 
     /// Removes message `uid` of `folder` and its flags.
@@ -245,26 +230,24 @@ impl Directory {
     /// # Errors
     ///
     /// A catchable `IOError` when there is no such message or a file cannot be removed.
-    pub(super) fn delete(&self, folder: &str, uid: u32, member: &str) -> Result<(), Fault> {
-        let dir = self.folder_path(folder, member)?;
-        let source = message_path(&dir, uid, member)?;
-        let removed = |path: &Path| {
-            std::fs::remove_file(path).map_err(|why| {
-                io(format!(
-                    "{member}: {} cannot be removed: {why}",
-                    path.display()
-                ))
-            })
-        };
+    pub(super) fn delete(
+        &self,
+        ctx: &Ctx,
+        folder: &str,
+        uid: u32,
+        member: &str,
+    ) -> Result<(), Fault> {
+        let dir = self.folder_path(ctx, folder, member)?;
+        let source = message_path(ctx, &dir, uid, member)?;
         let flags = dir.join(format!("{uid}.flags"));
-        if flags.is_file() {
-            removed(&flags)?;
+        if is_file(ctx, &flags, member)? {
+            capability::remove_file(ctx, &flags, member)?;
         }
-        removed(&source)
+        capability::remove_file(ctx, &source, member)
     }
 
     /// The directory of `folder`, once its name is one directory name and it exists.
-    fn folder_path(&self, folder: &str, member: &str) -> Result<PathBuf, Fault> {
+    fn folder_path(&self, ctx: &Ctx, folder: &str, member: &str) -> Result<PathBuf, Fault> {
         if !is_folder_name(folder) {
             return Err(Fault::thrown(format!(
                 "{member}: `{folder}` is not a folder of `[imap.{}]`. A folder of a directory \
@@ -274,7 +257,7 @@ impl Directory {
             )));
         }
         let path = self.root.join(folder);
-        if std::fs::symlink_metadata(&path).is_ok_and(|found| found.is_dir()) {
+        if capability::metadata_if_present(ctx, &path, member)?.is_some_and(|found| found.is_dir()) {
             return Ok(path);
         }
         Err(io(format!(
@@ -296,14 +279,17 @@ fn is_folder_name(name: &str) -> bool {
             .any(|each| matches!(each, '/' | '\\' | ':') || each.is_control())
 }
 
+/// Whether `path` is a regular file.
+fn is_file(ctx: &Ctx, path: &Path, member: &str) -> Result<bool, Fault> {
+    Ok(capability::metadata_if_present(ctx, path, member)?.is_some_and(|found| found.is_file()))
+}
+
 /// The UID of every `<uid>.eml` file in `dir`, sorted.
-fn uids(dir: &Path, member: &str) -> Result<Vec<u32>, Fault> {
-    let entries = std::fs::read_dir(dir)
-        .map_err(|why| io(format!("{member}: {} cannot be read: {why}", dir.display())))?;
-    let mut found: Vec<u32> = entries
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-        .filter_map(|entry| uid_of_file(&entry.file_name().to_string_lossy()))
+fn uids(ctx: &Ctx, dir: &Path, member: &str) -> Result<Vec<u32>, Fault> {
+    let mut found: Vec<u32> = capability::read_dir(ctx, dir, member)?
+        .into_iter()
+        .filter(|entry| entry.kind == Kind::File)
+        .filter_map(|entry| uid_of_file(&entry.name.to_string_lossy()))
         .collect();
     found.sort_unstable();
     Ok(found)
@@ -317,9 +303,9 @@ fn uid_of_file(name: &str) -> Option<u32> {
 }
 
 /// The path of message `uid` in `dir`, once the file exists.
-fn message_path(dir: &Path, uid: u32, member: &str) -> Result<PathBuf, Fault> {
+fn message_path(ctx: &Ctx, dir: &Path, uid: u32, member: &str) -> Result<PathBuf, Fault> {
     let path = dir.join(format!("{uid}.eml"));
-    if path.is_file() {
+    if is_file(ctx, &path, member)? {
         return Ok(path);
     }
     Err(io(format!(
@@ -328,55 +314,41 @@ fn message_path(dir: &Path, uid: u32, member: &str) -> Result<PathBuf, Fault> {
 }
 
 /// The bytes of message `uid` in `dir`, when its size is at most `ceiling`.
-fn read_message(dir: &Path, uid: u32, ceiling: u64, member: &str) -> Result<Vec<u8>, Fault> {
-    let path = message_path(dir, uid, member)?;
-    let size = std::fs::metadata(&path)
-        .map_err(|why| {
-            io(format!(
-                "{member}: {} cannot be read: {why}",
-                path.display()
-            ))
-        })?
-        .len();
+fn read_message(
+    ctx: &Ctx,
+    dir: &Path,
+    uid: u32,
+    ceiling: u64,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    let path = message_path(ctx, dir, uid, member)?;
+    let size = capability::metadata(ctx, &path, member)?.len();
     if size > ceiling {
         return Err(io(format!(
             "{member}: the message with the UID {uid} is {size} bytes, and the request can hold \
              {ceiling} more. Its body was not read."
         )));
     }
-    std::fs::read(&path).map_err(|why| {
-        io(format!(
-            "{member}: {} cannot be read: {why}",
-            path.display()
-        ))
-    })
+    let mut file = capability::open_read(ctx, &path, member)?;
+    crate::byte_source::read_bounded(ctx, &mut file, member, &path)
 }
 
 /// The flags of message `uid` in `dir`: the lines of `<uid>.flags`, or none without the file.
-fn flags(dir: &Path, uid: u32, member: &str) -> Result<Vec<String>, Fault> {
+fn flags(ctx: &Ctx, dir: &Path, uid: u32, member: &str) -> Result<Vec<String>, Fault> {
     let path = dir.join(format!("{uid}.flags"));
-    let size = match std::fs::metadata(&path) {
-        Ok(found) => found.len(),
-        Err(why) if why.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(why) => {
-            return Err(io(format!(
-                "{member}: {} cannot be read: {why}",
-                path.display()
-            )));
-        }
+    let Some(found) = capability::metadata_if_present(ctx, &path, member)? else {
+        return Ok(Vec::new());
     };
+    let size = found.len();
     if size > FLAGS_CEILING {
         return Err(io(format!(
             "{member}: {} is {size} bytes, and a flags file may take {FLAGS_CEILING}",
             path.display()
         )));
     }
-    let text = std::fs::read_to_string(&path).map_err(|why| {
-        io(format!(
-            "{member}: {} cannot be read: {why}",
-            path.display()
-        ))
-    })?;
+    let mut file = capability::open_read(ctx, &path, member)?;
+    let bytes = crate::byte_source::read_bounded(ctx, &mut file, member, &path)?;
+    let text = String::from_utf8_lossy(&bytes);
     Ok(text
         .lines()
         .map(str::trim)
