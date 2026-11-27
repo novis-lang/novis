@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-cli/tests/start_cost.rs, benches/scaling/README.md]
   - id: 7
     title: "the rules, the reference, the help, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/rules/config/a-startup-default-is-never-flipped.md, website/src/data/changes.json]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -407,16 +407,16 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### 7. the rules, the reference, the help, the feature proofs and the website say so
 
-- [ ] `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md`,
+- [x] `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md`,
   `docs/rules/packaging/an-artifact-is-one-immutable-content-addressed-file.md`,
   `docs/rules/packaging/a-warm-hit-skips-codegen-not-the-front-end.md` and
   `docs/rules/config/opcache-revalidation-is-system-class.md`: what each now says, with the
   decisions above, their reasons and their Declined lists (lazy compile on first call, one file per
   function, shared code between versions for now).
-- [ ] The help of `[opcache] incremental` and of `nvs reload`, and the website's development and
+- [x] The help of `[opcache] incremental` and of `nvs reload`, and the website's development and
   deploy pages.
-- [ ] The feature proofs `bun nv proofs --owed --goal incremental-reload` names.
-- [ ] `website/src/data/changes.json:1`: the entries, then `bun nv site --check stale`, `changes` and
+- [x] The feature proofs `bun nv proofs --owed --goal incremental-reload` names.
+- [x] `website/src/data/changes.json:1`: the entries, then `bun nv site --check stale`, `changes` and
   `review`.
 
 ### 8. the goal is verified once, and every failure is fixed
@@ -428,22 +428,24 @@ Linear from the measured 110–880 files. Front end ≈ `nvs check`.
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 took one session. `cache::Work` has `written`, the source-file
-entries `per_file::store` published, and the `program reloaded` record carries it beside
-`checked`, `compiled` and `reused` (`5d788b4d45`). `a_body_edit_costs_the_same_work_at_every_program_size`
-passed once by name: 1 checked, 1 compiled, 1 written at 110, 220 and 440 files, in 4.6 s.
-`bun nv scaling` has a `reload` kind (`f8ba451dcf`): the ladder prints its files and `nvs.toml`
-and marks one `/*edit*/` literal, and the tool serves, edits and runs `nvs reload` at each size.
-`benches/scaling/compiler/reload.nvs` (55 to 440 files) is flat on the release binary: the
-counts never move, and the clock's slope is 1.00, within `expect linear`, because a reload
-still re-hashes every file and places the whole program's code.
+Stages 1 to 7 are done. Stage 7 took one session. The rules (`3c61149414`): the artifact rule's
+unit is a source file's entry under a program list and a hint, with the function key and its
+Declined list; the header rule's payload is pieces; the edit rule says what `incremental` keeps
+and declines compile on first call, a key from a file's digest alone and shared code between
+versions; the reload rule names the record's four counts; the opcache rule makes `incremental`
+a System startup row. Three rule titles moved with them. The help and website (`c4dc1279ef`):
+`nvs reload`'s help, four `about.md`, the CLI and server reference, the deploy guide and the CLI
+page, four `changes.json` entries, two newcomer reviews with every finding fixed, stamps, and
+the questions of seven pages. `site --check stale changes questions review` and `proofs --gate
+--goal incremental-reload` are green.
 
-Nightly 45992349212's Miri and aarch64 failures were fixed on `main` after the run. Linux proofs
-failed `website/snippets/tools/debug-viewer/runs.shot` three runs in a row, and other platforms
-match. The shot verdict now names the first differing line (`ffe86543e9`). One guess is the order
-of the two `on = "start"` jobs; if the next log shows that, fix the order in the snippet.
+Nightly 45992349212 is still the newest CI run. Its Miri and aarch64 failures were fixed on
+`main` after the run. Linux proofs failed `website/snippets/tools/debug-viewer/runs.shot` with no
+diff in the log; the verdict names the first differing line from `ffe86543e9` on. The list is
+newest first, so the two `on = "start"` jobs' order depends on which ends last. If the next log
+shows the rows swapped, make the order not depend on timing in the snippet.
 
-Build, clippy and `cargo fmt --check` are green. Tests that may go red, not run here:
+Build and clippy are green. Tests that may go red, not run here:
 language-server tests, now that `Analysed::interner` is an `Arc`; gc tests that count one cache
 file per program; readers of `functions=` on a cached run; the coverage, debugger and query-span
 tests; exact matches on the `program reloaded` fields, which now end with `written`; and
@@ -451,18 +453,13 @@ tests; exact matches on the `program reloaded` fields, which now end with `writt
 
 ### Next
 
-Stage 7, in one or two sessions:
+Stage 8, the close (this goal is not the chain's full gate):
 
-1. The rules: `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md` (the
-   edit state, the counts, the ladder), `docs/rules/config/a-reload-command-checks-now-and-waits.md`
-   (the record's `checked`, `compiled`, `reused`, `written`),
-   `docs/rules/packaging/an-artifact-is-one-immutable-content-addressed-file.md` (the unit is a
-   source file's entry under a program list), `docs/rules/packaging/a-warm-hit-skips-codegen-not-the-front-end.md`
-   and `docs/rules/config/opcache-revalidation-is-system-class.md`, each with the Standing
-   decisions above and their Declined lists.
-2. The help of `[opcache] incremental` and of `nvs reload`, then `bun nv proofs --owed --goal
-   incremental-reload` and each proof it names.
-3. `website/src/data/changes.json:1`, the development and deploy pages, then `bun nv site --check
-   stale`, `changes`, `questions` and `review`.
+1. The tests this goal wrote, by name: `cargo test --test compile_cache`, `--test
+   parallel_codegen`, `--test function_keys`, `--test incremental_reload`, each with the names
+   the acceptance list gives.
+2. The tests named above that may go red, each fixed in one pass if it is.
+3. `bun nv close --goal incremental-reload`, every red fixed, then `DONE`.
+4. If a newer nightly than 45992349212 has run, read its `runs.shot` verdict first.
 
 ### Backlog
