@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "lang:testing/testonly-code-that-only-tests-can-use"
+      ],
+      "text": "`#[TestOnly]` marks a class, interface, enum or method that is only for tests. Only test code can use it, and the editor offers it only there. `nvs run` and `nvs build` leave it out of your program."
+    },
+    {
       "kind": "changed",
       "features": [
         "Novis\\Pdf\\Rendered::constructor"
