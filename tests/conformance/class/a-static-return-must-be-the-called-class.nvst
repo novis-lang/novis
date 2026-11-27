@@ -44,7 +44,7 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
   |                                    ------ declared `static` here
 9 |         return new self();
   |                ^^^^^^^^^^ not the called class
-  = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
+  = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, a variable inside `if ($x is static)`, or a variable declared with `static` in its type. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error[E0741]: a body declaring `static` returns a value that is not the called class
    --> %s:12:37
@@ -53,7 +53,7 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
    |                                     ------ declared `static` here
 13 |         return new Base();
    |                ^^^^^^^^^^ not the called class
-   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
+   = help: `static` is the class the call named, which a subclass may be. Return `$this`, `new static(...)`, a variable inside `if ($x is static)`, or a variable declared with `static` in its type. Declare `self` if the declaring class is what is meant. In a `final` class `static` is that class, so any value of it may be returned
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

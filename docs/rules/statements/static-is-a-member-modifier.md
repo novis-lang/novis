@@ -16,8 +16,9 @@ A `static` anywhere in a parameter type or a return type is the class the call n
 `Category::find(...)` and at `$category->find(...)` alike: `property<static>`, `array<static>`,
 `Core\ObjectMap<string, static>`, `?static` and `: static` are all bound at the call. A body that
 promises one of these returns `$this`, `new static(...)`, `null`, a call on `self`, `static`,
-`parent` or `$this` whose own return binds `static`, an array literal or a `? :` of those, or a
-fresh `Core` collection with no constructor arguments, which is empty as `[]` is (`E0741`). A base class that declares
+`parent` or `$this` whose own return binds `static`, an array literal or a `? :` of those, a
+fresh `Core` collection with no constructor arguments, which is empty as `[]` is, a variable or a
+`readonly` path narrowed by `is static`, or a local declared with a type that binds `static` (`E0741`). A base class that declares
 `sortBy(property<static> $field)` once then checks each subclass's own properties at each call, with
 no override per subclass. A type that also writes `self` or the declaring class's own name is not
 bound, and keeps the declaring class.
@@ -63,7 +64,8 @@ it to (`E0831`). A `static::` read of a constant with no scalar value — an `ar
 and nothing else (`E0832`); `self::` and the class name still inline such a constant.
 
 An anonymous function's body is a frame of its own and carries no called class, so `static::` in any
-form inside one is refused (`E0834`). `self::m()` and `parent::m()` inside one call the class the
+form inside one is refused (`E0834`), and so is every `is` that writes `static`, in a `final` class
+too. A local declared there with a type that writes `static` is not recorded. `self::m()` and `parent::m()` inside one call the class the
 anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
@@ -85,8 +87,32 @@ A `static` member declares its type like every other member — `public static i
 declaring `static`, `?static` or `array<static>` as its return type may not return the declaring
 class, since a subclass call site is promised its own (`E0741`). What it may return is `$this`, `new
 static(...)`, `null`, a call on `static::`, `self::`, `parent::` or `$this` whose own return binds
-`static`, a `? :` of two of these, or an array literal of them. A local variable is none of these, so
-an `array<static>` built up in a loop is refused, and declaring `array<self>` is the way to write it.
+`static`, a `? :` of two of these, or an array literal of them.
+
+**`$o is static` tests the called class at run time**, in a static and in an instance method alike: it
+walks `$o`'s class against the descriptor the frame holds, the walk `$o is $cls` pays, so in `Model`
+called as `Order::findAll()` it is `true` for an `Order` and `false` for a `Customer`. `$o is ?static`
+also passes `null`, and `static|null` is the same type. The true edge keeps the subject's narrowed type
+the declaring class's and adds one fact: the value is the called class. A read of it while that
+narrowing lives is on E0741's list, for a variable and a `readonly` path, and every write, loop and
+merge that drops the narrowing drops the fact with it. A negated guard, `if (!($o is static)) {
+continue; }`, proves the rest of the block, as every narrowing does. Only `always_holds` is skipped:
+a subject disjoint from the declaring class is disjoint from every subclass, so `is static` on it
+still folds to `false`. A `static` deeper in a tested type, `$xs is array<static>` or `$o is
+static|int`, is refused (`E1021`): the lowered type cannot tell it from the declaring class, so the
+test would quietly ask about the wrong class. Test each element with `is static` instead.
+
+**A local declared with a type that binds `static`**, `?static $found = null;` or `array<static> $out
+= [];`, is the called class at every read, because every write to it is held to E0741's list: the
+initializer, an assignment, a compound write, an append `$out[] = $o`, an element write and a nested
+one. A value off the list is `E1022`, with a label on the value and one on the declaration. Its type
+inside the body stays the declaring class's, so it reads, prints and passes on as one. An `inout` pass
+of it is `E1022` too, because the callee's parameter is typed as the declaring class and may write any
+value of it, and so are a `foreach` over it with an `inout` value and a `foreach` that reuses its name
+as the value. A by-value `foreach` over it and removing an element are allowed, and a property write
+through it changes the object and not the local. A `property<static>` local stays a key and is not
+recorded. A finder that keeps loaded objects in a base class and returns only the called class's is
+then written as a loop that tests each with `is static` and appends it to an `array<static>`.
 
 **In a `final` class, `static` is exactly that class**, because no subclass can be the class a call
 names. So a body there may return any value its declared type accepts with `static` read as the class:
@@ -113,7 +139,10 @@ written with it.
   in a parameter or a return is the checker's, once per call it resolves, and costs nothing at run time.
   A bound callable parameter costs nothing at run time and nothing per request; at check time it
   keeps one small record per bound parameter for one method body. A proven call does less work than
-  a plain `callable` call, since it skips the per-call parameter check.
+  a plain `callable` call, since it skips the per-call parameter check. `$o is static` in a class
+  that is not `final` costs one descriptor walk per test, the walk `$o is $cls` pays, where it was a
+  constant before, and no memory. A narrowed read and a `static` local cost the checker one span per
+  read and one small record per local for one body, and nothing at run time.
 
 **Declined:**
 - **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
@@ -150,5 +179,12 @@ written with it.
 - **Proving a call through a `callable(static)` parameter inside an anonymous function.** `self::`
   there names the written class, so the proof would need a second list. The call is checked at run
   time.
+- **A run-time checked `$o as static`.** `as static` and `as ?static` stay `E0473`
+  (`rule:types/conversion`). `is` already narrows a class with no throw path, and a conversion would
+  be a second way to write the same test.
+- **Folding `$o is static` to the declaring class's test.** It answers `true` for a sibling subclass's
+  object, so a finder returned the wrong class with no error.
+- **Accepting an `inout` pass of a `static` local.** The callee's parameter is the declaring class,
+  so it may write a sibling's object into the local, and nothing checks the write.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.

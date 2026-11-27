@@ -796,7 +796,9 @@ codes! {
     /// the body. That is what lets a `parse` return a record it loaded.
     pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741").card(
         "A method with the return type `static` must return `$this`, `new static(...)`, or the \
-         result of another method that returns `static`. If the method always returns this exact \
+         result of another method that returns `static`. It may also return a variable inside \
+         `if ($x is static)`, or a variable declared with `static` in its type, such as \
+         `array<static> $found`. If the method always returns this exact \
          class, declare the return type `self`. In a `final` class, `static` is that class, so \
          the method may return any value of the class.",
     );

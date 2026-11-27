@@ -1757,7 +1757,8 @@ fn reject_static_return_of_another_class(
             .with_secondary(declared, "declared `static` here")
             .with_help(
                 "`static` is the class the call named, which a subclass may be. Return `$this`, \
-                 `new static(...)`, or a variable inside `if ($x is static)`. Declare `self` if \
+                 `new static(...)`, a variable inside `if ($x is static)`, or a variable declared \
+                 with `static` in its type. Declare `self` if \
                  the declaring class is what is meant. In a `final` class `static` is that \
                  class, so any value of it may be returned",
             ),
