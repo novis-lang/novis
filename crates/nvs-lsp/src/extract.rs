@@ -42,6 +42,15 @@
 //! - **Both**, for a selection that is written to (an assignment's target, an
 //!   increment, `isset`, `empty`, `unset`) and for a bare variable.
 //!
+//! # Decision: the command line gets the reason, and the editor gets the offer
+//!
+//! [`at`] and [`reasoned`] run the same steps. The editor offers only what
+//! works, so [`at`] drops each refusal. `nvs code extract` calls [`reasoned`],
+//! which returns the first refusal as a sentence the user reads, and which
+//! takes a name for the variable or the method in place of the default one.
+//! Its edit then passes `crate::refactor::checked` like every write of
+//! `nvs code`.
+//!
 //! # What it spends
 //!
 //! Nothing at runtime, since it only edits source. Per `textDocument/codeAction`
@@ -160,43 +169,33 @@ pub fn at(
     encoding: PositionEncoding,
 ) -> Vec<Action> {
     let file = analysed.map.file(analysed.entry);
-    let source = file.text();
-    let Some(selection) =
-        trimmed(source, start, end).map(|(start, end)| Span::new(analysed.entry, start, end))
-    else {
-        return Vec::new();
-    };
-    if analysed.diags.error_count() != 0 {
-        return Vec::new();
-    }
-    let Some(stmts) = crate::imports::entry_stmts(analysed) else {
-        return Vec::new();
-    };
-    let roots = walk::of_stmts(stmts);
-    let Some(selected) = find(&roots, selection) else {
-        return Vec::new();
-    };
-    let context = Context {
-        analysed,
-        documents,
-        source,
-        selection,
-    };
     let mut offered = Vec::new();
-    match selected {
-        Selected::Expr { path, node } => {
-            let probe = context.probe(&path, node);
-            if let Some(probe) = &probe
-                && probe.moves_safely
-            {
-                offered.extend(context.variable(probe));
+    let _ = selected(analysed, start, end, |selected, selection| {
+        let context = Context {
+            analysed,
+            documents,
+            source: file.text(),
+            selection,
+            variable: None,
+            method: None,
+        };
+        match selected {
+            Selected::Expr { path, node } => {
+                let probe = context.probe(&path, node).ok();
+                if let Some(probe) = &probe
+                    && probe.moves_safely
+                {
+                    offered.extend(context.variable(probe).ok());
+                }
+                if let Some(probe) = &probe {
+                    let region = std::slice::from_ref(node);
+                    offered.extend(context.method(&path, region, Some(&probe.ty)).ok());
+                }
             }
-            if let Some(probe) = &probe {
-                offered.extend(context.method(&path, std::slice::from_ref(node), Some(&probe.ty)));
-            }
+            Selected::Stmts { path, run } => offered.extend(context.method(&path, run, None).ok()),
         }
-        Selected::Stmts { path, run } => offered.extend(context.method(&path, run, None)),
-    }
+        Ok(())
+    });
     offered
         .into_iter()
         .map(|(title, (span, replacement), also)| Action {
@@ -213,6 +212,135 @@ pub fn at(
                 .collect(),
         })
         .collect()
+}
+
+/// Which extraction [`reasoned`] writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Extraction {
+    /// *Extract to variable*.
+    Variable,
+    /// *Extract to method*.
+    Method,
+}
+
+/// One extraction over `[start, end)` of the entry document, as the edits it
+/// writes there, or the sentence that says why the selection cannot be
+/// extracted. This is `nvs code extract`. Where it returns edits, [`at`]
+/// offers the same action with the same text.
+///
+/// `name` replaces the name the editor writes: a variable's, with or without
+/// its `$`, or a method's.
+///
+/// # Errors
+///
+/// Returns why nothing is extracted, written for the person who asked.
+pub fn reasoned(
+    analysed: &Analysed,
+    documents: &Documents,
+    start: BytePos,
+    end: BytePos,
+    which: Extraction,
+    name: Option<&str>,
+) -> Result<Vec<(Span, String)>, String> {
+    let source = analysed.map.file(analysed.entry).text();
+    let name = match name {
+        None => None,
+        Some(given) => {
+            let bare = match which {
+                Extraction::Variable => given.strip_prefix('$').unwrap_or(given),
+                Extraction::Method => given,
+            };
+            let identifier = bare
+                .chars()
+                .next()
+                .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+                && bare
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
+            if !identifier {
+                return Err(format!("`{given}` is not a valid name."));
+            }
+            let variable = which == Extraction::Variable;
+            if writes(source, bare, variable) {
+                let shown = if variable {
+                    format!("${bare}")
+                } else {
+                    bare.to_owned()
+                };
+                return Err(format!(
+                    "The file already uses `{shown}`. Choose another name."
+                ));
+            }
+            Some(bare)
+        }
+    };
+    selected(analysed, start, end, |selected, selection| {
+        let context = Context {
+            analysed,
+            documents,
+            source,
+            selection,
+            variable: name.filter(|_| which == Extraction::Variable),
+            method: name.filter(|_| which == Extraction::Method),
+        };
+        let (_, (span, text), also) = match (which, selected) {
+            (Extraction::Variable, Selected::Stmts { .. }) => {
+                return Err(
+                    "The selection is a list of statements. Only one expression can become a \
+                     variable."
+                        .to_owned(),
+                );
+            }
+            (Extraction::Variable, Selected::Expr { path, node }) => {
+                let probe = context.probe(&path, node)?;
+                if !probe.moves_safely {
+                    return Err(
+                        "The expression would run at a different time above its statement, or \
+                         a different number of times."
+                            .to_owned(),
+                    );
+                }
+                context.variable(&probe)?
+            }
+            (Extraction::Method, Selected::Expr { path, node }) => {
+                let probe = context.probe(&path, node)?;
+                context.method(&path, std::slice::from_ref(node), Some(&probe.ty))?
+            }
+            (Extraction::Method, Selected::Stmts { path, run }) => {
+                context.method(&path, run, None)?
+            }
+        };
+        let mut edits = vec![(span, text)];
+        edits.extend(also);
+        Ok(edits)
+    })
+}
+
+/// Calls `then` with what `[start, end)` selects and the selection without its
+/// whitespace, or returns why nothing there can be extracted.
+fn selected<T>(
+    analysed: &Analysed,
+    start: BytePos,
+    end: BytePos,
+    then: impl FnOnce(Selected<'_>, Span) -> Result<T, String>,
+) -> Result<T, String> {
+    let source = analysed.map.file(analysed.entry).text();
+    let selection = trimmed(source, start, end)
+        .map(|(start, end)| Span::new(analysed.entry, start, end))
+        .ok_or_else(|| "The selection is empty.".to_owned())?;
+    if analysed.diags.error_count() != 0 {
+        return Err(
+            "The file has an error. Fix it first, because the types in it are not known."
+                .to_owned(),
+        );
+    }
+    let stmts = crate::imports::entry_stmts(analysed)
+        .ok_or_else(|| "The file cannot be read.".to_owned())?;
+    let roots = walk::of_stmts(stmts);
+    let selected = find(&roots, selection).ok_or_else(|| {
+        "The selection is not one whole expression or a list of whole statements.".to_owned()
+    })?;
+    then(selected, selection)
 }
 
 /// What a selection is.
@@ -300,17 +428,25 @@ struct Context<'a> {
     source: &'a str,
     /// The selection, its whitespace trimmed.
     selection: Span,
+    /// The variable's name, given instead of the one [`variable_name`] picks.
+    variable: Option<&'a str>,
+    /// The method's name, given instead of `extracted`.
+    method: Option<&'a str>,
 }
+
+/// Why a step does not extract, written for the person who asked.
+type Why = String;
 
 impl Context<'_> {
     /// The selected expression's type, read by analysing the document with
     /// `var $name = <selection>;` written above its statement.
     ///
-    /// `None` where no statement is around the expression, where that
+    /// Refused where no statement is around the expression, where that
     /// statement shares its line with other code, and where the probe does not
     /// compile.
-    fn probe(&self, path: &[&Node], node: &Node) -> Option<Probe> {
+    fn probe(&self, path: &[&Node], node: &Node) -> Result<Probe, Why> {
         let source = self.source;
+        let unknown = || "The type of the expression cannot be written.".to_owned();
         let mut moves_safely = true;
         let mut child = node;
         let mut statement = None;
@@ -318,7 +454,11 @@ impl Context<'_> {
             if STATEMENTS.contains(&ancestor.kind) {
                 let parent = depth.checked_sub(1).map(|above| path[above]);
                 if parent.is_some_and(|parent| !OWNERS.contains(&parent.kind)) {
-                    return None;
+                    return Err(
+                        "The expression is in a statement that has no block of its own. \
+                                Add braces around that statement first."
+                            .to_owned(),
+                    );
                 }
                 let first = ancestor
                     .children
@@ -333,35 +473,48 @@ impl Context<'_> {
                 break;
             }
             if ancestor.kind == "Fn" {
-                return None;
+                return Err("The selection is inside an anonymous function.".to_owned());
             }
             if written_to(ancestor, child) {
-                return None;
+                return Err(
+                    "The selection is a place that a value is written to or tested.".to_owned(),
+                );
             }
             moves_safely &= runs_first(ancestor, child, source);
             child = ancestor;
         }
-        let statement = statement?;
+        let statement =
+            statement.ok_or_else(|| "The expression is not inside a statement.".to_owned())?;
         let start = statement.span.start as usize;
-        let line_start = source.get(..start)?.rfind('\n').map_or(0, |at| at + 1);
-        let indent = source.get(line_start..start)?;
+        let line_start = source
+            .get(..start)
+            .ok_or_else(unknown)?
+            .rfind('\n')
+            .map_or(0, |at| at + 1);
+        let indent = source.get(line_start..start).ok_or_else(unknown)?;
         if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
-            return None;
+            return Err("The statement shares its line with other code.".to_owned());
         }
-        let name = variable_name(node, source);
-        let probe = self.declared(line_start, indent, "var", &name)?;
-        let rewritten = analyse_rewritten(self.documents, self.analysed, probe)?;
+        let name = self
+            .variable
+            .map_or_else(|| variable_name(node, source), str::to_owned);
+        let probe = self
+            .declared(line_start, indent, "var", &name)
+            .ok_or_else(unknown)?;
+        let rewritten =
+            analyse_rewritten(self.documents, self.analysed, probe).ok_or_else(unknown)?;
         if rewritten.diags.error_count() != 0 {
-            return None;
+            return Err(unknown());
         }
-        let at = BytePos::try_from(start).ok()?;
+        let at = BytePos::try_from(start).map_err(|_| unknown())?;
         let ty = rewritten
             .exprs
             .bodies_at(rewritten.entry, at)
             .into_iter()
-            .find_map(|locals| locals.iter().find(|local| local.name == name))?
+            .find_map(|locals| locals.iter().find(|local| local.name == name))
+            .ok_or_else(unknown)?
             .ty;
-        Some(Probe {
+        Ok(Probe {
             ty: self.written(&rewritten.interner.describe(ty), at),
             line_start,
             indent: indent.to_owned(),
@@ -385,7 +538,13 @@ impl Context<'_> {
     }
 
     /// *Extract to variable*, once the typed declaration compiles.
-    fn variable(&self, probe: &Probe) -> Option<Offer> {
+    fn variable(&self, probe: &Probe) -> Result<Offer, Why> {
+        self.offered_variable(probe)
+            .ok_or_else(|| "The variable would not compile.".to_owned())
+    }
+
+    /// [`Self::variable`], `None` where it does not compile.
+    fn offered_variable(&self, probe: &Probe) -> Option<Offer> {
         let text = self.declared(probe.line_start, &probe.indent, &probe.ty, &probe.name)?;
         let checked = analyse_rewritten(self.documents, self.analysed, text)?;
         if checked.diags.error_count() != 0 {
@@ -414,21 +573,43 @@ impl Context<'_> {
     ///
     /// `returns` is the expression's type, and `None` for a run of statements,
     /// which returns `void`.
-    fn method(&self, path: &[&Node], region: &[Node], returns: Option<&str>) -> Option<Offer> {
+    fn method(&self, path: &[&Node], region: &[Node], returns: Option<&str>) -> Result<Offer, Why> {
         let source = self.source;
-        let method = path.iter().rposition(|node| node.kind == "Method")?;
+        let method = path
+            .iter()
+            .rposition(|node| node.kind == "Method")
+            .ok_or_else(|| "The selection is not inside a method.".to_owned())?;
         if path[method..].iter().any(|node| node.kind == "Fn") {
-            return None;
+            return Err("The selection is inside an anonymous function.".to_owned());
         }
         let method = path[method];
-        let selected = source.get(self.selection.range())?;
+        let selected = source.get(self.selection.range()).unwrap_or_default();
         if selected.contains("inout") || selected.contains("&$") {
-            return None;
+            return Err("The selection passes an `inout` or `&` argument.".to_owned());
         }
         let mut uses = Uses::default();
         for node in region {
             uses.walk(node, 0, source)?;
         }
+        if let Some(name) = uses
+            .written
+            .iter()
+            .find(|name| !uses.declared.contains(name))
+        {
+            return Err(format!(
+                "The selection changes `{name}`, and the code after it reads the variable. A \
+                 method cannot change a variable of the method that calls it."
+            ));
+        }
+        self.offered_method(method, &uses, returns)
+            .ok_or_else(|| "The method would not compile.".to_owned())
+    }
+
+    /// The rest of [`Self::method`] once the selection's shape is allowed,
+    /// `None` where a type is not known or the text does not compile.
+    fn offered_method(&self, method: &Node, uses: &Uses, returns: Option<&str>) -> Option<Offer> {
+        let source = self.source;
+        let selected = source.get(self.selection.range())?;
         let mut params = Vec::new();
         let mut args = Vec::new();
         for name in &uses.read {
@@ -450,13 +631,6 @@ impl Context<'_> {
             let ty = self.written(&self.analysed.interner.describe(ty), self.selection.start);
             params.push(format!("{ty} {name}"));
             args.push(name.clone());
-        }
-        if uses
-            .written
-            .iter()
-            .any(|name| !uses.declared.contains(name))
-        {
-            return None;
         }
 
         let name_at = method.name?;
@@ -482,7 +656,9 @@ impl Context<'_> {
             .take_while(|ch| *ch == ' ' || *ch == '\t')
             .collect();
 
-        let called = unique(source, "extracted", false);
+        let called = self
+            .method
+            .map_or_else(|| unique(source, "extracted", false), str::to_owned);
         let args = args.join(", ");
         let call = if is_static {
             format!("self::{called}({args})")
@@ -539,14 +715,18 @@ struct Uses {
 
 impl Uses {
     /// Records `node` and everything under it. `loops` counts the loops around
-    /// it inside the selection. `None` is an early exit, which refuses the
-    /// whole selection.
-    fn walk(&mut self, node: &Node, loops: usize, source: &str) -> Option<()> {
+    /// it inside the selection. An early exit refuses the whole selection, and
+    /// the error says which one it is.
+    fn walk(&mut self, node: &Node, loops: usize, source: &str) -> Result<(), Why> {
         if EXITS.contains(&node.kind) {
-            return None;
+            return Err(exit_reason(node.kind));
         }
         if matches!(node.kind, "Break" | "Continue") && (loops == 0 || !node.children.is_empty()) {
-            return None;
+            let word = node.kind.to_ascii_lowercase();
+            return Err(format!(
+                "The selection has a `{word}` that leaves it. A method cannot leave a loop of the \
+                 method that calls it."
+            ));
         }
         let named = node.name.and_then(|span| source.get(span.range()));
         match node.kind {
@@ -555,7 +735,10 @@ impl Uses {
                     push_once(&mut self.read, name);
                 }
             }
-            "LocalDecl" => push_once(&mut self.declared, named?),
+            "LocalDecl" => push_once(
+                &mut self.declared,
+                named.ok_or_else(|| "The selection cannot be read.".to_owned())?,
+            ),
             "Assign" | "PreIncDec" | "PostIncDec" => {
                 if let Some(name) = node
                     .children
@@ -571,7 +754,29 @@ impl Uses {
         for child in &node.children {
             self.walk(child, inner, source)?;
         }
-        Some(())
+        Ok(())
+    }
+}
+
+/// Why a selection with a node of `kind`, one of [`EXITS`], is not extracted
+/// to a method.
+fn exit_reason(kind: &str) -> Why {
+    match kind {
+        "Return" => "The selection has a `return`. A method cannot return from the method that \
+                     calls it."
+            .to_owned(),
+        "Yield" | "YieldFrom" => "The selection has a `yield`. Only the method that has it can \
+                                  give its values."
+            .to_owned(),
+        "Goto" => "The selection has a `goto`, which cannot jump out of a method.".to_owned(),
+        "Fn" => "The selection has an anonymous function, which reads the variables around it."
+            .to_owned(),
+        "Global" | "StaticLocal" => {
+            "The selection declares a `global` or `static` variable.".to_owned()
+        }
+        "Unset" => "The selection has an `unset`.".to_owned(),
+        "Destructure" => "The selection assigns several variables at once.".to_owned(),
+        _ => "The selection has HTML outside the code.".to_owned(),
     }
 }
 

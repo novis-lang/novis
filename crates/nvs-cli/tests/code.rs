@@ -2301,7 +2301,11 @@ fn code_delete_deletes_the_file_of_an_unused_type() {
     let (out, err, ok) = code(&dir, &["delete", r"Shop\Coupon", "--json"]);
     assert!(ok, "{err}");
     let answer = parsed(&out);
-    assert_eq!(answer["deleted"], serde_json::json!(["src/Coupon.nvs"]), "{out}");
+    assert_eq!(
+        answer["deleted"],
+        serde_json::json!(["src/Coupon.nvs"]),
+        "{out}"
+    );
     assert_eq!(answer["written"], true, "{out}");
     assert!(!dir.join("src/Coupon.nvs").exists());
     let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
@@ -2323,4 +2327,132 @@ fn code_delete_refuses_a_declaration_something_uses_and_writes_nothing() {
     for (path, text) in [("src/Cart.nvs", CART), ("src/GiftCart.nvs", GIFT_CART)] {
         assert_eq!(read(&dir, path), text);
     }
+}
+
+/// A class whose `total` multiplies on line 6, columns 20 to 34, and whose
+/// `capped` returns early from the `if` on lines 11 to 13.
+const TILL: &str = "<?nvs\nnamespace Shop;\n\nclass Till {\n    \
+                    public function total(int $price, int $count): int {\n        \
+                    var $sum = $price * $count + 2;\n        return $sum;\n    }\n\n    \
+                    public function capped(int $price): int {\n        \
+                    if ($price > 100) {\n            return 100;\n        }\n        \
+                    return $price;\n    }\n}\n";
+
+/// An entry point that calls both methods of `Till`.
+const TILLS: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Till;\n\n\
+                     var $till = new Till();\necho $till->total(3, 4) + $till->capped(200);\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_variable_writes_a_typed_local() {
+    let dir = project(
+        "extract-variable",
+        &[("src/Till.nvs", TILL), ("public/tills.nvs", TILLS)],
+    );
+    let range = "src/Till.nvs:6:20-6:34";
+    let (out, err, ok) = code(&dir, &["extract", "variable", range, "--dry-run"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("int $value = $price * $count;"), "{out}");
+    assert_eq!(read(&dir, "src/Till.nvs"), TILL, "{out}");
+    let (out, err, ok) = code(&dir, &["extract", "variable", range, "--name", "subtotal"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Till.nvs"), "{out}");
+    let written = read(&dir, "src/Till.nvs");
+    assert!(
+        written.contains(
+            "        int $subtotal = $price * $count;\n        var $sum = $subtotal + 2;\n"
+        ),
+        "{written}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/tills.nvs"]);
+    assert!(ok, "the program still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_method_writes_a_private_method() {
+    let dir = project(
+        "extract-method",
+        &[("src/Till.nvs", TILL), ("public/tills.nvs", TILLS)],
+    );
+    let (out, err, ok) = code(
+        &dir,
+        &[
+            "extract",
+            "method",
+            "src/Till.nvs:6:20-6:34",
+            "--name",
+            "product",
+            "--json",
+        ],
+    );
+    assert!(ok, "{err}");
+    assert_eq!(parsed(&out)["written"], true, "{out}");
+    let written = read(&dir, "src/Till.nvs");
+    assert!(
+        written.contains("        var $sum = $this->product($price, $count) + 2;\n"),
+        "{written}"
+    );
+    assert!(
+        written.contains(
+            "    }\n\n    private function product(int $price, int $count): int {\n        \
+             return $price * $count;\n    }\n"
+        ),
+        "{written}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/tills.nvs"]);
+    assert!(ok, "the program still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_extract_refuses_a_selection_with_an_early_return_and_says_why() {
+    let dir = project("extract-refused", &[("src/Till.nvs", TILL)]);
+    let (out, err, ok) = code(&dir, &["extract", "method", "src/Till.nvs:11:9-13:9"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("has a `return`"), "{out}{err}");
+    // A list of statements is no expression, so it cannot become a variable.
+    let (out, err, ok) = code(&dir, &["extract", "variable", "src/Till.nvs:11:9-13:9"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("Only one expression"), "{out}{err}");
+    let (out, err, ok) = code(&dir, &["extract", "method", "src/Till.nvs:6:9"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("is not a range"), "{out}{err}");
+    assert_eq!(read(&dir, "src/Till.nvs"), TILL);
+}
+
+/// A class that implements `Priced` and does not declare `price`.
+const TAG: &str = "<?nvs\nnamespace Shop;\n\nclass Tag implements Priced {\n    \
+                   public function label(): string {\n        return 'tag';\n    }\n}\n";
+
+/// An entry point that asks a `Tag` for its price.
+const TAGS: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Tag;\n\n\
+                    echo (new Tag())->price();\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_implement_writes_every_missing_method() {
+    let dir = project(
+        "implement",
+        &[("src/Tag.nvs", TAG), ("public/tags.nvs", TAGS)],
+    );
+    let (_, _, ok) = run(&dir, "check", &["public/tags.nvs"]);
+    assert!(!ok, "`Tag` does not declare `price` yet");
+    let (out, err, ok) = code(&dir, &["implement", r"Shop\Tag"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Tag.nvs"), "{out}");
+    let written = read(&dir, "src/Tag.nvs");
+    assert!(
+        written.contains("public function price(): int\n"),
+        "{written}"
+    );
+    assert!(
+        written.contains("Tag::price is not implemented"),
+        "{written}"
+    );
+    let (_, err, ok) = run(&dir, "check", &["public/tags.nvs"]);
+    assert!(ok, "the program checks once `price` is written: {err}");
+    let (out, err, ok) = code(&dir, &["implement", r"Shop\Tag"]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("already has every method"), "{out}{err}");
 }

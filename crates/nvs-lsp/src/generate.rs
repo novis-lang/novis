@@ -191,13 +191,29 @@ fn implement(
                     span.file == analysed.entry && span.start <= end && start <= span.end
                 })
         })?;
-    let (class, decl) = class_named(analysed, diagnostic.primary_span()?.start)?;
+    let edits = implemented(analysed, documents, diagnostic.primary_span()?.start).ok()?;
+    Some(Offer {
+        title: IMPLEMENT.to_owned(),
+        kind: QUICK_FIX,
+        edits,
+    })
+}
+
+/// The edits that write every method the class declared at `offset` owes, or
+/// why there are none to write.
+fn implemented(
+    analysed: &Analysed,
+    documents: &Documents,
+    offset: BytePos,
+) -> Result<Vec<Change>, &'static str> {
+    let (class, decl) = class_named(analysed, offset).ok_or("is not a class")?;
     let methods = missing(analysed, &class);
     if methods.is_empty() {
-        return None;
+        return Err("already has every method that its interfaces and parent classes need");
     }
     let entry = analysed.map.file(analysed.entry);
-    let place = Place::of(entry.text(), decl)?;
+    let unplaced = "is written in a layout where the methods have no place to go";
+    let place = Place::of(entry.text(), decl).ok_or(unplaced)?;
     let short = text_of(entry, decl.name.span);
     let written: Vec<String> = methods
         .iter()
@@ -209,13 +225,47 @@ fn implement(
             )
         })
         .collect();
-    let edits = with_not_written(analysed, &place, place.joined(&written))?;
-    compiles(analysed, documents, &edits)?;
-    Some(Offer {
-        title: IMPLEMENT.to_owned(),
-        kind: QUICK_FIX,
-        edits,
-    })
+    let edits = with_not_written(analysed, &place, place.joined(&written)).ok_or(unplaced)?;
+    compiles(analysed, documents, &edits)
+        .ok_or("needs methods that cannot be written without an error")?;
+    Ok(edits)
+}
+
+/// Every method the class `symbol` owes, written as *Implement the missing
+/// methods* writes it, and checked by [`crate::refactor::checked`] before it
+/// is returned. This is `nvs code implement`.
+///
+/// # Errors
+///
+/// Returns why nothing is written: the name is no class of the project, the
+/// class owes no method, or the edit adds an error.
+pub fn implement_class(
+    documents: &Documents,
+    index: &crate::SymbolIndex,
+    symbol: &str,
+) -> Result<Vec<crate::rename::Rewrite>, String> {
+    let declared = index
+        .declaration(symbol)
+        .ok_or_else(|| format!("`{symbol}` is not declared in this project."))?;
+    let path = declared.site.path.clone();
+    let analysed = crate::document::analyse_file(documents, &path, 0)
+        .ok_or_else(|| format!("The file of `{symbol}` cannot be read."))?;
+    let edits = implemented(&analysed, documents, declared.site.start)
+        .map_err(|why| format!("`{symbol}` {why}, so nothing was changed."))?;
+    let rewrites = edits
+        .into_iter()
+        .map(|(span, text)| crate::rename::Rewrite {
+            site: crate::Site {
+                path: path.clone(),
+                start: span.start,
+                end: span.end,
+            },
+            text,
+        })
+        .collect();
+    crate::refactor::checked(documents, index, rewrites, &[])
+        .map(|checked| checked.rewrites)
+        .map_err(|broken| broken.refusal())
 }
 
 /// *Declare the method you called*, where the `E0405` of a call meets the

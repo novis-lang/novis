@@ -2567,10 +2567,10 @@ deliberate commit.
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
-`nvs code` has thirteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
+`nvs code` has fifteen verbs over one project. Nine read: `show`, `refs` and `impls` take a name,
 `calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
 `find` takes part of a name, and `unused` takes files or directories, or none for the whole project.
-Four write: `rename`, `move`, `delete` and `order`.
+Six write: `rename`, `move`, `delete`, `extract`, `implement` and `order`.
 
 **`unused`** prints each declaration nothing uses, from `SymbolIndex::unused`
 (`crates/nvs-lsp/src/index.rs`), one line each: position, kind, name. It exits 0. A declaration is
@@ -2597,6 +2597,17 @@ case, since an action edits one document's text. The edit passes
 [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes), and the JSON lists each deleted file under
 `deleted`, a key every write verb's JSON has. **Cost:** tooling only: one analysis of the
 declaration's file, one of each reader of a deleted file, and the check.
+
+**`extract variable`** and **`extract method`** take a range, `path:line:column-line:column`, whose
+last column is part of the selection, and an optional `--name`. They write what the editor's two
+`refactor.extract` actions write over that selection, from `nvs_lsp::extract::reasoned`, the form of
+`extract::at` that returns the first refusal as a sentence: the editor offers only what works and so
+shows none, and the command prints it and exits 1. A given name that is no identifier, or that the
+file already writes, is refused. **`implement`** takes a class name and writes every method the
+class's interfaces and `abstract` parents leave without a body, as the editor's *Implement the
+missing methods* fix writes it on `E0449` (`nvs_lsp::generate::implement_class`); a class that owes
+none is refused. Each edit passes [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes).
+**Cost:** tooling only: the editor's analyses for the action, then the check.
 
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through

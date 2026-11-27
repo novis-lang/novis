@@ -29,7 +29,7 @@ use crate::hints;
 use crate::hover::markdown;
 use crate::index::{DeclKind, Declaration, Site, SymbolIndex};
 use crate::position::offset_at;
-use crate::rename::{self, Renamed};
+use crate::rename::{self, Renamed, Rewrite};
 use crate::server::Workspace;
 
 /// What a reference to a name is.
@@ -446,6 +446,67 @@ fn located(
         )
     });
     Ok((analysed, offset))
+}
+
+/// The edits that extract the selection of `path` from `from` to `to`, each a
+/// line and a column from 1, the column in characters and `to` the first
+/// character after the selection. This is the function the editor's
+/// `refactor.extract` actions share ([`crate::extract::reasoned`]), and the
+/// edit is checked before it is returned
+/// (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`).
+///
+/// # Errors
+///
+/// Returns why the selection cannot be extracted.
+pub fn extract(
+    workspace: &Workspace,
+    path: &Path,
+    from: (u32, u32),
+    to: (u32, u32),
+    which: crate::extract::Extraction,
+    name: Option<&str>,
+) -> Result<Vec<Rewrite>, String> {
+    let not_held = || format!("`{}` is not a file of this project.", path.display());
+    if !workspace.index().holds(path) {
+        return Err(not_held());
+    }
+    let analysed = analyse_file(workspace.documents(), path, 0).ok_or_else(not_held)?;
+    let file = analysed.map.file(analysed.entry);
+    let offset = |(line, column): (u32, u32)| {
+        let position = lsp_types::Position {
+            line: line.saturating_sub(1),
+            character: column.saturating_sub(1),
+        };
+        offset_at(file, position, PositionEncoding::Utf32)
+    };
+    let (start, end) = (offset(from), offset(to));
+    let edits =
+        crate::extract::reasoned(&analysed, workspace.documents(), start, end, which, name)?;
+    let rewrites = edits
+        .into_iter()
+        .map(|(span, text)| Rewrite {
+            site: Site {
+                path: path.to_owned(),
+                start: span.start,
+                end: span.end,
+            },
+            text,
+        })
+        .collect();
+    crate::refactor::checked(workspace.documents(), workspace.index(), rewrites, &[])
+        .map(|checked| checked.rewrites)
+        .map_err(|broken| broken.refusal())
+}
+
+/// The edits that write every method the class `symbol` owes, through the
+/// function the editor's *Implement the missing methods* fix shares
+/// ([`crate::generate::implement_class`]).
+///
+/// # Errors
+///
+/// Returns why nothing is written.
+pub fn implement(workspace: &Workspace, symbol: &str) -> Result<Vec<Rewrite>, String> {
+    crate::generate::implement_class(workspace.documents(), workspace.index(), symbol)
 }
 
 /// The names the index declares that are closest to `name`, nearest first,

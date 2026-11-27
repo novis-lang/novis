@@ -8,11 +8,12 @@
 //! nothing about the language: it finds the project, turns a [`Site`] into a
 //! position a reader can type, escapes what the project wrote, and renders.
 //!
-//! **Only `rename`, `move`, `delete` and `order` write**, through [`planned`]
-//! and [`committed`], the one write path: it writes and deletes only inside
-//! the project root, and only files whose bytes have not changed since this
-//! call first read them. [`write_out`] prints what `rename`, `move` and
-//! `delete` wrote, and [`order()`] prints what it wrote by class.
+//! **Only `rename`, `move`, `delete`, `extract`, `implement` and `order`
+//! write**, through [`planned`] and [`committed`], the one write path: it
+//! writes and deletes only inside the project root, and only files whose
+//! bytes have not changed since this call first read them. [`write_out`]
+//! prints what every write verb but `order` wrote, and [`order()`] prints what
+//! it wrote by class.
 //!
 //! A call loads the editor's index file for the project root from the data
 //! folder ([`nvs_lsp::index_file_of`]) and saves it again when it analysed
@@ -44,6 +45,7 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{BytePos, SourceFile, SourceMap, canonical_key};
 use nvs_hir::members::edit_distance;
+use nvs_lsp::extract::Extraction;
 use nvs_lsp::order;
 use nvs_lsp::query::{self, Outline};
 use nvs_lsp::rename::{self, Rewrite};
@@ -58,8 +60,8 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 ///
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
-/// `.nvs` file in it is read. Only `rename`, `move` and `order` change
-/// files.
+/// `.nvs` file in it is read. Only `rename`, `move`, `delete`, `extract`,
+/// `implement` and `order` change files.
 ///
 /// The editor and `nvs code` share one index file in the data folder. The
 /// index lists every name in the project and every place it is used. A call
@@ -294,6 +296,38 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Move a part of the code into a new variable or a new method, and save
+    /// the changed file.
+    ///
+    /// This is the same change as the editor's "Extract to variable" and
+    /// "Extract to method" actions. The command prints the changed file. If
+    /// the change is not possible, it prints why, changes nothing and fails.
+    Extract {
+        #[command(subcommand)]
+        what: Extracted,
+    },
+    /// Write every method that a class must have and does not have yet, and
+    /// save the changed file.
+    ///
+    /// The methods come from the interfaces of the class and from its
+    /// `abstract` parent classes. Each new method has the signature of the
+    /// method it implements. Its body throws a `LogicError`, so you can find
+    /// it and write the real code. This is the same change as the editor's
+    /// "Implement the missing methods" action.
+    ///
+    /// The command prints the changed file. If the change is not possible,
+    /// it prints why, changes nothing and fails.
+    Implement {
+        /// The class, as `Shop\Cart`.
+        class: String,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the methods that call a method, and the methods it calls.
     ///
     /// The callers come first. Each method has its own line, with `caller`
@@ -330,6 +364,56 @@ enum Command {
         symbols: Vec<String>,
         /// Print the result as one JSON document. An unknown method prints an
         /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+/// What `nvs code extract` writes.
+#[derive(clap::Subcommand, Debug)]
+enum Extracted {
+    /// Move an expression into a new local variable above its statement.
+    ///
+    /// The variable gets the type of the expression. The expression is
+    /// replaced by the variable.
+    Variable {
+        /// The expression, as `src/Cart.nvs:12:9-12:30`. This is the file,
+        /// the line and column of the first character, and the line and
+        /// column of the last character. Both columns are part of the
+        /// expression.
+        range: String,
+        /// The name of the variable, as `total`. Without it, the command
+        /// takes a name from the expression.
+        #[arg(long)]
+        name: Option<String>,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Move an expression or some whole statements into a new `private`
+    /// method of the same class.
+    ///
+    /// The new method comes after the method the code is in. Each variable
+    /// that the code reads becomes a parameter. The code is replaced by a
+    /// call to the new method.
+    Method {
+        /// The code, as `src/Cart.nvs:12:9-14:10`. This is the file, the
+        /// line and column of the first character, and the line and column of
+        /// the last character. Both columns are part of the code.
+        range: String,
+        /// The name of the method, as `computeTotal`. Without it, the
+        /// method is named `extracted`.
+        #[arg(long)]
+        name: Option<String>,
+        /// Print each change, and save nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Print the changes as one JSON document. The `written` field is
+        /// `true` when the files were saved.
         #[arg(long)]
         json: bool,
     },
@@ -375,6 +459,25 @@ impl Args {
                 dry_run,
                 json,
             } => delete(&name, dry_run, json),
+            Command::Extract { what } => match what {
+                Extracted::Variable {
+                    range,
+                    name,
+                    dry_run,
+                    json,
+                } => extract(&range, Extraction::Variable, name.as_deref(), dry_run, json),
+                Extracted::Method {
+                    range,
+                    name,
+                    dry_run,
+                    json,
+                } => extract(&range, Extraction::Method, name.as_deref(), dry_run, json),
+            },
+            Command::Implement {
+                class,
+                dry_run,
+                json,
+            } => implement(&class, dry_run, json),
             Command::Calls { symbols, json } => calls(&symbols, json),
             Command::Reach { symbols, json } => reach(&symbols, json),
         }
@@ -1007,6 +1110,67 @@ pub(crate) fn delete(name: &str, dry_run: bool, json: bool) -> ExitCode {
     }
 }
 
+/// `nvs code extract variable` and `nvs code extract method`: the editor's
+/// extraction over a range ([`query::extract`]), written to disk through
+/// [`write_out`], or printed with `--dry-run`. A selection that cannot be
+/// extracted fails with the reason.
+pub(crate) fn extract(
+    range: &str,
+    which: Extraction,
+    name: Option<&str>,
+    dry_run: bool,
+    json: bool,
+) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let Some((file, from, (line, column))) = split_range(range) else {
+        let message = format!(
+            "`{}` is not a range. Write it as `src/Cart.nvs:12:9-12:30`.",
+            escaped(range)
+        );
+        return unknown(&message, &[], json);
+    };
+    let Some(path) = project.file(file) else {
+        let nearest = project.nearest_files(file);
+        return unknown(
+            &format!("no file `{}` in this project", escaped(file)),
+            &nearest,
+            json,
+        );
+    };
+    // The last column is part of the range, and the engine's end is the
+    // character after it.
+    let to = (line, column.saturating_add(1));
+    match query::extract(&project.workspace, &path, from, to, which, name) {
+        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
+/// `nvs code implement`: the editor's *Implement the missing methods* for a
+/// class by name ([`query::implement`]), written to disk through
+/// [`write_out`], or printed with `--dry-run`.
+pub(crate) fn implement(class: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    if project.workspace.index().declaration(class).is_none() {
+        let nearest = project.nearest_names(class);
+        return unknown(
+            &format!("no name `{}` in this project", escaped(class)),
+            &nearest,
+            json,
+        );
+    }
+    match query::implement(&project.workspace, class) {
+        Ok(rewrites) => write_out(&mut project, &rewrites, &[], &[], None, dry_run, json),
+        Err(message) => unknown(&escaped(&message), &[], json),
+    }
+}
+
 /// Whether the project declares `symbol` as a method, which is what the call
 /// graph answers about.
 fn method(project: &Project, symbol: &str) -> bool {
@@ -1299,7 +1463,15 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
     match renamed {
         Ok(renamed) => {
             let moves: Vec<(PathBuf, PathBuf)> = renamed.file.into_iter().collect();
-            write_out(&mut project, &renamed.rewrites, &moves, &[], None, dry_run, json)
+            write_out(
+                &mut project,
+                &renamed.rewrites,
+                &moves,
+                &[],
+                None,
+                dry_run,
+                json,
+            )
         }
         Err(message) => unknown(&escaped(&message), &[], json),
     }
@@ -1768,6 +1940,20 @@ fn split_position(spec: &str) -> Option<(&str, u32, u32)> {
     (!file.is_empty() && line > 0 && column > 0).then_some((file, line, column))
 }
 
+/// A line and a column, each from 1, the column in characters.
+type LineColumn = (u32, u32);
+
+/// `path:line:column-line:column` split into the file, the first line and
+/// column, and the last line and column, each from 1. `None` for anything
+/// else, and for a range whose end is before its start.
+fn split_range(spec: &str) -> Option<(&str, LineColumn, LineColumn)> {
+    let (first, last) = spec.rsplit_once('-')?;
+    let (file, line, column) = split_position(first)?;
+    let (end_line, end_column) = last.split_once(':')?;
+    let end: (u32, u32) = (end_line.parse().ok()?, end_column.parse().ok()?);
+    (end.0 > 0 && end.1 > 0 && (line, column) <= end).then_some((file, (line, column), end))
+}
+
 /// One file the write path changes: the bytes the edits were computed
 /// against, the bytes it writes, and how many edits make the difference.
 struct Change {
@@ -1777,7 +1963,8 @@ struct Change {
     edits: usize,
 }
 
-/// The write path of `rename`, `move` and `delete`, and what they print.
+/// The write path of `rename`, `move`, `delete`, `extract` and `implement`,
+/// and what they print.
 ///
 /// In this order: every edit is applied in memory, and a file that cannot be
 /// read or an edit that does not fit its file writes nothing. Every path and
