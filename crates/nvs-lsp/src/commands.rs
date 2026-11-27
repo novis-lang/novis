@@ -19,9 +19,10 @@
 //!
 //! # What it spends
 //!
-//! Nothing at runtime, since it only edits source. The offer reads the method
-//! under the cursor in the open document's tree, with no analysis. A command
-//! costs what its engine costs (`crate::signature_change`).
+//! Nothing at runtime, since it only edits source. The offer reads the member
+//! under the cursor in the open document's tree and the index, with no
+//! analysis. A command costs what its engine costs (`crate::signature_change`,
+//! `crate::move_member`).
 
 use nvs_diagnostics::BytePos;
 use serde_json::Value;
@@ -34,7 +35,8 @@ use crate::rename::Rewrite;
 /// its whole new parameter list as it is written in source.
 pub const CHANGE_PARAMETERS: &str = "nvs.changeParameters";
 
-/// *Move member…*: `[symbol, class]`. Answered "not yet".
+/// *Move member…*: `[symbol, class]`, the member as `Class::member` and the
+/// class it moves to.
 pub const MOVE_MEMBER: &str = "nvs.moveMember";
 
 /// *Extract interface…*: `[class, name]`. Answered "not yet".
@@ -63,7 +65,9 @@ pub struct Offer {
 
 /// The commands offered at `offset` of the entry document: *Change
 /// parameters…* on the name of a project method that is not a constructor,
-/// carrying the method and its current parameter list.
+/// carrying the method and its current parameter list, and *Move member…*
+/// on the name of a member of a project class that is not a constructor,
+/// carrying the member and its class.
 #[must_use]
 pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offer> {
     let Some((symbol, _)) = crate::index::declared_at(analysed, offset) else {
@@ -72,20 +76,48 @@ pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offe
     let Some((class, name)) = symbol.rsplit_once("::") else {
         return Vec::new();
     };
-    if name == CONSTRUCTOR
-        || class.is_empty()
-        || index
-            .declaration(&symbol)
-            .is_none_or(|declared| declared.kind != DeclKind::Method)
-    {
+    let Some(declared) = index.declaration(&symbol) else {
+        return Vec::new();
+    };
+    if name == CONSTRUCTOR || class.is_empty() {
         return Vec::new();
     }
-    let Some(stmts) = crate::imports::entry_stmts(analysed) else {
-        return Vec::new();
-    };
-    let Some((_, method)) = stmts_method(stmts, analysed, offset) else {
-        return Vec::new();
-    };
+    let movable = matches!(
+        declared.kind,
+        DeclKind::Method
+            | DeclKind::Property
+            | DeclKind::Const
+            | DeclKind::TypeAlias
+            | DeclKind::Enum
+    ) && index
+        .declaration(class)
+        .is_some_and(|owner| owner.kind == DeclKind::Class);
+    let mut offers = Vec::new();
+    if declared.kind == DeclKind::Method
+        && let Some(offer) = change_parameters(analysed, offset, &symbol, name)
+    {
+        offers.push(offer);
+    }
+    if movable {
+        offers.push(Offer {
+            title: format!("Move `{}` to another class…", name.trim_start_matches('$')),
+            kind: crate::split_join::KIND,
+            command: MOVE_MEMBER,
+            arguments: vec![symbol.clone(), class.to_owned()],
+        });
+    }
+    offers
+}
+
+/// *Change parameters…* for the method `symbol` whose name covers `offset`.
+fn change_parameters(
+    analysed: &Analysed,
+    offset: BytePos,
+    symbol: &str,
+    name: &str,
+) -> Option<Offer> {
+    let stmts = crate::imports::entry_stmts(analysed)?;
+    let (_, method) = stmts_method(stmts, analysed, offset)?;
     let source = analysed.map.file(analysed.entry).text();
     let list = match (method.params.first(), method.params.last()) {
         (Some(first), Some(last)) => source
@@ -94,12 +126,12 @@ pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offe
             .to_owned(),
         _ => String::new(),
     };
-    vec![Offer {
+    Some(Offer {
         title: format!("Change parameters of `{name}`…"),
         kind: crate::split_join::KIND,
         command: CHANGE_PARAMETERS,
-        arguments: vec![symbol, list],
-    }]
+        arguments: vec![symbol.to_owned(), list],
+    })
 }
 
 /// The method whose name covers `offset`, found from its name's start.
@@ -148,7 +180,14 @@ pub fn execute(
             }
             Ok(rewrites)
         }
-        MOVE_MEMBER => Err("Moving a member is not available in the editor yet.".to_owned()),
+        MOVE_MEMBER => {
+            let Some([symbol, class]) = texts.as_deref() else {
+                return Err(format!(
+                    "`{MOVE_MEMBER}` needs two strings: the member and the class it moves to."
+                ));
+            };
+            crate::move_member::moved_member(documents, index, symbol, class.trim())
+        }
         EXTRACT_INTERFACE => {
             Err("Extracting an interface is not available in the editor yet.".to_owned())
         }
