@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs]
   - id: 5
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/reference/lang/95-testing.md, docs/examples/lang/testing/chapter.md, website/src/data/changes.json]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -162,6 +162,13 @@ not its test code, so nothing there changes. A package that adds `#[TestOnly]` t
 was not test code makes a breaking change (`rule:packaging/only-a-major-may-break-the-api`), and
 `nvs pkg diff` reports it as it reports a removed declaration.
 
+**Routes and commands (decided in stage 5).** A `#[Route]` or `#[Command]` on `#[TestOnly]` code,
+a test-only method or any method of a test-only class, is `E1019`, and the method gets no row in
+the route or command table. Keeping the row under `nvs test` only would give the tests a route set
+production does not have, the same split `implementing` declines. Built in stage 5:
+`crate::test_code::refuse_entry_point`, called from `check_class_routes` and
+`check_class_commands`. A `#[Test]` method that carries a route is not covered by it.
+
 **The editor.** Outside test code, completion leaves test-only members and test-only types out
 completely. A `[[restrict]]`-blocked item sorts last (`crates/nvs-lsp/src/completion.rs:5069`),
 because a restriction's reason is worth reading. A test-only item outside test code is always an
@@ -280,16 +287,16 @@ Gate: `refactor-commands` and `loadable-completion` are reached (their goal file
 fragment is written. Its brief names AGENTS.md § *Text an end user reads* and § *Feature proofs*
 above.
 
-- [ ] `docs/rules/testing/a-test-only-declaration-is-test-code.md` (new),
+- [x] `docs/rules/testing/a-test-only-declaration-is-test-code.md` (new),
   `docs/rules/testing/tests-never-reach-a-build.md` and
   `docs/rules/testing/private-in-the-same-file.md`: per § *Rules*, then `bun nv rules`.
-- [ ] `docs/reference/lang/95-testing.md:1476`: the new section after the hooks.
-- [ ] The feature proofs `bun nv proofs --owed --goal test-only` names: about.md, three examples,
+- [x] `docs/reference/lang/95-testing.md:1476`: the new section after the hooks.
+- [x] The feature proofs `bun nv proofs --owed --goal test-only` names: about.md, three examples,
   the bench, the attack, the Novis and Rust tests and the help text. `docs/examples/lang/testing/chapter.md`
   lists the new folder.
-- [ ] `website/src/data/changes.json:1`: the `added` entry, then `bun nv site --check stale`,
+- [x] `website/src/data/changes.json:1`: the `added` entry, then `bun nv site --check stale`,
   `changes` and `review` green.
-- [ ] `bun nv proofs --owed --goal test-only` names nothing.
+- [x] `bun nv proofs --owed --goal test-only` names nothing.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -300,46 +307,45 @@ above.
 
 ### State
 
-Stages 1 to 4 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 11 passed),
+Stages 1 to 5 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 12 tests),
 `builds` (`cargo test --test test_only_run`, 4 passed) and `editor`
 (`cargo test --test test_only_editor`, 4 passed) are green, and the build and clippy are clean.
 
-Stage 4: completion's `Cursor` carries `in_tests`, set by `test_code_at`: the cursor is inside a
-test-only class, interface, enum or `extend` block, or inside a member span of a method the
-`ExprTypeTable` calls test code. Outside it, `hidden` leaves out every member of a test-only type
-and every method that is test code (a `#[Test]` method too, whose call is `E0889` as well), in
-`own_members`, `block_rows` and `enum_cases`. `in_reach` and `under` leave out test-only types,
-except in the qualified list a `use` line takes, because a test file imports its test-only types
-at the top. Hover's `for_tests` adds "**Only for tests.** `nvs run` and `nvs build` leave it out."
-between the restriction and the `///` run. Members of unloaded `extend` blocks have no checker
-record and are not filtered.
+Stage 5: the rule `testing/a-test-only-declaration-is-test-code` is written and rendered, and
+`tests-never-reach-a-build` now names all seven markers and `#[TestOnly]`. The reference section
+`` `#[TestOnly]`: code that only tests can use `` follows the hooks
+(`docs/examples/lang/testing/testonly-code-that-only-tests-can-use/`). The section has three
+examples, an attack, a bench (measured, flat), two conformance cases
+(`tests/conformance/lang/a-test-uses-test-only-code.nvst`,
+`tests/conformance/reject/a-call-to-test-only-code-outside-a-test-is-refused.nvst`) and `covers:`
+lines in the three Rust suites. Its `changes.json` entry is in. The backlog's route and command
+question is decided and built (§ *Routes and commands*): `test_code::refuse_entry_point` gives
+`E1019`, and `a_test_only_route_or_command_does_not_compile` passes.
 
-Stage 3: `ExprTypeTable::is_test_only_type` answers the test-only types, `Tests::keeps_type` and
-`Tests::lowers` leave them out of a run, and `listed_implementors` filters `Core\Program`.
-`crates/nvs-cli/tests/test_only_run.rs` drives the binary over `fixtures/test-only/`.
+`bun nv proofs --gate --goal test-only` names only `Novis\Pdf\Document::render` and `::withAsset`.
+Both belong to another session's uncommitted pdf work in the tree, and that session owns their
+review and the `about.md` word count. The same holds for the pdf lines in `site --check stale` and
+`questions`.
 
-Every job the nightly sweep named (run 45813627231, at `4e43e1fa2e`) was already fixed on `main`
-after it: the Miri zone tests in `c115a735a1` and `215257ff46`, the Uuid `Parses` case in
-`28a4d7a6bf` and the serve bound in `544711a8fb`. A sweep that names that run again needs nothing.
+The nightly sweep's run 45813627231 was fixed on `main` after it, so it needs nothing.
 
 ### Next
 
-Stage 5 from its first item, following its `**Split:**` line. Write the rule fragment
-`docs/rules/testing/a-test-only-declaration-is-test-code.md` from § *Rules* and § *Declined* in
-the standing decisions, with a paragraph on the editor (`completion.rs` `hidden` and
-`test_code_at`, `hover.rs` `for_tests`), and decide the backlog's route and command question there.
-Then `bun nv rules`, the reference section at `docs/reference/lang/95-testing.md:1476`, and
-`bun nv proofs --owed --goal test-only` for the list the proof subagent takes.
+Stage 6, the close (this goal is not the chain's full gate unless the pack says so). Run
+`cargo build`, `cargo clippy --all-targets -- -D warnings`, the goal's own tests by name
+(`cargo test --test test_only`, `--test test_only_run`, `--test test_only_editor`), and the two
+conformance cases with `target/debug/nvs.exe test <case>`. Then run `bun nv close --goal test-only`
+and fix each red it names. If the pdf proofs still block `close`, check whether the other session
+has committed them yet before you touch them. Then delete the goal file and write `DONE`.
 
-Tests expected to go red at the gate: any test that counts `ATTRIBUTES` or snapshots the attribute
-cards, stubs or `nvs meta` output changes by one row, and any snapshot of `E0889`'s card or message
-(the `nvs agent show` pages, `llms-full.txt`) changes with the new text. The new code `E1019` may
-need a line wherever the error codes are listed for the website. A snapshot of
-`ExprTypeTable`'s dump gains the empty `test_only_types` section.
+Tests expected to go red at the full gate: any test that counts `ATTRIBUTES` or snapshots the
+attribute cards, stubs or `nvs meta` output changes by one row. Any snapshot of `E0889`'s or
+`E1019`'s card or message (the `nvs agent show` pages, `llms-full.txt`) changes with the new text.
+The new code `E1019` may need a line wherever the error codes are listed for the website. A
+snapshot of `ExprTypeTable`'s dump gains the empty `test_only_types` section.
 
 ### Backlog
 
-- A `#[TestOnly]` class that declares routes or commands still reaches the compiled route and
-  command tables, whose handlers then name a class a run has no row for. Stage 5's rule says whether
-  that is `E1019`, and stage 6 adds the check if so (`crates/nvs-types/src/routes.rs`,
-  `check_class_routes`, and `crates/nvs-types/src/commands.rs`).
+- A `#[Test]` method that also carries `#[Route]` or `#[Command]` still gets a table row, and a run
+  has no method for it. It predates this goal. The same `refuse_entry_point` call with
+  `env.test_code.contains` would close it, as a new error or as `E1019`'s wider form.
