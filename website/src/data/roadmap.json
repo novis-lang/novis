@@ -30,6 +30,13 @@
       "goals": [
         "file-transfer"
       ]
+    },
+    {
+      "title": "Write HTML attributes from a map",
+      "text": "`Core\\Html::attributes` writes a map of attributes and escapes every value. A value that is `true` writes the bare name, and `false` or `null` leaves the attribute out. It leaves out an unsafe URL. `Core\\Html::mergeAttributes` merges sets of attributes, and joins the `class` and `style` lists.",
+      "goals": [
+        "html-attributes"
+      ]
     }
   ]
 }

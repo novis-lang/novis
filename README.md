@@ -134,6 +134,7 @@ The work is in the order it is planned. The order can change.
 2. **Test code and types that say what they mean.** `#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.
 3. **Read large folders and files in a loop.** `Core\IO::walk` reads one folder at a time, and each entry says if it is a file or a folder. `Core\IO::lines` reads its file while the loop runs. A listing shows only what the program may read. `Core\Path::matches` tests a path against a pattern.
 4. **Send and receive files over FTP, FTPS and SFTP.** `Core\FileTransfer::open` connects to a server that the person who runs the program configures in `nvs.toml`. The same code works with FTP, FTPS, SFTP and a local folder. In tests, the folder replaces the server.
+5. **Write HTML attributes from a map.** `Core\Html::attributes` writes a map of attributes and escapes every value. A value that is `true` writes the bare name, and `false` or `null` leaves the attribute out. It leaves out an unsafe URL. `Core\Html::mergeAttributes` merges sets of attributes, and joins the `class` and `style` lists.
 <!-- roadmap:end -->
 
 ## Contributing
