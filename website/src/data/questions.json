@@ -20309,7 +20309,7 @@
   },
   "/syntax/testing/fixtures-and-assertions/": {
     "feature": "syntax/testing/fixtures-and-assertions.mdx",
-    "hash": "640724954a1a81c4",
+    "hash": "04e3e5009a0a7f01",
     "questions": [
       "How do I share setup objects between tests?",
       "Run the same test with several sets of input",

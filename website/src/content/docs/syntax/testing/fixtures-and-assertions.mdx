@@ -5,8 +5,11 @@ description: How a test gets objects from a fixture, runs once per row of data w
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
-A test gets the values it needs from a fixture or a data row. A hook cleans up after the tests. An
-assertion checks a value.
+A test gets the values it needs from a fixture or a data row. A fixture is a method that builds a
+value once, and each test that needs the value gets it as a parameter. A data row is
+one set of arguments for a test, and the test runs once for each row. A hook is a method that runs
+before or after the tests, for example to delete a file. An assertion checks a value. The attribute
+`#[TestOnly]` marks a class or method that only tests can use.
 
 <FeatureSection examples="lang/testing/core-test-fixture-built-once-injected-by-type" heading="Fixtures" id="fixtures" />
 
@@ -26,14 +29,14 @@ one.
 | Method | Passes when |
 |---|---|
 | `assertSame($actual, $expected)` | The values are the same. Two objects must be the same object. |
-| `assertEquals($actual, $expected)` | Like `assertSame`, but two objects are compared with `compareTo`. |
+| `assertEquals($actual, $expected)` | Like `assertSame`. For two objects, it calls their `compareTo` method and passes when it returns `0`. |
 | `assertEqualsDeep($actual, $expected)` | Arrays and objects are equal in every entry. |
 | `assertTrue($value)` | The `bool` is `true`. |
 | `assertNull($value)` | The value is `null`. |
 | `assertCount($array, $n)` | The array has exactly `$n` entries. |
 | `assertThrows($body, C::class)` | The function throws `C`, or a class that extends `C`. |
 | `assertDoesNotThrow($body)` | The function returns. |
-| `expectFailure($body)` | An assertion inside the function failed. |
+| `expectFailure($body)` | An assertion inside the function failed. Use it to test that an assertion fails. |
 
 ## Use this when setup is slow or inputs repeat
 
@@ -45,4 +48,5 @@ Put slow setup, like building a schema, in a fixture. It then runs once per clas
 - Do write the value you check first: `assertSame($actual, $expected)`.
 - Do use a hook to delete a file or a table that a test leaves behind.
 - Do mark a fake class or a test helper with `#[TestOnly]`. `nvs run` and `nvs build` leave it out.
-- Don't catch `Failure` to hide it. The test fails anyway.
+- Don't catch `Core\Test\Failure` to hide a failed assertion. A failed assertion throws it, and the
+  test fails anyway.

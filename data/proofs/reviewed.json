@@ -2510,6 +2510,7 @@
   "website/src/content/docs/syntax/operators/arithmetic.mdx": "53d83dba9f418c7e",
   "website/src/content/docs/syntax/operators/comparison.mdx": "3eeb7e6772452716",
   "website/src/content/docs/syntax/programs/file-paths-and-exit.mdx": "3afe528f1487266d",
+  "website/src/content/docs/syntax/testing/fixtures-and-assertions.mdx": "55816417bdff4773",
   "website/src/content/docs/syntax/testing/writing-tests.mdx": "663309b50d56941f",
   "website/src/content/docs/syntax/values/enums.mdx": "6b9b1d6639445286",
   "website/src/content/docs/tools/api-document/index.mdx": "3f87a1064fddeacd",
