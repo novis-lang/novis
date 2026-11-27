@@ -874,7 +874,8 @@ diagnostic the text renderer prints, with the same codes and spans.
 `nvs.check.scope` is `"workspace"` or `"open"`, default `"workspace"`: the symbol index is built over every
 `.nvs` file the project walk finds under the workspace folder
 ([`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project), which skips what `.gitignore` and `.ignore` name), or
-over the open documents and their `require`/`autoload` graph alone. The index is what completion offers a type out of, what references and the code lens count, and
+over the open documents and their `require`/`autoload` graph alone. The index is what completion offers a type out of, each one the file's program can load
+([`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted)), what references and the code lens count, and
 what diagnostics are published for, so the default is the scope at which a developer is offered the classes
 of their own project and not only the ones already on screen. `nvs.checkWorkspace` runs one workspace pass
 on demand without changing the setting, which is what a developer who chose `"open"` reaches for. The
@@ -2628,15 +2629,45 @@ silence every set in a file until it is regenerated. A file under `vendor/` is a
 
 <a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
 
-## A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line
+## A bare name is offered every type the file's program can load, by short name, and accepting one that needs an import writes its `use` line
 
 `rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`
 
-A bare name at a statement or expression position is offered every type the server holds — the `Core`
-registry's classes and enums and every declaration in the workspace index — from the first character
-typed, and accepting one that no short name reaches inserts its last segment and adds the `use` line for
-it. The registry is the roster a `Core\` separator already lists, read before the separator is written, so
-this is [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) and not an exception to it.
+A bare name at a statement or expression position is offered every type the file's program can load —
+the `Core` registry's classes and enums, and each declaration in the workspace index that the file's
+`autoload` map loads — from the first character typed, and accepting one that no short name reaches
+inserts its last segment and adds the `use` line for it. The registry is the roster a `Core\` separator
+already lists, read before the separator is written, so this is
+[`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) and not an exception to it. The `Ns\` list
+after a namespace, the type list after `use` and after `new`, and the members an `extend` block of
+another file adds read the same test.
+
+**A declaration is loadable when the program loaded it or the map resolves its name to its file.** The
+first half is the analysis's own symbol table. The second is a path comparison and never a disk probe:
+the name's longest matching prefix among the map's ordinary entries, one of that prefix's roots, the
+remaining segments as directories and the last one plus `.nvs`, compared with the path the index holds.
+It is `AutoloadMap::loads_file`, beside `resolve` and sharing its prefix walk, so the editor and the
+compiler read one implementation of the map, and both sides are canonical paths, so the comparison needs
+no conversion. A type declared inside a class, `Shop\Cart::State`, is tested by its class's name, since
+it is loaded with that class. Where two roots of one prefix both hold the file, it is offered: the label
+is keyed by name and appears once. `Core` is always offered, since no program autoloads into it.
+
+**An `autoload links` root loads nothing** ([`programs/autoload`](programs.md#programs-autoload)), so its types are not offered at a
+bare name, a `Ns\` list, `use` or `new`. **A file whose map has no ordinary entry is offered every
+type**, as before the narrowing: a file no program loads, a new class file before any entry maps it, a
+program that only uses `require`, and a map of `links` lines alone. An empty list there would offer
+nothing to start from.
+
+**Four lists stay workspace-wide.** The namespaces offered inside an `autoload` prefix or path string,
+because that is where a developer adds a module to the map. The short names a `use` line must not take,
+because a type in the namespace in force answers to its short name whether the map loads it or not. A
+link's route argument keeps reading the `links` roots. And find references, rename, the type hierarchy,
+the code lens counts and the unused-member dimming ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)),
+because a change to a framework class must reach every module that uses it.
+
+**This is not a security boundary.** The compiler and the map are, and a type outside the map is still
+a compile error wherever it is written. A module that must not be used from another is held by a
+`[[restrict]]` entry ([`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used)).
 
 **The spelling offered is the shortest one that resolves, and the editor makes it resolve.** A type an
 import or the namespace in force already reaches is offered by that short name and edits nothing else. Any
@@ -2668,7 +2699,8 @@ although the access node spans its own arguments.
 
 - **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, two
   more lexings of the document, and one string per qualified name it writes. All are built and dropped
-  with the answer.
+  with the answer. The loadable test adds no table: it is one prefix walk and one path comparison per
+  indexed type, and a module's lists get shorter, so each answer is smaller to send and to filter.
 
 **Declined:**
 - **Accepting a type writes its qualified name.** It edits nothing else, but it is not what the developer
@@ -2678,8 +2710,17 @@ although the access node spans its own arguments.
   character is latency spent to do the same match twice.
 - **Namespaces offered as items.** Typing `Core` already lists every `Core` type, and the separator's
   list takes over at the `\`.
+- **A per-module allowlist or blocklist of namespaces in a file of its own.** It states what the map
+  already states, the two drift, and the editor would then hide code that compiles or offer code that
+  does not. A blocklist also fails open for every module added later.
+- **Sorting another module's types last instead of leaving them out.** Each one is a compile error where
+  it is offered.
+- **Probing the disk per item through `AutoloadMap::resolve`.** One file-system call per indexed type per
+  request, for an answer the index's path already gives.
+- **Narrowing references and rename to the map.** A change to a framework class must reach every module
+  that uses it.
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`programs/autoload`](programs.md#programs-autoload), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used).</sub>
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
