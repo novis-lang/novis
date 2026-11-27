@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/attributes/an-attribute-is-declared-with-its-sites.md, crates/nvs-types/src/check.rs, crates/nvs-diagnostics/src/code/types_e10.rs]
   - id: 2
     title: "every use of test-only code outside test code does not compile"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr_table.rs, crates/nvs-types/src/deprecated.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 3
     title: "a run and a build leave every test-only type out, and Core\\Program never lists one"
@@ -235,14 +235,14 @@ and the hierarchy and could run beside `refactor-commands` as a side goal. Stage
 
 ### 2. every use of test-only code outside test code does not compile
 
-- [ ] `crates/nvs-types/src/test_code.rs:97`: `refuse_calls` also reads `New`, `StaticProperty`,
+- [x] `crates/nvs-types/src/test_code.rs:97`: `refuse_calls` also reads `New`, `StaticProperty`,
   `ClassConst` and `ClassConstLate` entries (`crates/nvs-types/src/expr_table.rs:612`, `:770`,
   `:1140`, `:1170`) against the type set, and the one message shape and help of § *What counts as a
   use*. `crates/nvs-diagnostics/src/code/types_e08.rs:1144`: `E0889`'s card says the same.
-- [ ] Type positions: a parameter, return or property type, `is`, `catch`, `class<T>` and a type
+- [x] Type positions: a parameter, return or property type, `is`, `catch`, `class<T>` and a type
   argument outside test code that names a test-only type is `E0889`, checked where the signature is
   resolved (`crates/nvs-types/src/check.rs:1480` reads the method's test-code flag).
-- [ ] The five tests of the check `uses` in `crates/nvs-types/tests/test_only.rs`, then
+- [x] The five tests of the check `uses` in `crates/nvs-types/tests/test_only.rs`, then
   `cargo test --test test_only` once.
 
 ### 3. a run and a build leave every test-only type out, and Core\Program never lists one
@@ -298,32 +298,36 @@ above.
 
 ### State
 
-Stage 1 is done, and the check `marker` is green (`cargo test --test test_only`, 6 passed).
-`#[Core\TestOnly]` is a row of `ATTRIBUTES` and `ATTRIBUTE_DOCS` (`crates/nvs-types/src/derive.rs`,
-after `DEPRECATED`), and `crates/nvs-types/src/attributes.rs` reports a field on it as it does for
-`#[Core\Path]`. A file writes it as `use Core\TestOnly;` and `#[TestOnly]`, the way
-`#[Core\Deprecated]` is written. `TestCode` (`crates/nvs-types/src/test_code.rs`) now has three
-sets: every test-code method, the test-only methods, and the test-only types. It reads enums too,
-so lowering already skips each test-only method under `nvs run`, through `record_test_code`
-(`check.rs` `check_method`). `check_hierarchy` raises `E1019` and runs from `check.rs` right after
-`build_table`.
+Stages 1 and 2 are done. The checks `marker` and `uses` are green (`cargo test --test test_only`,
+11 passed), and the build and clippy are clean.
 
-The session also fixed the push run's two Miri timeouts in the mail tests (`215257ff46`). Every
-job the nightly sweep named was already fixed on `main`: the zone tests in `c115a735a1`, the
-`Parses` case in `28a4d7a6bf` and the serve bound in `544711a8fb`.
+`refuse_calls` (`crates/nvs-types/src/test_code.rs`) now also refuses a `New`, `StaticProperty`,
+`ClassConst`, `ClassConstLate`, `ClassRefConst` and `EnumCase` entry whose type is test-only, with
+the one message shape "`X` is test code, so only test code can use it". Its help names
+`#[TestOnly]` when the target carries it. A written type is refused in two places that build the
+same diagnostic, so `Diagnostics` keeps one: `refuse_type`, called from `crate::lower`'s class and
+enum arms while `Env::in_production_body` is set (by `deprecated::window`, from
+`TestCode::is_test_body`), and `refuse_signatures`, an AST pass from `check.rs` after
+`check_hierarchy` over property and constant types, methods with no body and `implements` type
+arguments. The module doc says which covers what. `E0889`'s card names `#[TestOnly]`, and
+`tests/conformance/reject/a-call-into-test-code-is-refused.nvst` takes the new message.
+
+Every job the nightly sweep named was already fixed on `main` after its run (`4e43e1fa2e`): the
+Miri zone tests in `c115a735a1`, the Uuid `Parses` case in `28a4d7a6bf` and the serve bound in
+`544711a8fb`.
 
 ### Next
 
-Stage 2 from its first item. `refuse_calls` (`crates/nvs-types/src/test_code.rs`, after
-`check_hierarchy`) also reads the `New`, `StaticProperty`, `ClassConst` and `ClassConstLate`
-entries against `TestCode::is_test_only_type`, and its message takes the one shape of § *What
-counts as a use*. Type positions are checked where `check_method` reads the method's test-code
-flag (`crates/nvs-types/src/check.rs`, `fn check_method`). The type arguments of an `implements`
-clause go in the same check. A test-only class still gets a class row under `nvs run` until stage 3.
+Stage 3 from its first item. Under `Tests::Omit`, a test-only type gets no class row, descriptor
+or layout (`crates/nvs-ir/src/lower/mod.rs`, the class rows around `:1470`). `nvs-ir` does not
+depend on `nvs-types`, so the test-only type set has to travel on `ExprTypeTable`, as
+`record_test_code` carries the method labels (`crates/nvs-types/src/check.rs` `fn check_method`).
+Then `Core\Program::implementing` skips a test-only class (`crates/nvs-hir/src/hierarchy.rs:1175`,
+a `test_only` flag on `ClassLinks` if the layer cannot see attributes).
 
-Tests expected to go red at the gate: `every_core_attribute_is_one_declaration` should hold, but
-any test that counts `ATTRIBUTES` or snapshots the attribute cards, stubs or `nvs meta` output will
-change by one row. The new code `E1019` may need a line wherever the error codes are listed for
-the website.
+Tests expected to go red at the gate: any test that counts `ATTRIBUTES` or snapshots the attribute
+cards, stubs or `nvs meta` output changes by one row, and any snapshot of `E0889`'s card or message
+(the `nvs agent show` pages, `llms-full.txt`) changes with the new text. The new code `E1019` may
+need a line wherever the error codes are listed for the website.
 
 ### Backlog
