@@ -795,6 +795,105 @@ fn code_rename_refuses_to_move_a_type_that_shares_its_file() {
 }
 
 /// A class with a type alias it uses by its bare name, and a constant.
+/// `nvs code rename --from <list>` in `dir`, with `list` written to
+/// `renames.txt` first.
+fn rename_from(dir: &Path, list: &str, extra: &[&str]) -> (String, String, bool) {
+    fs::write(dir.join("renames.txt"), list).expect("a writable scratch file");
+    let mut args = vec!["rename", "--from", "renames.txt"];
+    args.extend_from_slice(extra);
+    code(dir, &args)
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_from_a_list_applies_every_rename_in_one_write() {
+    let dir = project("rename-from", &[]);
+    let list = "# Two renames.\nShop\\Cart::addItem addProduct\n\nShop\\Wishlist Favourites\n";
+
+    let (out, err, ok) = rename_from(&dir, list, &["--dry-run", "--json"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    let edits = answer["edits"].as_array().expect("an edit list");
+    let from_lines: std::collections::BTreeSet<u64> = edits
+        .iter()
+        .map(|edit| {
+            edit["fromLine"]
+                .as_u64()
+                .expect("each edit has its list line")
+        })
+        .collect();
+    assert_eq!(from_lines, [2, 4].into(), "{out}");
+    assert_eq!(answer["written"], Value::Bool(false), "{out}");
+
+    let (out, err, ok) = rename_from(&dir, list, &[]);
+    assert!(ok, "{err}");
+    assert!(
+        read(&dir, "src/Cart.nvs").contains("function addProduct("),
+        "{out}"
+    );
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("$cart->addProduct(3)"), "{index}");
+    assert!(index.contains("new Favourites()"), "{index}");
+    // `Wishlist::addItem` is another method, so it keeps its name.
+    assert!(
+        read(&dir, "src/Favourites.nvs").contains("function addItem("),
+        "{out}"
+    );
+    assert!(!dir.join("src/Wishlist.nvs").exists(), "{out}");
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the renamed project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_from_a_list_swaps_two_names() {
+    let dir = project("rename-from-swap", &[]);
+    let (out, err, ok) = rename_from(&dir, "Shop\\Cart Wishlist\nShop\\Wishlist Cart\n", &[]);
+    assert!(ok, "{err}");
+    let cart = read(&dir, "src/Cart.nvs");
+    assert!(cart.contains("class Cart {"), "{out}\n{cart}");
+    let wishlist = read(&dir, "src/Wishlist.nvs");
+    assert!(
+        wishlist.contains("class Wishlist implements Priced"),
+        "{out}\n{wishlist}"
+    );
+    assert!(
+        read(&dir, "src/GiftCart.nvs").contains("extends Wishlist"),
+        "{out}"
+    );
+    let index = read(&dir, "public/index.nvs");
+    assert!(index.contains("$wish->addItem(Wishlist::MAX)"), "{index}");
+    let (_, err, ok) = run(&dir, "check", &["public/index.nvs"]);
+    assert!(ok, "the swapped project still checks: {err}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_from_a_list_refuses_two_renames_of_one_site_and_writes_nothing() {
+    let dir = project("rename-from-overlap", &[]);
+    let before = files(&dir);
+    let list = "Shop\\Cart::addItem addProduct\nShop\\Cart::addItem addMany\n";
+    let (out, err, ok) = rename_from(&dir, list, &[]);
+    assert!(!ok, "{out}");
+    assert!(err.contains("line 1 and line 2 both change"), "{err}");
+    assert_eq!(files(&dir), before);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn code_rename_from_a_list_refuses_one_new_name_given_twice() {
+    let dir = project("rename-from-twice", &[]);
+    let before = files(&dir);
+    let list = "Shop\\Cart::addItem add\nShop\\Cart::price add\n";
+    let (out, err, ok) = rename_from(&dir, list, &[]);
+    assert!(!ok, "{out}");
+    assert!(
+        err.contains("line 1 and line 2 both give the name"),
+        "{err}"
+    );
+    assert_eq!(files(&dir), before);
+}
+
 const ORDER: &str = "<?nvs\nnamespace Shop;\n\nfinal class Order {\n    \
                      public const int LIMIT = 10;\n\n    type Total = int;\n\n    \
                      public function total(): Total {\n        return 3;\n    }\n}\n";

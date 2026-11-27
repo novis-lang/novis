@@ -36,7 +36,7 @@
 //! and a failure prints `error` and `nearest` on standard output while the
 //! exit status is 1.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::ops::RangeInclusive;
 use std::path::{Component, Path, PathBuf};
@@ -150,17 +150,29 @@ enum Command {
     /// `Shop\Billing\Cart`. The command changes every `use` line and moves the
     /// file to the folder that `autoload` reads for the new name.
     ///
+    /// With `--from`, the command reads a list of renames from a file and
+    /// does all of them in one change.
+    ///
     /// The command prints one line for each changed file. If the rename is
     /// not possible, it prints why, changes nothing and fails.
     Rename {
         /// What to rename. Write a name, as `Shop\Cart::addItem`, or a
         /// position, as `src/Cart.nvs:12:9`. A local variable has no name
         /// outside its function, so use its position.
-        target: String,
+        #[arg(required_unless_present = "from")]
+        target: Option<String>,
         /// The new name, as `addProduct`. For a variable or a property, the
         /// `$` is optional. For a class, a full name, as `Shop\Billing\Cart`,
         /// moves it to that namespace.
-        new_name: String,
+        #[arg(required_unless_present = "from")]
+        new_name: Option<String>,
+        /// Read the renames from this file. Each line has what to rename and
+        /// the new name, separated by a space. Empty lines and lines that
+        /// start with `#` are skipped. Each position is read in the files
+        /// before any change. Two names can swap. If one rename is not
+        /// possible, nothing is changed.
+        #[arg(long, value_name = "FILE", conflicts_with_all = ["target", "new_name"])]
+        from: Option<String>,
         /// Print each change, and save nothing. Each line has the position,
         /// the old text and the new text.
         #[arg(long)]
@@ -290,9 +302,15 @@ impl Args {
             Command::Rename {
                 target,
                 new_name,
+                from,
                 dry_run,
                 json,
-            } => rename(&target, &new_name, dry_run, json),
+            } => match (from, target, new_name) {
+                (Some(from), _, _) => rename_from(&from, dry_run, json),
+                (None, Some(target), Some(new_name)) => rename(&target, &new_name, dry_run, json),
+                // clap requires both positional arguments without `--from`.
+                (None, _, _) => ExitCode::FAILURE,
+            },
             Command::Move {
                 from,
                 to,
@@ -1133,10 +1151,124 @@ pub(crate) fn rename(target: &str, new_name: &str, dry_run: bool, json: bool) ->
     match renamed {
         Ok(renamed) => {
             let moves: Vec<(PathBuf, PathBuf)> = renamed.file.into_iter().collect();
-            write_out(&mut project, &renamed.rewrites, &moves, dry_run, json)
+            write_out(&mut project, &renamed.rewrites, &moves, None, dry_run, json)
         }
         Err(message) => unknown(&escaped(&message), &[], json),
     }
+}
+
+/// What one line of a `--from` list renames: a name, or a file, a line and a
+/// column.
+enum Listed {
+    /// A name in the index's form.
+    Name(String),
+    /// A file's key, a line and a column, each from 1.
+    Position(PathBuf, u32, u32),
+}
+
+/// `nvs code rename --from`: every rename of a list, one `<target>
+/// <new-name>` per line, applied as one plan ([`query::rename_all`]) and
+/// written to disk through [`write_out`] in one write, or printed with
+/// `--dry-run`. Each `--json` edit carries the line of the list it came
+/// from as `fromLine`. A line that names nothing in the project fails the whole list.
+pub(crate) fn rename_from(from: &str, dry_run: bool, json: bool) -> ExitCode {
+    let mut project = match Project::open() {
+        Ok(project) => project,
+        Err(code) => return code,
+    };
+    let list = match std::fs::read_to_string(project.cwd.join(from)) {
+        Ok(list) => list,
+        Err(err) => {
+            return unknown(
+                &format!("`{}` cannot be read: {err}", escaped(from)),
+                &[],
+                json,
+            );
+        }
+    };
+    let mut listed: Vec<(u32, Listed, String)> = Vec::new();
+    for (at, line) in list.lines().enumerate() {
+        let number = u32::try_from(at + 1).unwrap_or(u32::MAX);
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        let [target, new_name] = parts[..] else {
+            return unknown(
+                &format!(
+                    "line {number}: write what to rename and the new name, separated by a space"
+                ),
+                &[],
+                json,
+            );
+        };
+        let target = if let Some((file, line, column)) = split_position(target) {
+            let Some(path) = project.file(file) else {
+                let nearest = project.nearest_files(file);
+                return unknown(
+                    &format!("line {number}: no file `{}` in this project", escaped(file)),
+                    &nearest,
+                    json,
+                );
+            };
+            Listed::Position(path, line, column)
+        } else {
+            if project.workspace.index().declaration(target).is_none() {
+                let nearest = project.nearest_names(target);
+                return unknown(
+                    &format!(
+                        "line {number}: no name `{}` in this project",
+                        escaped(target)
+                    ),
+                    &nearest,
+                    json,
+                );
+            }
+            Listed::Name(target.to_owned())
+        };
+        listed.push((number, target, new_name.to_owned()));
+    }
+    if listed.is_empty() {
+        return unknown(&format!("`{}` has no renames", escaped(from)), &[], json);
+    }
+    let labels: Vec<String> = listed
+        .iter()
+        .map(|(number, _, _)| format!("line {number}"))
+        .collect();
+    let targets: Vec<(query::Target<'_>, &str, &str)> = listed
+        .iter()
+        .zip(&labels)
+        .map(|((_, target, new_name), label)| {
+            let target = match target {
+                Listed::Name(name) => query::Target::Name(name),
+                Listed::Position(path, line, column) => query::Target::Position {
+                    path,
+                    line: *line,
+                    column: *column,
+                },
+            };
+            (target, new_name.as_str(), label.as_str())
+        })
+        .collect();
+    let batch = match query::rename_all(&project.workspace, &targets) {
+        Ok(batch) => batch,
+        Err(message) => return unknown(&escaped(&message), &[], json),
+    };
+    let lines: BTreeMap<Rewrite, u32> = batch
+        .rewrites
+        .iter()
+        .map(|(at, rewrite)| (rewrite.clone(), listed[*at].0))
+        .collect();
+    let rewrites: Vec<Rewrite> = batch.rewrites.into_iter().map(|(_, it)| it).collect();
+    write_out(
+        &mut project,
+        &rewrites,
+        &batch.moves,
+        Some(&lines),
+        dry_run,
+        json,
+    )
 }
 
 /// `nvs code move`: the editor's file move of a file or a directory, with
@@ -1170,7 +1302,7 @@ pub(crate) fn move_path(from: &str, to: &str, dry_run: bool, json: bool) -> Exit
         Ok(checked) => checked.rewrites,
         Err(broken) => return unknown(&escaped(&broken.refusal()), &[], json),
     };
-    write_out(&mut project, &rewrites, &moves, dry_run, json)
+    write_out(&mut project, &rewrites, &moves, None, dry_run, json)
 }
 
 /// `from` and `to` as the keys a move is made under, or the message and the
@@ -1505,10 +1637,15 @@ struct Change {
 /// this call, which is right after the analysis. A crash between two writes
 /// leaves the project half changed, and `nvs check` then names every site
 /// that no longer resolves. A journal is not kept (the rule's Declined list).
+///
+/// `lines` is given for `rename --from`: the line of the list each edit came
+/// from, which each `--json` edit carries as `fromLine`, since `line` is its
+/// position's.
 fn write_out(
     project: &mut Project,
     rewrites: &[Rewrite],
     moves: &[(PathBuf, PathBuf)],
+    lines: Option<&BTreeMap<Rewrite, u32>>,
     dry_run: bool,
     json: bool,
 ) -> ExitCode {
@@ -1541,10 +1678,14 @@ fn write_out(
     if json {
         let edits: Vec<Value> = edits
             .iter()
-            .map(|(place, old, new)| {
+            .zip(&rewrites)
+            .map(|((place, old, new), rewrite)| {
                 let mut record = place.json();
                 record.insert("old".into(), Value::from(old.clone()));
                 record.insert("new".into(), Value::from(new.clone()));
+                if let Some(lines) = lines {
+                    record.insert("fromLine".into(), Value::from(lines.get(*rewrite).copied()));
+                }
                 Value::Object(record)
             })
             .collect();
@@ -1686,8 +1827,9 @@ fn committed(
             ));
         }
     }
+    let sources: BTreeSet<&PathBuf> = moves.iter().map(|(from, _)| from).collect();
     for (_, to) in moves {
-        if to.exists() {
+        if to.exists() && !sources.contains(to) {
             return Err(format!(
                 "`{}` already exists, so nothing was changed.",
                 project.shown(to)
@@ -1715,7 +1857,29 @@ fn committed(
         }
         done.push(project.shown(&change.path));
     }
-    for (from, to) in moves {
+    // Two files that swap paths are each moved aside first, so that no move
+    // replaces a file another move has not moved yet.
+    let mut staged: Vec<(PathBuf, &PathBuf)> = Vec::with_capacity(moves.len());
+    let swapping = moves.iter().any(|(_, to)| sources.contains(to));
+    for (at, (from, to)) in moves.iter().enumerate() {
+        if !swapping {
+            staged.push((from.clone(), to));
+            continue;
+        }
+        let name = from.file_name().unwrap_or_default().to_string_lossy();
+        let aside = from.with_file_name(format!("{name}.moving-{at}"));
+        if aside.exists() {
+            let what = format!("`{}` already exists.", project.shown(&aside));
+            return Err(partly(what, &done));
+        }
+        if let Err(err) = std::fs::rename(from, &aside) {
+            let what = format!("`{}` cannot be moved: {err}.", project.shown(from));
+            return Err(partly(what, &done));
+        }
+        staged.push((aside, to));
+    }
+    for (from, to) in staged {
+        let (from, to) = (&from, to);
         // A type moved to another namespace may move into a directory that
         // does not exist yet. Each one is judged inside the root before it is
         // created. `nvs code move` refuses a missing directory before this.

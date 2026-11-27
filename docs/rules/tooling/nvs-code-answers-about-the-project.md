@@ -54,6 +54,18 @@ that may not compile.
   text, and nothing is written. `--json` gives `edits`, `moved` and `written`. A debug build reads
   one test variable, `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, that changes a file between the two reads;
   a release build has no such hook.
+- **`rename --from <file>`** applies a list of renames as one plan, `nvs_lsp::query::rename_all`
+  over `rename::renamed_all`, and conflicts with the two positional arguments. Each line of the
+  file is `<target> <new-name>`, the two separated by white space; a blank line and a line that
+  starts with `#` are skipped, and a line that names nothing fails the list with its number. Every
+  rename is computed against the one index, so each position is read in the files as they were.
+  A name another rename of the list takes away is free for the clash checks, so two names swap,
+  and two files that swap paths are each moved aside first. Two renames that give one new name,
+  or that edit one byte range, refuse the list and name both lines. The merged edit is checked
+  once (`rule:ide/a-refactoring-checks-its-edit-before-it-writes`) and written in one write. The
+  output and `--dry-run` are `rename`'s, and each `--json` edit carries `fromLine`, the line of
+  the list it came from, since `line` is its position's. A message about one rename starts with
+  `line N:`. **Cost:** tooling only, one plan per line and one check for the whole list.
 - **`move <from> <to>`** is the editor's file move, `rename::moved`, and writes through the same
   path as `rename` with one move. `<from>` is a file or a directory that exists inside the project
   root, and a directory moves with every file under it. `<to>` is inside the root, does not exist,
