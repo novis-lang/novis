@@ -25,7 +25,7 @@ stages:
     context: [website/src/content/docs/guides/how-to-use/sending-mail.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: parse
@@ -365,29 +365,30 @@ names AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 to 5 are done, and stage 6's `looper verify` is green at `59122f3cd9`. Only the
-goal-end gates are left.
+Every stage is done. `looper verify` is green over this session's rename, once the parser
+test's `"..\\"` name is listed as data. `bun nv verify --doc`, `bun nv ci --check` and `bun nv
+close --goal mail-receive` are green at `b760c2f9f4`.
 
-The last runs' reds are fixed. The identity printer reproduces 106 formatted mail and IMAP files
-(`120de1711d`). A directory mailbox reaches every file through the `nvs_runtime::capability`
-doors (`a80feea6bc`). The spool anchor test reads the working directory through
-`working_dirs()` (`593ca68bb3`). Two test literals are listed as data in
-`tools/data/impact-data-literals.txt`.
+`ci --check` was red on five checks, now fixed (`a81a2099d4`, `b760c2f9f4`):
+- `names --check`: `Core\Test\SentMail::autoSubmitted` is `isAutoSubmitted`, since it returns
+  `bool`. It was never released, so its `new` changes entry names the new member. `fetch`,
+  `flag` and `unflag` are effect verbs, `inline` a verb, and `Imap\Mailbox::folder` and
+  `Mail\Message::header` are `reads` rows in `tools/data/api-names.json`.
+- `advisories`: `chrono` (RUSTSEC-2026-0543) is unmaintained, not vulnerable, and comes only
+  through `imap-codec` 1, which no release leaves. `deny.toml` ignores it with a revisit date.
+- `gen-attribution`: the license file names this goal's ten crates.
+- The website: 48 reference pages had no search questions and have five each now. 135 texts the
+  formatter commit made stale are stamped, and the two received-mail enums are on the Syntax
+  enums page.
+- `proofs`: the 12 `Core\Imap` perf figures are measured again. `Core\Imap::open` makes 51
+  allocations per call, up from 21, since the capability-doors fix.
 
-The website builds locally. A flat enum's case, such as `Core\Unit::Day`, links to its Types
-page (`df291fc59c`). The debug-viewer shots show the Mail tab, and `site --check shots` accepts
-a picture a snippet reads, such as `files/logo.png` (`f42d198636`).
-
-Nightly run 45813627231 had three causes. The Miri zone tests (`c115a735a1`) and the `Core\Uuid`
-`Parses` case (`28a4d7a6bf`) were fixed on `main` after it. The serve stack-page test is in the
-backlog.
-
-Expected red on CI: that serve stack-page test on Linux.
+Nightly run 45813627231's nine red jobs are fixed on `main` (`c115a735a1`, `28a4d7a6bf`),
+except the serve stack-page test in the backlog. Expected red on CI: that test on Linux.
 
 ### Next
 
-1. `looper verify` is green and needs no rerun unless code changes. `bun nv verify --doc`, `bun nv ci --check` and `bun nv close --goal mail-receive`, each red
-   fixed. Then `DONE`.
+1. Nothing: the goal is reached, and the driver's acceptance run retires it.
 
 ### Backlog
 

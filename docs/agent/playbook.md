@@ -32,6 +32,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   nightly's three causes were fixed already. `git log <run-sha>..HEAD -- <the failing files>`
   finds that in one call, and `gh run view <id> --json headSha` gives the commit. See
   `tools/nv/cmd/affected.ts`.
+- **`bun nv names --check` runs in `ci --check` and not in `close`, so a goal's new members meet
+  it at the full gate.** In `mail-receive` stage 6, nine names from two goals broke the verb
+  rule, and the rename of one reached its examples, attack, skip record, questions and stamps.
+  Run `NVS_BIN=target/debug/nvs.exe bun nv names --check` when a stage adds a `Core` member. See
+  `tools/nv/cmd/ci.ts`.
 - **A helper added to a shared module makes every feature it serves owe its proofs again.** In
   `mail-receive` stage 6, one small `pub(crate) fn` in `crates/nvs-stdlib/src/time.rs` made
   `proofs --owed` name about 100 `Core\Time` features for `perf`. Put a helper in the module

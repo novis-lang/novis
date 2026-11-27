@@ -97,3 +97,4 @@ crates/nvs-ext/tests/spreadsheet_read.rs  "../drawings/drawing1.xml"  --  a rela
 crates/nvs-ext/tests/spreadsheet_read.rs  "../media/image1.png"  --  a relationship target inside a workbook built in memory, never opened
 crates/nvs-stdlib/src/imap/directory/tests.rs  "../INBOX"  --  a folder name a directory mailbox is expected to refuse before it joins it, never opened
 crates/nvs-stdlib/src/mail/receive/tests.rs  "../../etc/passwd"  --  a received attachment name whose last path segment is kept, never opened
+crates/nvs-stdlib/src/mail/receive/tests.rs  "..\\"  --  a received attachment name with nothing left once its path is taken apart, never opened
