@@ -300,43 +300,36 @@ above.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. The checks `marker`, `uses` (`cargo test --test test_only`, 12 tests),
-`builds` (`cargo test --test test_only_run`, 4 passed) and `editor`
-(`cargo test --test test_only_editor`, 4 passed) are green, and the build and clippy are clean.
+Stages 1 to 5 are done. In stage 6 the build, clippy, the goal's 20 tests by name and both
+conformance cases are green. `close`'s reds that are this goal's are fixed: the Syntax page
+`syntax/testing/fixtures-and-assertions.mdx` covers `#[TestOnly]`, the roadmap names every chain
+goal, and the stale renders are committed (`139ee67cd4`).
 
-Stage 5: the rule `testing/a-test-only-declaration-is-test-code` is written and rendered, and
-`tests-never-reach-a-build` now names all seven markers and `#[TestOnly]`. The reference section
-`` `#[TestOnly]`: code that only tests can use `` follows the hooks
-(`docs/examples/lang/testing/testonly-code-that-only-tests-can-use/`). The section has three
-examples, an attack, a bench (measured, flat), two conformance cases
-(`tests/conformance/lang/a-test-uses-test-only-code.nvst`,
-`tests/conformance/reject/a-call-to-test-only-code-outside-a-test-is-refused.nvst`) and `covers:`
-lines in the three Rust suites. Its `changes.json` entry is in. The backlog's route and command
-question is decided and built (§ *Routes and commands*): `test_code::refuse_entry_point` gives
-`E1019`, and `a_test_only_route_or_command_does_not_compile` passes.
+What stays red belongs to a pdf session that was still committing at 11:39 on 2026-11-27. It has
+`data/proofs/review-baseline.json` uncommitted in the tree. Its items are the `proofs` gate on
+`Novis\Pdf\Document::render` (`about.md` is 219 words, over 200, and unreviewed) and
+`::withAsset` (help unreviewed), `site stale` on `Pdf-Document/withAsset/about.md`, `site review`
+on three pdf texts, and `site questions` on seven `/reference/core/novis-pdf-*` pages.
 
-`bun nv proofs --gate --goal test-only` names only `Novis\Pdf\Document::render` and `::withAsset`.
-Both belong to another session's uncommitted pdf work in the tree, and that session owns their
-review and the `about.md` word count. The same holds for the pdf lines in `site --check stale` and
-`questions`.
-
-The nightly sweep's run 45813627231 was fixed on `main` after it, so it needs nothing.
+All four failures of nightly run 45813627231 are fixed on `main`: the Miri zone tests in
+`c115a735a1`, the uuid `Parses` conformance case in `28a4d7a6bf` and the aarch64 serve stack
+bound in `544711a8fb`.
 
 ### Next
 
-Stage 6, the close (this goal is not the chain's full gate unless the pack says so). Run
-`cargo build`, `cargo clippy --all-targets -- -D warnings`, the goal's own tests by name
-(`cargo test --test test_only`, `--test test_only_run`, `--test test_only_editor`), and the two
-conformance cases with `target/debug/nvs.exe test <case>`. Then run `bun nv close --goal test-only`
-and fix each red it names. If the pdf proofs still block `close`, check whether the other session
-has committed them yet before you touch them. Then delete the goal file and write `DONE`.
+Rerun `bun nv close --goal test-only`. If only pdf items are red, check `git log -3` and
+`git status` first. If the pdf session has committed `review-baseline.json`, or has made no commit
+for an hour, take the pdf items over. Cut `docs/examples/novis/Pdf-Document/render/about.md`
+under 200 words, then review it and the `withAsset` help with `bun nv site --review --brief`.
+Stamp the keys that review printed, and rewrite and stamp the seven pdf question sets. Once
+`close` is green, delete the goal file and write `DONE`.
 
 Tests expected to go red at the full gate: any test that counts `ATTRIBUTES` or snapshots the
 attribute cards, stubs or `nvs meta` output changes by one row. Any snapshot of `E0889`'s or
