@@ -80,6 +80,36 @@ fn artifacts(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// The bytes of an artifact's header, before its payload.
+const HEADER_LEN: usize = 78;
+
+/// The magic a payload opens with: `NVSE` for a source file's entry, `NVSL`
+/// for a program list, `NVSH` for a hint.
+fn magic(path: &Path) -> [u8; 4] {
+    let bytes = std::fs::read(path).expect("a readable artifact");
+    bytes
+        .get(HEADER_LEN..HEADER_LEN + 4)
+        .and_then(|magic| magic.try_into().ok())
+        .unwrap_or_default()
+}
+
+/// Every artifact under `dir` that stands for one compiled unit: a program
+/// list, or a whole object. A source file's entry and a hint are left out.
+fn units(dir: &Path) -> Vec<PathBuf> {
+    artifacts(dir)
+        .into_iter()
+        .filter(|path| !matches!(&magic(path), b"NVSE" | b"NVSH"))
+        .collect()
+}
+
+/// Every source file's entry under `dir`.
+fn entries(dir: &Path) -> Vec<PathBuf> {
+    artifacts(dir)
+        .into_iter()
+        .filter(|path| &magic(path) == b"NVSE")
+        .collect()
+}
+
 /// The attack written against the cache, run twice over one cache directory:
 /// the first start writes one artifact per compiled unit, the second finds
 /// them and writes nothing, and both print the same lines — a program loaded
@@ -186,7 +216,7 @@ fn the_same_file_in_two_folders_is_two_cache_entries() {
     }
     assert_ne!(printed[0], printed[1]);
     assert_eq!(
-        artifacts(&cache).len(),
+        units(&cache).len(),
         2,
         "each folder stored its own compiled program"
     );
@@ -293,15 +323,15 @@ fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
     std::fs::write(&program, "<?nvs\necho 'ran', \"\\n\";\n").expect("the program is written");
 
     assert_eq!(run(&plain, &program).0, "ran\n");
-    let first = artifacts(&cache);
+    let first = units(&cache);
     assert_eq!(first.len(), 1, "the first run stored its program");
 
     assert_eq!(run(&shop, &program).0, "ran\n");
     let both = artifacts(&cache);
-    // Two more entries: the program compiled again, and the extension's
+    // Two more units: the program compiled again, and the extension's
     // compiled component, which the same cache keeps.
     assert_eq!(
-        both.len(),
+        units(&cache).len(),
         3,
         "the run with an extension compiled the program again"
     );
@@ -383,11 +413,7 @@ fn a_unit_past_the_section_limit_loads_warm() {
         cold.contains(" reused=0"),
         "the first run compiles the program: {cold}"
     );
-    assert_eq!(
-        artifacts(&cache).len(),
-        1,
-        "the first run stored the program"
-    );
+    assert_eq!(units(&cache).len(), 1, "the first run stored the program");
 
     let warm = counted_run(&config, &program);
     assert!(
@@ -427,7 +453,7 @@ fn cache_clear_deletes_only_entries_from_a_folder_with_forged_ones() {
 
     let (printed, _) = run(&config, &program);
     let stored = artifacts(&cache);
-    assert_eq!(stored.len(), 1, "the run stored its program");
+    assert_eq!(units(&cache).len(), 1, "the run stored its program");
 
     let mut kept = Vec::new();
     let mut forged = Vec::new();
@@ -463,7 +489,7 @@ fn cache_clear_deletes_only_entries_from_a_folder_with_forged_ones() {
     assert!(out.status.success(), "`nvs cache clear` succeeds: {stderr}");
     let document: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("one JSON document");
-    assert_eq!(document["removed"], 2, "{document}");
+    assert_eq!(document["removed"], stored.len() + 1, "{document}");
     assert_eq!(document["skipped"], 1, "the folder named like an entry");
     assert!(
         stored.iter().chain(&forged).all(|path| !path.exists()),
@@ -473,6 +499,219 @@ fn cache_clear_deletes_only_entries_from_a_folder_with_forged_ones() {
         kept.iter().all(|path| path.exists()),
         "every path that is not an entry is kept"
     );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// One function's body in [`SUMS`], which a test edits without moving a line.
+const F2: &str = "return $x + 2;";
+
+/// A program of four functions in one file. It prints `10`.
+const SUMS: &str = "<?nvs
+class Sums {
+    public static function f0(int $x): int { return $x + 0; }
+    public static function f1(int $x): int { return $x + 1; }
+    public static function f2(int $x): int { return $x + 2; }
+    public static function f3(int $x): int { return $x + 3; }
+}
+echo Sums::f0(1) + Sums::f1(1) + Sums::f2(1) + Sums::f3(1), \"\\n\";
+";
+
+/// A scratch folder named `name` with an `nvs.toml` that caches into its
+/// `artifacts` folder, and [`SUMS`] as `main.nvs`: `(dir, config, cache,
+/// program)`.
+fn sums(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let dir = private_scratch(name);
+    let cache = dir.join("artifacts");
+    std::fs::create_dir(&cache).expect("the cache directory");
+    let config = dir.join("nvs.toml");
+    std::fs::write(
+        &config,
+        format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display()),
+    )
+    .expect("the configuration is written");
+    let program = dir.join("main.nvs");
+    std::fs::write(&program, SUMS).expect("the program is written");
+    (dir, config, cache, program)
+}
+
+/// What `nvs run --count` printed and its `compile:` line's `functions=` and
+/// `reused=`: `(stdout, compiled, reused)`.
+fn counted(config: &Path, program: &Path) -> (String, usize, usize) {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("--config")
+        .arg(config)
+        .args(["run", "--count"])
+        .arg(program)
+        .env_remove("NOVIS_NO_FILE_CACHE")
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "`nvs run --count` succeeds: {stderr}");
+    let line = stderr
+        .lines()
+        .find(|line| line.starts_with("compile: "))
+        .unwrap_or_else(|| panic!("`--count` prints a `compile:` line: {stderr}"));
+    let field = |name: &str| -> usize {
+        line.split_whitespace()
+            .find_map(|part| part.strip_prefix(name))
+            .and_then(|value| value.parse().ok())
+            .unwrap_or_else(|| panic!("the `compile:` line has `{name}`: {line}"))
+    };
+    let stdout = String::from_utf8(out.stdout).expect("the output is UTF-8");
+    (stdout, field("functions="), field("reused="))
+}
+
+/// A second run of an unchanged program compiles no function and places every
+/// function the first run compiled.
+// covers: tools:cli/the-compile-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn an_unchanged_program_compiles_no_function() {
+    let (dir, config, _, program) = sums("unchanged");
+    let (cold, compiled, reused) = counted(&config, &program);
+    assert_eq!(cold, "10\n");
+    assert!(compiled > 0, "the first run compiles the program");
+    assert_eq!(reused, 0, "the first run finds nothing to reuse");
+
+    let (warm, again, placed) = counted(&config, &program);
+    assert_eq!(
+        warm, cold,
+        "the loaded program prints what the compiled one did"
+    );
+    assert_eq!(again, 0, "the second run compiles no function");
+    assert_eq!(placed, compiled, "the second run places every function");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An edit inside one function's body, on the same line, compiles that
+/// function and reuses every other one. The source file gets a new entry,
+/// and the old entry stays for the list that still names it.
+// covers: tools:cli/the-compile-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn a_body_edit_compiles_one_function() {
+    let (dir, config, cache, program) = sums("body-edit");
+    let (_, compiled, _) = counted(&config, &program);
+    // The functions the compiler adds without a statement of their own have
+    // an entry beside the file's.
+    let stored = entries(&cache).len();
+
+    std::fs::write(&program, SUMS.replace(F2, "return $x + 7;")).expect("the edit is written");
+    let (edited, again, reused) = counted(&config, &program);
+    assert_eq!(edited, "15\n", "what runs is the edited program");
+    assert_eq!(again, 1, "the edit compiles the one function it changed");
+    assert_eq!(reused, compiled - 1, "every other function is reused");
+    assert_eq!(
+        entries(&cache).len(),
+        stored + 1,
+        "the edited file has a new entry"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A cold compile with a cache compiles as many functions as a run without
+/// one. The code that runs is the code that is stored, so no function is
+/// compiled a second time.
+// covers: tools:cli/the-compile-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn a_cold_compile_generates_each_function_once() {
+    let (dir, config, _, program) = sums("once");
+    let uncached = dir.join("uncached.toml");
+    std::fs::write(&uncached, "[opcache]\nfile_cache = false\n")
+        .expect("the configuration is written");
+    let (_, without, _) = counted(&uncached, &program);
+    let (out, with, reused) = counted(&config, &program);
+    assert_eq!(out, "10\n");
+    assert_eq!(reused, 0);
+    assert_eq!(
+        with, without,
+        "a cold compile that stores the program compiles each function once"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A source file's entry with one byte changed fails its checksum. The next
+/// run deletes it, compiles that file's functions again, prints the same
+/// output and stores the entry again.
+// covers: tools:cli/the-compile-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn a_corrupt_source_file_entry_is_a_miss() {
+    let (dir, config, cache, program) = sums("corrupt-entry");
+    let (cold, compiled, _) = counted(&config, &program);
+    let entry = entries(&cache).pop().expect("the run stored an entry");
+    let mut bytes = std::fs::read(&entry).expect("the entry is readable");
+    let last = bytes.len() - 1;
+    bytes[last] ^= 0xFF;
+    std::fs::write(&entry, bytes).expect("the entry is changed");
+
+    let (again, recompiled, _) = counted(&config, &program);
+    assert_eq!(again, cold, "the run prints what it printed before");
+    assert!(
+        recompiled > 0 && recompiled <= compiled,
+        "the entry's functions are compiled again: {recompiled} of {compiled}"
+    );
+    let (_, none, _) = counted(&config, &program);
+    assert_eq!(none, 0, "the entry was stored again");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `nvs cache gc --json` with `config`, as the number of artifacts it removed.
+fn gc(config: &Path) -> u64 {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("--config")
+        .arg(config)
+        .args(["cache", "gc", "--json"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "`nvs cache gc` succeeds: {stderr}");
+    let document: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("one JSON document");
+    document["removed"]
+        .as_u64()
+        .expect("a count of removed artifacts")
+}
+
+/// `nvs cache gc` keeps an entry a program list names, and removes an entry
+/// once no list names it, under any size limit.
+// covers: tools:cli/nvs-cache
+#[test]
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+fn eviction_removes_entries_no_program_list_names() {
+    let (dir, config, cache, program) = sums("unnamed");
+    counted(&config, &program);
+    let stored = entries(&cache).len();
+    assert!(stored > 0, "the run stored its entries");
+    assert_eq!(gc(&config), 0, "a named entry is kept");
+    assert_eq!(entries(&cache).len(), stored);
+
+    for list in units(&cache) {
+        std::fs::remove_file(list).expect("the list is deleted");
+    }
+    assert_eq!(
+        gc(&config),
+        u64::try_from(stored).expect("a small count"),
+        "every entry no list names is removed"
+    );
+    assert!(entries(&cache).is_empty(), "no entry is left");
+
+    let (out, _, _) = counted(&config, &program);
+    assert_eq!(out, "10\n", "the program compiles again");
 
     let _ = std::fs::remove_dir_all(&dir);
 }

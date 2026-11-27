@@ -1025,15 +1025,11 @@ struct Checked {
 
 /// `line`, [`Checked::count_line`]'s, with what code generation did:
 /// `functions=` is the number of functions compiled, and `reused=` the number
-/// taken from the compile cache. A unit is compiled or loaded whole, so one of
-/// the two is `functions` and the other is zero. The fields go on the
-/// `compile:` line itself, before a debug build's `phases:` line.
-fn with_codegen(mut line: String, provenance: cache::Provenance, functions: usize) -> String {
-    let (compiled, reused) = match provenance {
-        cache::Provenance::Compiled => (functions, 0),
-        cache::Provenance::Loaded => (0, functions),
-    };
-    let fields = format!(" functions={compiled} reused={reused}");
+/// taken from the compile cache, each counted once per function
+/// (`cache::unit_for_counted`). The fields go on the `compile:` line itself,
+/// before a debug build's `phases:` line.
+fn with_codegen(mut line: String, work: cache::Work) -> String {
+    let fields = format!(" functions={} reused={}", work.compiled, work.reused);
     let end = line.find('\n').unwrap_or(line.len());
     line.insert_str(end, &fields);
     line
@@ -2298,11 +2294,13 @@ fn run_run(
     // half of every key. A pre-boot default for either would address an
     // artifact by an environment this run is not in, which is the one thing the
     // key exists to prevent.
-    let (unit, provenance) = match cache::unit_for(
+    let (unit, work) = match cache::unit_for_counted(
         &program,
-        cache::program_digest(&checked.program_files()),
+        cache::program_source(&checked.program_files()),
         cache::from_config(&snapshot.config).as_ref(),
-    ) {
+    )
+    .map(|(unit, _, work)| (unit, work))
+    {
         Ok(unit) => unit,
         Err(error) => {
             report_internal(error.to_string());
@@ -2310,10 +2308,7 @@ fn run_run(
         }
     };
     if let Some(line) = count_line {
-        eprintln!(
-            "{}",
-            with_codegen(line, provenance, program.functions.len())
-        );
+        eprintln!("{}", with_codegen(line, work));
     }
     // Shared rather than owned outright, because `rule:testing/in-process-request`'s in-process
     // request runs this same unit's script frame as a child isolate and the

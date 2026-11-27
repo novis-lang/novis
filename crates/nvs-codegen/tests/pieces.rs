@@ -56,7 +56,10 @@ fn a_function_whose_key_is_held_is_not_compiled() {
     );
     for piece in &all.compiled {
         assert!(
-            piece.relocs.iter().all(|reloc| reloc.kind != RelocKind::Other),
+            piece
+                .relocs
+                .iter()
+                .all(|reloc| reloc.kind != RelocKind::Other),
             "`{}` has a relocation kind no loader places",
             piece.name
         );
@@ -66,10 +69,17 @@ fn a_function_whose_key_is_held_is_not_compiled() {
     let edited =
         nvs_codegen::compile_pieces(&after, &|key| held.contains(key)).expect("the edit compiles");
     let compiled: Vec<&str> = edited.compiled.iter().map(|p| p.name.as_str()).collect();
-    assert_eq!(compiled, ["A::first"], "a body edit compiled other functions");
+    assert_eq!(
+        compiled,
+        ["A::first"],
+        "a body edit compiled other functions"
+    );
     let none = nvs_codegen::compile_pieces(&before, &|key| held.contains(key))
         .expect("the fixture compiles");
-    assert!(none.compiled.is_empty(), "an unchanged program compiled a function");
+    assert!(
+        none.compiled.is_empty(),
+        "an unchanged program compiled a function"
+    );
 }
 
 #[test]

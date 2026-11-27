@@ -4144,7 +4144,10 @@ impl Signatures {
 /// program so a loader can ask a placed payload for a method's address. Both
 /// ends index the very `nvs_ir::Program` a warm hit's front end just lowered
 /// (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`), so the index they hand in is the same one.
-fn function_symbol(index: usize, label: &str) -> String {
+/// The per-file artifact cache places stored pieces by Novis name and answers
+/// [`Placed::address_of`] under this name, so it is `pub`.
+#[must_use]
+pub fn function_symbol(index: usize, label: &str) -> String {
     // `index` only disambiguates the symbol name: an Novis function name is not
     // a valid symbol (`<script>` is the first counter-example), and two classes
     // may declare the same method name.

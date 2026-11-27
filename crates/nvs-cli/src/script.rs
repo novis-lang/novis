@@ -1806,7 +1806,8 @@ impl Compiler {
         // every file the `require`/`autoload` graph reached, which is the same
         // list that was lowered and not the entry file alone.
         let files = checked.program_files();
-        let program = crate::cache::program_digest(&files);
+        let source = crate::cache::program_source(&files);
+        let program = source.digest;
         let backend = || {
             let lower = || {
                 nvs_ir::lower::lower_program(
@@ -1828,7 +1829,7 @@ impl Compiler {
                     .to_string()
                     .into();
             let cache = shared(&self.cache).clone();
-            crate::cache::unit_for(&lowered, program, cache.as_ref())
+            crate::cache::unit_for(&lowered, source, cache.as_ref())
                 .map(|(unit, _)| {
                     let debug = self.debug.as_ref().and_then(|debugger| {
                         let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;

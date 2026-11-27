@@ -200,6 +200,15 @@
 //! (`rule:packaging/a-bundle-carries-source-not-artifacts`), and feeds into this cache rather than
 //! out of it, so there is no already-produced payload for the cache to ship over.
 //!
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the object-file loader (`Verified::relocate`, `Layout`, `loadable`) is reached \
+                  only by this module's tests since the per-file store replaced it; \
+                  the next session of incremental-reload deletes it with those tests"
+    )
+)]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -216,6 +225,10 @@ use object::{
     RelocationTarget, SectionKind, SymbolIndex, SymbolKind, SymbolSection,
 };
 use rand::RngExt;
+
+mod per_file;
+
+pub(crate) use per_file::{Source, Work};
 
 /// The header's magic, the first four bytes of every artifact.
 pub(crate) const MAGIC: [u8; 4] = *b"NVSC";
@@ -1541,6 +1554,31 @@ impl Cache {
         }
     }
 
+    /// The one write that replaces a file: a program's hint ([`per_file`]), whose key names the
+    /// program and not its content. It is the same temp file and the same rename, onto a path
+    /// that may exist. A reader sees the old hint or the new one whole, and either is only a
+    /// suggestion of which pieces to reuse.
+    ///
+    /// # Errors
+    ///
+    /// The [`io::Error`] of the shard, the temp file or the rename. Windows refuses a rename onto
+    /// a file another process has open, and the hint then stays the old one.
+    fn replace(&self, key: Digest, payload: &[u8]) -> io::Result<()> {
+        let published = self.path(key);
+        let shard = published
+            .parent()
+            .expect("a shard path always has the cache root above it");
+        nvs_config::data::create_private_root(shard)?;
+        let temp = shard.join(format!(".tmp-{:032x}", rand::rng().random::<u128>()));
+        let written = self
+            .write_temp(&temp, payload)
+            .and_then(|()| fs::rename(&temp, &published));
+        if written.is_err() {
+            drop(fs::remove_file(&temp));
+        }
+        written
+    }
+
     /// Eviction's probabilistic half: roll `probability` against `divisor`, and walk only on a hit.
     ///
     /// Whatever the walk found is dropped. A cache directory that cannot be read is not a failure
@@ -1582,6 +1620,7 @@ impl Cache {
     pub(crate) fn gc(&self) -> io::Result<Swept> {
         let (mut total, mut artifacts) = self.artifacts()?;
         let mut swept = Swept::default();
+        self.sweep_unnamed(&mut artifacts, &mut total, &mut swept);
         if total <= self.eviction.max_size {
             return Ok(swept);
         }
@@ -1598,6 +1637,59 @@ impl Cache {
             }
         }
         Ok(swept)
+    }
+
+    /// Deletes every source-file entry no program list names, whatever the cap, and takes each
+    /// one it deleted out of `artifacts` and `total`.
+    ///
+    /// Every list is read, whatever environment wrote it, so one build of the compiler never
+    /// deletes another's entries from a shared directory. A list is read without its checksum:
+    /// a corrupt list can only name fewer entries, which costs a recompile of those files.
+    ///
+    /// A process that is still writing its entries has not written its list yet, so a walk at
+    /// that moment deletes them. The list it then writes names a missing entry, which is a miss on
+    /// the next run and recompiles that one file.
+    ///
+    /// **Cost:** the first bytes of every artifact, and every list whole, on the walk the roll
+    /// already makes. A list is 36 bytes per source file.
+    fn sweep_unnamed(&self, artifacts: &mut Vec<Artifact>, total: &mut u64, swept: &mut Swept) {
+        let mut lists = Vec::new();
+        let mut entries = Vec::new();
+        for (index, (_, _, path)) in artifacts.iter().enumerate() {
+            let Ok(mut file) = fs::File::open(path) else {
+                continue;
+            };
+            let mut head = [0; HEADER_LEN + 4];
+            if io::Read::read_exact(&mut file, &mut head).is_err() {
+                continue;
+            }
+            match per_file::Kind::of(&head[HEADER_LEN..]) {
+                Some(per_file::Kind::List) => {
+                    if let Ok(bytes) = fs::read(path) {
+                        lists.push(bytes);
+                    }
+                }
+                Some(per_file::Kind::Entry) => entries.push(index),
+                _ => {}
+            }
+        }
+        if entries.is_empty() {
+            return;
+        }
+        let named =
+            per_file::named_entries(lists.iter().filter_map(|bytes| bytes.get(HEADER_LEN..)));
+        let mut removed = Vec::new();
+        for index in entries {
+            let (_, len, path) = &artifacts[index];
+            let named = key_of(path).is_some_and(|key| named.contains(&key));
+            if !named && swept.remove(path, *len) {
+                *total -= len;
+                removed.push(index);
+            }
+        }
+        for index in removed.into_iter().rev() {
+            artifacts.swap_remove(index);
+        }
     }
 
     /// `nvs cache clear`: delete every artifact, whatever the cap, and answer what that removed.
@@ -1656,6 +1748,22 @@ impl Cache {
         file.write_all(&Header::for_payload(self.env, payload).encode())?;
         file.write_all(payload)
     }
+}
+
+/// The key an artifact at `path` is stored under, read back from its shard and its file name
+/// ([`Cache::path`]'s layout). `None` for a path that layout never writes.
+fn key_of(path: &Path) -> Option<Digest> {
+    let shard = path.parent()?.file_name()?.to_str()?;
+    let rest = path.file_stem()?.to_str()?;
+    let hex = format!("{shard}{rest}");
+    if hex.len() != 64 {
+        return None;
+    }
+    let mut bytes = [0_u8; 32];
+    for (byte, pair) in bytes.iter_mut().zip(hex.as_bytes().chunks(2)) {
+        *byte = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
+    }
+    Some(Digest::from_bytes(bytes))
 }
 
 /// The key's content hash for a whole **program**: every file the entry point's `require`/`autoload`
@@ -1735,32 +1843,54 @@ pub(crate) enum Provenance {
 }
 
 /// The unit for `program` — out of `cache` when it holds a usable artifact for `source`, and out
-/// of Cranelift when it does not. `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`, at the one call site a run makes.
+/// of Cranelift when it does not. [`unit_for_counted`] without the count.
 ///
-/// **Every way this can fail to use the cache is a cold compile and nothing else.** No cache at
-/// all (the directory is absent, unwritable, or another account's — [`from_config`] answers
-/// [`None`] for each), no artifact under the key, a header from another toolchain, a checksum that
-/// does not match, a symbol this process cannot resolve: each falls through to the same compile
-/// the run would have done anyway, and none of them reaches the script.
+/// # Errors
 ///
-/// A cold run pays codegen **twice** — once through the JIT for the unit it is about to run, and
-/// once through the object backend for the artifact it publishes. That is deliberate: the
-/// alternative — running the payload this process just wrote, through place-and-relocate — would
-/// put the loader on the path of every cold run to save a Cranelift walk on none of them. The two
-/// walks run side by side, the object walk on a scoped thread ([`compile_beside_object`]), so a
-/// cold run waits for the longer walk and not for both. What it costs is one thread for one
-/// compile on the run that populates a key, and nothing at all on every run after it.
+/// Only [`nvs_codegen::CodegenError`], and only from a cold compile.
+pub(crate) fn unit_for(
+    program: &nvs_ir::Program,
+    source: impl Into<Source>,
+    cache: Option<&Cache>,
+) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
+    unit_for_counted(program, source.into(), cache).map(|(unit, provenance, _)| (unit, provenance))
+}
+
+/// The unit for `program`, and how many functions this call compiled and reused.
+/// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and
+/// `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`, at the one call site a
+/// run makes. [`per_file`]'s module doc owns the store this reads and writes.
+///
+/// **Every way this can fail to use the cache is a compile and nothing else.** No cache at all
+/// (the directory is absent, unwritable, or another account's — [`from_config`] answers [`None`]
+/// for each), no list under the key, a header from another toolchain, a checksum that does not
+/// match, a symbol this process cannot resolve: each falls through to a compile, and none of them
+/// reaches the script.
+///
+/// **A cold compile generates each function once.** Every function is compiled through the
+/// object backend into a piece, and the unit that runs is those pieces placed. There is no JIT
+/// walk beside it. Only a program whose pieces cannot be compiled or placed is compiled again
+/// through the JIT, and its count says so.
 ///
 /// # Errors
 ///
 /// Only [`nvs_codegen::CodegenError`], and only from the cold compile: the cache contributes no
 /// error of its own, which is `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` stated
 /// in the signature.
-pub(crate) fn unit_for(
+pub(crate) fn unit_for_counted(
     program: &nvs_ir::Program,
-    source: Digest,
+    source: Source,
     cache: Option<&Cache>,
-) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
+) -> Result<(nvs_codegen::Unit, Provenance, Work), nvs_codegen::CodegenError> {
+    let whole = |before: usize| {
+        nvs_codegen::compile(program).map(|unit| {
+            let work = Work {
+                compiled: before + program.functions.len(),
+                reused: 0,
+            };
+            (unit, Provenance::Compiled, work)
+        })
+    };
     // A checked process neither reads nor writes an artifact: the key does not cover the checked
     // build's tests, so a hit would run the other build's code and a write would hand this build's
     // code to every later run (`nvs_codegen::compile_checked_types`). A program lowered under the
@@ -1768,85 +1898,58 @@ pub(crate) fn unit_for(
     // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`), and so is one lowered
     // with in-place changes switched off (`nvs_ir::lower::without_in_place`), or with the cheaper
     // forms switched off (`nvs_ir::lower::without_cheaper_forms`), or as a mutation run's schema
-    // (`nvs_ir::lower::lower_schema`).
+    // (`nvs_ir::lower::lower_schema`). A host [`HOST_PUBLISHES`] says no for has no loader.
     let Some(cache) = cache.filter(|_| {
-        !nvs_codegen::is_checking_types()
+        HOST_PUBLISHES
+            && !nvs_codegen::is_checking_types()
             && !program.is_debug()
             && !program.mutant_switch
             && program.in_place
             && program.cheaper_forms
     }) else {
-        return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
+        return whole(0);
     };
-    let key = unit_key(source, cache.env(), nvs_codegen::opt_level());
-    if let Some(unit) = warm_hit(program, cache, key) {
-        return Ok((unit, Provenance::Loaded));
+    let level = nvs_codegen::opt_level();
+    let key = unit_key(source.digest, cache.env(), level);
+    if let Some((unit, reused)) = per_file::warm_list(program, cache, key) {
+        return Ok((
+            unit,
+            Provenance::Loaded,
+            Work {
+                compiled: 0,
+                reused,
+            },
+        ));
     }
-    // A host [`HOST_PUBLISHES`] says no for writes nothing, because the object walk would be paid
-    // on every cold run for a file no loader will ever read.
-    if !HOST_PUBLISHES {
-        return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
+    let hint = per_file::hint_key(source.name, cache.env(), level);
+    match per_file::compile_and_store(program, cache, key, hint) {
+        Ok(built) => Ok(built),
+        Err(before) => whole(before),
     }
-    let (unit, payload) = compile_beside_object(program);
-    let unit = unit?;
-    // The writer, once the JIT compile has succeeded, so no artifact is published for a program
-    // the cold path refuses. A failure to publish is a cache that stays cold, which is the one
-    // thing this whole module promises can never be worse. A payload this process's own loader
-    // would refuse is not published either ([`loadable`]): every later run would read it, refuse
-    // it and compile again, and the cache would stay cold for good, since a writer never replaces
-    // a file that exists.
-    if let Some(payload) = payload.filter(|payload| loadable(payload).is_ok()) {
-        drop(cache.store(key, &payload));
-    }
-    Ok((unit, Provenance::Compiled))
 }
 
-/// The JIT unit on this thread and the artifact's object on a scoped thread beside it, joined
-/// before either is returned. The object is [`None`] when its walk failed.
-///
-/// A thread that cannot be started leaves the object walk to this thread, after the JIT compile
-/// and only if that succeeded, so the run is never refused for a thread.
-///
-/// # What it costs
-///
-/// One thread with the main thread's 8 MiB stack (`build.rs`'s `main_thread_stack`), for the
-/// length of one compile, on a cold run that publishes. A warm hit and a run with no cache start
-/// none.
-fn compile_beside_object(
-    program: &nvs_ir::Program,
-) -> (
-    Result<nvs_codegen::Unit, nvs_codegen::CodegenError>,
-    Option<Vec<u8>>,
-) {
-    let object = || nvs_codegen::compile_object(program).ok();
-    std::thread::scope(|scope| {
-        let walker = std::thread::Builder::new()
-            .name("nvs artifact".to_owned())
-            .stack_size(8 << 20)
-            .spawn_scoped(scope, object);
-        let unit = nvs_codegen::compile(program);
-        let payload = match walker {
-            Ok(walker) => walker
-                .join()
-                .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-            Err(_) if unit.is_ok() => object(),
-            Err(_) => None,
-        };
-        (unit, payload)
-    })
+/// The source a run's unit is keyed on: [`program_digest`], and the program's name for its hint.
+pub(crate) fn program_source(files: &[nvs_types::ProgramFile<'_>]) -> Source {
+    Source {
+        digest: program_digest(files),
+        name: per_file::program_name("run", files),
+    }
 }
 
-/// The read path in one expression: the artifact under `key`, verified, placed, relocated,
-/// protected, bound and assembled — or [`None`] at the first step that says this is not this
-/// process's file.
+/// [`program_source`] for the unit `nvs test` compiles, keyed on [`test_program_digest`].
+pub(crate) fn test_program_source(files: &[nvs_types::ProgramFile<'_>]) -> Source {
+    Source {
+        digest: test_program_digest(files),
+        name: per_file::program_name("test", files),
+    }
+}
+
+/// The read path in one expression: the program list under `key`, every entry it names verified,
+/// placed, relocated, protected, bound and assembled — or [`None`] at the first step that says this
+/// is not this process's file.
+#[cfg(test)]
 fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs_codegen::Unit> {
-    let verified = cache.load(key)?;
-    // The descriptors a warm hit resolves against are built here, out of the IR the front end has
-    // just lowered, because a run that skipped codegen allocated none and no payload carries one
-    // (`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`).
-    let descriptors = nvs_codegen::Descriptors::of(program);
-    let loaded = verified.relocate(&this_process(&descriptors)).ok()?;
-    Some(descriptors.into_unit(Box::new(loaded)))
+    per_file::warm_list(program, cache, key).map(|(unit, _)| unit)
 }
 
 /// "This process's own addresses", which the loader resolves every undefined symbol against, in

@@ -1920,7 +1920,7 @@ fn compile(
         false => crate::coverage::Probes::default(),
     };
     let (unit, _) =
-        crate::cache::unit_for(&program, crate::cache::test_program_digest(&files), cache)
+        crate::cache::unit_for(&program, crate::cache::test_program_source(&files), cache)
             .map_err(|error| error.to_string())?;
     let sites = crate::script::debug_unit(&unit, &program, &checked.map, crate::dap::file_key);
     let query_sites = crate::script::query_sites(&program, &checked.map);

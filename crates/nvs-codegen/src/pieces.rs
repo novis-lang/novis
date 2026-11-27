@@ -220,20 +220,18 @@ pub(crate) fn target_of(
             index,
         } => {
             let id = DataId::from_u32(*index);
-            literals
-                .and_then(|literals| literals.get(&id))
-                .map_or_else(
-                    || {
-                        Target::Symbol(
-                            declarations
-                                .get_data_decl(id)
-                                .name
-                                .clone()
-                                .unwrap_or_default(),
-                        )
-                    },
-                    |digest| Target::Literal(*digest),
-                )
+            literals.and_then(|literals| literals.get(&id)).map_or_else(
+                || {
+                    Target::Symbol(
+                        declarations
+                            .get_data_decl(id)
+                            .name
+                            .clone()
+                            .unwrap_or_default(),
+                    )
+                },
+                |digest| Target::Literal(*digest),
+            )
         }
         ModuleRelocTarget::LibCall(call) => {
             Target::Symbol((cranelift_module::default_libcall_names())(*call))
@@ -289,12 +287,15 @@ pub(crate) fn literal_piece(
         cranelift_module::Init::Uninitialized => Vec::new(),
     };
     let none = FxHashMap::default();
-    let functions = desc.function_relocs.iter().map(|(offset, func)| PieceReloc {
-        offset: *offset,
-        kind: RelocKind::Abs8,
-        addend: 0,
-        target: target_of(&desc.function_decls[*func], module, &none, literals),
-    });
+    let functions = desc
+        .function_relocs
+        .iter()
+        .map(|(offset, func)| PieceReloc {
+            offset: *offset,
+            kind: RelocKind::Abs8,
+            addend: 0,
+            target: target_of(&desc.function_decls[*func], module, &none, literals),
+        });
     let data = desc
         .data_relocs
         .iter()
