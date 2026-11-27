@@ -1966,6 +1966,14 @@ A value on the right that is **not** a `class<T>` is `E0496`, the one report `ne
 local and converts it there; a call or a constant after `is` is read as a type and resolves or fails
 as one.
 
+## The one type whose answer depends on the frame
+
+`$o is static` and `$o is ?static` are the one written type whose answer depends on the frame: in a
+class that is not `final`, they test the class the call names, read off the descriptor the frame
+holds ([`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)). The test is a descriptor walk, as the value
+arm's is, and is never folded to `true`. In a `final` class `static` is that class and folds as its
+name does.
+
 ## The refusals
 
 | refused | code | why |
@@ -1974,6 +1982,8 @@ as one.
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
 | `$c is class<Dog>`, alone or in a union | `E0867` | a class reference carries the class it names and no tag for the `T` it was declared with, so there is no run-time row. `$c as ?class<Dog>` walks the named class and gives `null` when it is not a `Dog` |
 | `$x is property<T>`, `is propertyPath<T>`, `is string<K>`, alone or in a union | `E0867` | each is a plain string at run time, so there is no run-time row. A union with a class is told apart by testing the class, and `$s as ?property<T>` checks a string's text |
+| `$xs is array<static>`, `$o is static\|int`, in a class that is not `final` | `E1021` | the lowered type cannot tell a deeper `static` from the declaring class, so there is no run-time row for the called class there. `is static` on each element is the test |
+| any `is` that writes `static`, inside an anonymous function | `E0834` | an anonymous function's frame carries no called class |
 | `$m is {name: string}` over a `mixed` or `object` subject, or an object whose `name` field is `mixed`, tainted or not declared | `E0851` | text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), and a written shape says so itself: `$m is tainted {name: string}` |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
@@ -2009,6 +2019,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 `Core\Reflect::typeOf` comparison, and its throw path, are gone, because the test narrows.
 
 **Memory:** none. `is` adds no representation, and every row reads a tag a value already carries.
+A class row, `is static` among them, walks the descriptor chain the value already points to.
 
 **Declined:**
 - **No operator, with the question asked through `Core\Reflect::typeOf`.** An equality against an
