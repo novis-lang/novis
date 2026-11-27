@@ -1065,12 +1065,21 @@ impl Reports {
 fn program_record(found: &crate::script::Rechecked) -> Record {
     use crate::script::Rechecked;
     match found {
-        Rechecked::Swapped { entry, program } => {
+        Rechecked::Swapped {
+            entry,
+            program,
+            compiled,
+            reused,
+        } => {
+            let count =
+                |n: &usize| Node::Scalar(Scalar::Uint(u64::try_from(*n).unwrap_or(u64::MAX)));
             let mut record = Record::at(Level::Info);
             record.envelope.message = Some(Rendered::new("program reloaded"));
             record.envelope.fields = vec![
                 ("entry".to_string(), text(&entry.display().to_string())),
                 ("program".to_string(), text(&program.to_string())),
+                ("compiled".to_string(), count(compiled)),
+                ("reused".to_string(), count(reused)),
             ];
             record
         }

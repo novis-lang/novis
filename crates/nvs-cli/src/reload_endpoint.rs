@@ -528,6 +528,8 @@ mod tests {
                 Rechecked::Swapped {
                     entry: PathBuf::from("a.nvs"),
                     program: nvs_config::cache::Digest::from_bytes([1; 32]),
+                    compiled: 1,
+                    reused: 2,
                 },
                 Rechecked::Failed {
                     entry: PathBuf::from("b.nvs"),

@@ -236,6 +236,9 @@ pub(crate) struct Compiled {
     /// The unit's copy site table, which every context [`program_over`] arms shares, so a
     /// recorded request counts its copies by site.
     copy_sites: Arc<nvs_runtime::CopySites>,
+    /// The functions the compile that built this unit compiled and reused, which the
+    /// `program reloaded` record carries.
+    work: crate::cache::Work,
 }
 
 /// The copy site table of `program`, whose files `map` has: one row per copy the ownership pass
@@ -467,8 +470,14 @@ struct Failure {
 #[derive(Debug)]
 pub(crate) enum Rechecked {
     /// The path serves a new unit now, and `program` is its whole-program
-    /// digest.
-    Swapped { entry: PathBuf, program: Digest },
+    /// digest. `compiled` and `reused` count the functions the compile that
+    /// built it compiled and took without a compile.
+    Swapped {
+        entry: PathBuf,
+        program: Digest,
+        compiled: usize,
+        reused: usize,
+    },
     /// The program on disk does not compile, and a request of the path fails
     /// with `message`. `first` is its first error, where it has a place in a
     /// file.
@@ -619,11 +628,22 @@ pub(crate) struct Compiler {
     /// [`Self::rekey_to`] moves both, this one first: a compile that reads the old policy and
     /// the new digest is the one order that could keep a unit the policy no longer allows.
     backtracking: RwLock<nvs_types::Backtracking>,
-    /// `[opcache] validate`, `revalidate_freq` and `settle`. All three are
-    /// `System`-class, so no request can move them, and all three reload, so a
-    /// reload can ([`Self::reconfigure`]). Behind a lock for [`Self::env`]'s
-    /// reason: one uncontended read per check, and a write per reload.
+    /// `[opcache] validate`, `revalidate_freq`, `settle` and `incremental`. All
+    /// four are `System`-class, so no request can move them, and all four
+    /// reload, so a reload can ([`Self::reconfigure`]). Behind a lock for
+    /// [`Self::env`]'s reason: one uncontended read per check, and a write per
+    /// reload.
     revalidation: RwLock<Revalidation>,
+    /// Under `[opcache] incremental`, each written path's function code for the
+    /// unit its last compile built, which the next compile of the path reuses
+    /// before it reads the disk ([`crate::cache::Kept`]). Empty with
+    /// `incremental` off: a compile removes its path's entry, and a reload that
+    /// turns it off empties the map.
+    ///
+    /// **What it spends:** one copy of each loaded program's machine code, per
+    /// written path, never per request or per edit. A mutex, because only a
+    /// compile reads or writes it, once before its backend and once after.
+    kept: Mutex<HashMap<PathBuf, Arc<crate::cache::Kept>>>,
     /// The signal of the [`watch`] thread checking this cache, so that
     /// [`Self::reconfigure`] can wake it. Empty until [`watch`] runs, and after
     /// its thread ends.
@@ -732,6 +752,7 @@ impl Compiler {
             env: RwLock::new(env_hash(config, &nvs_config::grants::Grants::default())),
             backtracking: RwLock::new(nvs_types::Backtracking::of_config(config)),
             revalidation: RwLock::new(Revalidation::from_config(config)),
+            kept: Mutex::new(HashMap::new()),
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
@@ -783,10 +804,49 @@ impl Compiler {
                 })
             }
             Some(_) => None,
-            None => (now.serving() != before.serving()).then(|| Rechecked::Swapped {
-                entry: written.to_path_buf(),
-                program: now.unit.program,
+            None => (now.serving() != before.serving()).then(|| {
+                let work = self.work_at(written, now.unit).unwrap_or_default();
+                Rechecked::Swapped {
+                    entry: written.to_path_buf(),
+                    program: now.unit.program,
+                    compiled: work.compiled,
+                    reused: work.reused,
+                }
             }),
+        }
+    }
+
+    /// The functions the compile of `generation` compiled and reused, where
+    /// its unit is in the table.
+    fn work_at(&self, path: &Path, generation: Generation) -> Option<crate::cache::Work> {
+        let key = self.key_of(path, generation);
+        match shared(&self.units).get(&key)? {
+            CompileState::Ready(compiled) => Some(compiled.work),
+            CompileState::Compiling(_) | CompileState::Failed(_) => None,
+        }
+    }
+
+    /// The function code kept for `written` by its last compile, under
+    /// `[opcache] incremental`.
+    fn kept_for(&self, written: &Path) -> Option<Arc<crate::cache::Kept>> {
+        self.kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(written)
+            .cloned()
+    }
+
+    /// Holds `kept` for `written` in place of what was held, or frees what was
+    /// held where there is nothing to keep.
+    fn keep(&self, written: &Path, kept: Option<crate::cache::Kept>) {
+        let mut held = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
+        match kept {
+            Some(kept) => {
+                held.insert(written.to_path_buf(), Arc::new(kept));
+            }
+            None => {
+                held.remove(written);
+            }
         }
     }
 
@@ -860,6 +920,12 @@ impl Compiler {
                 return;
             }
             *held = next;
+        }
+        if !next.incremental {
+            self.kept
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
         }
         let watcher = self
             .watcher
@@ -940,6 +1006,11 @@ impl Compiler {
         units.clear();
         self.exclusive(&self.traces).clear();
         self.exclusive(&self.paths).clear();
+        // Kept code was compiled against the old environment's extension set.
+        self.kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         dropped
     }
 
@@ -1829,31 +1900,48 @@ impl Compiler {
                     .to_string()
                     .into();
             let cache = shared(&self.cache).clone();
-            crate::cache::unit_for(&lowered, source, cache.as_ref())
-                .map(|(unit, _)| {
-                    let debug = self.debug.as_ref().and_then(|debugger| {
-                        let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;
-                        debugger.load(&unit);
-                        Some((debugger.clone(), unit))
-                    });
-                    let coverage = self.counts.then(|| {
-                        let probes = crate::coverage::Probes::of(&lowered);
-                        crate::coverage::Sites::of(probes, &checked.map).table()
-                    });
-                    Arc::new(Compiled {
-                        unit: Arc::new(unit),
-                        routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
-                        id,
-                        debug,
-                        coverage,
-                        query_sites: query_sites(&lowered, &checked.map),
-                        copy_sites: copy_sites(&lowered, &checked.map),
-                    })
+            let incremental = self.revalidation().incremental;
+            let kept = if incremental {
+                self.kept_for(written)
+            } else {
+                None
+            };
+            crate::cache::unit_for_kept(
+                &lowered,
+                source,
+                cache.as_ref(),
+                kept.as_deref(),
+                incremental,
+            )
+            .map(|(unit, _, work, kept)| (unit, work, kept))
+            .map(|(unit, work, kept)| {
+                // Under `incremental` the unit's code is held for the next
+                // compile of this path; without it, whatever was held is freed.
+                self.keep(written, kept);
+                let debug = self.debug.as_ref().and_then(|debugger| {
+                    let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;
+                    debugger.load(&unit);
+                    Some((debugger.clone(), unit))
+                });
+                let coverage = self.counts.then(|| {
+                    let probes = crate::coverage::Probes::of(&lowered);
+                    crate::coverage::Sites::of(probes, &checked.map).table()
+                });
+                Arc::new(Compiled {
+                    unit: Arc::new(unit),
+                    routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
+                    id,
+                    debug,
+                    coverage,
+                    query_sites: query_sites(&lowered, &checked.map),
+                    copy_sites: copy_sites(&lowered, &checked.map),
+                    work,
                 })
-                .map_err(|error| {
-                    crate::report_internal(format!("`{path}`: {error}"));
-                    format!("`{path}` could not be compiled; see the errors above")
-                })
+            })
+            .map_err(|error| {
+                crate::report_internal(format!("`{path}`: {error}"));
+                format!("`{path}` could not be compiled; see the errors above")
+            })
         };
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(backend))
             .unwrap_or_else(|panic| Err(stopped(path, &*panic)));

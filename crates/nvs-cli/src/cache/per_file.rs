@@ -77,6 +77,44 @@ pub(crate) struct Work {
     pub(crate) reused: usize,
 }
 
+/// Each function's relocatable code for one program's unit in force, by its key: what a serving
+/// process keeps between two compiles of the program under `[opcache] incremental`.
+///
+/// The next compile of the program reuses every piece whose key it emits again, before it reads
+/// the disk at all, and replaces this with the pieces of the unit it built. A reused piece is
+/// correct for the same reason a stored one is: its key covers everything its code reads.
+///
+/// **Memory:** one copy of the program's machine code, its relocations and one name per function,
+/// per loaded program, and never per request or per edit. Freed when the program's next compile
+/// replaces it, or when `incremental` is `false`.
+#[derive(Debug, Default)]
+pub(crate) struct Kept {
+    pieces: FxHashMap<[u8; 32], Piece>,
+}
+
+impl Kept {
+    /// The pieces `pieces` gives, by key.
+    fn of(pieces: impl IntoIterator<Item = Piece>) -> Self {
+        Self {
+            pieces: pieces.into_iter().map(|piece| (piece.key, piece)).collect(),
+        }
+    }
+
+    /// How many functions this holds the code of.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.pieces.len()
+    }
+}
+
+/// Where a miss stores what it compiled: the cache, the program's unit key and its hint.
+#[derive(Clone, Copy)]
+pub(crate) struct Store<'a> {
+    pub(crate) cache: &'a Cache,
+    pub(crate) key: Digest,
+    pub(crate) hint: Digest,
+}
+
 /// What a compile's key and its hint are taken over: the program's content digest, and the name
 /// of the program that stays the same across an edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -570,12 +608,14 @@ fn in_program_order<'a>(
 }
 
 /// The read path for a program list: every entry it names, placed and bound into the unit, and
-/// how many functions that placed. `None` at the first step that misses.
+/// how many functions that placed. With `keep`, the pieces it placed come back too. `None` at the
+/// first step that misses.
 pub(crate) fn warm_list(
     program: &nvs_ir::Program,
     cache: &Cache,
     key: Digest,
-) -> Option<(nvs_codegen::Unit, usize)> {
+    keep: bool,
+) -> Option<(nvs_codegen::Unit, usize, Option<Kept>)> {
     let entries = entries_of(cache, key)?;
     let pieces: FxHashMap<&str, &Piece> = entries
         .iter()
@@ -594,34 +634,49 @@ pub(crate) fn warm_list(
     let descriptors = nvs_codegen::Descriptors::of(program);
     let loaded = place(&functions, &literals, &this_process(&descriptors)).ok()?;
     let reused = functions.len();
-    Some((descriptors.into_unit(Box::new(loaded)), reused))
+    let unit = descriptors.into_unit(Box::new(loaded));
+    let kept = keep.then(|| Kept::of(entries.into_iter().flat_map(|entry| entry.pieces)));
+    Some((unit, reused, kept))
 }
 
-/// The miss path: reuse every function the hint's entries hold, compile the rest, place the whole
-/// program, then store each new entry, the list under `key` and the hint. `None` when the pieces
-/// could not be compiled or placed, which the caller answers with a whole-program compile; the
-/// count is the functions this call compiled before that.
+/// The miss path: reuse every function `kept` holds, or with nothing kept every function the
+/// hint's entries hold, compile the rest, and place the whole program. With a `store`, then store
+/// each new entry, the list under its key and the hint. With `keep`, the program's pieces come
+/// back for the caller to hold until its next compile. `Err` when the pieces could not be
+/// compiled or placed, which the caller answers with a whole-program compile; the count is the
+/// functions this call compiled before that.
 pub(crate) fn compile_and_store(
     program: &nvs_ir::Program,
-    cache: &Cache,
-    key: Digest,
-    hint: Digest,
-) -> Result<(nvs_codegen::Unit, Provenance, Work), usize> {
-    let held: Vec<FileEntry> = cache
-        .load(hint)
-        .and_then(|hint| decode_hint(hint.payload()))
-        .and_then(|list| decode_list(cache.load(list)?.payload()))
-        .map(|list| {
-            list.into_iter()
-                .filter_map(|entry| decode_entry(cache.load(entry)?.payload()))
-                .collect()
-        })
-        .unwrap_or_default();
-    let index: FxHashMap<[u8; 32], &Piece> = held
-        .iter()
-        .flat_map(|entry| &entry.pieces)
-        .map(|piece| (piece.key, piece))
-        .collect();
+    store_in: Option<Store<'_>>,
+    kept: Option<&Kept>,
+    keep: bool,
+) -> Result<(nvs_codegen::Unit, Provenance, Work, Option<Kept>), usize> {
+    // Kept code is read before the disk: with it, the hint and its entries are not opened.
+    let held: Vec<FileEntry> = match (kept, store_in) {
+        (None, Some(Store { cache, hint, .. })) => cache
+            .load(hint)
+            .and_then(|hint| decode_hint(hint.payload()))
+            .and_then(|list| decode_list(cache.load(list)?.payload()))
+            .map(|list| {
+                list.into_iter()
+                    .filter_map(|entry| decode_entry(cache.load(entry)?.payload()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    let index: FxHashMap<[u8; 32], &Piece> = match kept {
+        Some(kept) => kept
+            .pieces
+            .iter()
+            .map(|(key, piece)| (*key, piece))
+            .collect(),
+        None => held
+            .iter()
+            .flat_map(|entry| &entry.pieces)
+            .map(|piece| (piece.key, piece))
+            .collect(),
+    };
     let compiled = nvs_codegen::compile_pieces(program, &|key| index.contains_key(key))
         .map_err(|_| 0_usize)?;
     let done = compiled.compiled.len();
@@ -660,7 +715,9 @@ pub(crate) fn compile_and_store(
     let loaded = place(&functions, &literals, &this_process(&descriptors)).map_err(|_| done)?;
 
     // Only placed code is stored, so the store never holds an entry this loader refuses.
-    store(cache, program, &compiled, &all, key, hint);
+    if let Some(Store { cache, key, hint }) = store_in {
+        store(cache, program, &compiled, &all, key, hint);
+    }
     let work = Work {
         compiled: done,
         reused: owned.len() - done,
@@ -670,7 +727,8 @@ pub(crate) fn compile_and_store(
     } else {
         Provenance::Compiled
     };
-    Ok((descriptors.into_unit(Box::new(loaded)), provenance, work))
+    let unit = descriptors.into_unit(Box::new(loaded));
+    Ok((unit, provenance, work, keep.then(|| Kept::of(owned))))
 }
 
 /// Writes each source file's entry whose key is new, the list under `key`, and the hint. A write

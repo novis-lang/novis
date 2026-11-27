@@ -192,7 +192,7 @@ use rand::RngExt;
 
 mod per_file;
 
-pub(crate) use per_file::{Source, Work};
+pub(crate) use per_file::{Kept, Source, Work};
 
 /// The header's magic, the first four bytes of every artifact.
 pub(crate) const MAGIC: [u8; 4] = *b"NVSC";
@@ -1090,13 +1090,32 @@ pub(crate) fn unit_for_counted(
     source: Source,
     cache: Option<&Cache>,
 ) -> Result<(nvs_codegen::Unit, Provenance, Work), nvs_codegen::CodegenError> {
+    unit_for_kept(program, source, cache, None, false)
+        .map(|(unit, provenance, work, _)| (unit, provenance, work))
+}
+
+/// [`unit_for_counted`] for a process that keeps each function's code between compiles of one
+/// program (`[opcache] incremental`): every piece `kept` holds is reused before the disk is read,
+/// and with `keep` the pieces of the unit built come back for the caller to hold until the next
+/// compile. With no cache and nothing kept or to keep, this is a whole-program compile.
+///
+/// # Errors
+///
+/// [`unit_for_counted`]'s.
+pub(crate) fn unit_for_kept(
+    program: &nvs_ir::Program,
+    source: Source,
+    cache: Option<&Cache>,
+    kept: Option<&Kept>,
+    keep: bool,
+) -> Result<(nvs_codegen::Unit, Provenance, Work, Option<Kept>), nvs_codegen::CodegenError> {
     let whole = |before: usize| {
         nvs_codegen::compile(program).map(|unit| {
             let work = Work {
                 compiled: before + program.functions.len(),
                 reused: 0,
             };
-            (unit, Provenance::Compiled, work)
+            (unit, Provenance::Compiled, work, None)
         })
     };
     // A checked process neither reads nor writes an artifact: the key does not cover the checked
@@ -1107,30 +1126,34 @@ pub(crate) fn unit_for_counted(
     // with in-place changes switched off (`nvs_ir::lower::without_in_place`), or with the cheaper
     // forms switched off (`nvs_ir::lower::without_cheaper_forms`), or as a mutation run's schema
     // (`nvs_ir::lower::lower_schema`). A host [`HOST_PUBLISHES`] says no for has no loader.
-    let Some(cache) = cache.filter(|_| {
-        HOST_PUBLISHES
-            && !nvs_codegen::is_checking_types()
-            && !program.is_debug()
-            && !program.mutant_switch
-            && program.in_place
-            && program.cheaper_forms
-    }) else {
+    // Kept code is subject to the same filter: it was built under the key, which covers none of
+    // these switches.
+    let pieces = HOST_PUBLISHES
+        && !nvs_codegen::is_checking_types()
+        && !program.is_debug()
+        && !program.mutant_switch
+        && program.in_place
+        && program.cheaper_forms;
+    if !pieces || (cache.is_none() && kept.is_none() && !keep) {
         return whole(0);
-    };
-    let level = nvs_codegen::opt_level();
-    let key = unit_key(source.digest, cache.env(), level);
-    if let Some((unit, reused)) = per_file::warm_list(program, cache, key) {
-        return Ok((
-            unit,
-            Provenance::Loaded,
-            Work {
-                compiled: 0,
-                reused,
-            },
-        ));
     }
-    let hint = per_file::hint_key(source.name, cache.env(), level);
-    match per_file::compile_and_store(program, cache, key, hint) {
+    let level = nvs_codegen::opt_level();
+    let store = cache.map(|cache| per_file::Store {
+        cache,
+        key: unit_key(source.digest, cache.env(), level),
+        hint: per_file::hint_key(source.name, cache.env(), level),
+    });
+    if let Some(store) = store
+        && let Some((unit, reused, kept)) =
+            per_file::warm_list(program, store.cache, store.key, keep)
+    {
+        let work = Work {
+            compiled: 0,
+            reused,
+        };
+        return Ok((unit, Provenance::Loaded, work, kept));
+    }
+    match per_file::compile_and_store(program, store, kept, keep) {
         Ok(built) => Ok(built),
         Err(before) => whole(before),
     }
@@ -1157,7 +1180,7 @@ pub(crate) fn test_program_source(files: &[nvs_types::ProgramFile<'_>]) -> Sourc
 /// is not this process's file.
 #[cfg(test)]
 fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs_codegen::Unit> {
-    per_file::warm_list(program, cache, key).map(|(unit, _)| unit)
+    per_file::warm_list(program, cache, key, false).map(|(unit, _, _)| unit)
 }
 
 /// "This process's own addresses", which the loader resolves every undefined symbol against, in
@@ -2110,6 +2133,57 @@ mod tests {
             "the second run reads the artifact the first one published"
         );
         assert_eq!(ran(&warm), "hi42", "and runs the same program");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// `[opcache] incremental`'s kept code, with no disk cache at all: the first compile keeps
+    /// every function's code, and a compile after a body edit compiles that one function and
+    /// reuses the rest from memory. Without `keep`, nothing comes back to hold.
+    #[test]
+    // A warm hit needs a host the placer writes stubs for; see `HOST_ARCH`.
+    #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+    fn kept_code_is_reused_before_the_disk_and_a_body_edit_compiles_one_function() {
+        let dir = scratch("kept");
+        let source = dir.join("program.nvs");
+        let text = |n: u32| {
+            format!(
+                "<?nvs\nclass Sums {{\n    \
+                 public static function one(): int {{ return {n}; }}\n    \
+                 public static function two(): int {{ return 2; }}\n    \
+                 public static function three(): int {{ return 3; }}\n}}\n\n\
+                 echo Sums::one() + Sums::two() + Sums::three();\n"
+            )
+        };
+        fs::write(&source, text(1)).expect("a scratch directory of this test's own is writable");
+        let (program, digest) = lowered(&source);
+
+        let (unit, _, work, kept) =
+            unit_for_kept(&program, digest.into(), None, None, true).expect("it compiles");
+        assert_eq!(ran(&unit), "6");
+        assert_eq!(work.reused, 0, "nothing was kept before the first compile");
+        let kept = kept.expect("`keep` returns the unit's code");
+        assert_eq!(kept.len(), program.functions.len(), "every function's code");
+
+        fs::write(&source, text(10)).expect("writable");
+        let (edited, digest) = lowered(&source);
+        let (unit, provenance, work, again) =
+            unit_for_kept(&edited, digest.into(), None, Some(&kept), true).expect("it compiles");
+        assert_eq!(ran(&unit), "15", "the edited body runs");
+        assert_eq!(provenance, Provenance::Compiled);
+        assert_eq!(
+            work,
+            Work {
+                compiled: 1,
+                reused: edited.functions.len() - 1,
+            },
+            "a body edit compiles its own function, and the rest comes from memory"
+        );
+        assert!(again.is_some(), "the new unit's code replaces what was kept");
+
+        let (_, _, _, none) =
+            unit_for_kept(&edited, digest.into(), None, Some(&kept), false).expect("it compiles");
+        assert!(none.is_none(), "without `keep` nothing is held");
 
         drop(fs::remove_dir_all(&dir));
     }
