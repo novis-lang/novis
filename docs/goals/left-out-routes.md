@@ -138,3 +138,8 @@ user report. Nothing of this goal is built. Every anchor above was read on that 
 Stage 1 from its first item. The check `rows` is red until the four new tests exist.
 
 ### Backlog
+
+- A `#[Test]` method that also carries `#[Route]` or `#[Command]` still gets a row in the route or
+  command table, and a run has no method for it. `check_class_routes` and `check_class_commands`
+  already call `crate::test_code::refuse_entry_point` for `#[TestOnly]` code. The same call with
+  `env.test_code.contains` would close it, as a new error or as `E1019`'s wider form.

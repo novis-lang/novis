@@ -26,7 +26,7 @@ stages:
     context: [docs/reference/lang/95-testing.md, docs/examples/lang/testing/chapter.md, website/src/data/changes.json]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: marker
@@ -301,41 +301,28 @@ above.
 ### 6. the goal is verified once, and every failure is fixed
 
 - [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. In stage 6 the build, clippy, the goal's 20 tests by name and both
-conformance cases are green. `close`'s reds that are this goal's are fixed: the Syntax page
-`syntax/testing/fixtures-and-assertions.mdx` covers `#[TestOnly]`, the roadmap names every chain
-goal, and the stale renders are committed (`139ee67cd4`). The Syntax page's newcomer review is
-done, its findings are fixed, and it and its questions are stamped (`902e86203c`). No item of
-this goal is red in `close` now.
+Every stage is done, and `bun nv close --goal test-only` is green (101 s). The last red was not this
+goal's: `tls-relax-every-client` is now committed, and its roadmap theme "The same TLS settings for
+every client" is added, with README.md's roadmap rewritten (`22b4f27aab`). The build, clippy, the
+goal's 20 tests by name and both conformance cases were green in the earlier stage 6 session.
 
-The pdf items are taken over and fixed (`a5a776b819`). Render's `about.md` is 194 words. A
-newcomer review of it, its second example and the `withAsset` help is done, and its findings are
-fixed. The texts, the help cards and the seven pdf question sets are stamped. The uncommitted
-`review-baseline.json` held only entries that `reviewed.json` already stamped, and is committed.
+All nine failed jobs of nightly run 45813627231 (commit `4e43e1fa2e`) come from three causes, each
+fixed on `main` after that commit: the Miri zone tests in `c115a735a1`, the uuid `Parses`
+conformance case in `28a4d7a6bf` and the aarch64 serve stack bound in `544711a8fb`.
 
-One red stays in `close`, and it is not this goal's: `site roadmap` says `tls-relax-every-client`
-is on the chain and in no theme. A person was writing that goal while this session ran: its file
-`docs/goals/tls-relax-every-client.md` and the chain edit in `docs/goals/README.md` were
-uncommitted, and the goal had one stage still called "The first stage". This session left both
-files alone.
-
-All nine failed jobs of nightly run 45813627231 (commit `4e43e1fa2e`, 2026-11-26) come from
-three causes, each fixed on `main` after that commit: the Miri zone tests in
-`c115a735a1`, the uuid `Parses` conformance case in `28a4d7a6bf` and the aarch64 serve stack
-bound in `544711a8fb`.
+The decisions are in `docs/rules/testing/a-test-only-declaration-is-test-code.md`. The one backlog
+item moved to `left-out-routes`'s `### Backlog`, because that goal edits `check_class_routes` and
+`check_class_commands`.
 
 ### Next
 
-Run `git status` and `bun nv site --check roadmap --nvs target/debug/nvs.exe`. If the
-`tls-relax-every-client` goal is committed with its roadmap theme, rerun
-`bun nv close --goal test-only`. If it is still uncommitted and only `site roadmap` is red, leave it
-to its author. Once `close` is green, delete this goal file and write `DONE`.
+The driver runs the acceptance checks and retires the goal.
 
 Tests expected to go red at the full gate: any test that counts `ATTRIBUTES` or snapshots the
 attribute cards, stubs or `nvs meta` output changes by one row. Any snapshot of `E0889`'s or
@@ -345,6 +332,4 @@ snapshot of `ExprTypeTable`'s dump gains the empty `test_only_types` section.
 
 ### Backlog
 
-- A `#[Test]` method that also carries `#[Route]` or `#[Command]` still gets a table row, and a run
-  has no method for it. It predates this goal. The same `refuse_entry_point` call with
-  `env.test_code.contains` would close it, as a new error or as `E1019`'s wider form.
+None. The route and command item is `left-out-routes`'s now.
