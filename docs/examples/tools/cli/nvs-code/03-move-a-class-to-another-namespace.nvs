@@ -1,0 +1,17 @@
+<?nvs
+// Shows a caller after `nvs code rename 'Shop\Cart' 'Shop\Billing\Cart'` moved the class to another namespace.
+
+namespace Shop;
+
+// The command added this `use` line, so this file still writes the short name `Cart`.
+use Shop\Billing\Cart;
+
+// The class is now in `billing/Cart.nvs`, in the namespace `Shop\Billing`.
+require 'billing/Cart.nvs';
+
+Cart $cart = new Cart();
+$cart->add(12);
+$cart->add(30);
+
+// This prints `42`.
+echo $cart->total(), "\n";

@@ -46,6 +46,104 @@ Rename also changes the name in the other `.nvs` files of your folder.
 When you rename a parameter, the editor also changes its `@param` line. It also changes each call
 that passes the parameter by name, such as `count: 3`.
 
+### Move a class to another namespace
+
+You can also give a class a new namespace. Press **F2** on the class name and type its full new
+name, such as `Shop\Billing\Cart`. The editor changes the `namespace` line of the class. It also
+changes each `use` line that names the class. The file moves to the folder where `autoload` looks
+for the new name.
+
+You can also move the file. Drag a class file to another folder in the Explorer. The editor then
+renames the class to the name that its new path gives. For example, `Shop/Cart.nvs` moved to
+`Shop/Billing/` becomes the class `Shop\Billing\Cart`.
+
+### Property names in strings
+
+Some methods get the name of a property as a string: `initProperty`, `onPropertyGet`,
+`onPropertySet` and `beforePropertySet`. When one of them compares that name with a string, such as
+`'total'`, the string is a use of the property. A rename of `$total` also changes the string.
+
+```nvs
+public function onPropertySet(string $name, mixed $value): void
+{
+    if ($name == 'total') {
+        $this->changed = true;
+    }
+}
+```
+
+If the class has no property with the compared name, the string gets a warning. So a typo such as
+`'totl'` has a yellow underline while you type.
+
+### A rename is checked first
+
+The editor checks the new code before it changes a file. If the new code would not compile, the
+editor shows the error and changes nothing. The same check runs for every refactoring below.
+
+## Delete unused code
+
+A class, method, property or constant that nothing uses is grey. Put the cursor on its name and
+press **Ctrl+.** (**Cmd+.** on macOS). The action **Delete unused …** deletes it, with its doc
+comment and its attributes. A route handler, a test and a constructor are never grey, because Novis
+calls them for you.
+
+`nvs code unused` lists the same declarations from a terminal. `nvs code delete` deletes one.
+
+## Inline
+
+Inline replaces a variable or a method call with its value. Put the cursor on the name and press
+**Ctrl+.** to see these actions:
+
+- **Inline variable** replaces each use of a variable with its value, and deletes the variable.
+- **Inline this call** replaces one call with the body of the method. The method stays.
+- **Inline method** replaces every call with the body of the method, and deletes the method.
+
+Here **Inline variable** on `$total` changes the first code to the second:
+
+```nvs
+var $total = $price * $count;
+return $total;
+```
+
+```nvs
+return $price * $count;
+```
+
+The action is not offered when the code would run in another order, or a different number of
+times. `nvs code inline` does the same from a terminal.
+
+## Change the parameters of a method
+
+Put the cursor on a method name and choose **Change parameters of …** from the **Ctrl+.** list. An
+input box shows the current parameter list. Type the new list, such as
+`int $cents, int $count = 1`, and press **Enter**.
+
+A parameter keeps its name, so you can change its type, its default or its place. A new parameter
+needs a default value, and the calls use that default. A removed parameter is also removed from
+every call. Each method that overrides the method, or that the method overrides, gets the same list.
+`nvs code signature` does the same from a terminal. It can also write a value for a new parameter at
+every call.
+
+## Move a member to another class
+
+Put the cursor on a method, property or constant and choose **Move … to another class…**. An input
+box shows the name of the current class. Type the name of the other class, such as `Shop\Order`.
+
+A static member or a constant can move to any class. Each use, such as `Cart::MAX`, then names the
+new class. A member that is not static can move only to a parent class or a child class. A private
+member that the old class still uses must be made public first. `nvs code move` does the same from a
+terminal.
+
+## Extract an interface
+
+Put the cursor on a class name and choose **Extract an interface from …**. An input box shows the
+class name followed by `Contract`, such as `CartContract`. Type the name you want and press
+**Enter**.
+
+The editor writes a new file with the interface, in the folder where `autoload` looks for it. The
+interface has each public method of the class that is not static, except the constructor. The class
+then implements the interface. `nvs code extract interface` does the same from a terminal.
+
 ## Quick fixes and generated code
 
 When the cursor is on an error, press **Ctrl+.** (**Cmd+.** on macOS) to see the fixes for it. Here

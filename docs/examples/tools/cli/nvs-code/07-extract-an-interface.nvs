@@ -1,0 +1,39 @@
+<?nvs
+// Shows a class after `nvs code extract interface 'Shop\Cart' Priced --methods total` wrote an interface.
+
+namespace Shop;
+
+// The interface is in its own file, `parts/Priced.nvs`.
+require 'parts/Priced.nvs';
+
+// The command added `implements Priced` to the class. The rest of the class did not change.
+class Cart implements Priced
+{
+    private int $total = 0;
+
+    public function add(int $price): void
+    {
+        $this->total += $price;
+    }
+
+    /// The price of everything in the cart, in cents.
+    public function total(): int
+    {
+        return $this->total;
+    }
+}
+
+// You can now write a method that takes any `Priced` value.
+class Receipt
+{
+    public static function describe(Priced $priced): string
+    {
+        return 'Total: ' . $priced->total();
+    }
+}
+
+Cart $cart = new Cart();
+$cart->add(450);
+
+// This prints `Total: 450`.
+echo Receipt::describe($cart), "\n";

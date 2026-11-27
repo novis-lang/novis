@@ -1,0 +1,28 @@
+<?nvs
+// Shows a class after `nvs code unused` found a method that nothing calls and `nvs code delete` deleted it.
+
+namespace Shop;
+
+// `nvs code unused` printed one line: `Shop\Order::oldTotal`, a method.
+// `nvs code delete 'Shop\Order::oldTotal'` deleted the method and its `///` comment.
+class Order
+{
+    private int $total = 0;
+
+    public function add(int $price): void
+    {
+        $this->total += $price;
+    }
+
+    public function total(): int
+    {
+        return $this->total;
+    }
+}
+
+// `nvs code unused` now prints nothing for this file.
+Order $order = new Order();
+$order->add(25);
+
+// This prints `25`.
+echo $order->total(), "\n";

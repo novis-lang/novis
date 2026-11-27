@@ -1,0 +1,33 @@
+<?nvs
+// Shows a method after `nvs code inline` replaced a variable and a method call with their values.
+
+namespace Shop;
+
+class Invoice
+{
+    private int $price;
+    private int $count;
+
+    public function constructor(int $price, int $count)
+    {
+        $this->price = $price;
+        $this->count = self::limited($count);
+    }
+
+    // The method had `int $subtotal = $this->price * $this->count;` and returned `$subtotal + 5`.
+    // `nvs code inline` at `$subtotal` wrote the value in its place and deleted the variable.
+    public function total(): int
+    {
+        return ($this->price * $this->count) + 5;
+    }
+
+    // `nvs code inline 'Shop\Invoice::limited'` would write `$count > 9 ? 9 : $count` in the constructor.
+    // Then it would delete this method.
+    private static function limited(int $count): int
+    {
+        return $count > 9 ? 9 : $count;
+    }
+}
+
+// Three items at 10 cost 30, plus 5 for shipping. This prints `35`.
+echo (new Invoice(10, 3))->total(), "\n";

@@ -4692,7 +4692,7 @@
     "tools:cli/nvs-check": "a01272659c024d70"
   },
   "docs/examples/tools/cli/nvs-code/about.md": {
-    "tools:cli/nvs-code": "29913783f364a442"
+    "tools:cli/nvs-code": "566cbdc0d7039b15"
   },
   "docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md": {
     "tools:cli/nvs-config-check-and-nvs-config-dump": "f45a5ca1d4120bee"
@@ -4797,7 +4797,7 @@
     "tools:editor/nvs-dap": "4b30f2306df7e608"
   },
   "docs/examples/tools/editor/nvs-lsp/about.md": {
-    "tools:editor/nvs-lsp": "590e0d0193b2660c"
+    "tools:editor/nvs-lsp": "95a395365fcaa61b"
   },
   "docs/examples/tools/editor/nvs-lsp-test/about.md": {
     "tools:editor/nvs-lsp-test": "df416dc062c9527f"
@@ -9879,7 +9879,7 @@
     "tools:cli/nvs-check": "ab8ef0701139caef"
   },
   "help:tools:cli/nvs-code": {
-    "tools:cli/nvs-code": "cd530eb73fcc964b"
+    "tools:cli/nvs-code": "dea6f23cf38cd373"
   },
   "help:tools:cli/nvs-config-check-and-nvs-config-dump": {
     "tools:cli/nvs-config-check-and-nvs-config-dump": "7ce1cdebb2da6e80"
@@ -9984,7 +9984,7 @@
     "tools:editor/nvs-dap": "b5dc0d14f31c3914"
   },
   "help:tools:editor/nvs-lsp": {
-    "tools:editor/nvs-lsp": "2c3f6c08d23da6f5"
+    "tools:editor/nvs-lsp": "c33b539f70f199ca"
   },
   "help:tools:editor/nvs-lsp-test": {
     "tools:editor/nvs-lsp-test": "cdbb8253b23e08ce"
@@ -10168,7 +10168,7 @@
     "lang:types/callable-classes-object-shapes": "1057b5090c434c25"
   },
   "syntax/classes/properties.mdx": {
-    "lang:classes/lateinit": "04a908eb48054d47",
+    "lang:classes/lateinit": "acf04033db6a1ed3",
     "lang:classes/properties": "524a2d4f1f052fd8",
     "lang:types/properties-and-constants": "88323bbd8db6181a",
     "LateInit": "8164b39b69556518"
@@ -10487,6 +10487,7 @@
   "tools/cli/index.mdx": {
     "tools:cli/nvs-cache": "55fa8243c751a0e5",
     "tools:cli/nvs-check": "86292469633f7dfc",
+    "tools:cli/nvs-code": "6894cb1f8cfe6f4d",
     "tools:cli/nvs-telemetry": "7e43ba1c25912f69",
     "tools:cli/nvs-update-check": "78ba415a67550879",
     "tools:cli/one-binary": "ed9352ebba644ab5",
@@ -10502,7 +10503,7 @@
     "tools:editor/nvs-dap": "e7529dc767e5836e"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "b2f8c4279869b2db",
+    "tools:editor/nvs-lsp": "cc592b8ac2a76289",
     "tools:editor/the-vs-code-extension": "3bce161c43298594"
   },
   "tools/formatter/index.mdx": {

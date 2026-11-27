@@ -1,7 +1,7 @@
 ---
 title: The command line
-covers: ['tools:cli/one-binary', 'tools:cli/nvs-check', 'tools:cli/the-compile-cache', 'tools:cli/nvs-cache', 'tools:cli/nvs-update-check', 'tools:cli/nvs-telemetry']
-description: Use the nvs program to check code, manage the compile cache, look for a new version and control telemetry.
+covers: ['tools:cli/one-binary', 'tools:cli/nvs-check', 'tools:cli/nvs-code', 'tools:cli/the-compile-cache', 'tools:cli/nvs-cache', 'tools:cli/nvs-update-check', 'tools:cli/nvs-telemetry']
+description: Use the nvs program to check code, ask about and change the code of a project, manage the compile cache, look for a new version and control telemetry.
 ---
 
 import Terminal from '@components/Terminal.astro'
@@ -53,6 +53,57 @@ an editor, a script or a build server:
 Each entry in `diagnostics` has the `code`, the `message` and the `severity`. `labels` gives the
 file, and the line and column where the error starts and ends. `span` is the same place as byte
 offsets in the file. The exit code is the same as without `--json`.
+
+## Questions about your code
+
+`nvs code` prints information about the code of your project. It can also change the code, with the
+same refactorings as the editor. The project is the folder of the nearest `nvs.toml`.
+
+These commands only read:
+
+| Command | What it prints |
+|---|---|
+| `nvs code show <name>` | where a name is declared, its signature and its doc comment |
+| `nvs code refs <name>` | the declaration and every use of a name |
+| `nvs code impls <name>` | the classes and methods above and below a type or a method |
+| `nvs code outline <file>` | what a file declares |
+| `nvs code types <file>` | the type of each variable declared with `var` |
+| `nvs code find <text>` | each declaration whose name contains the text |
+| `nvs code calls <method>` | the methods that call a method, and the methods it calls |
+| `nvs code reach <method>` | the routes and the tests that reach a method |
+| `nvs code unused` | each declaration that nothing uses |
+
+These commands change files:
+
+| Command | What it changes |
+|---|---|
+| `nvs code rename` | renames a name everywhere, or moves a class to another namespace |
+| `nvs code move` | moves a file or a folder, or a member to another class |
+| `nvs code delete` | deletes a declaration that nothing uses |
+| `nvs code extract` | moves code into a new variable or method, or writes an interface |
+| `nvs code implement` | writes the methods that a class still needs |
+| `nvs code inline` | replaces a variable or a method call with its value |
+| `nvs code signature` | changes the parameters of a method and of every call |
+| `nvs code order` | puts the members of each class in one fixed order |
+
+A name has the full namespace, such as `Shop\Cart::addItem`. Put each name in single quotes, so the
+shell keeps the backslashes:
+
+```sh
+nvs code refs 'Shop\Cart::addItem'
+nvs code rename 'Shop\Cart' 'Shop\Billing\Cart' --dry-run
+nvs code signature 'Shop\Cart::addItem' 'int $count, bool $gift = false'
+```
+
+The second line shows what a move of `Cart` to the namespace `Shop\Billing` would change. Without
+`--dry-run`, it changes the files. The third line adds the parameter `$gift` to the method
+`addItem`. The calls do not change, because `$gift` has a default value.
+
+Each command that changes files takes `--dry-run` and `--json`. `--dry-run` prints each change and
+saves nothing. `--json` prints the changes as one JSON document. Before it saves, the command checks
+the new code. If the new code would not compile, it prints the error and changes nothing.
+
+[Reference: nvs code](/reference/cli/nvs-code/) has every command and its options.
 
 ## The compile cache
 

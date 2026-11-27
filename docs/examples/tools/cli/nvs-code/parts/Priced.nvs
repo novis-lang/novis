@@ -1,0 +1,11 @@
+<?nvs
+// `nvs code extract interface 'Shop\Cart' Priced --methods total` wrote this file.
+// It has the method `total` of `Shop\Cart`, with its `///` comment.
+
+namespace Shop;
+
+interface Priced
+{
+    /// The price of everything in the cart, in cents.
+    public function total(): int;
+}

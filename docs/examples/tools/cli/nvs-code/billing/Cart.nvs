@@ -1,0 +1,19 @@
+<?nvs
+// `nvs code rename 'Shop\Cart' 'Shop\Billing\Cart'` changed the namespace line of this file.
+
+namespace Shop\Billing;
+
+class Cart
+{
+    private int $total = 0;
+
+    public function add(int $price): void
+    {
+        $this->total += $price;
+    }
+
+    public function total(): int
+    {
+        return $this->total;
+    }
+}

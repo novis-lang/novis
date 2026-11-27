@@ -1,6 +1,69 @@
 {
   "entries": [
     {
+      "kind": "fixed",
+      "features": [
+        "lang:classes/lateinit",
+        "tools:editor/nvs-lsp",
+        "tools:cli/nvs-code"
+      ],
+      "text": "When you rename a property, the name that `initProperty`, `onPropertyGet`, `onPropertySet` and `beforePropertySet` compare as a string changes too. Find references lists that string."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "lang:classes/lateinit"
+      ],
+      "text": "The warning `W1039` shows a string that a property method compares with the property name, when the class has no property with that name. Such a typo would only fail when the program runs."
+    },
+    {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "tools:cli/nvs-code",
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "A rename can move a class to another namespace. Write its full new name, such as `Shop\\Billing\\Cart`. Every `use` line changes, and the file moves to the folder that `autoload` reads for the new name."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-code",
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "When you move a class file to another folder with `nvs code move` or in the editor, the class gets the name that its new path gives. `nvs code rename --from <file>` does a list of renames in one change."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-code",
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Every rename and move is checked before it changes a file. If the new code would not compile, nothing changes, and you see the error."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:cli/nvs-code"
+      ],
+      "text": "`nvs code unused` prints every declaration that nothing in the project uses, and `nvs code delete` deletes one. `nvs code extract`, `implement`, `inline` and `signature` do from a terminal what the editor's actions do."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "The editor greys out a declaration that nothing uses, and **Delete unused** deletes it. **Inline variable**, **Inline this call** and **Inline method** replace a variable or a call with its value."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp",
+        "tools:cli/nvs-code"
+      ],
+      "text": "Three new editor actions ask you for text first. They change the parameters of a method, move a member to another class, and extract an interface. `nvs code signature`, `nvs code move` and `nvs code extract interface` do the same."
+    },
+    {
       "kind": "new",
       "highlight": true,
       "features": [
@@ -2785,10 +2848,6 @@
     "tools:agents/nvs-agent-primer": {
       "hash": "5e925ba98775eabd",
       "why": "a test pins the reworded capability section of the primer"
-    },
-    "tools:cli/nvs-code": {
-      "hash": "9c7b5f35fa50d9c2",
-      "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."
     },
     "tools:cli/nvs-debug-to-test": {
       "hash": "2902814bd3043be2",

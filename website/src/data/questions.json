@@ -1308,14 +1308,14 @@
   },
   "/reference/cli/nvs-code/": {
     "feature": "tools:cli/nvs-code",
-    "hash": "250d518e16625b7c",
+    "hash": "c84fadc4ce58e0d0",
     "questions": [
       "Find every place a method is used in my project",
-      "Rename a class or a method everywhere from the terminal",
-      "Move a file and update every require that loads it",
-      "Which routes and tests reach a method, or several methods at once?",
-      "Does the command line reuse the index the editor already built?",
-      "Sort the properties and methods of every class in my project"
+      "Move a class to another namespace and update every use line",
+      "Find the methods and classes nothing uses, and delete them safely",
+      "Add a parameter to a method and write a value at every call",
+      "Extract an interface from a class from the terminal",
+      "Which routes and tests reach a method, or several methods at once?"
     ]
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
@@ -1432,14 +1432,14 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "2120ae482ac8bf81",
+    "hash": "d25ded0f94f5b126",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
       "See every method that calls this method in my editor",
       "Can I click a @see path in a doc comment to open the file?",
       "Where did this tainted value in my code come from?",
-      "Why does my editor say a method cannot be used here?"
+      "Rename or inline code in my editor, and check that it still compiles"
     ]
   },
   "/reference/cli/nvs-lsp-test/": {
@@ -20472,11 +20472,11 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "43a86208ac34b51d",
+    "hash": "6261f4a237d9357b",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",
-      "Check one autoloaded class file, also in a folder that .gitignore names",
+      "Rename, move or inline code of my project from the terminal",
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
@@ -20508,14 +20508,14 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "1a71b8b4978dc943",
+    "hash": "550cade881d15e1e",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",
-      "Write a method that overrides a parent method and calls parent::",
-      "How do I change a colour of the Novis Dark theme?",
-      "Which files does the editor read, and check again after an edit?",
-      "Can I rename a field of an attribute declaration in every place it is used?"
+      "Move a class to another namespace by renaming it or dragging its file",
+      "Grey out and delete the code that nothing uses",
+      "Change the parameters of a method or move it to another class",
+      "Does renaming a property also rename the name initProperty compares?"
     ]
   },
   "/tools/formatter/": {

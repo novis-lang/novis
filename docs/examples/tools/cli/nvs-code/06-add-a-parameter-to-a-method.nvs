@@ -1,0 +1,21 @@
+<?nvs
+// Shows the code after `nvs code signature` added a parameter to a method and to every call of it.
+
+namespace Shop;
+
+// The command was `nvs code signature 'Shop\Page::line' 'string $item, int $count' --value '$count=1'`.
+// The method now has the parameter `int $count`.
+class Page
+{
+    public static function line(string $item, int $count): string
+    {
+        return $count . ' x ' . $item;
+    }
+}
+
+// The command wrote the value `1` at each call.
+echo Page::line('Lamp', 1), "\n";
+echo Page::line('Book', 1), "\n";
+
+// You can now give another count. This prints `3 x Pen`.
+echo Page::line('Pen', 3), "\n";
