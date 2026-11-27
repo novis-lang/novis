@@ -2595,7 +2595,7 @@ lines and one blank line beside it. A type whose file holds nothing else but its
 `use` lines deletes the file, refused while a `require` names it; the editor does not offer that
 case, since an action edits one document's text. The edit passes
 [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes), and the JSON lists each deleted file under
-`deleted`, a key every write verb's JSON has. **Cost:** tooling only: one analysis of the
+`deleted` and each created file under `created`, two keys every write verb's JSON has. **Cost:** tooling only: one analysis of the
 declaration's file, one of each reader of a deleted file, and the check.
 
 **`extract variable`** and **`extract method`** take a range, `path:line:column-line:column`, whose
@@ -2608,6 +2608,24 @@ class's interfaces and `abstract` parents leave without a body, as the editor's 
 missing methods* fix writes it on `E0449` (`nvs_lsp::generate::implement_class`); a class that owes
 none is refused. Each edit passes [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes).
 **Cost:** tooling only: the editor's analyses for the action, then the check.
+
+**`extract interface`** takes a class and a name, and an optional `--methods a,b`, from
+`nvs_lsp::extract_interface::extracted`, the function the editor's `nvs.extractInterface` command
+runs. A bare name is in the class's namespace. The default methods are every public method that is
+not static, except the constructor. It creates one file, at the path the `autoload` map gives the
+name (the first root of its longest prefix, as [`ide/a-type-moves-with-its-namespace`](ide.md#ide-a-type-moves-with-its-namespace) finds
+it), with each method's signature as its declaration writes it and its `///` run, and adds the
+name to the class's `implements` list. Each type is written for the new file: its short name with a
+new `use` line where that name is free there, and its qualified name otherwise, never an alias. No
+parameter type anywhere changes to the interface, since which uses take it is the person's choice.
+A name that exists, a class no program loads through an `autoload` map, a name no root reaches and
+a path where a file already is are refused, since an autoloaded file holds one declaration
+([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)). The edit passes
+[`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes) with the new file overlaid at its path
+(`refactor::checked_creating`), so a signature that does not compile there, such as one that writes
+a generic class's type parameter, refuses it. The CLI creates the file with `create_new`, after
+judging it and each missing directory inside the project root. **Cost:** tooling only: one
+analysis of the class's file, one of each program that reads it, then the check.
 
 **`inline`** takes a method's name, or a position, `path:line:column`, on a local, a call or a
 method's name, from `nvs_lsp::query::inline`, the function the editor's three `refactor.inline`
@@ -2650,6 +2668,27 @@ value, a type above it outside the workspace, a call that spreads its arguments 
 call of the family, and a constructor, whose `new` calls the index records as uses of the class.
 Each edit passes [`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes). **Cost:** tooling only:
 one parse of each file that declares or calls a method of the family, then the check.
+
+**`move`** with a `from` that contains `::` moves that member into the class `to`, from
+`nvs_lsp::query::move_member` (`crates/nvs-lsp/src/move_member.rs`), the function the editor's *Move
+… to another class…* action runs through `workspace/executeCommand` (`nvs.moveMember`). No path
+contains `::`, so the two forms never meet. A static method, a static property, a constant, or a type
+alias or an enum a class declares moves to any class of the project: each `Old::member`, `self::`,
+`static::` and `parent::` that names it becomes the new class, with a `use` line where the file needs
+one, and inside the moved code each `self::` and `static::` that reads another member of the old class
+becomes the old class's name. A method or a property that is not static moves only to a class above
+its class or below it, and its uses, written on an object, do not change. The moved code keeps its
+`///` and `#[` lines, lands after the last member of its group (constants, then properties, then
+methods), and each type it writes by a short name gets a `use` line in the new file. Refused, since
+the checker cannot see each: a private or protected static member the old class still uses ("make it
+public first"), a property whose name a property callback compares as a string
+([`classes/a-compared-property-name-is-a-use`](classes.md#classes-a-compared-property-name-is-a-use)), moved code that writes `parent` or a `self` or
+`static` not in front of `::`, a name the new class already has, a member that shares its declaration
+with another, and an enum case. The rest is the check's: a pull up whose body reads what the class
+above lacks, a push down that something still calls through the class above or a sibling, and a moved
+body that reads a private member of the old class each add an error, so each is refused with it
+([`ide/a-refactoring-checks-its-edit-before-it-writes`](ide.md#ide-a-refactoring-checks-its-edit-before-it-writes)). **Cost:** tooling only: one parse of each
+file with a use of the member, one tokenizing of the old file, then the check.
 
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through

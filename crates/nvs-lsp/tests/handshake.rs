@@ -610,6 +610,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             refresh_lenses: false,
             refresh_hints: false,
             rename_files: false,
+            create_files: false,
             apply_edit: false,
             work_done_progress: false,
         }

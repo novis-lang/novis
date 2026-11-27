@@ -157,6 +157,10 @@ pub struct Client {
     /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
     /// `resourceOperations` include `rename`, so an edit may move a file.
     pub rename_files: bool,
+    /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
+    /// `resourceOperations` include `create`, so an edit may create a file,
+    /// as extract interface does.
+    pub create_files: bool,
     /// `workspace.applyEdit`: the server may send an edit for the client to
     /// apply, which is how a command of `crate::commands` writes.
     pub apply_edit: bool,
@@ -234,6 +238,17 @@ impl Client {
                             .resource_operations
                             .as_ref()
                             .is_some_and(|kinds| kinds.contains(&ResourceOperationKind::Rename))
+                }),
+            create_files: capabilities
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.workspace_edit.as_ref())
+                .is_some_and(|edit| {
+                    edit.document_changes == Some(true)
+                        && edit
+                            .resource_operations
+                            .as_ref()
+                            .is_some_and(|kinds| kinds.contains(&ResourceOperationKind::Create))
                 }),
             apply_edit: capabilities
                 .workspace

@@ -651,6 +651,53 @@ fn a_refused_change_parameters_command_answers_the_reason() {
     });
 }
 
+/// The action on a class's name carries the class and the name the input box
+/// starts from. The command runs the engine, and a class that no `autoload`
+/// map loads is answered with the engine's sentence, with no edit sent.
+#[test]
+fn extract_interface_is_offered_on_a_class_name_and_runs_the_engine() {
+    commanded(CART, |client, uri| {
+        let at = position_of(CART, "Cart {");
+        let (_, response) = ask(
+            client,
+            2,
+            "textDocument/codeAction",
+            serde_json::json!({
+                "textDocument": { "uri": uri.as_str() },
+                "range": { "start": at, "end": at },
+                "context": { "diagnostics": [] },
+            }),
+        );
+        let actions = response.response_result.expect("code actions are answered");
+        let action = actions
+            .as_array()
+            .expect("a list of actions")
+            .iter()
+            .find(|action| action["command"]["command"] == "nvs.extractInterface")
+            .unwrap_or_else(|| panic!("no Extract interface action in {actions}"));
+        assert_eq!(action["title"], "Extract an interface from `Cart`…");
+        assert_eq!(
+            action["command"]["arguments"],
+            serde_json::json!(["Cart", "CartContract"])
+        );
+        let (sent, response) = ask(
+            client,
+            3,
+            "workspace/executeCommand",
+            serde_json::json!({
+                "command": "nvs.extractInterface",
+                "arguments": ["Cart", "Priced"],
+            }),
+        );
+        assert!(sent.is_empty(), "{sent:?}");
+        let error = response
+            .response_result
+            .expect_err("a class no autoload map loads is refused");
+        assert_eq!(error.code, REQUEST_FAILED);
+        assert!(error.message.contains("autoload"), "{}", error.message);
+    });
+}
+
 /// A command this server does not declare is refused by name, and no edit is
 /// sent.
 #[test]

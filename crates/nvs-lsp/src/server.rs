@@ -104,8 +104,8 @@ use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCall,
     CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams, CodeAction, CodeActionKind,
     CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams, Command, CompletionItem,
-    CompletionParams, CompletionResponse, CompletionTriggerKind, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    CompletionParams, CompletionResponse, CompletionTriggerKind, CreateFile, CreateFileOptions,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentChangeOperation, DocumentChanges, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
@@ -1971,11 +1971,80 @@ fn execute_command(
         );
     }
     match crate::commands::execute(documents, index, &params.command, &params.arguments) {
-        Ok(rewrites) => (
-            Response::new_ok(id, serde_json::Value::Null),
-            Some(workspace_edit(located(documents, &rewrites, encoding))),
-        ),
+        Ok(executed) => {
+            let edits = located(documents, &executed.rewrites, encoding);
+            let edit = match executed.created {
+                None => workspace_edit(edits),
+                Some(_) if !settings.client.create_files => {
+                    return (
+                        refused(
+                            id,
+                            "This command creates a file, and this editor cannot create a file \
+                             the server sends."
+                                .to_owned(),
+                        ),
+                        None,
+                    );
+                }
+                Some((path, text)) => {
+                    let Some(uri) = uri_of(&path) else {
+                        return (
+                            refused(id, format!("`{}` cannot be created.", path.display())),
+                            None,
+                        );
+                    };
+                    creating_edit(edits, uri, text)
+                }
+            };
+            (Response::new_ok(id, serde_json::Value::Null), Some(edit))
+        }
         Err(message) => (refused(id, message), None),
+    }
+}
+
+/// One new file with `text`, then the edits, as `documentChanges`: a
+/// `CreateFile` that fails where a file already is, the new file's text as
+/// one insertion, and each other file's edits as one unversioned
+/// `TextDocumentEdit`.
+fn creating_edit(located: Vec<(Location, String)>, uri: Uri, text: String) -> WorkspaceEdit {
+    let mut operations = vec![
+        DocumentChangeOperation::Op(ResourceOp::Create(CreateFile {
+            uri: uri.clone(),
+            options: Some(CreateFileOptions {
+                overwrite: Some(false),
+                ignore_if_exists: Some(false),
+            }),
+            annotation_id: None,
+        })),
+        DocumentChangeOperation::Edit(TextDocumentEdit {
+            text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+            edits: vec![OneOf::Left(TextEdit {
+                range: Range::default(),
+                new_text: text,
+            })],
+        }),
+    ];
+    let mut by_file: BTreeMap<String, (Uri, Vec<OneOf<TextEdit, AnnotatedTextEdit>>)> =
+        BTreeMap::new();
+    for (at, new_text) in located {
+        by_file
+            .entry(at.uri.as_str().to_owned())
+            .or_insert_with(|| (at.uri.clone(), Vec::new()))
+            .1
+            .push(OneOf::Left(TextEdit {
+                range: at.range,
+                new_text,
+            }));
+    }
+    operations.extend(by_file.into_values().map(|(uri, edits)| {
+        DocumentChangeOperation::Edit(TextDocumentEdit {
+            text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+            edits,
+        })
+    }));
+    WorkspaceEdit {
+        document_changes: Some(DocumentChanges::Operations(operations)),
+        ..WorkspaceEdit::default()
     }
 }
 

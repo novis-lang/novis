@@ -22,7 +22,16 @@
 //! Nothing at runtime, since it only edits source. The offer reads the member
 //! under the cursor in the open document's tree and the index, with no
 //! analysis. A command costs what its engine costs (`crate::signature_change`,
-//! `crate::move_member`).
+//! `crate::move_member`, `crate::extract_interface`).
+//!
+//! # Decision: the name *Extract interface…* starts from
+//!
+//! The class's own name followed by `Contract`, as `CartContract` for `Cart`.
+//! Novis has no naming convention for an interface, and the class's own name
+//! is taken. The text is only where the input box starts: the person types
+//! the name they want.
+
+use std::path::PathBuf;
 
 use nvs_diagnostics::BytePos;
 use serde_json::Value;
@@ -39,7 +48,8 @@ pub const CHANGE_PARAMETERS: &str = "nvs.changeParameters";
 /// class it moves to.
 pub const MOVE_MEMBER: &str = "nvs.moveMember";
 
-/// *Extract interface…*: `[class, name]`. Answered "not yet".
+/// *Extract interface…*: `[class, name]`, the class and the new interface's
+/// name, with the default methods (`crate::extract_interface`).
 pub const EXTRACT_INTERFACE: &str = "nvs.extractInterface";
 
 /// Every command the server declares in `executeCommandProvider`.
@@ -63,18 +73,29 @@ pub struct Offer {
     pub arguments: Vec<String>,
 }
 
+/// What a command writes: its edits, and the file it creates, with its text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Executed {
+    /// The edits to existing files.
+    pub rewrites: Vec<Rewrite>,
+    /// The file the command creates and its text, which only
+    /// [`EXTRACT_INTERFACE`] has.
+    pub created: Option<(PathBuf, String)>,
+}
+
 /// The commands offered at `offset` of the entry document: *Change
 /// parameters…* on the name of a project method that is not a constructor,
-/// carrying the method and its current parameter list, and *Move member…*
-/// on the name of a member of a project class that is not a constructor,
-/// carrying the member and its class.
+/// carrying the method and its current parameter list, *Move member…* on the
+/// name of a member of a project class that is not a constructor, carrying
+/// the member and its class, and *Extract interface…* on the name of a
+/// project class, carrying the class and the name the input box starts from.
 #[must_use]
 pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offer> {
     let Some((symbol, _)) = crate::index::declared_at(analysed, offset) else {
         return Vec::new();
     };
     let Some((class, name)) = symbol.rsplit_once("::") else {
-        return Vec::new();
+        return extract_interface(index, &symbol).into_iter().collect();
     };
     let Some(declared) = index.declaration(&symbol) else {
         return Vec::new();
@@ -107,6 +128,22 @@ pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offe
         });
     }
     offers
+}
+
+/// *Extract interface…* on the class `symbol`, starting from its short name
+/// followed by `Contract`.
+fn extract_interface(index: &SymbolIndex, symbol: &str) -> Option<Offer> {
+    let declared = index.declaration(symbol)?;
+    if declared.kind != DeclKind::Class {
+        return None;
+    }
+    let short = symbol.rsplit_once('\\').map_or(symbol, |(_, short)| short);
+    Some(Offer {
+        title: format!("Extract an interface from `{short}`…"),
+        kind: crate::split_join::KIND,
+        command: EXTRACT_INTERFACE,
+        arguments: vec![symbol.to_owned(), format!("{short}Contract")],
+    })
 }
 
 /// *Change parameters…* for the method `symbol` whose name covers `offset`.
@@ -153,18 +190,22 @@ fn stmts_method<'a>(
     crate::inline::method_member(stmts, BytePos::try_from(start).ok()?)
 }
 
-/// The edits `command` makes with `arguments`, or why it makes none.
+/// What `command` writes with `arguments`, or why it writes nothing.
 ///
 /// # Errors
 ///
 /// Returns the sentence the client shows: an unknown command, arguments that
-/// are not the command's, a command not built yet, or the engine's refusal.
+/// are not the command's, or the engine's refusal.
 pub fn execute(
     documents: &Documents,
     index: &SymbolIndex,
     command: &str,
     arguments: &[Value],
-) -> Result<Vec<Rewrite>, String> {
+) -> Result<Executed, String> {
+    let edits = |rewrites: Vec<Rewrite>| Executed {
+        rewrites,
+        created: None,
+    };
     let texts: Option<Vec<&str>> = arguments.iter().map(Value::as_str).collect();
     match command {
         CHANGE_PARAMETERS => {
@@ -178,7 +219,7 @@ pub fn execute(
             if rewrites.is_empty() {
                 return Err(format!("The parameters of `{symbol}` did not change."));
             }
-            Ok(rewrites)
+            Ok(edits(rewrites))
         }
         MOVE_MEMBER => {
             let Some([symbol, class]) = texts.as_deref() else {
@@ -186,10 +227,21 @@ pub fn execute(
                     "`{MOVE_MEMBER}` needs two strings: the member and the class it moves to."
                 ));
             };
-            crate::move_member::moved_member(documents, index, symbol, class.trim())
+            crate::move_member::moved_member(documents, index, symbol, class.trim()).map(edits)
         }
         EXTRACT_INTERFACE => {
-            Err("Extracting an interface is not available in the editor yet.".to_owned())
+            let Some([class, name]) = texts.as_deref() else {
+                return Err(format!(
+                    "`{EXTRACT_INTERFACE}` needs two strings: the class and the name of the \
+                     interface."
+                ));
+            };
+            let extracted =
+                crate::extract_interface::extracted(documents, index, class, name, None)?;
+            Ok(Executed {
+                rewrites: extracted.rewrites,
+                created: Some((extracted.path, extracted.text)),
+            })
         }
         _ => Err(format!("`{command}` is not a command of this server.")),
     }

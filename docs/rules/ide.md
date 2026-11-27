@@ -693,15 +693,19 @@ per edit, a moved file one `moves <from> to <to>` line after them, and a refusal
 [`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project) that needs text from the person who runs it, through
 the engine `nvs code` calls. It declares three commands, `nvs.changeParameters`, `nvs.moveMember` and
 `nvs.extractInterface`, each frozen as [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added) freezes
-a command id. A code action carries the command with what an input box starts from: *Change
-parameters…* (`refactor.rewrite`) on a method's name carries `Class::method` and its current list.
+a command id. A code action (`refactor.rewrite`) carries the command with what an input box starts
+from: *Change parameters…* on a method's name carries `Class::method` and its current list, *Move
+`name` to another class…* on a member's name carries `Class::member` and its own class, and *Extract
+an interface from `Class`…* on a class's name carries the class and its name followed by `Contract`,
+a starting text the person edits, since Novis has no naming convention for an interface.
 `vscode-languageclient` registers each declared id, and the extension asks for the text in its
 `executeCommand` middleware, in the editor's own input box
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)), so no id is registered twice. The server
 computes the edit (`nvs_lsp::commands`), sends it with `workspace/applyEdit` and answers `null`. A
 refusal is `RequestFailed` with the engine's sentence, and so are an unknown command, a list that
-changes nothing and a client without `workspace.applyEdit`. `nvs.moveMember` and
-`nvs.extractInterface` answer that the editor cannot run them. A command is answered on the wire
+changes nothing and a client without `workspace.applyEdit`. `nvs.extractInterface` creates a file,
+which only `documentChanges` can carry: a `CreateFile` that never overwrites, the file's text, then
+the class's edits. A client whose `resourceOperations` lack `create` is refused. A command is answered on the wire
 and held by `crates/nvs-lsp/tests/actions.rs`, since `nvs_lsp::render` has no spelling for one.
 
 - **Memory:** nothing held. The offer reads the open document's tree, and a command costs its engine's

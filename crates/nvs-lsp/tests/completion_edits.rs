@@ -46,6 +46,7 @@ const EDITOR: Client = Client {
     refresh_lenses: false,
     refresh_hints: false,
     rename_files: false,
+    create_files: false,
     apply_edit: false,
     work_done_progress: false,
 };
