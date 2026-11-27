@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/types/type-test.md, crates/nvs-types/src/expr/type_test.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/expr.rs]
   - id: 2
     title: "a value narrowed by is static is on E0741's list"
-    status: open
+    status: done
     context: [docs/rules/types/narrowing.md, crates/nvs-types/src/locals.rs]
   - id: 3
     title: "a local declared with a type that binds static is checked at every write, and is on E0741's list"
@@ -136,6 +136,18 @@ declaring class inside the body" stays declined: no type gains a second meaning,
 gains an entry. `null` already passes for `?static`. The guard clause `if (!($o is static)) {
 continue; }` proves the rest of the block, by the same rule every other narrowing follows.
 
+**Stage 2 as built (the session's calls, 2026-11-27).** The fact is a field of the narrowing entry,
+not a set of names beside it: `LocalScope::narrowed` maps a key to `locals::Fact { ty:
+Option<TypeId>, called_class: bool }`. That way every drop, suspension and restore takes the fact
+with no extra code. `ty` is `None` where `is static` proves no narrower type, which is the usual
+case (`Model $o` in `Model`): such an entry records no `NarrowedRead` and no `Property` narrowing, so
+`nvs-ir` sees nothing new. A test of a key already narrowed keeps the earlier type and fact. E0741's
+list is asked after the walk, when the narrowing is gone, so each read that carried the fact is
+recorded by span in `LocalScope::called_class_reads`. `yields_the_called_class` takes the body's
+scope and checks that set, for a variable and a `readonly` path, and now looks through parentheses.
+`check_call_through_static_callback` passes its scope, so a proven `callable(static)` call accepts
+the same reads. Cost: one span per such read, for one body, at check time only.
+
 **Stage 3: a local declared with a type that binds `static`.** A local whose written type binds
 `static` (`crate::signatures::static_use(...).binds`, in a class that is not `final`) is recorded in
 the body's `LocalScope`, as `static_callbacks` records a `callable(static)` parameter
@@ -204,13 +216,13 @@ attempt is written to `### Backlog` with what blocked it.
 
 ### 2. a value narrowed by is static is on E0741's list
 
-- [ ] `crates/nvs-types/src/locals.rs:535`: `narrow` installs the called-class fact on the true edge of
+- [x] `crates/nvs-types/src/locals.rs:535`: `narrow` installs the called-class fact on the true edge of
   a recorded called-class test, and every path that drops or restores a narrowing drops or restores
   it. The module doc's narrowing section (`:37`) says so.
-- [ ] `crates/nvs-types/src/check.rs:1763`: `yields_the_called_class` accepts a variable or `readonly`
+- [x] `crates/nvs-types/src/check.rs:1763`: `yields_the_called_class` accepts a variable or `readonly`
   path carrying the fact; the list in `reject_static_return_of_another_class`'s doc (`:1676`) and
   E0741's help text name it.
-- [ ] The four tests of the check `narrowed`, then `cargo test --test narrowed_static` once.
+- [x] The four tests of the check `narrowed`, then `cargo test --test narrowed_static` once.
 
 ### 3. a local declared with a type that binds static is checked at every write, and is on E0741's list
 
@@ -306,23 +318,35 @@ order 1
 
 ### State
 
-Stage 1 is done, and its checks `called-class-test` and `called-class-run` are green. `is static`
-records `ExprInfo::CalledClassTest` (`crates/nvs-types/src/expr/type_test.rs`, `called_class_test`)
-and lowers as `TestShape::CalledClass` against `lsb()` (`crates/nvs-ir/src/lower/expr.rs`). E0834
-has a type-position wording, and `E1021` is new: `static` inside a tested type. § *Stage 1 as built*
-records the calls. A reject case pins both codes:
-`tests/conformance/reject/is-static-has-no-answer-inside-a-closure-or-a-tested-type.nvst`. The rule
-and `docs/reference/` do not name `E1021` yet; stage 4 writes them. The nightly sweep's three
-failures were fixed on `main` after its run (606701259f, 215257ff46, 544711a8fb).
+Stages 1 and 2 are done. The checks `called-class-test`, `called-class-run` and `narrowed` are green
+(`cargo test --test narrowed_static`: 7 passed). Stage 1: `is static` records
+`ExprInfo::CalledClassTest` and lowers as `TestShape::CalledClass` against `lsb()`. `E1021` is
+`static` inside a tested type. Stage 2: a narrowing entry is a `locals::Fact` with a `called_class`
+bit. Each read that carries it is recorded by span in `LocalScope::called_class_reads`, and
+`yields_the_called_class` (`crates/nvs-types/src/check.rs`) now takes the body's `&LocalScope`.
+§ *Stage 1 as built* and § *Stage 2 as built* record the calls. E0741's help text names `if ($x is
+static)`. Its three pinned copies were rewritten: the conformance case
+`tests/conformance/class/a-static-return-must-be-the-called-class.nvst`, the example output
+`docs/examples/lang/classes/methods-self-static-and-parent/05-static-must-return-the-called-class.out`
+and `docs/reference/lang/50-classes.md:854`. The three nightly failures in this run's sweep (Miri
+timeout, `runs.shot`, the aarch64 serve test) were fixed on `main` after its run, by 215257ff46,
+606701259f and 544711a8fb.
 
-Tests that may go red at the full gate: a diagnostics roster test that lists every code, if one
-exists, for `E1021`; a reference check that every code has a page or card listing.
+Tests that may go red at the full gate: a diagnostics roster test that lists every code, for
+`E1021`; a reference check that every code has a page or card; the proof stamp of example `05` under
+`methods-self-static-and-parent`, whose `.out` changed with the help text; `website/public/llms-full.txt`,
+which still has the old help text until the site is rebuilt.
 
 ### Next
 
-Stage 2 from its first item: the "called class" fact beside `LocalScope::narrowed`
-(`crates/nvs-types/src/locals.rs`, `narrow` and `type_test_residue`, which now reads
-`CalledClassTest`), then `yields_the_called_class` (`crates/nvs-types/src/check.rs:1763`). The check
-`narrowed` is red until its four tests exist in `crates/nvs-types/tests/narrowed_static.rs`.
+Stage 3 from its first item: record every local whose written type binds `static` in a class that is
+not `final`, beside `LocalScope::static_callbacks` (`crates/nvs-types/src/locals.rs:206`). Then
+`E1022` in `crates/nvs-diagnostics/src/code/types_e10.rs`, the write checks in
+`crates/nvs-types/src/expr/assign.rs` (`check_assign`, `check_write_target`, which `bun nv peek
+--locate` finds), and a read of such a local on E0741's list. The read can be recorded through
+`LocalScope::note_called_class_read` in `crate::expr`'s variable-read arm
+(`crates/nvs-types/src/expr/mod.rs`, after the `NarrowedRead` record). The value a write takes is held
+to `crate::check::yields_the_called_class`, which needs the scope it was checked in. The check
+`static-locals` is red until its five tests exist, and `finders-run` until its case exists.
 
 ### Backlog
