@@ -1162,8 +1162,15 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     state.recount(&shared.shed);
     if state.thread.is_none() && state.running {
         let shared = Arc::clone(shared);
+        // The stack size is std's own default, written out. Without it, std
+        // reads `RUST_MIN_STACK` at the process's first spawn, and that read
+        // allocates. A warm `nvs run --count` spawns this thread first, inside
+        // its counted window, and a cold one has spawned compiler threads
+        // before it, so the count line would differ by that one allocation
+        // (`rule:testing/bench-counters`).
         state.thread = std::thread::Builder::new()
             .name("nvs-watchdog".to_owned())
+            .stack_size(WATCHDOG_STACK)
             .spawn(move || {
                 wake_on_time();
                 watch(&shared);
@@ -1668,6 +1675,9 @@ unsafe extern "C" {
 
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn wake_on_time() {}
+
+/// The watchdog thread's stack: 2 MiB, std's default for a spawned thread.
+const WATCHDOG_STACK: usize = 2 << 20;
 
 /// The shortest wait the watchdog thread makes, so a tree right at its ceiling
 /// does not keep the thread awake.
