@@ -1,3 +1,4 @@
 action 1 4:22
   assign `$this->name` from `$name`
+  Move `name` to another class…
 edit 8:9-8:9 "$this->name = $name;\n        "

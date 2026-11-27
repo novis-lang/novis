@@ -63,14 +63,7 @@ Some methods get the name of a property as a string: `initProperty`, `onProperty
 `onPropertySet` and `beforePropertySet`. When one of them compares that name with a string, such as
 `'total'`, the string is a use of the property. A rename of `$total` also changes the string.
 
-```nvs
-public function onPropertySet(string $name, mixed $value): void
-{
-    if ($name == 'total') {
-        $this->changed = true;
-    }
-}
-```
+<Snippet src="tools/editor/property-name-in-a-string.nvs" />
 
 If the class has no property with the compared name, the string gets a warning. So a typo such as
 `'totl'` has a yellow underline while you type.
@@ -100,14 +93,9 @@ Inline replaces a variable or a method call with its value. Put the cursor on th
 
 Here **Inline variable** on `$total` changes the first code to the second:
 
-```nvs
-var $total = $price * $count;
-return $total;
-```
+<Snippet src="tools/editor/inline-before.nvs" />
 
-```nvs
-return $price * $count;
-```
+<Snippet src="tools/editor/inline-after.nvs" />
 
 The action is not offered when the code would run in another order, or a different number of
 times. `nvs code inline` does the same from a terminal.

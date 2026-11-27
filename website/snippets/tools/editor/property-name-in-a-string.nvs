@@ -1,0 +1,22 @@
+<?nvs
+final class Cart implements PropertyObserver
+{
+    public int $total = 0;
+    public bool $changed = false;
+
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        // A rename of `$total` also changes the string 'total' below.
+        if ($name == 'total') {
+            $this->changed = true;
+        }
+    }
+}
+
+var $cart = new Cart();
+$cart->total = 25;
+echo $cart->changed ? 'changed' : 'unchanged', "\n";

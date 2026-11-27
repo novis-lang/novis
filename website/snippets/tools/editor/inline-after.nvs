@@ -1,0 +1,10 @@
+<?nvs
+final class Order
+{
+    public static function price(int $price, int $count): int
+    {
+        return $price * $count;
+    }
+}
+
+echo Order::price(4, 3), "\n";
