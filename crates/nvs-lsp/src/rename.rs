@@ -21,6 +21,10 @@
 //!   to the new name too, because the name is how an `autoload` finds it.
 //!   Each `require` literal that names the file is written again as [`moved`]
 //!   writes it, and a file already at the new path refuses the rename.
+//!   A qualified new name, `Shop\Billing\Cart`, moves the type to that
+//!   namespace instead ([`namespaced`]): its `namespace` line, its `use`
+//!   lines, its qualified sites, the `use` lines a bare name now needs, and
+//!   its file, to the path the `autoload` map gives the new name.
 //! - **An owned type** — a type alias or an enum a class, an interface or an
 //!   enum declares (`rule:types/class-scoped-alias`,
 //!   `rule:enums/class-scoped-enum`) — at its declaration, at every
@@ -1231,8 +1235,7 @@ fn namespaced(
     let path = declared.site.path.clone();
     if !index.sole_kinds().any(|(file, _)| file == path) {
         return Err(format!(
-            "`{symbol}` is not the only declaration in `{}`. Move it to its own file first.",
-            plain(&path).display()
+            "`{symbol}` is not the only declaration in its file. Move it to its own file first."
         ));
     }
     let to = autoloaded_path(documents, index, &path, symbol, full)?;

@@ -29,6 +29,7 @@
     "ide/a-code-action-writes-only-what-is-already-determined",
     "ide/no-refactoring-introduces-an-alias",
     "ide/a-refactoring-checks-its-edit-before-it-writes",
+    "ide/a-type-moves-with-its-namespace",
     "ide/narrow-an-annotation-to-its-literal",
     "ide/narrowest-means-narrowest-base-type",
     "ide/the-action-answers-from-the-literal-or-not-at-all",

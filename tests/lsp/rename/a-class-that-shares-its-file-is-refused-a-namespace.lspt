@@ -1,0 +1,17 @@
+--TEST--
+a class that is not the only declaration in its file is refused a new namespace, because only a file with one declaration can move with it — `rule:ide/a-type-moves-with-its-namespace`
+--FILE--
+<?nvs
+namespace Shop;
+
+class La<|>bel
+{
+}
+
+class Tag
+{
+}
+--REQUEST--
+rename to=Shop\Tools\Label
+--EXPECT--
+refused: `Shop\Label` is not the only declaration in its file. Move it to its own file first.

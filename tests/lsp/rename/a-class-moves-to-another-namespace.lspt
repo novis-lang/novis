@@ -1,0 +1,27 @@
+--TEST--
+renaming an autoloaded class to a full name moves it to that namespace: its `namespace` line, each `use` line and its file, which moves to the folder the `autoload` reads for the new name — `rule:ide/a-type-moves-with-its-namespace`
+--FILE--
+<?nvs
+autoload 'Shop' from 'src';
+
+use Shop\Cart;
+
+var $cart = new Ca<|>rt();
+echo $cart->total();
+--FILE src/Cart.nvs--
+<?nvs
+namespace Shop;
+
+class Cart
+{
+    public function total(): int
+    {
+        return 0;
+    }
+}
+--REQUEST--
+rename to=Shop\Billing\Cart
+--EXPECT--
+case.nvs:4:10 Billing\
+src/Cart.nvs:2:15 \Billing
+moves src/Cart.nvs to src/Billing/Cart.nvs

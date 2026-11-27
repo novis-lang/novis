@@ -46,7 +46,10 @@ that may not compile.
   path and every moved file's target is judged inside the project root before anything is joined;
   each file is read again and one whose bytes changed since the call first read it fails, named;
   then each file is written with `fs::write`, as `nvs fmt` writes, and a type's file named after it
-  is moved last. Without `--dry-run` it prints one line per changed file with its number of edits
+  is moved last. A qualified new name, `Shop\Billing\Cart`, moves a type to that namespace with its
+  `use` lines and its file (`rule:ide/a-type-moves-with-its-namespace`), and the missing directories
+  of the file's new path are created just before the move, each judged inside the root first.
+  Without `--dry-run` it prints one line per changed file with its number of edits
   and one per moved file; with it, one line per edit with the position, the old text and the new
   text, and nothing is written. `--json` gives `edits`, `moved` and `written`. A debug build reads
   one test variable, `NVS_TEST_CODE_CHANGE_BEFORE_WRITE`, that changes a file between the two reads;

@@ -1,0 +1,14 @@
+{
+  "title": "A type renamed to a full name moves to that namespace, with its use lines and its file",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/a-refactoring-checks-its-edit-before-it-writes",
+    "ide/no-refactoring-introduces-an-alias",
+    "programs/one-declaration-per-autoloaded-file",
+    "tooling/nvs-code-answers-about-the-project"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/code.rs",
+    "tests/lsp/rename/a-class-moves-to-another-namespace.lspt"
+  ]
+}
