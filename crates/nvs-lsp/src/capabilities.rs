@@ -18,7 +18,7 @@
 use lsp_types::{
     CallHierarchyServerCapability, ClientCapabilities, CodeActionKind, CodeActionOptions,
     CodeActionProviderCapability, CodeLensOptions, CompletionOptions, DocumentLinkOptions,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, OneOf, PositionEncodingKind, RenameOptions,
     SelectionRangeProviderCapability, SemanticTokenModifier, SemanticTokenType,
@@ -315,6 +315,16 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             work_done_progress_options: WorkDoneProgressOptions::default(),
             resolve_provider: Some(false),
         })),
+        // The refactorings that need text from the person who runs them
+        // (`crate::commands`). The client asks for the text, then sends the
+        // command, and the server sends the edit with `workspace/applyEdit`.
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: crate::commands::COMMANDS
+                .iter()
+                .map(|&command| command.to_owned())
+                .collect(),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
         semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
             SemanticTokensOptions {
                 work_done_progress_options: WorkDoneProgressOptions::default(),

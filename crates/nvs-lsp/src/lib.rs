@@ -102,6 +102,7 @@ pub mod calls;
 mod capabilities;
 pub mod card;
 mod case;
+pub mod commands;
 pub mod completion;
 pub mod completion_files;
 pub mod coverage;

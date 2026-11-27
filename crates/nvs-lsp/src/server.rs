@@ -90,35 +90,36 @@ use lsp_types::notification::{
     DidCloseTextDocument, DidOpenTextDocument, Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
-    CodeActionRequest, CodeLensRefresh, CodeLensRequest, Completion, DocumentHighlightRequest,
-    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
-    GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRefreshRequest,
-    InlayHintRequest, PrepareRenameRequest, References, RegisterCapability, Rename, Request as _,
-    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
-    TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes, WillRenameFiles,
-    WorkspaceSymbolRequest,
+    ApplyWorkspaceEdit, CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls,
+    CallHierarchyPrepare, CodeActionRequest, CodeLensRefresh, CodeLensRequest, Completion,
+    DocumentHighlightRequest, DocumentLinkRequest, DocumentSymbolRequest, ExecuteCommand,
+    FoldingRangeRequest, GotoDefinition, GotoImplementation, GotoTypeDefinition, HoverRequest,
+    InlayHintRefreshRequest, InlayHintRequest, PrepareRenameRequest, References,
+    RegisterCapability, Rename, Request as _, ResolveCompletionItem, SelectionRangeRequest,
+    SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
+    TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
 };
 use lsp_types::{
-    AnnotatedTextEdit, CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams,
-    CallHierarchyItem, CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams,
-    CallHierarchyPrepareParams, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
-    CodeLens, CodeLensParams, Command, CompletionItem, CompletionParams, CompletionResponse,
-    CompletionTriggerKind, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChangeOperation,
-    DocumentChanges, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintKind,
-    InlayHintParams, Location, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
-    PrepareRenameResponse, PublishDiagnosticsParams, Range, ReferenceParams, Registration,
-    RegistrationParams, RenameFile, RenameFilesParams, RenameParams, ResourceOp, SelectionRange,
-    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
-    SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentEdit, TextDocumentIdentifier,
-    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
-    WorkspaceSymbol, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    AnnotatedTextEdit, ApplyWorkspaceEditParams, CallHierarchyIncomingCall,
+    CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCall,
+    CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams, CodeAction, CodeActionKind,
+    CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams, Command, CompletionItem,
+    CompletionParams, CompletionResponse, CompletionTriggerKind, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentChangeOperation, DocumentChanges, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, FileSystemWatcher,
+    FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse,
+    HoverParams, InitializeParams, InlayHint, InlayHintKind, InlayHintParams, Location, OneOf,
+    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
+    PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams, RenameFile,
+    RenameFilesParams, RenameParams, ResourceOp, SelectionRange, SelectionRangeParams,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
+    SymbolKind, TextDocumentEdit, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
+    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit, WorkspaceSymbol, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap, canonical_key};
 
@@ -285,6 +286,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // Each open document's lens rows, held in place while its text does not
     // parse.
     let mut lens_rows = LensRows::default();
+
+    // How many edits a command has sent, which numbers each `applyEdit`'s id.
+    let mut applied: u64 = 0;
 
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
     // moment it runs if nothing gets there first. `None` is a server at rest,
@@ -469,6 +473,25 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         encoding,
                         request.id,
                     )?;
+                    connection.sender.send(answered.into())?;
+                    continue;
+                }
+                // A command answers and also sends the client an edit, so it
+                // needs the connection that `answer` does not have.
+                if request.method == ExecuteCommand::METHOD {
+                    let (answered, edit) =
+                        execute_command(&documents, &index, &settings, encoding, request);
+                    if let Some(edit) = edit {
+                        applied += 1;
+                        connection.sender.send(
+                            Request::new(
+                                RequestId::from(format!("{APPLY_EDIT}/{applied}")),
+                                ApplyWorkspaceEdit::METHOD.to_owned(),
+                                ApplyWorkspaceEditParams { label: None, edit },
+                            )
+                            .into(),
+                        )?;
+                    }
                     connection.sender.send(answered.into())?;
                     continue;
                 }
@@ -725,6 +748,7 @@ fn needs_every_file(method: &str) -> bool {
         References::METHOD
             | Rename::METHOD
             | WillRenameFiles::METHOD
+            | ExecuteCommand::METHOD
             | GotoImplementation::METHOD
             | WorkspaceSymbolRequest::METHOD
             | TypeHierarchyPrepare::METHOD
@@ -1052,6 +1076,11 @@ fn configure(
     }
     Ok(())
 }
+
+/// The start of the id of each `workspace/applyEdit` a command sends. Its
+/// answer is read and dropped: an edit the client did not apply shows as an
+/// unchanged buffer, and the client says why itself.
+const APPLY_EDIT: &str = "nvs/apply-edit";
 
 /// The id of the lens refresh [`configure`] sends. Every refresh reuses it,
 /// since its answer is read and dropped.
@@ -1910,6 +1939,44 @@ fn will_rename_files(
         .collect();
     let rewrites = dragged(documents, index, &moves);
     (!rewrites.is_empty()).then(|| workspace_edit(located(documents, &rewrites, encoding)))
+}
+
+/// `workspace/executeCommand` — the response, and the edit to send with
+/// `workspace/applyEdit` when the command makes one.
+///
+/// [`crate::commands::execute`] computes the edit with the engine `nvs code`
+/// calls. A refusal is answered as `RequestFailed` with the engine's sentence,
+/// which the client shows. A client that cannot apply an edit the server sends
+/// is refused before any work.
+fn execute_command(
+    documents: &Documents,
+    index: &SymbolIndex,
+    settings: &Settings,
+    encoding: PositionEncoding,
+    request: Request,
+) -> (Response, Option<WorkspaceEdit>) {
+    let Request { id, method, params } = request;
+    let params = match serde_json::from_value::<ExecuteCommandParams>(params) {
+        Ok(params) => params,
+        Err(error) => return (unreadable(id, &method, &error), None),
+    };
+    if !settings.client.apply_edit {
+        return (
+            refused(
+                id,
+                "This editor cannot apply an edit the server sends, so the command cannot run here."
+                    .to_owned(),
+            ),
+            None,
+        );
+    }
+    match crate::commands::execute(documents, index, &params.command, &params.arguments) {
+        Ok(rewrites) => (
+            Response::new_ok(id, serde_json::Value::Null),
+            Some(workspace_edit(located(documents, &rewrites, encoding))),
+        ),
+        Err(message) => (refused(id, message), None),
+    }
 }
 
 /// The edits a drag of each `(old, new)` path makes: [`rename::relocated`]'s
@@ -3402,7 +3469,12 @@ fn code_actions(
     let start = offset_at(file, params.range.start, encoding);
     let end = offset_at(file, params.range.end, encoding);
     let kind = actions::Kind::asked_for(params.context.only.as_deref());
-    actions::at(
+    let commands = if kind == actions::Kind::QuickFix {
+        crate::commands::at(&analysed, index, start)
+    } else {
+        Vec::new()
+    };
+    let mut offered: Vec<CodeActionOrCommand> = actions::at(
         &analysed,
         documents,
         Some(index),
@@ -3437,7 +3509,28 @@ fn code_actions(
             ..CodeAction::default()
         })
     })
-    .collect()
+    .collect();
+    // A command's action carries no edit: the client asks for the text, runs
+    // the command, and the server sends the edit then.
+    offered.extend(commands.into_iter().map(|offer| {
+        CodeActionOrCommand::CodeAction(CodeAction {
+            title: offer.title.clone(),
+            kind: Some(CodeActionKind::from(offer.kind.to_owned())),
+            command: Some(Command {
+                title: offer.title,
+                command: offer.command.to_owned(),
+                arguments: Some(
+                    offer
+                        .arguments
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect(),
+                ),
+            }),
+            ..CodeAction::default()
+        })
+    }));
+    offered
 }
 
 /// `nvs/redactions` — which bytes of one open document the client conceals.

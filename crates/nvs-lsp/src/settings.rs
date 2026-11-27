@@ -157,6 +157,9 @@ pub struct Client {
     /// `workspace.workspaceEdit`: the client reads `documentChanges` and its
     /// `resourceOperations` include `rename`, so an edit may move a file.
     pub rename_files: bool,
+    /// `workspace.applyEdit`: the server may send an edit for the client to
+    /// apply, which is how a command of `crate::commands` writes.
+    pub apply_edit: bool,
     /// `window.workDoneProgress`: the client shows progress the server starts
     /// itself, so the index build at start shows in its status bar
     /// (`crate::progress`).
@@ -232,6 +235,11 @@ impl Client {
                             .as_ref()
                             .is_some_and(|kinds| kinds.contains(&ResourceOperationKind::Rename))
                 }),
+            apply_edit: capabilities
+                .workspace
+                .as_ref()
+                .and_then(|workspace| workspace.apply_edit)
+                .unwrap_or(false),
             work_done_progress: capabilities
                 .window
                 .as_ref()

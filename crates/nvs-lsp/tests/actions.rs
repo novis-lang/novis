@@ -190,6 +190,9 @@ fn the_html_template_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     assert_eq!(
         offered(actions::Kind::QuickFix),
         [
+            // *Inline variable* on the read of `$name`, whose edit replaces
+            // the declaration's line with nothing first.
+            (nvs_lsp::inline::KIND.to_owned(), String::new()),
             (
                 nvs_lsp::html_template::KIND.to_owned(),
                 "html`<b>{$name}</b>`".to_owned()
@@ -428,4 +431,242 @@ fn a_condition_broken_inside_a_nested_chain_joins_whole() {
         written,
         "<?nvs\nint $a = 1;\nint $b = 2;\nif ($a > 0 && $b + 1 > 2) {\n    echo $a;\n}\n"
     );
+}
+
+/// The document the command tests open: a method `add` whose body reads its
+/// parameter, called once.
+const CART: &str = "<?nvs\nclass Cart {\n    public function add(int $count): int {\n        \
+                    return $count;\n    }\n}\nvar $cart = new Cart();\necho $cart->add(2);\n";
+
+/// `RequestFailed`, the code of a refusal the client shows.
+const REQUEST_FAILED: i32 = -32803;
+
+/// Runs `exchange` against a server in this process that has opened `source`
+/// as `cart.nvs`, for a client that applies an edit the server sends. Then
+/// it shuts the server down and checks that it served without a protocol
+/// error.
+fn commanded(source: &str, exchange: impl FnOnce(&lsp_server::Connection, &lsp_types::Uri)) {
+    use lsp_server::{Connection, Message, Notification};
+
+    let dir = nvs_test::temp::TempDir::new(nvs_repo::scratch("lsp-actions-command"));
+    dir.write("cart.nvs", source);
+    let uri = uri_of(&dir.at("cart.nvs")).expect("a scratch path is UTF-8");
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+    let notify = |method: &str, params: serde_json::Value| {
+        client
+            .sender
+            .send(Message::Notification(Notification::new(
+                method.to_owned(),
+                params,
+            )))
+            .expect("the server is still reading");
+    };
+
+    ask(
+        &client,
+        1,
+        "initialize",
+        serde_json::json!({ "capabilities": { "workspace": { "applyEdit": true } } }),
+    );
+    notify("initialized", serde_json::json!({}));
+    notify(
+        "textDocument/didOpen",
+        serde_json::json!({ "textDocument": {
+            "uri": uri.as_str(), "languageId": "novis", "version": 1, "text": source,
+        } }),
+    );
+
+    exchange(&client, &uri);
+
+    ask(&client, 99, "shutdown", serde_json::json!(null));
+    notify("exit", serde_json::json!(null));
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served without a protocol error");
+}
+
+/// Sends one request and returns the requests the server sent before its
+/// response, and the response. A notification is skipped.
+fn ask(
+    client: &lsp_server::Connection,
+    id: i32,
+    method: &str,
+    params: serde_json::Value,
+) -> (Vec<lsp_server::Request>, lsp_server::Response) {
+    use lsp_server::{Message, Request, RequestId};
+
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(id),
+            method.to_owned(),
+            params,
+        )))
+        .expect("the server is still reading");
+    let mut sent = Vec::new();
+    loop {
+        match client
+            .receiver
+            .recv_timeout(std::time::Duration::from_secs(60))
+        {
+            Ok(Message::Response(response)) if response.id == RequestId::from(id) => {
+                return (sent, response);
+            }
+            Ok(Message::Request(request)) => sent.push(request),
+            Ok(_) => {}
+            Err(error) => panic!("no response to `{method}`: {error}"),
+        }
+    }
+}
+
+/// The line and character of the start of `needle` in `source`, which is
+/// ASCII, so a UTF-16 column is a byte column.
+fn position_of(source: &str, needle: &str) -> serde_json::Value {
+    let at = source.find(needle).expect("the anchor is in the document");
+    let line = source[..at].matches('\n').count();
+    let character = at - source[..at].rfind('\n').map_or(0, |newline| newline + 1);
+    serde_json::json!({ "line": line, "character": character })
+}
+
+/// `source` with the text edits `edit` makes to `uri`.
+fn applied(source: &str, edit: &serde_json::Value, uri: &lsp_types::Uri) -> String {
+    let offset = |position: &serde_json::Value| -> usize {
+        let line = usize::try_from(position["line"].as_u64().expect("a line")).expect("small");
+        let character =
+            usize::try_from(position["character"].as_u64().expect("a column")).expect("small");
+        let start: usize = source.split_inclusive('\n').take(line).map(str::len).sum();
+        start + character
+    };
+    let mut edits: Vec<(usize, usize, String)> = edit["changes"][uri.as_str()]
+        .as_array()
+        .expect("the edit changes the document")
+        .iter()
+        .map(|text_edit| {
+            (
+                offset(&text_edit["range"]["start"]),
+                offset(&text_edit["range"]["end"]),
+                text_edit["newText"].as_str().expect("new text").to_owned(),
+            )
+        })
+        .collect();
+    edits.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+    let mut written = source.to_owned();
+    for (start, end, text) in edits {
+        written.replace_range(start..end, &text);
+    }
+    written
+}
+
+/// The arguments of the *Change parameters…* action at the name `add`.
+fn change_parameters_arguments(
+    client: &lsp_server::Connection,
+    uri: &lsp_types::Uri,
+) -> Vec<String> {
+    let at = position_of(CART, "add(int");
+    let (_, response) = ask(
+        client,
+        2,
+        "textDocument/codeAction",
+        serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "range": { "start": at, "end": at },
+            "context": { "diagnostics": [] },
+        }),
+    );
+    let actions = response.response_result.expect("code actions are answered");
+    let action = actions
+        .as_array()
+        .expect("a list of actions")
+        .iter()
+        .find(|action| action["command"]["command"] == "nvs.changeParameters")
+        .unwrap_or_else(|| panic!("no Change parameters action in {actions}"));
+    assert_eq!(action["title"], "Change parameters of `add`…");
+    assert_eq!(action["kind"], nvs_lsp::split_join::KIND);
+    action["command"]["arguments"]
+        .as_array()
+        .expect("arguments")
+        .iter()
+        .map(|argument| argument.as_str().expect("a string").to_owned())
+        .collect()
+}
+
+/// The action on a method's name carries the method and its current list.
+/// Sent back with a new list, the command answers `null` and sends the edit
+/// the engine computed with `workspace/applyEdit`.
+#[test]
+fn change_parameters_command_applies_the_engines_edit() {
+    commanded(CART, |client, uri| {
+        let arguments = change_parameters_arguments(client, uri);
+        assert_eq!(arguments[1], "int $count", "{arguments:?}");
+        let (sent, response) = ask(
+            client,
+            3,
+            "workspace/executeCommand",
+            serde_json::json!({
+                "command": "nvs.changeParameters",
+                "arguments": [arguments[0], "int $count, int $times = 1"],
+            }),
+        );
+        let answered = response
+            .response_result
+            .unwrap_or_else(|error| panic!("the command was refused: {}", error.message));
+        assert_eq!(answered, serde_json::Value::Null);
+        let [request] = sent.as_slice() else {
+            panic!("expected one applyEdit, got {sent:?}");
+        };
+        assert_eq!(request.method, "workspace/applyEdit");
+        let written = applied(CART, &request.params["edit"], uri);
+        assert!(
+            written.contains("public function add(int $count, int $times = 1): int {"),
+            "{written}"
+        );
+        assert!(written.contains("echo $cart->add(2);"), "{written}");
+    });
+}
+
+/// A list the engine refuses is answered with the engine's sentence, and no
+/// edit is sent.
+#[test]
+fn a_refused_change_parameters_command_answers_the_reason() {
+    commanded(CART, |client, uri| {
+        let arguments = change_parameters_arguments(client, uri);
+        let (sent, response) = ask(
+            client,
+            3,
+            "workspace/executeCommand",
+            serde_json::json!({ "command": "nvs.changeParameters", "arguments": [arguments[0], ""] }),
+        );
+        assert!(sent.is_empty(), "{sent:?}");
+        let error = response
+            .response_result
+            .expect_err("the removal is refused");
+        assert_eq!(error.code, REQUEST_FAILED);
+        assert!(
+            error.message.contains("so the parameter cannot be removed"),
+            "{}",
+            error.message
+        );
+    });
+}
+
+/// A command this server does not declare is refused by name, and no edit is
+/// sent.
+#[test]
+fn an_unknown_command_is_refused() {
+    commanded(CART, |client, _| {
+        let (sent, response) = ask(
+            client,
+            3,
+            "workspace/executeCommand",
+            serde_json::json!({ "command": "nvs.unknown", "arguments": [] }),
+        );
+        assert!(sent.is_empty(), "{sent:?}");
+        let error = response
+            .response_result
+            .expect_err("an unknown command is refused");
+        assert_eq!(error.code, REQUEST_FAILED);
+        assert!(error.message.contains("`nvs.unknown`"), "{}", error.message);
+    });
 }

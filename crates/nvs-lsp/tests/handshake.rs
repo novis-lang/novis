@@ -144,6 +144,9 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         "documentLinkProvider",
         "semanticTokensProvider",
         "codeActionProvider",
+        // The refactorings that need text from the person who runs them,
+        // reached through `workspace/executeCommand` (`nvs_lsp::commands`).
+        "executeCommandProvider",
         // The two readers of the one workspace symbol index that answer a
         // cursor, both `rule:ide/five-features-are-one-reference-index`'s.
         "referencesProvider",
@@ -231,7 +234,24 @@ fn initialize_declares_every_code_action_kind_the_server_answers() {
             "source.organizeImports",
             nvs_lsp::extract::KIND,
             "source.orderMembers.nvs",
+            nvs_lsp::inline::KIND,
         ]
+    );
+}
+
+#[test]
+fn execute_command_declares_exactly_the_three_refactoring_commands() {
+    // A command id is frozen once declared
+    // (`rule:ide/contributions-are-frozen-and-only-ever-added`), and the
+    // client registers each one it reads here.
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
+    assert_eq!(
+        declared["executeCommandProvider"]["commands"],
+        serde_json::json!([
+            "nvs.changeParameters",
+            "nvs.moveMember",
+            "nvs.extractInterface"
+        ])
     );
 }
 
@@ -590,6 +610,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             refresh_lenses: false,
             refresh_hints: false,
             rename_files: false,
+            apply_edit: false,
             work_done_progress: false,
         }
     );

@@ -1,0 +1,157 @@
+//! The refactorings that need text from the person who runs them, reached
+//! through `workspace/executeCommand` (`rule:ide/the-request-set-is-closed`).
+//!
+//! A code action carries one of [`COMMANDS`] with what the input box starts
+//! from. The client shows its own input box, prefilled with that text, and
+//! sends the command back with what the person typed. [`execute`] computes the
+//! edit with the same engine `nvs code` calls, so the two clients never
+//! disagree, and the server sends it with `workspace/applyEdit`. A refusal is
+//! the engine's own sentence, and the server answers it as an error the client
+//! shows.
+//!
+//! # Decision: one command id, read by the server and by the client
+//!
+//! The server declares each id in `executeCommandProvider`, and
+//! `vscode-languageclient` registers it as an editor command. The extension
+//! asks for the text in its `executeCommand` middleware, before the request is
+//! sent, so no id is registered twice. A client without that step sends the
+//! text the action carried, which changes nothing, and is answered so.
+//!
+//! # What it spends
+//!
+//! Nothing at runtime, since it only edits source. The offer reads the method
+//! under the cursor in the open document's tree, with no analysis. A command
+//! costs what its engine costs (`crate::signature_change`).
+
+use nvs_diagnostics::BytePos;
+use serde_json::Value;
+
+use crate::document::{Analysed, Documents};
+use crate::index::{DeclKind, SymbolIndex};
+use crate::rename::Rewrite;
+
+/// *Change parameters…*: `[symbol, list]`, the method as `Class::method` and
+/// its whole new parameter list as it is written in source.
+pub const CHANGE_PARAMETERS: &str = "nvs.changeParameters";
+
+/// *Move member…*: `[symbol, class]`. Answered "not yet".
+pub const MOVE_MEMBER: &str = "nvs.moveMember";
+
+/// *Extract interface…*: `[class, name]`. Answered "not yet".
+pub const EXTRACT_INTERFACE: &str = "nvs.extractInterface";
+
+/// Every command the server declares in `executeCommandProvider`.
+pub const COMMANDS: &[&str] = &[CHANGE_PARAMETERS, MOVE_MEMBER, EXTRACT_INTERFACE];
+
+/// The method the constructor is, which [`at`] does not offer: the engine
+/// refuses it (`crate::signature_change`).
+const CONSTRUCTOR: &str = "constructor";
+
+/// One code action that runs a command: its title, its kind, the command and
+/// the text each argument starts as.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Offer {
+    /// What the client shows for it.
+    pub title: String,
+    /// The kind it is filed under.
+    pub kind: &'static str,
+    /// One of [`COMMANDS`].
+    pub command: &'static str,
+    /// The arguments, each a string.
+    pub arguments: Vec<String>,
+}
+
+/// The commands offered at `offset` of the entry document: *Change
+/// parameters…* on the name of a project method that is not a constructor,
+/// carrying the method and its current parameter list.
+#[must_use]
+pub fn at(analysed: &Analysed, index: &SymbolIndex, offset: BytePos) -> Vec<Offer> {
+    let Some((symbol, _)) = crate::index::declared_at(analysed, offset) else {
+        return Vec::new();
+    };
+    let Some((class, name)) = symbol.rsplit_once("::") else {
+        return Vec::new();
+    };
+    if name == CONSTRUCTOR
+        || class.is_empty()
+        || index
+            .declaration(&symbol)
+            .is_none_or(|declared| declared.kind != DeclKind::Method)
+    {
+        return Vec::new();
+    }
+    let Some(stmts) = crate::imports::entry_stmts(analysed) else {
+        return Vec::new();
+    };
+    let Some((_, method)) = stmts_method(stmts, analysed, offset) else {
+        return Vec::new();
+    };
+    let source = analysed.map.file(analysed.entry).text();
+    let list = match (method.params.first(), method.params.last()) {
+        (Some(first), Some(last)) => source
+            .get(first.span.start as usize..last.span.end as usize)
+            .unwrap_or_default()
+            .to_owned(),
+        _ => String::new(),
+    };
+    vec![Offer {
+        title: format!("Change parameters of `{name}`…"),
+        kind: crate::split_join::KIND,
+        command: CHANGE_PARAMETERS,
+        arguments: vec![symbol, list],
+    }]
+}
+
+/// The method whose name covers `offset`, found from its name's start.
+fn stmts_method<'a>(
+    stmts: &'a [nvs_syntax::ast::Stmt],
+    analysed: &Analysed,
+    offset: BytePos,
+) -> Option<(nvs_diagnostics::Span, &'a nvs_syntax::ast::MethodMember)> {
+    let source = analysed.map.file(analysed.entry).text();
+    let bytes = source.as_bytes();
+    let mut start = offset as usize;
+    while start > 0
+        && bytes
+            .get(start - 1)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+    {
+        start -= 1;
+    }
+    crate::inline::method_member(stmts, BytePos::try_from(start).ok()?)
+}
+
+/// The edits `command` makes with `arguments`, or why it makes none.
+///
+/// # Errors
+///
+/// Returns the sentence the client shows: an unknown command, arguments that
+/// are not the command's, a command not built yet, or the engine's refusal.
+pub fn execute(
+    documents: &Documents,
+    index: &SymbolIndex,
+    command: &str,
+    arguments: &[Value],
+) -> Result<Vec<Rewrite>, String> {
+    let texts: Option<Vec<&str>> = arguments.iter().map(Value::as_str).collect();
+    match command {
+        CHANGE_PARAMETERS => {
+            let Some([symbol, list]) = texts.as_deref() else {
+                return Err(format!(
+                    "`{CHANGE_PARAMETERS}` needs two strings: the method and its new parameter \
+                     list."
+                ));
+            };
+            let rewrites = crate::signature_change::signature(documents, index, symbol, list, &[])?;
+            if rewrites.is_empty() {
+                return Err(format!("The parameters of `{symbol}` did not change."));
+            }
+            Ok(rewrites)
+        }
+        MOVE_MEMBER => Err("Moving a member is not available in the editor yet.".to_owned()),
+        EXTRACT_INTERFACE => {
+            Err("Extracting an interface is not available in the editor yet.".to_owned())
+        }
+        _ => Err(format!("`{command}` is not a command of this server.")),
+    }
+}

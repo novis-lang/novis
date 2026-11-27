@@ -1,4 +1,4 @@
-`nvs lsp` answers twenty-two standard requests, the code actions of
+`nvs lsp` answers twenty-three standard requests, the code actions of
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` and organize imports, and eight
 requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
@@ -122,7 +122,7 @@ are rows in the coverage matrix. The other four are answered on the wire and hel
 (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). Giving one of them a rendering makes it a case and
 changes nothing about the answer.
 
-The last three standard requests are the rename of `rule:ide/no-refactoring-introduces-an-alias`, and
+Three more standard requests are the rename of `rule:ide/no-refactoring-introduces-an-alias`, and
 they pass the same test. `prepareRename` and `rename` read the reference index for a type and for a
 member, with a method's whole override family, and the type phase's record of each body's bindings for
 a local. `workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
@@ -142,6 +142,24 @@ per edit, a moved file one `moves <from> to <to>` line after them, and a refusal
 
 - **Memory:** nothing held. Each request reads the index and the text of the files its sites are in,
   and a file move analyses each entry point that read the moved file once.
+
+`workspace/executeCommand` is the twenty-third, admitted on the same test: it runs a refactoring of
+`rule:tooling/nvs-code-answers-about-the-project` that needs text from the person who runs it, through
+the engine `nvs code` calls. It declares three commands, `nvs.changeParameters`, `nvs.moveMember` and
+`nvs.extractInterface`, each frozen as `rule:ide/contributions-are-frozen-and-only-ever-added` freezes
+a command id. A code action carries the command with what an input box starts from: *Change
+parameters…* (`refactor.rewrite`) on a method's name carries `Class::method` and its current list.
+`vscode-languageclient` registers each declared id, and the extension asks for the text in its
+`executeCommand` middleware, in the editor's own input box
+(`rule:ide/the-extension-builds-no-ui-the-editor-already-has`), so no id is registered twice. The server
+computes the edit (`nvs_lsp::commands`), sends it with `workspace/applyEdit` and answers `null`. A
+refusal is `RequestFailed` with the engine's sentence, and so are an unknown command, a list that
+changes nothing and a client without `workspace.applyEdit`. `nvs.moveMember` and
+`nvs.extractInterface` answer that the editor cannot run them. A command is answered on the wire
+and held by `crates/nvs-lsp/tests/actions.rs`, since `nvs_lsp::render` has no spelling for one.
+
+- **Memory:** nothing held. The offer reads the open document's tree, and a command costs its engine's
+  work and the check of `rule:ide/a-refactoring-checks-its-edit-before-it-writes`.
 
 The third and fourth non-standard requests are `nvs/imports` and `nvs/importEdits`
 (`rule:ide/a-pasted-type-carries-its-use-line`), and they pass the same test: the first is the
