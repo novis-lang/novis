@@ -3975,7 +3975,7 @@
     "lang:expressions/anonymous-functions": "04416daf9cbf28bf"
   },
   "docs/examples/lang/expressions/anonymous-objects/about.md": {
-    "lang:expressions/anonymous-objects": "d0c8b80555bb9b3d"
+    "lang:expressions/anonymous-objects": "fee1646d562fa002"
   },
   "docs/examples/lang/expressions/arithmetic/about.md": {
     "lang:expressions/arithmetic": "6acce811750f80b4"
@@ -4185,7 +4185,7 @@
     "lang:types/truthiness": "38b50154aea3ffc4"
   },
   "docs/examples/lang/types/type-aliases/about.md": {
-    "lang:types/type-aliases": "8c33ab775b71c39a"
+    "lang:types/type-aliases": "3aac8739b9b73886"
   },
   "docs/examples/lang/types/values-written-in-the-code/about.md": {
     "lang:types/values-written-in-the-code": "bfac11b8c231eaec"
@@ -10141,7 +10141,7 @@
     "lang:types/every-binding-has-a-type": "386f53fe8856bd33"
   },
   "syntax/classes/anonymous-objects.mdx": {
-    "lang:expressions/anonymous-objects": "7ab9db232dfd4312"
+    "lang:expressions/anonymous-objects": "1b7e259e59cefe30"
   },
   "syntax/classes/covariant.mdx": {
     "lang:classes/covariant": "e88710ff7316be68"
@@ -10478,7 +10478,7 @@
   "syntax/values/union-types.mdx": {
     "lang:types/a-member-every-class-of-a-union-declares": "d6d9b38fc279bb09",
     "lang:types/mixed": "1837ebcf63b0fbe5",
-    "lang:types/type-aliases": "c5a4a163e6bd4d6f"
+    "lang:types/type-aliases": "c66d33add2f16773"
   },
   "tools/api-document/index.mdx": {
     "tools:cli/nvs-api-diff": "29c7d122ab6a7502",

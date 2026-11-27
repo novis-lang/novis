@@ -1304,6 +1304,8 @@
   "docs/examples/lang/enums/what-an-enum-does-not-have/about.md": "f3c24320f040177d",
   "docs/examples/lang/enums/what-an-enum-does-not-have/details.md": "dc1a92528d3f3030",
   "docs/examples/lang/errors/properties-not-accessors/03-one-log-line-for-a-failure.nvs": "c28d7f1278e460ee",
+  "docs/examples/lang/expressions/anonymous-objects/about.md": "7b759db1fda861c1",
+  "docs/examples/lang/expressions/anonymous-objects/details.md": "607b32a15d4dc37c",
   "docs/examples/lang/expressions/arithmetic/01-everyday-arithmetic-on-numbers.nvs": "b4a9b6a3945af878",
   "docs/examples/lang/expressions/arithmetic/02-the-errors-arithmetic-throws.nvs": "c60b76c13b3a408b",
   "docs/examples/lang/expressions/arithmetic/details.md": "0dd6373a56d25ba2",
@@ -2503,5 +2505,5 @@
   "website/src/content/docs/tools/debug-viewer/index.mdx": "4d2a5b06494874fc",
   "website/src/content/docs/tools/editor/index.mdx": "abd56576985f08ce",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "e237ced058d17cda"
+  "website/src/data/changes.json": "01928bf971b8b1b0"
 }

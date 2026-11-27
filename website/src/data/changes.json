@@ -3,9 +3,10 @@
     {
       "kind": "changed",
       "features": [
-        "lang:expressions/anonymous-objects"
+        "lang:expressions/anonymous-objects",
+        "lang:types/type-aliases"
       ],
-      "text": "An anonymous object you write where a shape is needed may have only the fields of that shape. Another field is the error `E0454`, and the message names the closest field. So `{ frezee: true }` for `{ freeze?: bool }` no longer compiles."
+      "text": "When you write an anonymous object directly where a shape is needed, it may have only the fields of that shape. Another field is the error `E0454`, and the message suggests the field you probably meant. So `{ frezee: true }` for `{ freeze?: bool }` no longer compiles."
     },
     {
       "kind": "changed",

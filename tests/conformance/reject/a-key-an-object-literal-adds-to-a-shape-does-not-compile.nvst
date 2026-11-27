@@ -2,6 +2,7 @@
 An object literal written where a shape is expected may write only the keys that shape names, at a parameter, a `return`, a typed variable, a nested field and a union of shapes — `rule:types/shape-type`
 --FILE--
 <?nvs
+// covers: lang:expressions/anonymous-objects
 final class Sheet
 {
     type Options = ?{ freeze?: bool, zoom?: uint, csv?: { separator?: string } };

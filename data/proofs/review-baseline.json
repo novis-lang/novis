@@ -5998,8 +5998,6 @@
   "docs/examples/lang/expressions/anonymous-objects/03-the-result-of-a-check.nvs": "add5452463505ce3",
   "docs/examples/lang/expressions/anonymous-objects/04-an-object-from-an-anonymous-function.nvs": "f2e492b4ca52cd4b",
   "docs/examples/lang/expressions/anonymous-objects/05-an-object-at-the-start-of-a-statement.nvs": "ce1f7bce9d3d24a5",
-  "docs/examples/lang/expressions/anonymous-objects/about.md": "e3a053c9da7423c5",
-  "docs/examples/lang/expressions/anonymous-objects/details.md": "4f942ea743dbdf9b",
   "docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs": "fcf2c9b53877f68b",
   "docs/examples/lang/expressions/arithmetic/04-an-int-and-a-uint-do-not-mix.nvs": "4b29d72535431999",
   "docs/examples/lang/expressions/arithmetic/05-signs-and-counting-up-and-down.nvs": "0e019ab18f809255",

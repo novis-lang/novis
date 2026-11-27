@@ -3573,9 +3573,9 @@ An anonymous object is an object with exactly the fields you write. You do not d
 it.
 
 You write it as `{ x: 1, y: 2 }` and read or change a field with `$point->x`. Its type is the shape
-`{ x: int, y: int }`, and a `type` alias gives that shape a short name. Any object with at least those
-fields fits where the shape is needed. So two parts of a program work together when they name the
-same fields.
+`{ x: int, y: int }`, and a `type` alias gives that shape a short name. A variable with at least those
+fields fits where the shape is needed. An object you write directly in that place may have only
+the fields of the shape.
 A field that may be missing is written `label?: string`, and `??` gives a value for the times it is
 not there.
 
@@ -3604,9 +3604,10 @@ Reading a field the object does not have compiles, and throws a `RuntimeError` w
 there throws the same error, so read it with `$r->b ?? 0`. `isset($r->b)` is `false` when it is not
 there.
 
-An anonymous object you write where a shape is needed may have only the fields of that shape. Another
-field is the error `E0454`, and the message names the closest field. So `{ frezee: true }` for
-`{ freeze?: bool }` does not compile. A variable with more fields still fits the shape.
+When you write an anonymous object directly where a shape is needed, it may have only the fields of
+that shape. Another field is the error `E0454`, and the message suggests the field you probably
+meant. So `{ frezee: true }` for `{ freeze?: bool }` does not compile. A variable with more fields
+still fits the shape.
 
 An object of a class fits a shape when it has public properties with those names and types.
 `$v is Point` checks every field and its type when the program runs.
