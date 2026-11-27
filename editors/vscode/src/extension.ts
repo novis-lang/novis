@@ -66,6 +66,7 @@ import * as debugViewer from "./debugviewer";
 import { profileLink } from "./profilelink";
 import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
+import * as refactor from "./refactor";
 import * as regions from "./regions";
 import { Shadow, Stamp, Watch, stamp, withData } from "./shadow";
 import { coverageDirectory, stubsDirectory, withCoverage, withStubs } from "./stubs";
@@ -525,12 +526,14 @@ async function launch(context: ExtensionContext, command: string, data: string |
   // filled, because it is no user setting: `coverage.dir`, where `tests.ts` keeps each program's last
   // coverage report for the "used by" lens to read.
   //
-  // Two middlewares. The first is an ordering: `redactions.opened` asks what a document conceals,
+  // Three middlewares. The first is an ordering: `redactions.opened` asks what a document conceals,
   // and it is called from behind the `didOpen` it belongs to because the server answers nothing for
   // a document it has not been told about and this client holds that answer — `redactions.ts`
   // § `opened` is why that order is the difference between a concealed `secret` and one in
   // cleartext. The second is the one rewrite of an answer: a link to a directory cannot open in an
   // editor tab, so `links.ts` turns it into a command that reveals the directory in the Explorer.
+  // The third asks for text: a refactoring command of the server shows an input box first, and
+  // `refactor.ts` sends what was typed.
   const options: LanguageClientOptions = {
     documentSelector: SELECTOR,
     outputChannel: channel,
@@ -557,6 +560,7 @@ async function launch(context: ExtensionContext, command: string, data: string |
         }
         return answered;
       },
+      executeCommand: refactor.askFirst,
     },
   };
 
