@@ -632,6 +632,41 @@ impl AutoloadMap {
         probe_entries(&self.entries, name)
     }
 
+    /// Whether [`Self::resolve`] would land `name` on `path`, read off the
+    /// path alone, with no file-system call.
+    ///
+    /// The ordinary entries answer, the borrowed ones included, and the
+    /// `autoload links` half never does, since a links root loads nothing
+    /// (`rule:programs/autoload`). Under the longest matching prefix, each
+    /// root gives the path the name would be probed at, and the answer is
+    /// whether one of them is `path`. `path` is compared as given, so a caller
+    /// passes it made canonical the way the roots are, as the workspace index
+    /// keeps every path. When two roots of the prefix both hold a file of that
+    /// name, the program loads the first, and still both answer yes: a type
+    /// list is keyed by name, so the name is offered once either way.
+    ///
+    /// The editor reads it to offer only the types a file's program can load
+    /// (`rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`).
+    #[must_use]
+    pub fn loads_file(&self, name: &QName, path: &Path) -> bool {
+        let segments = name.segments();
+        let Some(entry) = longest_entry(&self.entries, segments) else {
+            return false;
+        };
+        let suffix = &segments[entry.segments.len()..];
+        entry
+            .roots
+            .iter()
+            .any(|root| candidate_at(root, suffix) == path)
+    }
+
+    /// Whether the map has no ordinary entry, so it loads no file at all.
+    /// An `autoload links` entry does not count, since it loads nothing.
+    #[must_use]
+    pub fn loads_nothing(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     /// [`Self::resolve`] over the `autoload links` half alone: the file a
     /// link's target class is read from, never compiled
     /// (`crate::link_targets`). The longest prefix wins, and the file name must
@@ -974,13 +1009,13 @@ fn collect_declared(
     }
 }
 
-/// The last component of `path`, as text.
 /// `path` made canonical the way [`AutoloadMap::claims`] compares it: the
 /// canonical path, or `path` as it is when it cannot be made canonical.
 pub(crate) fn resolved(path: &Path) -> PathBuf {
     crate::requires::canonicalize(path).unwrap_or_else(|| path.to_path_buf())
 }
 
+/// The last component of `path`, as text.
 fn entry_name(path: &Path) -> String {
     path.file_name()
         .unwrap_or_default()
@@ -1396,12 +1431,9 @@ fn is_namespace_segment(name: &str) -> bool {
     chars.next().is_some_and(|c| c.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric())
 }
 
-/// The file among `entries` that declares `name`, and every path probed on the
-/// way to it: [`AutoloadMap::resolve`]'s probe, over either half of the map.
-fn probe_entries(entries: &[Entry], name: &QName) -> Probe {
-    let mut probe = Probe::default();
-    let segments = name.segments();
-
+/// The entry whose prefix is the longest one `segments` starts with and is
+/// longer than, which is the one entry a name is ever probed under.
+fn longest_entry<'a>(entries: &'a [Entry], segments: &[String]) -> Option<&'a Entry> {
     let mut best: Option<&Entry> = None;
     for entry in entries {
         if entry.segments.len() >= segments.len() {
@@ -1414,17 +1446,33 @@ fn probe_entries(entries: &[Entry], name: &QName) -> Probe {
             best = Some(entry);
         }
     }
-    let Some(entry) = best else {
+    best
+}
+
+/// The file `suffix` names under `root`: each segment but the last as a
+/// directory, and the last plus `.nvs`. `suffix` is never empty, because
+/// [`longest_entry`] only answers with a prefix shorter than the name.
+fn candidate_at(root: &Path, suffix: &[String]) -> PathBuf {
+    let mut candidate = root.to_path_buf();
+    for segment in &suffix[..suffix.len() - 1] {
+        candidate.push(segment);
+    }
+    candidate.push(format!("{}.{SOURCE_EXTENSION}", suffix[suffix.len() - 1]));
+    candidate
+}
+
+/// The file among `entries` that declares `name`, and every path probed on the
+/// way to it: [`AutoloadMap::resolve`]'s probe, over either half of the map.
+fn probe_entries(entries: &[Entry], name: &QName) -> Probe {
+    let mut probe = Probe::default();
+    let segments = name.segments();
+    let Some(entry) = longest_entry(entries, segments) else {
         return probe;
     };
 
     let suffix = &segments[entry.segments.len()..];
     for root in &entry.roots {
-        let mut candidate = root.clone();
-        for segment in &suffix[..suffix.len() - 1] {
-            candidate.push(segment);
-        }
-        candidate.push(format!("{}.{SOURCE_EXTENSION}", suffix[suffix.len() - 1]));
+        let candidate = candidate_at(root, suffix);
         probe.tried.push(candidate.clone());
 
         let Some(canonical) = crate::requires::canonicalize(&candidate) else {

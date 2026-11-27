@@ -2911,6 +2911,59 @@ class Unreached {}
         map.add("autoload.nvs", "")
     }
 
+    /// `AutoloadMap::loads_file` answers off the path alone, the way
+    /// `resolve` would land the name: under the longest prefix, at one of its
+    /// roots, never through a links root, and through a `discover` root too
+    /// (`rule:programs/autoload`).
+    #[test]
+    fn the_map_says_which_indexed_file_it_loads() {
+        let dir = TempDir::new("autoload-loads-file");
+        for file in [
+            "fw/Kernel.nvs",
+            "fw/Http/Request.nvs",
+            "http/Request.nvs",
+            "other/Kernel.nvs",
+            "blog/Post.nvs",
+            "mods/Shop/src/Cart.nvs",
+        ] {
+            dir.write(file, "<?nvs\n");
+        }
+        let at = |relative: &str| dir.path.join(relative).canonicalize().expect("fixture");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix("Framework", &["./fw"])),
+                site(&dir, id, prefix(r"Framework\Http", &["./http"])),
+                links(&dir, id, prefix("Blog", &["./blog"])),
+                site(&dir, id, discover("./mods/*/src")),
+            ],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let loads = |name: &str, relative: &str| built.loads_file(&QName::parse(name), &at(relative));
+
+        // A hit.
+        assert!(loads(r"Framework\Kernel", "fw/Kernel.nvs"));
+        // The same name, in a file under no root of its prefix.
+        assert!(!loads(r"Framework\Kernel", "other/Kernel.nvs"));
+        // The longer prefix wins, so the shorter one's file is not loaded.
+        assert!(loads(r"Framework\Http\Request", "http/Request.nvs"));
+        assert!(!loads(r"Framework\Http\Request", "fw/Http/Request.nvs"));
+        // A links root loads nothing.
+        assert!(!loads(r"Blog\Post", "blog/Post.nvs"));
+        // A `discover` root loads what its folder's name prefixes.
+        assert!(loads(r"Shop\Cart", "mods/Shop/src/Cart.nvs"));
+        assert!(!built.loads_nothing());
+
+        let mut diags = Diagnostics::new();
+        let only_links = AutoloadMap::build(&[links(&dir, id, prefix("Blog", &["./blog"]))], &mut diags);
+        assert!(only_links.loads_nothing());
+        assert!(!only_links.is_empty());
+    }
+
     /// `rule:programs/autoload` end to end: a class nothing `require`s, reached only by
     /// name through a prefix the bootstrap file declared.
     #[test]
