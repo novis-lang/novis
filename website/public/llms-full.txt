@@ -28280,6 +28280,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 - `#[Core\Api\Scheme]`
 - `#[Core\Path]`
 - `#[Core\Deprecated]`
+- `#[Core\TestOnly]`
 
 ### `#[Core\Json\Derive]` and `#[Core\Json\Field]`: a class with a JSON codec
 
