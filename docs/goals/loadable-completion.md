@@ -188,19 +188,14 @@ which `every_type`, `under` and `unloaded_blocks` read. The rule, the editor pag
 `changes.json` entry say so. Every call under § *Standing decisions* is open until the user changes
 one.
 
-**`DONE` waits on the user's `E0454` work, which is still being edited.** Its code landed in
-c8eca50b11 at 09:42 on 2026-11-27. Its `about.md`, the reference chapter, a reject case and its
-`changes.json` entry are still uncommitted at 09:44. At 09:44 the tree builds and is formatted, and
-`loadable` is ten of ten green. `close` is red only on that work's stamps: `llms-full.txt` not
-rendered and 14 `lang:expressions/*` perf proofs stale on `30-expressions.md`. No session stamps
-another person's unfinished work. The nightly run 45813627231's three causes are fixed on `main`
-after it: c115a735a1 (zone tests skip Miri), 28a4d7a6bf (`Core\Uuid` is `Parses` at run time) and
+The user's `E0454` work is committed whole (c8eca50b11, 6d5baa5c7c). fc03981241 renders
+`llms-full.txt` again and measures the 14 `lang:expressions/*` perf figures again, which its chapter
+edit made stale. `bun nv close --goal loadable-completion` is green. The nightly run 45813627231
+ran on 4e43e1fa2e, and its three causes are fixed after it: c115a735a1 (zone tests skip Miri), 28a4d7a6bf (`Core\Uuid` is `Parses` at run time) and
 544711a8fb (the waiting-stack bound covers aarch64's 11.03). No test is expected to go red.
 
 ### Next
 
-Nothing in this goal. Once the `E0454` change is committed with its stamps and its `changes.json`
-entry and formatted, `bun nv close --goal loadable-completion` is green and `DONE` is claimed again. If that work
-is abandoned, discarding it is the user's decision, never a session's.
+Nothing. The goal is reached, and `test-only` is next on the chain.
 
 ### Backlog
