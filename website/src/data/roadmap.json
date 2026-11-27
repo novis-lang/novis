@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Completion that offers only what your program can load",
-      "text": "Your editor suggests only the classes and namespaces that the program of the open file can load, plus `Core`.",
-      "goals": [
-        "loadable-completion"
-      ]
-    },
-    {
       "title": "Test code and types that say what they mean",
       "text": "`#[TestOnly]` marks a class or a method as test code. `nvs run` and `nvs build` leave it out, and code outside the tests cannot use it. A value tested with `is static` can be returned where the method returns `static`.",
       "goals": [
