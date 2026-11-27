@@ -203,9 +203,23 @@ decisions* is the session's, open until the user changes one, and the rewritten 
 - The nightly sweep's nine failures (run 45813627231, at 4e43e1fa2e) were fixed on `main` after
   that run, by c115a735a1, 28a4d7a6bf and 544711a8fb. No test is expected to go red.
 
+**The refused `DONE` was caused by work outside this goal.** Somebody is working in this tree on an
+uncommitted change: an object literal's key that the declared shape does not name is `E0454`
+(`crates/nvs-types/src/expr/literals.rs`, `crates/nvs-types/tests/objects_and_shapes.rs`, three
+cases under `tests/conformance/lang/` and a new
+`tests/conformance/reject/a-key-an-object-literal-adds-to-a-shape-does-not-compile.nvst`). Its
+borrow error broke `loadable`, and its formatting broke `close`. The borrow error was gone by this
+session. This session ran `rustfmt` on `literals.rs` and nothing else, and committed none of it.
+`cargo test --test loadable_completion` is ten of ten green. 254c6cfc29 gives `html-attributes`,
+which joined the chain at 86efa7f96c, a roadmap theme. `close` stays red on two items of that
+uncommitted work: `lang:types/type-aliases` is stale on `syntax/values/union-types.mdx` and its
+`about.md`, and its moved tests have no `changes.json` entry. Both belong to that change. Its
+author stamps the page and writes the entry when it lands.
+
 ### Next
 
-Nothing in this goal. Its `DONE` runs `loadable`, `proofs` and `close` once, and the chain moves on
-to `test-only`. The full gate runs at a later goal on the chain.
+Nothing in this goal. Once the `E0454` change is committed with its stamps and its `changes.json`
+entry, `bun nv close --goal loadable-completion` is green and `DONE` is claimed again. If that work
+is abandoned, discarding it is the user's decision, never a session's.
 
 ### Backlog
