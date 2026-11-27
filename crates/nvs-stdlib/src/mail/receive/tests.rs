@@ -230,6 +230,7 @@ fn parse_stops_at_the_nesting_bound() {
 
 /// A message with more parts than the bound keeps the parts before it and no more.
 #[test]
+#[cfg_attr(miri, ignore = "parsing past the part bound outlasts Miri's test timeout")]
 fn parse_stops_at_the_part_count_bound() {
     let mut lines = vec![
         "Subject: many".to_owned(),
